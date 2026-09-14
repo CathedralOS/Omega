@@ -1,4 +1,4 @@
-use super::{Lexer, lower_syntax_trees, parse_syntax_trees};
+use super::{Lexer, ResolutionRequest, parse_syntax_trees, resolve};
 
 #[test]
 fn static_signature_contracts_bind_their_own_value_parameters() {
@@ -13,7 +13,7 @@ fn static_signature_contracts_bind_their_own_value_parameters() {
         {}
     "#;
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
-    let program = lower_syntax_trees(&syntax).unwrap();
+    let program = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let mut parameter_symbols = Vec::new();
     for parameter in program.data_type_parameters(program.machines[0].type_parameters) {
         let TypeParameterKind::Machine { contract } = &parameter.kind else {
@@ -58,7 +58,7 @@ fn contract_membership_values_use_exact_callable_parameters() {
     "#;
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize"))
         .expect("parse membership contracts");
-    let program = lower_syntax_trees(&syntax).expect("resolve membership contracts");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve membership contracts");
     let machine = &program.machines[0];
     let states = program.machine_state_handles(machine.states);
     let entry = program.machine_state(states[0]);
@@ -118,7 +118,8 @@ fn state_contract_value_arguments_share_the_explicit_frontier() {
     "#;
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize"))
         .expect("parse projected contract values");
-    let program = lower_syntax_trees(&syntax).expect("resolve projected contract values");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve projected contract values");
     let machine = &program.machines[0];
     let state = program.machine_state(program.machine_state_handles(machine.states)[1]);
     let parameters = program.state_parameters(state.parameters);
@@ -188,7 +189,7 @@ fn computed_receiver_does_not_select_a_same_spelling_free_machine() {
         );
         let syntax =
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let program = lower_syntax_trees(&syntax).expect("resolve");
+        let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let machine = program
             .machines
             .iter()
@@ -234,7 +235,7 @@ fn state_local_receiver_wins_over_same_named_enclosing_state() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize local call");
     let syntax = parse_syntax_trees(&tokens).expect("parse local call");
-    let program = lower_syntax_trees(&syntax).expect("resolve local call");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve local call");
     let machine = program
         .machines
         .iter()
@@ -369,7 +370,7 @@ fn local_call_targets_follow_prior_declarations_not_receiver_spelling() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let program = lower_syntax_trees(&syntax).expect("resolve");
+        let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let expected = program
             .machines
             .iter()
@@ -451,7 +452,8 @@ fn named_states_require_explicit_entry_value_transfers() {
                 .tokenize()
                 .expect("tokenize state value frontier");
             let syntax = parse_syntax_trees(&tokens).expect("parse state value frontier");
-            let program = lower_syntax_trees(&syntax).expect("resolve state value frontier");
+            let program =
+                resolve(ResolutionRequest::new(&syntax)).expect("resolve state value frontier");
             let machine = program
                 .machines
                 .iter()

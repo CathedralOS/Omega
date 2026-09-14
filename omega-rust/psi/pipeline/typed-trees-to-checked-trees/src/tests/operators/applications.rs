@@ -388,7 +388,7 @@ fn named_generic_boundary_rejects_conflicting_landed_literal_application() {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics =
         lower_typed_trees(typed).expect_err("conflicting landed literal types must reject");
@@ -474,7 +474,7 @@ fn named_generic_boundary_static_type_must_equal_operand_application() {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("mismatched static type must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -497,7 +497,7 @@ fn monomorphic_named_boundary_rejects_static_arguments() {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("static argument must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -831,7 +831,7 @@ fn selected_generic_operator_provider_closes_application_in_specialized_helper()
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let requirement_operator = typed
         .operators()
@@ -997,7 +997,7 @@ fn checked_program_with_selected_generic_providers(
 ) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let selected = providers
         .iter()

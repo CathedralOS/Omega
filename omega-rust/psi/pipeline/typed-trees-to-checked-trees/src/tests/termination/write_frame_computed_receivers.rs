@@ -15,7 +15,7 @@ fn computed_receiver_cannot_select_a_numeric_builtin_by_spelling() {
         );
         let syntax =
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let machine = typed
             .machines()
@@ -63,7 +63,7 @@ fn computed_reference_method_receiver_reaches_checked_trees() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("computed reference receiver keeps its selected input loan");
 }
@@ -166,7 +166,7 @@ fn computed_method_receivers_transport_proven_origins_and_all_operand_writes() {
     }
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();

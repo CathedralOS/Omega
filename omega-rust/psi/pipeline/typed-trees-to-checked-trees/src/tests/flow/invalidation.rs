@@ -25,7 +25,7 @@ fn direct_alias_stores_invalidate_domain_facts_but_rebinding_does_not() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let proof_plan = proof::obligations::build_proof_plan(&typed);
         let operations = validation::infer_operational_may(&typed);
@@ -154,7 +154,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -329,7 +329,7 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -476,7 +476,7 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -616,7 +616,7 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
@@ -782,7 +782,7 @@ fn stores_and_calls_invalidate_domain_facts_copied_to_aliases() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let proof_plan = proof::obligations::build_proof_plan(&typed);
         let operations = validation::infer_operational_may(&typed);

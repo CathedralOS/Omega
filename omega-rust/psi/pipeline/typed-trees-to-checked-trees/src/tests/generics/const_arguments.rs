@@ -7,7 +7,9 @@ fn check(source: &str) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
         .expect("const argument tokens");
     let syntax = parse_syntax_trees(&tokens).expect("const argument syntax");
     let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)?;
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)?;
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )?;
     let typed = lower_symbol_resolved_trees(&resolved).map_err(|error| vec![error])?;
     lower_typed_trees(typed)
 }

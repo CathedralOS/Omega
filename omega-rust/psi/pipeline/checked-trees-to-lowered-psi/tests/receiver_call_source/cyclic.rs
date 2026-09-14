@@ -208,7 +208,7 @@ fn natural_ranked_callee_rejects_missing_descent() {
         .replace("walk(remaining - 1)", "walk(remaining)");
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     assert!(typed_trees_to_checked_trees::lower_typed_trees(typed).is_err());
 }

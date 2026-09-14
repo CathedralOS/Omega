@@ -4,7 +4,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionNode;
 use symbol_resolved_trees::statement::StatementNode;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::ResolutionRequest;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn resolve(source: &str) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
@@ -12,7 +12,7 @@ fn resolve(source: &str) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnos
         .tokenize()
         .expect("tokenize constant carrier");
     let syntax = parse_syntax_trees(&tokens).expect("parse constant carrier");
-    lower_syntax_trees(&syntax)
+    syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest::new(&syntax))
 }
 
 #[test]

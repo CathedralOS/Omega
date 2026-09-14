@@ -3,7 +3,7 @@ use super::*;
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax)?;
+    let resolved = resolve(ResolutionRequest::new(&syntax))?;
     let typed = lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])?;
     lower_typed_trees(typed)
 }
@@ -193,9 +193,12 @@ fn natural_coercion_requires_the_toolchain_owner_when_sources_are_known() {
         let tokens = Lexer::new(source).tokenize().unwrap();
         let syntax =
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-            &syntax,
-            Arc::new(sources),
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
         )
         .unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();

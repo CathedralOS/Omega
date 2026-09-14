@@ -254,7 +254,8 @@ mod tests {
             "module second; const VALUE: u64 = 2;",
         ]);
         crate::normalize_generic_data(syntax.clone()).expect("body substitution follows symbols");
-        crate::lower_syntax_trees(&syntax).expect("exact module constant identities");
+        crate::resolve(crate::ResolutionRequest::new(&syntax))
+            .expect("exact module constant identities");
     }
 
     #[test]
@@ -578,7 +579,7 @@ mod tests {
             "module units; domain u64::Distance requires self > 0; operator u64::Distance::add(left: u64 in u64::Distance, right: u64) -> u64;",
         ] {
             let syntax = parse(&[source]);
-            crate::lower_syntax_trees(&syntax)
+            crate::resolve(crate::ResolutionRequest::new(&syntax))
                 .expect("module-owned domains and operators lower under exact namespaces");
         }
     }
@@ -607,7 +608,7 @@ mod tests {
             ),
         ] {
             let syntax = parse(sources);
-            let diagnostics = crate::lower_syntax_trees(&syntax)
+            let diagnostics = crate::resolve(crate::ResolutionRequest::new(&syntax))
                 .expect_err("fenced module declarations still reject");
             assert!(
                 diagnostics[0].message.contains(message),

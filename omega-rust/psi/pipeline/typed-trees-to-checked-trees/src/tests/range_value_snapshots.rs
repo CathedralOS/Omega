@@ -18,7 +18,7 @@ fn captured_parameter_bound_validates_both_halves_after_source_mutation() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     if let Err(diagnostics) = lower_typed_trees(typed) {
         panic!("captured range facts must survive: {diagnostics:#?}");
@@ -36,7 +36,7 @@ fn check(source: &str, rejection: Option<&str>) {
 fn checked_fixture(source: &str, rejection: Option<&str>) -> Option<checked_trees::CheckedTrees> {
     let tokens = fixture_result(source, "tokenize", Lexer::new(source).tokenize());
     let syntax = fixture_result(source, "parse", parse_syntax_trees(&tokens));
-    let resolved = fixture_result(source, "resolve", lower_syntax_trees(&syntax));
+    let resolved = fixture_result(source, "resolve", resolve(ResolutionRequest::new(&syntax)));
     let typed = fixture_result(source, "type", lower_symbol_resolved_trees(&resolved));
     match lower_typed_trees(typed) {
         Ok(checked) => {

@@ -7,7 +7,7 @@ fn rejects_source(source: &str, expected: &str) {
         .tokenize()
         .expect("tokenize receiver rejection");
     let syntax = parse_syntax_trees(&tokens).expect("parse receiver rejection");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve receiver rejection");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver rejection");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type receiver rejection");
     let Err(diagnostics) = typed_trees_to_checked_trees::lower_typed_trees(typed) else {
         panic!("source access or aliasing must reject before Terminal planning: {source}")

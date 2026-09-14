@@ -62,12 +62,13 @@ pub(super) fn evaluate(
 
     // Original owners must resolve first. A moved annotation cannot turn a
     // runtime parameter into a same-spelled constant visible at the probe root.
-    let original =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_for_const_argument_selection(
-            &syntax,
-            sources.clone(),
-            bindings.to_vec(),
-        )?;
+    let original = syntax_trees_to_symbol_resolved_trees::resolve_const_argument_selection(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: sources.clone(),
+            top_level_bindings: bindings.to_vec(),
+        },
+    )?;
     let mut probe = syntax.clone();
     let mut probes = Vec::new();
     for reference in ranges {

@@ -35,7 +35,7 @@ fn checked_wrappers_publish_authored_and_transitive_service_union() {
         .tokenize()
         .expect("tokenize reach composition");
     let syntax = parse_syntax_trees(&tokens).expect("parse reach composition");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve reach composition");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve reach composition");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type reach composition");
     let checked = lower_typed_trees(typed).expect("checked wrappers inherit callee reach");
     for name in [
@@ -93,7 +93,7 @@ fn private_direct_boundary_calls_require_authored_service_reach() {
         .tokenize()
         .expect("tokenize direct reach");
     let syntax = parse_syntax_trees(&tokens).expect("parse direct reach");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve direct reach");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve direct reach");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type direct reach");
     let diagnostics =
         lower_typed_trees(typed).expect_err("a private boundary call needs a declaration");
@@ -134,7 +134,8 @@ fn symbol_resolved_service_reach_propagates_boundary_identity_and_parent_closure
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let worker = typed
         .machines()
@@ -199,7 +200,8 @@ fn symbol_resolved_service_ceiling_rejects_undeclared_boundary_reach() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("service ceiling must reject widening");
     assert!(
@@ -227,7 +229,7 @@ fn intrinsic_boundary_projection_preserves_the_callers_service_ceiling() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed)
         .expect_err("the intrinsic requirement must not bypass the caller's ceiling");
@@ -263,7 +265,8 @@ fn operational_plans_are_independent_from_service_reach_rows() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let symbol_of = |name: &str| {
         typed
@@ -382,7 +385,8 @@ fn checked_machine_operational_facts_keep_suspension_and_blocking_independent() 
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let symbol_of = |name: &str| {
         typed
@@ -467,7 +471,8 @@ fn qualification_facts_record_policy_commitments() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let symbol_of = |name: &str| {
         typed
@@ -683,7 +688,8 @@ fn contract_plans_fingerprint_published_halves() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let symbol_of = |name: &str| {
         typed

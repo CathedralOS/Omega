@@ -356,7 +356,7 @@ fn unproved_computed_narrowing_does_not_gain_a_runtime_conversion() {
     "#;
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let diagnostics = lower_typed_trees(typed).unwrap_err();
     assert!(

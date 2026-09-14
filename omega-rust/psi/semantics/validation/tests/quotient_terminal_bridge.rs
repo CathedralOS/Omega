@@ -5,7 +5,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees::TypedTrees;
 use validation::{extract_non_executable_quotient_correspondences, validate_program};
@@ -101,8 +101,12 @@ fn lower_with_package(source: &str, package: Option<PackageKeyIdentity>) -> Type
         parse_syntax_trees_with_id(core_source_id, &core_tokens).expect("parse core relation");
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse fixture");
-    let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("package-aware resolution");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("package-aware resolution");
     let mut program = lower_symbol_resolved_trees(&resolved).expect("type lowering");
     let checked_total = program
         .machines()

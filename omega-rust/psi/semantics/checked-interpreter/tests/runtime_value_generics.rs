@@ -9,8 +9,10 @@ fn execute_entry(source: &str, entry: &str) -> checked_interpreter::InterpretOut
         .tokenize()
         .expect("probe tokens");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("probe syntax");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("probe symbols");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("probe symbols");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("probe types");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)

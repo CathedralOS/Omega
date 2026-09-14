@@ -4,7 +4,7 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{ContentAlgebraKind, ContentPlaceVersion};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
@@ -785,7 +785,7 @@ fn source_unit_retains_ordered_empty_affine_local_cleanup() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::cleanup")
@@ -933,7 +933,7 @@ fn source_unit_construction_prefix_reaches_verified_interpreted_terminal_psi() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::cleanup_prefix")
@@ -1154,7 +1154,7 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let checked = lower_typed_trees(typed).expect("check");
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::cleanup_prefix")
@@ -1443,7 +1443,7 @@ impl TerminalEffectHandler for ResultBoundaryHandler {
 fn checked_source() -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
 }
@@ -1453,7 +1453,8 @@ fn checked_result_boundary_source() -> checked_trees::CheckedTrees {
         .tokenize()
         .expect("tokenize result boundary custody");
     let syntax = parse_syntax_trees(&tokens).expect("parse result boundary custody");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve result boundary custody");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve result boundary custody");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type result boundary custody");
     lower_typed_trees(typed).expect("check result boundary custody")
 }
@@ -1595,7 +1596,7 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
         .tokenize()
         .expect("tokenize content custody exit");
     let syntax = parse_syntax_trees(&tokens).expect("parse content custody exit");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve content custody exit");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve content custody exit");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type content custody exit");
     let checked = lower_typed_trees(typed).expect("check content custody exit");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -1695,7 +1696,8 @@ fn source_content_custody_unit_exit_retains_projection_and_consumes_claim() {
         .tokenize()
         .expect("tokenize Unit content custody exit");
     let syntax = parse_syntax_trees(&tokens).expect("parse Unit content custody exit");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve Unit content custody exit");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve Unit content custody exit");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type Unit content custody exit");
     let checked = lower_typed_trees(typed).expect("check Unit content custody exit");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::exit")
@@ -1754,7 +1756,8 @@ fn result_bearing_boundary_retains_exact_bounded_installation_reach() {
         .tokenize()
         .expect("tokenize bounded result boundary");
     let syntax = parse_syntax_trees(&tokens).expect("parse bounded result boundary");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve bounded result boundary");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve bounded result boundary");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type bounded result boundary");
     let checked = lower_typed_trees(typed).expect("check bounded result boundary");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -1863,7 +1866,7 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
         .tokenize()
         .expect("tokenize indexed custody");
     let syntax = parse_syntax_trees(&tokens).expect("parse indexed custody");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve indexed custody");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve indexed custody");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type indexed custody");
     let checked = lower_typed_trees(typed).expect("check indexed custody");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -1986,7 +1989,8 @@ fn literal_fixed_array_custody_crosses_ordinary_unit_calls_without_losing_siblin
         .tokenize()
         .expect("tokenize ordinary indexed custody");
     let syntax = parse_syntax_trees(&tokens).expect("parse ordinary indexed custody");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve ordinary indexed custody");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve ordinary indexed custody");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type ordinary indexed custody");
     let checked = lower_typed_trees(typed).expect("check ordinary indexed custody");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")

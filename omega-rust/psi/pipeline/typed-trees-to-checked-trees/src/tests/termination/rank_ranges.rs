@@ -1,5 +1,6 @@
 use super::{
-    Lexer, lower_symbol_resolved_trees, lower_syntax_trees, lower_typed_trees, parse_syntax_trees,
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
+    resolve,
 };
 
 mod call_components;
@@ -25,7 +26,7 @@ mod struct_fields;
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokens");
     let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = lower_syntax_trees(&syntax).expect("resolved");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
     lower_symbol_resolved_trees(&resolved).expect("typed")
 }
 

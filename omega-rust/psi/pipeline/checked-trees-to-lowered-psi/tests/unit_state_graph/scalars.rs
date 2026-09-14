@@ -180,7 +180,7 @@ fn selected_head_read_uses_the_actual_view_length_and_skips_empty_bytes() {
     let unguarded = source.replace("bytes.len > 0", "bytes.len >= 0");
     let tokens = Lexer::new(&unguarded).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let error = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect_err("a selected edge alone does not prove the head is in bounds");

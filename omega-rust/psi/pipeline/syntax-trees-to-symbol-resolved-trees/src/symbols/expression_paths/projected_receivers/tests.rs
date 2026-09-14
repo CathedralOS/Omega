@@ -1,5 +1,5 @@
 use super::*;
-use crate::lower_syntax_trees;
+use crate::{ResolutionRequest, resolve};
 use source_files_to_tokens::Lexer;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
@@ -23,7 +23,7 @@ fn payload_program() -> symbol_resolved_trees::SymbolResolvedTrees {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    lower_syntax_trees(&syntax).expect("resolve")
+    resolve(ResolutionRequest::new(&syntax)).expect("resolve")
 }
 
 fn payload_calls(program: &symbol_resolved_trees::SymbolResolvedTrees) -> Vec<TableCallExpression> {
@@ -250,8 +250,12 @@ fn payload_candidates_keep_same_spelled_nominal_owners_in_their_source() {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let mut syntax = parse_syntax_trees_with_id(extension_id, &tokens).expect("extension syntax");
     syntax.extend_from(&parse_syntax_trees_with_id(base_id, &tokens).expect("base syntax"));
-    let program = crate::lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolve sources");
+    let program = crate::resolve(crate::ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve sources");
     let call_from = |source_id| {
         program
             .tables
@@ -374,7 +378,7 @@ fn indexed_candidates_follow_declared_elements_not_index_values() {
         );
         let syntax =
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let program = lower_syntax_trees(&syntax).expect("resolve");
+        let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let machine = program
             .machines
             .iter()
@@ -436,7 +440,7 @@ fn indexed_candidate_rejects_foreign_and_stale_parameter_roots() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let machine = program
         .machines
         .iter()

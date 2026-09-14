@@ -3,7 +3,7 @@
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
@@ -37,7 +37,7 @@ const SOURCE: &str = r#"
 fn artifact(source: &str) -> (terminal_psi::TerminalModule, Vec<u8>, Vec<u8>) {
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = lower_typed_trees(typed).unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter").unwrap();

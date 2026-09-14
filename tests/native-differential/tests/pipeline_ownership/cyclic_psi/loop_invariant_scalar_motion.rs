@@ -36,7 +36,7 @@ fn natural_loop_unit() -> (
         .tokenize()
         .expect("tokenize natural loop");
     let syntax = parse_syntax_trees(&tokens).expect("parse natural loop");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve natural loop");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve natural loop");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type natural loop");
     let checked = lower_typed_trees(typed).expect("check natural loop");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::scan")

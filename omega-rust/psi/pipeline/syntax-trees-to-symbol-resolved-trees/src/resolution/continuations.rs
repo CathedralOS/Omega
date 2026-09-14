@@ -181,7 +181,9 @@ impl SeededSymbolResolvedTrees {
         }
     }
 
-    pub(crate) fn into_unrebased_trees(self) -> SymbolResolvedTrees {
+    /// The extension's trees without the rebase custody a typed continuation
+    /// needs; readable, not a typing input.
+    pub fn into_unrebased_trees(self) -> SymbolResolvedTrees {
         self.trees
     }
 }

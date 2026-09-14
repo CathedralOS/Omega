@@ -43,7 +43,7 @@ fn parse_typed_trees(source: &str) -> typed_trees::TypedTrees {
         format!("boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}");
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 

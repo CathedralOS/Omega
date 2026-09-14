@@ -108,7 +108,7 @@ fn explicit_const_argument_must_corroborate_the_operand_value() {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("mismatched const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -135,7 +135,7 @@ fn repeated_const_binder_rejects_inconsistent_operand_lengths() {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("inconsistent N must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -222,7 +222,7 @@ fn inferred_const_value_must_fit_the_declared_carrier() {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("out-of-range const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -248,7 +248,7 @@ fn spelled_const_application_reports_an_invalid_declared_carrier_value() {
     .tokenize()
     .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("out-of-range const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {

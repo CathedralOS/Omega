@@ -191,7 +191,7 @@ fn scalar_return_materializes_value_before_nominal_cleanup_across_source_and_cod
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
@@ -248,7 +248,7 @@ fn ordered_scalar_return_retains_distinct_cleanup_targets_and_helpers() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
@@ -319,7 +319,7 @@ fn ordered_scalar_return_reuses_one_shared_cleanup_target_and_helper() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
@@ -371,7 +371,7 @@ fn mixed_scalar_return_invokes_nominal_then_discards_trivial_root() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
@@ -417,7 +417,7 @@ fn mixed_scalar_return_discards_trivial_then_invokes_nominal_root() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
@@ -463,7 +463,8 @@ fn contextual_scalar_return_preserves_proof_context_after_result_materialization
         .tokenize()
         .expect("tokenize contextual scalar cleanup");
     let syntax = parse_syntax_trees(&tokens).expect("parse contextual scalar cleanup");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve contextual scalar cleanup");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual scalar cleanup");
     let typed =
         lower_symbol_resolved_trees(&resolved).expect("type contextual scalar cleanup source");
     let checked = lower_typed_trees(typed).expect("check contextual scalar cleanup source");
@@ -562,7 +563,8 @@ fn mixed_contextual_scalar_return_rebases_compact_nominal_proofs_to_full_roots()
         .tokenize()
         .expect("tokenize mixed contextual scalar cleanup");
     let syntax = parse_syntax_trees(&tokens).expect("parse mixed contextual scalar cleanup");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed contextual scalar cleanup");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed contextual scalar cleanup");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type mixed contextual scalar cleanup source");
     let checked = lower_typed_trees(typed).expect("check mixed contextual scalar cleanup source");
@@ -685,7 +687,8 @@ fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_clean
         .tokenize()
         .expect("tokenize mixed contextual scalar bindings");
     let syntax = parse_syntax_trees(&tokens).expect("parse mixed contextual scalar bindings");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed contextual scalar bindings");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed contextual scalar bindings");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type mixed contextual scalar bindings source");
     let checked = lower_typed_trees(typed).expect("check mixed contextual scalar bindings source");
@@ -791,7 +794,8 @@ fn mixed_contextual_scalar_return_preserves_interleaved_primitive_inputs() {
         .tokenize()
         .expect("tokenize mixed contextual scalar inputs");
     let syntax = parse_syntax_trees(&tokens).expect("parse mixed contextual scalar inputs");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed contextual scalar inputs");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed contextual scalar inputs");
     let typed =
         lower_symbol_resolved_trees(&resolved).expect("type mixed contextual scalar inputs source");
     let checked = lower_typed_trees(typed).expect("check mixed contextual scalar inputs source");
@@ -932,8 +936,8 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
         .expect("tokenize mixed nominal short-circuit scalar return");
     let syntax =
         parse_syntax_trees(&tokens).expect("parse mixed nominal short-circuit scalar return");
-    let resolved =
-        lower_syntax_trees(&syntax).expect("resolve mixed nominal short-circuit scalar return");
+    let resolved = resolve(ResolutionRequest::new(&syntax))
+        .expect("resolve mixed nominal short-circuit scalar return");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type mixed nominal short-circuit scalar return");
     let checked =
@@ -1102,8 +1106,8 @@ fn mixed_nominal_scalar_return_cleans_every_nested_short_circuit_leaf() {
         .expect("tokenize nested nominal short-circuit scalar return");
     let syntax =
         parse_syntax_trees(&tokens).expect("parse nested nominal short-circuit scalar return");
-    let resolved =
-        lower_syntax_trees(&syntax).expect("resolve nested nominal short-circuit scalar return");
+    let resolved = resolve(ResolutionRequest::new(&syntax))
+        .expect("resolve nested nominal short-circuit scalar return");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type nested nominal short-circuit scalar return");
     let checked =
@@ -1198,7 +1202,8 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
         .tokenize()
         .expect("tokenize shared nominal Boolean convergence");
     let syntax = parse_syntax_trees(&tokens).expect("parse shared nominal Boolean convergence");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve shared nominal Boolean convergence");
+    let resolved = resolve(ResolutionRequest::new(&syntax))
+        .expect("resolve shared nominal Boolean convergence");
     let typed =
         lower_symbol_resolved_trees(&resolved).expect("type shared nominal Boolean convergence");
     let checked = lower_typed_trees(typed).expect("check shared nominal Boolean convergence");

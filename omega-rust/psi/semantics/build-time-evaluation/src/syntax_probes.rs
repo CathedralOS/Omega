@@ -27,11 +27,15 @@ pub(crate) fn resolve(
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
 ) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     match sources {
-        Some(sources) => syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources_and_top_level_bindings(
-            syntax_trees,
-            sources,
-            source_scoped_top_level_bindings.to_vec(),
+        Some(sources) => syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: syntax_trees,
+                sources: Some(sources),
+                top_level_bindings: source_scoped_top_level_bindings.to_vec(),
+            },
         ),
-        None => syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(syntax_trees),
+        None => syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax_trees),
+        ),
     }
 }

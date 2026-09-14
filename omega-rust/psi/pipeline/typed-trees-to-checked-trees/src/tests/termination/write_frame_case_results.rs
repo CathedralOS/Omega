@@ -50,7 +50,7 @@ fn case_result_program_with_helpers(body: &str, helpers: &str) -> typed_trees::T
     );
     let syntax =
         parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 

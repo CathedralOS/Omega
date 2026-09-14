@@ -5,7 +5,7 @@ use source_files_to_tokens::Lexer;
 use std::{path::PathBuf, sync::Arc};
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees::SyntaxTrees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
@@ -40,8 +40,12 @@ fn module_constants_publish_exact_values_without_producer_state() {
         parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
             .expect("parse module constant");
     }
-    let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolve module constants");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve module constants");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type substituted module values");
     let checked = lower_typed_trees(typed).expect("check substituted module values");
     let mut artifacts = Vec::new();

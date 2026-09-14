@@ -1,4 +1,4 @@
-use super::{Lexer, lower_syntax_trees, parse_syntax_trees};
+use super::{Lexer, ResolutionRequest, parse_syntax_trees};
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::domain::ProofFact;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -12,7 +12,7 @@ fn resolve(source: &str) -> SymbolResolvedTrees {
         .tokenize()
         .expect("tokenize const value names");
     let syntax = parse_syntax_trees(&tokens).expect("parse const value names");
-    lower_syntax_trees(&syntax).expect("resolve const value names")
+    crate::resolve(ResolutionRequest::new(&syntax)).expect("resolve const value names")
 }
 
 fn local<'program>(

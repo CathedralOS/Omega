@@ -63,8 +63,10 @@ fn family_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
         .expect("tokenize generic-requirement fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse generic-requirement fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve generic-requirement fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve generic-requirement fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type generic-requirement fixture");
     let plans = provider_planning::derive_satisfies_plans(&typed, None);

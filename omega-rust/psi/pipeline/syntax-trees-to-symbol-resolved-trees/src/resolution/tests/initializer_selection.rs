@@ -2,8 +2,8 @@
 //! relaxes no literal or declaration validity.
 
 use crate::resolution::{
-    lower_syntax_trees, lower_syntax_trees_for_const_argument_selection,
-    lower_syntax_trees_for_const_initializer_selection,
+    ResolutionRequest, prepare_const_initializer_selection, resolve,
+    resolve_const_argument_selection,
 };
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
@@ -37,13 +37,21 @@ fn initializer_preparation_retains_forward_module_dependencies_without_values() 
             sources.reverse();
         }
         let syntax = parse(&sources);
-        assert!(lower_syntax_trees(&syntax).is_err());
+        assert!(resolve(ResolutionRequest::new(&syntax)).is_err());
         assert!(
-            lower_syntax_trees_for_const_argument_selection(&syntax, None, Vec::new()).is_err()
+            resolve_const_argument_selection(ResolutionRequest {
+                syntax: &syntax,
+                sources: None,
+                top_level_bindings: Vec::new()
+            })
+            .is_err()
         );
-        let preparation =
-            lower_syntax_trees_for_const_initializer_selection(&syntax, None, Vec::new())
-                .expect("prepare selected initializer dependencies");
+        let preparation = prepare_const_initializer_selection(ResolutionRequest {
+            syntax: &syntax,
+            sources: None,
+            top_level_bindings: Vec::new(),
+        })
+        .expect("prepare selected initializer dependencies");
         let trees = preparation.trees();
         let base = trees
             .const_declarations
@@ -108,7 +116,12 @@ fn initializer_preparation_does_not_relax_literal_or_declaration_validity() {
     ] {
         let syntax = parse(&[(SourceId(1), text)]);
         assert!(
-            lower_syntax_trees_for_const_initializer_selection(&syntax, None, Vec::new()).is_err(),
+            prepare_const_initializer_selection(ResolutionRequest {
+                syntax: &syntax,
+                sources: None,
+                top_level_bindings: Vec::new()
+            })
+            .is_err(),
             "{text}"
         );
     }

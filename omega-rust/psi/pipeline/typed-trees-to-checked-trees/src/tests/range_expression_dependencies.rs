@@ -3,7 +3,7 @@ use super::*;
 fn check(source: &str, accepted: bool) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     match lower_typed_trees(typed) {
         Ok(_) => assert!(accepted, "stale computed bounds accepted: {source}"),
@@ -43,7 +43,7 @@ fn typed_fixture(source: &str) -> typed_trees::TypedTrees {
         .unwrap_or_else(|diagnostics| panic!("tokenize: {diagnostics:#?}\n{source}"));
     let syntax = parse_syntax_trees(&tokens)
         .unwrap_or_else(|diagnostics| panic!("parse: {diagnostics:#?}\n{source}"));
-    let resolved = lower_syntax_trees(&syntax)
+    let resolved = resolve(ResolutionRequest::new(&syntax))
         .unwrap_or_else(|diagnostics| panic!("resolve: {diagnostics:#?}\n{source}"));
     lower_symbol_resolved_trees(&resolved)
         .unwrap_or_else(|diagnostics| panic!("type: {diagnostics:#?}\n{source}"))

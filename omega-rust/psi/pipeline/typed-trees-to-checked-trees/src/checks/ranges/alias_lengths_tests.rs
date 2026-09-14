@@ -25,8 +25,10 @@ fn bounded_byte_state_alias_names_cannot_relabel_an_old_receiver_extent() {
             .expect("tokenize alias extent fixture");
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
             .expect("parse alias extent fixture");
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-            .expect("resolve alias extent fixture");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve alias extent fixture");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type alias extent fixture");
         let borrows = crate::build_borrow_facts(&program);

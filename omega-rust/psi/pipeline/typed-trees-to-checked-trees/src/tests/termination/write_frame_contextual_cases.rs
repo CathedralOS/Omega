@@ -35,7 +35,7 @@ fn contextual_case_program(body: &str) -> typed_trees::TypedTrees {
     );
     let syntax =
         parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
@@ -348,7 +348,7 @@ fn named_state_payload_calls_retain_state_scoped_case_evidence() {
         );
         let syntax =
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let program = lower_symbol_resolved_trees(&resolved).expect("type");
         let machine = program
             .machines()

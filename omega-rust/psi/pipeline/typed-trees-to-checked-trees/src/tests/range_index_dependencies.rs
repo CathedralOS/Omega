@@ -6,7 +6,7 @@ fn check(source: &str, accepted: bool) {
         .unwrap_or_else(|diagnostics| panic!("tokenize: {diagnostics:#?}\n{source}"));
     let syntax = parse_syntax_trees(&tokens)
         .unwrap_or_else(|diagnostics| panic!("parse: {diagnostics:#?}\n{source}"));
-    let resolved = lower_syntax_trees(&syntax)
+    let resolved = resolve(ResolutionRequest::new(&syntax))
         .unwrap_or_else(|diagnostics| panic!("resolve: {diagnostics:#?}\n{source}"));
     let typed = lower_symbol_resolved_trees(&resolved)
         .unwrap_or_else(|diagnostics| panic!("type: {diagnostics:#?}\n{source}"));

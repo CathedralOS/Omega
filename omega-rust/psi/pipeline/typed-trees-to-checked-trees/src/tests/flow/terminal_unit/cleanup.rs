@@ -5439,7 +5439,7 @@ fn nominal_cleanup_uses_exact_attached_symbol_when_spelling_is_spoofed() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
 
     let first_drop = typed

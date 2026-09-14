@@ -5,7 +5,7 @@ use semantic_vocabulary::{
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::{
@@ -1842,7 +1842,7 @@ fn direct_boolean_member_crash_route_survives_source_call_codec_and_interpretati
     }
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -1916,7 +1916,7 @@ fn direct_boolean_member_crash_route_survives_source_call_codec_and_interpretati
 fn verifier_rejects_unknown_direct_boolean_member_identity() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let mut lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -1966,7 +1966,7 @@ fn nested_boolean_member_path_survives_source_call_codec_verification_interpreta
 
     let tokens = Lexer::new(NESTED_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -2101,7 +2101,7 @@ fn projected_structural_argument_prefix_rebases_member_crash_routes_end_to_end()
 
     let tokens = Lexer::new(PROJECTED_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -2269,7 +2269,7 @@ fn composed_boolean_member_predicate_rebases_every_path_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -2477,7 +2477,7 @@ fn integer_member_comparisons_rebase_and_validate_exact_leaf_types_end_to_end() 
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -2674,7 +2674,7 @@ fn projected_argument_prefix_rebases_every_integer_member_path_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -2895,7 +2895,7 @@ fn exact_member_addition_rebases_every_operand_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -3085,7 +3085,7 @@ fn exact_member_subtraction_rebases_every_operand_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -3273,7 +3273,7 @@ fn exact_member_multiplication_rebases_every_operand_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -3471,7 +3471,7 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -3595,7 +3595,7 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
         .tokenize()
         .expect("runtime-divisor tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("runtime-divisor parse");
-    let resolved = lower_syntax_trees(&syntax).expect("runtime-divisor resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("runtime-divisor resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor type");
     let checked = lower_typed_trees(typed).expect("runtime-divisor check");
     let runtime_divisor = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -3654,7 +3654,8 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
         .tokenize()
         .expect("unproven-runtime-divisor tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("unproven-runtime-divisor parse");
-    let resolved = lower_syntax_trees(&syntax).expect("unproven-runtime-divisor resolve");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("unproven-runtime-divisor resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("unproven-runtime-divisor type");
     let diagnostics =
         lower_typed_trees(typed).expect_err("an unproven runtime divisor must reject");
@@ -3744,7 +3745,7 @@ fn bitwise_member_terms_rebase_across_projected_calls_and_codecs() {
         .tokenize()
         .expect("bitwise tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("bitwise parse");
-    let resolved = lower_syntax_trees(&syntax).expect("bitwise resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("bitwise resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("bitwise type");
     let checked = lower_typed_trees(typed).expect("bitwise check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -3911,7 +3912,7 @@ fn total_policy_arithmetic_rebases_across_projected_calls_and_codecs() {
         .tokenize()
         .expect("policy arithmetic tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("policy arithmetic parse");
-    let resolved = lower_syntax_trees(&syntax).expect("policy arithmetic resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("policy arithmetic resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("policy arithmetic type");
     let checked = lower_typed_trees(typed).expect("policy arithmetic check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -4087,7 +4088,7 @@ fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
         .tokenize()
         .expect("wrapping shifts tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("wrapping shifts parse");
-    let resolved = lower_syntax_trees(&syntax).expect("wrapping shifts resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("wrapping shifts resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("wrapping shifts type");
     let checked = lower_typed_trees(typed).expect("wrapping shifts check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -4245,7 +4246,7 @@ fn exact_shifts_rebase_complete_count_and_overflow_requirements() {
         .tokenize()
         .expect("Exact shifts tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("Exact shifts parse");
-    let resolved = lower_syntax_trees(&syntax).expect("Exact shifts resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("Exact shifts resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("Exact shifts type");
     let checked = lower_typed_trees(typed).expect("Exact shifts check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -4393,7 +4394,7 @@ fn policy_division_rebases_nonzero_requirements_across_projected_calls() {
         .tokenize()
         .expect("policy division tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("policy division parse");
-    let resolved = lower_syntax_trees(&syntax).expect("policy division resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("policy division resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("policy division type");
     let checked = lower_typed_trees(typed).expect("policy division check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -4520,7 +4521,8 @@ fn wrapping_negative_one_literal_divisor_is_self_proving() {
         .tokenize()
         .expect("negative-one policy division tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("negative-one policy division parse");
-    let resolved = lower_syntax_trees(&syntax).expect("negative-one policy division resolve");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("negative-one policy division resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("negative-one policy division type");
     let checked = lower_typed_trees(typed).expect("negative-one policy division check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -4574,7 +4576,8 @@ fn signed_runtime_member_divisor_requires_an_overflow_safe_bound() {
         .tokenize()
         .expect("negative-runtime-divisor tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("negative-runtime-divisor parse");
-    let resolved = lower_syntax_trees(&syntax).expect("negative-runtime-divisor resolve");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("negative-runtime-divisor resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("negative-runtime-divisor type");
     let checked = lower_typed_trees(typed).expect("negative-runtime-divisor check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -4612,7 +4615,7 @@ fn runtime_divisor_call_requirements_rebase_and_verify_exact_obligations() {
         .tokenize()
         .expect("runtime-divisor-call tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("runtime-divisor-call parse");
-    let resolved = lower_syntax_trees(&syntax).expect("runtime-divisor-call resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("runtime-divisor-call resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor-call type");
     let checked = lower_typed_trees(typed).expect("runtime-divisor-call check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -4699,7 +4702,8 @@ fn projected_runtime_divisor_call_rebases_requirement_through_canonical_prefix()
         .tokenize()
         .expect("projected-runtime-divisor-call tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("projected-runtime-divisor-call parse");
-    let resolved = lower_syntax_trees(&syntax).expect("projected-runtime-divisor-call resolve");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("projected-runtime-divisor-call resolve");
     let typed =
         lower_symbol_resolved_trees(&resolved).expect("projected-runtime-divisor-call type");
     let checked = lower_typed_trees(typed).expect("projected-runtime-divisor-call check");
@@ -4807,7 +4811,7 @@ fn proposition_disjunction_rebases_and_verifies_each_member_path_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -5032,7 +5036,7 @@ fn whole_aggregate_equality_expands_and_reconstructs_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -5265,7 +5269,7 @@ fn nested_payload_sum_equality_retains_exact_record_case_payload_paths_end_to_en
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Whole::enter")
@@ -5476,7 +5480,7 @@ fn mixed_aggregate_equality_retains_common_fields_cases_and_call_rebasing_end_to
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -5796,7 +5800,7 @@ fn nested_mixed_aggregate_equality_prefixes_every_path_and_rebases_whole_root_ca
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -6107,7 +6111,7 @@ fn two_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -6446,7 +6450,7 @@ fn assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -6843,7 +6847,7 @@ fn unsupported_mixed_aggregate_equality_shapes_remain_fenced() {
     {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = match lower_symbol_resolved_trees(&resolved) {
             Ok(typed) => typed,
             Err(_) => continue,
@@ -6994,7 +6998,7 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -7289,7 +7293,7 @@ fn payload_sum_nested_sum_equality_replays_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -7343,7 +7347,7 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -7650,7 +7654,7 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -7808,7 +7812,7 @@ fn empty_record_equality_reuses_boolean_constants_end_to_end() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -7916,7 +7920,7 @@ fn address_record_equality_remains_fenced_before_terminal_lowering() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
 
@@ -7943,7 +7947,7 @@ fn fixed_index_argument_prefix_is_canonical_and_rebases_member_crash_routes_end_
 
     let tokens = Lexer::new(FIXED_INDEX_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -8073,7 +8077,7 @@ fn fixed_index_argument_prefix_is_canonical_and_rebases_member_crash_routes_end_
 fn verifier_rejects_empty_truncated_and_mistyped_boolean_field_paths() {
     let tokens = Lexer::new(NESTED_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")

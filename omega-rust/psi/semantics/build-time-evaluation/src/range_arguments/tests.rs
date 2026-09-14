@@ -124,8 +124,10 @@ fn completed_typed_replay_rejects_forged_equal_range_observations() {
     }
     let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
         .expect("synthesis consumes forged observation");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve forged shared application");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve forged shared application");
     let error = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect_err("completed typing must reconstruct both original intervals");
     assert!(format!("{error:?}").contains(

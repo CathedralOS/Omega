@@ -79,10 +79,12 @@ pub(super) fn syntax_trees_to_symbol_resolved_trees(
     timings: &mut CompileTimings,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     timings.record(SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES, || {
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources_and_top_level_bindings(
-            &syntax.syntax_trees,
-            syntax.sources,
-            syntax.source_scoped_top_level_bindings,
+        syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax.syntax_trees,
+                sources: Some(syntax.sources),
+                top_level_bindings: syntax.source_scoped_top_level_bindings,
+            },
         )
     })
 }
@@ -104,11 +106,13 @@ pub(super) fn resolve_seeded_syntax_extension(
     timings: &mut CompileTimings,
 ) -> Result<syntax_trees_to_symbol_resolved_trees::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
     timings.record(SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES, || {
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_extension_with_authored_selection_frontier(
-            base,
-            extension,
-            sources,
-            Vec::new(),
+        syntax_trees_to_symbol_resolved_trees::resolve_extension(
+            syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
+                base,
+                syntax: extension,
+                sources,
+                top_level_bindings: Vec::new(),
+            },
         )
     })
 }

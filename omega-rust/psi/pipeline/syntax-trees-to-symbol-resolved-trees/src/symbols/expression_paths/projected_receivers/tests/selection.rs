@@ -3,7 +3,7 @@ use super::*;
 fn resolve(source: &str) -> symbol_resolved_trees::SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize receiver");
     let syntax = parse_syntax_trees(&tokens).expect("parse receiver");
-    lower_syntax_trees(&syntax).expect("resolve receiver")
+    crate::resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver")
 }
 
 fn read_target(program: &symbol_resolved_trees::SymbolResolvedTrees) -> SymbolHandle {
@@ -113,8 +113,12 @@ fn inherited_payload_selects_by_nominal_owner_before_source_preference() {
             )
             .expect("base syntax"),
         );
-        let program = crate::lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-            .expect("resolve sources");
+        let program = crate::resolve(crate::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("resolve sources");
         let selected = read_target(&program);
         assert_eq!(
             program

@@ -8,7 +8,7 @@ use build_time_evaluation::{
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
@@ -944,7 +944,7 @@ fn admission_rejects_a_transitive_progress_premise_before_interpretation() {
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
@@ -1233,6 +1233,6 @@ fn typed_normalized_generic_binding(source: &str) -> typed_trees::TypedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
         .expect("synthesize closed generic instances");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }

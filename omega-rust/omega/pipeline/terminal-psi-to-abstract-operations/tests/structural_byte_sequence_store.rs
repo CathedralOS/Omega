@@ -3,7 +3,7 @@
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::{
@@ -53,7 +53,7 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
     ] {
         let tokens = Lexer::new(&source).tokenize().expect("tokenize source");
         let syntax = parse_syntax_trees(&tokens).expect("parse source");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
         let checked = lower_typed_trees(typed).expect("check source");
         let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
@@ -180,7 +180,7 @@ fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize source");
         let syntax = parse_syntax_trees(&tokens).expect("parse source");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
         let checked = lower_typed_trees(typed).expect("check source");
         let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace")

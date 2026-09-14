@@ -1284,7 +1284,7 @@ fn direct_installation_boundary_keeps_its_required_declaration() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let result = lower_typed_trees(typed);
         if additional_reach.is_empty() {
@@ -1478,7 +1478,7 @@ fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
             let invalid = call_source.replace("reaches Console + Storage invokes", "invokes");
             let tokens = Lexer::new(&invalid).tokenize().expect("tokens");
             let syntax = parse_syntax_trees(&tokens).expect("parse");
-            let resolved = lower_syntax_trees(&syntax).expect("resolve");
+            let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
             let typed = lower_symbol_resolved_trees(&resolved).expect("type");
             let diagnostics =
                 lower_typed_trees(typed).expect_err("bound does not waive direct declaration");

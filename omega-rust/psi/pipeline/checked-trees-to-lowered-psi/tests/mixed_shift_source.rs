@@ -2,7 +2,7 @@ use proof_admission::{AdmissionProfile, EvidenceRoute};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::{
@@ -35,7 +35,8 @@ fn check_composition_source(expression: &str, requirements: &str) -> checked_tre
         .tokenize()
         .expect("tokenize arithmetic composition");
     let syntax = parse_syntax_trees(&tokens).expect("parse arithmetic composition");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve arithmetic composition");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve arithmetic composition");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type arithmetic composition");
     lower_typed_trees(typed).expect("check arithmetic composition")
 }
@@ -176,7 +177,7 @@ fn erased_arithmetic_prefix_without_a_bound_is_rejected() {
         .tokenize()
         .expect("tokenize unsafe prefix");
     let syntax = parse_syntax_trees(&tokens).expect("parse unsafe prefix");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve unsafe prefix");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve unsafe prefix");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type unsafe prefix");
     if let Ok(checked) = lower_typed_trees(typed) {
         assert!(
@@ -598,7 +599,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         .tokenize()
         .expect("tokenize mixed shifts");
     let syntax = parse_syntax_trees(&tokens).expect("parse mixed shifts");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed shifts");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed shifts");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type mixed shifts");
     let checked = lower_typed_trees(typed).expect("check mixed shifts");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")

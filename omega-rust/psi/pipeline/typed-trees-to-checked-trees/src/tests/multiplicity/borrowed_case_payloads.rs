@@ -8,7 +8,7 @@ fn check_case_source(
         .tokenize()
         .expect("tokenize case custody");
     let syntax = parse_syntax_trees(&tokens).expect("parse case custody");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve case custody");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve case custody");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type case custody");
     lower_typed_trees(typed)
 }

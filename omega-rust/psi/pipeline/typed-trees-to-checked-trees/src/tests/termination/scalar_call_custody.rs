@@ -7,7 +7,7 @@ fn check(source: &str, accepted: bool) {
         .tokenize()
         .expect("tokenize scalar ranking");
     let syntax = parse_syntax_trees(&tokens).expect("parse scalar ranking");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve scalar ranking");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve scalar ranking");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type scalar ranking");
     match lower_typed_trees(typed) {
         Ok(_) => assert!(accepted, "unproved scalar call cycle accepted: {source}"),

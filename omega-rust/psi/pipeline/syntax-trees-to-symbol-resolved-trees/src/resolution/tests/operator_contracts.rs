@@ -14,7 +14,7 @@ fn qualified_operator_calls_do_not_select_same_named_free_machines() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let mut qualified_calls = 0;
     let mut direct_calls = 0;
     for (_, expression) in program.tables.bodies.expressions.iter_expressions() {
@@ -56,7 +56,7 @@ fn operator_contracts_resolve_each_overloads_own_formal_parameters() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let operators = program
         .operators
         .iter()

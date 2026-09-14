@@ -1,6 +1,6 @@
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
@@ -10,7 +10,7 @@ use validation::{collect_dynamic_conformance_selections, validate_program};
 fn typed(source: &str) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax)?;
+    let resolved = resolve(ResolutionRequest::new(&syntax))?;
     lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
 }
 

@@ -19,7 +19,10 @@ fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = crate::lower_typed_trees(typed).unwrap();
@@ -79,7 +82,10 @@ fn array_byte_fields_do_not_admit_stored_borrows_or_nominal_drop() {
             .tokenize()
             .unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
         let program =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         let record = program
@@ -107,7 +113,10 @@ fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = crate::lower_typed_trees(typed).unwrap();
@@ -189,7 +198,10 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = crate::lower_typed_trees(typed).unwrap();
@@ -286,7 +298,10 @@ fn ordered_stores_replay_successor_writes_and_reject_modified_frames() {
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = crate::lower_typed_trees(typed).unwrap();

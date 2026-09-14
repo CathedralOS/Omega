@@ -381,8 +381,10 @@ fn computed_nominal_leaves_preserve_carriers_fields_and_exact_arithmetic() {
             .iter()
             .any(|origin| origin.declaration == constant(&evaluated, "SIZE").name.source_span())
     );
-    syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&evaluated)
-        .expect("nominal initializer receipt independently rejoins authored selections");
+    syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&evaluated),
+    )
+    .expect("nominal initializer receipt independently rejoins authored selections");
 }
 
 #[test]
@@ -438,8 +440,10 @@ fn computed_case_payloads_and_record_arrays_share_scalar_leaf_evaluation() {
             )
         );
     }
-    syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&evaluated)
-        .expect("case constructor receipt replay");
+    syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&evaluated),
+    )
+    .expect("case constructor receipt replay");
 }
 
 #[test]
@@ -465,8 +469,10 @@ fn computed_record_leaves_preserve_payloadless_case_siblings() {
             "CONFIG"
         )
     );
-    syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&evaluated)
-        .expect("case identity survives evaluation and receipt replay");
+    syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&evaluated),
+    )
+    .expect("case identity survives evaluation and receipt replay");
 }
 
 #[test]
@@ -494,7 +500,10 @@ fn computed_nominal_leaves_reject_changed_result_and_dependency_receipts() {
         }
         invalid.items.replace_item(item, Item::Const(definition));
         assert!(
-            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&invalid).is_err(),
+            syntax_trees_to_symbol_resolved_trees::resolve(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&invalid)
+            )
+            .is_err(),
             "{mutation}"
         );
     }
@@ -629,9 +638,14 @@ fn retained_invocation_replay_rechecks_concrete_crash_discharge() {
     );
     let evaluated = super::evaluate(syntax, Some(sources.clone()), &[], None)
         .expect("concrete safe invocation");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
-            .expect("retained guarded call");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &evaluated,
+            sources: Some(sources),
+            top_level_bindings: Vec::new(),
+        },
+    )
+    .expect("retained guarded call");
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed guarded call");
     super::validate_retained_invocations(&typed, None).expect("unchanged discharge");
@@ -663,9 +677,14 @@ fn retained_invocation_replay_rejects_changed_or_erased_computation_and_results(
     );
     let evaluated =
         super::evaluate(syntax, Some(sources.clone()), &[], None).expect("evaluated call");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
-            .expect("retained call source resolution");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &evaluated,
+            sources: Some(sources),
+            top_level_bindings: Vec::new(),
+        },
+    )
+    .expect("retained call source resolution");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("retained call typing");
     super::validate_retained_invocations(&typed, None).expect("unchanged invocation replay");
@@ -767,9 +786,14 @@ fn retained_invocation_replay_rejoins_helper_constant_values() {
     );
     let evaluated =
         super::evaluate(syntax, Some(sources.clone()), &[], None).expect("evaluated dependency");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
-            .expect("retained dependency");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &evaluated,
+            sources: Some(sources),
+            top_level_bindings: Vec::new(),
+        },
+    )
+    .expect("retained dependency");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed dependency");
     super::validate_retained_invocations(&typed, None).expect("unchanged dependency");
@@ -803,9 +827,14 @@ fn retained_invocation_replay_checks_payloadless_constructor_siblings() {
     );
     let evaluated =
         super::evaluate(syntax, Some(sources.clone()), &[], None).expect("evaluated record");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
-            .expect("retained record");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &evaluated,
+            sources: Some(sources),
+            top_level_bindings: Vec::new(),
+        },
+    )
+    .expect("retained record");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed record");
     let declaration = &typed.const_declarations()[0];
@@ -820,9 +849,14 @@ fn retained_composed_invocation_rejects_erased_roots() {
     let (syntax, sources) = parse("machine size() -> u64 { 7 } const SIZE: u64 = size() * 2;");
     let evaluated =
         super::evaluate(syntax, Some(sources.clone()), &[], None).expect("evaluated composition");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(&evaluated, sources)
-            .expect("retained composition");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &evaluated,
+            sources: Some(sources),
+            top_level_bindings: Vec::new(),
+        },
+    )
+    .expect("retained composition");
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed composition");
     super::validate_retained_invocations(&typed, None).expect("unchanged composition");

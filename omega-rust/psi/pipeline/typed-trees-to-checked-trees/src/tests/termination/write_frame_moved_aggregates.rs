@@ -26,7 +26,7 @@ fn moved_aggregate_program(body: &str, scalar: &str) -> typed_trees::TypedTrees 
     );
     let syntax =
         parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 

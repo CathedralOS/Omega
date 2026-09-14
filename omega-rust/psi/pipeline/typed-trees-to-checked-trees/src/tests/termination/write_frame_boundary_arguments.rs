@@ -10,7 +10,7 @@ fn indexed_method_receiver_reaches_checked_trees() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("indexed method receiver reaches checking");
 }
@@ -104,7 +104,7 @@ fn indexed_method_receivers_keep_coarse_storage_and_exact_argument_writes() {
     }
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
@@ -217,7 +217,7 @@ fn boundary_forwarded_reference_reaches_checked_trees() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let checked = lower_typed_trees(typed);
         if let Some(expected) = expected_diagnostic {
@@ -390,7 +390,7 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
     }
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
@@ -504,7 +504,7 @@ fn boundary_attached_result_requires_the_exact_caller_self_identity() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let original = lower_symbol_resolved_trees(&resolved).expect("type");
     for foreign in [false, true] {
         let mut typed = original.clone();
@@ -595,7 +595,7 @@ fn boundary_reference_binding_identity_requires_the_live_caller_declaration() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let original = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
     for (wrapped, variant) in [false, true].into_iter().flat_map(|wrapped| {
         ["exact", "constrained", "foreign", "stale", "later_local"]
@@ -829,7 +829,7 @@ fn boundary_reference_bindings_keep_exact_origins_without_reborrowing_slots() {
     }
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
@@ -904,7 +904,7 @@ fn boundary_method_names_do_not_acquire_builtin_empty_frames() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
         let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
         let machine = typed
@@ -939,7 +939,7 @@ fn constrained_boundary_reference_parameters_keep_their_write_reach() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let mut typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
     let boundary = typed
         .traits()
@@ -1172,7 +1172,7 @@ fn boundary_arguments_publish_declared_reach_and_all_producer_writes() {
     }
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     // Malformed argument contexts deliberately reach the pre-validation frame
     // query. Neither argument typing nor boundary reach may be guessed here.
     let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");

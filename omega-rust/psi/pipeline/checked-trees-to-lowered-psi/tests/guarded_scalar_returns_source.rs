@@ -2,7 +2,7 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
@@ -366,7 +366,7 @@ fn guarded_case_replay_rejects_changed_order_guards_and_final_destination() {
 fn checked_source(source: &str, form: BranchForm) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
     if !matches!(form, BranchForm::Separate) {
         let machine = typed.machines()[0].clone();

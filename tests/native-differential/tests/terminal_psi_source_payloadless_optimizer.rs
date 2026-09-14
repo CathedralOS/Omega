@@ -14,7 +14,7 @@ use semantic_vocabulary::{
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelSchedule;
@@ -60,7 +60,7 @@ const GUARDED_CALL_SOURCE: &str = r#"
 fn lowered_source(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     lower_machine(&checked, machine).expect("lower exact payloadless source")

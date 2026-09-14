@@ -1,7 +1,7 @@
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use terminal_interpreter::{
@@ -278,7 +278,7 @@ const NESTED_AFFINE_SIXTEEN_SOURCE: &str = r#"
 fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
 
@@ -442,7 +442,7 @@ fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interprete
 fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
     let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
 
@@ -611,7 +611,7 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
 
@@ -1020,7 +1020,7 @@ fn affine_quartet_two_moves_retain_authored_calls_and_decreasing_residuals() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -1149,7 +1149,7 @@ fn assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpre
 ) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -1652,7 +1652,7 @@ fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
 fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -1991,7 +1991,7 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
 fn mixed_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(MIXED_SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")

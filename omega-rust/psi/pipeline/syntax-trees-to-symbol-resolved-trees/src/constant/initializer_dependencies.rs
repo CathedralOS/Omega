@@ -403,11 +403,11 @@ mod tests {
             .expect("tokens");
         let syntax =
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).expect("syntax");
-        let preparation = crate::lower_syntax_trees_for_const_initializer_selection(
-            &syntax,
-            Some(std::sync::Arc::new(sources)),
-            Vec::new(),
-        )
+        let preparation = crate::prepare_const_initializer_selection(crate::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        })
         .expect("source-aware preparation");
         (syntax, preparation)
     }

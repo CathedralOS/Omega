@@ -2,7 +2,7 @@ use proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use semantic_vocabulary::{IntegerValue, Proposition};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -22,7 +22,7 @@ const SOURCE: &str = r#"
 fn landed_negative_one_and_nonminimum_dividend_use_closed_exact_certificates() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter")

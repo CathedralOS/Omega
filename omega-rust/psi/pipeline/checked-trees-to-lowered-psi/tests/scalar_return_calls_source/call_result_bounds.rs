@@ -126,7 +126,7 @@ fn false_result_guarantee_is_not_treated_as_a_closed_tautology() {
     let source = source("result == 7u16").replace("{ 7u16 }", "{ 999u16 }");
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     match lower_typed_trees(typed) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),

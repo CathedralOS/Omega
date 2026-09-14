@@ -351,7 +351,7 @@ fn nominal_linear_callback_result_cannot_be_moved_twice() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         assert!(
             lower_typed_trees(typed).is_err(),
@@ -607,7 +607,7 @@ fn nominal_linear_callback_publishes_and_executes_with_exact_reach() {
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
 }

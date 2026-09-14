@@ -411,8 +411,10 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
         .expect("tokenize top-level external ABI fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse top-level external ABI fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve top-level external ABI fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve top-level external ABI fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type top-level external ABI fixture");
     typed_trees_to_checked_trees::lower_typed_trees(typed.clone())
@@ -493,8 +495,10 @@ fn selected_source_boundary_entry_plan_accepts_exact_operator_custody_without_tr
         .expect("tokenize operator custody fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse operator custody fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve operator custody fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve operator custody fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type operator custody fixture");
     let mut plans = crate::provider_planning::derive_satisfies_plans(&typed, None);

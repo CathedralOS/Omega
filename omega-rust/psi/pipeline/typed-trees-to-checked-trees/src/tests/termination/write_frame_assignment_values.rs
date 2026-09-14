@@ -102,7 +102,7 @@ fn finite_call_trees_preserve_deep_effects_and_reject_hostile_siblings() {
     );
     let tokens = Lexer::new(&source).tokenize().expect("source tokenizes");
     let syntax = parse_syntax_trees(&tokens).expect("source parses");
-    let resolved = lower_syntax_trees(&syntax).expect("source resolves");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("source resolves");
     let typed = lower_symbol_resolved_trees(&resolved).expect("source types");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
     for (name, expected) in [
@@ -1119,7 +1119,8 @@ fn transparent_returned_place_accepts_complete_indexed_statement_arguments() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
@@ -1534,7 +1535,8 @@ fn transparent_returned_place_accepts_finite_isolated_scratch_values() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
@@ -1817,7 +1819,8 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 

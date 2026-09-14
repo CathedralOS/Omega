@@ -26,8 +26,12 @@ fn resolve_indices(module: bool, body: &str) -> (SymbolResolvedTrees, Vec<Source
         .map(|(start, _)| SourceSpan::new(SourceId(2), Span::new(start, start + 4)))
         .collect::<Vec<_>>();
     assert!(!references.is_empty());
-    let program = crate::lower_syntax_trees_for_const_argument_selection(&syntax, None, Vec::new())
-        .expect("resolve original index scopes without synthesis");
+    let program = crate::resolve_const_argument_selection(crate::ResolutionRequest {
+        syntax: &syntax,
+        sources: None,
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve original index scopes without synthesis");
     (program, references)
 }
 

@@ -5,7 +5,7 @@ use semantic_vocabulary::{
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 use terminal_psi_to_abstract_operations::lower_artifact;
@@ -29,7 +29,7 @@ fn verified_source_store_retains_exact_mutable_parameter_and_preceding_value() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Harness::exercise")
@@ -113,7 +113,7 @@ fn verified_boolean_store_retains_exact_write_only_parameter_and_preceding_value
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -188,7 +188,7 @@ fn verified_ieee_float_store_retains_exact_write_only_parameter_and_preceding_va
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
@@ -261,7 +261,7 @@ fn verified_fixed_integer_parameter_store_retains_exact_runtime_source() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Sink::fill")

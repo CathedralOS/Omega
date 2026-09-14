@@ -20,8 +20,10 @@ fn write_only_immutable_local_range_bounds_retain_exact_element_window() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let forward = program
@@ -90,8 +92,10 @@ fn write_only_fixed_copy_record_range_call_retains_exact_element_window() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let forward = program
@@ -163,8 +167,10 @@ fn write_only_fixed_copy_sum_range_call_retains_atomic_element_window() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let forward = program
@@ -232,8 +238,10 @@ fn write_only_nested_fixed_array_range_call_retains_atomic_outer_window() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let forward = program
@@ -303,8 +311,10 @@ fn write_only_fixed_copy_record_call_retains_exact_literal_index() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let forward = program
@@ -373,8 +383,10 @@ fn write_only_dynamic_copy_record_call_retains_collection_coarse_mutation() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let forward = program
@@ -444,8 +456,10 @@ fn write_only_dynamic_byte_slice_call_retains_collection_coarse_mutation() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let forward = program
@@ -520,8 +534,10 @@ fn write_only_record_field_call_retains_exact_common_field() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let pair = program
@@ -620,8 +636,10 @@ fn write_only_nested_copy_record_leaf_call_retains_one_exact_common_field_path()
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let outer = program
@@ -741,8 +759,10 @@ fn write_only_copy_sum_call_retains_atomic_root_and_field_paths() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let holder = program
@@ -854,8 +874,10 @@ fn write_only_nested_fixed_byte_array_field_call_retains_exact_ordered_field_pat
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let outer = program
@@ -970,8 +992,10 @@ fn write_only_nested_fixed_byte_element_call_retains_fields_and_exact_index() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let outer = program
@@ -1087,8 +1111,10 @@ fn write_only_nested_dynamic_byte_call_retains_fields_and_collection_coarse_inde
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let outer = program
@@ -1207,8 +1233,10 @@ fn write_only_nested_fixed_byte_range_call_retains_fields_and_exact_window() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let outer = program

@@ -21,7 +21,10 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     crate::lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
@@ -190,7 +193,7 @@ fn scalar_caller_retains_call_produced_record_local_before_getter() {
     let checked = checked(
         "data Region { base: u64; length: u64; }
          machine Region::new(base: u64, length: u64) -> Region {
-             Region { base: base, length: length }
+             Region { base, length: length }
          }
          machine Region::get_length(&self) -> u64 { self.length }
          machine invoke(left: u64, right: u64) -> u64 {

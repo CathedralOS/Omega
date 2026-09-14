@@ -1,6 +1,6 @@
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
@@ -34,7 +34,7 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let destination = program
         .machines()
@@ -99,7 +99,7 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
 fn check(source: &str, accepted: bool) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     match super::super::builder::tests::check_against_whole_pass(typed) {
         Ok(_) => assert!(accepted, "unproved input accepted:\n{source}"),
@@ -184,7 +184,7 @@ fn computed_argument_capture_requires_unique_exact_source_and_destination() {
     let source = "machine produce() -> u8 { transition { _ -> finish(3u8 + 4u8) } state finish(value: u8) -> u8 { value } }";
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = crate::lower_typed_trees(typed).expect("checked scalar jump");
     let program = &checked.typed;
@@ -284,7 +284,7 @@ fn sibling_continuation_values_have_independent_capture() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let machine = typed.machines()[0].clone();
         let nodes = typed.machine_states(&machine)[0].statement_nodes;

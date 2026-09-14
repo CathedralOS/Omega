@@ -86,12 +86,13 @@ pub(super) fn evaluate(
         // Aggregate substitution still uses the existing canonical-value route.
         // Resolve its authored path first so that route cannot capture a static
         // declaration through a runtime parameter or prior local binding.
-        let resolved =
-            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_for_const_argument_selection(
-                &syntax,
-                sources.clone(),
-                bindings.to_vec(),
-            )?;
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve_const_argument_selection(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: sources.clone(),
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
         for (argument, original) in aggregate_arguments {
             if let TypeReferenceNode::ConstExpression(expression) =
                 syntax.type_references.type_reference(argument)
@@ -135,12 +136,13 @@ pub(super) fn evaluate(
     {
         // Resolve the original machine owners before placeholder synthesis.
         // Their runtime bodies are neither typed as probes nor executed here.
-        let resolved =
-            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_for_const_argument_selection(
-                &syntax,
-                sources.clone(),
-                bindings.to_vec(),
-            )?;
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve_const_argument_selection(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: sources.clone(),
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
         for (argument, expression, _, _) in &pending {
             if lexical_arguments.contains(argument) {
                 let origins = lexical_selection::retain(&syntax, &resolved, *expression).map_err(

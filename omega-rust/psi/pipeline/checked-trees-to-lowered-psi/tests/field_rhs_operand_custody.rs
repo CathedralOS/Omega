@@ -3,7 +3,7 @@
 use checked_trees::CheckedScalarComputationKind;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
@@ -18,7 +18,7 @@ fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
     "#;
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
     let _ = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")

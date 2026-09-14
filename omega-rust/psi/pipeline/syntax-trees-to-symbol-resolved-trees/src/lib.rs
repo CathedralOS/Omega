@@ -26,10 +26,7 @@ pub use preparation::generic_data::{
 };
 pub use preparation::trait_defaults::synthesize_trait_defaults;
 pub use resolution::{
-    ConstInitializerSelection, RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
-    lower_syntax_extension_against_resolved_base,
-    lower_syntax_extension_with_authored_selection_frontier, lower_syntax_trees,
-    lower_syntax_trees_for_const_argument_selection,
-    lower_syntax_trees_for_const_initializer_selection, lower_syntax_trees_with_sources,
-    lower_syntax_trees_with_sources_and_top_level_bindings,
+    ConstInitializerSelection, ExtensionRequest, RebasedSeededSymbolResolvedTrees,
+    ResolutionRequest, SeededSymbolResolvedTrees, prepare_const_initializer_selection, resolve,
+    resolve_const_argument_selection, resolve_extension,
 };

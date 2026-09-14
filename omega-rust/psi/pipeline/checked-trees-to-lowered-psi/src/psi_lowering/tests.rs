@@ -18,7 +18,7 @@ use source_files_to_tokens::Lexer;
 use std::{path::PathBuf, sync::Arc};
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use symbols::SymbolHandle;
-use syntax_trees_to_symbol_resolved_trees::{lower_syntax_trees, lower_syntax_trees_with_sources};
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_production::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
 use terminal_psi::BindingRelevance;
 use tokens_to_syntax_trees::{
@@ -68,7 +68,7 @@ mod unit_cleanup;
 fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
 }
@@ -463,8 +463,12 @@ fn checked_float_projection_source(source: &str) -> checked_trees::CheckedTrees 
         .expect("parse projections");
     let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
     parse_syntax_trees_into_with_id(&mut syntax, user_source, &user_tokens).expect("parse fixture");
-    let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolve source-aware fixture");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve source-aware fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
 }
@@ -1850,7 +1854,7 @@ fn checked_write_line_literal() -> checked_trees::CheckedTrees {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
 }
@@ -2082,7 +2086,7 @@ fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = lower_machine(&checked, "Root::enter").expect("lower write-only forwarding");
@@ -2414,7 +2418,7 @@ fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = lower_machine(&checked, "Root::forward").expect("lower projected forwarding");
@@ -2498,7 +2502,7 @@ fn direct_root_literal_indexed_write_only_subloan_crosses_codec_and_verification
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered =
@@ -2589,7 +2593,7 @@ fn finite_literal_index_suffix_crosses_source_codec_and_verification() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered =
@@ -2699,7 +2703,7 @@ fn field_prefixed_finite_literal_index_suffix_crosses_terminal() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = lower_machine(&checked, "Root::forward")
@@ -2760,7 +2764,7 @@ fn literal_indexed_write_only_subloan_crosses_source_codec_and_verification() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered =
@@ -2896,7 +2900,7 @@ fn bounded_installation_reach_lowers_source_free_terminal_dependency() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let root = checked
@@ -2957,7 +2961,7 @@ fn top_level_bounded_reach_lowers_normalized_machine_identity() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let requirement = typed
         .machines()
@@ -3458,7 +3462,7 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let owner = checked
@@ -3476,7 +3480,7 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
     "#;
     let tokens = Lexer::new(terminal_source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let terminal_checked = lower_typed_trees(typed).expect("check");
     let mut lowered = lower_machine(&terminal_checked, "terminal_root").expect("lower terminal");
@@ -3588,7 +3592,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = lower_machine(&checked, "Root::enter").expect("lower terminal");
@@ -3720,7 +3724,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = lower_machine(&checked, "Root::enter")

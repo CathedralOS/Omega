@@ -44,8 +44,10 @@ fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
         .expect("tokenize provider fixture");
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse provider fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve provider fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve provider fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type provider fixture");
     let plans = derive_satisfies_plans(&typed, None);
@@ -130,8 +132,10 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
         .expect("tokenize top-level requirement fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse top-level requirement fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve top-level requirement fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve top-level requirement fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type top-level requirement fixture");
     let requirement = typed
@@ -228,8 +232,10 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .expect("tokenize external top-level requirement fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse external top-level requirement fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve external top-level requirement fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve external top-level requirement fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type external top-level requirement fixture");
     typed_trees_to_checked_trees::lower_typed_trees(typed.clone())
@@ -410,8 +416,10 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
         .expect("tokenize retained binding");
     let retained_syntax = tokens_to_syntax_trees::parse_syntax_trees(&retained_tokens)
         .expect("parse retained binding");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&retained_syntax)
-        .expect("resolve retained binding");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&retained_syntax),
+    )
+    .expect("resolve retained binding");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type retained binding");
 
@@ -450,8 +458,10 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
         .expect("tokenize source-inferred catalog leaf");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse source-inferred catalog leaf");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve source-inferred catalog leaf");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve source-inferred catalog leaf");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type source-inferred catalog leaf");
 
@@ -581,8 +591,10 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
         .expect("tokenize external binding");
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse external binding");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve external binding");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve external binding");
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type external binding");
     let machine = typed
@@ -648,8 +660,10 @@ fn provider_derivation_retains_every_exact_external_realization_symbol() {
         .expect("tokenize two-row provider fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse two-row provider fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve two-row provider fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve two-row provider fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type two-row provider fixture");
     let derived = derive_satisfies_plans_with_provenance(&typed, None);
@@ -959,8 +973,10 @@ fn selected_operator_binding_fixture() -> (checked_trees::CheckedTrees, Provider
         .expect("tokenize selected-operator binding fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse selected-operator binding fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve selected-operator binding fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve selected-operator binding fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type selected-operator binding fixture");
     let plans = derive_satisfies_plans(&typed, None);
@@ -2981,8 +2997,10 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
         .expect("tokenize adapter ownership fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse adapter ownership fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve adapter ownership fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve adapter ownership fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type adapter ownership fixture");
     let plan = derive_satisfies_plans(&typed, None)
@@ -3076,8 +3094,10 @@ fn checked_operator_adapter_must_resolve_to_its_exact_operator_conformance() {
         .expect("tokenize checked operator adapter fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse checked operator adapter fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve checked operator adapter fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve checked operator adapter fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type checked operator adapter fixture");
     let operator = typed
@@ -3140,8 +3160,10 @@ fn syscall_derivation_retains_exact_number_before_range_validation() {
             .expect("tokenize syscall leaf");
         let syntax =
             tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse syscall leaf");
-        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-            .expect("resolve syscall leaf");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve syscall leaf");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type syscall leaf");
         let plans = derive_satisfies_plans(&typed, None);
@@ -3193,8 +3215,10 @@ fn checked_adapter_rejects_symbol_resolved_service_widening() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse provider");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve provider");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve provider");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type provider");
     let plans = derive_satisfies_plans(&typed, None);

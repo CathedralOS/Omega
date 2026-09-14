@@ -225,7 +225,7 @@ pub(super) fn acyclic_unit() -> terminal_psi_to_abstract_operations::VerifiedPsi
         .tokenize()
         .expect("tokenize acyclic unit");
     let syntax = parse_syntax_trees(&tokens).expect("parse acyclic unit");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve acyclic unit");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve acyclic unit");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type acyclic unit");
     let checked = lower_typed_trees(typed).expect("check acyclic unit");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::once")

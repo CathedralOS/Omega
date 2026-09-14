@@ -1126,7 +1126,7 @@ mod module_tests {
             parse_syntax_trees_into_with_id(&mut syntax, SourceId(ordinal), &tokens)
                 .expect("parse module constants");
         }
-        crate::lower_syntax_trees(&syntax)
+        crate::resolve(crate::ResolutionRequest::new(&syntax))
     }
 
     #[test]
@@ -1394,7 +1394,8 @@ mod module_tests {
             statement,
             syntax_trees::statement::StatementNode::LocalData(local),
         );
-        let program = crate::lower_syntax_trees(&syntax).expect("resolve inferred local shadow");
+        let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+            .expect("resolve inferred local shadow");
         let ExpressionNode::Name(path) = program
             .tables
             .bodies
@@ -1822,8 +1823,12 @@ mod module_tests {
         let mut syntax = SyntaxTrees::default();
         parse_syntax_trees_into_with_id(&mut syntax, base_source, &tokens)
             .expect("parse retained constant");
-        let mut base = crate::lower_syntax_trees_with_sources(&syntax, Arc::new(sources.clone()))
-            .expect("resolve retained constant");
+        let mut base = crate::resolve(crate::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources.clone())),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("resolve retained constant");
         change_base(&mut base);
         let extension_source = sources
             .add(PathBuf::from("extension.omg"), extension.to_owned())
@@ -1834,12 +1839,12 @@ mod module_tests {
         let mut syntax = SyntaxTrees::default();
         parse_syntax_trees_into_with_id(&mut syntax, extension_source, &tokens)
             .expect("parse constant extension");
-        crate::resolution::lower_syntax_extension_with_authored_selection_frontier(
+        crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
             base,
-            &syntax,
-            Arc::new(sources),
-            Vec::new(),
-        )
+            syntax: &syntax,
+            sources: Arc::new(sources),
+            top_level_bindings: Vec::new(),
+        })
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionNode;
@@ -23,7 +23,7 @@ fn assert_indexed_member_identities(collection: &str, receiver: &str) {
 fn assert_source_member_identities(source: &str, machine_name: &str, receiver: &str) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let endpoint = typed
         .data_definitions()
@@ -112,7 +112,7 @@ fn resolved_member_fixture() -> symbol_resolved_trees::SymbolResolvedTrees {
         machine read(cells: &[Endpoint; 2]) -> i64 { cells[0].end }";
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    lower_syntax_trees(&syntax).expect("resolve")
+    resolve(ResolutionRequest::new(&syntax)).expect("resolve")
 }
 
 fn only_member_symbol(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle {

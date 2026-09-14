@@ -1,6 +1,6 @@
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use validation::{validate_behavior_plan, validate_program, validate_static_machine_selections};
 
@@ -10,7 +10,7 @@ fn typed_program_from_source(source: &str) -> typed_trees::TypedTrees {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve should succeed");
     lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed")
 }
 
@@ -2439,8 +2439,8 @@ fn named_local_dynamic_coercion_rejects_unknown_selection() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostics =
-        lower_syntax_trees(&syntax).expect_err("a named dynamic selection must resolve exactly");
+    let diagnostics = resolve(ResolutionRequest::new(&syntax))
+        .expect_err("a named dynamic selection must resolve exactly");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -4860,7 +4860,7 @@ fn validates_main_entry_surface_from_source_pipeline() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     assert_eq!(typed.machines().len(), 1);
@@ -4894,7 +4894,7 @@ fn validates_local_state_call_arguments_from_source_pipeline() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     let entry = typed
@@ -4943,7 +4943,7 @@ fn rejects_unknown_trait_machine_service_reaches() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostics = lower_syntax_trees(&syntax_trees)
+    let diagnostics = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("unknown service reach must not enter resolved trees");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -4974,7 +4974,7 @@ fn rejects_unknown_domain_membership_in_domain_body() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     let diagnostics = validate_program(&typed).expect_err("validation should reject domain");
@@ -5146,7 +5146,7 @@ fn validate_contract_source(source: &str) -> Result<(), Vec<diagnostics::Diagnos
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
     validate_program(&typed)
 }
@@ -6246,7 +6246,7 @@ fn rejects_unknown_domain_membership_in_contract() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     let diagnostics = validate_program(&typed).expect_err("validation should reject domain");
@@ -6279,7 +6279,7 @@ fn rejects_non_boolean_shaped_proof_fact() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     let diagnostics = validate_program(&typed).expect_err("validation should reject fact");
@@ -6319,7 +6319,7 @@ fn rejects_domain_import_with_different_target_type() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     let diagnostics = validate_program(&typed).expect_err("validation should reject import");
@@ -6359,7 +6359,7 @@ fn rejects_domain_import_cycles() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     let diagnostics = validate_program(&typed).expect_err("validation should reject cycle");
@@ -6490,7 +6490,7 @@ fn rejects_machine_service_reaches_outside_trait_ceiling() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     let diagnostics = validate_program(&typed).expect_err("validation should reject extra effect");
@@ -6531,7 +6531,7 @@ fn accepts_machine_service_reaches_within_trait_ceiling() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     validate_program(&typed).expect("validation should succeed");
@@ -6563,7 +6563,7 @@ fn accepts_machine_service_reaches_below_trait_ceiling() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     validate_program(&typed).expect("validation should succeed");
@@ -6666,7 +6666,7 @@ fn rejects_published_service_ceiling_below_reached_services() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
     let operations = validation::infer_operational_may(&typed);
@@ -6703,13 +6703,13 @@ mod effects_analysis {
 
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
 
     fn lower(source: &str) -> TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
         lower_symbol_resolved_trees(&resolved).expect("type")
     }
 
@@ -7097,7 +7097,7 @@ mod effects_analysis {
 mod structural_entailment {
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
     use validation::validate_program;
 
@@ -7117,7 +7117,7 @@ mod structural_entailment {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering");
         validate_program(&typed).map_err(|diagnostics| {
             diagnostics
@@ -7627,13 +7627,13 @@ mod provider_plan {
     use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
 
     fn typed(source: &str) -> typed_trees::TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         lower_symbol_resolved_trees(&resolved).expect("typed lowering")
     }
 

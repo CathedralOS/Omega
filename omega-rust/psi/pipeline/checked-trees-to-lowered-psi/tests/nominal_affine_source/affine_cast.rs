@@ -35,7 +35,8 @@ fn affine_cast_affine_sandwich_retains_every_independent_proof_end_to_end() {
         .tokenize()
         .expect("tokenize affine-cast-affine source");
     let syntax = parse_syntax_trees(&tokens).expect("parse affine-cast-affine source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve affine-cast-affine source");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve affine-cast-affine source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type affine-cast-affine source");
     let checked = lower_typed_trees(typed).expect("check affine-cast-affine source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")

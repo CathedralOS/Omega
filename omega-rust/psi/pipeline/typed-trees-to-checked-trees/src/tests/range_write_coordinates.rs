@@ -6,7 +6,7 @@ fn check(source: &str, accepted: bool) {
         .unwrap_or_else(|diagnostics| panic!("tokenize: {diagnostics:#?}\n{source}"));
     let syntax = parse_syntax_trees(&tokens)
         .unwrap_or_else(|diagnostics| panic!("parse: {diagnostics:#?}\n{source}"));
-    let resolved = lower_syntax_trees(&syntax)
+    let resolved = resolve(ResolutionRequest::new(&syntax))
         .unwrap_or_else(|diagnostics| panic!("resolve: {diagnostics:#?}\n{source}"));
     let typed = lower_symbol_resolved_trees(&resolved)
         .unwrap_or_else(|diagnostics| panic!("type: {diagnostics:#?}\n{source}"));
@@ -343,7 +343,7 @@ fn transitive_write_selectors_require_builtin_arithmetic_meaning() {
             );
             let tokens = Lexer::new(&source).tokenize().expect("tokens");
             let syntax = parse_syntax_trees(&tokens).expect("syntax");
-            let resolved = lower_syntax_trees(&syntax).expect("resolved");
+            let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
             let program = lower_symbol_resolved_trees(&resolved).expect("typed");
             let machine = program
                 .machines()

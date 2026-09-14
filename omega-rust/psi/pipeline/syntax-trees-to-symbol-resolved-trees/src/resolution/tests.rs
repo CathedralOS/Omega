@@ -1,8 +1,4 @@
-use super::{
-    lower_syntax_extension_against_resolved_base,
-    lower_syntax_extension_with_authored_selection_frontier, lower_syntax_trees,
-    lower_syntax_trees_with_sources, lower_syntax_trees_with_sources_and_top_level_bindings,
-};
+use super::{ExtensionRequest, ResolutionRequest, resolve, resolve_extension};
 use crate::resolution::lowerer::Lowerer;
 use source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use source_files_to_tokens::Lexer;
@@ -49,8 +45,12 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
         &Lexer::new(base_source).tokenize().expect("tokenize base"),
     )
     .expect("parse base");
-    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone()))
-        .expect("resolve base");
+    let base = resolve(ResolutionRequest {
+        syntax: &base_syntax,
+        sources: Some(Arc::new(sources.clone())),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve base");
     let helper = base.machines.iter().next().expect("helper");
     let helper_symbol = helper.symbol;
     let helper_state_symbol = base
@@ -74,12 +74,12 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
     )
     .expect("parse extension");
 
-    let carrier = lower_syntax_extension_with_authored_selection_frontier(
+    let carrier = resolve_extension(ExtensionRequest {
         base,
-        &extension_syntax,
-        Arc::new(sources),
-        Vec::new(),
-    )
+        syntax: &extension_syntax,
+        sources: Arc::new(sources),
+        top_level_bindings: Vec::new(),
+    })
     .expect("resolve seeded extension");
     let unrebased = carrier.trees();
     assert_eq!(
@@ -189,8 +189,12 @@ fn seeded_extension_preserves_base_identity_and_resolves_base_peers_and_shadowin
     let base_tokens = Lexer::new(base_source).tokenize().expect("tokenize base");
     let base_syntax =
         parse_syntax_trees_with_id(base_source_id, &base_tokens).expect("parse base once");
-    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone()))
-        .expect("resolve retained base");
+    let base = resolve(ResolutionRequest {
+        syntax: &base_syntax,
+        sources: Some(Arc::new(sources.clone())),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve retained base");
     let expected_base_roots = base.data_definitions.iter().cloned().collect::<Vec<_>>();
     let expected_base_members = base
         .tables
@@ -216,12 +220,13 @@ fn seeded_extension_preserves_base_identity_and_resolves_base_peers_and_shadowin
         .expect("tokenize extension");
     let extension_syntax = parse_syntax_trees_with_id(extension_source_id, &extension_tokens)
         .expect("parse extension once");
-    let program = lower_syntax_extension_against_resolved_base(
+    let program = resolve_extension(ExtensionRequest {
         base,
-        &extension_syntax,
-        Arc::new(sources),
-        Vec::new(),
-    )
+        syntax: &extension_syntax,
+        sources: Arc::new(sources),
+        top_level_bindings: Vec::new(),
+    })
+    .map(|seeded| seeded.into_unrebased_trees())
     .expect("continue resolution from retained base");
 
     assert_eq!(
@@ -327,8 +332,12 @@ fn seeded_extension_rejects_duplicates_within_its_own_stratum() {
         .source_id;
     let base_tokens = Lexer::new(base_source).tokenize().expect("tokenize base");
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base once");
-    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone()))
-        .expect("resolve base");
+    let base = resolve(ResolutionRequest {
+        syntax: &base_syntax,
+        sources: Some(Arc::new(sources.clone())),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve base");
     let left_tokens = Lexer::new(left_source).tokenize().expect("tokenize left");
     let mut extension = parse_syntax_trees_with_id(left_id, &left_tokens).expect("parse left once");
     let right_tokens = Lexer::new(right_source).tokenize().expect("tokenize right");
@@ -336,12 +345,13 @@ fn seeded_extension_rejects_duplicates_within_its_own_stratum() {
         &parse_syntax_trees_with_id(right_id, &right_tokens).expect("parse right once"),
     );
 
-    let diagnostics = lower_syntax_extension_against_resolved_base(
+    let diagnostics = resolve_extension(ExtensionRequest {
         base,
-        &extension,
-        Arc::new(sources),
-        Vec::new(),
-    )
+        syntax: &extension,
+        sources: Arc::new(sources),
+        top_level_bindings: Vec::new(),
+    })
+    .map(|seeded| seeded.into_unrebased_trees())
     .expect_err("same-stratum duplicate const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -377,8 +387,12 @@ fn seeded_extension_retains_base_service_ids_and_authored_reach_provenance() {
         .source_id;
     let base_tokens = Lexer::new(base_source).tokenize().expect("tokenize base");
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base once");
-    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone()))
-        .expect("resolve retained base");
+    let base = resolve(ResolutionRequest {
+        syntax: &base_syntax,
+        sources: Some(Arc::new(sources.clone())),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve retained base");
     let filesystem = base
         .traits
         .iter()
@@ -406,12 +420,13 @@ fn seeded_extension_retains_base_service_ids_and_authored_reach_provenance() {
     let extension_syntax =
         parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension once");
 
-    let program = lower_syntax_extension_against_resolved_base(
+    let program = resolve_extension(ExtensionRequest {
         base,
-        &extension_syntax,
-        Arc::new(sources),
-        Vec::new(),
-    )
+        syntax: &extension_syntax,
+        sources: Arc::new(sources),
+        top_level_bindings: Vec::new(),
+    })
+    .map(|seeded| seeded.into_unrebased_trees())
     .expect("seeded service resolution");
     assert_eq!(
         program.service_reaches.id_for_symbol(filesystem),
@@ -476,15 +491,15 @@ fn explicit_top_level_boundary_requirement_satisfaction_resolves_exact_machine_s
     let requirement_syntax = parse_syntax_trees_with_id(requirement_source_id, &requirement_tokens)
         .expect("parse explicit requirement");
     syntax.extend_from(&requirement_syntax);
-    let program = lower_syntax_trees_with_sources_and_top_level_bindings(
-        &syntax,
-        Arc::new(sources),
-        vec![symbols::SourceScopedTopLevelBinding::new(
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: vec![symbols::SourceScopedTopLevelBinding::new(
             provider_source_id,
             requirement_source_id,
             "Carrier::operation",
         )],
-    )
+    })
     .expect("resolve explicit requirement satisfaction");
     let requirements = program
         .machines
@@ -528,7 +543,8 @@ fn trait_requirement_satisfaction_retains_trait_symbol_resolution() {
         .tokenize()
         .expect("tokenize trait provider");
     let syntax = parse_syntax_trees(&tokens).expect("parse trait requirement");
-    let program = lower_syntax_trees(&syntax).expect("resolve trait requirement satisfaction");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve trait requirement satisfaction");
     let trait_definition = program.traits.first().expect("Carrier trait");
     let provider = program
         .machines
@@ -565,7 +581,7 @@ fn top_level_boundary_requirement_satisfaction_rejects_wrong_kind_and_missing_ta
             .tokenize()
             .expect("tokenize invalid target");
         let syntax = parse_syntax_trees(&tokens).expect("parse invalid target");
-        let diagnostics = lower_syntax_trees(&syntax)
+        let diagnostics = resolve(ResolutionRequest::new(&syntax))
             .expect_err("invalid satisfaction target must fail symbol assignment");
 
         assert!(
@@ -583,7 +599,8 @@ fn trait_machine_requirement_identity_reaches_resolved_trees() {
         .tokenize()
         .expect("tokenize trait machine requirement parameter");
     let syntax = parse_syntax_trees(&tokens).expect("parse trait machine requirement parameter");
-    let program = lower_syntax_trees(&syntax).expect("resolve trait machine requirement parameter");
+    let program = resolve(ResolutionRequest::new(&syntax))
+        .expect("resolve trait machine requirement parameter");
     let trait_definition = program
         .traits
         .iter()
@@ -614,7 +631,7 @@ fn trait_machine_requirement_argument_resolves_one_exact_requirement() {
         .tokenize()
         .expect("tokenize private callback slot");
     let syntax = parse_syntax_trees(&tokens).expect("parse private callback slot");
-    let program = lower_syntax_trees(&syntax).expect("resolve private callback slot");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve private callback slot");
     let window_procedure = program
         .traits
         .iter()
@@ -672,8 +689,12 @@ fn authored_trait_machine_identity_uses_the_exact_base_trait_catalog() {
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("authored machine identity must use the exact base trait catalog");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("authored machine identity must use the exact base trait catalog");
     let conformance = program
         .conformances
         .iter()
@@ -738,8 +759,12 @@ fn authored_quotient_paths_ignore_extension_first_declarations() {
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("authored quotient paths must ignore extension declarations");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("authored quotient paths must ignore extension declarations");
     let quotient = program
         .data_definitions
         .iter()
@@ -808,8 +833,12 @@ fn authored_conformance_result_dispatch_ignores_an_extension_domain_alias() {
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("the extension Left alias must not make both Base overloads dispatch as Right");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("the extension Left alias must not make both Base overloads dispatch as Right");
     let conformance = program
         .conformances
         .iter()
@@ -858,7 +887,8 @@ fn trait_machine_requirement_argument_rejects_non_requirement_and_overload() {
             .tokenize()
             .expect("tokenize invalid slot");
         let syntax = parse_syntax_trees(&tokens).expect("parse invalid slot");
-        let diagnostics = lower_syntax_trees(&syntax).expect_err("invalid slot must fail closed");
+        let diagnostics =
+            resolve(ResolutionRequest::new(&syntax)).expect_err("invalid slot must fail closed");
         assert!(
             diagnostics
                 .iter()
@@ -873,7 +903,7 @@ fn retains_public_conformance_visibility_and_snapshot_shape() {
     let source = "pub trait Ranked {} pub data Card {} pub PowerOrder: Card satisfies Ranked {}";
     let tokens = Lexer::new(source).tokenize().expect("tokenize conformance");
     let syntax = parse_syntax_trees(&tokens).expect("parse conformance");
-    let program = lower_syntax_trees(&syntax).expect("resolve conformance");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve conformance");
     let conformance = program.conformances.iter().next().expect("conformance");
 
     assert!(conformance.is_public);
@@ -897,7 +927,7 @@ fn retains_public_data_trait_and_wire_visibility() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize data");
     let syntax = parse_syntax_trees(&tokens).expect("parse data");
-    let program = lower_syntax_trees(&syntax).expect("resolve data");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve data");
     let public = program
         .data_definitions
         .iter()
@@ -959,8 +989,12 @@ fn resolves_wire_owned_nested_field_type_identity() {
         .source_id;
     let tokens = Lexer::new(source).tokenize().expect("tokenize wire data");
     let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse wire data");
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolve source-owned wire data");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve source-owned wire data");
     let header_symbol = program
         .data_definitions
         .iter()
@@ -993,7 +1027,7 @@ fn retains_public_machine_visibility_in_symbol_resolved_trees() {
         .tokenize()
         .expect("tokenize public machine");
     let syntax = parse_syntax_trees(&tokens).expect("parse public machine");
-    let program = lower_syntax_trees(&syntax).expect("resolve public machine");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve public machine");
     let machine = program
         .machines
         .iter()
@@ -1021,7 +1055,7 @@ fn resolves_machine_and_trait_const_parameter_carrier_types() {
         .tokenize()
         .expect("tokenize const parameters");
     let syntax = parse_syntax_trees(&tokens).expect("parse const parameters");
-    let program = lower_syntax_trees(&syntax).expect("resolve const parameters");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve const parameters");
     let machine = program
         .machines
         .iter()
@@ -1067,7 +1101,7 @@ fn resolves_provider_selection_type_paths_to_exact_symbols() {
         .tokenize()
         .expect("tokenize provider selection");
     let syntax = parse_syntax_trees(&tokens).expect("parse provider selection");
-    let program = lower_syntax_trees(&syntax).expect("resolve provider selection");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve provider selection");
     let build = program
         .machines
         .iter()
@@ -1118,7 +1152,8 @@ fn resolves_top_level_requirement_provider_selection_to_exact_machine_symbol() {
         .tokenize()
         .expect("tokenize top-level provider selection");
     let syntax = parse_syntax_trees(&tokens).expect("parse top-level provider selection");
-    let program = lower_syntax_trees(&syntax).expect("resolve top-level provider selection");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve top-level provider selection");
     let requirement = program
         .machines
         .iter()
@@ -1197,8 +1232,12 @@ fn authored_build_selection_paths_cannot_fall_back_to_extension_declarations() {
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base source");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolved lowering retains invalid hidden build selections for diagnostics");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolved lowering retains invalid hidden build selections for diagnostics");
     let build = program
         .machines
         .iter()
@@ -1241,7 +1280,7 @@ fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let conformance = program.conformances.iter().next().expect("one conformance");
 
     assert_eq!(conformance.lifetime_parameters.len(), 1);
@@ -1321,7 +1360,7 @@ fn resolves_forward_declared_nominal_machine_parameter_to_exact_requirement() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve nominal requirement");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve nominal requirement");
     let machine = program
         .machines
         .iter()
@@ -1391,7 +1430,7 @@ fn rejects_overloaded_nominal_machine_parameter_requirement() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let diagnostic = lower_syntax_trees(&syntax).expect_err("overload must reject");
+    let diagnostic = resolve(ResolutionRequest::new(&syntax)).expect_err("overload must reject");
 
     assert_eq!(diagnostic.len(), 2);
     assert!(
@@ -1434,7 +1473,8 @@ fn rejects_unknown_nominal_machine_parameter_paths() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let diagnostic = lower_syntax_trees(&syntax).expect_err("unknown path must reject");
+        let diagnostic =
+            resolve(ResolutionRequest::new(&syntax)).expect_err("unknown path must reject");
         assert!(
             diagnostics::format_diagnostics(&diagnostic).contains(expected),
             "unexpected diagnostic for {path}: {diagnostic:?}"
@@ -1450,7 +1490,7 @@ fn nominal_machine_parameter_view_rejects_mismatched_trait_requirement_pair() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve traits");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve traits");
     let first = program
         .traits
         .iter()
@@ -1489,7 +1529,7 @@ fn resolves_explicit_conformance_binder_as_proof_static_machine_child() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let machine = program.machines.iter().next().expect("machine");
     let [bound] = machine.conformance_bounds.as_slice() else {
         panic!("one explicit conformance binder");
@@ -1518,7 +1558,7 @@ fn resolves_explicit_conformance_binder_as_proof_static_trait_child() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let ordering = program
         .traits
         .iter()
@@ -1560,7 +1600,8 @@ fn retains_callable_conformance_bound_declarations_with_owner_exposure() {
         .tokenize()
         .expect("tokenize conformance-bound custody");
     let syntax = parse_syntax_trees(&tokens).expect("parse conformance-bound custody");
-    let program = lower_syntax_trees(&syntax).expect("resolve conformance-bound custody");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve conformance-bound custody");
     let ranked = program
         .traits
         .iter()
@@ -1637,7 +1678,7 @@ fn resolves_every_selected_conformance_bound_application_lane() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let machine = program
         .machines
         .iter()
@@ -1705,7 +1746,8 @@ fn lowers_closed_conformance_rows_to_exact_machine_states() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
     let conformances = program.conformances.iter().collect::<Vec<_>>();
     let [conformance] = conformances.as_slice() else {
         panic!("one conformance");
@@ -1744,7 +1786,7 @@ fn retains_named_conformance_visibility_and_snapshot_identity() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
     let conformances = program.conformances.iter().collect::<Vec<_>>();
 
     assert_eq!(conformances.len(), 2);
@@ -1773,7 +1815,8 @@ fn lowers_subjectless_conformance_to_package_symbol_and_closed_rows() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("subjectless block should parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("subjectless rows should normalize");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("subjectless rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     assert!(matches!(
         conformance.subject,
@@ -1822,7 +1865,8 @@ fn subjectless_inline_calls_route_through_the_same_closed_map() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("subjectless block should parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("subjectless rows should normalize");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("subjectless rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -1874,7 +1918,7 @@ fn closed_conformance_blocks_never_fall_back_to_ambient_attached_machines() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("closed map must ignore the ambient attached look-alike");
     assert!(
         diagnostic[0]
@@ -1894,7 +1938,7 @@ fn closed_conformance_retains_trait_default_selection_rows() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = lower_syntax_trees(&syntax_trees)
+    let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("the selected trait-default template should cover the row");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
@@ -1949,7 +1993,7 @@ fn inherited_trait_default_applications_partition_shared_authored_calls() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("source should parse");
-    let program = lower_syntax_trees(&syntax_trees)
+    let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("each inherited default application should own its routed call");
 
     let applications = ["Left::reset", "Right::reset"].map(|name| {
@@ -2010,7 +2054,7 @@ fn closed_conformance_retains_every_same_named_default_overload() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = lower_syntax_trees(&syntax_trees)
+    let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("same-named default overloads retain exact declaration identities");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
@@ -2044,7 +2088,7 @@ fn closed_conformance_matches_inline_members_to_result_overloads() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = lower_syntax_trees(&syntax_trees)
+    let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("the inline member's complete signature should select one overload");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
@@ -2103,7 +2147,8 @@ fn trait_default_calls_route_through_the_same_closed_map() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -2156,7 +2201,7 @@ fn trait_default_synthesis_is_idempotent_across_orchestration_and_lowering() {
     let mut syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
     crate::synthesize_trait_defaults(&mut syntax_trees)
         .expect("orchestration may synthesize before resolution");
-    let program = lower_syntax_trees(&syntax_trees)
+    let program = resolve(ResolutionRequest::new(&syntax_trees))
         .expect("resolution's mandatory synthesis pass must not duplicate the row");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
@@ -2188,7 +2233,8 @@ fn inherited_same_name_defaults_keep_distinct_exact_rows() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("exact defaults should normalize");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("exact defaults should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -2220,7 +2266,7 @@ fn inherited_requirement_collisions_require_trait_qualified_rows() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("a short row name must not choose one inherited declaration");
     assert!(
         diagnostic[0]
@@ -2244,7 +2290,8 @@ fn inherited_requirement_collisions_require_trait_qualified_rows() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("qualified rows should parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("qualified rows should normalize");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("qualified rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -2273,7 +2320,8 @@ fn inline_conformance_member_calls_route_through_the_same_closed_map() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -2340,7 +2388,8 @@ fn inline_conformance_value_calls_route_through_the_same_closed_map() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -2404,7 +2453,8 @@ fn inline_conformance_calls_preserve_a_foreign_receiver_method() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("closed rows should normalize");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -2455,7 +2505,8 @@ fn proposition_parameter_signatures_receive_distinct_symbols() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
 
     let trait_definition = &program.traits[0];
     let [carrier, relation] = program.trait_type_parameters(trait_definition) else {
@@ -2512,7 +2563,8 @@ fn proposition_declarations_resolve_as_a_distinct_proof_category() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
 
     assert_eq!(program.propositions.len(), 3);
     assert!(program.propositions[0].is_public);
@@ -2603,7 +2655,7 @@ fn transparent_proposition_zero_value_target_resolves_in_its_binder_scope() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let optional = program.data_definitions.first().expect("Optional data");
     let proposition = program.propositions.first().expect("zero proposition");
     let [binder] = program
@@ -2660,7 +2712,7 @@ fn retains_exact_expression_selection_symbols() {
         .tokenize()
         .expect("tokenize exact selections");
     let syntax = parse_syntax_trees(&tokens).expect("parse exact selections");
-    let program = lower_syntax_trees(&syntax).expect("resolve exact selections");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve exact selections");
     let expressions = &program.tables.bodies.expressions;
 
     let path = expressions
@@ -2776,7 +2828,7 @@ fn outcome_specific_ensures_normalizes_only_against_declared_result_sum() {
         .tokenize()
         .expect("tokenize guarded guarantee");
     let syntax = parse_syntax_trees(&tokens).expect("parse guarded guarantee");
-    let program = lower_syntax_trees(&syntax).expect("resolve guarded guarantee");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve guarded guarantee");
     let outcome = program
         .data_definitions
         .iter()
@@ -2843,8 +2895,12 @@ fn authored_outcome_specific_contract_uses_the_exact_base_result_sum() {
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("authored outcome contract must retain the base result sum");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("authored outcome contract must retain the base result sum");
     let machine = program
         .machines
         .iter()
@@ -2892,7 +2948,8 @@ fn outcome_specific_ensures_rejects_non_sum_and_foreign_cases() {
             .tokenize()
             .expect("tokenize invalid guarded guarantee");
         let syntax = parse_syntax_trees(&tokens).expect("parse invalid guarded guarantee");
-        let diagnostics = lower_syntax_trees(&syntax).expect_err("guard resolution must reject");
+        let diagnostics =
+            resolve(ResolutionRequest::new(&syntax)).expect_err("guard resolution must reject");
         assert!(
             diagnostics
                 .iter()
@@ -2912,7 +2969,7 @@ fn captures_resolved_calls_and_late_checked_operators_in_private_bodies() {
         .tokenize()
         .expect("tokenize authored selections");
     let syntax = parse_syntax_trees(&tokens).expect("parse authored selections");
-    let program = lower_syntax_trees(&syntax).expect("resolve authored selections");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve authored selections");
     let selections = program.authored_declaration_selections();
     assert!(selections.iter().any(|selection| {
         selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
@@ -2946,7 +3003,7 @@ fn guard_hoist_copies_share_one_authored_call_occurrence() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize guard hoist");
     let syntax = parse_syntax_trees(&tokens).expect("parse guard hoist");
-    let program = lower_syntax_trees(&syntax).expect("resolve guard hoist");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve guard hoist");
     let target_start = source
         .find("self.value() == seed")
         .expect("guard call source")
@@ -2994,7 +3051,7 @@ fn const_specialization_copies_share_the_authored_member_declaration() {
         .tokenize()
         .expect("tokenize const copies");
     let syntax = parse_syntax_trees(&tokens).expect("parse const copies");
-    let program = lower_syntax_trees(&syntax).expect("resolve const copies");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve const copies");
     let items_start = source.find("self.items").expect("member source") + "self.".len();
     let selections = program
         .authored_declaration_selections()
@@ -3033,7 +3090,7 @@ fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
         .tokenize()
         .expect("tokenize expression exposure");
     let syntax = parse_syntax_trees(&tokens).expect("parse expression exposure");
-    let program = lower_syntax_trees(&syntax).expect("resolve expression exposure");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve expression exposure");
     let call_exposures = program
         .authored_declaration_selections()
         .iter()
@@ -3066,7 +3123,8 @@ fn retains_authored_expression_exposure_for_embedded_type_lowering() {
         .tokenize()
         .expect("tokenize expression type exposure");
     let syntax = parse_syntax_trees(&tokens).expect("parse expression type exposure");
-    let program = lower_syntax_trees(&syntax).expect("resolve expression type exposure");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve expression type exposure");
     let mut exposures = program
         .tables
         .bodies
@@ -3117,7 +3175,7 @@ fn qualification_cast_domains_retain_exact_expression_custody() {
         .tokenize()
         .expect("tokenize qualification casts");
     let syntax = parse_syntax_trees(&tokens).expect("parse qualification casts");
-    let program = lower_syntax_trees(&syntax).expect("resolve qualification casts");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve qualification casts");
 
     let casts = program
         .tables
@@ -3187,7 +3245,8 @@ fn retains_nested_unary_operator_custody_in_public_propositions() {
         .tokenize()
         .expect("tokenize public unary proposition");
     let syntax = parse_syntax_trees(&tokens).expect("parse public unary proposition");
-    let program = lower_syntax_trees(&syntax).expect("resolve public unary proposition");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve public unary proposition");
     let proposition = program
         .propositions
         .iter()
@@ -3248,7 +3307,8 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
         .tokenize()
         .expect("tokenize establishment selections");
     let syntax = parse_syntax_trees(&tokens).expect("parse establishment selections");
-    let program = lower_syntax_trees(&syntax).expect("resolve establishment selections");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve establishment selections");
     let issues = program
         .traits
         .iter()
@@ -3341,7 +3401,8 @@ fn distinguishes_boundary_contract_expressions_from_boundary_adapter_bodies() {
         .tokenize()
         .expect("tokenize boundary expression exposure");
     let syntax = parse_syntax_trees(&tokens).expect("parse boundary expression exposure");
-    let program = lower_syntax_trees(&syntax).expect("resolve boundary expression exposure");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve boundary expression exposure");
     let call_exposures = program
         .authored_declaration_selections()
         .iter()
@@ -3379,7 +3440,7 @@ fn captures_expression_static_type_and_machine_arguments() {
         .tokenize()
         .expect("tokenize static arguments");
     let syntax = parse_syntax_trees(&tokens).expect("parse static arguments");
-    let program = lower_syntax_trees(&syntax).expect("resolve static arguments");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve static arguments");
     let selected_kinds = program
         .authored_declaration_selections()
         .iter()
@@ -3473,8 +3534,12 @@ fn static_and_proof_static_arguments_obey_current_activation_resolution_strata()
     syntax.extend_from(
         &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
     );
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolve extension-first static arguments");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve extension-first static arguments");
 
     fn statement_arguments<'a>(
         program: &'a symbol_resolved_trees::SymbolResolvedTrees,
@@ -3606,7 +3671,8 @@ fn resolves_named_const_static_arguments_with_exact_authored_custody() {
         .tokenize()
         .expect("tokenize named const static argument");
     let syntax = parse_syntax_trees(&tokens).expect("parse named const static argument");
-    let program = lower_syntax_trees(&syntax).expect("resolve named const static argument");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve named const static argument");
     let selections = program
         .authored_declaration_selections()
         .iter()
@@ -3648,7 +3714,7 @@ fn captures_statement_calls_and_their_explicit_conformance_arguments() {
         .tokenize()
         .expect("tokenize statement selections");
     let syntax = parse_syntax_trees(&tokens).expect("parse statement selections");
-    let program = lower_syntax_trees(&syntax).expect("resolve statement selections");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve statement selections");
     let selected = program
         .conformances
         .iter()
@@ -3731,7 +3797,7 @@ fn substituted_const_retains_authored_declaration_selection_custody() {
         .tokenize()
         .expect("tokenize const selection");
     let syntax = parse_syntax_trees(&tokens).expect("parse const selection");
-    let program = lower_syntax_trees(&syntax).expect("resolve const selection");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve const selection");
     let selection = program
         .authored_declaration_selections()
         .iter()
@@ -3822,8 +3888,12 @@ fn const_substitution_obeys_current_activation_resolution_strata() {
             .expect("parse second extension");
     syntax.extend_from(&second_extension_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("cross-stratum duplicate consts remain separate");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("cross-stratum duplicate consts remain separate");
     let const_targets = program
         .authored_declaration_selections()
         .iter()
@@ -3888,8 +3958,12 @@ fn const_collision_walks_separate_base_from_current_activation_extension() {
         .expect("parse extension");
     syntax.extend_from(&extension_syntax);
 
-    lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("free-shadow and case collisions across strata remain separate");
+    resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("free-shadow and case collisions across strata remain separate");
 }
 
 #[test]
@@ -3944,8 +4018,12 @@ fn const_declaration_collisions_still_reject_within_the_extension_stratum() {
             parse_syntax_trees_with_id(right_id, &right_tokens).expect("parse right extension");
         syntax.extend_from(&right_syntax);
 
-        let diagnostics = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-            .expect_err("same-extension-stratum const collision must reject");
+        let diagnostics = resolve(ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        })
+        .expect_err("same-extension-stratum const collision must reject");
         assert!(
             diagnostics
                 .iter()
@@ -3996,8 +4074,12 @@ fn authored_memberships_and_struct_literals_ignore_extension_first_declarations(
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("base membership and literal lookup must ignore extension declarations");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("base membership and literal lookup must ignore extension declarations");
     let source_of = |symbol| {
         program
             .symbols
@@ -4110,8 +4192,12 @@ fn authored_trait_machine_conformance_and_dynamic_assignments_ignore_extension_f
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("authored assignments must ignore extension declarations");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("authored assignments must ignore extension declarations");
     let source_of = |symbol| {
         program
             .symbols
@@ -4244,8 +4330,12 @@ fn trait_slot_catalogs_and_evidence_seeding_use_exact_trait_identity() {
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("same-named trait catalogs must retain exact stratum identity");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("same-named trait catalogs must retain exact stratum identity");
     let argument_kind = |arguments| {
         let [symbol_resolved_trees::types::TypeReference::Named { symbol, .. }] =
             program.child_type_references(arguments)
@@ -4342,7 +4432,7 @@ fn retains_const_declaration_visibility_after_value_substitution() {
         .tokenize()
         .expect("tokenize const visibility");
     let syntax = parse_syntax_trees(&tokens).expect("parse const visibility");
-    let program = lower_syntax_trees(&syntax).expect("resolve const visibility");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve const visibility");
 
     assert_eq!(program.const_declarations.len(), 2);
     assert!(program.const_declarations[0].is_public);
@@ -4365,14 +4455,14 @@ fn public_const_requires_canonical_compatibility_value_but_private_const_v0_does
         .tokenize()
         .expect("tokenize private string const");
     let syntax = parse_syntax_trees(&tokens).expect("parse private string const");
-    lower_syntax_trees(&syntax).expect("private const-v0 behavior remains unchanged");
+    resolve(ResolutionRequest::new(&syntax)).expect("private const-v0 behavior remains unchanged");
 
     let public_source = r#"pub const LABEL: string = "public";"#;
     let tokens = Lexer::new(public_source)
         .tokenize()
         .expect("tokenize public string const");
     let syntax = parse_syntax_trees(&tokens).expect("parse public string const");
-    let diagnostics = lower_syntax_trees(&syntax)
+    let diagnostics = resolve(ResolutionRequest::new(&syntax))
         .expect_err("unsupported public const identity must reject rather than emit a weak row");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -4398,7 +4488,7 @@ fn lowers_dungeon_style_machine_program() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
 
     assert_eq!(program.data_definitions.len(), 1);
     assert_eq!(program.machines.len(), 1);
@@ -4440,7 +4530,7 @@ fn normalizes_service_rows_from_resolved_boundary_trait_symbols() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
 
     let readable = program
         .traits
@@ -4539,8 +4629,12 @@ fn authored_service_reaches_and_invokes_obey_resolution_strata() {
     syntax.extend_from(
         &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
     );
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolve extension-first service rows");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve extension-first service rows");
 
     let service_from = |name: &str, source_id| {
         let definition = program
@@ -4607,8 +4701,12 @@ fn authored_base_service_names_cannot_resolve_extension_only_declarations() {
     reach_syntax.extend_from(
         &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
     );
-    let diagnostic = lower_syntax_trees_with_sources(&reach_syntax, Arc::new(reach_sources))
-        .expect_err("Base reaches must not resolve an extension-only service");
+    let diagnostic = resolve(ResolutionRequest {
+        syntax: &reach_syntax,
+        sources: Some(Arc::new(reach_sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect_err("Base reaches must not resolve an extension-only service");
     assert!(
         diagnostic[0]
             .message
@@ -4639,8 +4737,12 @@ fn authored_base_service_names_cannot_resolve_extension_only_declarations() {
     invoke_syntax.extend_from(
         &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
     );
-    let program = lower_syntax_trees_with_sources(&invoke_syntax, Arc::new(invoke_sources))
-        .expect("unresolved invokes remains absent from the normalized row");
+    let program = resolve(ResolutionRequest {
+        syntax: &invoke_syntax,
+        sources: Some(Arc::new(invoke_sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("unresolved invokes remains absent from the normalized row");
     let authored = program
         .machines
         .iter()
@@ -4666,7 +4768,7 @@ fn rejects_unknown_machine_service_reach_before_resolved_trees() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("unknown machine service reach must not enter resolved trees");
 
     assert!(
@@ -4691,7 +4793,7 @@ fn rejects_ordinary_trait_in_machine_service_reach_before_resolved_trees() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("ordinary traits must not enter a service row");
 
     assert!(
@@ -4713,7 +4815,7 @@ fn rejects_unknown_machine_parameter_service_reach_before_resolved_trees() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("unknown machine-parameter reach must not enter resolved trees");
 
     assert!(diagnostic[0].message.contains(
@@ -4738,7 +4840,7 @@ fn rejects_authored_service_reach_on_external_realization_before_resolved_trees(
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("external realization must derive rather than repeat service reach");
 
     assert!(
@@ -4765,7 +4867,7 @@ fn rejects_authored_empty_service_reach_on_external_realization_before_resolved_
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("an explicit empty external reach must not collapse into omission");
 
     assert!(
@@ -4788,7 +4890,8 @@ fn retains_external_realization_mechanism_without_rendering_classification() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("resolve external realization");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve external realization");
     let leaf = program
         .machines
         .iter()
@@ -4829,7 +4932,8 @@ fn retains_ordinary_via_call_as_resolved_expression_without_fabricated_binding()
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("resolve ordinary via call");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve ordinary via call");
     let leaf = program
         .machines
         .iter()
@@ -4870,7 +4974,7 @@ fn keeps_attached_machines_as_distinct_callables() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
 
     assert_eq!(program.machines.len(), 2);
     assert_eq!(program.machines[0].name.as_str(), "Game::new");
@@ -4912,7 +5016,7 @@ fn lowers_domain_definitions() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
 
     assert_eq!(program.domain_definitions.len(), 4);
     let domain = program
@@ -4984,7 +5088,8 @@ fn resolves_exact_case_symbols_in_domain_proof_expressions() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
     let command = program
         .data_definitions
         .iter()
@@ -5045,7 +5150,7 @@ fn resolves_free_machine_calls_in_domain_predicates() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let domain = program
         .domain_definitions
         .iter()
@@ -5101,7 +5206,7 @@ fn resolves_repeated_capacity_specializations_as_one_domain_identity() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     assert_eq!(
         program.domain_definitions[0].semantic_id, program.domain_definitions[1].semantic_id,
         "capacity-specialized declarations with the same normalized predicate should share semantic identity",
@@ -5135,7 +5240,7 @@ fn preserves_operator_declarations() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
 
     assert_eq!(program.operators.len(), 1);
     let operator = &program.operators[0];
@@ -5171,7 +5276,7 @@ fn resolves_operator_const_parameter_carriers() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let operator = program.operators.first().expect("const-generic operator");
     let [parameter] = program.data_type_parameters(operator.type_parameters) else {
         panic!("one const parameter")
@@ -5207,7 +5312,7 @@ fn preserves_domain_operator_declarations() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let domain = program
         .domain_definitions
         .iter()
@@ -5245,7 +5350,7 @@ fn infers_top_level_operator_home_from_qualified_operands() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let domain = program
         .domain_definitions
         .iter()
@@ -5284,7 +5389,7 @@ fn rejects_ambiguous_inferred_domain_operator_home() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("competing operand domains must not infer an operator home");
     assert!(
         diagnostic[0]
@@ -5326,7 +5431,7 @@ fn does_not_infer_domain_establishment_from_contract_placement() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
 
     let issued = program
         .domain_definitions
@@ -5369,7 +5474,7 @@ fn normalizes_authored_checked_and_boundary_requirement_routes() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
 
     for (domain_name, trait_name, is_boundary) in [
         ("Token::Checked", "CheckedIssuer", false),
@@ -5438,8 +5543,12 @@ fn authored_establishment_route_cannot_use_an_extension_only_domain_constraint()
         .expect("parse extension source");
     syntax.extend_from(&extension_syntax);
 
-    let diagnostics = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect_err("an authored route must not gain authority from a hidden domain alias");
+    let diagnostics = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect_err("an authored route must not gain authority from a hidden domain alias");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -5464,7 +5573,7 @@ fn preserves_explicit_progress_profile_classification_during_resolution() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let domain = program
         .domain_definitions
         .iter()
@@ -5498,7 +5607,7 @@ fn boundary_requirement_route_accepts_exact_non_self_parameter_domain() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let domain = program
         .domain_definitions
         .iter()
@@ -5538,7 +5647,7 @@ fn ordinary_requirement_route_rejects_parameter_domain_as_introduction() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("an ordinary call must treat its parameter domain as a precondition");
     assert!(diagnostic[0].message.contains(
         "does not name the domain on its exact result or an exact non-self external-root parameter"
@@ -5557,7 +5666,8 @@ fn rejects_unresolved_authored_domain_requirement_route() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees).expect_err("route must resolve exactly");
+    let diagnostic =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect_err("route must resolve exactly");
     assert!(
         diagnostic[0]
             .message
@@ -5581,7 +5691,7 @@ fn rejects_overloaded_signature_free_domain_requirement_route() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
         .expect_err("a signature-free requirement path must not choose among overloads");
     assert_eq!(diagnostic.len(), 2);
     assert!(diagnostic[0].message.contains("declaring trait `Issuer`"));
@@ -5615,7 +5725,8 @@ fn signature_free_overload_reports_one_declaration_and_every_affected_use() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let diagnostics = lower_syntax_trees(&syntax).expect_err("overload must reject every use");
+    let diagnostics =
+        resolve(ResolutionRequest::new(&syntax)).expect_err("overload must reject every use");
 
     assert_eq!(diagnostics.len(), 3);
     assert!(diagnostics[0].message.contains("declaring trait `Issuer`"));
@@ -5678,7 +5789,12 @@ fn authored_signature_free_requirement_ignores_current_activation_extension_over
         .expect("parse extension source");
     syntax.extend_from(&extension_syntax);
 
-    lower_syntax_trees_with_sources(&syntax, Arc::new(sources)).expect(
+    resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect(
         "authored signature-free uses must resolve only against the retained base trait family",
     );
 }
@@ -5709,7 +5825,7 @@ fn expands_alias_establishment_routes_to_atomic_domains() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let issuer = program
         .traits
         .iter()
@@ -5759,7 +5875,7 @@ fn lowers_machine_contract_clauses() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let machine = program.machines.first().expect("machine");
     let contracts = program.machine_contracts(machine);
 
@@ -5788,7 +5904,7 @@ fn lowers_named_contract_evidence_bindings() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("lower");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lower");
     let machine = program
         .machines
         .iter()
@@ -5820,7 +5936,7 @@ fn classifies_evidence_forwarding_out_of_runtime_statements() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("lower");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lower");
     let [forwarding] = program.evidence_forwardings.as_slice() else {
         panic!("one resolved evidence forwarding expected");
     };
@@ -5861,7 +5977,7 @@ fn resolves_explicit_evidence_producer_to_exact_subjectless_conformance() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("lower");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lower");
     let [assignment] = program.evidence_forwardings.as_slice() else {
         panic!("one resolved evidence assignment expected");
     };
@@ -5906,7 +6022,7 @@ fn binds_evidence_forwarding_to_attached_machine_with_duplicate_short_name() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax_trees).expect("lower");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lower");
 
     assert_eq!(program.evidence_forwardings.len(), 2);
     for (root_index, forwarding) in program.evidence_forwardings.iter().enumerate() {
@@ -5949,7 +6065,7 @@ fn resolves_generic_calls_inside_machine_contracts() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let witness = program
         .machines
         .iter()
@@ -5996,7 +6112,7 @@ fn lowers_attached_main_state_name_as_main() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
 
     assert_eq!(program.machines.len(), 1);
     assert_eq!(program.machines[0].name.as_str(), "Main::main");
@@ -6031,7 +6147,7 @@ fn transition_target_prefers_state_over_same_named_attached_field() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let machine = program.machines.first().expect("main machine");
     let states = program.machine_state_handles(machine.states);
     let entry = program.machine_state(states[0]);
@@ -6071,7 +6187,7 @@ fn resolves_qualified_attached_machine_tail_transition() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let pack = program
         .machines
         .iter()
@@ -6159,8 +6275,12 @@ fn attached_calls_and_qualified_transitions_obey_resolution_strata() {
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("attached-call resolution must retain stratum boundaries");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("attached-call resolution must retain stratum boundaries");
     let source_of = |symbol| {
         program
             .symbols
@@ -6243,7 +6363,7 @@ fn resolves_self_parameter_type_to_machine_symbol() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
     let machine = program.machines.first().expect("machine");
     let entry = program
         .machine_state_handles(machine.states)
@@ -6285,8 +6405,12 @@ fn source_backed_names_are_used_when_sources_are_available() {
         .expect("tokenize should succeed");
     let syntax_trees =
         parse_syntax_trees_with_id(source_id, &tokens).expect("parse should succeed");
-    let program = lower_syntax_trees_with_sources(&syntax_trees, Arc::new(sources))
-        .expect("lowering should succeed");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax_trees,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("lowering should succeed");
     let counts = program.symbols.name_storage_counts();
 
     assert!(
@@ -6364,8 +6488,12 @@ fn authored_base_paths_and_receiverless_calls_ignore_extension_first_declaration
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base source");
     syntax.extend_from(&base_syntax);
 
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("base references must ignore extension-first declarations");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("base references must ignore extension-first declarations");
     let authored = program
         .machines
         .iter()
@@ -6480,7 +6608,7 @@ fn trait_operator_requirement_retains_fixed_token_after_resolution() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let trait_definition = program.traits.first().expect("Ranked trait");
     let [requirement] = program.trait_machine_signatures(trait_definition.machines) else {
         panic!("one trait operator requirement expected");
@@ -6504,5 +6632,6 @@ fn deep_left_associated_boolean_expression_resolves_on_the_default_test_stack() 
         .expect("tokenize deep expression");
     let syntax = parse_syntax_trees(&tokens).expect("parse deep expression");
 
-    lower_syntax_trees(&syntax).expect("resolve deep expression on the default test stack");
+    resolve(ResolutionRequest::new(&syntax))
+        .expect("resolve deep expression on the default test stack");
 }

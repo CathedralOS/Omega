@@ -18,7 +18,7 @@ fn stored_aggregate_program(body: &str) -> typed_trees::TypedTrees {
     );
     let syntax =
         parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
@@ -423,7 +423,7 @@ fn stored_aggregate_reference_origin_survives_named_state_cycle() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = program
         .machines()
@@ -468,7 +468,7 @@ fn stored_aggregate_writes_invalidate_arithmetic_facts_in_both_spellings() {
         );
         let syntax =
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let program = lower_symbol_resolved_trees(&resolved).expect("type");
         match validation::validate_program(&program) {
             Err(diagnostics)
@@ -502,7 +502,7 @@ fn stored_aggregate_metadata_requires_exact_live_local_identity() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let original = lower_symbol_resolved_trees(&resolved).expect("type");
     let caller = original
         .machines()

@@ -8,7 +8,7 @@ fn check_source(source: &str) -> CheckedTrees {
         .tokenize()
         .expect("tokenize attached fields");
     let syntax = parse_syntax_trees(&tokens).expect("parse attached fields");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve attached fields");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve attached fields");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type attached fields");
     lower_typed_trees(typed).expect("bare attached fields complete checking")
 }

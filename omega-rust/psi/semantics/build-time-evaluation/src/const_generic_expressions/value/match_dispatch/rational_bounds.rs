@@ -928,8 +928,10 @@ mod tests {
                 &Lexer::new(&source).tokenize().expect("tokens"),
             )
             .expect("syntax");
-            let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-                .expect("resolved");
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+            )
+            .expect("resolved");
             let program =
                 symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                     .expect("typed");

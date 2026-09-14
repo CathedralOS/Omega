@@ -6,9 +6,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::{DataDefinition, DataMember, DataVariant};
 use symbol_resolved_trees::domain::ProofFact;
 use symbol_resolved_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use syntax_trees_to_symbol_resolved_trees::{
-    lower_syntax_trees_with_sources, normalize_generic_data,
-};
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, normalize_generic_data};
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 /// A case `where` fact over only the case's own payload names rides each
@@ -132,8 +130,12 @@ fn generic_case_where_naming_a_type_parameter_still_refuses() {
     let syntax = parse_syntax_trees_with_id(source_id, &tokens)
         .expect("parse parameter-mentioning case fact");
     let syntax = normalize_generic_data(syntax).expect("synthesize Value<i32>");
-    let errors = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect_err("parameter-mentioning case fact refuses");
+    let errors = syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect_err("parameter-mentioning case fact refuses");
     assert!(
         errors.iter().any(|diagnostic| diagnostic
             .message
@@ -150,7 +152,12 @@ fn resolve(source: &str) -> SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
     let syntax = normalize_generic_data(syntax).expect("synthesize instances");
-    lower_syntax_trees_with_sources(&syntax, Arc::new(sources)).expect("resolve")
+    syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve")
 }
 
 fn find_variant<'a>(

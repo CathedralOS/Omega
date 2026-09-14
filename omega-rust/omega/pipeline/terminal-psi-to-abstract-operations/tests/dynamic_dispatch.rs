@@ -7,7 +7,7 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{FuelScheduleIdentity, IntegerSign, IntegerType, ScalarType};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::StructuralPathSegment;
 use terminal_psi_to_abstract_operations::lower_artifact;
@@ -35,7 +35,7 @@ fn verified_stored_dynamic_descriptor_retains_aggregate_custody_through_optimiza
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
@@ -158,7 +158,7 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
@@ -297,7 +297,7 @@ fn verified_changed_conformance_rebound_retains_both_applications() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
@@ -417,7 +417,7 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
@@ -625,7 +625,7 @@ fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")

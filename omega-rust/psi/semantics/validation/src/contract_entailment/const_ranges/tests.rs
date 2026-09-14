@@ -12,8 +12,10 @@ fn fixture() -> (TypedTrees, SymbolHandle, TableCall) {
     .expect("mixed static slots tokenize");
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("mixed static slots parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("mixed static slots resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("mixed static slots resolve");
     let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("mixed static slots type");
     let caller = program

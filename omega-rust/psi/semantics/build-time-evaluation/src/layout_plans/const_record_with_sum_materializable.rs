@@ -2119,7 +2119,7 @@ mod tests {
     };
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
 
     use crate::layout_plans::{checked_align_up, reflected_nested_member_layout};
@@ -2160,7 +2160,7 @@ mod tests {
     fn typed() -> TypedTrees {
         let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         lower_symbol_resolved_trees(&resolved).expect("type")
     }
 

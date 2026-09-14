@@ -64,7 +64,7 @@ pub(crate) fn derive_wire_schema(lowerer: &mut Lowerer, definition: &DataDefinit
 
 #[cfg(test)]
 mod tests {
-    use crate::lower_syntax_trees;
+    use crate::{ResolutionRequest, resolve};
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees::data::DataMember;
     use symbol_resolved_trees::wire::WireMember;
@@ -76,7 +76,7 @@ mod tests {
             .tokenize()
             .expect("tokens");
         let syntax = parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let definition = &resolved.data_definitions[0];
         let schema = &resolved.wire_schemas[0];
         assert_eq!(definition.name, schema.name);
@@ -106,7 +106,8 @@ mod tests {
         ] {
             let tokens = Lexer::new(declaration).tokenize().expect("tokens");
             let syntax = parse_syntax_trees(&tokens).expect("syntax");
-            let resolved = lower_syntax_trees(&syntax).expect("ordinary data resolution");
+            let resolved =
+                resolve(ResolutionRequest::new(&syntax)).expect("ordinary data resolution");
             assert_eq!(resolved.data_definitions.len(), 1);
             assert!(
                 resolved.wire_schemas.is_empty(),

@@ -26,7 +26,9 @@ fn typed_source(source: &str) -> typed_trees::TypedTrees {
     let resolved = fixture_result(
         source,
         "resolve",
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax),
+        syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        ),
     );
     fixture_result(
         source,

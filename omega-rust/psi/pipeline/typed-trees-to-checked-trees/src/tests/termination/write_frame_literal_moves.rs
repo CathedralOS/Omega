@@ -32,7 +32,7 @@ fn literal_move_program(body: &str, scalar: &str) -> typed_trees::TypedTrees {
     );
     let syntax =
         parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
@@ -497,7 +497,7 @@ fn immediate_literal_parameter_move_preserves_named_state_cycle_frame() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = program
         .machines()
@@ -531,7 +531,7 @@ fn immediate_literal_move_composes_owned_suffix_below_reference_leaf() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = program
         .machines()
@@ -597,7 +597,7 @@ fn immediate_literal_moves_preserve_complete_empty_owned_and_shared_frames() {
     ] {
         let syntax =
             parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let program = lower_symbol_resolved_trees(&resolved).expect("type");
         let machine = program
             .machines()
@@ -644,7 +644,7 @@ fn immediate_literal_moves_reject_unknown_suffix_below_reference_leaf() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = program
         .machines()
@@ -689,7 +689,7 @@ fn immediate_literal_moves_preserve_acyclic_named_transition_origins() {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let program = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = program
         .machines()

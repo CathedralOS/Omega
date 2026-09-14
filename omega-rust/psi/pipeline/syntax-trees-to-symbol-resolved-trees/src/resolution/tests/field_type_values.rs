@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 
 fn resolve(source: &str) -> SymbolResolvedTrees {
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
-    lower_syntax_trees(&syntax).expect("resolve field type expressions")
+    crate::resolve(ResolutionRequest::new(&syntax)).expect("resolve field type expressions")
 }
 
 fn fields<'program>(
@@ -215,7 +215,12 @@ fn field_type_values_resolve_new_fields_against_retained_declarations() {
         .source_id;
     let syntax =
         parse_syntax_trees_with_id(base_id, &Lexer::new(base_source).tokenize().unwrap()).unwrap();
-    let base = lower_syntax_trees_with_sources(&syntax, Arc::new(sources.clone())).unwrap();
+    let base = crate::resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources.clone())),
+        top_level_bindings: Vec::new(),
+    })
+    .unwrap();
     let target = entry(&base, "capacity");
     assert_call(&base, fields(&base, "Base")[0], target);
     let extension = parse_syntax_trees_with_id(
@@ -223,12 +228,13 @@ fn field_type_values_resolve_new_fields_against_retained_declarations() {
         &Lexer::new(extension_source).tokenize().unwrap(),
     )
     .unwrap();
-    let program = lower_syntax_extension_against_resolved_base(
+    let program = resolve_extension(ExtensionRequest {
         base,
-        &extension,
-        Arc::new(sources),
-        Vec::new(),
-    )
+        syntax: &extension,
+        sources: Arc::new(sources),
+        top_level_bindings: Vec::new(),
+    })
+    .map(|seeded| seeded.into_unrebased_trees())
     .unwrap();
     for owner in ["Base", "Added"] {
         assert_call(&program, fields(&program, owner)[0], target);

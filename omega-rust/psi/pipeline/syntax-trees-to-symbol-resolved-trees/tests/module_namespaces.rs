@@ -6,7 +6,7 @@ use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::expression::ExpressionNode;
 use symbol_resolved_trees::types::TypeReference;
 use syntax_trees::SyntaxTrees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 
 #[test]
@@ -58,8 +58,12 @@ fn assert_module_reference_symbols(
         .source_id;
     let tokens = Lexer::new(source).tokenize().expect("tokenize module");
     let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse module");
-    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
-        .expect("resolve declared module references");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve declared module references");
 
     let damage = program
         .data_definitions
@@ -128,7 +132,12 @@ fn lower_multi(sources: &[(&str, &str)]) -> SymbolResolvedTrees {
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         parse_syntax_trees_into_with_id(&mut syntax, id, &tokens).expect("parse");
     }
-    lower_syntax_trees_with_sources(&syntax, Arc::new(map)).expect("lower")
+    resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(map)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("lower")
 }
 
 fn membership_domain_symbols(program: &SymbolResolvedTrees) -> Vec<symbols::SymbolHandle> {

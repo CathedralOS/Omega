@@ -41,8 +41,8 @@ fn checked_source(source: &str) -> checked_trees::CheckedTrees {
         .tokenize()
         .expect("tokenize borrow-certificate fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse borrow-certificate fixture");
-    let resolved =
-        lower_syntax_trees(&syntax).expect("resolve borrow-certificate fixture identities");
+    let resolved = resolve(ResolutionRequest::new(&syntax))
+        .expect("resolve borrow-certificate fixture identities");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow-certificate fixture");
     lower_typed_trees(typed).expect("automatic structural compatibility should remain admitted")
 }
@@ -487,7 +487,7 @@ fn checked_shared_overlap() -> checked_trees::CheckedTrees {
         .tokenize()
         .expect("tokenize shared overlap");
     let syntax = parse_syntax_trees(&tokens).expect("parse shared overlap");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve shared overlap");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve shared overlap");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type shared overlap");
     lower_typed_trees(typed).expect("two overlapping shared loans should remain admitted")
 }

@@ -2,7 +2,7 @@ use facts::ScalarValue;
 use numerics::bignum::BigInt;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 use super::build_flow_facts;
@@ -42,7 +42,7 @@ fn exhausted_sweep_budget_discards_provisional_constants() {
     );
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let program = lower_symbol_resolved_trees(&resolved).unwrap();
     check_against_whole_pass(program.clone()).expect("the complete fixed point proves 3");
     let _restore = Restore(SWEEP_LIMIT.replace(1));
@@ -92,7 +92,7 @@ fn reverse_chain_revisits_only_changed_inputs_before_final_materialization() {
     let source = reverse_chain_source(length, independent);
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let program = lower_symbol_resolved_trees(&resolved).unwrap();
     let proof_plan = proof::obligations::build_proof_plan(&program);
     let operations = validation::infer_operational_may(&program);
@@ -155,7 +155,7 @@ fn complete_checking_matches_reference_with_reverse_chain_and_cycle() {
     );
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let program = lower_symbol_resolved_trees(&resolved).unwrap();
     let mut dirty_times = Vec::new();
     let mut reference_times = Vec::new();
@@ -206,7 +206,7 @@ fn call_free_direct_stores_leave_mutation_summaries_unbuilt() {
         .tokenize()
         .expect("tokenize direct store");
     let syntax = parse_syntax_trees(&tokens).expect("parse direct store");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve direct store");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve direct store");
     let program = lower_symbol_resolved_trees(&resolved).expect("type direct store");
     let proof_plan = proof::obligations::build_proof_plan(&program);
     let operations = validation::infer_operational_may(&program);
@@ -285,7 +285,7 @@ fn flow_value_input_passes_share_one_mutation_summary_table_per_invocation() {
             .tokenize()
             .expect("tokenize flow fixture");
         let syntax = parse_syntax_trees(&tokens).expect("parse flow fixture");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve flow fixture");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve flow fixture");
         let program = lower_symbol_resolved_trees(&resolved).expect("type flow fixture");
         let proof_plan = proof::obligations::build_proof_plan(&program);
         let operations = validation::infer_operational_may(&program);

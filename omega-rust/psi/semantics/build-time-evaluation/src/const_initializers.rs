@@ -72,12 +72,13 @@ pub(super) fn evaluate(
     }) {
         return Ok(syntax);
     }
-    let preparation =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_for_const_initializer_selection(
-            &syntax,
-            sources.clone(),
-            bindings.to_vec(),
-        )?;
+    let preparation = syntax_trees_to_symbol_resolved_trees::prepare_const_initializer_selection(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: sources.clone(),
+            top_level_bindings: bindings.to_vec(),
+        },
+    )?;
     let resolved = preparation.trees();
     let mut declarations = Vec::new();
     for item in syntax.root_item_handles() {

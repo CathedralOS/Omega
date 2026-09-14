@@ -9,7 +9,10 @@ fn nested_record_replay_rejects_effectful_operand_and_projected_local_substituti
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
@@ -188,8 +191,10 @@ fn projected_shared_receiver_rejects_overlapping_mutable_field_actual() {
         .tokenize()
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(typed) {
@@ -215,7 +220,10 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
@@ -361,7 +369,10 @@ fn local_record_getter_replay_rejects_substituted_receiver_custody() {
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked =

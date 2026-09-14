@@ -8,7 +8,7 @@ use checked_trees::{
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
@@ -38,7 +38,7 @@ fn checked_from_source(source: &str) -> checked_trees::CheckedTrees {
         .tokenize()
         .expect("tokenize receiver call");
     let syntax = parse_syntax_trees(&tokens).expect("parse receiver call");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve receiver call");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver call");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type receiver call");
     typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check receiver call")
 }

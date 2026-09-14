@@ -31,9 +31,12 @@ fn typed(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagn
         .source_id;
     let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
     let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)?;
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-        &syntax,
-        std::sync::Arc::new(sources),
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        },
     )?;
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])

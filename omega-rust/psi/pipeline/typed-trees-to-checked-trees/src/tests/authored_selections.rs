@@ -1,5 +1,6 @@
 use super::{
-    Lexer, lower_symbol_resolved_trees, lower_syntax_trees, lower_typed_trees, parse_syntax_trees,
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
+    resolve,
 };
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
@@ -31,9 +32,12 @@ fn typed_root_binding_fixture(source: &str, toolchain: bool) -> typed_trees::Typ
         .expect("tokenize root binding");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
         .expect("parse root binding");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-        &syntax,
-        std::sync::Arc::new(sources),
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        },
     )
     .expect("resolve root binding");
     lower_symbol_resolved_trees(&resolved).expect("type root binding")
@@ -251,7 +255,7 @@ fn explicit_state_arguments_finalize_nested_record_member_selections() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("explicit state transfer checks");
     let selections = checked.authored_declaration_selections();
@@ -301,7 +305,7 @@ fn entry_record_types_do_not_finalize_implicit_state_captures() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
         &mut typed,
@@ -322,7 +326,7 @@ fn successful_checking_finalizes_authored_call_occurrences() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let selections = checked.authored_declaration_selections();
@@ -370,7 +374,7 @@ fn package_checking_finalizes_comptime_value_arm_calls_before_evaluation() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked =
         crate::lower_package_typed_trees_with_selected_generic_operator_providers(typed, &[], &[])
@@ -397,7 +401,7 @@ fn checked_operator_contract_context_disambiguates_named_overloads() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
 
@@ -438,7 +442,7 @@ fn resultless_trait_law_equality_is_proposition_equality() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
 
@@ -484,7 +488,7 @@ fn successful_checking_finalizes_wire_codec_calls_as_exact_intrinsics() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let calls = checked
@@ -532,7 +536,7 @@ fn successful_checking_finalizes_nominal_calls_in_proof_owned_expressions() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let selected = checked
@@ -579,7 +583,7 @@ fn path_qualified_call_custody_rejects_a_same_named_target_from_another_owner() 
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostic = lower_typed_trees(typed)
         .expect_err("a same-named state under another nominal owner must not be selected");
@@ -607,7 +611,7 @@ fn nominal_call_custody_rejects_ambiguous_targets_under_the_exact_owner() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let packet_machines = typed
         .machines()
@@ -681,7 +685,7 @@ fn successful_checking_finalizes_declared_operator_occurrences() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     assert!(
         resolved
             .authored_declaration_selections()
@@ -743,7 +747,7 @@ fn constrained_primitive_operator_is_not_preclassified_as_intrinsic() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let authored_addition = typed
         .expression_table
@@ -776,7 +780,7 @@ fn unrelated_nominal_operator_does_not_capture_primitive_comparison() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let comparison = typed
         .expression_table
@@ -828,7 +832,7 @@ fn endpoint_operator_candidates_retain_explicit_literal_carriers() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let expression = typed
             .expression_table
@@ -873,7 +877,7 @@ fn successful_checking_finalizes_inferred_field_members_and_primitive_operators(
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let selections = checked.authored_declaration_selections();
@@ -906,7 +910,7 @@ fn successful_checking_finalizes_operator_occurrence_retained_on_folded_float_li
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let selections = checked.authored_declaration_selections();
@@ -932,7 +936,7 @@ fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let operators = checked
@@ -979,7 +983,7 @@ fn successful_checking_finalizes_index_and_range_operator_occurrences() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let operators = checked
@@ -1026,7 +1030,7 @@ fn successful_checking_retains_inferred_generic_call_conformance() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let selected = resolved
         .conformances
         .iter()
@@ -1085,7 +1089,7 @@ fn successful_checking_retains_inferred_statement_call_conformance() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let selected = resolved
         .conformances
         .iter()
@@ -1140,7 +1144,7 @@ fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     assert!(
@@ -1171,7 +1175,7 @@ fn declared_call_wins_over_byte_predicate_intrinsic_spelling() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let selections = checked.authored_declaration_selections();
@@ -1210,7 +1214,7 @@ fn successful_checking_binds_boundary_calls_through_parameter_fields() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     let call = checked
@@ -1250,7 +1254,7 @@ fn successful_checking_canonicalizes_local_selections_across_specializations() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     assert!(
@@ -1269,7 +1273,7 @@ fn public_conformance_rejects_private_header_declarations() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics = lower_typed_trees(typed).expect_err("private header must reject");
     let rendered = diagnostics

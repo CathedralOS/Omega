@@ -29,7 +29,7 @@ fn aggregate_assignment_frames_require_exact_array_context() {
         let source = source.replace("$ELEMENTS", elements);
         let tokens = Lexer::new(&source).tokenize().expect("source tokenizes");
         let syntax = parse_syntax_trees(&tokens).expect("source parses");
-        let resolved = lower_syntax_trees(&syntax).expect("source resolves");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("source resolves");
         let typed = lower_symbol_resolved_trees(&resolved).expect("source types");
         let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
         let machine = typed
@@ -139,7 +139,7 @@ fn finite_mixed_assignment_shapes_retain_all_leaf_effects() {
     );
     let tokens = Lexer::new(&source).tokenize().expect("source tokenizes");
     let syntax = parse_syntax_trees(&tokens).expect("source parses");
-    let resolved = lower_syntax_trees(&syntax).expect("source resolves");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("source resolves");
     let typed = lower_symbol_resolved_trees(&resolved).expect("source types");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
     for (name, expected) in [
@@ -1023,7 +1023,8 @@ fn transparent_returned_place_accepts_complete_indexed_target_calls() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
@@ -1969,7 +1970,8 @@ fn transparent_returned_place_accepts_finite_value_call_assignments() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
@@ -2775,7 +2777,8 @@ fn transparent_returned_place_accepts_finite_direct_scalar_computations() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
@@ -3113,7 +3116,8 @@ fn transparent_returned_place_accepts_finite_fixed_array_assignment_values() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
@@ -3504,7 +3508,8 @@ fn transparent_returned_place_composes_mixed_aggregate_assignment_values() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
@@ -3994,7 +3999,8 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
@@ -4347,7 +4353,8 @@ fn transparent_returned_place_composes_finite_assignment_call_trees() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 

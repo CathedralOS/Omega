@@ -873,7 +873,8 @@ fn transparent_returned_index_frame_accepts_a_finite_exact_call_tree() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
@@ -2112,7 +2113,8 @@ fn stable_alias_index_frame_accepts_a_finite_exact_call_tree() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 

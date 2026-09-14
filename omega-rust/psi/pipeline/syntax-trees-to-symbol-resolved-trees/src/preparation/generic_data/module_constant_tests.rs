@@ -353,7 +353,8 @@ fn direct_structural_normalization_replays_live_expression_and_selected_paramete
         machine keep(first: Pick<(Value { value: 1 })>, second: Pick<(Value { value: 2 })>) -> u64 { 0 }";
     let syntax = normalize_generic_data(parse_sources(source, "", false))
         .expect("direct structural values normalize");
-    crate::resolution::lower_syntax_trees(&syntax).expect("actual direct arguments lower");
+    crate::resolution::resolve(crate::resolution::ResolutionRequest::new(&syntax))
+        .expect("actual direct arguments lower");
     let (application, argument, normalization) = syntax
         .type_references
         .generic_nodes()
@@ -420,8 +421,8 @@ fn direct_structural_normalization_replays_live_expression_and_selected_paramete
         })
         .expect("different source integer");
     changed.expressions.replace_expression(field, replacement);
-    let errors =
-        crate::resolution::lower_syntax_trees(&changed).expect_err("same-span value drift rejects");
+    let errors = crate::resolution::resolve(crate::resolution::ResolutionRequest::new(&changed))
+        .expect_err("same-span value drift rejects");
     assert!(
         errors
             .iter()

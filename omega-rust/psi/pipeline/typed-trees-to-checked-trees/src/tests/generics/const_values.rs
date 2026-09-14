@@ -9,7 +9,9 @@ fn typed_source(source: &str) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>
     let tokens = Lexer::new(source).tokenize().expect("const value tokens");
     let syntax = parse_syntax_trees(&tokens).expect("const value syntax");
     let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)?;
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)?;
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )?;
     lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
 }
 

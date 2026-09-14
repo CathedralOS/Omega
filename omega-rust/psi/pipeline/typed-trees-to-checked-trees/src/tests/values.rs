@@ -1017,6 +1017,6 @@ fn checked_scalar_plan_retains_guard_proved_exact_left_shift() {
 fn typed_trees(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }

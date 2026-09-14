@@ -1,6 +1,6 @@
 //! Trailing call preservation is separate from checking its result type.
 
-use super::{Lexer, lower_syntax_trees, parse_syntax_trees};
+use super::{Lexer, ResolutionRequest, parse_syntax_trees, resolve};
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionNode;
 use symbol_resolved_trees::statement::StatementNode;
@@ -8,7 +8,7 @@ use symbol_resolved_trees::statement::StatementNode;
 fn resolved(source: &str) -> SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize tail call");
     let syntax = parse_syntax_trees(&tokens).expect("parse tail call");
-    lower_syntax_trees(&syntax).expect("resolve tail call")
+    resolve(ResolutionRequest::new(&syntax)).expect("resolve tail call")
 }
 
 fn statements<'program>(

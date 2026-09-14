@@ -23,8 +23,10 @@ fn transition_snapshots_follow_authored_targets_and_preserve_fallthrough() {
         .tokenize()
         .expect("tokenize branch fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse branch fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve branch fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve branch fixture");
     let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type branch fixture");
     for (machine_ordinal, machine) in program.machines().iter().enumerate() {
