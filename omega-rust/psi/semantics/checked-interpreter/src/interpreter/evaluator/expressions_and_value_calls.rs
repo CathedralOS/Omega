@@ -452,8 +452,11 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Name(path) => path.symbol,
             _ => SymbolHandle::invalid(),
         };
-        if let Some(dispatch) = self.selected_boundary_adapter(receiver_symbol, call.target_symbol)
-        {
+        if let Some(dispatch) = self.selected_boundary_adapter(
+            receiver_symbol,
+            call.target_symbol,
+            &call.machine_arguments,
+        ) {
             let receiver = if dispatch.forward_receiver {
                 Some(EvaluatedArgument::plain(
                     self.eval_argument(call.receiver, frame)?,

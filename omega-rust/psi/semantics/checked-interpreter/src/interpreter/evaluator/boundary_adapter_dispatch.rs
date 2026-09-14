@@ -5,11 +5,23 @@ impl<'program> Evaluator<'program> {
         &self,
         receiver: SymbolHandle,
         requirement: SymbolHandle,
+        machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     ) -> Option<checked_trees::CheckedBoundaryAdapterDispatch> {
         self.boundary_adapter_dispatch
             .iter()
-            .find(|dispatch| dispatch.receiver == receiver && dispatch.requirement == requirement)
-            .copied()
+            .filter(|dispatch| dispatch.receiver == receiver && dispatch.requirement == requirement)
+            .find(|dispatch| {
+                // An exact nongeneric row matches every call to its
+                // requirement. A family row settles only for the call whose
+                // static arguments canonically equal its declared tuple.
+                dispatch.family_tuple.is_empty()
+                    || machine_arguments
+                        .iter()
+                        .map(|argument| self.program.static_const_argument_identity(argument))
+                        .collect::<Option<Vec<_>>>()
+                        .is_some_and(|tuple| tuple.as_slice() == dispatch.family_tuple.as_ref())
+            })
+            .cloned()
     }
 
     /// Receiver forwarding is an argument operation, not a synthetic source edit.

@@ -395,9 +395,11 @@ impl<'program> Evaluator<'program> {
     // ---- calls --------------------------------------------------------------
 
     fn eval_call_statement(&mut self, call: &TableCall, frame: &Frame) -> EvalResult<Value> {
-        if let Some(dispatch) =
-            self.selected_boundary_adapter(call.receiver_symbol, call.target_symbol)
-        {
+        if let Some(dispatch) = self.selected_boundary_adapter(
+            call.receiver_symbol,
+            call.target_symbol,
+            &call.machine_arguments,
+        ) {
             let receiver = if dispatch.forward_receiver {
                 Some(self.eval_boundary_receiver_path(call.receiver, frame)?)
             } else {

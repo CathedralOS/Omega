@@ -227,6 +227,7 @@ impl SyntaxTrees {
             contracts: copied.contracts,
             default_body: copied.default_body,
             terminates_guarantee: copied.terminates_guarantee,
+            where_facts: copied.where_facts,
         }
     }
 
@@ -858,6 +859,7 @@ impl SyntaxTrees {
             contracts: self.copy_capability_contract_span(other, signature.contracts),
             default_body: self.copy_statement_handle_span(other, signature.default_body),
             terminates_guarantee: signature.terminates_guarantee,
+            where_facts: self.copy_domain_fact_span(other, signature.where_facts),
         }
     }
 
@@ -888,6 +890,7 @@ impl SyntaxTrees {
             contracts: self.copy_capability_contract_span(other, signature.contracts),
             default_body: self.copy_statement_handle_span(other, signature.default_body),
             terminates_guarantee: signature.terminates_guarantee,
+            where_facts: self.copy_domain_fact_span(other, signature.where_facts),
         }
     }
 

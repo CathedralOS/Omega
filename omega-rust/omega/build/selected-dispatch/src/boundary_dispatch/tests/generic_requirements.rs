@@ -1,7 +1,7 @@
 use super::*;
 
 /// A boundary trait carrying two requirement-local generic requirements beside
-/// a nongeneric one. Tuple-keyed families are unimplemented, so the generic
+/// a nongeneric one. Without an authored finite `where` roster the generic
 /// requirements are dynamically ineligible individually: `ping` still settles
 /// while `scan`/`watch` calls reject rather than reaching the unbound generic
 /// adapter template at every demanded tuple.
@@ -119,7 +119,7 @@ fn value_calls_to_a_generic_requirement_reject() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("finite generic method families are unimplemented")),
+            .contains("supplies no executable dispatch row")),
         "{diagnostics:?}"
     );
     assert!(Arc::ptr_eq(&original, &rejected));
@@ -135,7 +135,7 @@ fn statement_calls_to_a_generic_requirement_reject() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("finite generic method families are unimplemented")),
+            .contains("supplies no executable dispatch row")),
         "{diagnostics:?}"
     );
 }
@@ -164,7 +164,7 @@ fn ineligible_rows_skip_adapter_resolution() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("finite generic method families are unimplemented")),
+            .contains("supplies no executable dispatch row")),
         "{diagnostics:?}"
     );
     assert!(

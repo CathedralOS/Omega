@@ -19,26 +19,38 @@ struct AdapterRow {
     symbol: symbols::SymbolHandle,
     /// Self-forwarding shape: prepend the call's receiver as argument 0.
     forward_receiver: bool,
+    /// Finite-family tuple this row realizes: canonical const identities in
+    /// the requirement's value-binder declaration order (the same strings a
+    /// `MachineSpecialization` retains in `const_argument_identities`). Empty
+    /// on an exact nongeneric row, which matches every call to its
+    /// requirement without consulting static arguments.
+    family_tuple: Box<[String]>,
+    /// Readable tuple spellings for diagnostics only; `family_tuple` is the
+    /// semantic key.
+    family_tuple_display: Box<[String]>,
 }
 
-/// A selected requirement that declares local generic binders. Under the
-/// dynamic-dispatch contract it is a family of rows keyed by canonical value
-/// tuple, not one exact overload; finite generic method families are not yet
-/// implemented, so the requirement is dynamically ineligible. Ineligibility
-/// is individual: the requirement supplies no dispatch row, sibling
-/// requirements still settle, and a call targeting it rejects below instead
-/// of silently dispatching every tuple to the unbound generic template.
+/// A selected requirement that declares local generic binders but cannot
+/// produce dispatch rows: either it declares no complete finite `where`
+/// family, or no tuple's checked provider specialization exists.
+/// Ineligibility is individual: the requirement supplies no dispatch row,
+/// sibling requirements still settle, and a call targeting it rejects below
+/// instead of silently dispatching every tuple to the unbound generic
+/// template.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GenericBoundaryRequirement {
     receiver_trait: symbols::SymbolHandle,
     provider_plan_digest: [u8; 32],
     requirement_symbol: symbols::SymbolHandle,
     requirement_identity: String,
+    /// Why the family supplied no rows, retained for the call diagnostic.
+    reason: String,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 enum ResolvedAdapterRow {
-    /// One exact nongeneric checked realization of the requirement.
+    /// One exact checked realization of the requirement: nongeneric, or one
+    /// tuple of a finite generic family.
     Adapter(AdapterRow),
     /// The requirement is dynamically ineligible for want of tuple rows.
     GenericRequirement(GenericBoundaryRequirement),
@@ -55,6 +67,358 @@ impl ResolvedAdapterRow {
             ),
         }
     }
+}
+
+/// One canonical value in a finite-family tuple. `identity` is the string a
+/// `MachineSpecialization` retains in `const_argument_identities` for the
+/// same static argument; `display` is diagnostic-only spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FamilyValue {
+    identity: String,
+    display: String,
+}
+
+/// One complete tuple of a finite family: every const/value binder bound to
+/// a closed canonical value, in the signature's binder declaration order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FamilyTuple {
+    identities: Box<[String]>,
+    display: Box<[String]>,
+}
+
+/// The outcome of reading a generic requirement's signature `where` clause.
+enum FamilyProbe {
+    /// Not an explicit finite enumeration: no `where` clause, or facts that
+    /// are not one disjunction of complete binder equalities. Opaque
+    /// predicates, inequality ranges, and independently listed values never
+    /// enumerate; the requirement stays dynamically ineligible for the
+    /// recorded reason.
+    NotFinite(String),
+    /// A normalized duplicate-free roster of complete tuples.
+    Finite {
+        arity: usize,
+        tuples: Vec<FamilyTuple>,
+    },
+}
+
+/// Extract the explicit finite family declared by a generic requirement's
+/// signature `where` clause: one disjunction of complete binder equalities
+/// such as `where Width == 16 || Width == 32`. Multi-binder alternatives must
+/// write each tuple's full correlation (`W == 16 && L == 4 || W == 32 && L
+/// == 8`); the compiler never invents a Cartesian product from independently
+/// listed values.
+fn finite_signature_family(
+    typed: &TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+) -> FamilyProbe {
+    let type_parameters = typed.state_signature_type_parameters(signature);
+    let binders = type_parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Const { .. }
+                    | typed_trees::data::TypeParameterKind::Value { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    if binders.len() != type_parameters.len() {
+        return FamilyProbe::NotFinite(
+            "the requirement carries non-value generic binders, which value equality cannot enumerate"
+                .to_owned(),
+        );
+    }
+    let facts = typed.proof_facts.span_or_empty(signature.where_facts);
+    let [fact] = facts else {
+        return if facts.is_empty() {
+            FamilyProbe::NotFinite("declares no finite-family `where` clause".to_owned())
+        } else {
+            FamilyProbe::NotFinite(
+                "the finite family must be one explicit disjunction of complete binder equalities"
+                    .to_owned(),
+            )
+        };
+    };
+    let typed_trees::domain::ProofFact::Expression(root) = fact else {
+        return FamilyProbe::NotFinite(
+            "the `where` clause is a domain membership, not an explicit finite enumeration"
+                .to_owned(),
+        );
+    };
+
+    let mut tuples = Vec::new();
+    for alternative in or_alternatives(typed, *root) {
+        let mut assignments: Vec<Option<FamilyValue>> = vec![None; binders.len()];
+        for conjunct in and_conjuncts(typed, alternative) {
+            let Some((binder_index, value)) = equality_assignment(typed, &binders, conjunct) else {
+                return FamilyProbe::NotFinite(
+                    "the `where` clause is not explicit `Binder == literal` equalities; opaque \
+                     predicates and inequalities do not enumerate a finite family"
+                        .to_owned(),
+                );
+            };
+            if assignments[binder_index].is_some() {
+                return FamilyProbe::NotFinite(
+                    "an alternative binds the same value binder more than once".to_owned(),
+                );
+            }
+            assignments[binder_index] = Some(value);
+        }
+        if assignments.iter().any(Option::is_none) {
+            return FamilyProbe::NotFinite(
+                "an alternative does not bind every value binder; a finite family requires \
+                 complete tuples so authored correlations are preserved"
+                    .to_owned(),
+            );
+        }
+        let tuple = assignments
+            .into_iter()
+            .map(|value| value.expect("complete alternative tuple"))
+            .collect::<Vec<_>>();
+        tuples.push(FamilyTuple {
+            identities: tuple.iter().map(|value| value.identity.clone()).collect(),
+            display: tuple.iter().map(|value| value.display.clone()).collect(),
+        });
+    }
+    tuples.sort_by(|left, right| left.identities.cmp(&right.identities));
+    tuples.dedup_by(|left, right| left.identities == right.identities);
+    FamilyProbe::Finite {
+        arity: binders.len(),
+        tuples,
+    }
+}
+
+/// Flatten an authored `||` chain into its alternatives.
+fn or_alternatives(
+    typed: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Vec<typed_trees::expression::ExpressionHandle> {
+    let mut alternatives = Vec::new();
+    let mut stack = vec![expression];
+    while let Some(current) = stack.pop() {
+        match typed.expression_table.expression(current) {
+            typed_trees::expression::ExpressionNode::Binary(binary)
+                if binary.operator == typed_trees::expression::BinaryOperator::Or =>
+            {
+                stack.push(binary.right);
+                stack.push(binary.left);
+            }
+            _ => alternatives.push(current),
+        }
+    }
+    alternatives
+}
+
+/// Flatten an authored `&&` chain into its conjuncts.
+fn and_conjuncts(
+    typed: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Vec<typed_trees::expression::ExpressionHandle> {
+    let mut conjuncts = Vec::new();
+    let mut stack = vec![expression];
+    while let Some(current) = stack.pop() {
+        match typed.expression_table.expression(current) {
+            typed_trees::expression::ExpressionNode::Binary(binary)
+                if binary.operator == typed_trees::expression::BinaryOperator::And =>
+            {
+                stack.push(binary.right);
+                stack.push(binary.left);
+            }
+            _ => conjuncts.push(current),
+        }
+    }
+    conjuncts
+}
+
+/// Read one `Binder == literal` conjunct against the signature's declared
+/// value binders, in either operand order. Returns the binders' declaration
+/// index and the canonical literal value.
+fn equality_assignment(
+    typed: &TypedTrees,
+    binders: &[&typed_trees::data::TypeParameter],
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<(usize, FamilyValue)> {
+    let typed_trees::expression::ExpressionNode::Binary(binary) =
+        typed.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    if binary.operator != typed_trees::expression::BinaryOperator::Equal {
+        return None;
+    }
+    let (binder, value) = match (
+        binder_operand(typed, binders, binary.left),
+        binder_operand(typed, binders, binary.right),
+        literal_operand(typed, binary.left),
+        literal_operand(typed, binary.right),
+    ) {
+        (Some(binder), None, None, Some(value)) | (None, Some(binder), Some(value), None) => {
+            (binder, value)
+        }
+        _ => return None,
+    };
+    let carrier = match &binders[binder].kind {
+        typed_trees::data::TypeParameterKind::Const { type_reference }
+        | typed_trees::data::TypeParameterKind::Value { type_reference } => *type_reference,
+        _ => return None,
+    };
+    value_fits_carrier(typed, carrier, &value.identity).then_some((binder, value))
+}
+
+/// Whether the operand names one of the signature's declared value binders.
+/// Signature `where` expressions are not symbol-bound at this stage; the
+/// binder's own declaration name is the scoped reference.
+fn binder_operand(
+    typed: &TypedTrees,
+    binders: &[&typed_trees::data::TypeParameter],
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<usize> {
+    let typed_trees::expression::ExpressionNode::Name(path) =
+        typed.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let members = typed.expression_table.name_path_members(path.members);
+    let [member] = members else { return None };
+    binders.iter().position(|parameter| {
+        parameter.name.as_str() == member.as_str()
+            || (path.symbol.is_valid() && parameter.symbol == path.symbol)
+    })
+}
+
+/// Read a closed literal operand: integer, Boolean, or a named const
+/// declaration whose canonical encoding is a scalar.
+fn literal_operand(
+    typed: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<FamilyValue> {
+    match typed.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Integer(literal) => {
+            let value = literal
+                .value_i64()
+                .map(i128::from)
+                .or_else(|| literal.value_u64().map(i128::from))?;
+            Some(FamilyValue {
+                identity: integer_const_identity(value),
+                display: value.to_string(),
+            })
+        }
+        typed_trees::expression::ExpressionNode::Boolean(value) => Some(FamilyValue {
+            identity: canonical_const_identity(
+                "bool",
+                &language_semantics::const_value::CanonicalConstValue::boolean(*value).encoding,
+            ),
+            display: value.to_string(),
+        }),
+        typed_trees::expression::ExpressionNode::Name(path) => {
+            let members = typed.expression_table.name_path_members(path.members);
+            let [member] = members else { return None };
+            let declaration = typed.const_declarations().iter().find(|declaration| {
+                typed.symbols.name(declaration.symbol) == member.as_str()
+                    || (path.symbol.is_valid() && declaration.symbol == path.symbol)
+            })?;
+            let value = language_semantics::const_value::CanonicalConstValue::new(
+                typed.display_type_reference(declaration.declared_type),
+                declaration.canonical_value_encoding.as_ref()?.clone(),
+                member.as_str(),
+            );
+            match value.decode_encoding()? {
+                language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                    value,
+                    ..
+                } => Some(FamilyValue {
+                    identity: integer_const_identity(value),
+                    display: value.to_string(),
+                }),
+                language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value) => {
+                    Some(FamilyValue {
+                        identity: canonical_const_identity(
+                            "bool",
+                            &language_semantics::const_value::CanonicalConstValue::boolean(value)
+                                .encoding,
+                        ),
+                        display: value.to_string(),
+                    })
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// The canonical const identity a specialization retains for one closed
+/// integer argument: `named(integer-const(v))` in normalized-type-identity
+/// terms.
+fn integer_const_identity(value: i128) -> String {
+    format!("named(integer-const({value}))")
+}
+
+/// The canonical const identity for one non-integer canonical value:
+/// `named(canonical-const(type(T),encoding(E)))`.
+fn canonical_const_identity(type_name: &str, encoding: &str) -> String {
+    fn escape(value: &str) -> String {
+        let mut out = String::with_capacity(value.len());
+        for character in value.chars() {
+            if matches!(character, '\\' | '(' | ')' | ',') {
+                out.push('\\');
+            }
+            out.push(character);
+        }
+        out
+    }
+    format!(
+        "named(canonical-const(type({}),encoding({})))",
+        escape(type_name),
+        escape(encoding)
+    )
+}
+
+/// Carrier legality for one roster literal: integer literals need an integer
+/// carrier whose range contains them; Boolean literals need `bool`.
+fn value_fits_carrier(
+    typed: &TypedTrees,
+    carrier: typed_trees::types::TypeReferenceHandle,
+    identity: &str,
+) -> bool {
+    let Some(primitive) = typed.primitive_type_reference(carrier) else {
+        return false;
+    };
+    if let Some(value) = identity
+        .strip_prefix("named(integer-const(")
+        .and_then(|inner| inner.strip_suffix("))"))
+        .and_then(|inner| inner.parse::<i128>().ok())
+    {
+        return primitive_integer_range(primitive)
+            .is_some_and(|(low, high)| low <= value && value <= high);
+    }
+    primitive == typed_trees::types::PrimitiveType::Bool
+}
+
+fn primitive_integer_range(primitive: typed_trees::types::PrimitiveType) -> Option<(i128, i128)> {
+    use typed_trees::types::PrimitiveType::*;
+    match primitive {
+        Bool | F32 | F64 => None,
+        I8 => Some((i128::from(i8::MIN), i128::from(i8::MAX))),
+        I16 => Some((i128::from(i16::MIN), i128::from(i16::MAX))),
+        I32 => Some((i128::from(i32::MIN), i128::from(i32::MAX))),
+        I64 => Some((i128::from(i64::MIN), i128::from(i64::MAX))),
+        U8 => Some((0, i128::from(u8::MAX))),
+        U16 => Some((0, i128::from(u16::MAX))),
+        U32 => Some((0, i128::from(u32::MAX))),
+        U64 | Addr => Some((0, i128::from(u64::MAX))),
+    }
+}
+
+/// The canonical const identity one call-site static machine argument
+/// contributes to a family tuple, or `None` when the argument is not a
+/// closed static value. This is `TypedTrees::static_const_argument_identity`,
+/// which mirrors the specialization pipeline's spelling and identity exactly.
+fn call_argument_const_identity(
+    typed: &TypedTrees,
+    argument: &typed_trees::expression::StaticMachineArgument,
+) -> Option<String> {
+    typed.static_const_argument_identity(argument)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,31 +459,43 @@ fn plan_selected_boundary_adapter_dispatch(
     for plan in selected_plans.plans() {
         for row in &plan.rows {
             match resolve_selected_adapter_row(typed, plan, row) {
-                Ok(Some(ResolvedAdapterRow::Adapter(adapter))) => {
-                    if let Some(existing) = adapters.iter().find(|existing: &&AdapterRow| {
-                        existing.receiver_trait == adapter.receiver_trait
-                            && existing.requirement_symbol == adapter.requirement_symbol
-                    }) {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "selected boundary requirement `{}` has two checked adapters (`{}` and `{}`)",
-                            adapter.requirement_identity,
-                            existing.adapter_target,
-                            adapter.adapter_target,
-                        )));
-                    } else {
-                        adapters.push(adapter);
+                Ok(rows) => {
+                    for resolved in rows {
+                        match resolved {
+                            ResolvedAdapterRow::Adapter(adapter) => {
+                                if let Some(existing) =
+                                    adapters.iter().find(|existing: &&AdapterRow| {
+                                        existing.receiver_trait == adapter.receiver_trait
+                                            && existing.requirement_symbol
+                                                == adapter.requirement_symbol
+                                            && existing.family_tuple == adapter.family_tuple
+                                    })
+                                {
+                                    diagnostics.push(Diagnostic::error(format!(
+                                        "selected boundary requirement `{}` tuple `({})` has two checked adapters (`{}` and `{}`)",
+                                        adapter.requirement_identity,
+                                        adapter.family_tuple_display.join(", "),
+                                        existing.adapter_target,
+                                        adapter.adapter_target,
+                                    )));
+                                } else {
+                                    adapters.push(adapter);
+                                }
+                            }
+                            ResolvedAdapterRow::GenericRequirement(requirement) => {
+                                if !generic_requirements.iter().any(|existing| {
+                                    existing.receiver_trait == requirement.receiver_trait
+                                        && existing.requirement_symbol
+                                            == requirement.requirement_symbol
+                                        && existing.provider_plan_digest
+                                            == requirement.provider_plan_digest
+                                }) {
+                                    generic_requirements.push(requirement);
+                                }
+                            }
+                        }
                     }
                 }
-                Ok(Some(ResolvedAdapterRow::GenericRequirement(requirement))) => {
-                    if !generic_requirements.iter().any(|existing| {
-                        existing.receiver_trait == requirement.receiver_trait
-                            && existing.requirement_symbol == requirement.requirement_symbol
-                            && existing.provider_plan_digest == requirement.provider_plan_digest
-                    }) {
-                        generic_requirements.push(requirement);
-                    }
-                }
-                Ok(None) => {}
                 Err(diagnostic) => diagnostics.push(diagnostic),
             }
         }
@@ -378,12 +754,14 @@ fn plan_selected_boundary_adapter_dispatch(
             for statement in typed.statement_table.statements(state.statement_nodes) {
                 if let typed_trees::statement::StatementNode::Call(call) = statement {
                     resolve_adapter_call(
+                        typed,
                         &adapters,
                         &generic_requirements,
                         &boundary_fields,
                         call.receiver_symbol,
                         call.target_symbol,
                         call.target.as_str(),
+                        &call.machine_arguments,
                     )
                     .map_err(|error| vec![error])?;
                 }
@@ -400,12 +778,14 @@ fn plan_selected_boundary_adapter_dispatch(
             _ => continue,
         };
         resolve_adapter_call(
+            typed,
             &adapters,
             &generic_requirements,
             &boundary_fields,
             receiver,
             call.target_symbol,
             call.target.as_str(),
+            &call.machine_arguments,
         )
         .map_err(|error| vec![error])?;
     }
@@ -420,6 +800,7 @@ fn plan_selected_boundary_adapter_dispatch(
                 requirement: adapter.requirement_symbol,
                 realization_state: adapter.symbol,
                 forward_receiver: adapter.forward_receiver,
+                family_tuple: adapter.family_tuple.clone(),
             });
         }
     }
@@ -430,21 +811,21 @@ fn resolve_selected_adapter_row(
     typed: &TypedTrees,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
-) -> Result<Option<ResolvedAdapterRow>, Diagnostic> {
+) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
     use effects::provider_plan::ProviderBinding;
 
     let ProviderBinding::CheckedAdapter {
         machine_identity, ..
     } = &row.binding
     else {
-        return Ok(None);
+        return Ok(Vec::new());
     };
     if typed.operators().iter().any(|operator| {
         operator.is_boundary
             && typed_trees::operator::boundary_operator_requirement_identity(typed, operator)
                 == plan.schema.trait_name
     }) {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     if row.requirement_identity.is_empty() {
         return Err(Diagnostic::error(format!(
@@ -497,18 +878,19 @@ fn resolve_selected_adapter_row(
     }
 
     // Requirement-local binders make this a family of rows keyed by canonical
-    // value tuple, not one exact overload. Tuple-keyed family dispatch is not
-    // implemented, so exclude the requirement individually before any
-    // realization check: its row cannot produce an executable adapter.
+    // value tuple, not one exact overload. The signature's `where` clause
+    // must declare the complete finite roster explicitly.
     if !typed.state_signature_type_parameters(signature).is_empty() {
-        return Ok(Some(ResolvedAdapterRow::GenericRequirement(
-            GenericBoundaryRequirement {
-                receiver_trait: receiver_trait.symbol,
-                provider_plan_digest: *plan.identity_digest().as_bytes(),
-                requirement_symbol: signature.symbol,
-                requirement_identity: method.requirement_identity.clone(),
-            },
-        )));
+        return resolve_family_adapter_row(
+            typed,
+            plan,
+            row,
+            method,
+            receiver_trait,
+            requirement_owner,
+            signature,
+            machine_identity,
+        );
     }
 
     if plan.provider_type.is_empty() {
@@ -601,7 +983,7 @@ fn resolve_selected_adapter_row(
         }
     };
 
-    Ok(Some(ResolvedAdapterRow::Adapter(AdapterRow {
+    Ok(vec![ResolvedAdapterRow::Adapter(AdapterRow {
         receiver_trait: receiver_trait.symbol,
         provider_plan_digest: *plan.identity_digest().as_bytes(),
         receiver_trait_name: receiver_trait.name.as_str().to_owned(),
@@ -611,7 +993,214 @@ fn resolve_selected_adapter_row(
         adapter_target: adapter.name.as_str().to_owned(),
         symbol: entry.symbol,
         forward_receiver,
-    })))
+        family_tuple: Box::default(),
+        family_tuple_display: Box::default(),
+    })])
+}
+
+/// Realize one requirement's authored finite family as one dispatch row per
+/// roster tuple whose checked provider specialization exists. Tuples without
+/// a demanded specialization stay selectable only in name: a call selecting
+/// one rejects below, and a roster that realizes no row at all leaves the
+/// requirement dynamically ineligible.
+#[allow(clippy::too_many_arguments)]
+fn resolve_family_adapter_row(
+    typed: &TypedTrees,
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    method: &effects::provider_plan::ServiceMethod,
+    receiver_trait: &typed_trees::trait_definition::TraitDefinition,
+    requirement_owner: &typed_trees::trait_definition::TraitDefinition,
+    signature: &typed_trees::signature::StateSignature,
+    machine_identity: &str,
+) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
+    let ineligible = |reason: String| {
+        vec![ResolvedAdapterRow::GenericRequirement(
+            GenericBoundaryRequirement {
+                receiver_trait: receiver_trait.symbol,
+                provider_plan_digest: *plan.identity_digest().as_bytes(),
+                requirement_symbol: signature.symbol,
+                requirement_identity: method.requirement_identity.clone(),
+                reason,
+            },
+        )]
+    };
+    let (arity, tuples) = match finite_signature_family(typed, signature) {
+        FamilyProbe::Finite { arity, tuples } => (arity, tuples),
+        FamilyProbe::NotFinite(reason) => {
+            return Ok(ineligible(format!(
+                "finite generic requirement `{}` is ineligible: {reason}",
+                method.requirement_identity,
+            )));
+        }
+    };
+
+    if plan.provider_type.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
+            plan.name,
+        )));
+    }
+    let adapter = provider_planning::exact_checked_adapter(typed, plan, row)?;
+    if adapter.attached_data.as_ref().map(|owner| owner.as_str())
+        != Some(plan.provider_type.as_str())
+    {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
+            plan.provider_type,
+        )));
+    }
+    if !adapter.supply_mode.is_checked_body() {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` is not a checked body",
+        )));
+    }
+    // A family provider must be generic over exactly the requirement's
+    // enumerable value binders; other binder kinds have no `where` equality
+    // to close them and mixed static arguments cannot key a value tuple.
+    let provider_parameters = typed.machine_type_parameters(adapter);
+    let provider_value_parameters = provider_parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Const { .. }
+                    | typed_trees::data::TypeParameterKind::Value { .. }
+            )
+        })
+        .count();
+    if provider_parameters.len() != provider_value_parameters {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` carries {} non-value machine binders; a finite family can only close the requirement's {arity} value binders",
+            provider_parameters.len() - provider_value_parameters,
+        )));
+    }
+    if provider_value_parameters != arity {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` takes {provider_value_parameters} value binders but requirement `{}` declares a family of arity {arity}",
+            method.requirement_identity,
+        )));
+    }
+    let Some(template_entry) = typed.machine_states(adapter).first() else {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` has no executable entry state",
+        )));
+    };
+
+    let conformances = typed
+        .machine_trait_conformances(adapter)
+        .iter()
+        .filter(|conformance| {
+            conformance.external_binding.is_none()
+                && conformance.symbol == requirement_owner.symbol
+                && conformance
+                    .requirement
+                    .as_ref()
+                    .is_some_and(|requirement| requirement.as_str() == method.name)
+                && exact_conformance_requirement_identity(
+                    typed,
+                    adapter,
+                    requirement_owner,
+                    method.name.as_str(),
+                )
+                .as_deref()
+                    == Some(method.requirement_identity.as_str())
+        })
+        .count();
+    if conformances != 1 {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` binds exact overload `{}` through {conformances} checked conformances",
+            method.requirement_identity,
+        )));
+    }
+
+    // The template entry's parameter shape is invariant under const
+    // specialization, so the receiver check is computed once on the template.
+    let actual_parameters = typed
+        .state_parameters(template_entry)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let forward_receiver = match exact_adapter_receiver_shape(
+        typed,
+        &actual_parameters,
+        method.parameter_count,
+        requirement_owner.symbol,
+    ) {
+        Some(forward_receiver) => forward_receiver,
+        None => {
+            let count = actual_parameters.len();
+            return Err(Diagnostic::error(format!(
+                "selected checked adapter `{machine_identity}` has {count} non-self entry parameters; exact overload `{}` requires {} or one leading `{}` receiver",
+                method.requirement_identity, method.parameter_count, requirement_owner.name,
+            )));
+        }
+    };
+
+    let mut rows = Vec::new();
+    let mut missing = Vec::new();
+    for tuple in &tuples {
+        let specialization = typed.machine_specializations.iter().find(|specialization| {
+            specialization.template == adapter.symbol
+                && specialization.const_argument_identities.as_slice() == tuple.identities.as_ref()
+                && specialization.type_argument_identities.is_empty()
+                && specialization.machine_arguments.is_empty()
+                && specialization.conformance_arguments.is_empty()
+                && specialization.inferred_conformance_arguments.is_empty()
+        });
+        let Some(specialization) = specialization else {
+            missing.push(format!("({})", tuple.display.join(", ")));
+            continue;
+        };
+        let Some(instance) = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == specialization.instance)
+        else {
+            return Err(Diagnostic::error(format!(
+                "finite family specialization of `{machine_identity}` for tuple `({})` has no retained machine instance",
+                tuple.display.join(", "),
+            )));
+        };
+        let Some(entry) = typed.machine_states(instance).first() else {
+            return Err(Diagnostic::error(format!(
+                "finite family specialization of `{machine_identity}` for tuple `({})` has no executable entry state",
+                tuple.display.join(", "),
+            )));
+        };
+        if !entry.symbol.is_valid() {
+            return Err(Diagnostic::error(format!(
+                "finite family specialization of `{machine_identity}` for tuple `({})` has no exact entry-state symbol",
+                tuple.display.join(", "),
+            )));
+        }
+        rows.push(ResolvedAdapterRow::Adapter(AdapterRow {
+            receiver_trait: receiver_trait.symbol,
+            provider_plan_digest: *plan.identity_digest().as_bytes(),
+            receiver_trait_name: receiver_trait.name.as_str().to_owned(),
+            requirement: method.name.clone(),
+            requirement_identity: method.requirement_identity.clone(),
+            requirement_symbol: signature.symbol,
+            adapter_target: instance.name.as_str().to_owned(),
+            symbol: entry.symbol,
+            forward_receiver,
+            family_tuple: tuple.identities.clone(),
+            family_tuple_display: tuple.display.clone(),
+        }));
+    }
+    if rows.is_empty() {
+        return Ok(ineligible(format!(
+            "finite generic requirement `{}` declares {} tuples but no checked provider specialization exists for any of them{}",
+            method.requirement_identity,
+            tuples.len(),
+            if missing.is_empty() {
+                String::new()
+            } else {
+                format!("; missing: {}", missing.join(", "))
+            },
+        )));
+    }
+    Ok(rows)
 }
 
 fn exact_conformance_requirement_identity(
@@ -715,29 +1304,21 @@ fn exact_adapter_receiver_shape(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn resolve_adapter_call<'adapter>(
+    typed: &TypedTrees,
     adapters: &'adapter [AdapterRow],
     generic_requirements: &[GenericBoundaryRequirement],
     fields: &[BoundaryField],
     receiver_symbol: symbols::SymbolHandle,
     target_symbol: symbols::SymbolHandle,
     target_name: &str,
+    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
 ) -> Result<Option<&'adapter AdapterRow>, Diagnostic> {
     let field = fields.iter().find(|field| field.symbol == receiver_symbol);
     let Some(field) = field else {
         return Ok(None);
     };
-    // A generic requirement supplies no row; without tuple-keyed families a
-    // call to it would silently reach the unbound template at every width.
-    if let Some(requirement) = generic_requirements.iter().find(|requirement| {
-        requirement.receiver_trait == field.trait_symbol
-            && requirement.requirement_symbol == target_symbol
-    }) {
-        return Err(Diagnostic::error(format!(
-            "boundary call `{target_name}` selects generic requirement `{}`; finite generic method families are unimplemented, so the requirement supplies no executable dispatch row",
-            requirement.requirement_identity,
-        )));
-    }
     let matches = adapters
         .iter()
         .filter(|adapter| {
@@ -745,9 +1326,56 @@ fn resolve_adapter_call<'adapter>(
                 && adapter.requirement_symbol == target_symbol
         })
         .collect::<Vec<_>>();
+    // A family requirement's rows are tuple-keyed: the call's static machine
+    // arguments must canonically select exactly one declared tuple. An
+    // ineligible generic requirement supplies no rows and rejects below.
+    let matches = if matches
+        .iter()
+        .any(|adapter| !adapter.family_tuple.is_empty())
+    {
+        let call_tuple = machine_arguments
+            .iter()
+            .map(|argument| call_argument_const_identity(typed, argument))
+            .collect::<Option<Vec<_>>>();
+        let Some(call_tuple) = call_tuple else {
+            return Err(Diagnostic::error(format!(
+                "boundary call `{target_name}` supplies a static argument that is not a closed const value; a finite-family call must select one declared tuple",
+            )));
+        };
+        matches
+            .iter()
+            .filter(|adapter| adapter.family_tuple.as_ref() == call_tuple.as_slice())
+            .copied()
+            .collect::<Vec<_>>()
+    } else {
+        matches
+    };
     let adapter = match matches.as_slice() {
         [adapter] => *adapter,
         [] => {
+            // A generic requirement supplies no row: a call to it would
+            // silently reach the unbound template at every width.
+            if let Some(requirement) = generic_requirements.iter().find(|requirement| {
+                requirement.receiver_trait == field.trait_symbol
+                    && requirement.requirement_symbol == target_symbol
+            }) {
+                return Err(Diagnostic::error(format!(
+                    "boundary call `{target_name}` selects generic requirement `{}`, which supplies no executable dispatch row: {}",
+                    requirement.requirement_identity, requirement.reason,
+                )));
+            }
+            // The requirement is a declared family with settled rows, but
+            // this call's tuple matched none of them.
+            if let Some(family) = adapters.iter().find(|adapter| {
+                adapter.receiver_trait == field.trait_symbol
+                    && adapter.requirement_symbol == target_symbol
+                    && !adapter.family_tuple.is_empty()
+            }) {
+                return Err(Diagnostic::error(format!(
+                    "boundary call `{target_name}` does not select a settled tuple of requirement `{}`",
+                    family.requirement_identity,
+                )));
+            }
             let readable = adapters
                 .iter()
                 .filter(|adapter| {
@@ -788,6 +1416,7 @@ fn resolve_adapter_call<'adapter>(
 #[cfg(test)]
 mod tests {
     mod borrowed_parameters;
+    mod finite_family;
     mod generic_requirements;
     mod source_retention;
 
@@ -1035,11 +1664,17 @@ mod tests {
                     );
                 }
                 None if matches!(drift, Drift::NonAdapterBinding) => {
-                    assert_eq!(result.expect("non-adapter rows remain delegated"), None);
+                    assert!(
+                        result
+                            .expect("non-adapter rows remain delegated")
+                            .is_empty()
+                    );
                 }
                 None => {
                     let adapter = result
                         .expect("exact row resolves")
+                        .into_iter()
+                        .next()
                         .expect("checked row yields adapter")
                         .expect_adapter();
                     assert_eq!(adapter.receiver_trait_name, "Echo");
@@ -1058,6 +1693,8 @@ mod tests {
 
         let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row)
             .expect("concrete provider self is an exact realization receiver")
+            .into_iter()
+            .next()
             .expect("checked row yields adapter")
             .expect_adapter();
         assert_eq!(adapter.adapter_target, "StatefulProvider::touch");
@@ -1072,6 +1709,8 @@ mod tests {
 
         let adapter = resolve_selected_adapter_row(&fixture.typed, selected, row)
             .expect("exact leading boundary binding resolves")
+            .into_iter()
+            .next()
             .expect("checked row yields adapter")
             .expect_adapter();
         assert_eq!(adapter.adapter_target, "ForwardProvider::send_adapter");
@@ -1145,6 +1784,8 @@ mod tests {
             adapter_target: target.into(),
             symbol: symbol(requirement_symbol.arena_index() + 100),
             forward_receiver: false,
+            family_tuple: Box::default(),
+            family_tuple_display: Box::default(),
         }
     }
 
@@ -1221,7 +1862,16 @@ mod tests {
             (symbol(99), first_requirement, "echo", None, None),
         ];
         for (field, target, name, expected_adapter, expected_error) in cases {
-            let result = resolve_adapter_call(&adapters, &[], &exact_fields, field, target, name);
+            let result = resolve_adapter_call(
+                &TypedTrees::default(),
+                &adapters,
+                &[],
+                &exact_fields,
+                field,
+                target,
+                name,
+                &[],
+            );
             match (expected_adapter, expected_error) {
                 (Some(expected), None) => assert_eq!(
                     result
@@ -1244,12 +1894,14 @@ mod tests {
         let duplicate = adapters[0].clone();
         assert!(
             resolve_adapter_call(
+                &TypedTrees::default(),
                 &[adapters[0].clone(), duplicate],
                 &[],
                 &exact_fields,
                 first_field,
                 first_requirement,
                 "echo",
+                &[],
             )
             .expect_err("duplicate exact rows must reject")
             .message

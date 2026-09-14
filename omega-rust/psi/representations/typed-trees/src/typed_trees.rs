@@ -1926,6 +1926,21 @@ impl TypedTrees {
         self.type_reference_table.primitive_type(type_reference)
     }
 
+    /// The canonical const identity one closed static machine argument
+    /// contributes to a specialization — the same
+    /// `named(integer-const(v))`/`named(canonical-const(...))` string a
+    /// `MachineSpecialization` retains in `const_argument_identities` for the
+    /// same argument. `None` when the argument is not a closed static value:
+    /// a runtime subject, a type, a machine symbol, or an evidence
+    /// projection can never key a specialization tuple.
+    pub fn static_const_argument_identity(
+        &self,
+        argument: &expression::StaticMachineArgument,
+    ) -> Option<String> {
+        static_const_argument_spelling(self, argument)
+            .map(|spelling| static_const_identity_from_spelling(&spelling))
+    }
+
     pub fn placed_field_plan_for_type_reference(
         &self,
         type_reference: types::TypeReferenceHandle,
@@ -2130,6 +2145,82 @@ fn proof_fact_source_span_index(handle: Handle<domain::ProofFact>) -> usize {
         .expect("proof fact source-span index exceeds usize")
         .checked_sub(1)
         .expect("proof fact source-span handle must be valid")
+}
+
+/// The static const spelling one machine argument selects, mirroring the
+/// specialization pipeline's argument spelling exactly: decimal for integer
+/// literals and integer-valued const declarations, the canonical atom for
+/// structured const values, and `true`/`false` for Boolean literals.
+fn static_const_argument_spelling(
+    program: &TypedTrees,
+    argument: &expression::StaticMachineArgument,
+) -> Option<String> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+
+    if argument.application.is_some() || argument.evidence_projection.is_some() {
+        return None;
+    }
+    if let Some(literal) = &argument.const_literal {
+        return Some(
+            literal
+                .value_i64()
+                .map(i128::from)
+                .or_else(|| literal.value_u64().map(i128::from))
+                .map_or_else(|| literal.text().to_owned(), |value| value.to_string()),
+        );
+    }
+    if argument.symbol.is_valid() {
+        let declaration = program
+            .const_declarations()
+            .iter()
+            .find(|declaration| declaration.symbol == argument.symbol)?;
+        let value = CanonicalConstValue::new(
+            program.display_type_reference(declaration.declared_type),
+            declaration.canonical_value_encoding.as_ref()?.clone(),
+            argument.display_name(),
+        );
+        return Some(match value.decode_encoding()? {
+            DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
+            _ => value.atom(),
+        });
+    }
+    let [name] = argument.path.as_ref() else {
+        return None;
+    };
+    match name.as_str() {
+        "true" => Some(CanonicalConstValue::boolean(true).atom()),
+        "false" => Some(CanonicalConstValue::boolean(false).atom()),
+        // A previous specialization may forward a compiler-created atom.
+        spelling => CanonicalConstValue::from_atom(spelling).map(|value| value.atom()),
+    }
+}
+
+/// Wrap one static const spelling in the normalized `Named` type identity the
+/// specialization binding records: `named(integer-const(v))` for decimal
+/// spellings, `named(canonical-const(type(T),encoding(E)))` for canonical
+/// atoms. The escaping rules mirror `type_identity`'s atom/compound leaves.
+fn static_const_identity_from_spelling(spelling: &str) -> String {
+    fn escape(value: &str) -> String {
+        let mut out = String::with_capacity(value.len());
+        for character in value.chars() {
+            if matches!(character, '\\' | '(' | ')' | ',') {
+                out.push('\\');
+            }
+            out.push(character);
+        }
+        out
+    }
+    if let Some(value) = language_semantics::const_value::CanonicalConstValue::from_atom(spelling) {
+        return format!(
+            "named(canonical-const(type({}),encoding({})))",
+            escape(&value.type_name),
+            escape(&value.encoding)
+        );
+    }
+    if let Ok(value) = spelling.parse::<i128>() {
+        return format!("named(integer-const({value}))");
+    }
+    format!("named(name({}))", escape(spelling))
 }
 
 impl PhaseSnapshot for TypedTrees {

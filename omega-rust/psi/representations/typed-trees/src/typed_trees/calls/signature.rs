@@ -93,6 +93,10 @@ pub struct StateSignature {
     /// exact parameter-rooted progress-premise schemas. Implementations
     /// inherit this record rather than reconstructing it from their bodies.
     pub termination_guarantee: language_semantics::TerminationGuarantee,
+    /// Signature-level `where` proof facts. A finite generic method family is
+    /// authored here as one explicit disjunction of complete value-binder
+    /// equalities; other fact shapes remain ordinary proof facts.
+    pub where_facts: HandleSpan<crate::domain::ProofFact>,
 }
 
 impl Default for StateSignature {
@@ -116,6 +120,7 @@ impl Default for StateSignature {
             blocks: false,
             contracts: HandleSpan::empty(),
             termination_guarantee: language_semantics::TerminationGuarantee::NoGuarantee,
+            where_facts: HandleSpan::empty(),
         }
     }
 }

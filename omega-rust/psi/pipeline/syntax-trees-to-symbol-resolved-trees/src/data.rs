@@ -340,6 +340,7 @@ pub(crate) fn lower_type_parameters(
                             contract.blocks,
                             contract.contracts,
                             contract.terminates_guarantee,
+                            contract.where_facts,
                         )?;
                         (
                             TypeParameterKind::Machine {

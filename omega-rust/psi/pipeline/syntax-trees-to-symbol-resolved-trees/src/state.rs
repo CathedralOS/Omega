@@ -150,6 +150,7 @@ pub(crate) fn lower_state_signature_node(
         signature.contracts,
         // TPR4: the bodyless requirement's authored guarantee.
         signature.terminates_guarantee,
+        signature.where_facts,
     )
 }
 
@@ -174,6 +175,7 @@ pub(crate) fn lower_state_signature_parts(
     blocks: bool,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
     terminates_guarantee: bool,
+    where_facts: HandleSpan<syntax::item::ProofFact>,
 ) -> Result<LoweredStateSignature, Diagnostic> {
     let type_parameters =
         crate::data::lower_type_parameters(lowerer, syntax_trees, type_parameters)?;
@@ -185,6 +187,7 @@ pub(crate) fn lower_state_signature_parts(
     let service_reaches = lower_service_reach_names(syntax_trees, service_reaches);
     let invokes = lower_signature_invokes(lowerer, syntax_trees, invokes);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
+    let where_facts = crate::domain::lower_proof_facts(lowerer, syntax_trees, where_facts)?;
 
     Ok(LoweredStateSignature {
         signature: StateSignature {
@@ -219,6 +222,7 @@ pub(crate) fn lower_state_signature_parts(
                 blocks,
                 contracts,
                 terminates_guarantee,
+                where_facts,
             },
         },
         service_reach_keyword_source_spans: service_reach_keyword_source_spans.to_vec(),

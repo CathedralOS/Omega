@@ -105,6 +105,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
                 blocks,
                 contracts,
                 terminates_guarantee,
+                where_facts,
             ),
             rest,
         ) = parse_signature_clauses(syntax_trees, rest, true)?;
@@ -131,6 +132,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         signature.blocks = blocks;
         signature.contracts = contracts;
         signature.terminates_guarantee = terminates_guarantee;
+        signature.where_facts = where_facts;
         let (default_body, next) = if is_default {
             parse_trait_default_machine_body(syntax_trees, rest)?
         } else {
@@ -316,6 +318,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             contracts: HandleSpan::empty(),
             default_body: HandleSpan::empty(),
             terminates_guarantee: false,
+            where_facts: HandleSpan::empty(),
         },
         input,
     ))
@@ -484,6 +487,10 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
             // TPR4 (decision 23): authored bare `terminates` -- the bodyless
             // requirement's PUBLIC guarantee.
             bool,
+            // Signature-level `where` proof facts (the finite generic method
+            // family roster is authored here as explicit equality
+            // disjunctions).
+            HandleSpan<syntax_trees::item::ProofFact>,
         ),
         Input<'tokens, 'source>,
     ),
@@ -502,15 +509,55 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
     let mut terminates_guarantee = false;
+    let mut where_fact_start = Handle::invalid();
+    let mut where_fact_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::Semicolon)
         && !input.at_punctuation(PunctuationKind::LeftBrace)
     {
-        // Repeated machine-parameter requirements use one `where machine`
-        // clause per symbol. Leave the next `where` to the owning machine
-        // parser rather than swallowing it as signature trivia.
         if input.at_contextual("where") {
-            break;
+            // Repeated machine-parameter requirements use one `where machine`
+            // clause per symbol, and `where proposition` belongs to the
+            // trait-parameter parser. Leave both to the owning parser rather
+            // than swallowing them as signature trivia. Any other `where`
+            // clause carries signature-level proof facts: a finite generic
+            // method family is authored here as explicit equality
+            // disjunctions such as `where Width == 16 || Width == 32`.
+            let after_where =
+                Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+            if after_where.at_keyword(KeywordKind::Machine)
+                || after_where.at_contextual("proposition")
+            {
+                break;
+            }
+            if where_fact_count != 0 {
+                return Err(input.error_here(
+                    "a signature accepts one `where` clause; combine its facts in the \
+                     authored clause (a finite family is one explicit disjunction, not \
+                     independently listed binder values)",
+                ));
+            }
+            input = input.take_contextual("where")?;
+            let ((facts, _token_count), rest) =
+                parse_proof_facts_until(syntax_trees, input, |input| {
+                    input.at_punctuation(PunctuationKind::Semicolon)
+                        || input.at_punctuation(PunctuationKind::LeftBrace)
+                        || input.at_contextual("requires")
+                        || input.at_contextual("ensures")
+                        || input.at_contextual("terminates")
+                        || input.at_contextual("reaches")
+                        || input.at_contextual("effects")
+                        || input.at_contextual("invokes")
+                        || input.at_contextual("suspends")
+                        || input.at_contextual("blocks")
+                        || input.at_contextual("crashes")
+                        || input.at_contextual("where")
+                        || input.tokens.is_empty()
+                })?;
+            where_fact_start = facts.start();
+            where_fact_count = facts.count();
+            input = rest;
+            continue;
         }
         if input.at_punctuation(PunctuationKind::RightBrace) {
             return Err(input.expected_one_of_here(&["`;`", "`{`"]));
@@ -772,6 +819,11 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(contract_start, contract_count)
     };
+    let where_facts = if where_fact_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(where_fact_start, where_fact_count)
+    };
     Ok((
         (
             service_reaches,
@@ -784,6 +836,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
             blocks,
             contracts,
             terminates_guarantee,
+            where_facts,
         ),
         input,
     ))
