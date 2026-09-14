@@ -580,6 +580,12 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(4),
         MachineSemanticKind::WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
+        // One unshifted `add` inside the first granule; a shifted plus
+        // unshifted pair past it.
+        MachineSemanticKind::FrameAddress => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 4,
+            maximum_bytes: Some(8),
+        },
         _ => MachineSizeKnowledge::ExactBytes(4),
     }
 }

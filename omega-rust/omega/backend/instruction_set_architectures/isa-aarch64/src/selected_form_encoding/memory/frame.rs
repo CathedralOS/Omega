@@ -1,7 +1,29 @@
 //! SP-relative frame stores and addresses, with independent instruction replay.
-//! Unshifted ADD covers the entire existing frame protocol's <=4095-byte range,
-//! including an empty home's one-past address; larger frames remain rejected.
+//! A `FrameAddress` is one `add xD, sp, #imm` inside the first 4 KiB of the
+//! frame and a shifted-then-unshifted `add` pair past it — the same immediate
+//! reach the frame protocol's `sp` adjustment admits — so every displacement
+//! a committable frame can resolve encodes exactly.
 use super::*;
+
+const fn frame_address_words(register: u8, displacement: u32) -> (u32, Option<u32>) {
+    let high = displacement >> 12;
+    if high == 0 {
+        (
+            0x9100_0000 | (displacement << 10) | (31 << 5) | register as u32,
+            None,
+        )
+    } else {
+        let low = displacement & 4095;
+        (
+            0x9140_0000 | (high << 10) | (31 << 5) | register as u32,
+            if low == 0 {
+                None
+            } else {
+                Some(0x9100_0000 | (low << 10) | ((register as u32) << 5) | register as u32)
+            },
+        )
+    }
+}
 
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
@@ -34,7 +56,7 @@ fn request(
         || if store {
             !displacement.is_multiple_of(8) || displacement > 32760
         } else {
-            displacement > 4095
+            u64::from(displacement) > crate::frame_protocol::MAX_STACK_POINTER_ADJUST_BYTES
         }
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
@@ -54,20 +76,18 @@ pub(super) fn encode(
     displacement: u32,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let (register, store) = request(physical, kind, alternative, operands, displacement)?;
-    let (opcode, immediate) = if store {
-        (0xf900_0000, displacement / 8)
+    let bytes: Vec<u8> = if store {
+        let word = 0xf900_0000 | ((displacement / 8) << 10) | (31 << 5) | u32::from(register);
+        word.to_le_bytes().to_vec()
     } else {
-        (0x9100_0000, displacement)
+        let (first, second) = frame_address_words(register, displacement);
+        first
+            .to_le_bytes()
+            .into_iter()
+            .chain(second.into_iter().flat_map(u32::to_le_bytes))
+            .collect()
     };
-    let word = opcode | (immediate << 10) | (31 << 5) | u32::from(register);
-    validate(
-        physical,
-        kind,
-        alternative,
-        operands,
-        displacement,
-        &word.to_le_bytes(),
-    )
+    validate(physical, kind, alternative, operands, displacement, &bytes)
 }
 
 pub(super) fn validate(
@@ -79,19 +99,32 @@ pub(super) fn validate(
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let (register, store) = request(physical, kind, alternative, operands, displacement)?;
-    let word = bytes
-        .try_into()
-        .ok()
-        .map(u32::from_le_bytes)
-        .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-    let opcode = if store { 0xf900_0000 } else { 0x9100_0000 };
-    let scale = if store { 8 } else { 1 };
-    if word & 0xffc0_0000 != opcode
-        || word & 31 != u32::from(register)
-        || (word >> 5) & 31 != 31
-        || ((word >> 10) & 4095) * scale != displacement
-    {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    if store {
+        let word = bytes
+            .try_into()
+            .ok()
+            .map(u32::from_le_bytes)
+            .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+        if word & 0xffc0_0000 != 0xf900_0000
+            || word & 31 != u32::from(register)
+            || (word >> 5) & 31 != 31
+            || ((word >> 10) & 4095) * 8 != displacement
+        {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
+    } else {
+        let (first, second) = frame_address_words(register, displacement);
+        let expected = first
+            .to_le_bytes()
+            .into_iter()
+            .chain(second.into_iter().flat_map(u32::to_le_bytes))
+            .collect::<Vec<u8>>();
+        if bytes.len() != expected.len() {
+            return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
+        }
+        if bytes != expected {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
     }
     let stack_pointer = physical
         .model()
@@ -164,7 +197,12 @@ mod tests {
                 },
                 variant: 0,
             };
-            for displacement in if store { [0, 8, 32760] } else { [0, 17, 4095] } {
+            let displacements: &[u32] = if store {
+                &[0, 8, 32760]
+            } else {
+                &[0, 17, 4095, 4096, 4192, 16_777_215]
+            };
+            for displacement in displacements.iter().copied() {
                 let operands = [physical.model().view_named("x9").unwrap().id];
                 let encoded =
                     encode(&physical, kind, alternative, &operands, displacement).unwrap();
@@ -172,8 +210,18 @@ mod tests {
                     encoded.footprint.encoded.implicit_unit_uses,
                     physical.model().view_named("sp").unwrap().units
                 );
+                if !store {
+                    assert_eq!(
+                        encoded.bytes().len(),
+                        if displacement <= 4095 || displacement % 4096 == 0 {
+                            4
+                        } else {
+                            8
+                        }
+                    );
+                }
                 assert!(!encoded.footprint.writes_nzcv);
-                for bit in 0..32 {
+                for bit in 0..(encoded.bytes().len() * 8) {
                     let mut corrupt = encoded.bytes().to_vec();
                     corrupt[bit / 8] ^= 1 << (bit % 8);
                     assert!(
@@ -226,7 +274,7 @@ mod tests {
                         kind,
                         alternative,
                         &operands,
-                        if store { 32768 } else { 4096 }
+                        if store { 32768 } else { 16_777_216 }
                     )
                     .is_err()
                 );

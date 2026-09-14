@@ -364,15 +364,21 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   (`register_arity::stack_argument_calls_replay_frame_accesses_through_callable_publication`).
   Probing is landed: a caller whose outgoing ABI area exceeds one
   stack-commit granule commits its frame through an exact per-granule
-  touch roster recorded in the validated layout, emitted as
-  move-and-touch chunks by the x86-64 frame protocol, and replayed
-  through ordinary callable publication on linux_x64 and windows_x64
-  (`stack_probe_commit::wide_outgoing_area_commits_through_exact_probe_roster_and_publication`);
-  the AArch64 targets record the roster demand and keep rejecting frames
-  their single-instruction prologue cannot encode. Acceptance: every
-  admitted frame policy replays its exact physical accesses
-  through callable publication; requirements artifacts remain
-  non-authoritative until that replay succeeds.
+  touch roster recorded in the validated layout and replays through
+  ordinary callable publication on all four targets
+  (`stack_probe_commit::wide_outgoing_area_commits_through_exact_probe_roster_and_publication`).
+  x86-64 emits move-and-touch chunks; AAPCS64 emits a
+  shifted-then-unshifted `sub sp` pair per chunk followed by an
+  `ldr xzr, [sp]` touch of each newly entered page, and `FrameAddress`
+  forms every displacement a committable frame resolves through the same
+  add pair (both Darwin's 16 KiB unprobed granule and Linux's 4 KiB
+  probed granule publish). Acceptance: every admitted frame policy
+  replays its exact physical accesses through callable publication;
+  requirements artifacts remain non-authoritative until that replay
+  succeeds. Remaining: red-zone policy, unwind information,
+  stable-address loans, and dynamic-allocation constraints; general
+  calls still need target-owned frame, callee-save, link-register, and
+  call-site alignment plans beyond the landed callee-save frames.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general

@@ -1,9 +1,10 @@
 //! A caller whose outgoing ABI area exceeds one stack-commit granule exercises
 //! the committed-stack probe roster end to end: the layout commits an exact
-//! touch schedule, the x86-64 protocol emits one granule chunk per touch, and
-//! the whole program still reaches ordinary callable publication. The AArch64
-//! targets keep their real single-instruction frame bound: the layout records
-//! the roster demand and the protocol stage rejects what it cannot encode.
+//! touch schedule, the frame protocol emits one granule chunk per touch, and
+//! the whole program still reaches ordinary callable publication. x86-64 emits
+//! `sub rsp` move-and-touch chunks; AArch64 emits a shifted-then-unshifted
+//! `sub sp` pair per chunk followed by an `ldr xzr, [sp]` touch, so frames
+//! past the single-instruction 4095-byte bound commit on all four targets.
 
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
@@ -188,12 +189,44 @@ fn lower(
     (target_program, post_terminal)
 }
 
+/// Decode the frame an AAPCS64 prologue commits, in emitted order: each
+/// `sub sp` adjustment — a shifted immediate pair when the chunk passes the
+/// unshifted bound — and each `ldr xzr, [sp]` touch of the newly entered
+/// page. The scan stops at the first save-store word, which opens the
+/// callee-save roster. Returns (total committed bytes, per-touch chunks);
+/// an unprobed prologue reports its whole frame as total with no chunks.
+fn aarch64_commit_chunks(prologue: &[u8]) -> (u64, Vec<u64>) {
+    let mut chunks = Vec::new();
+    let mut pending = 0_u64;
+    let mut committed = 0_u64;
+    for word in prologue
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|chunk| u32::from_le_bytes(*chunk))
+    {
+        match word & 0xffc0_03ff {
+            0xd100_03ff => pending += u64::from((word >> 10) & 4095),
+            0xd140_03ff => pending += u64::from((word >> 10) & 4095) << 12,
+            _ if word == 0xf940_03ff => {
+                chunks.push(pending);
+                committed += pending;
+                pending = 0;
+            }
+            _ => break,
+        }
+    }
+    (committed + pending, chunks)
+}
+
 #[test]
 fn wide_outgoing_area_commits_through_exact_probe_roster_and_publication() {
     let caller = MachineId::new(CALLER).unwrap();
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
     ] {
         let (target_program, post_terminal) = lower(target);
         let physical = crate::stage_optimized_verified_physical_pipeline(
@@ -210,22 +243,33 @@ fn wide_outgoing_area_commits_through_exact_probe_roster_and_publication() {
             .find(|function| function.machine == caller)
             .unwrap();
         assert!(row.contains_call, "{target:?}");
-        assert!(
-            row.frame_size_bytes > isa_x86_64::X86_64_STACK_PROBE_INTERVAL_BYTES,
-            "{target:?}: outgoing ABI area must exceed one commit granule: {row:?}"
-        );
-        assert_eq!(
-            row.stack_probe.interval_bytes,
-            isa_x86_64::X86_64_STACK_PROBE_INTERVAL_BYTES,
-            "{target:?}"
-        );
+        let interval = match (target.architecture, target.object_format) {
+            (target::Architecture::Aarch64, target::ObjectFormat::MachO) => 16_384,
+            _ => isa_x86_64::X86_64_STACK_PROBE_INTERVAL_BYTES,
+        };
+        assert_eq!(row.stack_probe.interval_bytes, interval, "{target:?}");
+        // On Linux the frame exceeds the 4 KiB granule and commits by roster;
+        // on Darwin it fits inside one 16 KiB granule and emits no touches,
+        // while still clearing the single-instruction immediate bound.
         assert_eq!(
             u64::from(row.stack_probe.touches),
-            row.frame_size_bytes
-                .div_ceil(isa_x86_64::X86_64_STACK_PROBE_INTERVAL_BYTES),
+            if row.frame_size_bytes > interval {
+                row.frame_size_bytes.div_ceil(interval)
+            } else {
+                0
+            },
             "{target:?}"
         );
-        assert_eq!(layout.receipt().probed_function_count(), 1, "{target:?}");
+        if target.object_format == target::ObjectFormat::MachO {
+            assert_eq!(row.stack_probe.touches, 0, "{target:?}");
+            assert!(row.frame_size_bytes > 4095, "{target:?}: {row:?}");
+        } else {
+            assert!(
+                row.frame_size_bytes > interval,
+                "{target:?}: outgoing ABI area must exceed one commit granule: {row:?}"
+            );
+            assert_eq!(layout.receipt().probed_function_count(), 1, "{target:?}");
+        }
         let protocol = realization.protocol().plan();
         let encoding = protocol
             .functions
@@ -233,15 +277,39 @@ fn wide_outgoing_area_commits_through_exact_probe_roster_and_publication() {
             .find(|function| function.machine == caller)
             .unwrap();
         let prologue = encoding.prologue.bytes(&protocol.bytes).unwrap();
-        // Each committed chunk is one granule move followed by a touch of the
-        // newly entered page: `sub rsp, 4096 ; cmp byte ptr [rsp], 0`.
-        let chunk = [
-            0x48, 0x81, 0xec, 0x00, 0x10, 0x00, 0x00, 0x80, 0x3c, 0x24, 0x00,
-        ];
-        assert!(
-            prologue.starts_with(&chunk),
-            "{target:?}: prologue {prologue:02x?}"
-        );
+        match target.architecture {
+            target::Architecture::X86_64 => {
+                // Each committed chunk is one granule move followed by a touch
+                // of the newly entered page: `sub rsp, 4096 ; cmp byte ptr [rsp], 0`.
+                let chunk = [
+                    0x48, 0x81, 0xec, 0x00, 0x10, 0x00, 0x00, 0x80, 0x3c, 0x24, 0x00,
+                ];
+                assert!(
+                    prologue.starts_with(&chunk),
+                    "{target:?}: prologue {prologue:02x?}"
+                );
+            }
+            target::Architecture::Aarch64 => {
+                // The emitted commit chunks replay the recorded roster: every
+                // chunk but the last commits exactly one granule, the last
+                // carries the partial tail, and together they commit the whole
+                // frame before the save roster opens.
+                let (committed, chunks) = aarch64_commit_chunks(prologue);
+                assert_eq!(
+                    chunks.len(),
+                    usize::try_from(row.stack_probe.touches).unwrap(),
+                    "{target:?}: {chunks:?}"
+                );
+                for (ordinal, chunk) in chunks.iter().enumerate() {
+                    assert!(
+                        *chunk == interval || ordinal + 1 == chunks.len(),
+                        "{target:?}: non-final chunk must commit one granule: {chunks:?}"
+                    );
+                    assert!(*chunk <= interval, "{target:?}: {chunks:?}");
+                }
+                assert_eq!(committed, row.frame_size_bytes, "{target:?}: {chunks:?}");
+            }
+        }
         let emitted = machine_emission::stage_optimized_function_fragment_emission(
             physical.into_function_fragment_emission_source(),
         )
@@ -269,29 +337,5 @@ fn wide_outgoing_area_commits_through_exact_probe_roster_and_publication() {
         let callable = native_artifact::stage_validated_optimized_ordinary_callable_entry(artifact)
             .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
         assert_eq!(callable.entry().returns.len(), 1, "{target:?}");
-    }
-    for target in [
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        let (target_program, post_terminal) = lower(target);
-        let error = crate::stage_optimized_verified_physical_pipeline(
-            target_program,
-            post_terminal.selections(),
-        )
-        .expect_err("AArch64 keeps its single-instruction frame bound");
-        assert!(
-            matches!(
-                error,
-                crate::OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization(
-                    machine_emission::FunctionRelativeOptimizationRealizationError::FrameProtocol(
-                        machine_emission::TargetFrameProtocolEncodingError::Aarch64(
-                            isa_aarch64::Aarch64FrameProtocolError::InvalidFrameSize,
-                        ),
-                    ),
-                )
-            ),
-            "{target:?}: {error:?}"
-        );
     }
 }

@@ -93,6 +93,10 @@ pub(super) fn validate_bytes(
                 isa_aarch64::encode_aapcs64_frame_protocol(
                     environment.physical(),
                     function.frame_size_bytes,
+                    isa_aarch64::Aarch64StackProbe {
+                        interval_bytes: function.stack_probe.interval_bytes,
+                        touches: function.stack_probe.touches,
+                    },
                     &slots,
                 )
                 .map_err(Error::Aarch64)?
