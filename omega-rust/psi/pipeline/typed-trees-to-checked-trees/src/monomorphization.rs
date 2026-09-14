@@ -313,7 +313,9 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 /// never rewritten: it remains the package API and every closed application
 /// is cloned from that stable template.
 mod selected_operator_providers;
-pub(crate) use selected_operator_providers::specialize_selected_generic_operator_providers;
+pub(crate) use selected_operator_providers::{
+    SelectedProviderTemplates, specialize_selected_generic_operator_providers,
+};
 
 #[allow(clippy::too_many_arguments)]
 fn collect_call_proposals(
