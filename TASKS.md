@@ -2282,13 +2282,16 @@ Owners include
   similarly shaped row mints one implicitly.
 
   Complete owned value loads through references, additional reference-boundary
-  loads, indexed or replaced carriers, owned helper results, and
-  reference-bearing helper results with unresolved control-flow or binding transfers in
+  loads, indexed or replaced carriers, and reference-bearing helper results
+  with unresolved control-flow or binding transfers in
   `checks/termination/progress/{origins.rs,lineage.rs}`. Captured record and
   array constructors now arrive from the selected field or element operand
   (`flow/value_origins.rs`); owned helper results such as
-  `context.scheduler = pick(replacement)` still fail the requires proof before
-  any premise is reconstructed. A mutated aggregate
+  `context.scheduler = pick(replacement)` now derive the checked callee's
+  exact frozen-input projection through the same backward trace
+  (`checks/termination/progress/origins.rs`), while `&mut` or mutable
+  captures, generic or dispatched callees, and unresolved result routes stay
+  unproven. A mutated aggregate
   cannot use root correspondence as evidence for its previous field values;
   a may-write frame cannot identify a replacement value. Extend per-field
   arrivals through opaque reference, recursive-proof, and unresolved generic
