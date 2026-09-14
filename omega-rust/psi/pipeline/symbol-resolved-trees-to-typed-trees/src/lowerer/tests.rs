@@ -4665,6 +4665,139 @@ fn seeded_local_instance_replays_carried_case_where_facts() {
     );
 }
 
+/// CASE-CONSTRAINTS generic case-data synthesis: a `T == name` case fact is
+/// decided against the closed argument identity at synthesis, so the seeded
+/// replay must re-derive the same decision by symbol: `Value<i32>` discharges
+/// `T == i32` (no carried fact), `Value<bool>` refutes it and carries the
+/// literal `0` witness plus the zero gate it implies. A witness rewritten to
+/// a non-false literal, a dropped gate flag, or a fabricated fact each fails
+/// the independent check.
+#[test]
+fn seeded_local_instance_replays_decided_type_equality_facts() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        r#"
+            data Value<T> {
+                case Integer(value: T) where T == i32;
+                case Boolean(value: T) where T == bool;
+            }
+            data Generated { yes: Value<i32>; no: Value<bool>; }
+        "#,
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(
+        plain_data_extension_shape_is_supported(&resolved, frontier),
+        "decided type-equality facts replay against the template on both instances",
+    );
+
+    let instance_index = |name: &str| {
+        (frontier..resolved.data_definitions.len())
+            .find(|index| resolved.data_definitions[*index].name.as_str() == name)
+            .expect("instance index")
+    };
+    let no_index = instance_index("Value<bool>");
+    let yes_index = instance_index("Value<i32>");
+    assert!(resolved.data_definitions[no_index].zero_gated);
+    assert!(!resolved.data_definitions[yes_index].zero_gated);
+
+    // The refuted instance's `Integer` fact must be the `0` witness exactly:
+    // a rewritten literal is not the decided-false shape synthesis produces.
+    let no_members = resolved.data_definitions[no_index].members;
+    let witness = {
+        let integer = resolved
+            .data_members(no_members)
+            .iter()
+            .find_map(|member| match member {
+                symbol_resolved_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == "Integer" =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
+            .expect("instance Integer case");
+        let [symbol_resolved_trees::domain::ProofFact::Expression(fact)] =
+            resolved.proof_facts(integer.where_facts)
+        else {
+            panic!("the refuted instance carries one expression case fact")
+        };
+        *fact
+    };
+    let mut corrupted = resolved.clone();
+    let symbol_resolved_trees::expression::ExpressionNode::Integer(literal) =
+        corrupted.tables.bodies.expressions.expression_mut(witness)
+    else {
+        unreachable!()
+    };
+    *literal = numerics::literals::IntegerLiteral::from_parts(
+        false,
+        numerics::literals::IntegerRadix::Decimal,
+        "1",
+    )
+    .expect("literal `1` is a valid integer literal");
+    assert!(
+        !plain_data_extension_shape_is_supported(&corrupted, frontier),
+        "a refuted witness rewritten to a non-false literal must fail the replay"
+    );
+
+    // Clearing the derived gate flag on a first-case-impossible instance is a
+    // producer lie: the flag must equal what the replayed facts imply.
+    let mut ungated = resolved.clone();
+    ungated.data_definitions.for_each_mut(|definition| {
+        if definition.name.as_str() == "Value<bool>" {
+            definition.zero_gated = false;
+        }
+    });
+    assert!(
+        !plain_data_extension_shape_is_supported(&ungated, frontier),
+        "a dropped zero gate on an impossible-first-case instance must fail the replay"
+    );
+
+    // The discharged instance carries no fact for `Integer`; fabricating one
+    // is not a faithful copy of the template's discharged conjunct.
+    let mut fabricated = resolved;
+    let yes_members = fabricated.data_definitions[yes_index].members;
+    let integer_handle = fabricated
+        .data_members(yes_members)
+        .iter()
+        .enumerate()
+        .find_map(|(offset, member)| match member {
+            symbol_resolved_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == "Integer" =>
+            {
+                Some(offset)
+            }
+            _ => None,
+        })
+        .expect("instance Integer case offset");
+    let variant_handle = arena::Handle::from_parts(
+        yes_members
+            .start()
+            .arena_index()
+            .checked_add(integer_handle as u32)
+            .expect("member handle overflow"),
+        yes_members.start().generation(),
+    );
+    let symbol_resolved_trees::data::DataMember::Variant(variant) = fabricated
+        .tables
+        .declarations
+        .data_members
+        .get_mut(variant_handle)
+    else {
+        unreachable!()
+    };
+    let mut facts = arena::HandleSpan::empty();
+    facts.push_contiguous(fabricated.tables.declarations.proof_facts.insert(
+        symbol_resolved_trees::domain::ProofFact::Expression(witness),
+    ));
+    variant.where_facts = facts;
+    assert!(
+        !plain_data_extension_shape_is_supported(&fabricated, frontier),
+        "a fabricated fact on a discharged case must fail the replay"
+    );
+}
+
 #[test]
 fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutations() {
     let (base, extension) = seeded_normalized_plain_data_inputs(

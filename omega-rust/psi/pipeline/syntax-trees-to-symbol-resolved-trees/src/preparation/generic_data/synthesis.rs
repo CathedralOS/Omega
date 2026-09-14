@@ -406,6 +406,27 @@ pub(super) fn desugar_generic_data_instances_with_selection(
             let members: Vec<DataMember> =
                 syntax.tables.items.data_members(base_info.members).to_vec();
             let properties = base_info.properties;
+            // CASE-CONSTRAINTS type-equality facts (`case ... where T == i32`)
+            // decide against the closed argument identities this instance was
+            // deduplicated on. Only `type` binders enter the map: `const`
+            // binders rewrite to literal arguments, and the remaining binder
+            // kinds are still refused upstream.
+            let type_identities: HashMap<String, ClosedArgumentIdentity> = {
+                let Item::Data(template) = snapshot.root_item(instance.template) else {
+                    unreachable!("a discovered template is a data item");
+                };
+                snapshot
+                    .tables
+                    .items
+                    .type_parameters(template.type_parameters)
+                    .iter()
+                    .zip(instance.argument_identity.iter())
+                    .filter(|(parameter, _)| matches!(parameter.kind, TypeParameterKind::Type))
+                    .map(|(parameter, identity)| {
+                        (parameter.name.as_str().to_owned(), identity.clone())
+                    })
+                    .collect()
+            };
             let mut first: Handle<DataMember> = Handle::invalid();
             let mut count = 0u32;
             for member in members {
@@ -414,9 +435,13 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                     &snapshot,
                     member,
                     &substitution,
+                    &type_identities,
+                    selection,
+                    &instance.synthetic_name,
                     &const_values,
                     warnings,
-                );
+                )
+                .map_err(|diagnostic| vec![diagnostic])?;
                 let handle = syntax.tables.items.append_data_member(substituted);
                 if count == 0 {
                     first = handle;

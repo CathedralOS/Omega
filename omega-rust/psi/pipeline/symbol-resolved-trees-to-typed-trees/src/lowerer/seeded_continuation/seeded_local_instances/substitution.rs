@@ -1,7 +1,7 @@
 use super::super::exact_field_symbol;
 use symbol_resolved_trees::{
-    SymbolResolvedTrees, domain::ProofFact, expression::ExpressionHandle,
-    expression::ExpressionNode, types::TypeReference,
+    SymbolResolvedTrees, domain::ProofFact, expression::BinaryOperator,
+    expression::ExpressionHandle, expression::ExpressionNode, types::TypeReference,
 };
 use symbols::SymbolHandle;
 
@@ -103,11 +103,15 @@ fn variant_matches(
         )
 }
 
-/// Replay one case `where` fact span. The instance must carry exactly the
-/// template's facts in order; each fact replays structurally, with a `const`
-/// binder arriving as its literal argument and every other name spelling
-/// identically. A dropped or reordered fact fails the pair instead of riding
-/// the member shape check.
+/// Replay one case `where` fact span. The instance carries the template's
+/// facts in order, each fact replaying structurally, with two exceptions a
+/// faithful synthesis can make: a `const` binder arrives as its literal
+/// argument, and a decided type-parameter equality (`T == i32`) is discharged
+/// conjunct-by-conjunct -- a proved conjunct drops out of the carried `and`
+/// chain (a fact with no remaining conjuncts is omitted entirely), while a
+/// refuted conjunct collapses the whole fact to the literal `0` witness the
+/// construction gate folds FALSE. A dropped non-discharged or reordered fact
+/// fails the pair instead of riding the member shape check.
 fn case_where_facts_match(
     source: &SymbolResolvedTrees,
     substitutions: &[(SymbolHandle, &TypeReference)],
@@ -117,19 +121,190 @@ fn case_where_facts_match(
 ) -> bool {
     let template_facts = source.proof_facts(template);
     let instance_facts = source.proof_facts(instance);
-    template_facts.len() == instance_facts.len()
-        && template_facts
-            .iter()
-            .zip(instance_facts)
-            .all(|(template, instance)| {
-                case_fact_matches(
-                    source,
-                    substitutions,
-                    validated_instances,
-                    template,
-                    instance,
-                )
-            })
+    let mut instance_index = 0usize;
+    for template_fact in template_facts {
+        let ProofFact::Expression(template_expression) = template_fact else {
+            let Some(instance_fact) = instance_facts.get(instance_index) else {
+                return false;
+            };
+            if !case_fact_matches(
+                source,
+                substitutions,
+                validated_instances,
+                template_fact,
+                instance_fact,
+            ) {
+                return false;
+            }
+            instance_index += 1;
+            continue;
+        };
+        let mut conjuncts = Vec::new();
+        flatten_and_conjuncts(source, *template_expression, &mut conjuncts);
+        let mut kept = Vec::with_capacity(conjuncts.len());
+        let mut refuted = false;
+        for conjunct in conjuncts {
+            match decide_template_type_equality(source, substitutions, conjunct) {
+                // Proved at instantiation: the conjunct discharged.
+                Some(true) => {}
+                // Refuted: the whole fact collapsed to the `0` witness.
+                Some(false) => {
+                    refuted = true;
+                    break;
+                }
+                None => kept.push(conjunct),
+            }
+        }
+        let Some(instance_fact) = instance_facts.get(instance_index) else {
+            // Instance facts exhausted: only a fully discharged template fact
+            // legitimately produces nothing -- a refuted one still owes the
+            // `0` witness, and kept conjuncts owe their carried shape.
+            return !refuted && kept.is_empty();
+        };
+        if refuted {
+            let ProofFact::Expression(instance_expression) = instance_fact else {
+                return false;
+            };
+            if !matches!(
+                source
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression(*instance_expression),
+                ExpressionNode::Integer(literal) if literal.text() == "0"
+            ) {
+                return false;
+            }
+            instance_index += 1;
+            continue;
+        }
+        if kept.is_empty() {
+            // Discharged at instantiation: this fact produced no instance
+            // fact, so the cursor does not advance.
+            continue;
+        }
+        let ProofFact::Expression(instance_expression) = instance_fact else {
+            return false;
+        };
+        let mut instance_conjuncts = Vec::new();
+        flatten_and_conjuncts(source, *instance_expression, &mut instance_conjuncts);
+        if instance_conjuncts.len() != kept.len()
+            || !kept
+                .iter()
+                .zip(instance_conjuncts)
+                .all(|(template, instance)| {
+                    fact_expression_matches(
+                        source,
+                        substitutions,
+                        validated_instances,
+                        *template,
+                        instance,
+                    )
+                })
+        {
+            return false;
+        }
+        instance_index += 1;
+    }
+    instance_index == instance_facts.len()
+}
+
+/// Split a resolved fact expression into its top-level `and` conjuncts.
+fn flatten_and_conjuncts(
+    source: &SymbolResolvedTrees,
+    expression: ExpressionHandle,
+    conjuncts: &mut Vec<ExpressionHandle>,
+) {
+    let expressions = &source.tables.bodies.expressions;
+    if let ExpressionNode::Binary(binary) = expressions.expression(expression)
+        && binary.operator == BinaryOperator::And
+    {
+        flatten_and_conjuncts(source, binary.left, conjuncts);
+        flatten_and_conjuncts(source, binary.right, conjuncts);
+        return;
+    }
+    conjuncts.push(expression);
+}
+
+/// The symbol a fact-position `Name` leaf refers to: its own resolved symbol,
+/// else the last stamped member symbol of a multi-segment path.
+fn fact_name_leaf_symbol(
+    source: &SymbolResolvedTrees,
+    path: &symbol_resolved_trees::expression::TableNamePath,
+) -> SymbolHandle {
+    if path.symbol.is_valid() {
+        return path.symbol;
+    }
+    source
+        .tables
+        .bodies
+        .expressions
+        .name_path_member_symbols(path.member_symbols)
+        .last()
+        .copied()
+        .unwrap_or_else(SymbolHandle::invalid)
+}
+
+/// Re-derive the synthesis decision for a `T == name` / `T != name` conjunct:
+/// the binder side's substituted argument must be the very symbol the other
+/// side names. `None` when the conjunct is not an admitted type equality, and
+/// when the opposite name has no resolved type symbol the pair fails as an
+/// ordinary conjunct instead of guessing.
+fn decide_template_type_equality(
+    source: &SymbolResolvedTrees,
+    substitutions: &[(SymbolHandle, &TypeReference)],
+    conjunct: ExpressionHandle,
+) -> Option<bool> {
+    let expressions = &source.tables.bodies.expressions;
+    let ExpressionNode::Binary(binary) = expressions.expression(conjunct) else {
+        return None;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        return None;
+    }
+    let side_symbol = |side| -> Option<SymbolHandle> {
+        let ExpressionNode::Name(path) = expressions.expression(side) else {
+            return None;
+        };
+        Some(fact_name_leaf_symbol(source, path))
+    };
+    let (Some(left), Some(right)) = (side_symbol(binary.left), side_symbol(binary.right)) else {
+        return None;
+    };
+    let (parameter, other) = if substitutions
+        .iter()
+        .any(|(parameter, _)| *parameter == left)
+    {
+        (left, right)
+    } else if substitutions
+        .iter()
+        .any(|(parameter, _)| *parameter == right)
+    {
+        (right, left)
+    } else {
+        return None;
+    };
+    if !other.is_valid() {
+        return None;
+    }
+    let Some((_, argument)) = substitutions
+        .iter()
+        .find(|(substituted, _)| *substituted == parameter)
+    else {
+        return None;
+    };
+    let equal = matches!(
+        *argument,
+        TypeReference::Named { symbol, .. } if *symbol == other
+    );
+    Some(match binary.operator {
+        BinaryOperator::Equal => equal,
+        BinaryOperator::NotEqual => !equal,
+        _ => unreachable!("the equality check above admits only == or !="),
+    })
 }
 
 fn case_fact_matches(

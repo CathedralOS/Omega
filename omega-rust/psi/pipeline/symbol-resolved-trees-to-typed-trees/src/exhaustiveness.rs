@@ -220,7 +220,13 @@ fn check_dispatch_run(
                     && let FiniteAxisKind::Case { data_index } = axes[0].kind
                 {
                     let data_definition = &program.data_definitions[data_index];
-                    let mut covered = vec![false; case_count(program, data_definition)];
+                    // Impossible variants are covered by definition: their
+                    // `where` facts are literal false witnesses, so no value
+                    // of that case exists to fall through.
+                    let mut covered = vec![true; case_count(program, data_definition)];
+                    for variant in &axes[0].possible_cases {
+                        covered[*variant] = false;
+                    }
                     for constraints in &finite_arms {
                         for constraint in constraints {
                             if let FiniteConstraint::Case(claim) = constraint
@@ -284,6 +290,12 @@ fn check_dispatch_run(
 struct FiniteAxis {
     subject: ExpressionHandle,
     kind: FiniteAxisKind,
+    /// Case axes only: declaration-order indexes of the variants that can
+    /// hold on THIS definition. A case whose `where` facts carry a literal
+    /// false witness (a `T == i32` refuted by this instance's argument, or an
+    /// authored `where false`) is impossible, so it is not a coverage
+    /// obligation. Empty for boolean axes.
+    possible_cases: Vec<usize>,
 }
 
 #[derive(Clone, Copy)]
@@ -344,7 +356,57 @@ fn push_axis(
     }) {
         return;
     }
-    axes.push(FiniteAxis { subject, kind });
+    let possible_cases = match kind {
+        FiniteAxisKind::Case { data_index } => {
+            possible_case_indexes(program, &program.data_definitions[data_index])
+        }
+        FiniteAxisKind::Bool => Vec::new(),
+    };
+    axes.push(FiniteAxis {
+        subject,
+        kind,
+        possible_cases,
+    });
+}
+
+/// The variant indexes (declaration order) that can hold on this definition.
+/// A variant carrying a literal-false `where` fact -- the `0` witness generic
+/// synthesis leaves when an instance's `T == name` refutes, or an authored
+/// `where false` -- can never be established, so it is not an obligation the
+/// match must cover. Facts needing evaluation are not contradictions and stay
+/// counted.
+fn possible_case_indexes(program: &SymbolResolvedTrees, definition: &DataDefinition) -> Vec<usize> {
+    program
+        .data_members(definition.members)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant),
+            DataMember::Field(_) => None,
+        })
+        .enumerate()
+        .filter_map(|(variant_index, variant)| {
+            (!variant_is_impossible(program, variant)).then_some(variant_index)
+        })
+        .collect()
+}
+
+fn variant_is_impossible(
+    program: &SymbolResolvedTrees,
+    variant: &resolved::data::DataVariant,
+) -> bool {
+    program
+        .proof_facts(variant.where_facts)
+        .iter()
+        .any(|fact| match fact {
+            resolved::domain::ProofFact::Expression(expression) => {
+                match program.tables.bodies.expressions.expression(*expression) {
+                    ExpressionNode::Integer(literal) => literal.text().parse::<i128>() == Ok(0),
+                    ExpressionNode::Boolean(value) => !*value,
+                    _ => false,
+                }
+            }
+            resolved::domain::ProofFact::Membership(_) => false,
+        })
 }
 
 fn axis_kinds_equal(left: FiniteAxisKind, right: FiniteAxisKind) -> bool {
@@ -367,9 +429,7 @@ fn first_uncovered_assignment(
     let arities: Vec<usize> = axes
         .iter()
         .map(|axis| match axis.kind {
-            FiniteAxisKind::Case { data_index } => {
-                case_count(program, &program.data_definitions[data_index])
-            }
+            FiniteAxisKind::Case { .. } => axis.possible_cases.len(),
             FiniteAxisKind::Bool => 2,
         })
         .collect();
@@ -423,10 +483,15 @@ fn arm_matches(
             return false;
         };
         match constraint {
-            FiniteConstraint::Case(claim) => claim
-                .covered
-                .as_ref()
-                .is_some_and(|variants| variants.contains(&assignment[axis_index])),
+            FiniteConstraint::Case(claim) => {
+                // The assignment indexes the axis's POSSIBLE variants; an arm's
+                // covered set names declaration-order variant indexes.
+                let variant = axes[axis_index].possible_cases[assignment[axis_index]];
+                claim
+                    .covered
+                    .as_ref()
+                    .is_some_and(|variants| variants.contains(&variant))
+            }
             FiniteConstraint::Bool { value, .. } => assignment[axis_index] == usize::from(*value),
         }
     })
@@ -444,6 +509,7 @@ fn format_assignment(
             FiniteAxisKind::Bool => format!("`{}`", value != &0),
             FiniteAxisKind::Case { data_index } => {
                 let definition = &program.data_definitions[data_index];
+                let variant = axis.possible_cases.get(*value).copied().unwrap_or(*value);
                 let case = program
                     .data_members(definition.members)
                     .iter()
@@ -451,7 +517,7 @@ fn format_assignment(
                         DataMember::Variant(variant) => Some(variant.name.as_str()),
                         DataMember::Field(_) => None,
                     })
-                    .nth(*value)
+                    .nth(variant)
                     .unwrap_or("<unknown>");
                 format!("`{}::{case}`", definition.name.as_str())
             }
