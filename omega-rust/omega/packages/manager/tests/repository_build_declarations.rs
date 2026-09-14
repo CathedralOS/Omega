@@ -128,6 +128,7 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
         extract_build_declaration(root.join("source/omega")).unwrap(),
         BuildDeclaration::Application(package_manager::declarations::ApplicationDeclaration {
             name: PackageName::parse("omega-compiler").unwrap(),
+            artifact_only: false,
         })
     );
     assert_eq!(
@@ -235,6 +236,7 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
             projection.declaration(),
             &BuildDeclaration::Application(package_manager::declarations::ApplicationDeclaration {
                 name: PackageName::parse(&expected_name).unwrap(),
+                artifact_only: false,
             }),
             "unexpected sample application declaration in {}",
             root.display()
@@ -721,6 +723,7 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
             }),
             BuildDeclaration::Application(package_manager::declarations::ApplicationDeclaration {
                 name: PackageName::parse(&expected_name).unwrap(),
+                artifact_only: false,
             }),
             "unexpected Omega case application declaration in {}",
             root.display()

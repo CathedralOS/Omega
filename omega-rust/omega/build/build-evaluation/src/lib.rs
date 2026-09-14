@@ -71,8 +71,8 @@ pub use replay_record::{
 };
 
 use build_output::{
-    PackageGeneratedSource, ReplayedBuildOutputEntry, empty, replayed_output_tree,
-    select_included_sources,
+    BuildStagedOutputEntryKind, BuildStagedOutputTree, PackageGeneratedSource,
+    ReplayedBuildOutputEntry, empty, replayed_output_tree, select_included_sources,
 };
 use build_time_evaluation::{
     BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
@@ -108,7 +108,7 @@ pub use observations::{
     BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
     BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
     BuildFilesystemScalarOperandValue, BuildIncludedSourceHandoff, BuildObservationClass,
-    BuildObservationSummary,
+    BuildObservationSummary, BuildRequiredOutputSettlement,
 };
 
 use observations::{
@@ -285,6 +285,11 @@ pub struct AdmittedBuildProgram {
     filesystem_scope: BuildMachineFilesystemScope,
     evaluation_sponsor: Option<BuildEvaluationSponsor>,
     selected_target_profile: Option<target::TargetProfile>,
+    /// The validated `builder.artifact_only()` application modifier. An
+    /// artifact-only activation publishes retained outputs only: it may not
+    /// bind executable roots or select boundary providers, and it must
+    /// complete at least one required-output obligation.
+    artifact_only: bool,
 }
 
 impl AdmittedBuildProgram {
@@ -393,6 +398,7 @@ pub fn admit_build_program(
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
     selected_target_profile: Option<target::TargetProfile>,
+    artifact_only: bool,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
     let prepared = PreparedBuildMachineProgram::prepare(typed)?;
     let typed = prepared.typed();
@@ -412,6 +418,7 @@ pub fn admit_build_program(
             filesystem_scope: filesystem_scope.clone(),
             evaluation_sponsor: evaluation_sponsor.cloned(),
             selected_target_profile,
+            artifact_only,
         });
     };
     if let Some(second) = build_machines.next() {
@@ -613,6 +620,7 @@ pub fn admit_build_program(
         filesystem_scope: filesystem_scope.clone(),
         evaluation_sponsor: evaluation_sponsor.cloned(),
         selected_target_profile,
+        artifact_only,
     })
 }
 
@@ -629,8 +637,15 @@ pub fn execute_admitted_build_program(
         filesystem_scope,
         evaluation_sponsor,
         selected_target_profile,
+        artifact_only,
     } = admitted;
     let AdmittedBuildMachine::Selected(selected) = machine else {
+        if artifact_only {
+            return Err(vec![Diagnostic::error(
+                "an artifact-only application requires a build machine that completes at least one required output"
+                    .to_owned(),
+            )]);
+        }
         return Ok(ComputedBuildConfig {
             config: BuildConfig::default(),
             optimization_report_request: optimization_core::OptimizationReportRequest::Suppressed,
@@ -1362,6 +1377,8 @@ pub fn execute_admitted_build_program(
         .map_err(|diagnostic| vec![diagnostic])?;
     let filesystem_host_observed = measured.observations().filesystem_host_observed();
     let build_log = measured.observations().build_log().to_vec();
+    let output_obligations = measured.observations().build_output_obligations().to_vec();
+    let output_receipts = measured.observations().build_output_receipts().to_vec();
     let root_bindings = collect_root_bindings(typed, measured.executed_root_bindings())?;
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
@@ -1445,6 +1462,28 @@ pub fn execute_admitted_build_program(
     // by exactly one sealed regular file in retained staged-output custody
     // before any generated source is selected or the result may publish.
     filesystem_scope.verify_required_outputs(staged_output_tree.as_ref(), &machine_name)?;
+    // Compiler-owned output obligations issued by `builder.output.require`
+    // settle against the same staged custody: every obligation must be
+    // `Completed` exactly once by the sealed regular file its receipt names,
+    // and no completed output may have been mutated afterward.
+    let required_output_settlements = settle_build_output_obligations(
+        &output_obligations,
+        &output_receipts,
+        staged_output_tree.as_ref(),
+        &machine_name,
+    )?;
+    if artifact_only {
+        if !config.root_bindings.is_empty() || !config.provider_selections.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "artifact-only build `{machine_name}` may not bind executable roots or select boundary providers"
+            ))]);
+        }
+        if required_output_settlements.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "artifact-only build `{machine_name}` completed no required output"
+            ))]);
+        }
+    }
     let generated_sources = match staged_output_tree.as_ref() {
         Some(tree) => {
             let included_source_paths = included_source_handoffs
@@ -1519,12 +1558,102 @@ pub fn execute_admitted_build_program(
             captured_source_inventory: filesystem_scope.captured_source_inventory(),
             filesystem_replay_verdict,
             included_source_handoffs,
+            required_output_settlements,
             staged_output_tree,
             build_log,
         }),
         selected_build_machine_symbol: Some(machine.symbol),
         generated_sources,
     })
+}
+
+/// Settle the compiler-owned required-output obligations recorded by a
+/// successful build evaluation against retained staged-output custody.
+///
+/// Settlement is linear and compiler-checked: every issued obligation must
+/// have been completed exactly once by the sealed regular file its receipt
+/// names. A pending obligation, a sticky `fail`, a receipt rejoined to a
+/// different output, a completed output mutated afterward, or a completion
+/// whose file never reached sealed staged custody each reject the activation
+/// before any product may publish. The returned rows are the durable
+/// observation evidence; `build.rs` publication still re-derives the file
+/// from staged custody.
+fn settle_build_output_obligations(
+    obligations: &[checked_interpreter::BuildOutputObligation],
+    receipts: &[checked_interpreter::BuildOutputReceipt],
+    staged_output_tree: Option<&BuildStagedOutputTree>,
+    machine_name: &str,
+) -> Result<Vec<BuildRequiredOutputSettlement>, Vec<Diagnostic>> {
+    let mut settlements = Vec::with_capacity(obligations.len());
+    for (index, obligation) in obligations.iter().enumerate() {
+        let name = String::from_utf8_lossy(obligation.relative_path());
+        if obligation.root() != BUILD_OUTPUT_ROOT_IDENTITY {
+            return Err(vec![Diagnostic::error(format!(
+                "build-time evaluation of `{machine_name}` issued required output `{name}` outside the compiler-issued Output root"
+            ))]);
+        }
+        let checked_interpreter::BuildOutputObligationState::Completed {
+            receipt: receipt_index,
+            ..
+        } = obligation.state()
+        else {
+            let message = match obligation.state() {
+                checked_interpreter::BuildOutputObligationState::Pending => format!(
+                    "required output `{name}` of `{machine_name}` was declared but never completed"
+                ),
+                checked_interpreter::BuildOutputObligationState::Failed { diagnostic, .. } => {
+                    format!(
+                        "required output `{name}` of `{machine_name}` failed: {}",
+                        String::from_utf8_lossy(diagnostic)
+                    )
+                }
+                checked_interpreter::BuildOutputObligationState::Completed { .. } => {
+                    unreachable!("completed obligations settle")
+                }
+            };
+            return Err(vec![Diagnostic::error(message)]);
+        };
+        let Some(receipt) = receipts.get(*receipt_index) else {
+            return Err(vec![Diagnostic::error(format!(
+                "build-time evaluation of `{machine_name}` issued no completion receipt for required output `{name}`"
+            ))]);
+        };
+        if receipt.obligation() != index
+            || receipt.root() != obligation.root()
+            || receipt.relative_path() != obligation.relative_path()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "build-time evaluation of `{machine_name}` completed required output `{name}` against a different output than it declared"
+            ))]);
+        }
+        if !obligation.post_completion_mutations().is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "required output `{name}` of `{machine_name}` was mutated after its completion was accepted"
+            ))]);
+        }
+        match staged_output_tree.and_then(|tree| tree.sealed_entry(obligation.relative_path())) {
+            Some(entry) if matches!(entry.kind(), BuildStagedOutputEntryKind::File { .. }) => {}
+            Some(_) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "required output `{name}` of `{machine_name}` is not a sealed regular file in staged-output custody"
+                ))]);
+            }
+            None => {
+                return Err(vec![Diagnostic::error(format!(
+                    "required output `{name}` of `{machine_name}` was completed without sealed staged-output custody"
+                ))]);
+            }
+        }
+        settlements.push(BuildRequiredOutputSettlement {
+            relative_path: obligation.relative_path().to_vec(),
+            sealed_attempt_ordinal: u64::try_from(receipt.sealed_at()).map_err(|_| {
+                vec![Diagnostic::error(format!(
+                    "build-time evaluation of `{machine_name}` produced a sealed-output ordinal outside canonical u64"
+                ))]
+            })?,
+        });
+    }
+    Ok(settlements)
 }
 
 #[cfg(test)]
@@ -1543,7 +1672,7 @@ mod tests {
             PathBuf::from("build"),
             None,
         );
-        let admitted = admit_build_program(&typed, None, &scope, None, None)
+        let admitted = admit_build_program(&typed, None, &scope, None, None, false)
             .expect("the empty program has an explicit no-build disposition");
 
         assert_eq!(

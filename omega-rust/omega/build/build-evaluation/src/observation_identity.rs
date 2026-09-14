@@ -71,6 +71,15 @@ impl BuildObservationSummary {
             hash_bytes(&mut digest, handoff.relative_path());
             digest.update(handoff.filesystem_attempt_ordinal().to_le_bytes());
         }
+        digest.update(
+            u64::try_from(self.required_output_settlements().len())
+                .expect("required-output settlement count fits u64")
+                .to_le_bytes(),
+        );
+        for settlement in self.required_output_settlements() {
+            hash_bytes(&mut digest, settlement.relative_path());
+            digest.update(settlement.sealed_attempt_ordinal().to_le_bytes());
+        }
         match self.staged_output_tree() {
             None => digest.update([0]),
             Some(tree) => {
@@ -420,6 +429,7 @@ mod tests {
                 BuildFilesystemReplayDisposition::NotReplayed,
             ),
             included_source_handoffs: Vec::new(),
+            required_output_settlements: Vec::new(),
             staged_output_tree: None,
             build_log: Vec::new(),
         }
@@ -435,9 +445,9 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0x2d, 0x2c, 0x4f, 0xaa, 0x6e, 0x53, 0x1a, 0xdb, 0x0e, 0x61, 0xf6, 0x60, 0x71, 0xb0,
-                0xbc, 0x15, 0xe8, 0x06, 0xa0, 0x15, 0xcf, 0xf9, 0x13, 0x1d, 0xa4, 0x60, 0xf4, 0x91,
-                0x3a, 0xf0, 0xea, 0x67,
+                0xcf, 0x93, 0x5e, 0xc1, 0xec, 0xb1, 0x34, 0xa6, 0x80, 0x67, 0xb9, 0x0c, 0x37, 0xda,
+                0x40, 0xec, 0x3c, 0x87, 0x19, 0x92, 0xa9, 0xfa, 0xc5, 0x4c, 0x6f, 0x0b, 0xb0, 0xaf,
+                0xc5, 0xdb, 0x66, 0x10,
             ],
             "the current package build-observation byte contract remains stable"
         );

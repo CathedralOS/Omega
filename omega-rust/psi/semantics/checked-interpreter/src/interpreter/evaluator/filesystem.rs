@@ -222,6 +222,10 @@ impl<'program> Evaluator<'program> {
                         ));
                     return trap(format!("filesystem replay event {attempt_index} changed"));
                 }
+                // Sealed-file custody follows only fully observed attempts: a
+                // replay mismatch or an observation failure must not mint or
+                // retire writers.
+                self.note_completed_build_output_attempt(attempt_index);
                 Ok(value)
             }
             Err(halt) => {

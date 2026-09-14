@@ -18,9 +18,10 @@ pub(super) struct CheckedExecution {
     pub(super) subsystem: u16,
     pub(super) application_intent: Option<build_evaluation::HostedApplicationIntent>,
     pub(super) application_identifier: Option<build_evaluation::ApplicationIdentifier>,
-    /// The validated authored `builder.application` name; supplies the `.app`
-    /// basename and inner executable leaf at publication.
-    pub(super) application_name: Option<build_declarations::ProjectName>,
+    /// The validated authored `builder.application` declaration; its name
+    /// supplies the `.app` basename and inner executable leaf at publication
+    /// and its artifact-only intent narrows the admitted route.
+    pub(super) application: Option<build_declarations::ApplicationDeclaration>,
     pub(super) pcc_requests: build_evaluation::PccRequests,
     pub(super) selected_target_profile: Option<target::TargetProfile>,
     pub(super) selected_native_target: Option<target::NativeTarget>,
@@ -60,7 +61,7 @@ pub(super) fn check_selected_execution(
         selected_target_machine_declarations,
         pending_pre_checks,
         computed_build_config,
-        application_name,
+        application,
         selected_build_machine_symbol,
         selected_build_machine_identity,
     } = built;
@@ -273,7 +274,7 @@ pub(super) fn check_selected_execution(
         subsystem,
         application_intent,
         application_identifier,
-        application_name,
+        application,
         pcc_requests: build_config.pcc,
         selected_target_profile,
         selected_native_target,

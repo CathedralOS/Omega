@@ -1,7 +1,8 @@
 use crate::build_evaluation_sponsor::BuildEvaluationLiveFilesystemHandleLease;
 use crate::{
     BuildEvaluationSponsor, EvaluationUsage, FilesystemEvaluationHaltKind, FilesystemGrantAccess,
-    FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemLogicalHandleInput,
+    FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemGrantRootIdentity,
+    FilesystemLogicalHandleIdentity, FilesystemLogicalHandleInput,
     FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
     FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource, FilesystemMetadataLayout,
     FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
@@ -495,6 +496,28 @@ pub(super) struct Evaluator<'program> {
     /// toolchain handoff machine. Orchestration validates these against its
     /// captured sponsored tree before using any bytes.
     pub(super) build_included_sources: Vec<crate::BuildIncludedSource>,
+    /// Compiler-issued required-output obligations in `BuildOutput::require`
+    /// issue order. Evaluated code holds only an opaque marker carrying the
+    /// row index; the declared name and settlement state stay here.
+    pub(super) output_obligations: Vec<crate::BuildOutputObligation>,
+    /// Compiler-issued completion receipts in `BuildOutput::complete` issue
+    /// order. The `OutputReceipt` marker value carries only this row's index.
+    pub(super) output_receipts: Vec<crate::BuildOutputReceipt>,
+    /// `(root, relative)` -> obligation index for every issued obligation.
+    /// Registration is permanent for the activation: a failed or completed
+    /// name still collides with a later `require`.
+    pub(super) output_obligation_paths: BTreeMap<(FilesystemGrantRootIdentity, Vec<u8>), usize>,
+    /// Per-path output-file custody observed from completed filesystem
+    /// attempts: a rooted path is `Open` while any writer descriptor remains
+    /// live and `Sealed` once its last writer retires. `complete` binds only
+    /// a `Sealed` name.
+    pub(super) output_seal_states:
+        BTreeMap<(FilesystemGrantRootIdentity, Vec<u8>), output_obligations::OutputSealState>,
+    /// Live descriptor identities bound to a rooted path by a successful
+    /// create/open output in this run. Retirement seals the path once its
+    /// last writer is gone.
+    pub(super) output_open_writers:
+        BTreeMap<FilesystemLogicalHandleIdentity, (FilesystemGrantRootIdentity, Vec<u8>)>,
     /// Set whenever a host-boundary call is driven (statement position or the
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
@@ -567,6 +590,7 @@ mod filesystem;
 mod host_dispatch;
 mod names_recasts_and_places;
 mod numeric_landing;
+mod output_obligations;
 mod product_entries;
 mod program_lookup;
 mod record_views;

@@ -23,10 +23,11 @@ pub(in crate::pipeline) struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
     build_source_id: Option<source::SourceId>,
-    /// The validated `builder.application` name retained at parse-checkpoint
-    /// custody; it supplies the `.app` basename and inner executable leaf for
-    /// a later publication without revisiting source text.
-    application_name: Option<build_declarations::ProjectName>,
+    /// The validated `builder.application` declaration retained at
+    /// parse-checkpoint custody; its name supplies the `.app` basename and
+    /// inner executable leaf, and its artifact-only intent narrows the
+    /// admitted route, all without revisiting source text.
+    application: Option<build_declarations::ApplicationDeclaration>,
     package_imports: Arc<[PendingPackageImport]>,
     package_source_inputs: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
 }
@@ -91,12 +92,12 @@ impl ImmutableSourceParseCheckpoint {
                     })
             })
             .transpose()?;
-        let application_name = validate_selected_build_role(&source_storage, build_source_id)?;
+        let application = validate_selected_build_role(&source_storage, build_source_id)?;
         Ok(Self {
             root_path: root_path.to_path_buf(),
             source_storage: Arc::new(source_storage),
             build_source_id,
-            application_name,
+            application,
             package_imports: package_imports.into(),
             package_source_inputs: package_inputs.map(PackageCompilationInputs::source_inputs),
         })
@@ -214,7 +215,7 @@ impl ImmutableSourceParseCheckpoint {
         let syntax = assemble_syntax(
             source_storage,
             self.build_source_id,
-            self.application_name.clone(),
+            self.application.clone(),
             source_scoped_top_level_bindings,
             generated_source_custody,
         )?;

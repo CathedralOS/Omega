@@ -101,6 +101,7 @@ pub(super) fn output_only_summary(handoff_ordinal: u64) -> BuildObservationSumma
             relative_path: OUTPUT_PATH.to_vec(),
             filesystem_attempt_ordinal: handoff_ordinal,
         }],
+        required_output_settlements: Vec::new(),
         staged_output_tree: None,
         build_log: Vec::new(),
     }

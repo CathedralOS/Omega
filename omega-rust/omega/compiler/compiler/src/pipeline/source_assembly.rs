@@ -22,10 +22,11 @@ pub(super) struct AssembledSyntax {
     /// authority is attached to this source, never reconstructed from a leaf
     /// filename after imports have expanded the source frontier.
     pub(super) build_source_id: Option<source::SourceId>,
-    /// The validated authored application name when the selected build root
-    /// declares `builder.application(...)`; `None` for package/workspace
-    /// roles or a missing build root. Publication never re-derives it.
-    pub(super) application_name: Option<build_declarations::ProjectName>,
+    /// The validated authored application declaration (name and artifact-only
+    /// intent) when the selected build root declares `builder.application(...)`;
+    /// `None` for package/workspace roles or a missing build root. Publication
+    /// never re-derives it.
+    pub(super) application: Option<build_declarations::ApplicationDeclaration>,
     pub(super) source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub(super) generated_source_custody:
         Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
@@ -318,13 +319,14 @@ fn generated_source_logical_path(
 
 /// Require the exact selected free build root to declare its project role
 /// through the same compiler-neutral grammar used by package orchestration.
-/// An application declaration's validated name is retained for publication:
-/// the one authored name supplies the `.app` basename and executable leaf
-/// (wiki/spec/build/macos_application.md).
+/// An application declaration is retained whole for admission and
+/// publication: its one authored name supplies the `.app` basename and
+/// executable leaf, and its `artifact_only` modifier narrows the admitted
+/// route (wiki/spec/build/macos_application.md).
 fn validate_selected_build_role(
     source_storage: &SourceStorage,
     build_source_id: Option<source::SourceId>,
-) -> Result<Option<build_declarations::ProjectName>, Vec<Diagnostic>> {
+) -> Result<Option<build_declarations::ApplicationDeclaration>, Vec<Diagnostic>> {
     let Some(build_source_id) = build_source_id else {
         return Ok(None);
     };
@@ -335,9 +337,7 @@ fn validate_selected_build_role(
     })?;
     build_declarations::project_build_declaration_from_source(&source.source)
         .map(|declaration| match declaration {
-            build_declarations::BuildDeclaration::Application(application) => {
-                Some(application.name)
-            }
+            build_declarations::BuildDeclaration::Application(application) => Some(application),
             _ => None,
         })
         .map_err(|error| {
@@ -597,6 +597,26 @@ pub data BuildProduct {
 // the exact selected identity.
 pub data ProductEntryRef [copy] {
 }
+// Compiler-owned required-output obligation marker. `builder.output.require`
+// is the only route to one: the evaluator issues an opaque marker whose row
+// lives in its private obligation table; an authored `RequiredOutput {}` has
+// the same static shape but carries no obligation. Obligations are linear at
+// the settlement boundary: `complete` or `fail` consumes them exactly once.
+pub data RequiredOutput {
+}
+// Compiler-owned output-completion receipt. `builder.output.complete` issues
+// it when the obligation's sealed file is accepted; evaluated code may
+// retain or copy it, but only the compiler-issued marker names a completed
+// output.
+pub data OutputReceipt [copy] {
+}
+// Result of `builder.output.complete`. `Sealed` carries the compiler-issued
+// completion receipt; `Retry` returns the obligation and file custody when
+// the named output was not yet sealed, so an explicit retry stays possible.
+pub data OutputCompletion {
+    case Sealed(receipt: OutputReceipt);
+    case Retry(obligation: RequiredOutput, file: BuildPath);
+}
 // Optional proof-carrying product requests (wiki/spec/proofs/publication.md).
 // Both flags are independent and default to false; they request adjacent
 // `.proof` sidecars, never a different pipeline or weaker checking.
@@ -644,6 +664,10 @@ pub machine Build::application(&mut self, name: &[u8]) {
 }
 pub machine Build::member(&mut self, path: &[u8]) {
 }
+// Artifact-only application modifier: a declaration statement harvested
+// statically; the declared body is the evaluator no-op.
+pub machine Build::artifact_only(&mut self) {
+}
 pub machine BuildSource::resolve(&self, relative: &[u8]) -> BuildPath {
     BuildPath {}
 }
@@ -669,6 +693,27 @@ pub machine BuildOutput::close(&mut self, descriptor: i32) -> i32 {
     0
 }
 pub machine BuildOutput::include_source(&mut self, generated: BuildPath) {
+}
+// Required-output obligation declaration: reserve the canonical output name
+// and return its obligation marker. Duplicate or colliding names reject in
+// the evaluator; this declared body never executes.
+pub machine BuildOutput::require(&mut self, name: &[u8]) -> RequiredOutput {
+    RequiredOutput {}
+}
+// Settle one obligation against its sealed staged file. The evaluator
+// intercepts the call: a sealed name yields `OutputCompletion::Sealed` with
+// the receipt, an unsealed file yields `Retry` carrying the obligation and
+// file custody back, and every other custody violation is a hard error.
+pub machine BuildOutput::complete(&mut self, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion {
+    OutputCompletion::Retry { obligation: obligation, file: file }
+}
+// Consume an obligation with an authored diagnostic. The failure is sticky:
+// the activation can never publish a successful product set.
+pub machine BuildOutput::fail(&mut self, obligation: RequiredOutput, diagnostic: &[u8]) {
+}
+// The obligation's declared canonical output name.
+pub machine RequiredOutput::path(&self) -> &[u8] {
+    ""
 }
 pub machine BuildLog::write_line(&mut self, text: &[u8]) {
 }
@@ -822,7 +867,7 @@ fn inject_build_prelude(
 fn assemble_syntax(
     sources: SourceStorage,
     build_source_id: Option<source::SourceId>,
-    application_name: Option<build_declarations::ProjectName>,
+    application: Option<build_declarations::ApplicationDeclaration>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
 ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
@@ -830,7 +875,7 @@ fn assemble_syntax(
         syntax_trees: sources.syntax_trees,
         sources: Arc::new(sources.sources),
         build_source_id,
-        application_name,
+        application,
         source_scoped_top_level_bindings,
         generated_source_custody,
     })
@@ -1235,7 +1280,7 @@ mod tests {
             syntax_trees: base_syntax,
             sources: base_sources.clone(),
             build_source_id: None,
-            application_name: None,
+            application: None,
             source_scoped_top_level_bindings: Vec::new(),
             generated_source_custody: Vec::new(),
         };
@@ -1324,7 +1369,7 @@ mod tests {
             syntax_trees: base_syntax,
             sources: base_sources.clone(),
             build_source_id: None,
-            application_name: None,
+            application: None,
             source_scoped_top_level_bindings: Vec::new(),
             generated_source_custody: Vec::new(),
         };

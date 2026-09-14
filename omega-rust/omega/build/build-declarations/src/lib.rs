@@ -25,6 +25,7 @@ const BUILDER_PARAMETER_NAME: &str = "builder";
 const PACKAGE_MACHINE_NAME: &str = "package";
 const APPLICATION_MACHINE_NAME: &str = "application";
 const MEMBER_MACHINE_NAME: &str = "member";
+const ARTIFACT_ONLY_MACHINE_NAME: &str = "artifact_only";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProjectName(String);
@@ -141,6 +142,11 @@ pub struct PackageDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationDeclaration {
     pub name: ProjectName,
+    /// One direct unconditional `builder.artifact_only()` statement in the
+    /// root build entry selected this application modifier. Artifact-only is
+    /// an application flag, never a fourth project role: executable output
+    /// remains the default until the modifier appears exactly once.
+    pub artifact_only: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -216,6 +222,11 @@ pub enum BuildDeclarationError {
     UnsupportedMemberShape,
     WrongMemberReceiver,
     WrongMemberArguments,
+    UnsupportedArtifactOnlyShape,
+    WrongArtifactOnlyReceiver,
+    WrongArtifactOnlyArguments,
+    DuplicateArtifactOnlyDeclarations { count: usize },
+    ArtifactOnlyRequiresApplication { found: BuildDeclarationKind },
     MissingBuildDeclaration,
     MissingPackageDeclaration,
     ExpectedPackageDeclaration { found: BuildDeclarationKind },
@@ -293,6 +304,24 @@ impl fmt::Display for BuildDeclarationError {
             ),
             Self::WrongMemberArguments => formatter.write_str(
                 "`builder.member` must have one direct path literal and accepts no static, evidence, operational, or discard modifiers",
+            ),
+            Self::UnsupportedArtifactOnlyShape => formatter.write_str(
+                "artifact-only selection must be one direct canonical `builder.artifact_only()` statement in the root build entry",
+            ),
+            Self::WrongArtifactOnlyReceiver => formatter.write_str(
+                "artifact-only selection receiver must be the root build machine's first parameter",
+            ),
+            Self::WrongArtifactOnlyArguments => formatter.write_str(
+                "`builder.artifact_only` takes no arguments and accepts no static, evidence, operational, or discard modifiers",
+            ),
+            Self::DuplicateArtifactOnlyDeclarations { count } => write!(
+                formatter,
+                "application build selects artifact-only mode {count} times"
+            ),
+            Self::ArtifactOnlyRequiresApplication { found } => write!(
+                formatter,
+                "`builder.artifact_only()` modifies an application declaration; this build declares {}",
+                found.as_str()
             ),
             Self::MissingBuildDeclaration => formatter.write_str(
                 "build must declare exactly one kind through `builder.package`, `builder.application`, or one or more `builder.member` statements",
@@ -488,7 +517,7 @@ pub fn project_build_declaration_syntax(
     let build = match project_build_entry_syntax(syntax_trees) {
         Ok(build) => build,
         Err(BuildDeclarationError::MissingBuildDeclaration) => {
-            reject_unprojected_build_declaration_syntax(syntax_trees, &[], &[])?;
+            reject_unprojected_build_declaration_syntax(syntax_trees, &[], &[], 0)?;
             return Err(BuildDeclarationError::MissingBuildDeclaration);
         }
         Err(error) => return Err(error),
@@ -513,6 +542,7 @@ pub fn project_build_declaration_in_entry(
     let mut packages = Vec::new();
     let mut applications = Vec::new();
     let mut members = Vec::new();
+    let mut artifact_only = 0usize;
     let mut accepted_statements = Vec::new();
     let mut accepted_literals = Vec::new();
     for statement_handle in syntax_trees.items.statements(entry.statements) {
@@ -522,7 +552,10 @@ pub fn project_build_declaration_in_entry(
         let operation = call.target.as_str();
         if !matches!(
             operation,
-            PACKAGE_MACHINE_NAME | APPLICATION_MACHINE_NAME | MEMBER_MACHINE_NAME
+            PACKAGE_MACHINE_NAME
+                | APPLICATION_MACHINE_NAME
+                | MEMBER_MACHINE_NAME
+                | ARTIFACT_ONLY_MACHINE_NAME
         ) {
             continue;
         }
@@ -541,6 +574,16 @@ pub fn project_build_declaration_in_entry(
         {
             return Err(wrong_arguments_error(operation));
         }
+        // The artifact-only application modifier is unconditional: it takes no
+        // name or evidence operand, so there is no literal to retain.
+        if operation == ARTIFACT_ONLY_MACHINE_NAME {
+            if !call.arguments.is_empty() {
+                return Err(BuildDeclarationError::WrongArtifactOnlyArguments);
+            }
+            artifact_only += 1;
+            accepted_statements.push(*statement_handle);
+            continue;
+        }
         let [literal_handle] = syntax_trees.statements.expression_handles(call.arguments) else {
             return Err(wrong_arguments_error(operation));
         };
@@ -550,6 +593,7 @@ pub fn project_build_declaration_in_entry(
             }),
             APPLICATION_MACHINE_NAME => applications.push(ApplicationDeclaration {
                 name: project_name_literal(syntax_trees, *literal_handle)?,
+                artifact_only: false,
             }),
             MEMBER_MACHINE_NAME => {
                 members.push(project_member_path_literal(syntax_trees, *literal_handle)?)
@@ -570,10 +614,16 @@ pub fn project_build_declaration_in_entry(
             count: applications.len(),
         });
     }
+    if artifact_only > 1 {
+        return Err(BuildDeclarationError::DuplicateArtifactOnlyDeclarations {
+            count: artifact_only,
+        });
+    }
     reject_unprojected_build_declaration_syntax(
         syntax_trees,
         &accepted_statements,
         &accepted_literals,
+        artifact_only,
     )?;
     let declared_kinds = usize::from(!packages.is_empty())
         + usize::from(!applications.is_empty())
@@ -582,8 +632,14 @@ pub fn project_build_declaration_in_entry(
         return Err(BuildDeclarationError::MixedBuildDeclarations);
     }
     let declaration = if let Some(package) = packages.pop() {
+        if artifact_only > 0 {
+            return Err(BuildDeclarationError::ArtifactOnlyRequiresApplication {
+                found: BuildDeclarationKind::Package,
+            });
+        }
         BuildDeclaration::Package(package)
-    } else if let Some(application) = applications.pop() {
+    } else if let Some(mut application) = applications.pop() {
+        application.artifact_only = artifact_only > 0;
         BuildDeclaration::Application(application)
     } else {
         for (index, member) in members.iter().enumerate() {
@@ -594,7 +650,14 @@ pub fn project_build_declaration_in_entry(
             }
         }
         if members.is_empty() {
+            // Artifact-only alone is a modifier, not a role: the build still
+            // owes one package/application/workspace declaration.
             return Err(BuildDeclarationError::MissingBuildDeclaration);
+        }
+        if artifact_only > 0 {
+            return Err(BuildDeclarationError::ArtifactOnlyRequiresApplication {
+                found: BuildDeclarationKind::Workspace,
+            });
         }
         BuildDeclaration::Workspace(WorkspaceDeclaration { members })
     };
@@ -607,6 +670,7 @@ fn wrong_receiver_error(operation: &str) -> BuildDeclarationError {
         PACKAGE_MACHINE_NAME => BuildDeclarationError::WrongPackageReceiver,
         APPLICATION_MACHINE_NAME => BuildDeclarationError::WrongApplicationReceiver,
         MEMBER_MACHINE_NAME => BuildDeclarationError::WrongMemberReceiver,
+        ARTIFACT_ONLY_MACHINE_NAME => BuildDeclarationError::WrongArtifactOnlyReceiver,
         _ => unreachable!("only declaration operations request receiver errors"),
     }
 }
@@ -616,6 +680,7 @@ fn wrong_arguments_error(operation: &str) -> BuildDeclarationError {
         PACKAGE_MACHINE_NAME => BuildDeclarationError::WrongPackageArguments,
         APPLICATION_MACHINE_NAME => BuildDeclarationError::WrongApplicationArguments,
         MEMBER_MACHINE_NAME => BuildDeclarationError::WrongMemberArguments,
+        ARTIFACT_ONLY_MACHINE_NAME => BuildDeclarationError::WrongArtifactOnlyArguments,
         _ => unreachable!("only declaration operations request argument errors"),
     }
 }
@@ -640,7 +705,10 @@ fn reject_authored_toolchain_vocabulary(
                     .is_some_and(|owner| owner.as_str() == BUILD_TYPE_NAME)
                     && matches!(
                         machine_leaf_name(machine.name.as_str()),
-                        PACKAGE_MACHINE_NAME | APPLICATION_MACHINE_NAME | MEMBER_MACHINE_NAME
+                        PACKAGE_MACHINE_NAME
+                            | APPLICATION_MACHINE_NAME
+                            | MEMBER_MACHINE_NAME
+                            | ARTIFACT_ONLY_MACHINE_NAME
                     ) =>
             {
                 return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
@@ -696,6 +764,7 @@ fn reject_unprojected_build_declaration_syntax(
     syntax_trees: &SyntaxTrees,
     accepted_statements: &[StatementHandle],
     accepted_literals: &[ExpressionHandle],
+    accepted_artifact_only: usize,
 ) -> Result<(), BuildDeclarationError> {
     for item in syntax_trees.root_items() {
         let Item::Machine(machine) = item else {
@@ -711,7 +780,10 @@ fn reject_unprojected_build_declaration_syntax(
                 };
                 if matches!(
                     call.target.as_str(),
-                    PACKAGE_MACHINE_NAME | APPLICATION_MACHINE_NAME | MEMBER_MACHINE_NAME
+                    PACKAGE_MACHINE_NAME
+                        | APPLICATION_MACHINE_NAME
+                        | MEMBER_MACHINE_NAME
+                        | ARTIFACT_ONLY_MACHINE_NAME
                 ) && !accepted_statements.contains(statement_handle)
                 {
                     return Err(unsupported_shape_error(call.target.as_str()));
@@ -720,18 +792,40 @@ fn reject_unprojected_build_declaration_syntax(
         }
     }
 
+    // Statement calls are parsed as expressions first and then converted, so
+    // every accepted declaration statement leaves one matching
+    // `ExpressionNode::Call` behind in the expression table. Named
+    // declarations are correlated through their single literal argument.
+    // `builder.artifact_only()` carries no literal, so its zero-argument
+    // leftovers are counted instead: an expression-position occurrence (for
+    // example nested under `consume(...)`) has no accepted statement and tips
+    // the count past the accepted total.
+    let mut artifact_only_leftovers = 0usize;
     for (_, expression) in syntax_trees.expressions.iter_expressions() {
         if let ExpressionNode::Call(call) = expression
             && matches!(
                 call.target.as_str(),
-                PACKAGE_MACHINE_NAME | APPLICATION_MACHINE_NAME | MEMBER_MACHINE_NAME
+                PACKAGE_MACHINE_NAME
+                    | APPLICATION_MACHINE_NAME
+                    | MEMBER_MACHINE_NAME
+                    | ARTIFACT_ONLY_MACHINE_NAME
             )
         {
             let arguments = syntax_trees.expressions.expression_handles(call.arguments);
+            if call.target.as_str() == ARTIFACT_ONLY_MACHINE_NAME {
+                if arguments.is_empty() {
+                    artifact_only_leftovers += 1;
+                    continue;
+                }
+                return Err(unsupported_shape_error(call.target.as_str()));
+            }
             if !matches!(arguments, [literal] if accepted_literals.contains(literal)) {
                 return Err(unsupported_shape_error(call.target.as_str()));
             }
         }
+    }
+    if artifact_only_leftovers != accepted_artifact_only {
+        return Err(BuildDeclarationError::UnsupportedArtifactOnlyShape);
     }
     Ok(())
 }
@@ -741,6 +835,7 @@ fn unsupported_shape_error(operation: &str) -> BuildDeclarationError {
         PACKAGE_MACHINE_NAME => BuildDeclarationError::UnsupportedPackageShape,
         APPLICATION_MACHINE_NAME => BuildDeclarationError::UnsupportedApplicationShape,
         MEMBER_MACHINE_NAME => BuildDeclarationError::UnsupportedMemberShape,
+        ARTIFACT_ONLY_MACHINE_NAME => BuildDeclarationError::UnsupportedArtifactOnlyShape,
         _ => unreachable!("only declaration operations request shape errors"),
     }
 }
@@ -824,7 +919,7 @@ mod tests {
         ));
         assert!(matches!(
             project(r#"machine build(builder: &mut Build) { builder.application("omega"); }"#),
-            Ok(BuildDeclaration::Application(ApplicationDeclaration { name }))
+            Ok(BuildDeclaration::Application(ApplicationDeclaration { name, .. }))
                 if name.as_str() == "omega"
         ));
         assert_eq!(
@@ -999,5 +1094,102 @@ mod tests {
                 "accepted {path:?}"
             );
         }
+    }
+
+    #[test]
+    fn artifact_only_is_a_direct_application_modifier_not_a_role() {
+        assert_eq!(
+            project(
+                r#"machine build(builder: &mut Build) { builder.application("publisher"); builder.artifact_only(); }"#,
+            ),
+            Ok(BuildDeclaration::Application(ApplicationDeclaration {
+                name: ProjectName::parse("publisher").unwrap(),
+                artifact_only: true,
+            }))
+        );
+        // Modifier order inside the root entry does not matter; the projection
+        // still yields the same single application declaration.
+        assert_eq!(
+            project(
+                r#"machine build(builder: &mut Build) { builder.artifact_only(); builder.application("publisher"); }"#,
+            ),
+            Ok(BuildDeclaration::Application(ApplicationDeclaration {
+                name: ProjectName::parse("publisher").unwrap(),
+                artifact_only: true,
+            }))
+        );
+        // An ordinary application declaration leaves the flag clear.
+        assert_eq!(
+            project(r#"machine build(builder: &mut Build) { builder.application("publisher"); }"#,),
+            Ok(BuildDeclaration::Application(ApplicationDeclaration {
+                name: ProjectName::parse("publisher").unwrap(),
+                artifact_only: false,
+            }))
+        );
+    }
+
+    #[test]
+    fn artifact_only_rejects_non_application_roles_and_repetition() {
+        assert_eq!(
+            project(
+                r#"machine build(builder: &mut Build) { builder.package("lib"); builder.artifact_only(); }"#,
+            ),
+            Err(BuildDeclarationError::ArtifactOnlyRequiresApplication {
+                found: BuildDeclarationKind::Package
+            })
+        );
+        assert_eq!(
+            project(
+                r#"machine build(builder: &mut Build) { builder.member("one"); builder.artifact_only(); }"#,
+            ),
+            Err(BuildDeclarationError::ArtifactOnlyRequiresApplication {
+                found: BuildDeclarationKind::Workspace
+            })
+        );
+        assert_eq!(
+            project(
+                r#"machine build(builder: &mut Build) { builder.artifact_only(); builder.artifact_only(); builder.application("app"); }"#,
+            ),
+            Err(BuildDeclarationError::DuplicateArtifactOnlyDeclarations { count: 2 })
+        );
+        // The modifier alone never supplies the required role declaration.
+        assert_eq!(
+            project(r#"machine build(builder: &mut Build) { builder.artifact_only(); }"#),
+            Err(BuildDeclarationError::MissingBuildDeclaration)
+        );
+    }
+
+    #[test]
+    fn artifact_only_rejects_wrong_receiver_arguments_and_indirect_shapes() {
+        for (source, expected) in [
+            (
+                r#"machine build(builder: &mut Build) { builder.application("app"); other.artifact_only(); }"#,
+                BuildDeclarationError::WrongArtifactOnlyReceiver,
+            ),
+            (
+                r#"machine build(builder: &mut Build) { builder.application("app"); builder.artifact_only("app"); }"#,
+                BuildDeclarationError::WrongArtifactOnlyArguments,
+            ),
+            (
+                r#"machine helper(builder: &mut Build) { builder.artifact_only(); } machine build(builder: &mut Build) { builder.application("app"); }"#,
+                BuildDeclarationError::UnsupportedArtifactOnlyShape,
+            ),
+            (
+                r#"machine build(builder: &mut Build) { builder.application("app"); consume(builder.artifact_only()); }"#,
+                BuildDeclarationError::UnsupportedArtifactOnlyShape,
+            ),
+            (
+                r#"machine build(builder: &mut Build) { builder.application("app"); state later(builder: &mut Build) { builder.artifact_only(); } }"#,
+                BuildDeclarationError::UnsupportedArtifactOnlyShape,
+            ),
+        ] {
+            assert_eq!(project(source), Err(expected), "source: {source}");
+        }
+        assert!(matches!(
+            project(
+                r#"machine Build::artifact_only() {} machine build(builder: &mut Build) { builder.application("app"); builder.artifact_only(); }"#,
+            ),
+            Err(BuildDeclarationError::AuthoredToolchainVocabulary { .. })
+        ));
     }
 }

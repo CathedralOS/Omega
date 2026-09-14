@@ -462,6 +462,12 @@ impl<'program> Evaluator<'program> {
         if self.try_build_product_entry_statement(call, frame)? {
             return Ok(Value::Unit);
         }
+        if self.try_build_output_obligation_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_required_output_path_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
 
         // Host boundary call? (e.g. self.console.exit_process(70))
         if let Some(value) = self.try_host_call(call, frame)? {
