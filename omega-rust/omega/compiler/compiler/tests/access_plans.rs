@@ -1172,6 +1172,23 @@ machine Inspector::inspect(
         ),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
     ));
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            &semantic,
+            &proof,
+            &profile,
+        ),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_replay_artifact_sections_for_optimization(
+            &semantic,
+            &obligation_ledger,
+            &proof,
+            &profile,
+        ),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
 
     // The owning entrances replay and admit the exact verified roster.
     let codec_plan =
@@ -1206,9 +1223,38 @@ machine Inspector::inspect(
     let native_input = native.into_optimization_input();
     assert_eq!(native_input.plan(), &codec_plan.plan);
     assert_eq!(
+        native_input.placed_view_inputs(),
+        lowered.semantic_module.placed_view_inputs.as_slice()
+    );
+    assert_eq!(
         native_input.context().module().placed_view_inputs,
         lowered.semantic_module.placed_view_inputs
     );
+
+    // The owning optimization entrances retain the same roster beside the
+    // verified optimizer input. The roster rejoins the optimizer handoff as a
+    // private-construction carrier, so a stale or substituted roster is
+    // unrepresentable there rather than merely unchecked.
+    let optimized = terminal_psi_to_abstract_operations::
+        lower_artifact_sections_for_optimization_with_placed_view_inputs(
+            &semantic, &proof, &profile,
+        )
+        .expect("placed-view input survives optimizer admission");
+    assert_eq!(optimized.plan(), &codec_plan.plan);
+    assert_eq!(
+        optimized.placed_view_inputs(),
+        lowered.semantic_module.placed_view_inputs.as_slice()
+    );
+    assert_eq!(optimized, native_input);
+    let optimized_replayed = terminal_psi_to_abstract_operations::
+        lower_replay_artifact_sections_for_optimization_with_placed_view_inputs(
+            &semantic,
+            &obligation_ledger,
+            &proof,
+            &profile,
+        )
+        .expect("placed-view input survives optimizer replay");
+    assert_eq!(optimized_replayed, optimized);
 
     // A stale roster row still decodes and validates on its own bytes, but its
     // module fingerprint differs, so the original ledger cannot replay it.
@@ -1221,6 +1267,15 @@ machine Inspector::inspect(
         .expect("obligation ledger for the substituted roster");
     assert!(matches!(
         terminal_psi_to_abstract_operations::lower_replay_artifact_sections_with_placed_view_inputs(
+            &semantic,
+            &stale_ledger,
+            &proof,
+            &profile,
+        ),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
+    ));
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_replay_artifact_sections_for_optimization_with_placed_view_inputs(
             &semantic,
             &stale_ledger,
             &proof,

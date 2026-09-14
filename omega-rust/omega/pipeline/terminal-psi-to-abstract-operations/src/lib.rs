@@ -14,11 +14,15 @@ mod shared;
 
 pub use artifact::{
     ArtifactLoweringError, VerifiedNativeArtifactInput,
-    VerifiedNativeArtifactInputWithPlacedViewInputs, lower_artifact_sections,
+    VerifiedNativeArtifactInputWithPlacedViewInputs,
+    VerifiedPsiOptimizationInputWithPlacedViewInputs, lower_artifact_sections,
     lower_artifact_sections_for_native_realization,
     lower_artifact_sections_for_native_realization_with_placed_view_inputs,
-    lower_artifact_sections_for_optimization, lower_artifact_sections_with_placed_view_inputs,
-    lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization,
+    lower_artifact_sections_for_optimization,
+    lower_artifact_sections_for_optimization_with_placed_view_inputs,
+    lower_artifact_sections_with_placed_view_inputs, lower_replay_artifact_sections,
+    lower_replay_artifact_sections_for_optimization,
+    lower_replay_artifact_sections_for_optimization_with_placed_view_inputs,
     lower_replay_artifact_sections_with_placed_view_inputs,
 };
 pub use lowering::LoweringError;

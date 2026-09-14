@@ -14,8 +14,10 @@ pub use native::{
 };
 pub use replay::{
     lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization,
+    lower_replay_artifact_sections_for_optimization_with_placed_view_inputs,
     lower_replay_artifact_sections_with_placed_view_inputs,
 };
+pub use retention::VerifiedPsiOptimizationInputWithPlacedViewInputs;
 
 use crate::optimization::VerifiedPsiOptimizationInput;
 use crate::shared::*;
@@ -77,4 +79,26 @@ pub fn lower_artifact_sections_for_optimization(
     let verified = terminal_verifier::verify_module_for_optimization(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     retain_verified_optimization_input(&verified)
+}
+
+/// Canonical-decode, verify for optimizer admission, and retain the exact
+/// plan-laid input roster beside the optimizer input. The roster is semantic
+/// custody only: this stage neither supplies backing nor emits an access
+/// event.
+pub fn lower_artifact_sections_for_optimization_with_placed_view_inputs(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &proof_admission::AdmissionProfile,
+) -> Result<VerifiedPsiOptimizationInputWithPlacedViewInputs, ArtifactLoweringError> {
+    let module = terminal_codec::decode_module(semantic_bytes)
+        .map_err(ArtifactLoweringError::SemanticDecode)?;
+    let proof = terminal_codec::decode_proof_bundle(proof_bytes)
+        .map_err(ArtifactLoweringError::ProofDecode)?;
+    let verified = terminal_verifier::verify_module_for_optimization(&module, &proof, profile)
+        .map_err(ArtifactLoweringError::Verification)?;
+    let input = retain_verified_optimization_input(&verified)?;
+    Ok(VerifiedPsiOptimizationInputWithPlacedViewInputs {
+        input,
+        placed_view_inputs: module.placed_view_inputs,
+    })
 }

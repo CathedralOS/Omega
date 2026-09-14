@@ -2,7 +2,9 @@
 
 use abstract_operations::AbstractOperationPlan;
 
-use super::retention::retain_verified_optimization_context;
+use super::retention::{
+    VerifiedPsiOptimizationInputWithPlacedViewInputs, retain_verified_optimization_context,
+};
 use crate::lowering::lower_decoded_verified_module;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
 
@@ -51,8 +53,14 @@ impl VerifiedNativeArtifactInputWithPlacedViewInputs {
         &self.placed_view_inputs
     }
 
-    pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInput {
-        self.input.into_optimization_input()
+    /// Move into optimizer admission with the roster still retained beside
+    /// the verified input. Returning a custody carrier here keeps a stale or
+    /// substituted roster unrepresentable at the optimization-stage handoff.
+    pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInputWithPlacedViewInputs {
+        VerifiedPsiOptimizationInputWithPlacedViewInputs {
+            input: self.input.into_optimization_input(),
+            placed_view_inputs: self.placed_view_inputs,
+        }
     }
 }
 
