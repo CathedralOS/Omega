@@ -1,7 +1,8 @@
 //! Typing and checking judgments for the Π/Σ fragment with stratified
 //! relevant/strict universes — predicative formation, explicit closed
 //! levels, no cumulativity, no self-typing universe — plus the inductive
-//! profile's two-element type and its dependent eliminator.
+//! profile's two-element type and relevant identity type with their
+//! dependent eliminators.
 
 use super::conversion::{Budget, convertible, weak_head_normalize};
 use super::substitution::{shift, substitute};
@@ -80,6 +81,37 @@ pub enum CoreError {
     /// A `caseTwo` motive whose codomain is not a universe at all leaves
     /// `C t` without a type to check branches or results against.
     CaseMotiveCodomainNotAUniverse {
+        codomain: TermHandle,
+    },
+    /// `Id A x y` requires `A : Type u`: the profile's identity type is
+    /// relevant data over a relevant carrier, and a strict domain is a
+    /// proposition where proof-relevant distinction has no meaning.
+    StrictIdentityDomain {
+        domain: TermHandle,
+    },
+    /// The scrutinee of an identity elimination must inhabit an identity
+    /// type `Id A x y`; anything else leaves `J` without endpoints or a
+    /// fixed side to take `refl` on.
+    NotAnIdentity {
+        proof: TermHandle,
+        actual_type: TermHandle,
+    },
+    /// A `J` motive must take both the endpoint and the identity proof:
+    /// after the endpoint domain, its codomain must still be a `Π` whose
+    /// domain is `Id A x y`.
+    IdentityMotiveCodomainNotAFunction {
+        codomain: TermHandle,
+    },
+    /// A `J` motive must be a family into a relevant universe
+    /// `Π(y : A). Π(_ : Id A x y). Type w`. A strict codomain is not an
+    /// admitted elimination target: strict motives belong to the
+    /// reference core's boxing rules, not this eliminator.
+    StrictIdentityMotiveCodomain {
+        codomain: TermHandle,
+    },
+    /// A `J` motive whose codomain is not a universe at all leaves
+    /// `C y p` without a type to check the base or the result against.
+    IdentityMotiveCodomainNotAUniverse {
         codomain: TermHandle,
     },
     ArgumentTypeMismatch {
@@ -301,6 +333,160 @@ pub fn infer_type(
             Ok(arena.insert(Term::Apply {
                 function: motive,
                 argument: scrutinee,
+            }))
+        }
+        Term::Id { ty, left, right } => {
+            // `Id A x y : Type u` for `A : Type u` and `x, y : A`. The
+            // carrier must be a relevant type: over a strict proposition
+            // there is no proof-relevant distinction for `Id` to carry.
+            let domain_sort = infer_sort(arena, context, ty, budget)?;
+            if domain_sort.is_strict() {
+                return Err(CoreError::StrictIdentityDomain { domain: ty });
+            }
+            check_type(arena, context, left, ty, budget)?;
+            check_type(arena, context, right, ty, budget)?;
+            Ok(arena.insert(Term::Sort(domain_sort)))
+        }
+        Term::Refl { ty, value } => {
+            // `refl A x : Id A x x`. The `ty` annotation is checked, not
+            // trusted: `x` must inhabit `A` — through `check_type`, so a
+            // dependent-pair endpoint still checks componentwise — and
+            // `A` must be a relevant type, exactly as `Id` formation
+            // requires.
+            let domain_sort = infer_sort(arena, context, ty, budget)?;
+            if domain_sort.is_strict() {
+                return Err(CoreError::StrictIdentityDomain { domain: ty });
+            }
+            check_type(arena, context, value, ty, budget)?;
+            Ok(arena.insert(Term::Id {
+                ty,
+                left: value,
+                right: value,
+            }))
+        }
+        Term::IdElim {
+            motive,
+            base,
+            endpoint,
+            proof,
+        } => {
+            // `J(C, d, y, p) : C y p` for `p : Id A x y`,
+            // `C : Π(y : A). Π(_ : Id A x y). Type w`, and
+            // `d : C x (refl A x)`. The proof's inferred identity type
+            // supplies the fixed carrier `A` and fixed left endpoint
+            // `x`; the supplied `y` must be the proof's recorded right
+            // endpoint, so an elimination never silently relocates its
+            // target.
+            let proof_type = infer_type(arena, context, proof, budget)?;
+            let proof_head = weak_head_normalize(arena, proof_type, budget)?;
+            let (ty, fixed, recorded) = match arena.get(proof_head) {
+                Term::Id { ty, left, right } => (ty, left, right),
+                _ => {
+                    return Err(CoreError::NotAnIdentity {
+                        proof,
+                        actual_type: proof_head,
+                    });
+                }
+            };
+            check_type(arena, context, endpoint, ty, budget)?;
+            if !convertible(arena, context, recorded, endpoint, ty, budget)? {
+                return Err(CoreError::TypeMismatch {
+                    expected: recorded,
+                    actual: endpoint,
+                });
+            }
+            let motive_type = infer_type(arena, context, motive, budget)?;
+            let motive_head = weak_head_normalize(arena, motive_type, budget)?;
+            let (domain, first_codomain) = match arena.get(motive_head) {
+                Term::Pi { domain, codomain } => (domain, codomain),
+                _ => {
+                    return Err(CoreError::NotAFunction {
+                        function: motive,
+                        actual_type: motive_head,
+                    });
+                }
+            };
+            let domain_sort = infer_sort(arena, context, domain, budget)?;
+            let shared_domain = arena.insert(Term::Sort(domain_sort));
+            if !convertible(arena, context, domain, ty, shared_domain, budget)? {
+                return Err(CoreError::TypeMismatch {
+                    expected: ty,
+                    actual: domain,
+                });
+            }
+            // Under the endpoint binder the motive must still be a
+            // function of the identity proof, at `Id A x y` with `A`
+            // and `x` shifted under the binder and `y` naming it.
+            let extended = context.extend(domain);
+            let first_codomain_head = weak_head_normalize(arena, first_codomain, budget)?;
+            let (proof_domain, motive_codomain) = match arena.get(first_codomain_head) {
+                Term::Pi { domain, codomain } => (domain, codomain),
+                _ => {
+                    return Err(CoreError::IdentityMotiveCodomainNotAFunction {
+                        codomain: first_codomain,
+                    });
+                }
+            };
+            let shifted_ty = shift(arena, ty, 0, 1);
+            let shifted_fixed = shift(arena, fixed, 0, 1);
+            let bound = arena.insert(Term::Variable(0));
+            let expected_domain = arena.insert(Term::Id {
+                ty: shifted_ty,
+                left: shifted_fixed,
+                right: bound,
+            });
+            let proof_domain_sort = infer_sort(arena, &extended, proof_domain, budget)?;
+            let shared_proof_domain = arena.insert(Term::Sort(proof_domain_sort));
+            if !convertible(
+                arena,
+                &extended,
+                proof_domain,
+                expected_domain,
+                shared_proof_domain,
+                budget,
+            )? {
+                return Err(CoreError::TypeMismatch {
+                    expected: expected_domain,
+                    actual: proof_domain,
+                });
+            }
+            // The motive level `w` is read off the checked codomain —
+            // elimination is not confined to the carrier's level — but
+            // it must be a relevant universe: strict targets belong to
+            // the reference core's boxing rules.
+            let codomain_head = weak_head_normalize(arena, motive_codomain, budget)?;
+            match arena.get(codomain_head) {
+                Term::Sort(Sort::Type(_)) => {}
+                Term::Sort(Sort::Strict(_)) => {
+                    return Err(CoreError::StrictIdentityMotiveCodomain {
+                        codomain: motive_codomain,
+                    });
+                }
+                _ => {
+                    return Err(CoreError::IdentityMotiveCodomainNotAUniverse {
+                        codomain: motive_codomain,
+                    });
+                }
+            }
+            // The base case supplies the reflexive instance at the
+            // fixed endpoint: `d : C x (refl A x)`.
+            let refl = arena.insert(Term::Refl { ty, value: fixed });
+            let at_fixed = arena.insert(Term::Apply {
+                function: motive,
+                argument: fixed,
+            });
+            let base_type = arena.insert(Term::Apply {
+                function: at_fixed,
+                argument: refl,
+            });
+            check_type(arena, context, base, base_type, budget)?;
+            let at_endpoint = arena.insert(Term::Apply {
+                function: motive,
+                argument: endpoint,
+            });
+            Ok(arena.insert(Term::Apply {
+                function: at_endpoint,
+                argument: proof,
             }))
         }
     }

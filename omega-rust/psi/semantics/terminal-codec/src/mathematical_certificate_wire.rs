@@ -323,6 +323,46 @@ fn encode_term(
             node.u32(one_branch);
             node.u32(scrutinee);
         }
+        Term::Id { ty, left, right } => {
+            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
+            let left = encode_term(table, arena, left, by_handle, by_bytes, count, depth + 1)?;
+            let right = encode_term(table, arena, right, by_handle, by_bytes, count, depth + 1)?;
+            node.u8(14);
+            node.u32(ty);
+            node.u32(left);
+            node.u32(right);
+        }
+        Term::Refl { ty, value } => {
+            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
+            let value = encode_term(table, arena, value, by_handle, by_bytes, count, depth + 1)?;
+            node.u8(15);
+            node.u32(ty);
+            node.u32(value);
+        }
+        Term::IdElim {
+            motive,
+            base,
+            endpoint,
+            proof,
+        } => {
+            let motive = encode_term(table, arena, motive, by_handle, by_bytes, count, depth + 1)?;
+            let base = encode_term(table, arena, base, by_handle, by_bytes, count, depth + 1)?;
+            let endpoint = encode_term(
+                table,
+                arena,
+                endpoint,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            let proof = encode_term(table, arena, proof, by_handle, by_bytes, count, depth + 1)?;
+            node.u8(16);
+            node.u32(motive);
+            node.u32(base);
+            node.u32(endpoint);
+            node.u32(proof);
+        }
     }
     let bytes = node.finish();
     if let Some(&index) = by_bytes.get(&bytes) {
@@ -438,6 +478,38 @@ fn decode_term(
                     .max(zero_depth)
                     .max(one_depth)
                     .max(scrutinee_depth),
+            )
+        }
+        14 => {
+            let (ty, ty_depth) = child(reader)?;
+            let (left, left_depth) = child(reader)?;
+            let (right, right_depth) = child(reader)?;
+            (
+                Term::Id { ty, left, right },
+                1 + ty_depth.max(left_depth).max(right_depth),
+            )
+        }
+        15 => {
+            let (ty, ty_depth) = child(reader)?;
+            let (value, value_depth) = child(reader)?;
+            (Term::Refl { ty, value }, 1 + ty_depth.max(value_depth))
+        }
+        16 => {
+            let (motive, motive_depth) = child(reader)?;
+            let (base, base_depth) = child(reader)?;
+            let (endpoint, endpoint_depth) = child(reader)?;
+            let (proof, proof_depth) = child(reader)?;
+            (
+                Term::IdElim {
+                    motive,
+                    base,
+                    endpoint,
+                    proof,
+                },
+                1 + motive_depth
+                    .max(base_depth)
+                    .max(endpoint_depth)
+                    .max(proof_depth),
             )
         }
         tag => return Err(CodecError::InvalidTag("MathematicalTerm", tag)),
