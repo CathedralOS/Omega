@@ -2674,7 +2674,29 @@ Owners include
   omitted, early-frontier and forged-complete descriptions reject. Include startup,
   callbacks, timers, cleanup and retained providers. Reading descriptions grants no
   callable authority; installation-dependent facts remain obligations and require
-  fresh per-occurrence resource/profile admission.
+  fresh per-occurrence resource/profile admission. First slice landed at
+  8d75d9ddc4 on Linux x86-64: `component-candidate` now owns the canonical
+  `ComponentDescription` carrier (schema 1, bounded and byte-replayed) and its
+  producer `describe_component`/`describe_component_facts`, plus the
+  source-free consumer `verify_component` returning the opaque evidence-only
+  `VerifiedComponent`. The consumer re-decodes the embedded canonical
+  artifact, reconstructs the component subject, replays the subject-bound
+  proof-section decode, and re-derives every module-evident row: complete
+  entry roster (canonical entry, suspension resumptions, and assumption-bound
+  startup/callback/timer/cleanup/retained-provider entries), outgoing
+  authority (boundary requirements, port-space writes, the selected entry's
+  published service ceiling), custody constraints, the retained provider
+  roster with strong plan digests, and the required installation
+  obligations. Corrupt, wrong-subject, incompatible-schema, early-frontier,
+  forged-complete, omitted, unaccepted-assumption, unsealed-provider, and
+  missing-obligation descriptions all reject distinctly. The consumer lives
+  in `component-candidate` rather than `terminal-verifier` because the latter
+  was under a live `PROOF-CERTIFICATION-BRIDGE` claim this wave; module proof
+  admission stays with the existing verifier's purpose-specific carriers.
+  `provider-planning` still rejects every `Independent` selection at the
+  explicit component-closure fence. Next slice: route verified descriptions
+  into independent admission/replacement and the deployed-component custody
+  joins so `Independent` selection can close.
 
 - **FFIVAL.** After the generic callback/runtime path closes, run the Windows
   `user32` boundary-coherence canary with no raw function pointer or Win32-only
