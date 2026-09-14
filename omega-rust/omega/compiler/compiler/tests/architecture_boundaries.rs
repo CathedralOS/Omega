@@ -371,7 +371,9 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         "all product counts must acquire their shared source through one preparation"
     );
     assert!(
-        compact_driver.contains("source?.check(target.options(),target.package_inputs())?"),
+        compact_driver.contains(
+            "source?.check(target.options(),target.package_inputs(),&target.configuration.optimization_rollback,)?"
+        ),
         "checked and Terminal children must continue from the prepared source"
     );
     assert!(

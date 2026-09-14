@@ -32,6 +32,9 @@ pub(super) struct CheckedExecution {
         Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
     pub(super) optimization:
         crate::pipeline::optimization::checked_handoff::CheckedOptimizationHandoff,
+    /// Identity-bearing checked-tree product selection evidence, present only
+    /// when the effective build selection named `CheckedTreeProductPruning`.
+    pub(super) product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
     pub(super) provider_plans: Vec<effects::provider_plan::ProviderPlan>,
     pub(super) evaluated_via_bindings:
         provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
@@ -46,6 +49,7 @@ pub(super) fn check_selected_execution(
     built: BuiltCheckedProgram,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
+    optimization_rollback: &crate::OptimizationRollback,
     timings: &mut CompileTimings,
 ) -> Result<CheckedExecution, Vec<Diagnostic>> {
     let BuiltCheckedProgram {
@@ -173,6 +177,31 @@ pub(super) fn check_selected_execution(
             package_inputs,
         )?;
     }
+    // The CheckedTrees optimization phase runs only after all authored code
+    // has been checked and before selected-execution sidecars derive from the
+    // product. Its exact roots come from this compilation's own product
+    // selection: the validated program-entry binding for a selected target,
+    // or every authored root binding for a targetless shared product. The
+    // release rollback settles before the phase so the effective selection is
+    // what executes.
+    let effective_optimizations = optimization_rollback.settle(&build_config.optimizations);
+    let product_root_machines: std::collections::HashSet<symbols::SymbolHandle> =
+        match selected_target_profile {
+            Some(_) => selected_program_entry
+                .iter()
+                .map(|entry| entry.source_signature().machine_symbol())
+                .collect(),
+            None => build_config
+                .root_bindings
+                .iter()
+                .map(|binding| binding.implementation_symbol)
+                .collect(),
+        };
+    let (checked, product_selection) = crate::pipeline::optimization::checked_trees::execute(
+        checked,
+        effective_optimizations.effective(),
+        product_root_machines.into_iter().collect(),
+    )?;
     let exact_component_progress_root = selected_program_entry.as_ref().map(|entry| {
         let source = entry.source_signature();
         crate::pipeline::component_progress::ExactComponentProgressRoot::new(
@@ -244,6 +273,7 @@ pub(super) fn check_selected_execution(
         opaque_representation_selections,
         boundary_calling_plan_realizations,
         optimization,
+        product_selection,
         provider_plans,
         evaluated_via_bindings,
         external_binding_rows,

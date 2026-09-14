@@ -43,7 +43,11 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
         for (target, source) in request.targets.into_iter().zip(sources) {
             let profile = target.profile;
             let compile_target = || {
-                let checked = source?.check(target.options(), target.package_inputs())?;
+                let checked = source?.check(
+                    target.options(),
+                    target.package_inputs(),
+                    &target.configuration.optimization_rollback,
+                )?;
                 let admission =
                     admit_checked_compilation(&checked, target.accepted_trust_admissions())?;
                 admission.write_observations(target.options(), target.artifact_policy())?;

@@ -231,10 +231,11 @@ impl CompileRequest {
                 .iter()
                 .filter(|optimization| match shared.requested_product {
                     RequestedCompileProduct::Check => true,
-                    RequestedCompileProduct::TerminalArtifact => {
-                        optimization.execution_phase()
-                            != optimization_core::OptimizationExecutionPhase::Psi
-                    }
+                    RequestedCompileProduct::TerminalArtifact => !matches!(
+                        optimization.execution_phase(),
+                        optimization_core::OptimizationExecutionPhase::CheckedTrees
+                            | optimization_core::OptimizationExecutionPhase::Psi
+                    ),
                     RequestedCompileProduct::NativeArtifact => false,
                 })
                 .map(|optimization| format!("`{}`", optimization.build_case_name()))

@@ -2642,8 +2642,11 @@ fn retained_native_product_enters_only_terminal_realization() {
     let request_path = root.join("omega-rust/omega/compiler/compiler/src/compiler/request.rs");
     let request = std::fs::read_to_string(&request_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
+    let compact_driver = driver.split_whitespace().collect::<String>();
     assert!(
-        driver.contains("source?.check(target.options(), target.package_inputs())?")
+        compact_driver.contains(
+            "source?.check(target.options(),target.package_inputs(),&target.configuration.optimization_rollback,)?"
+        )
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
             && driver.contains("native::prepare(target, checked)")
             && driver.contains("native_inputs.realize(terminal)?")
