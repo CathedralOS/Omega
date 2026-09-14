@@ -123,58 +123,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   child bound to the eliminated occurrence's canonical identity rejects,
   and dropping a still-required child rejects too.
 
-- **GENERATED-DIFFERENTIALS.** Extend same-artifact interpreter/native
-  differential testing beyond the landed exact-integer lane to float, trap,
-  atomic, placed-memory, cleanup, and transition behavior. Acceptance: fixed
-  seeded corpora replay deterministically and native observations equal the
-  reference interpreter under the same observation profile. Landed: the
-  seeded IEEE binary64 comparison lane
-  (`tests/native-differential/tests/optimizer_corpus/ieee_compare.rs`, 64
-  cases, NaN/signed-zero/infinity/subnormal mixtures) replays on x86-64 and
-  AArch64 and executes natively on Linux x86-64 with host `f64` as a third
-  oracle. Landed: the seeded exact/trapping integer lane
-  (`tests/native-differential/tests/optimizer_corpus/exact_traps.rs`, 64
-  cases) drives `ExactIntegerAdd`, `ExactIntegerSubtract`,
-  `ExactIntegerDivide`, and u64→u8 `IntegerExactCast`/`IntegerWiden` leaves
-  through canonical-certificate obligations at representability boundaries,
-  replays deterministically on x86-64 and AArch64 selected machines, and
-  carries the same cfg-gated host-native execution on Linux x86-64, Linux
-  AArch64, and macOS AArch64. Landed: the seeded affine cleanup lane
-  (`tests/native-differential/tests/optimizer_corpus/affine_cleanup.rs`, 64
-  cases) establishes zero to three claim-free empty records per conditional
-  arm through `EstablishRecord` and returns a saturating u64 sum under an
-  exact `DiscardRoot` schedule in reverse producer order, replaying
-  deterministically on x86-64 and AArch64 selected machines with the same
-  cfg-gated host-native execution on Linux x86-64, Linux AArch64, and macOS
-  AArch64. Landed: the seeded atomic establishment lane
-  (`tests/native-differential/tests/optimizer_corpus/atomic_establishment.rs`,
-  64 cases) atomically establishes a seeded case of an unrestricted sum per
-  conditional arm through `EstablishScalarCase`, answers each arm's Boolean
-  result with a `StructuralCaseMembership` query, and atomically establishes
-  an unobserved unrestricted fixed array through `EstablishScalarArray`,
-  replaying deterministically on x86-64 and AArch64 selected machines with
-  the same cfg-gated host-native execution on Linux x86-64, Linux AArch64,
-  and macOS AArch64. The lane composes the production selected-instruction
-  optimization, register allocation, callee-save, and fixed-frame stages so
-  the aggregate results' frame-local storage participates in encoding, and
-  the host oracle drives both arms through the placed fixed-frame text.
-  Landed: the seeded placed-memory lane
-  (`tests/native-differential/tests/optimizer_corpus/placed_memory.rs`, 64
-  cases) establishes an unrestricted u64 primitive local per conditional arm
-  through `EstablishPrimitiveLocal`, performs zero to three
-  `WriteOnlyPrimitiveStore` writes whose final store restores the
-  initializer, observes the referent through `PrimitiveScalarRead`,
-  establishes a claim-free single-field record read through
-  `IntegerStructuralField`, and returns the saturating u64 sum of both
-  observations — a dropped, reordered, or invented store, load, or field
-  view must diverge from the reference interpreter before the native result
-  can agree. The shared machine harness now derives the canonical target
-  frame layout whenever the post-allocation plan carries local storage or
-  outgoing arguments, and the cfg-gated host-native oracle on Linux x86-64,
-  Linux AArch64, and macOS AArch64 executes through the full
-  fragment/frame/text/image publication path rather than the slot-free
-  row-byte shortcut. Remaining: transition lane.
-
 - **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
   tests for every remaining manifest, receipt, codec, and artifact-custody
   family. Acceptance: each representable field can be changed independently,
