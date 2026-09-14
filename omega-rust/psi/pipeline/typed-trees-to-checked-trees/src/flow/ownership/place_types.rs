@@ -74,8 +74,37 @@ pub(crate) fn canonical_place_type_reference(
     }) && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
         place.segments.split_first()
     {
+        if machine.attached_data_application.is_valid() {
+            return project_type_reference_from_segments(
+                program,
+                machine.attached_data_application,
+                &place.segments,
+            );
+        }
         let current = attached_data_field_type_reference(program, machine, *symbol)?;
         return project_type_reference_from_segments(program, current, remaining);
+    }
+
+    if let Some(machine) = program.machines().iter().find(|machine| {
+        machine.attached_data_application.is_valid()
+            && program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == state_symbol)
+    }) && let Some(field) = validation::exact_attached_field(
+        program,
+        machine,
+        root_symbol,
+        program.symbols.name(root_symbol),
+    ) {
+        let root_field = facts::PlaceSegment::Field {
+            symbol: field.symbol,
+        };
+        return project_type_reference_from_segment_iter(
+            program,
+            machine.attached_data_application,
+            std::iter::once(&root_field).chain(&place.segments),
+        );
     }
 
     let current =
@@ -85,8 +114,16 @@ pub(crate) fn canonical_place_type_reference(
 
 pub(crate) fn project_type_reference_from_segments(
     program: &typed_trees::TypedTrees,
-    mut current: typed_trees::types::TypeReferenceHandle,
+    current: typed_trees::types::TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    project_type_reference_from_segment_iter(program, current, segments)
+}
+
+fn project_type_reference_from_segment_iter<'segment>(
+    program: &typed_trees::TypedTrees,
+    mut current: typed_trees::types::TypeReferenceHandle,
+    segments: impl IntoIterator<Item = &'segment facts::PlaceSegment>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let mut substitutions = Vec::new();
     for segment in segments {
@@ -162,6 +199,13 @@ fn attached_data_field_type_reference(
     machine: &typed_trees::machine::Machine,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
+    if machine.attached_data_application.is_valid() {
+        return project_type_reference_from_segments(
+            program,
+            machine.attached_data_application,
+            &[facts::PlaceSegment::Field { symbol }],
+        );
+    }
     let data = program.data_definitions().iter().find(|definition| {
         machine.attached_data_symbol.is_valid() && definition.symbol == machine.attached_data_symbol
     })?;
@@ -276,7 +320,11 @@ fn data_definition_by_symbol_or_name<'program>(
     name: &typed_trees::name::Identifier,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
     program.data_definitions().iter().find(|definition| {
-        (symbol.is_valid() && definition.symbol == symbol) || definition.name == *name
+        if symbol.is_valid() {
+            definition.symbol == symbol
+        } else {
+            definition.name == *name
+        }
     })
 }
 

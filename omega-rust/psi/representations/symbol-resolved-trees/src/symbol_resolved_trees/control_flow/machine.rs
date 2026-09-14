@@ -16,6 +16,10 @@ pub struct Machine {
     /// Exact nominal declaration named by `attached_data`. Spelling remains
     /// diagnostic only; semantic consumers must use this symbol.
     pub attached_data_symbol: SymbolHandle,
+    /// The attached owner's ordinary generic application in this method's
+    /// binder scope. Its arguments retain declaration identity without
+    /// changing the nominal `Self` type used by receiver contracts.
+    pub attached_data_application: Option<TypeReference>,
     /// Retained source-level package visibility. Public checked bodies publish
     /// strict effect and operational ceilings without changing supply mode.
     pub is_public: bool,

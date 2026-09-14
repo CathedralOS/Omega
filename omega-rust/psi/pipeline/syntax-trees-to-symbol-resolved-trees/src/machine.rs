@@ -153,6 +153,7 @@ pub(crate) fn lower_machine_into(
         },
         attached_data,
         attached_data_symbol: SymbolHandle::invalid(),
+        attached_data_application: None,
         is_public: machine.is_public,
         supply_mode,
         body_is_present: !machine.bodyless,

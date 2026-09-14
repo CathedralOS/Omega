@@ -59,6 +59,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         name: DiagnosticName::generated("main"),
         attached_data: None,
         attached_data_symbol: SymbolHandle::invalid(),
+        attached_data_application: None,
         is_public: true,
         supply_mode: Default::default(),
         body_is_present: true,

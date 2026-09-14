@@ -2014,6 +2014,13 @@ impl TypedTrees {
                     .iter()
                     .find_map(|(_, parameter)| (parameter.symbol == *symbol).then_some(parameter))
                 {
+                    if parameter.bounds.multiplicity == Multiplicity::Affine
+                        && matches!(parameter.kind, data::TypeParameterKind::Type)
+                        && let Some(multiplicity) =
+                            self.attached_receiver_parameter_multiplicity(*symbol)
+                    {
+                        return multiplicity;
+                    }
                     return parameter.bounds.multiplicity;
                 }
                 if types::PrimitiveType::from_name(name.as_str()).is_some() {
@@ -2035,6 +2042,67 @@ impl TypedTrees {
                 Multiplicity::Affine
             }
         }
+    }
+
+    fn attached_receiver_parameter_multiplicity(
+        &self,
+        parameter_symbol: symbols::SymbolHandle,
+    ) -> Option<language_semantics::Multiplicity> {
+        if !parameter_symbol.is_valid() {
+            return None;
+        }
+        let owner_symbol = self.symbols.get(parameter_symbol).parent;
+        let machine = self.machines().iter().find(|machine| {
+            machine.symbol == owner_symbol
+                && self
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .any(|parameter| parameter.symbol == parameter_symbol)
+        })?;
+        // A valid receiver supplies its owner's generic requirements even
+        // when the corresponding method binder omits them. This is a scoped
+        // premise, not a mutation of either declaration's authored bounds.
+        // An attachment without a receiver supplies no such value premise.
+        let entry = self.machine_states(machine).first()?;
+        if !self
+            .state_parameters(entry)
+            .iter()
+            .any(|parameter| parameter.is_self)
+        {
+            return None;
+        }
+        let types::TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = self
+            .type_reference_table
+            .type_reference(machine.attached_data_application)
+        else {
+            return None;
+        };
+        if !base_symbol.is_valid() || *base_symbol != machine.attached_data_symbol {
+            return None;
+        }
+        let owner = self
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == *base_symbol)?;
+        let parameters = self.data_type_parameters(owner);
+        let arguments = self.type_reference_table.type_reference_handles(*arguments);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        parameters
+            .iter()
+            .zip(arguments)
+            .find_map(|(parameter, argument)| {
+                (matches!(parameter.kind, data::TypeParameterKind::Type)
+                    && matches!(self.type_reference_table.type_reference(*argument),
+                    types::TypeReferenceNode::Named { symbol, .. }
+                        if *symbol == parameter_symbol))
+                .then_some(parameter.bounds.multiplicity)
+            })
     }
 
     pub fn type_reference_symbol(

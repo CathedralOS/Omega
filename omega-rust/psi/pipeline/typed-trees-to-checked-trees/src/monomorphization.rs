@@ -33,6 +33,8 @@ use typed_trees::signature::StateSignature;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+mod attached_methods;
+pub(crate) use attached_methods::validate_selected_attached_method_bounds;
 mod candidate;
 mod const_arguments;
 mod const_values;
@@ -854,8 +856,21 @@ fn collect_contract_facts(
     handles: &mut Vec<ExpressionHandle>,
 ) {
     for fact in program.proof_facts.span_or_empty(facts) {
-        if let ProofFact::Expression(expression) = fact {
-            collect_expression_tree(program, *expression, handles);
+        match fact {
+            ProofFact::Expression(expression) => {
+                collect_expression_tree(program, *expression, handles)
+            }
+            ProofFact::Membership(membership) => {
+                collect_expression_tree(program, membership.value, handles)
+            }
+            ProofFact::Proposition(application) => {
+                for argument in program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                {
+                    collect_expression_tree(program, *argument, handles);
+                }
+            }
         }
     }
 }
@@ -2544,6 +2559,21 @@ fn clone_specialized_machine(
         cloned.attached_data_symbol = SymbolHandle::invalid();
     }
     cloned.type_parameters = HandleSpan::empty();
+    // A newly concrete attachment owns concrete field identities. Its old
+    // generic application cannot be used to project those fields. Otherwise
+    // copy the retained application into the same substitution watermark as
+    // the body, so it cannot keep the template's unspecialized binders.
+    cloned.attached_data_application =
+        if cloned.attached_data_symbol == source_machine.attached_data_symbol {
+            copy_type_reference(
+                source,
+                program,
+                source_machine.attached_data_application,
+                &symbol_map,
+            )
+        } else {
+            TypeReferenceHandle::invalid()
+        };
     cloned.conformance_bounds.clear();
     cloned.owned_data = HandleSpan::empty();
     cloned.satisfies = HandleSpan::empty();

@@ -20,7 +20,7 @@ machine Counter::record<T>(&mut self, v: T) {
     self.value = v;
     self.times = self.times + 1;
 }
-machine Counter::current<T>(&self) -> T {
+machine Counter::current<T [copy]>(&self) -> T {
     transition { _ -> (self.value) }
 }
 machine Counter::count(&self) -> i32 in Wrapping {

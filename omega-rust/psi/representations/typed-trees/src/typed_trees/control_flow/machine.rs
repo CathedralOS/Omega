@@ -14,6 +14,12 @@ pub struct Machine {
     /// Exact nominal declaration named by `attached_data`, retained from
     /// resolution so cleanup and method semantics never reselect by spelling.
     pub attached_data_symbol: SymbolHandle,
+    /// Exact attached owner application resolved in this method's binder
+    /// scope. NULL means that the attachment is not generic.
+    pub attached_data_application: TypeReferenceHandle,
+    /// Exact authored method behind a validated generic-data clone. Invalid
+    /// for authored machines; application checking retains the template bounds.
+    pub generic_data_template: SymbolHandle,
     /// Retained source-level package visibility, independent of supply mode.
     pub is_public: bool,
     /// Copied from symbol-resolved trees; semantic consumers must not
@@ -54,6 +60,8 @@ impl Default for Machine {
             name: Identifier::default(),
             attached_data: None,
             attached_data_symbol: SymbolHandle::invalid(),
+            attached_data_application: TypeReferenceHandle::invalid(),
+            generic_data_template: SymbolHandle::invalid(),
             is_public: false,
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
             body_is_present: true,
