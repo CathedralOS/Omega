@@ -32,6 +32,14 @@
 //! membership answers can disagree between `omega_entry(0)` and
 //! `omega_entry(1)`; both selected-machine replays and the host-native oracle
 //! must agree with each arm's exact reference-interpreter answer.
+//!
+//! The placed-memory lane establishes an unrestricted u64 primitive local per
+//! conditional arm, rewrites it zero to three times — the final write
+//! restoring the initializer — reads it back through `PrimitiveScalarRead`,
+//! and adds the field of an established single-field record observed through
+//! `IntegerStructuralField`. Both arms return the same saturating u64 sum, so
+//! a dropped, reordered, or invented store, load, or field view must diverge
+//! from the reference interpreter before the native result can agree.
 
 mod optimizer_corpus {
     mod affine_cleanup;
@@ -46,6 +54,7 @@ mod optimizer_corpus {
         all(target_os = "macos", target_arch = "aarch64"),
     ))]
     mod native;
+    mod placed_memory;
     mod psi;
     mod selected_machine;
 
@@ -269,6 +278,48 @@ mod optimizer_corpus {
                 all(target_os = "macos", target_arch = "aarch64"),
             ))]
             selected_machine::exercise_host_native_atomic_establishment(case, &artifact);
+        }
+    }
+
+    #[test]
+    fn deterministic_placed_memory_corpus() {
+        let cases = placed_memory::cases();
+        placed_memory::validate_manifest(&cases);
+        let requested = std::env::var("OMEGA_OPTIMIZER_CORPUS_CASE")
+            .ok()
+            .map(|value| {
+                value
+                    .parse::<usize>()
+                    .expect("corpus case must be an integer")
+            });
+        if let Some(ordinal) = requested {
+            assert!(
+                ordinal < placed_memory::CASE_COUNT,
+                "corpus case must be below {}",
+                placed_memory::CASE_COUNT
+            );
+        }
+
+        for case in cases
+            .iter()
+            .filter(|case| requested.is_none_or(|ordinal| case.ordinal == ordinal))
+        {
+            if requested.is_some() {
+                eprintln!(
+                    "optimizer corpus replay: format={} seed={:#018x} case={case:?}",
+                    placed_memory::FORMAT,
+                    placed_memory::SEED,
+                );
+            }
+            let artifact = psi::placed_memory_artifact(case.ordinal, case, 90_000);
+            selected_machine::exercise_placed_memory(case, &artifact);
+
+            #[cfg(any(
+                all(target_os = "linux", target_arch = "x86_64"),
+                all(target_os = "linux", target_arch = "aarch64"),
+                all(target_os = "macos", target_arch = "aarch64"),
+            ))]
+            selected_machine::exercise_host_native_placed_memory(case, &artifact);
         }
     }
 }

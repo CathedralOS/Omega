@@ -1,6 +1,10 @@
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_abstract_operations::WrappingIntegerAddConstantsRule;
 use abstract_operations_to_target_operations::*;
+use machine_code::{NonAuthoritativeCalleeSaveStoragePolicy, TargetFrameLayoutPolicy};
+use machine_emission::frame_layout::{
+    stage_non_authoritative_callee_save_storage, stage_target_frame_layout,
+};
 use native_realization::*;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::PsiRewritePatch;
@@ -221,6 +225,43 @@ pub(super) fn exercise_host_native_atomic_establishment(
     super::native::assert_bool_result_arms_atomic(artifact, when_false, when_true);
 }
 
+pub(super) fn exercise_placed_memory(
+    case: &super::placed_memory::PlacedMemoryCase,
+    artifact: &CorpusArtifact,
+) {
+    let first_x86 = run_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    let second_x86 = run_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    assert_eq!(
+        first_x86, second_x86,
+        "placed-memory x86 corpus case drifted: {case:?}"
+    );
+    let first_aarch64 = run_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    let second_aarch64 = run_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    assert_eq!(
+        first_aarch64, second_aarch64,
+        "placed-memory AArch64 corpus case drifted: {case:?}"
+    );
+}
+
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
+pub(super) fn exercise_host_native_placed_memory(
+    case: &super::placed_memory::PlacedMemoryCase,
+    artifact: &CorpusArtifact,
+) {
+    let target = NativeTarget::host();
+    let first = run_machine(case.ordinal, artifact, target);
+    let second = run_machine(case.ordinal, artifact, target);
+    assert_eq!(
+        first, second,
+        "host-native placed-memory corpus case drifted: {case:?}"
+    );
+    super::native::assert_placed_memory_u64_result(artifact, expected_unsigned(artifact));
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PsiEvidence {
     unit: optimization_core::OptimizationUnitIdentity,
@@ -433,11 +474,49 @@ fn run_machine(ordinal: usize, artifact: &CorpusArtifact, target: NativeTarget) 
         .liveness_stage()
         .selected_stage();
     let physical = selected_stage.register_environment().physical().clone();
+    // Placed-memory lanes carry real local storage slots; the production
+    // frame stage owns their layout, so the encoding needs a real frame plan
+    // rather than the slot-free `None` shortcut used by scalar-only lanes.
+    let frame = machine
+        .machine()
+        .plan()
+        .functions
+        .iter()
+        .any(|function| {
+            !function.local_storage_slots.is_empty() || !function.outgoing_arguments.is_empty()
+        })
+        .then(|| {
+            let environment = selected_stage.register_environment().clone();
+            let budget =
+                OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000)
+                    .unwrap();
+            let requirements = stage_allocated_callee_saved_requirements(
+                &homes,
+                AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
+                budget,
+            )
+            .unwrap();
+            let storage = stage_non_authoritative_callee_save_storage(
+                &requirements,
+                &environment,
+                NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1,
+                budget,
+            )
+            .unwrap();
+            stage_target_frame_layout(
+                &machine,
+                &requirements,
+                &storage,
+                &environment,
+                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+            )
+            .unwrap()
+        });
     let encoding = stage_optimized_layout_independent_selected_form_encoding(
         selected_stage.selected(),
         &machine,
         &physical,
-        None,
+        frame.as_ref().map(|frame| frame.plan()),
     )
     .unwrap();
     let layout = stage_optimized_resolved_selected_form_layout(
@@ -452,7 +531,7 @@ fn run_machine(ordinal: usize, artifact: &CorpusArtifact, target: NativeTarget) 
         selected_stage.selected(),
         &machine,
         &physical,
-        None,
+        frame.as_ref().map(|frame| frame.plan()),
         &encoding,
     )
     .unwrap();

@@ -9,8 +9,9 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
-    Block, CertificateEnvelope, EvidenceRoute, MachineContract, ObligationEvidence, Operation,
-    OperationKind, OperationResult, ProofSystemMarker, ScalarCaseField, StructuralCaseDeclaration,
+    BindingRelevance, Block, CertificateEnvelope, EvidenceRoute, MachineContract,
+    ObligationEvidence, Operation, OperationKind, OperationResult, ProofSystemMarker,
+    RecordFieldInitializer, RecordFieldValue, ScalarCaseField, StructuralCaseDeclaration,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
@@ -24,6 +25,7 @@ use super::{
     exact_traps::{TrapCase, TrapOperation},
     generator::LaneInput,
     ieee_compare::CompareCase,
+    placed_memory::PlacedMemoryCase,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -410,6 +412,24 @@ pub(super) fn atomic_establishment_artifact(
     }
 }
 
+pub(super) fn placed_memory_artifact(
+    ordinal: usize,
+    case: &PlacedMemoryCase,
+    lane_base: u64,
+) -> CorpusArtifact {
+    build_artifact(
+        ordinal,
+        lane_base,
+        Leaf::PlacedMemory {
+            initial: case.left,
+            field: case.right,
+            expected: case.expected,
+            true_stores: case.true_stores,
+            false_stores: case.false_stores,
+        },
+    )
+}
+
 #[derive(Clone, Copy)]
 enum Leaf {
     WrappingAdd(LaneInput),
@@ -433,13 +453,21 @@ enum Leaf {
         true_records: u8,
         false_records: u8,
     },
+    PlacedMemory {
+        initial: u64,
+        field: u64,
+        expected: u64,
+        true_stores: u8,
+        false_stores: u8,
+    },
 }
 
 /// Structural declarations and exact return cleanup schedules carried beside
-/// the leaf operations. Every other lane leaves this empty, preserving the
-/// corpus module's scalar-only shape.
+/// the leaf operations. The affine-cleanup lane fills the action schedules;
+/// the placed-memory lane fills only types and places. Every other lane
+/// leaves this empty, preserving the corpus module's scalar-only shape.
 #[derive(Default)]
-struct CleanupPlan {
+struct StructuralPlan {
     structural_types: Vec<StructuralTypeDeclaration>,
     structural_places: Vec<StructuralPlaceDeclaration>,
     true_actions: Vec<TerminalAffineCleanupAction>,
@@ -600,7 +628,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 vec![true_add_operation, false_add_operation],
                 CorpusExpected::Unsigned(input.expected),
                 integer_scalar_type,
-                CleanupPlan::default(),
+                StructuralPlan::default(),
             ),
             Leaf::Immediate(expected) => (
                 vec![literal(true_left_operation, true_result, expected)],
@@ -608,7 +636,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 Vec::new(),
                 CorpusExpected::Unsigned(expected),
                 integer_scalar_type,
-                CleanupPlan::default(),
+                StructuralPlan::default(),
             ),
             Leaf::IeeeCompare {
                 comparison,
@@ -641,7 +669,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 Vec::new(),
                 CorpusExpected::Boolean(expected),
                 ScalarType::Boolean,
-                CleanupPlan::default(),
+                StructuralPlan::default(),
             ),
             Leaf::ExactTrap {
                 operation,
@@ -676,7 +704,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 Vec::new(),
                 CorpusExpected::Unsigned(expected),
                 integer_scalar_type,
-                CleanupPlan::default(),
+                StructuralPlan::default(),
             ),
             Leaf::AffineCleanup {
                 left,
@@ -720,9 +748,9 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     }),
                     kind: OperationKind::EstablishRecord { fields: Vec::new() },
                 };
-                let mut cleanup = CleanupPlan {
+                let mut cleanup = StructuralPlan {
                     structural_types: vec![record_type_declaration],
-                    ..CleanupPlan::default()
+                    ..StructuralPlan::default()
                 };
                 for (place, producer) in true_records.iter().chain(&false_records) {
                     cleanup.structural_places.push(StructuralPlaceDeclaration {
@@ -764,6 +792,198 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     CorpusExpected::Unsigned(expected),
                     integer_scalar_type,
                     cleanup,
+                )
+            }
+            Leaf::PlacedMemory {
+                initial,
+                field,
+                expected,
+                true_stores,
+                false_stores,
+            } => {
+                // One primitive-local storage type and one single-field record
+                // type per artifact; each arm establishes and observes its own
+                // places. Both multiplicities stay unrestricted, so the return
+                // edge owes no cleanup schedule — placed-memory observations
+                // are ordinary reads and writes.
+                let local_type = StructuralTypeId::new(base + 26).unwrap();
+                let record_type = StructuralTypeId::new(base + 27).unwrap();
+                let record_field = StructuralFieldId::new(base + 28).unwrap();
+                let mut plan = StructuralPlan {
+                    structural_types: vec![
+                        StructuralTypeDeclaration {
+                            id: local_type,
+                            identity: "omega.optimizer-corpus.placed_memory.Cell".into(),
+                            shape: StructuralTypeShape::PrimitiveScalar(integer_scalar_type),
+                        },
+                        StructuralTypeDeclaration {
+                            id: record_type,
+                            identity: "omega.optimizer-corpus.placed_memory.Holder".into(),
+                            shape: StructuralTypeShape::Record {
+                                fields: vec![StructuralFieldDeclaration {
+                                    id: record_field,
+                                    identity: "value".into(),
+                                    relevance: BindingRelevance::Relevant,
+                                    field_type: StructuralFieldType::Scalar(integer_scalar_type),
+                                }],
+                            },
+                        },
+                    ],
+                    ..StructuralPlan::default()
+                };
+                let mut placed_arm = |arm_base: u64,
+                                      stores: u8,
+                                      left_operation: OperationId,
+                                      left_value: ValueId,
+                                      right_operation: OperationId,
+                                      right_value: ValueId,
+                                      add_operation: OperationId,
+                                      result_value: ValueId|
+                 -> Vec<Operation> {
+                    let local_place = PlaceId::new(arm_base).unwrap();
+                    let establish_local = OperationId::new(arm_base + 1).unwrap();
+                    let loaded = ValueId::new(arm_base + 2).unwrap();
+                    let read = OperationId::new(arm_base + 3).unwrap();
+                    let record_place = PlaceId::new(arm_base + 4).unwrap();
+                    let establish_record = OperationId::new(arm_base + 5).unwrap();
+                    let field_value = ValueId::new(arm_base + 6).unwrap();
+                    let field_read = OperationId::new(arm_base + 7).unwrap();
+                    let mut operations = vec![
+                        literal(left_operation, left_value, initial),
+                        Operation {
+                            static_reach_binding: None,
+                            id: establish_local,
+                            result: OperationResult::Structural(StructuralOperationResult {
+                                place: local_place,
+                                structural_type: local_type,
+                                multiplicity: StructuralMultiplicity::Unrestricted,
+                                qualifications: Vec::new(),
+                                projected_qualifications: Vec::new(),
+                                claims: Vec::new(),
+                            }),
+                            kind: OperationKind::EstablishPrimitiveLocal { value: left_value },
+                        },
+                    ];
+                    // Intermediate writes deposit distinct values and the final
+                    // write restores the initializer, so both arms return the
+                    // same saturating sum while a mistaken store schedule or a
+                    // stale read still diverges from the interpreter.
+                    for index in 0..stores {
+                        let written = if index + 1 == stores {
+                            initial
+                        } else {
+                            initial.wrapping_add(u64::from(index) + 1)
+                        };
+                        let written_value = ValueId::new(arm_base + 8 + u64::from(index)).unwrap();
+                        operations.push(literal(
+                            OperationId::new(arm_base + 12 + u64::from(index)).unwrap(),
+                            written_value,
+                            written,
+                        ));
+                        operations.push(Operation {
+                            static_reach_binding: None,
+                            id: OperationId::new(arm_base + 16 + u64::from(index)).unwrap(),
+                            result: OperationResult::Unit,
+                            kind: OperationKind::WriteOnlyPrimitiveStore {
+                                destination: local_place,
+                                path: Vec::new(),
+                                value: written_value,
+                            },
+                        });
+                    }
+                    operations.extend([
+                        Operation {
+                            static_reach_binding: None,
+                            id: read,
+                            result: OperationResult::Scalar(declaration(
+                                loaded,
+                                integer_scalar_type,
+                            )),
+                            kind: OperationKind::PrimitiveScalarRead {
+                                source: local_place,
+                                path: Vec::new(),
+                            },
+                        },
+                        literal(right_operation, right_value, field),
+                        Operation {
+                            static_reach_binding: None,
+                            id: establish_record,
+                            result: OperationResult::Structural(StructuralOperationResult {
+                                place: record_place,
+                                structural_type: record_type,
+                                multiplicity: StructuralMultiplicity::Unrestricted,
+                                qualifications: Vec::new(),
+                                projected_qualifications: Vec::new(),
+                                claims: Vec::new(),
+                            }),
+                            kind: OperationKind::EstablishRecord {
+                                fields: vec![RecordFieldInitializer {
+                                    field: record_field,
+                                    value: RecordFieldValue::Scalar {
+                                        value: right_value,
+                                        range_obligation: None,
+                                    },
+                                }],
+                            },
+                        },
+                        Operation {
+                            static_reach_binding: None,
+                            id: field_read,
+                            result: OperationResult::Scalar(declaration(
+                                field_value,
+                                integer_scalar_type,
+                            )),
+                            kind: OperationKind::IntegerStructuralField {
+                                source: record_place,
+                                path: Vec::new(),
+                                field: record_field,
+                            },
+                        },
+                        saturating_add(add_operation, result_value, loaded, field_value),
+                    ]);
+                    plan.structural_places.extend([
+                        StructuralPlaceDeclaration {
+                            id: local_place,
+                            kind: StructuralPlaceKind::OperationResult {
+                                producer: establish_local,
+                                structural_type: local_type,
+                            },
+                        },
+                        StructuralPlaceDeclaration {
+                            id: record_place,
+                            kind: StructuralPlaceKind::OperationResult {
+                                producer: establish_record,
+                                structural_type: record_type,
+                            },
+                        },
+                    ]);
+                    operations
+                };
+                (
+                    placed_arm(
+                        base + 30,
+                        true_stores,
+                        true_left_operation,
+                        true_left,
+                        true_right_operation,
+                        true_right,
+                        true_add_operation,
+                        true_result,
+                    ),
+                    placed_arm(
+                        base + 60,
+                        false_stores,
+                        false_left_operation,
+                        false_left,
+                        false_right_operation,
+                        false_right,
+                        false_add_operation,
+                        false_result,
+                    ),
+                    Vec::new(),
+                    CorpusExpected::Unsigned(expected),
+                    integer_scalar_type,
+                    plan,
                 )
             }
         };
