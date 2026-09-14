@@ -152,15 +152,36 @@ For the current counted-list implementation, in pairs:
 - Sorting `n >= 1` direct entries allocates at most
   `(2.5 * ceil(log2(n)) + 1) * n` pairs. Existing helper batches are not sorted.
 
-Generic multiple-batch unions can still repeatedly copy prefixes. Earlier
-checking/lowering and normalizer frames and rebuilt nodes also allocate or
-perform work; emission preflight allocates no pairs, and its publication
-traversal is separately bounded below the pair arena by the admitted payload
-extent (see [emission](../emission/README.md#publication-traversal-pairs)).
-The lexical trie reused by lowering is another
-construction pass, not free reuse of checking's stored environment.
-These formulas are source-level accounting, not measured arena peaks or a
-complete resource proof.
+`capture_finish` merges a fragment's `k` completed helper batches into its
+sorted direct-reference batch through `capture_merge_batches`, then subtracts
+owned binders once. Union `i` consumes at most `|merged(i-1)| + |b(i)|`
+entries: each step removes at least one element and stops when either side is
+exhausted, and the running union never exceeds `d`, the fragment's distinct
+referenced-or-batched bindings, so `q <= d + |b(i)|`. One collection's merges
+and final difference therefore allocate at most `(2*d + 1) * (k + 1) + 2*E`
+pairs, where `E` totals the `k` batches' entry occurrences and
+`d <= R + E` is bounded by reference and batch-entry occurrences in the
+fragment. `d` is not bounded by the 68,608 simultaneously-active-environment
+allowance: fragment-owned binders can be numerous even though the difference
+removes them once. Overlapping helper batches are covered by the same
+accounting — an entry duplicated across `s` batches adds `s` to `E` but one to
+`d`, and the union deduplicates it — but the `k*d` product is where many
+similar-sized batches can still multiply prefix copies. Whether every admitted
+shape keeps that product below the selected pair arena is not established by
+this accounting. A collection runs once per extraction; authored definitions
+are never captured. The program-wide merge allocation is
+`sum((2*d + 1) * (k + 1) + 2*E)` over at most `J` collections.
+
+Earlier checking/lowering and normalizer frames and rebuilt nodes also
+allocate or perform work; emission preflight allocates no pairs, and its
+publication traversal is separately bounded below the pair arena by the
+admitted payload extent (see
+[emission](../emission/README.md#publication-traversal-pairs)). The
+[traversal and rebuild accounting](#traversal-and-rebuild-pairs) below charges
+the normalizer machine per plan-node occurrence. The lexical trie reused by
+lowering is another construction pass, not free reuse of checking's stored
+environment. These formulas are source-level accounting, not measured arena
+peaks or a complete resource proof.
 
 #### Full-width payload refusal
 
@@ -252,6 +273,50 @@ edge certificate. It does not bound aggregate bindings during non-tail runtime
 calls. Fixed runtime and adapter definitions are separate from the transform
 and must fit independently. Lowering's shared projection definition likewise
 fits independently with two parameters and no local binders.
+
+## Traversal and rebuild pairs
+
+The visit/resume machine's frames and rebuilt nodes are charged separately
+from the capture collections above. Each plan node is visited at most twice
+and descended at most once: `normalization_visit` resumes a node whose
+recorded height fits its remaining budget and otherwise descends it once; a
+node still over height at budget one is revisited once under a fresh 255
+budget as an extraction root, which replaces descent at the shallow budget
+rather than adding to it. The extracted node's children are first visited
+during that fresh-budget traversal, the replacement call's height one can
+never descend, and rebuilt nodes are returned through frames without being
+revisited. So every frame, cons, spine cell, and rebuild below is allocated at
+most once per plan-node occurrence, and each extraction root is a distinct
+occurrence.
+
+| Site | Pairs | Charged per |
+| --- | ---: | --- |
+| Kind-1 remaining-argument frame | 7 | argument edge of a descended call |
+| Argument result cons | 1 | argument edge of a descended call |
+| Rebuilt argument spine cell | 1 | argument edge of a descended call |
+| `gamma_call` rebuild | 6 | descended call |
+| Kind-2 pending-let frame | 4 | descended let |
+| Kind-3 completed-initializer frame | 3 | descended let |
+| `gamma_let` rebuild | 6 | descended let |
+| Helper frame, generated name atom, two state records, helper definition, replacement call, helper cons | 22 | extraction |
+| Authored definition rebuild, cons, and depth-zero resume pair | 6 | authored definition |
+| Helper-list and definition-spine reversal | 1 | helper / authored definition |
+| `gamma_program` root | 1 | program |
+
+A descended call with `a` arguments therefore allocates `9*a + 6` pairs, a
+descended let allocates 13, and an atom allocates none. With `G` node
+occurrences in the completed lowering plan, `J <= G` extraction helpers, and
+`F <= 32,768` authored function rows, the machine allocates at most
+
+```text
+9*A + 6*C + 13*L + 22*J + 6*F + J + F + 1 <= 45*G + 7*F + 1
+```
+
+pairs, where `A`, `C`, and `L` are argument edges and descended call and let
+occurrences, with `A + C + L <= 2*G`. This charges every normalizer frame and
+rebuild to the plan being traversed. `G` is produced by lowering, so the bound
+reduces the normalizer term to the earlier-phase plan size; it is not a fixed
+byte budget, and it does not bound the capture `k*d` merge term above.
 
 ## Phase and receipt boundaries
 

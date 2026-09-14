@@ -394,7 +394,12 @@ under the current Gamma profile. It does not bound cumulative pair allocation
 or the runtime resources of generated applications. The
 [emission audit](../emission/README.md#publication-traversal-pairs) bounds
 serialization's own traversal pairs below the pair arena through the admitted
-payload extent; earlier-phase cumulative allocation remains the open term.
+payload extent, and the
+[normalization audit](../normalization/README.md#traversal-and-rebuild-pairs)
+charges normalizer frames, rebuilds, and per-collection capture merges to
+plan-node occurrences. Earlier-phase cumulative allocation — checking and
+lowering, including the plan size those later bounds consume — remains the
+open term.
 
 ### Arithmetic allocation probe
 
