@@ -113,7 +113,9 @@ pub(super) fn entry(
                 parameter.scalar_type,
             )?;
             replay.check_instruction(
-                crate::selection::scalar_call_abi::integer_abi_normalization(parameter.scalar_type),
+                crate::selection::scalar_call_abi::integer_carrier_normalization(
+                    parameter.scalar_type,
+                ),
                 replay.constraints.keys.copy_i64,
                 &[value, normalized],
                 &provenance,

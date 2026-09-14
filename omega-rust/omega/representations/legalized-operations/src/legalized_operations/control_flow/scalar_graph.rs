@@ -104,6 +104,7 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::SaturatingAddU64 { left, right }
                     | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                     | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
+                    | LegalizedScalarInstructionKind::WrappingAdd { left, right }
                     | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
                     | LegalizedScalarInstructionKind::BitwiseXor { left, right }
                     | LegalizedScalarInstructionKind::Compare { left, right, .. }
@@ -258,6 +259,12 @@ pub enum LegalizedScalarInstructionKind {
         right: ValueId,
         obligation: ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    /// Addition modulo the result's fixed integer width. Unlike Exact addition,
+    /// overflow is defined behavior and carries no no-overflow obligation.
+    WrappingAdd {
+        left: ValueId,
+        right: ValueId,
     },
     ExactBinary {
         operator: super::super::LegalizedExactIntegerOperator,

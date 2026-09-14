@@ -127,6 +127,13 @@ impl Checker<'_> {
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }
+            Expression::WrappingAdd { psi_operation, left, right } => {
+                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::WrappingIntegerAdd { psi_operation: operation, result, left: source_left, right: source_right, .. }
+                    if operation == psi_operation && *result == resolved
+                        && self.integer_source(left, *source_left, aliases)
+                        && self.integer_source(right, *source_right, aliases)))
+            }
             Expression::SaturatingAdd { psi_operation, left, right } => {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                     AbstractOperation::SaturatingIntegerAdd { psi_operation: operation, result, left: source_left, right: source_right, .. }

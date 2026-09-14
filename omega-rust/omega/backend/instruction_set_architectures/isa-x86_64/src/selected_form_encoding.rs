@@ -519,6 +519,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::ExactAddI64 { .. } => {
             (MachineAlternativeFamily::ExactAddI64, 3, 0..=0)
         }
+        SelectedInstructionKind::WrappingAddI64 => {
+            (MachineAlternativeFamily::WrappingAddI64, 3, 0..=0)
+        }
         SelectedInstructionKind::BitwiseAndI64 => {
             (MachineAlternativeFamily::BitwiseAndI64, 3, 0..=0)
         }
@@ -854,7 +857,9 @@ fn encode_unchecked(
             bytes.extend([rex(0, 0, registers[0]), 0x81, modrm(3, 7, registers[0])]);
             bytes.extend(u12(immediate)?.to_le_bytes());
         }
-        SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
+        SelectedInstructionKind::ByteViewAddress
+        | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::ExactAddI64 { .. } => {
             append_lea_register(&mut bytes, registers[0], registers[1], registers[2]);
         }
         SelectedInstructionKind::SaturatingSubtractU64 => {
@@ -1494,7 +1499,9 @@ fn validate_decoded(
                     immediate: u12(immediate)?,
                 }]
         }
-        SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
+        SelectedInstructionKind::ByteViewAddress
+        | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::ExactAddI64 { .. } => {
             matches!(decoded, [DecodedInstruction::Lea { destination, base, index: Some(index), displacement: 0 }]
                 if *destination == registers[2]
                     && ((*base == registers[0] && *index == registers[1])
@@ -1747,7 +1754,9 @@ fn footprint(
             true,
         ),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
-        SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
+        SelectedInstructionKind::ByteViewAddress
+        | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::ExactAddI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
         }
         SelectedInstructionKind::ExactAddI64Immediate { .. }
@@ -1870,6 +1879,7 @@ fn footprint(
                 SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1, 3],
                 SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
+                | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ExactSubtractI64 { .. } if alternative.variant == 0 => {
                     vec![]
@@ -1898,6 +1908,7 @@ fn footprint(
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
                 SelectedInstructionKind::ByteViewAddress
+                | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::SaturatingSubtractU64
@@ -2574,6 +2585,61 @@ mod tests {
                 )
                 .is_err()
             );
+        }
+    }
+
+    #[test]
+    fn wrapping_add_preserves_aliases_and_rejects_exact_family_or_changed_bytes() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let views = ["rax", "r9", "r12"].map(|name| physical.model().view_named(name).unwrap().id);
+        let kind = SelectedInstructionKind::WrappingAddI64;
+        let key = alternative(MachineAlternativeFamily::WrappingAddI64, 0);
+        for left in views {
+            for right in views {
+                for output in views {
+                    let operands = [left, right, output];
+                    let encoded =
+                        encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
+                    validate_x86_64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        encoded.bytes(),
+                    )
+                    .unwrap();
+                    assert!(!encoded.footprint().writes_rflags);
+                    assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
+                    assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
+                    let mut changed = encoded.bytes().to_vec();
+                    changed[1] ^= 1;
+                    assert!(
+                        validate_x86_64_selected_form_encoding(
+                            &physical, kind, key, &operands, &changed
+                        )
+                        .is_err()
+                    );
+                    assert!(
+                        encode_x86_64_selected_form(
+                            &physical,
+                            kind,
+                            alternative(MachineAlternativeFamily::ExactAddI64, 0),
+                            &operands
+                        )
+                        .is_err()
+                    );
+                    assert!(
+                        validate_x86_64_selected_form_encoding(
+                            &physical,
+                            kind,
+                            alternative(MachineAlternativeFamily::ExactAddI64, 0),
+                            &operands,
+                            encoded.bytes()
+                        )
+                        .is_err()
+                    );
+                }
+            }
         }
     }
 

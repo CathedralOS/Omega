@@ -257,6 +257,7 @@ fn declaration(
         | MachineSemanticKind::SaturatingSubtractU64
         | MachineSemanticKind::SaturatingAddU64
         | MachineSemanticKind::ByteViewAddress
+        | MachineSemanticKind::WrappingAddI64
         | MachineSemanticKind::ExactAddI64 => {
             vec![alternative(
                 semantic,
@@ -409,6 +410,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::SaturatingSubtractU64
         | MachineSemanticKind::SaturatingAddU64
         | MachineSemanticKind::ByteViewAddress
+        | MachineSemanticKind::WrappingAddI64
         | MachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate
         | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
@@ -621,12 +623,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
                 maximum_bytes: Some(6),
             }
         }
-        MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => {
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 4,
-                maximum_bytes: Some(5),
-            }
-        }
+        MachineSemanticKind::ByteViewAddress
+        | MachineSemanticKind::WrappingAddI64
+        | MachineSemanticKind::ExactAddI64 => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 4,
+            maximum_bytes: Some(5),
+        },
         MachineSemanticKind::ExactAddI64Immediate => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 4,
             maximum_bytes: Some(8),

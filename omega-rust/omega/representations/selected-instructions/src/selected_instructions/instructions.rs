@@ -110,6 +110,9 @@ pub enum SelectedInstructionKind {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },
+    /// Add register payloads modulo 2^64 without an Exact overflow obligation.
+    /// Narrow semantic results require a subsequent signed/unsigned normalization.
+    WrappingAddI64,
     CopyI64,
     /// Bitwise intersection of normalized integer carriers; no arithmetic overflow.
     BitwiseAndI64,

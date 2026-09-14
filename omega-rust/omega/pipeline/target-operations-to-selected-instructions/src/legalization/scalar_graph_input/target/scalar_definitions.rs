@@ -190,6 +190,13 @@ pub(super) fn observation(
             left,
             right,
         }
+        | AbstractOperation::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
         | AbstractOperation::SaturatingIntegerAdd {
             psi_operation,
             result,

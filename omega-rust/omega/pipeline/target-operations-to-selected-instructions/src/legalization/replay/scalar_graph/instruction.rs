@@ -55,6 +55,21 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::WrappingAdd { left, right },
+            AbstractOperation::WrappingIntegerAdd {
+                left: source_left,
+                right: source_right,
+                scalar_type,
+                ..
+            },
+        ) if left == source_left
+            && right == source_right
+            && scalar_graph_input::scalar_shape(ScalarType::Integer(*scalar_type)).is_some()
+            && [left, right].iter().all(|value| {
+                scalar_graph_input::value_type(optimized, **value)
+                    == Some(ScalarType::Integer(*scalar_type))
+            }) => {}
+        (
             LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right },
             AbstractOperation::SaturatingIntegerSubtract {
                 left: source_left,

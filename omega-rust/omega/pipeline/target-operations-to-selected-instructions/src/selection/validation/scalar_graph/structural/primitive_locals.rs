@@ -161,7 +161,9 @@ pub(in crate::selection) fn read(
             definition.scalar_type,
         )?;
         replay.check_instruction(
-            crate::selection::scalar_call_abi::integer_abi_normalization(definition.scalar_type),
+            crate::selection::scalar_call_abi::integer_carrier_normalization(
+                definition.scalar_type,
+            ),
             replay.constraints.keys.copy_i64,
             &[output, normalized],
             &SelectedInstructionProvenance {

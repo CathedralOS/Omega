@@ -24,6 +24,42 @@ use super::encoding::*;
 use super::*;
 
 #[test]
+fn wrapping_add_codec_is_proof_free_and_distinct_from_exact_add() {
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::WrappingAddI64;
+    instruction.provenance.obligations.clear();
+    instruction.alternatives.truncate(1);
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::WrappingAddI64;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+    let mut changed = source.clone();
+    changed.functions[0].blocks[0].instructions[0].kind = SelectedInstructionKind::ExactAddI64 {
+        obligation: ObligationId::new(41).unwrap(),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([42; 32]),
+    };
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&changed.encode()),
+        Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
+    );
+    let mut changed = source.clone();
+    changed.functions[0].blocks[0].instructions[0].alternatives[0]
+        .key
+        .family = MachineAlternativeFamily::ExactAddI64;
+    assert_ne!(
+        source.identity,
+        pre_allocation_machine_effect_identity(&changed)
+    );
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&changed.encode()),
+        Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
+    );
+}
+
+#[test]
 fn wrapping_remainder_codec_preserves_proof_and_distinguishes_unsigned_division() {
     use optimization_core::AcceptedObligationFactIdentity;
 

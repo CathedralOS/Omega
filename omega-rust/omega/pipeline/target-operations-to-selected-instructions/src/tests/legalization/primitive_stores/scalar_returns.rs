@@ -82,6 +82,113 @@ fn graph(target: &mut TargetOperationPlan) -> &mut TargetControlGraph {
 }
 
 #[test]
+fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
+    let scalar = integer(IntegerSign::Signed, 32);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let (mut source, _, _) =
+            fixture_with_scalar(native, true, StructuralAccess::MutableBorrow, scalar);
+        let field = StructuralFieldId::new(1).unwrap();
+        source.structural_types.make_mut()[0].shape = StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: field,
+                identity: "value".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(scalar),
+            }],
+        };
+        let store = source.functions[0]
+            .operations
+            .iter_mut()
+            .find(|operation| {
+                matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
+            })
+            .unwrap();
+        let AbstractOperation::WriteOnlyPrimitiveStore {
+            psi_operation,
+            destination,
+            value,
+        } = store
+        else {
+            panic!("store")
+        };
+        *store = AbstractOperation::StructuralScalarFieldStore {
+            psi_operation: *psi_operation,
+            destination: destination.clone(),
+            value: *value,
+            path: Vec::new(),
+            field,
+        };
+        let target =
+            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
+                .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
+        for access in [StructuralAccess::SharedBorrow, StructuralAccess::Owned] {
+            let mut changed = target.clone();
+            let TargetUnitOperation::StructuralScalarFieldStore { destination, .. } =
+                changed.functions[0].graph.blocks[0]
+                    .operations
+                    .iter_mut()
+                    .find(|operation| {
+                        matches!(
+                            operation,
+                            TargetUnitOperation::StructuralScalarFieldStore { .. }
+                        )
+                    })
+                    .unwrap()
+            else {
+                panic!("field store")
+            };
+            destination.access = access;
+            assert!(legalize_target_operations(&changed, &source, &unit).is_err());
+            assert!(
+                validate_legalized_operations(&changed, &source, &unit, legalized.plan().clone())
+                    .is_err()
+            );
+        }
+        let mut changed = source.clone();
+        changed.functions[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        let AbstractOperation::StructuralScalarFieldStore { destination, .. } = changed.functions
+            [0]
+        .operations
+        .iter_mut()
+        .find(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::StructuralScalarFieldStore { .. }
+            )
+        })
+        .unwrap() else {
+            panic!("source field store")
+        };
+        destination.access = StructuralAccess::SharedBorrow;
+        if let Ok(changed_target) =
+            abstract_operations_to_target_operations::lower_to_target_operations(&changed, native)
+        {
+            let changed_unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &changed,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            assert!(
+                legalize_target_operations(&changed_target, &changed, &changed_unit).is_err(),
+                "a scalar result must not authorize writing through a shared borrow"
+            );
+        }
+    }
+}
+
+#[test]
 fn borrowed_primitive_writes_retain_boolean_and_fixed_integer_results() {
     let scalars = std::iter::once(ScalarType::Boolean).chain(
         [IntegerSign::Unsigned, IntegerSign::Signed]

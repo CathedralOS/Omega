@@ -181,6 +181,7 @@ fn decode_kind(
         52 => SelectedInstructionKind::BitwiseXorI64,
         54 => SelectedInstructionKind::SaturatingSubtractU64,
         55 => SelectedInstructionKind::SaturatingAddU64,
+        58 => SelectedInstructionKind::WrappingAddI64,
         56 => SelectedInstructionKind::ExactDivideU64 {
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
@@ -390,6 +391,7 @@ fn decode_alternative_for_version(
         55 => MachineAlternativeFamily::SaturatingAddU64,
         56 => MachineAlternativeFamily::ExactDivideU64,
         57 => MachineAlternativeFamily::WrappingRemainderI64,
+        58 => MachineAlternativeFamily::WrappingAddI64,
         4 => MachineAlternativeFamily::ExactAddI64Immediate,
         5 => MachineAlternativeFamily::ExactSubtractI64,
         6 => MachineAlternativeFamily::ConditionalBranchNonZero,

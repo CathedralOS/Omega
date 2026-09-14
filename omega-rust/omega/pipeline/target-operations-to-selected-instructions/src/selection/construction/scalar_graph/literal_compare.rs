@@ -103,6 +103,7 @@ pub(super) fn folded_literal<'a>(
                     .any(|argument| argument.scalar_source() == Some(definition.value)),
                 LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right }
         | LegalizedScalarInstructionKind::SaturatingAddU64 { left, right }
+        | LegalizedScalarInstructionKind::WrappingAdd { left, right }
                 | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                 | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
                 | LegalizedScalarInstructionKind::BitwiseAnd { left, right }

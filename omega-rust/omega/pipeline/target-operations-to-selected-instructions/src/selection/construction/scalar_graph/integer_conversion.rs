@@ -49,7 +49,7 @@ pub(super) fn emit(
             operation.kind,
             LegalizedScalarInstructionKind::IntegerExactCast { .. }
         ) {
-            crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type)
+            crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
         } else {
             SelectedInstructionKind::CopyI64
         },

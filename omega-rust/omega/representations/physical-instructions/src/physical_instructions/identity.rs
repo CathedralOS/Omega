@@ -302,6 +302,7 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::SaturatingAddU64 => 55,
         MachineAlternativeFamily::ExactDivideU64 => 56,
         MachineAlternativeFamily::WrappingRemainderI64 => 57,
+        MachineAlternativeFamily::WrappingAddI64 => 58,
         MachineAlternativeFamily::Load8 => 33,
         MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,

@@ -126,6 +126,14 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
         } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
             Some((*psi_operation, *result))
         }
+        AbstractOperation::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
+            Some((*psi_operation, *result))
+        }
         AbstractOperation::WrappingIntegerRemainder {
             psi_operation,
             result,
@@ -486,6 +494,21 @@ pub(super) fn validate(
                 if *scalar_type != u64_type()
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(*scalar_type)
+            }
+            AbstractOperation::WrappingIntegerAdd {
+                scalar_type,
+                left,
+                right,
+                ..
+            } => {
+                if scalar_shape(ScalarType::Integer(*scalar_type)).is_none()
+                    || [left, right].iter().any(|value| {
+                        value_type(optimized, **value) != Some(ScalarType::Integer(*scalar_type))
+                    })
                 {
                     return Err(invalid);
                 }

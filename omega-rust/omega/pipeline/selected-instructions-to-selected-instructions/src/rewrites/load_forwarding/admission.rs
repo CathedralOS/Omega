@@ -388,6 +388,7 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), StoredLoa
         | ExactAddI64Immediate { .. }
         | ExactSubtractI64Immediate { .. }
         | SaturatingAddU64
+        | WrappingAddI64
         | SaturatingSubtractU64
         | ExactDivideU64 { .. }
         | WrappingRemainderI64 { .. }

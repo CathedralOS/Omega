@@ -194,6 +194,29 @@ fn catalog() -> MachineEffectCatalog {
 }
 
 #[test]
+fn wrapping_add_catalog_reuses_the_add_constraint_without_exact_semantics() {
+    assert_eq!(semantic_kind_tag(MachineSemanticKind::WrappingAddI64), 58);
+    assert_eq!(
+        alternative_family_tag(MachineAlternativeFamily::WrappingAddI64),
+        58
+    );
+    assert_eq!(
+        keys().for_semantic(MachineSemanticKind::WrappingAddI64),
+        Some(keys().add_i64)
+    );
+    let source = catalog();
+    let baseline = machine_effect_catalog_identity(&source);
+    let mut changed = source;
+    let declaration = changed
+        .declarations
+        .iter_mut()
+        .find(|row| row.semantic == MachineSemanticKind::WrappingAddI64)
+        .unwrap();
+    declaration.semantic = MachineSemanticKind::ExactAddI64;
+    assert_ne!(baseline, machine_effect_catalog_identity(&changed));
+}
+
+#[test]
 fn remainder_catalog_identity_binds_its_key_and_distinct_semantic_family() {
     assert_eq!(semantic_kind_tag(MachineSemanticKind::ExactDivideU64), 56);
     assert_eq!(

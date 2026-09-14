@@ -281,6 +281,7 @@ pub(super) fn validate_operation(
             | AbstractOperation::BooleanEqual { .. }
             | AbstractOperation::SaturatingIntegerSubtract { .. }
             | AbstractOperation::SaturatingIntegerAdd { .. }
+            | AbstractOperation::WrappingIntegerAdd { .. }
             | AbstractOperation::ExactIntegerAdd { .. }
             | AbstractOperation::ExactIntegerDivide { .. }
             | AbstractOperation::WrappingIntegerRemainder { .. }

@@ -99,6 +99,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SaturatingAddU64 => 55,
         SelectedInstructionKind::ExactDivideU64 { .. } => 56,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => 57,
+        SelectedInstructionKind::WrappingAddI64 => 58,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -238,6 +239,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::BitwiseXorI64
         | SelectedInstructionKind::SaturatingSubtractU64
         | SelectedInstructionKind::SaturatingAddU64
+        | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::Float32ToBits
         | SelectedInstructionKind::Float64ToBits
         | SelectedInstructionKind::BitsToFloat32

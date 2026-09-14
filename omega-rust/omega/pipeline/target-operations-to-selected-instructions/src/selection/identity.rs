@@ -44,7 +44,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v41\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v42\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -118,6 +118,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::SaturatingAddU64 => 52,
         SelectedInstructionKind::ExactDivideU64 { .. } => 54,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => 55,
+        SelectedInstructionKind::WrappingAddI64 => 56,
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -277,6 +278,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::BitwiseXorI64
         | SelectedInstructionKind::SaturatingSubtractU64
         | SelectedInstructionKind::SaturatingAddU64
+        | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::Float32ToBits

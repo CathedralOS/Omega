@@ -257,7 +257,7 @@ pub(super) fn validate(
         &replay.constraints.keys,
     )
     .unwrap_or((
-        crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type),
+        crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
         replay.constraints.keys.copy_i64,
     ));
     replay.check_instruction(

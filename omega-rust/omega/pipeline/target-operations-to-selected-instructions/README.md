@@ -403,6 +403,19 @@ changing proof or conversion admission. Replay rejects substituted widths, ABI
 offsets, argument homes, and source identities, including when a borrowed pointer follows the
 stack-passed scalars.
 
+Wrapping addition uses the ordinary scalar graph for signed and unsigned
+8/16/32/64-bit integers. `WrappingAddI64` reuses the existing target add encoding
+and register constraints, but retains its own semantic identity: it is not an
+Exact add with fabricated no-overflow evidence. Sub-64-bit results pass through
+the same carrier normalization before their SSA definition becomes available.
+The raw sum stays private; later comparisons, stores, and calls consume only
+the normalized value. Independent selection replay checks that sequence and
+charges the source operation's fuel once, on the add. Target replay also rejects
+re-evaluation of an earlier expression in place of its established result home.
+Borrowed record parameters retain their pointer ABI when a function returns a
+scalar; field read/write permission is checked at the operation, not inferred
+from the return shape.
+
 IEEE field-store and Unit-call literals retain their exact defining operation,
 SSA value, format and raw bits in the ordinary scalar-source vocabulary.
 Independent receiving replay establishes availability only after matching the

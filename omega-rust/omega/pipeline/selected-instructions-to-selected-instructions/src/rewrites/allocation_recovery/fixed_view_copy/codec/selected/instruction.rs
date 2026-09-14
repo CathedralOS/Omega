@@ -110,6 +110,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SaturatingAddU64 => 55,
         SelectedInstructionKind::ExactDivideU64 { .. } => 56,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => 57,
+        SelectedInstructionKind::WrappingAddI64 => 58,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -243,6 +244,7 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
         (SelectedInstructionKind::BitwiseXorI64, 52),
         (SelectedInstructionKind::SaturatingSubtractU64, 54),
         (SelectedInstructionKind::SaturatingAddU64, 55),
+        (SelectedInstructionKind::WrappingAddI64, 58),
         (SelectedInstructionKind::ZeroExtendU32, 20),
         (SelectedInstructionKind::ZeroExtendU16, 37),
         (SelectedInstructionKind::SignExtendI8, 38),
@@ -354,6 +356,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         52 => SelectedInstructionKind::BitwiseXorI64,
         54 => SelectedInstructionKind::SaturatingSubtractU64,
         55 => SelectedInstructionKind::SaturatingAddU64,
+        58 => SelectedInstructionKind::WrappingAddI64,
         56 => SelectedInstructionKind::ExactDivideU64 {
             obligation: decode_id(cursor, ObligationId::new)?,
             accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(

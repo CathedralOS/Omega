@@ -337,7 +337,7 @@ pub(in crate::selection) fn validate_with_environment(
                                 operation.kind,
                                 LegalizedScalarInstructionKind::IntegerExactCast { .. }
                             ) {
-                                crate::selection::scalar_call_abi::integer_abi_normalization(
+                                crate::selection::scalar_call_abi::integer_carrier_normalization(
                                     scalar_type,
                                 )
                             } else {
@@ -543,6 +543,61 @@ pub(in crate::selection) fn validate_with_environment(
                             },
                         )?;
                         output
+                    }
+                    LegalizedScalarInstructionKind::WrappingAdd { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                    && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        {
+                            return Err(invalid());
+                        }
+                        let raw = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        replay.check_instruction(
+                            SelectedInstructionKind::WrappingAddI64,
+                            constraints.keys.add_i64,
+                            &[left_register, right_register, raw],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        // Reconstruct the entire carrier boundary, not just the
+                        // add. A missing/wrong extension would expose raw upper bits.
+                        let normalization =
+                            crate::selection::scalar_call_abi::integer_carrier_normalization(
+                                scalar_type,
+                            );
+                        if normalization == SelectedInstructionKind::CopyI64 {
+                            raw
+                        } else {
+                            let output = replay.result_register(
+                                result.value,
+                                result.definition_site,
+                                scalar_type,
+                            )?;
+                            replay.check_instruction(
+                                normalization,
+                                constraints.keys.copy_i64,
+                                &[raw, output],
+                                &SelectedInstructionProvenance {
+                                    values: vec![result.value],
+                                    ..Default::default()
+                                },
+                            )?;
+                            output
+                        }
                     }
                     LegalizedScalarInstructionKind::ExactBinary {
                         operator,

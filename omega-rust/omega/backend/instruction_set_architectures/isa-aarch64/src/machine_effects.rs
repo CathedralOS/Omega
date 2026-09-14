@@ -367,6 +367,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::SaturatingSubtractU64
         | MachineSemanticKind::SaturatingAddU64
+        | MachineSemanticKind::WrappingAddI64
         | MachineSemanticKind::ExactAddI64
         | MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate

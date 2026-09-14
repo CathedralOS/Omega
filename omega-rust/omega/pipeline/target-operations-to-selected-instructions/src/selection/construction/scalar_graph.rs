@@ -168,12 +168,12 @@ pub(super) fn build_with_environment(
                 },
             )?;
             output
-        } else if crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type)
+        } else if crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
             != SelectedInstructionKind::CopyI64
         {
             let output = builder.register(value, site, scalar_type)?;
             builder.emit(
-                crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type),
+                crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
                 constraints.keys.copy_i64,
                 &[input, output],
                 SelectedInstructionProvenance {
@@ -481,6 +481,59 @@ pub(super) fn build_with_environment(
                             },
                         )?;
                         output
+                    }
+                    LegalizedScalarInstructionKind::WrappingAdd { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                    && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        {
+                            return Err(invalid());
+                        }
+                        let raw =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        builder.emit(
+                            SelectedInstructionKind::WrappingAddI64,
+                            constraints.keys.add_i64,
+                            &[left_register, right_register, raw],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        // Machine addition is modulo 64 bits. Only the normalized
+                        // low-width result becomes available to later source uses;
+                        // this private normalization adds no source operation/fuel.
+                        let normalization =
+                            crate::selection::scalar_call_abi::integer_carrier_normalization(
+                                scalar_type,
+                            );
+                        if normalization == SelectedInstructionKind::CopyI64 {
+                            raw
+                        } else {
+                            let output = builder.register(
+                                result.value,
+                                result.definition_site,
+                                scalar_type,
+                            )?;
+                            builder.emit(
+                                normalization,
+                                constraints.keys.copy_i64,
+                                &[raw, output],
+                                SelectedInstructionProvenance {
+                                    values: vec![result.value],
+                                    ..Default::default()
+                                },
+                            )?;
+                            output
+                        }
                     }
                     LegalizedScalarInstructionKind::ExactBinary {
                         operator,
