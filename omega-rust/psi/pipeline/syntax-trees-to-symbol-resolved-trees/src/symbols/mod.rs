@@ -418,3 +418,47 @@ pub(crate) use lookup::{
     MembershipSelection, bare_case_type, constructor_type, domain_name_reaches,
     membership_selection, prefer_module_local_domain,
 };
+
+/// Build the symbol table and give every reference its identity, then settle
+/// the static module calls and outcome-specific contracts that need it. A
+/// seeded lowerer extends its base's table in place.
+pub(crate) fn assign(
+    lowerer: &mut crate::resolution::lowerer::Lowerer,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let seeded_roots = lowerer.seed.as_ref().map(|seed| seed.roots);
+    match seeded_roots {
+        None => assign_symbols(
+            &mut lowerer.symbol_resolved_trees,
+            lowerer.sources.take(),
+            std::mem::take(&mut lowerer.source_scoped_top_level_bindings),
+            &lowerer.pending_const_declarations,
+            &lowerer.namespace_declarations,
+        )?,
+        Some(roots) => {
+            let sources = lowerer.sources.take().ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "seeded symbol resolution requires retained source custody",
+                )]
+            })?;
+            assign_symbols_against_resolved_base(
+                &mut lowerer.symbol_resolved_trees,
+                sources,
+                std::mem::take(&mut lowerer.source_scoped_top_level_bindings),
+                roots,
+                &lowerer.pending_const_declarations,
+                &lowerer.namespace_declarations,
+            )?;
+        }
+    }
+    normalize_static_module_calls(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_static_module_calls,
+        &lowerer.pending_static_module_statement_calls,
+    );
+    contracts::finalize_outcome_specific_contract_symbols(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_outcome_specific_contracts,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(())
+}

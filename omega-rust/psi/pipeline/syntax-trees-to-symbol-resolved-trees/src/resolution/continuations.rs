@@ -102,6 +102,37 @@ impl ConstInitializerSelection {
         &self.trees
     }
 
+    /// Every declaration that needs initializer evaluation kept its exact
+    /// declaration and can name its pending scalar leaves.
+    pub(crate) fn validate_initializer_leaves(
+        &self,
+        syntax: &SyntaxTrees,
+    ) -> Result<(), Vec<Diagnostic>> {
+        for definition in syntax.root_items().filter_map(|item| match item {
+            syntax_trees::item::Item::Const(definition)
+                if crate::constant::requires_const_initializer_evaluation(syntax, definition) =>
+            {
+                Some(definition)
+            }
+            _ => None,
+        }) {
+            self.trees
+                .const_declarations
+                .iter()
+                .find(|declaration| {
+                    self.trees.symbols.symbol_source_span(declaration.symbol)
+                        == Some(definition.name.source_span())
+                })
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "initializer preparation lost its exact declaration",
+                    )]
+                })?;
+            self.pending_leaves(syntax, definition)?;
+        }
+        Ok(())
+    }
+
     pub fn pending_leaves(
         &self,
         syntax: &SyntaxTrees,

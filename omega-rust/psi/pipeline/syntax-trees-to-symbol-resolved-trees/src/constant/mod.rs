@@ -1108,6 +1108,79 @@ fn invalid_literal_initializer(
     )))
 }
 
+/// Finalize constant declarations, argument selections, initializer
+/// normalization, substitution, and use-site selections, in that order. The
+/// constant-expression symbol and selection passes run inside because they
+/// consume only these pending values. A seeded lowerer first renumbers its
+/// pending selections after the base's declarations.
+pub(crate) fn finalize(
+    lowerer: &mut crate::resolution::lowerer::Lowerer,
+) -> Result<(), Vec<Diagnostic>> {
+    if let Some(base_declarations) = lowerer
+        .seed
+        .as_ref()
+        .map(|seed| seed.roots.const_declarations)
+    {
+        for selection in &mut lowerer.pending_const_selections {
+            selection.declaration_ordinal = selection
+                .declaration_ordinal
+                .checked_add(base_declarations)
+                .expect("seeded const declaration ordinal overflow");
+        }
+    }
+    let program = &mut lowerer.symbol_resolved_trees;
+    finalize_const_declarations(program, &lowerer.pending_const_declarations)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    finalize_const_argument_selections(
+        program,
+        &lowerer.pending_const_argument_selections,
+        &lowerer.pending_const_argument_slots,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    crate::symbols::assign_constant_expression_symbols(
+        program,
+        lowerer
+            .pending_const_values
+            .iter()
+            .copied()
+            .chain(lowerer.pending_const_argument_expressions.iter().copied()),
+    );
+    crate::selection::authored_selections::finalize_constant_expression_selections(
+        program,
+        lowerer
+            .pending_const_values
+            .iter()
+            .copied()
+            .chain(lowerer.pending_const_argument_expressions.iter().copied()),
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    initializer_normalization::finalize(program, &lowerer.pending_const_initializers)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    substitute_resolved_constants(
+        program,
+        &lowerer.pending_authored_expressions,
+        &mut lowerer.pending_const_selections,
+        lowerer.const_resolution_mode != crate::resolution::lowerer::ConstResolutionMode::Complete,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    finalize_const_selections(program, &lowerer.pending_const_selections)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(())
+}
+
+/// Close duplicate declaration-side operator obligations once the authored
+/// selection ledger has recorded every ordinary selection.
+pub(crate) fn finalize_operator_obligations(
+    lowerer: &mut crate::resolution::lowerer::Lowerer,
+) -> Result<(), Vec<Diagnostic>> {
+    initializer_normalization::finalize_operator_obligations(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_const_initializers,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod module_tests {
     use super::*;

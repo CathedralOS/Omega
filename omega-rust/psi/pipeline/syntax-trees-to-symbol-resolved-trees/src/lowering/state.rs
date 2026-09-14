@@ -477,69 +477,6 @@ fn lower_signature_contracts_with_result_sum(
     Ok(span)
 }
 
-pub(crate) fn finalize_outcome_specific_contract_symbols(
-    program: &mut symbol_resolved_trees::SymbolResolvedTrees,
-    pending: &[crate::resolution::lowerer::PendingOutcomeSpecificContract],
-) -> Result<(), Diagnostic> {
-    for pending in pending {
-        let (result_data, result_case) = {
-            let data_symbol = program
-                .symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    &pending.result_data_name,
-                    &[symbols::SymbolKind::Data],
-                    pending.result_data_source_span,
-                )
-                .unwrap_or_else(SymbolHandle::invalid);
-            let data = program
-                .data_definitions
-                .iter()
-                .find(|data| data.symbol == data_symbol)
-                .ok_or_else(|| {
-                    Diagnostic::error(format!(
-                        "outcome-specific ensures lost declared result sum `{}` during symbol assignment",
-                        pending.result_data_name
-                    ))
-                })?;
-            let result_case = program
-                .data_members(data.members)
-                .iter()
-                .find_map(|member| match member {
-                    symbol_resolved_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == pending.result_case_name =>
-                    {
-                        Some(variant.symbol)
-                    }
-                    _ => None,
-                })
-                .ok_or_else(|| {
-                    Diagnostic::error(format!(
-                        "outcome-specific ensures lost declared result case `{}::{}` during symbol assignment",
-                        pending.result_data_name, pending.result_case_name
-                    ))
-                })?;
-            (data.symbol, result_case)
-        };
-        let contract = program
-            .tables
-            .declarations
-            .signature_contracts
-            .get_mut(pending.contract);
-        let SignatureContractKind::EnsuresForResultCase {
-            result_data: contract_data,
-            result_case: contract_case,
-        } = &mut contract.kind
-        else {
-            return Err(Diagnostic::error(
-                "outcome-specific ensures changed kind before symbol normalization",
-            ));
-        };
-        *contract_data = result_data;
-        *contract_case = result_case;
-    }
-    Ok(())
-}
-
 fn lower_state_statements(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,

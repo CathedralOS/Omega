@@ -20,3 +20,18 @@ pub(crate) mod statement;
 pub(crate) mod trait_definition;
 pub(crate) mod type_reference;
 pub(crate) mod wire;
+
+use crate::resolution::lowerer::Lowerer;
+use diagnostics::Diagnostic;
+use syntax_trees::SyntaxTrees;
+
+/// Translate every root item into the lowerer's trees, in source order.
+pub(crate) fn lower_items(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    for item in syntax.root_items() {
+        item::lower_item(lowerer, syntax, item).map_err(|diagnostic| vec![diagnostic])?;
+    }
+    Ok(())
+}
