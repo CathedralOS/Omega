@@ -222,6 +222,36 @@ pub(super) fn source_input_replay_prefix_end(
             event_count += 1;
             continue;
         }
+        if attempts[cursor].operation_tag() == 28 {
+            let identity = source_native_query_open_identity(&attempts[cursor])?;
+            if identities.contains(&identity) {
+                return None;
+            }
+            identities.push(identity);
+            cursor += 1;
+            let mut saw_final_path_query = false;
+            while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 31 | 35) {
+                let operation_is_exact = if attempts[cursor].operation_tag() == 31 {
+                    saw_final_path_query = true;
+                    native_final_path_query_is_exact(&attempts[cursor], identity)
+                } else {
+                    native_error_observation_is_exact(&attempts[cursor])
+                };
+                if !operation_is_exact {
+                    return None;
+                }
+                cursor += 1;
+            }
+            if !saw_final_path_query
+                || cursor == attempts.len()
+                || !source_native_query_close_is_exact(&attempts[cursor], identity)
+            {
+                return None;
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
         let identity = source_read_chain_open_identity(&attempts[cursor])?;
         if identities.contains(&identity) {
             return None;
@@ -773,4 +803,236 @@ fn source_read_chain_close_is_exact(
         && close_input.resolution() == InputResolution::Resolved(identity)
         && close.result() == Some(ResultValue::Scalar(0))
         && close.retired_logical_handles() == [identity]
+}
+
+/// Identity acquired by one constrained Source `open_path_handle` (tag 28)
+/// under the bounded query-only contract, or `None` when the attempt is not
+/// the exact acquisition: access zero, full read/write/delete sharing, null
+/// security attributes, `OPEN_EXISTING`, `FILE_FLAG_BACKUP_SEMANTICS` without
+/// `FILE_FLAG_DELETE_ON_CLOSE`, and a null template handle input.
+fn source_native_query_open_identity(
+    open: &checked_interpreter::FilesystemOperationAttempt,
+) -> Option<checked_interpreter::FilesystemLogicalHandleIdentity> {
+    use checked_interpreter::{
+        FilesystemGrantAccess as Access, FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind,
+        FilesystemLogicalHandleOutputSource as OutputSource,
+        FilesystemObservationProvider as Provider, FilesystemOperationResult as ResultValue,
+        FilesystemScalarOperandValue as ScalarValue,
+    };
+    let Some(ResultValue::LogicalHandle(identity)) = open.result() else {
+        return None;
+    };
+    let [
+        desired_access,
+        share_mode,
+        security_attributes,
+        creation_disposition,
+        flags,
+    ] = open.scalar_operands()
+    else {
+        return None;
+    };
+    let [rooted] = open.rooted_path_operand_resolutions() else {
+        return None;
+    };
+    let [authorized] = open.authorized_paths() else {
+        return None;
+    };
+    let [template] = open.logical_handle_inputs() else {
+        return None;
+    };
+    let output = open.logical_handle_output()?;
+    (open.operation_tag() == 28
+        && open.provider() == Provider::RealScoped
+        && desired_access.operand_ordinal() == 1
+        && desired_access.value() == ScalarValue::U32(0)
+        && share_mode.operand_ordinal() == 2
+        && share_mode.value() == ScalarValue::U32(0x7)
+        && security_attributes.operand_ordinal() == 3
+        && security_attributes.value() == ScalarValue::I64(0)
+        && creation_disposition.operand_ordinal() == 4
+        && creation_disposition.value() == ScalarValue::U32(3)
+        && flags.operand_ordinal() == 5
+        && flags.value() == ScalarValue::U32(0x0200_0000)
+        && rooted.operand_ordinal() == 0
+        && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && checked_interpreter::filesystem_root_relative_path_is_canonical(
+            rooted.relative_path(),
+            false,
+        )
+        && authorized.operand_ordinal() == 0
+        && authorized.access() == Access::Read
+        && authorized.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && authorized.relative_path() == rooted.relative_path()
+        && template.operand_ordinal() == 6
+        && template.kind() == HandleKind::Native
+        && template.resolution() == InputResolution::Null
+        && output.kind() == HandleKind::Native
+        && output.identity() == identity
+        && output.source() == OutputSource::Created
+        && open.byte_operands().is_empty()
+        && open.path_like_operands().is_empty()
+        && open.returned_paths().is_empty()
+        && open.observed_byte_regions().is_empty()
+        && open.metadata_observations().is_empty()
+        && open.mutable_byte_operand_resolutions().is_empty()
+        && open.mutable_i64_operand_resolutions().is_empty()
+        && open.mutable_byte_operands().is_empty()
+        && open.mutable_i64_operands().is_empty()
+        && open.retired_logical_handles().is_empty()
+        && open.grant_refusals().is_empty())
+    .then_some(identity)
+}
+
+/// Whether one `final_path_name_by_handle` (tag 31) attempt is an exact
+/// handle-preserving observation on `identity` under the bounded
+/// query-release contract. Buffer custody, the returned path, and the result
+/// are rechecked through the checked-interpreter record constructor so the
+/// eligibility mirror cannot drift from the replay grammar.
+fn native_final_path_query_is_exact(
+    query: &checked_interpreter::FilesystemOperationAttempt,
+    identity: checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> bool {
+    use checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind, FilesystemObservationProvider as Provider,
+        FilesystemOperationResult as ResultValue,
+        FilesystemReturnedPathCompleteness as Completeness,
+        FilesystemReturnedPathKind as ReturnedKind, FilesystemScalarOperandValue as ScalarValue,
+    };
+    let Some(ResultValue::Scalar(result)) = query.result() else {
+        return false;
+    };
+    let Some(post_error) = query.post_error() else {
+        return false;
+    };
+    let [capacity, flags] = query.scalar_operands() else {
+        return false;
+    };
+    let ScalarValue::U64(capacity_value) = capacity.value() else {
+        return false;
+    };
+    let ScalarValue::U32(flags_value) = flags.value() else {
+        return false;
+    };
+    let [returned] = query.returned_paths() else {
+        return false;
+    };
+    let [resolution] = query.mutable_byte_operand_resolutions() else {
+        return false;
+    };
+    let [mutable] = query.mutable_byte_operands() else {
+        return false;
+    };
+    let [handle] = query.logical_handle_inputs() else {
+        return false;
+    };
+    query.operation_tag() == 31
+        && query.provider() == Provider::RealScoped
+        && capacity.operand_ordinal() == 2
+        && flags.operand_ordinal() == 3
+        && returned.operand_ordinal() == 1
+        && returned.kind() == ReturnedKind::FinalPath
+        && returned.completeness() == Completeness::Complete
+        && resolution.operand_ordinal() == 1
+        && mutable.operand_ordinal() == 1
+        && handle.operand_ordinal() == 0
+        && handle.kind() == HandleKind::Native
+        && handle.resolution() == InputResolution::Resolved(identity)
+        && checked_interpreter::FilesystemNativeHandleFinalPathQueryReplayRecord::new(
+            capacity_value,
+            flags_value,
+            result,
+            post_error,
+            resolution.bytes().to_vec(),
+            mutable.pre_bytes().to_vec(),
+            mutable.post_bytes().to_vec(),
+            returned.bytes().to_vec(),
+        )
+        .is_ok()
+        && query.byte_operands().is_empty()
+        && query.path_like_operands().is_empty()
+        && query.rooted_path_operand_resolutions().is_empty()
+        && query.observed_byte_regions().is_empty()
+        && query.metadata_observations().is_empty()
+        && query.mutable_i64_operand_resolutions().is_empty()
+        && query.mutable_i64_operands().is_empty()
+        && query.authorized_paths().is_empty()
+        && query.logical_handle_output().is_none()
+        && query.retired_logical_handles().is_empty()
+        && query.grant_refusals().is_empty()
+}
+
+/// Whether one `get_last_error` (tag 35) attempt is an exact handle-free
+/// error-slot observation inside a bounded query-release chain.
+fn native_error_observation_is_exact(
+    operation: &checked_interpreter::FilesystemOperationAttempt,
+) -> bool {
+    use checked_interpreter::{
+        FilesystemObservationProvider as Provider, FilesystemOperationResult as ResultValue,
+    };
+    let Some(post_error) = operation.post_error() else {
+        return false;
+    };
+    operation.operation_tag() == 35
+        && operation.provider() == Provider::RealScoped
+        && operation.result() == Some(ResultValue::Scalar(i64::from(post_error)))
+        && operation.scalar_operands().is_empty()
+        && operation.byte_operands().is_empty()
+        && operation.path_like_operands().is_empty()
+        && operation.rooted_path_operand_resolutions().is_empty()
+        && operation.returned_paths().is_empty()
+        && operation.observed_byte_regions().is_empty()
+        && operation.metadata_observations().is_empty()
+        && operation.mutable_byte_operand_resolutions().is_empty()
+        && operation.mutable_i64_operand_resolutions().is_empty()
+        && operation.mutable_byte_operands().is_empty()
+        && operation.mutable_i64_operands().is_empty()
+        && operation.authorized_paths().is_empty()
+        && operation.logical_handle_inputs().is_empty()
+        && operation.logical_handle_output().is_none()
+        && operation.retired_logical_handles().is_empty()
+        && operation.grant_refusals().is_empty()
+}
+
+/// Whether one `close_handle` (tag 29) attempt is the exact successful
+/// release that retires `identity` at the end of a bounded query-release
+/// chain.
+fn source_native_query_close_is_exact(
+    close: &checked_interpreter::FilesystemOperationAttempt,
+    identity: checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> bool {
+    use checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind, FilesystemObservationProvider as Provider,
+        FilesystemOperationResult as ResultValue,
+    };
+    let Some(ResultValue::Scalar(result)) = close.result() else {
+        return false;
+    };
+    let [handle] = close.logical_handle_inputs() else {
+        return false;
+    };
+    close.operation_tag() == 29
+        && close.provider() == Provider::RealScoped
+        && result != 0
+        && handle.operand_ordinal() == 0
+        && handle.kind() == HandleKind::Native
+        && handle.resolution() == InputResolution::Resolved(identity)
+        && close.retired_logical_handles() == [identity]
+        && close.scalar_operands().is_empty()
+        && close.byte_operands().is_empty()
+        && close.path_like_operands().is_empty()
+        && close.rooted_path_operand_resolutions().is_empty()
+        && close.returned_paths().is_empty()
+        && close.observed_byte_regions().is_empty()
+        && close.metadata_observations().is_empty()
+        && close.mutable_byte_operand_resolutions().is_empty()
+        && close.mutable_i64_operand_resolutions().is_empty()
+        && close.mutable_byte_operands().is_empty()
+        && close.mutable_i64_operands().is_empty()
+        && close.authorized_paths().is_empty()
+        && close.logical_handle_output().is_none()
+        && close.grant_refusals().is_empty()
 }
