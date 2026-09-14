@@ -130,7 +130,7 @@ fn primitive_read_width_and_definition_substitutions_reject_on_every_target() {
                     .unwrap();
                 assert_eq!(
                     normalization.kind,
-                    crate::selection::scalar_call_abi::integer_abi_normalization(*scalar)
+                    crate::selection::scalar_call_abi::integer_carrier_normalization(*scalar)
                 );
                 assert!(normalization.provenance.operations.is_empty());
                 assert!(normalization.provenance.fuel.is_empty());

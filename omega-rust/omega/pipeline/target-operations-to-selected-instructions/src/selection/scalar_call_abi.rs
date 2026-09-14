@@ -503,8 +503,9 @@ pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
     }
 }
 
-/// ABI homes only promise the scalar's low bits, not the rest of the GPR.
-pub(super) fn integer_abi_normalization(scalar_type: ScalarType) -> SelectedInstructionKind {
+/// Normalize the scalar's low bits to its full-register signed/unsigned value.
+/// ABI inputs and modular arithmetic results both require this carrier boundary.
+pub(super) fn integer_carrier_normalization(scalar_type: ScalarType) -> SelectedInstructionKind {
     match scalar_type {
         ScalarType::Boolean => SelectedInstructionKind::ZeroExtendU8,
         ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {

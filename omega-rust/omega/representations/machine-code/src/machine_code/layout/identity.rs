@@ -207,6 +207,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::SaturatingAddU64 => 55,
         Family::ExactDivideU64 => 56,
         Family::WrappingRemainderI64 => 57,
+        Family::WrappingAddI64 => 58,
         Family::Load8 => 33,
         Family::Load16 => 34,
         Family::Load32 => 30,

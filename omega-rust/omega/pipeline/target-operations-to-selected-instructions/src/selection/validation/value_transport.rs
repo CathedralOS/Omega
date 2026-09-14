@@ -119,6 +119,7 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::SaturatingAddU64 { left, right }
                 | Instruction::ExactBinary { left, right, .. }
                 | Instruction::WrappingRemainder { left, right, .. }
+                | Instruction::WrappingAdd { left, right }
         | Instruction::BitwiseAnd { left, right }
         | Instruction::BitwiseXor { left, right }
         | Instruction::IeeeFloatCompare { left, right, .. }

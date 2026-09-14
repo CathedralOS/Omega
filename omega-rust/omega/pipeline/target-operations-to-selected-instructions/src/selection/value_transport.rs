@@ -58,6 +58,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::SaturatingAddU64 { left, right }
                 | Instruction::ExactBinary { left, right, .. }
                 | Instruction::WrappingRemainder { left, right, .. }
+                | Instruction::WrappingAdd { left, right }
                 | Instruction::BitwiseAnd { left, right }
                 | Instruction::BitwiseXor { left, right }
                 | Instruction::IeeeFloatCompare { left, right, .. }

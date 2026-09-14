@@ -101,12 +101,12 @@ pub(super) fn validate(
                 },
             )?;
             output
-        } else if crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type)
+        } else if crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
             != SelectedInstructionKind::CopyI64
         {
             let output = replay.result_register(value, site, scalar_type)?;
             replay.check_instruction(
-                crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type),
+                crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
                 constraints.keys.copy_i64,
                 &[input, output],
                 &SelectedInstructionProvenance {

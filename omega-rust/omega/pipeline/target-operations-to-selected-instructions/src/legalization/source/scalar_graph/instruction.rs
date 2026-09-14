@@ -489,6 +489,12 @@ pub(super) fn project(
                 right: *right,
             }
         }
+        AbstractOperation::WrappingIntegerAdd { left, right, .. } => {
+            LegalizedScalarInstructionKind::WrappingAdd {
+                left: *left,
+                right: *right,
+            }
+        }
         AbstractOperation::WrappingIntegerRemainder {
             psi_operation,
             obligation,

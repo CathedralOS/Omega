@@ -16,3 +16,4 @@ pub(crate) mod structural_case;
 mod unit_graph;
 mod unit_view_graph;
 mod widening;
+mod wrapping_add;

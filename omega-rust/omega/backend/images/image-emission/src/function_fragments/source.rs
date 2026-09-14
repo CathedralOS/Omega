@@ -334,6 +334,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::IntegerBitwiseAnd { .. }
                 | AbstractOperation::IntegerBitwiseXor { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
+                // Wrapping add has no overflow obligation. Mandatory replay
+                // still checks exact operands and the low-width normalization.
+                | AbstractOperation::WrappingIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerDivide { .. }
                 // Mandatory source/selection replay also binds the remainder's
                 // operand snapshots and accepted nonzero-divisor evidence.

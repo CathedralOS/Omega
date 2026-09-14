@@ -301,6 +301,7 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::ByteViewAddress => MachineSemanticKind::ByteViewAddress,
         SelectedInstructionKind::HostedExitProcessI32 => MachineSemanticKind::HostedExitProcessI32,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
+        SelectedInstructionKind::WrappingAddI64 => MachineSemanticKind::WrappingAddI64,
         SelectedInstructionKind::BitwiseAndI64 => MachineSemanticKind::BitwiseAndI64,
         SelectedInstructionKind::BitwiseXorI64 => MachineSemanticKind::BitwiseXorI64,
         SelectedInstructionKind::SaturatingSubtractU64 => {

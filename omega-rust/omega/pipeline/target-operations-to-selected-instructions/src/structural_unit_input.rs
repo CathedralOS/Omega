@@ -113,14 +113,14 @@ pub(crate) fn accepts_borrowed_parameters(
             return false;
         };
         let primitive = matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_));
-        // Shared record observations use the same exact incoming pointer ABI.
-        // The operation reader separately rejoins each readable field and result.
-        let shared_record = semantic.access == StructuralAccess::SharedBorrow
-            && matches!(declaration.shape, StructuralTypeShape::Record { .. });
+        // Returning a scalar does not change a borrowed record's pointer ABI.
+        // Per-operation replay, not the result shape, decides whether this
+        // access permits each field observation or mutation.
+        let record = matches!(declaration.shape, StructuralTypeShape::Record { .. });
         // Each borrowed parameter retains its own exact referent and placement;
         // neighboring inputs do not change the admissibility of that pointer.
         if result_shape.is_some()
-            && !shared_record
+            && !record
             && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
             && !matches!(declaration.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
@@ -145,8 +145,7 @@ pub(crate) fn accepts_borrowed_parameters(
             || !(matches!(
                 semantic.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ) || semantic.access == StructuralAccess::SharedBorrow
-                && (primitive || shared_record))
+            ) || semantic.access == StructuralAccess::SharedBorrow && (primitive || record))
             || semantic.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || !semantic.qualifications.is_empty()
             || !semantic.projected_qualifications.is_empty()

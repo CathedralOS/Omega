@@ -128,6 +128,7 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::SaturatingAddU64
                 | MachineAlternativeFamily::ExactDivideU64
                 | MachineAlternativeFamily::WrappingRemainderI64
+                | MachineAlternativeFamily::WrappingAddI64
                 | MachineAlternativeFamily::Float32ToBits
                 | MachineAlternativeFamily::Float64ToBits
                 | MachineAlternativeFamily::BitsToFloat32

@@ -64,6 +64,56 @@ fn bitwise_and_attribution_requires_a_unique_authored_operation_ordinal() {
 }
 
 #[test]
+fn wrapping_add_attribution_requires_its_exact_complete_interval_and_ordinal() {
+    let (fragment, mut source) = fixture();
+    let operation = OperationId::new(2).unwrap();
+    source.operations[1] = AbstractOperation::WrappingIntegerAdd {
+        psi_operation: operation,
+        result: ValueId::new(3).unwrap(),
+        scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+        left: ValueId::new(1).unwrap(),
+        right: ValueId::new(1).unwrap(),
+    };
+    let rows = produce(&fragment, &source).unwrap();
+    validate(&fragment, &source, &rows).unwrap();
+    let position = rows
+        .iter()
+        .position(|row| row.site == SemanticCodeSite::Operation(operation))
+        .unwrap();
+    assert_eq!(
+        (
+            rows[position].operation_ordinal,
+            rows[position].code_offset,
+            rows[position].byte_count
+        ),
+        (1, 5, 2)
+    );
+    for corruption in 0..4 {
+        let mut changed = rows.clone();
+        match corruption {
+            0 => {
+                changed.remove(position);
+            }
+            1 => changed[position].byte_count -= 1,
+            2 => {
+                // A neighboring instruction cannot be absorbed into the add's
+                // interval merely because both lie in the same source block.
+                changed[position].code_offset -= 1;
+                changed[position].byte_count += 1;
+            }
+            3 => changed[position].operation_ordinal = 0,
+            _ => unreachable!(),
+        }
+        assert!(
+            validate(&fragment, &source, &changed).is_err(),
+            "wrapping add attribution corruption {corruption}"
+        );
+    }
+    source.operations.push(source.operations[1].clone());
+    assert!(ordinal(&source, SemanticCodeSite::Operation(operation)).is_err());
+}
+
+#[test]
 fn wrapping_remainder_attribution_requires_a_unique_authored_operation_ordinal() {
     let (_, mut source) = fixture();
     let operation = OperationId::new(2).unwrap();

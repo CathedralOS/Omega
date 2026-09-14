@@ -12,6 +12,57 @@ const DIVIDE: &str =
 }";
 
 #[test]
+fn wrapping_add_normalizes_each_carrier_before_a_comparison() {
+    for (omega_type, c_type, maximum, minimum, signed) in [
+        ("i8", "int8_t", "INT8_MAX", "INT8_MIN", true),
+        ("u8", "uint8_t", "UINT8_MAX", "0", false),
+        ("i16", "int16_t", "INT16_MAX", "INT16_MIN", true),
+        ("u16", "uint16_t", "UINT16_MAX", "0", false),
+        ("i32", "int32_t", "INT32_MAX", "INT32_MIN", true),
+        ("u32", "uint32_t", "UINT32_MAX", "0", false),
+        ("i64", "int64_t", "INT64_MAX", "INT64_MIN", true),
+        ("u64", "uint64_t", "UINT64_MAX", "0", false),
+    ] {
+        let artifact = produce_source(
+            "wrap",
+            &format!(
+                "machine wrap(left: {omega_type} in Wrapping, right: {omega_type} in Wrapping) -> bool {{
+                    let sum: {omega_type} in Wrapping = left + right;
+                    sum < left
+                }}"
+            ),
+        );
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
+        ] {
+            publish(&artifact, target);
+        }
+        let underflow = if signed {
+            format!("if (omega_entry({minimum}, -1)) return 4;")
+        } else {
+            String::new()
+        };
+        membership::execute(
+            &artifact,
+            &format!(
+                "#include <stdbool.h>\n#include <stdint.h>\n
+                extern bool omega_entry({c_type}, {c_type});
+                int main(void) {{
+                    if (!omega_entry({maximum}, 1)) return 1;
+                    if (omega_entry(2, 3)) return 2;
+                    if (!omega_entry({maximum}, {maximum})) return 3;
+                    {underflow}
+                    return 0;
+                }}"
+            ),
+        );
+    }
+}
+
+#[test]
 fn exact_divide_u64_publishes_four_targets_and_runs_non_power_of_two_divisors() {
     let artifact = produce_source("divide", DIVIDE);
     for target in [

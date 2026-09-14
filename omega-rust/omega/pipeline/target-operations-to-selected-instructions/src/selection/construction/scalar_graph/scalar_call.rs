@@ -235,7 +235,7 @@ pub(super) fn emit(
         &builder.constraints.keys,
     )
     .unwrap_or((
-        crate::selection::scalar_call_abi::integer_abi_normalization(scalar_type),
+        crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
         builder.constraints.keys.copy_i64,
     ));
     builder.emit(

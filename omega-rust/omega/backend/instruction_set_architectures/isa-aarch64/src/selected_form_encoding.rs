@@ -587,6 +587,7 @@ fn family_and_operand_count(
         SelectedInstructionKind::ZeroExtendU32 => (MachineAlternativeFamily::ZeroExtendU32, 2),
         SelectedInstructionKind::ByteViewAddress => (MachineAlternativeFamily::ByteViewAddress, 3),
         SelectedInstructionKind::ExactAddI64 { .. } => (MachineAlternativeFamily::ExactAddI64, 3),
+        SelectedInstructionKind::WrappingAddI64 => (MachineAlternativeFamily::WrappingAddI64, 3),
         SelectedInstructionKind::BitwiseAndI64 => (MachineAlternativeFamily::BitwiseAndI64, 3),
         SelectedInstructionKind::BitwiseXorI64 => (MachineAlternativeFamily::BitwiseXorI64, 3),
         SelectedInstructionKind::SaturatingSubtractU64 => {
@@ -797,7 +798,9 @@ fn encode_unchecked(
                 0xeb00_001f | (u32::from(registers[1]) << 16) | (u32::from(registers[0]) << 5),
             );
         }
-        SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
+        SelectedInstructionKind::ByteViewAddress
+        | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::ExactAddI64 { .. } => {
             words.push(
                 0x8b00_0000
                     | (u32::from(registers[1]) << 16)
@@ -1435,7 +1438,9 @@ fn validate_decoded(
                     right: registers[1],
                 }]
         }
-        SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
+        SelectedInstructionKind::ByteViewAddress
+        | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::ExactAddI64 { .. } => {
             decoded
                 == [DecodedWord::Add {
                     left: registers[0],
@@ -1696,6 +1701,7 @@ fn footprint(
         SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseXorI64
+        | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
@@ -1803,6 +1809,7 @@ fn footprint(
                 | SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::SaturatingSubtractU64
                 | SelectedInstructionKind::SaturatingAddU64
+                | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
@@ -1828,6 +1835,7 @@ fn footprint(
                 | SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::SaturatingSubtractU64
                 | SelectedInstructionKind::SaturatingAddU64
+                | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
@@ -2628,6 +2636,61 @@ mod tests {
         assert!(
             encode_aarch64_selected_form(&physical, kind, wrong_alternative, &operands).is_err()
         );
+    }
+
+    #[test]
+    fn wrapping_add_preserves_aliases_and_rejects_exact_family_or_changed_bytes() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let views = ["x3", "x9", "x20"].map(|name| physical.model().view_named(name).unwrap().id);
+        let kind = SelectedInstructionKind::WrappingAddI64;
+        let key = alternative(MachineAlternativeFamily::WrappingAddI64);
+        for left in views {
+            for right in views {
+                for output in views {
+                    let operands = [left, right, output];
+                    let encoded =
+                        encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
+                    validate_aarch64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        encoded.bytes(),
+                    )
+                    .unwrap();
+                    assert!(!encoded.footprint().writes_nzcv);
+                    assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
+                    assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
+                    let mut changed = encoded.bytes().to_vec();
+                    changed[0] ^= 1;
+                    assert!(
+                        validate_aarch64_selected_form_encoding(
+                            &physical, kind, key, &operands, &changed
+                        )
+                        .is_err()
+                    );
+                    assert!(
+                        encode_aarch64_selected_form(
+                            &physical,
+                            kind,
+                            alternative(MachineAlternativeFamily::ExactAddI64),
+                            &operands
+                        )
+                        .is_err()
+                    );
+                    assert!(
+                        validate_aarch64_selected_form_encoding(
+                            &physical,
+                            kind,
+                            alternative(MachineAlternativeFamily::ExactAddI64),
+                            &operands,
+                            encoded.bytes()
+                        )
+                        .is_err()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

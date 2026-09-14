@@ -119,7 +119,9 @@ pub(super) fn entry(
                 parameter.scalar_type,
             )?;
             builder.emit(
-                crate::selection::scalar_call_abi::integer_abi_normalization(parameter.scalar_type),
+                crate::selection::scalar_call_abi::integer_carrier_normalization(
+                    parameter.scalar_type,
+                ),
                 builder.constraints.keys.copy_i64,
                 &[value, normalized],
                 provenance,
