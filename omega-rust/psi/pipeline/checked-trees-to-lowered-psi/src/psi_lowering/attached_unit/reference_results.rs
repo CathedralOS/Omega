@@ -1,6 +1,7 @@
 //! Reference carriers retain ingress provenance and the exact source loan end.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{

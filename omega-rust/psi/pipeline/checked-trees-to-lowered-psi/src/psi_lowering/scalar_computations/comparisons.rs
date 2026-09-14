@@ -5,6 +5,8 @@
 //! Exact selected requirement/application custody remains separate from Omega's
 //! provider authority. Proof-only float equality never supplies executable meaning.
 use super::*;
+use crate::psi_lowering::operation_emission::LoweredScalarBinding;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 
 #[cfg(test)]
 mod tests;

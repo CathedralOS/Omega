@@ -1,6 +1,8 @@
 //! Initialized primitive referents retain authored identity apart from SSA locals.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::statement::{StatementNode, TableLocalData};
 
 pub(crate) mod borrows;

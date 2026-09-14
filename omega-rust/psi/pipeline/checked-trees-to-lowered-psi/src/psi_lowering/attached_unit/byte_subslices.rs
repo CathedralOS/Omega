@@ -1,6 +1,8 @@
 //! Source-bound byte ranges are evaluated at their authored call positions.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan};
 

@@ -19,9 +19,32 @@ The subordinate owners follow the work:
 
 - [Unit closures](src/psi_lowering/attached_unit.rs) assemble calls and storage.
 - [Scalar closures](src/psi_lowering/scalar_call_closure.rs) assemble scalar graphs.
+- [Scalar graph preparation](src/psi_lowering/scalar_graph_lowering.rs) produces
+  [prepared states](src/psi_lowering/scalar_graph_lowering/prepared_graph.rs):
+  ordered bindings, structural effects, transfers, and their contract.
+- [Operation emission](src/psi_lowering/operation_emission.rs) dispatches a scalar
+  binding to expression, store, selected comparison, or call emission.
+- [Operation proofs](src/psi_lowering/operation_proofs.rs) reconstructs obligations
+  from the completed module and fills missing evidence in deterministic order.
 - [Evidence lowering](src/psi_lowering/evidence_lowering.rs) retains proof subjects.
 - [Source custody](src/psi_lowering/call_source_custody.rs) preserves call identities.
 - [Tests](src/psi_lowering/tests.rs) exercise completed artifacts and invalid custody.
+
+Within emission, [calls](src/psi_lowering/operation_emission/calls.rs) owns argument
+staging and call-requirement allocation;
+[expressions](src/psi_lowering/operation_emission/expressions.rs) owns scalar leaves,
+with [Boolean](src/psi_lowering/operation_emission/boolean.rs) and
+[integer](src/psi_lowering/operation_emission/integer.rs) operations beside it.
+The invocation-owned [buffer](src/psi_lowering/operation_emission/buffer.rs)
+retains operation identities and source-occurrence companions. Short-circuit
+expressions become blocks in [Boolean control](src/psi_lowering/boolean_control.rs);
+they are not eagerly evaluated by the leaf emitter.
+
+Working plans live with these operations, not in the pipeline root's namespace.
+Content result records remain with [content lowering](src/psi_lowering/content_conservation.rs).
+Their existing public re-exports are unchanged. Proof completion runs only after
+the complete call/storage closure is assembled; it is not a side effect of
+emitting one expression.
 
 Shared scalar cleanup collects runtime inputs through
 [ordinary operation traversal](src/psi_lowering/shared_runtime_parameters.rs),

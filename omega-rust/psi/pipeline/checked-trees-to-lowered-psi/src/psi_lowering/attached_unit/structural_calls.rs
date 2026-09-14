@@ -4,6 +4,7 @@
 //! same reconstruction as a claim-bearing call.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 

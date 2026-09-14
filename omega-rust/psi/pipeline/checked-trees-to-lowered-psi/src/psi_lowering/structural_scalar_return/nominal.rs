@@ -6,6 +6,10 @@
 //! would not describe the completed scalar caller's live observations.
 
 use super::*;
+use crate::psi_lowering::boolean_control::LoweredBooleanDecisionExit;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 
 /// Reuse the already ratified bounded nominal-Unit closure construction, then
 /// replace only its synthetic entry body with the checked scalar computation.

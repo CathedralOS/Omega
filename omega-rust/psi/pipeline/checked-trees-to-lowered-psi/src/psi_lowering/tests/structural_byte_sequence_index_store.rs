@@ -130,7 +130,7 @@ fn caller_byte_index_range_is_checked_against_the_evaluated_argument() {
     };
     lowered.proof_bundle.evidence.clear();
     assert!(matches!(
-        crate::psi_lowering::operation_emission::finalize_operation_proofs(&mut lowered),
+        crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered),
         Err(LoweringError::OperationProofUnavailable(_))
     ));
 }

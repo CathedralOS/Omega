@@ -3,6 +3,11 @@
 //! backward continuation assembly never publishes an initializer prematurely.
 
 use super::*;
+use crate::psi_lowering::operation_emission::LoweredScalarBinding;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+};
 
 pub(super) struct Prepared {
     pub(super) value_types: Vec<QualifiedScalarType>,

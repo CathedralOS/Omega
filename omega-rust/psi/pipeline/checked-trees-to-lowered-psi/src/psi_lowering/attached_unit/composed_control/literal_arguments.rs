@@ -1,6 +1,7 @@
 //! Materialize immutable literals at their selected call and authored argument position.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 pub(super) fn evaluate(
     checked: &CheckedTrees,

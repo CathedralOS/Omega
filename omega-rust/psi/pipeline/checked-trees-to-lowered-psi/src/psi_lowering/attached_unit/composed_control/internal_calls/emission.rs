@@ -1,6 +1,7 @@
 //! Calls into complete Unit bodies in the shared catalog.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 
 pub(in crate::psi_lowering::attached_unit::composed_control) fn emit_call_operation(
     checked: &CheckedTrees,

@@ -1,12 +1,27 @@
 //! Scalar-graph preparation, validation, partial evaluation, and lowering.
 
 use super::*;
+use crate::psi_lowering::operation_emission::LoweredScalarBinding;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::buffer::SourceCallCoordinate;
+use crate::psi_lowering::operation_emission::calls::{
+    LoweredDirectCallBinding, ScalarCallCrashScope,
+};
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::operation_emission::integer::{
+    LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
+};
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, PreparedScalarContract,
+    PreparedScalarMachine,
+};
 use crate::psi_lowering::scalar_qualifications::PreparedScalarQualifications;
 
 mod bindings;
 pub(crate) mod branch_destinations;
 pub(crate) mod cycles;
 mod field_stores;
+pub(super) mod prepared_graph;
 pub(crate) mod structural_values;
 pub(crate) mod unit_operations;
 use crate::psi_lowering::scalar_computations as computations;

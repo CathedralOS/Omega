@@ -7,6 +7,8 @@
 //! conflating reads by final field identity or projected type alone.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::data::DataMember;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,

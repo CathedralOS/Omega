@@ -1,6 +1,7 @@
 //! State-local scalar storage uses the shared source-bound value namespace.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 use crate::psi_lowering::scalar_bindings::ScalarBindings;
 use checked_trees::{CheckedScalarBindingDestination, CheckedScalarBindingValue};
 

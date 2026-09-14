@@ -1,6 +1,10 @@
 //! Lower checked branch outcomes through the existing selected-arm value path.
 
 use super::*;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator,
+};
 
 pub(crate) fn validate_coordinates(
     guard: u32,

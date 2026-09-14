@@ -9,6 +9,11 @@
 //! this preserves disposal order without remapping survivors after every move.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+};
 use checked_trees::{
     CheckedStructuralRecordFieldValue, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
 };

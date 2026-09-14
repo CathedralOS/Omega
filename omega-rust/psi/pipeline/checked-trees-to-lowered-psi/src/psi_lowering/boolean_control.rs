@@ -1,7 +1,57 @@
 //! Short-circuit Boolean decision lowering and terminal control emission.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::psi_lowering) enum LoweredBooleanDecision {
+    Value(LoweredBooleanReturnExpression),
+    Test {
+        condition: LoweredBooleanReturnExpression,
+        when_true: Box<LoweredBooleanDecision>,
+        when_false: Box<LoweredBooleanDecision>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::psi_lowering) enum LoweredBooleanDecisionExit {
+    Return,
+    Jump { target: BlockId },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::psi_lowering) struct PendingConditionalBindingBlock {
+    pub(in crate::psi_lowering) id: BlockId,
+    pub(in crate::psi_lowering) parameters: Vec<ValueDeclaration>,
+    pub(in crate::psi_lowering) target: BlockId,
+    pub(in crate::psi_lowering) arguments: Vec<LoweredDirectExpression>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::psi_lowering) struct PendingMixedTupleBindingBlocks {
+    pub(in crate::psi_lowering) first_id: BlockId,
+    pub(in crate::psi_lowering) original_parameter_count: usize,
+    pub(in crate::psi_lowering) arguments: Vec<LoweredDirectExpression>,
+    pub(in crate::psi_lowering) stage_parameters: Vec<Vec<ValueDeclaration>>,
+    pub(in crate::psi_lowering) target: BlockId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::psi_lowering) enum PendingNestedBlockGroup {
+    ConditionalBinding(PendingConditionalBindingBlock),
+    TupleBinding(PendingMixedTupleBindingBlocks),
+}
+
+impl PendingNestedBlockGroup {
+    pub(in crate::psi_lowering) fn first_id(&self) -> BlockId {
+        match self {
+            Self::ConditionalBinding(block) => block.id,
+            Self::TupleBinding(blocks) => blocks.first_id,
+        }
+    }
+}
 #[allow(clippy::too_many_arguments)]
 pub(super) fn bind_boolean_decision<F>(
     decision: LoweredBooleanDecision,

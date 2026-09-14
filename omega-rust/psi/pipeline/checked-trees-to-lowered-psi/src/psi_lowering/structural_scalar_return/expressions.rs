@@ -2,6 +2,9 @@
 //! structural scalar returns.
 
 use super::*;
+use crate::psi_lowering::boolean_control::LoweredBooleanDecision;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 
 pub(super) fn is_structural_scalar_return_expression(
     expression: &LoweredDirectExpression,

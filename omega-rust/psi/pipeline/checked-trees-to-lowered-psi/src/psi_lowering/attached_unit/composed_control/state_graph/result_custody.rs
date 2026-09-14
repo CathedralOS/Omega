@@ -7,6 +7,7 @@
 //! local roots use Terminal's existing edge disposal, after argument evaluation.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{StatementNode, TransitionTargetNode};
 use language_semantics::{

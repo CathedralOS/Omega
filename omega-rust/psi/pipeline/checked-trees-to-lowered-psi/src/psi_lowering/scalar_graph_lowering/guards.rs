@@ -1,6 +1,11 @@
 //! Evaluate the selected guard once before dispatching either branch.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower(

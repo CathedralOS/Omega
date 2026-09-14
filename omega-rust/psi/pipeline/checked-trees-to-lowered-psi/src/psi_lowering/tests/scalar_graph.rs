@@ -1,6 +1,11 @@
 //! Scalar-graph module assembly regressions.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, PreparedScalarContract,
+};
 
 #[test]
 fn scalar_graph_replays_parameter_qualification_contracts_from_source() {

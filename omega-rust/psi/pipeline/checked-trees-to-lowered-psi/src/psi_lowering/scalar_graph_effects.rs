@@ -1,6 +1,10 @@
 //! Non-scalar graph effects consume completed operands without adding value slots.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::LoweredScalarEffect;
 
 pub(crate) fn emit(
     effects: &[LoweredScalarEffect],

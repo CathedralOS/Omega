@@ -1,6 +1,7 @@
 //! Rejoin primitive-reference returns with their complete authored statement roster.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 use checked_trees::statement::StatementNode;
 
 pub(super) fn validate(

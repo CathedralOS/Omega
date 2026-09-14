@@ -1,6 +1,9 @@
 //! Primitive-reference store emission shared by Unit and scalar-result bodies.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 
 /// The resolved primitive endpoint is shared by ordinary and composed bodies.
 /// Their namespaces choose a parameter or live local; this owner validates the

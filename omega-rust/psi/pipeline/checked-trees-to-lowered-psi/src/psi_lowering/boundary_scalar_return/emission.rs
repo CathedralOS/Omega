@@ -1,6 +1,8 @@
 //! Boundary-return body emission in an already selected catalog and identity space.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
 
 pub(crate) struct BoundaryScalarReturnCatalogs<'a> {
     pub(crate) structural_types: &'a [StructuralTypeDeclaration],

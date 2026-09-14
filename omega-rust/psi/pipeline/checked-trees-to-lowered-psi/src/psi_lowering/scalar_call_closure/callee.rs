@@ -1,6 +1,7 @@
 //! Exact scalar-call signatures retain the kind of checked body that owns them.
 
 use super::*;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
 
 pub(crate) enum CheckedScalarCallee<'checked> {
     Graph(&'checked checked_trees::CheckedScalarMachineGraph),

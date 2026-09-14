@@ -1,6 +1,8 @@
 //! Three-block Terminal emission after exact admission and catalog projection.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
 
 pub(super) fn emit_composed_unit_control(
     checked: &CheckedTrees,

@@ -5,6 +5,9 @@
 //! this producer dominates each use. No array payload crosses a block parameter.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::LoweredScalarArrayConstruction;
 use checked_trees::CheckedScalarComputationStructuralArgument;
 use checked_trees::expression::ExpressionHandle;
 

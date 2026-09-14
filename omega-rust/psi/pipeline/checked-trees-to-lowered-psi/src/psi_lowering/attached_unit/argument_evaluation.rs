@@ -1,6 +1,13 @@
 //! Scalar operand evaluation within an existing machine's structural frontier.
 
 use super::*;
+use crate::psi_lowering::operation_emission::LoweredScalarBinding;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator,
+};
 use checked_trees::CheckedCallScalarArgument;
 
 mod scalar_control;

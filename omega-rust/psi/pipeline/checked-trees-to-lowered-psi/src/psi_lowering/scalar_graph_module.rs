@@ -1,6 +1,18 @@
 //! Scalar-graph terminal module assembly.
 
 use super::*;
+use crate::psi_lowering::boolean_control::{
+    LoweredBooleanDecision, LoweredBooleanDecisionExit, PendingNestedBlockGroup,
+};
+use crate::psi_lowering::operation_emission::LoweredScalarBinding;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+    PreparedScalarContract,
+};
 
 mod owned_parameters;
 mod qualifications;

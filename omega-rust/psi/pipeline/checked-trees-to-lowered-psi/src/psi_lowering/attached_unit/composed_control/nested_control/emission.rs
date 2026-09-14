@@ -1,6 +1,7 @@
 //! Dynamic Terminal emission for general acyclic conditional graphs.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 pub(super) fn emit(
     checked: &CheckedTrees,

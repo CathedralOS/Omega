@@ -3,6 +3,13 @@
 //! normal-edge disposal, including when only one selective path constructs it.
 
 use super::*;
+use crate::psi_lowering::operation_emission::LoweredScalarBinding;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+};
 use checked_trees::data::DataMember;
 use checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,

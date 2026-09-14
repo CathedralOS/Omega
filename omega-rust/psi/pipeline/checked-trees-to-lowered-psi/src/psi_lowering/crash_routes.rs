@@ -1,6 +1,12 @@
 //! Crash-route and canonical proposition lowering.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::operation_emission::integer::{
+    LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
+};
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::LoweredCrashExit;
 
 mod argument_prefix;
 pub(crate) use argument_prefix::structural_crash_route_argument_prefix;

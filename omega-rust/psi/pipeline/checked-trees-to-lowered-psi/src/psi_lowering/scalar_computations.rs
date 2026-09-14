@@ -7,8 +7,15 @@
 //! mixed schedule and its real structural results.
 
 use super::*;
+use crate::psi_lowering::operation_emission::LoweredScalarBinding;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::buffer::SourceCallCoordinate;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 use crate::psi_lowering::scalar_bindings as storage;
 use crate::psi_lowering::scalar_graph_lowering::lower_scalar_call;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator,
+};
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 

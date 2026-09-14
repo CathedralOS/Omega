@@ -5,6 +5,9 @@
 //! independently checked canonical certificates for every partial operation.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::operation_emission::integer::LoweredIntegerBinaryKind;
 
 mod boolean;
 

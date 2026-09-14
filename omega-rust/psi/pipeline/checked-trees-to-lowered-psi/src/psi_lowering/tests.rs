@@ -1,6 +1,8 @@
 //! Root-level checked-to-terminal producer regressions.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::integer::LoweredIntegerBinaryKind;
 use language_semantics::{
     PermissionEventSource, SemanticDomainId,
     content::{
@@ -10,6 +12,7 @@ use language_semantics::{
 };
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
+use numerics::integer_policy::IntegerPolicyPrimitive;
 use source::{SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;
 use std::{path::PathBuf, sync::Arc};
