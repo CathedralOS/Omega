@@ -1774,9 +1774,16 @@ Owners include
   established table value naming exactly those rows on this installed
   realization, and a receipt for the exact issued carrier; refusal returns the
   established value for retry and issued identities cannot be replayed.
-  Remaining acceptance: descriptor-table byte materialization and consumer
-  gate/selector/IST validation, the checked `lidt` provider edge, the timer
-  device source, and the QEMU tick/halt surface.
+  Landed at 1cdd7e5ac9: the checked `lidt` provider edge is the sole
+  `InterruptTablePublicationReceipt` minting boundary — it replays the
+  exercised consumer authority's bound identity, installed-realization scope,
+  and both scope legs (processor table control plus table publication), then
+  replays the declared 10-byte pseudo-descriptor operand against the exact
+  established destination before minting; the answer accounts the operand
+  read, the `r10` scratch clobber, and the installed descriptor-table
+  register state on a published answer. Remaining acceptance:
+  descriptor-table byte materialization and consumer gate/selector/IST
+  validation, the timer device source, and the QEMU tick/halt surface.
 
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Finish unresolved-requirement fences for
   component contracts and the final carrier-owned invocation route. Concrete
