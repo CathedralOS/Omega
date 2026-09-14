@@ -1606,11 +1606,19 @@ Owners include
   must order custody or keep the family in one record consumed atomically;
   an ordinary machine cannot restate a boundary's `separate` law as its own
   `ensures`; multi-input recomposition is admitted only through one record
-  parameter at a boundary. Next acceptance: a `Vec<T>`-style container over
-  the chain — blocked on placement operations: `Vacant`/`Resident<P,T>` are
-  declared vocabulary without place/take/read operations
-  (wiki/spec/resources/placed_access.md), so no element can be established
-  inside an issued extent.
+  parameter at a boundary. The bounded-request slice adds the contract's
+  counted byte residual to `Bump` and puts the exact capacity requirement on
+  `allocate` (`requires length <= strategy.remaining`); new edges: `split`'s
+  conservation law never pins `result.taken.length`, a content-carrying
+  machine's `ensures` admits only qualification/content-projection/`separate`
+  clauses (no scalar residual equality), a `requires` bound does not
+  propagate a subtraction's lower bound, and entry `requires` facts do not
+  survive the first request's consumption of the backing — so each request's
+  residual is a caller-stated premise. Next acceptance: a `Vec<T>`-style
+  container over the chain — blocked on placement operations:
+  `Vacant`/`Resident<P,T>` are declared vocabulary without place/take/read
+  operations (wiki/spec/resources/placed_access.md), so no element can be
+  established inside an issued extent.
 
 - **ADDRESS-TRANSLATION-CANARY.** Continue Cathedral's page-table hierarchy,
   backing, policy, installation, and teardown in Omega source. Existing numeric
