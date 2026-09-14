@@ -105,8 +105,22 @@ These are unused probe machines, so runtime reachability cannot suppress their
 authored name judgments. The retained pre-repair checker fails nine of these
 16 observations and already preserves the other seven.
 
+Eleven reason-coverage controls close the closed-set inventory: every one of
+the 26 [`EpsilonRejectReason` identities](../../../bootstrap/4_epsilon/LANGUAGE.md#9-closed-rejection-and-trap-identities)
+now has at least one executed checking observation. They pin `InvalidToken` on a
+bare `!` operator, `InvalidCharacterLiteral` on a two-byte literal, both
+`IntegerLiteralOutOfRange` boundaries (the parser-adjacent `2147483648` outside
+its unary `-` operand position and the scanner-rejected `2147483649`),
+`UnexpectedToken` on `&` opening an unqualified parameter list, `MissingEntry`
+at source extent, `InvalidBoundary` on an authored `Console` body,
+`InvalidDataShape` on a mixed field/case owner, `InvalidArrayLength` on a zero
+length literal, `UseBeforeInitialization` on a `let` read inside its own
+initializer, and `EscapingView` on a stored `&[u8]` field. Each reports the
+contract anchor: the offending token, name, or literal first byte, the opening
+quote, the declaration name, or the outermost forbidden `&`.
+
 `receipt.tsv` records the measured 716,212-byte checker receipt with SHA-256
 `a6d49f0f7b2eca2c66e985daeb9380d0285a160ce468803ee5ce74dce9ac690c`.
-Every gate run reconstructs this exact receipt before comparing the 86 complete
+Every gate run reconstructs this exact receipt before comparing the 97 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.
