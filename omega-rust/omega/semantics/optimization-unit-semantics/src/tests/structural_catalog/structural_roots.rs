@@ -413,6 +413,115 @@ fn unrestricted_shared_integer_structural_field_direct_realization_validates() {
 }
 
 #[test]
+fn bounded_integer_field_reads_require_the_exact_declared_carrier_and_path() {
+    use semantic_vocabulary::BoundedIntegerType;
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+
+    let mut baseline = direct_realization_integer_structural_field_unit();
+    let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let StructuralTypeShape::Record { fields } = &mut baseline.structural_types.make_mut()[0].shape
+    else {
+        panic!("integer observation carrier is a record");
+    };
+    fields[0].field_type = StructuralFieldType::BoundedInteger(
+        BoundedIntegerType::new(integer, IntegerValue::Signed(-7), IntegerValue::Signed(17))
+            .expect("bounded i32"),
+    );
+    refresh_function_derivatives(&mut baseline, 0);
+    validate_psi_optimization_unit(&baseline)
+        .expect("a bounded field read retains its declared integer carrier");
+
+    for (sign, bits, minimum, maximum) in [
+        (
+            IntegerSign::Unsigned,
+            32,
+            IntegerValue::Unsigned(0),
+            IntegerValue::Unsigned(17),
+        ),
+        (
+            IntegerSign::Signed,
+            64,
+            IntegerValue::Signed(-7),
+            IntegerValue::Signed(17),
+        ),
+    ] {
+        let mut candidate = baseline.clone();
+        let StructuralTypeShape::Record { fields } =
+            &mut candidate.structural_types.make_mut()[0].shape
+        else {
+            unreachable!()
+        };
+        fields[0].field_type = StructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(sign, bits).expect("integer carrier"),
+                minimum,
+                maximum,
+            )
+            .expect("valid declared interval"),
+        );
+        refresh_function_derivatives(&mut candidate, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+        ));
+    }
+
+    let mut wrong_path = baseline;
+    let O::IntegerStructuralField { path, field, .. } =
+        &mut wrong_path.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    // A scalar leaf cannot be reused as a record carrier, even with the same ID.
+    path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+        *field,
+    ));
+    refresh_function_derivatives(&mut wrong_path, 0);
+    assert!(matches!(
+        validate_psi_optimization_unit(&wrong_path),
+        Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+    ));
+}
+
+#[test]
+fn bounded_integer_field_store_rejects_an_exact_carrier_without_range_authority() {
+    use semantic_vocabulary::BoundedIntegerType;
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+
+    let mut candidate = structural_scalar_field_store_unit();
+    validate_psi_optimization_unit(&candidate).expect("unbounded projected store validates");
+    let O::StructuralScalarFieldStore { field, value, .. } =
+        &candidate.functions[0].blocks[0].nodes[1].operation
+    else {
+        unreachable!()
+    };
+    let selected_field = *field;
+    let ScalarType::Integer(integer) = value.scalar_type else {
+        panic!("integer store fixture");
+    };
+    let declaration = candidate
+        .structural_types
+        .make_mut()
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Record { fields } => {
+                fields.iter_mut().find(|field| field.id == selected_field)
+            }
+            _ => None,
+        })
+        .expect("exact projected scalar field");
+    declaration.field_type = StructuralFieldType::BoundedInteger(
+        BoundedIntegerType::new(integer, IntegerValue::Signed(-7), IntegerValue::Signed(17))
+            .expect("interval contains the fixture's stored value"),
+    );
+    refresh_function_derivatives(&mut candidate, 0);
+    assert!(matches!(
+        validate_psi_optimization_unit(&candidate),
+        Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldStore { .. })
+    ));
+}
+
+#[test]
 fn shared_integer_observations_validate_each_declared_field_independently() {
     let mut candidate = direct_realization_integer_structural_field_unit();
     let mut second = candidate.functions[0].blocks[0].nodes[0].clone();

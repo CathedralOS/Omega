@@ -107,6 +107,11 @@ replay. Direct reads use the same path for established record locals and owned
 block arrivals: the actual source place is retained rather than relabeled as an
 incoming parameter. Availability and field identity are checked separately from
 physical layout, and each load produces a fresh scalar before later operations.
+Bounded integer leaves use the same load and exact signed/unsigned carrier.
+Construction range obligations and the original bounded field declaration remain
+in the input and receiving checks; equal physical layout cannot erase the range
+or authorize an unproved store. Four-target field-read controls exercise bounded
+carriers alongside wrong paths, fields, result types, homes and physical offsets.
 By-value record entry parameters retain their owned value ABI. Selection captures
 their register fragments into one activation-local input home
 when field observations or borrowed calls need an address. Whole record returns

@@ -161,7 +161,6 @@ pub(super) fn lower(
             if !types.get(&carrier).is_some_and(|declaration|
                 matches!(&declaration.shape, StructuralTypeShape::Record { fields }
                     if fields.iter().any(|candidate| candidate.id == field && !candidate.relevance.is_erased()
-                        && !matches!(candidate.field_type, StructuralFieldType::BoundedInteger(_))
                         && candidate.field_type.scalar_type() == Some(result.scalar_type))))
             {
                 return Err(invalid());

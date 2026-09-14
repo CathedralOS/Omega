@@ -110,9 +110,13 @@ paths retain canonical declaration-local IDs through the abstract graph.
 Independent native and image replay reconstruct each child declaration and
 offset from the original root; the same leaf ID in another record cannot replace
 that path. Direct reads use an empty path. Native local and block-arrival reads
-use the existing structural home and primitive load path. Indexed/case carriers,
-bounded integer leaves and broader structural call transport remain separate
-consumer dependencies.
+use the existing structural home and primitive load path, including bounded
+integer leaves. Their declarations and independently reconstructed construction
+obligations remain retained; a read's physical width/sign comes from that exact
+carrier. Bounded stores still reject without an invariant-establishment proof.
+Indexed/case carriers and broader structural call transport remain separate
+consumer dependencies. The hosted `declared_range_inference_hosted_entry_runs_natively`
+canary executes bounded signed, full-width unsigned and nested record reads.
 
 Initialized primitive locals retain their exact operation-result place and typed
 initializer. Local stores remain distinct from incoming-parameter stores; fresh
