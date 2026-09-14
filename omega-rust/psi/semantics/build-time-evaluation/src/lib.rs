@@ -149,9 +149,12 @@ pub use plan_laid::{
 };
 pub use range_endpoints::evaluate_const_range_endpoints_with_authority;
 pub use reflection::{
-    CaseDescription, DeclarationDescription, FieldDescription, NominalReferenceDescription,
-    SchemaNode, SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
-    TypeParameterDescription, construct_semantic_schema_graph, replay_semantic_schema_graph,
+    CaseDescription, DeclarationDescription, FieldDescription, MemberSelectionKey,
+    NominalReferenceDescription, SchemaNode, SchemaNodeHandle, SchemaQueryAuthority, SchemaShape,
+    ScopedSelectionReceiver, SelectionChoice, SelectionCoverage, SelectionProjection,
+    SelectionRecord, SelectionRequirement, SelectionSnapshot, SemanticSchemaGraph,
+    TypeParameterDescription, construct_semantic_schema_graph, replay_selection_snapshot,
+    replay_semantic_schema_graph,
 };
 pub use selected_operators::validate_selected_operators;
 pub use wire_plans::{compute_wire_plans, compute_wire_plans_with_authority};

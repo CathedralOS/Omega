@@ -283,7 +283,7 @@ impl SemanticSchemaGraph {
 /// package/toolchain identity when provenance exists, else the qualified
 /// display path of focused source-free trees. Both producer and replay derive
 /// through this one normalizer so the fallback cannot drift.
-fn exact_symbol_identity(
+pub(super) fn exact_symbol_identity(
     typed: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Result<(String, bool), String> {
@@ -302,15 +302,15 @@ fn exact_symbol_identity(
 
 /// The expected content of one nominal-reference edge, before handles exist.
 #[derive(Debug, Clone, PartialEq)]
-struct NominalExpectation {
-    owner_identity: String,
-    owner_kind: String,
-    name: String,
-    application_identity: String,
+pub(super) struct NominalExpectation {
+    pub(super) owner_identity: String,
+    pub(super) owner_kind: String,
+    pub(super) name: String,
+    pub(super) application_identity: String,
     /// The member type references the selected application itself: the edge
     /// must reuse the root declaration handle (the pending-derivation
     /// identity), never a fresh node.
-    is_self_edge: bool,
+    pub(super) is_self_edge: bool,
 }
 
 fn nominal_expectations(
@@ -429,7 +429,7 @@ fn collect_nominal_expectations(
 /// descriptor so the two sides cannot drift on what a member means; the
 /// producer then interns edges into nodes while replay compares
 /// expectations to stored nodes.
-fn describe_field(
+pub(super) fn describe_field(
     typed: &TypedTrees,
     field: &DataField,
     owner_identity: &str,
@@ -493,7 +493,7 @@ fn describe_type_parameter(
 /// Locate the data definition a description binds, by exact owner identity.
 /// Missing or ambiguous resolution rejects: a schema graph must bind exactly
 /// one declaration in the checking program.
-fn resolve_subject<'program>(
+pub(super) fn resolve_subject<'program>(
     typed: &'program TypedTrees,
     owner_identity: &str,
 ) -> Result<&'program DataDefinition, String> {
@@ -739,62 +739,14 @@ pub fn replay_semantic_schema_graph(
     };
     let data = resolve_subject(typed, &root.owner_identity)?;
 
-    // Authority is a claim frozen beside the content; replay re-checks the
-    // parts the current program can disprove.
-    match &graph.authority {
-        SchemaQueryAuthority::ForeignScope { .. } => {
-            let visible = typed_trees::visibility::declaration_visibility(typed, data.symbol)
-                .is_some_and(|visibility| visibility.is_public());
-            if !visible {
-                return Err(format!(
-                    "schema `{}` claims a foreign-scope query over a non-public subject; complete structural visibility is impossible",
-                    root.name
-                ));
-            }
-        }
-        SchemaQueryAuthority::OwningScope { requester_identity } => {
-            // A resolvable requester in a different package proves the owning
-            // claim was forged; an absent requester leaves the claim
-            // undisprovable at this layer (query elaboration owns admission).
-            if let Some(requester) = resolve_requester(typed, requester_identity)?
-                && !typed
-                    .symbols
-                    .same_symbol_source_package(requester, data.symbol)
-            {
-                return Err(format!(
-                    "schema `{}` claims an owning scope but its requester is outside the subject's package",
-                    root.name
-                ));
-            }
-        }
-    }
-
-    if let Some(application_identity) = &root.application_identity {
-        let expected = data
-            .generic_instance
-            .map(|instance| {
-                typed
-                    .package_qualified_type_identity(instance)
-                    .into_string()
-            })
-            .ok_or_else(|| {
-                format!(
-                    "schema `{}` claims application `{application_identity}` but the bound declaration is not a generated instance",
-                    root.name
-                )
-            })?;
-        if *application_identity != expected {
-            return Err(format!(
-                "schema `{}` application `{application_identity}` does not match the bound instance `{expected}`",
-                root.name
-            ));
-        }
-    } else if data.generic_instance.is_some() {
-        return Err(format!(
-            "schema `{}` records no application for a generated instance",
-            root.name
-        ));
-    }
+    check_authority_claim(typed, data, &graph.authority, "schema", &root.name)?;
+    check_subject_application(
+        typed,
+        data,
+        &root.application_identity,
+        "schema",
+        &root.name,
+    )?;
 
     // `resolve_subject` bound the declaration by `owner_identity`, but the
     // stored presentation facts beside it are still producer claims: the
@@ -1075,7 +1027,82 @@ pub fn replay_semantic_schema_graph(
     Ok(())
 }
 
-fn member_identity_or_name(
+/// Re-check the authority claim frozen beside a schema graph or a selection
+/// snapshot. Authority is a claim stored beside the content; replay re-checks
+/// the parts the current program can disprove. `artifact` and `subject_name`
+/// name the failing artifact in diagnostics ("schema"/"selection snapshot").
+pub(super) fn check_authority_claim(
+    typed: &TypedTrees,
+    data: &DataDefinition,
+    authority: &SchemaQueryAuthority,
+    artifact: &str,
+    subject_name: &str,
+) -> Result<(), String> {
+    match authority {
+        SchemaQueryAuthority::ForeignScope { .. } => {
+            let visible = typed_trees::visibility::declaration_visibility(typed, data.symbol)
+                .is_some_and(|visibility| visibility.is_public());
+            if !visible {
+                return Err(format!(
+                    "{artifact} `{subject_name}` claims a foreign-scope query over a non-public subject; complete structural visibility is impossible",
+                ));
+            }
+        }
+        SchemaQueryAuthority::OwningScope { requester_identity } => {
+            // A resolvable requester in a different package proves the owning
+            // claim was forged; an absent requester leaves the claim
+            // undisprovable at this layer (query elaboration owns admission).
+            if let Some(requester) = resolve_requester(typed, requester_identity)?
+                && !typed
+                    .symbols
+                    .same_symbol_source_package(requester, data.symbol)
+            {
+                return Err(format!(
+                    "{artifact} `{subject_name}` claims an owning scope but its requester is outside the subject's package",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Re-check a recorded selected-application identity against the bound
+/// declaration's generated instance: a generated instance must record its
+/// exact application, and a declared form must record none.
+pub(super) fn check_subject_application(
+    typed: &TypedTrees,
+    data: &DataDefinition,
+    recorded: &Option<String>,
+    artifact: &str,
+    subject_name: &str,
+) -> Result<(), String> {
+    if let Some(application_identity) = recorded {
+        let expected = data
+            .generic_instance
+            .map(|instance| {
+                typed
+                    .package_qualified_type_identity(instance)
+                    .into_string()
+            })
+            .ok_or_else(|| {
+                format!(
+                    "{artifact} `{subject_name}` claims application `{application_identity}` but the bound declaration is not a generated instance",
+                )
+            })?;
+        if *application_identity != expected {
+            return Err(format!(
+                "{artifact} `{subject_name}` application `{application_identity}` does not match the bound instance `{expected}`",
+            ));
+        }
+    } else if data.generic_instance.is_some() {
+        return Err(format!(
+            "{artifact} `{subject_name}` records no application for a generated instance",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn member_identity_or_name(
     typed: &TypedTrees,
     symbol: SymbolHandle,
     owner_identity: &str,
