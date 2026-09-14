@@ -189,9 +189,16 @@ fn checked_source_exact_literal_narrowing_relands_before_psi() {
     );
     assert_eq!(measured.usage().total_units(), 2);
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("narrowing artifact should cross Omega");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("narrowing artifact should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("narrowing constant should select");

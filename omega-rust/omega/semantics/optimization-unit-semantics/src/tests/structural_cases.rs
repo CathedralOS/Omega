@@ -46,11 +46,15 @@ fn source_machine_unit(source: &str, machine: &str, retain_contracts: bool) -> P
     let semantic =
         terminal_codec::encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = terminal_codec::encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let plan = terminal_psi_to_abstract_operations::lower_artifact_sections(
-        &semantic,
-        &proof,
+    let plan = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_plan())
     .expect("verified abstract lowering");
     let mut unit = reconstruct_psi_optimization_unit_seed(
         &plan,

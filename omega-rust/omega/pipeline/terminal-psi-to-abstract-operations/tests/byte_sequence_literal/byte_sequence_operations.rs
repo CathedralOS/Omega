@@ -232,14 +232,32 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
     use semantic_vocabulary::{FuelScheduleIdentity, ObligationId, ValueId};
     use terminal_psi_to_abstract_operations::{
         ProviderInstallationError, admit_provider_installation,
-        build_verified_psi_optimization_unit, lower_artifact_sections_for_optimization,
+        build_verified_psi_optimization_unit, lower_artifact_for_optimization,
     };
     let profile = AdmissionProfile::default();
-    let input = lower_artifact_sections_for_optimization(semantic, proof, &profile).unwrap();
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: semantic,
+            proof_bytes: proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .unwrap();
     let verified =
         build_verified_psi_optimization_unit(input, FuelScheduleIdentity::new(1).unwrap()).unwrap();
     optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
-    let plan = lower_artifact_sections(semantic, proof, &profile).unwrap();
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: semantic,
+            proof_bytes: proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .unwrap();
     let position = plan.functions[0]
         .operations
         .iter()
@@ -342,17 +360,35 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
 fn validate_retained_read(semantic: &[u8], proof: &[u8]) {
     use terminal_psi_to_abstract_operations::{
         ProviderInstallationError, admit_provider_installation,
-        build_verified_psi_optimization_unit, lower_artifact_sections_for_optimization,
+        build_verified_psi_optimization_unit, lower_artifact_for_optimization,
     };
     let profile = AdmissionProfile::default();
-    let input = lower_artifact_sections_for_optimization(semantic, proof, &profile).unwrap();
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: semantic,
+            proof_bytes: proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .unwrap();
     let verified = build_verified_psi_optimization_unit(
         input,
         semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
     optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
-    let plan = lower_artifact_sections(semantic, proof, &profile).unwrap();
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: semantic,
+            proof_bytes: proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .unwrap();
     let read_position = plan.functions[0]
         .operations
         .iter()

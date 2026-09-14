@@ -18,11 +18,15 @@ fn publish(
         .expect("lower checked source");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        &semantic,
-        &proof,
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("verified abstract input");
     let selections = OptimizationSelections::default();
     let optimized = crate::optimize_verified_abstract_input(

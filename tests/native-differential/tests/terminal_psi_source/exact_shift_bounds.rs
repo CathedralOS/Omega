@@ -99,9 +99,16 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
         rejected.usage().total_units()
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("guarded narrowing should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("guarded narrowing should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -189,13 +196,16 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
             if obligation == shift_obligation
     ));
 
-    let optimizer_input =
-        terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-            &semantic,
-            &proof,
-            &AdmissionProfile::default(),
-        )
-        .expect("exact shift verifies for optimizer admission");
+    let optimizer_input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("exact shift verifies for optimizer admission");
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         optimizer_input,
         TerminalFuelSchedule::CURRENT.identity(),
@@ -399,9 +409,16 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
         rejected.usage().total_units()
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("exact shift should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("exact shift should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -438,13 +455,16 @@ fn checked_source_range_proof_folds_a_later_integer_comparison() {
     let comparison_operation = comparison.id;
     let semantic = encode_module(&lowered.semantic_module).expect("range fold semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range fold proof");
-    let optimizer_input =
-        terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-            &semantic,
-            &proof,
-            &AdmissionProfile::default(),
-        )
-        .expect("range fold verifies for optimizer admission");
+    let optimizer_input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("range fold verifies for optimizer admission");
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         optimizer_input,
         TerminalFuelSchedule::CURRENT.identity(),
@@ -510,13 +530,16 @@ fn checked_source_range_comparison_proves_false_and_declines_overlap() {
             .id;
         let semantic = encode_module(&lowered.semantic_module).expect("range boundary semantics");
         let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range boundary proof");
-        let optimizer_input =
-            terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-                &semantic,
-                &proof,
-                &AdmissionProfile::default(),
-            )
-            .expect("range boundary verifies for optimizer admission");
+        let optimizer_input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_optimization_input())
+        .expect("range boundary verifies for optimizer admission");
         let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
             optimizer_input,
             TerminalFuelSchedule::CURRENT.identity(),
@@ -632,13 +655,16 @@ fn checked_source_range_comparisons_cover_both_operand_orders_and_inclusive_orde
             .id;
         let semantic = encode_module(&lowered.semantic_module).expect("range comparison semantics");
         let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range comparison proof");
-        let optimizer_input =
-            terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-                &semantic,
-                &proof,
-                &AdmissionProfile::default(),
-            )
-            .expect("range comparison verifies for optimizer admission");
+        let optimizer_input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_optimization_input())
+        .expect("range comparison verifies for optimizer admission");
         let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
             optimizer_input,
             TerminalFuelSchedule::CURRENT.identity(),
@@ -732,13 +758,16 @@ fn checked_source_range_equality_covers_both_operand_orders_and_declines_overlap
             .id;
         let semantic = encode_module(&lowered.semantic_module).expect("range equality semantics");
         let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range equality proof");
-        let optimizer_input =
-            terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-                &semantic,
-                &proof,
-                &AdmissionProfile::default(),
-            )
-            .expect("range equality verifies for optimizer admission");
+        let optimizer_input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_optimization_input())
+        .expect("range equality verifies for optimizer admission");
         let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
             optimizer_input,
             TerminalFuelSchedule::CURRENT.identity(),
@@ -884,9 +913,16 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
         rejected_value.usage().total_units()
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("exact left shift should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("exact left shift should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -956,9 +992,16 @@ fn checked_source_exact_left_shift_uses_known_count_bounds() {
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("known-count exact left shift should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("known-count exact left shift should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("known-count exact left shift should select");
@@ -1023,9 +1066,16 @@ fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("bounded-count exact left shift should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("bounded-count exact left shift should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("bounded-count exact left shift should select");
@@ -1072,9 +1122,16 @@ fn checked_source_exact_left_shift_uses_u64_bounded_count_maximum() {
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("u64 bounded-count exact left shift should cross Omega");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("u64 bounded-count exact left shift should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("u64 bounded-count exact left shift should select");

@@ -12,16 +12,20 @@ use optimization_unit_semantics::{
 use proof_admission::AdmissionProfile;
 use terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, VerifiedPsiOptimizationUnit, build_verified_psi_optimization_unit,
-    lower_artifact_sections_for_optimization,
+    lower_artifact_for_optimization,
 };
 
 fn verified_source(source: &str) -> VerifiedPsiOptimizationUnit {
     let artifact = super::produce(source, false);
-    let input = lower_artifact_sections_for_optimization(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: artifact.semantic_bytes(),
+            proof_bytes: artifact.proof_bytes(),
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("unranked artifact has independently verified safety and source custody");
     build_verified_psi_optimization_unit(
         input,
@@ -253,11 +257,15 @@ fn unranked_optimizer_rejects_missing_safety_proof_and_changed_proof_catalog() {
     proof.evidence.clear();
     let changed_proof = terminal_codec::encode_proof_bundle(&proof).unwrap();
     assert!(matches!(
-        lower_artifact_sections_for_optimization(
-            artifact.semantic_bytes(),
-            &changed_proof,
-            &AdmissionProfile::default(),
-        ),
+        lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: artifact.semantic_bytes(),
+                proof_bytes: &changed_proof,
+                obligation_ledger_bytes: None
+            },
+            &AdmissionProfile::default()
+        )
+        .and_then(|admitted| admitted.try_into_optimization_input()),
         Err(ArtifactLoweringError::Verification(_))
     ));
     let verified = verified_countdown();

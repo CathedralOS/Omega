@@ -9,7 +9,7 @@ use terminal_psi::{
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
 };
 use terminal_psi_to_abstract_operations::{
-    ProviderInstallationError, admit_provider_installation, lower_artifact_sections,
+    ProviderInstallationError, admit_provider_installation, lower_artifact,
 };
 
 #[test]
@@ -17,7 +17,16 @@ fn omega_retains_and_replays_the_whole_root_structural_provider_call() {
     let module = structural_provider_module();
     let (semantic, proof) = artifact(&module);
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
         .expect("whole-root structural provider installation");

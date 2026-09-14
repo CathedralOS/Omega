@@ -306,11 +306,15 @@ pub(super) fn verified_byte_operation(
         }],
         ..terminal_verifier::ProofBundle::default()
     };
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        &terminal_codec::encode_module(&module).unwrap(),
-        &terminal_codec::encode_proof_bundle(&proof).unwrap(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &terminal_codec::encode_module(&module).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_bundle(&proof).unwrap(),
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .unwrap();
     terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

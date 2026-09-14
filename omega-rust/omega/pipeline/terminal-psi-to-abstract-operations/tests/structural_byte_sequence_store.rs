@@ -7,8 +7,8 @@ use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, LoweringError, lower_artifact_sections,
-    lower_artifact_sections_for_native_realization, lower_artifact_sections_for_optimization,
+    ArtifactLoweringError, LoweringError, lower_artifact, lower_artifact_for_native_realization,
+    lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -84,18 +84,52 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
         )
         .expect("write has independently verified bounds");
         for result in [
-            lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile).map(|_| ()),
-            lower_artifact_sections_for_optimization(&semantic_bytes, &proof_bytes, &profile)
-                .map(|_| ()),
-            lower_artifact_sections_for_native_realization(&semantic_bytes, &proof_bytes, &profile)
-                .map(|_| ()),
+            lower_artifact(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: &semantic_bytes,
+                    proof_bytes: &proof_bytes,
+                    obligation_ledger_bytes: None,
+                },
+                &profile,
+            )
+            .and_then(|admitted| admitted.try_into_plan())
+            .map(|_| ()),
+            lower_artifact_for_optimization(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: &semantic_bytes,
+                    proof_bytes: &proof_bytes,
+                    obligation_ledger_bytes: None,
+                },
+                &profile,
+            )
+            .and_then(|admitted| admitted.try_into_optimization_input())
+            .map(|_| ()),
+            lower_artifact_for_native_realization(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: &semantic_bytes,
+                    proof_bytes: &proof_bytes,
+                    obligation_ledger_bytes: None,
+                },
+                &profile,
+            )
+            .and_then(|admitted| admitted.try_into_native_input())
+            .map(|_| ()),
         ] {
             assert!(
                 result.is_ok(),
                 "verified byte writer must project: {result:?}"
             );
         }
-        let plan = lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile).unwrap();
+        let plan = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic_bytes,
+                proof_bytes: &proof_bytes,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .unwrap();
         let actual = plan
             .functions
             .iter()
@@ -175,11 +209,36 @@ fn verified_bounded_byte_field_replacement_rejects_before_native_projection() {
             panic!("source must retain exactly one byte-field replacement")
         };
         for result in [
-            lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile).map(|_| ()),
-            lower_artifact_sections_for_optimization(&semantic_bytes, &proof_bytes, &profile)
-                .map(|_| ()),
-            lower_artifact_sections_for_native_realization(&semantic_bytes, &proof_bytes, &profile)
-                .map(|_| ()),
+            lower_artifact(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: &semantic_bytes,
+                    proof_bytes: &proof_bytes,
+                    obligation_ledger_bytes: None,
+                },
+                &profile,
+            )
+            .and_then(|admitted| admitted.try_into_plan())
+            .map(|_| ()),
+            lower_artifact_for_optimization(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: &semantic_bytes,
+                    proof_bytes: &proof_bytes,
+                    obligation_ledger_bytes: None,
+                },
+                &profile,
+            )
+            .and_then(|admitted| admitted.try_into_optimization_input())
+            .map(|_| ()),
+            lower_artifact_for_native_realization(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: &semantic_bytes,
+                    proof_bytes: &proof_bytes,
+                    obligation_ledger_bytes: None,
+                },
+                &profile,
+            )
+            .and_then(|admitted| admitted.try_into_native_input())
+            .map(|_| ()),
         ] {
             assert!(matches!(
                 result,

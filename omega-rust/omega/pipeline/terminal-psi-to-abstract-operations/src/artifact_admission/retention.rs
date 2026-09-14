@@ -9,13 +9,20 @@ use crate::shared::*;
 /// verified optimizer input as semantic custody: they grant no backing,
 /// lifetime, or access-event authority, and remain visible inside the
 /// retained verifier context module.
+///
+/// Optimizer authority has no conversion to native authority:
+/// ```compile_fail
+/// use terminal_psi_to_abstract_operations::{AdmittedNativeArtifact, AdmittedOptimizationArtifact};
+/// fn promote(input: AdmittedOptimizationArtifact) -> AdmittedNativeArtifact {
+///     input
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerifiedPsiOptimizationInputWithPlacedViewInputs {
-    pub(crate) input: VerifiedPsiOptimizationInput,
-    pub(crate) placed_view_inputs: Vec<terminal_psi::TerminalPlacedViewInput>,
+pub struct AdmittedOptimizationArtifact {
+    pub(super) input: VerifiedPsiOptimizationInput,
 }
 
-impl VerifiedPsiOptimizationInputWithPlacedViewInputs {
+impl AdmittedOptimizationArtifact {
     pub const fn plan(&self) -> &AbstractOperationPlan {
         self.input.plan()
     }
@@ -25,14 +32,15 @@ impl VerifiedPsiOptimizationInputWithPlacedViewInputs {
     }
 
     pub fn placed_view_inputs(&self) -> &[terminal_psi::TerminalPlacedViewInput] {
-        &self.placed_view_inputs
+        &self.context().module().placed_view_inputs
     }
 
-    /// Release roster custody explicitly. The returned input cannot rejoin a
-    /// plan-laid input downstream; callers needing the roster must retain
-    /// this carrier instead.
-    pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInput {
-        self.input
+    /// Consumers without placed-view custody support may only take empty rosters.
+    pub fn try_into_optimization_input(
+        self,
+    ) -> Result<VerifiedPsiOptimizationInput, ArtifactLoweringError> {
+        super::require_empty_placed_view_inputs(self.placed_view_inputs())?;
+        Ok(self.input)
     }
 }
 

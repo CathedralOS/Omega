@@ -385,11 +385,16 @@ fn assert_byte_read_proof_rejected(module: &TerminalModule, proof: &ProofBundle)
     let semantic =
         terminal_codec::encode_module(module).expect("negative fixture remains structurally valid");
     let proof = terminal_codec::encode_proof_bundle(proof).unwrap();
-    match terminal_psi_to_abstract_operations::lower_artifact_sections(
-        &semantic,
-        &proof,
+    match terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
-    ) {
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    {
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Verification(_)) => {}
         Err(error) => panic!("byte-read proof must reject before native lowering: {error}"),
         Ok(_) => panic!("unproved byte-read bounds entered native lowering"),

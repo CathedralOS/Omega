@@ -8,8 +8,8 @@ use terminal_psi::{
     Terminator,
 };
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, lower_artifact_sections, lower_artifact_sections_for_native_realization,
-    lower_artifact_sections_for_optimization,
+    ArtifactLoweringError, lower_artifact, lower_artifact_for_native_realization,
+    lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -68,8 +68,16 @@ fn natural_slice_writer_uses_ordinary_native_admission_without_losing_its_cycle(
     assert_eq!(verified.accepted_control_cycles().len(), 1);
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let evidence = terminal_codec::encode_proof_bundle(&proof).unwrap();
-    let ordinary = lower_artifact_sections(&semantic, &evidence, &profile)
-        .expect("ordinary lowering already accepts verified natural cycles");
+    let ordinary = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &evidence,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("ordinary lowering already accepts verified natural cycles");
     for machine in &module.machines {
         let function = ordinary
             .functions
@@ -182,10 +190,26 @@ fn natural_slice_writer_uses_ordinary_native_admission_without_losing_its_cycle(
             .iter()
             .any(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)
     );
-    let selected = lower_artifact_sections_for_native_realization(&semantic, &evidence, &profile)
-        .expect("natural ranks are ordinary admission, not the legacy countdown exception");
-    let optimization = lower_artifact_sections_for_optimization(&semantic, &evidence, &profile)
-        .expect("the native continuation retains the same verified natural graph");
+    let selected = lower_artifact_for_native_realization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &evidence,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_native_input())
+    .expect("natural ranks are ordinary admission, not the legacy countdown exception");
+    let optimization = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &evidence,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("the native continuation retains the same verified natural graph");
     assert_eq!(optimization.plan(), &ordinary);
     assert_eq!(optimization.context().module(), &module);
     assert_eq!(optimization.context().proof_bundle(), &proof);
@@ -223,18 +247,30 @@ fn native_natural_routing_requires_exact_grouped_evidence() {
         let evidence = terminal_codec::encode_proof_bundle(&changed).unwrap();
         assert!(
             matches!(
-                lower_artifact_sections(&semantic, &evidence, &AdmissionProfile::default()),
+                lower_artifact(
+                    terminal_psi_to_abstract_operations::ArtifactSections {
+                        semantic_bytes: &semantic,
+                        proof_bytes: &evidence,
+                        obligation_ledger_bytes: None
+                    },
+                    &AdmissionProfile::default()
+                )
+                .and_then(|admitted| admitted.try_into_plan()),
                 Err(ArtifactLoweringError::Verification(_))
             ),
             "ordinary proof mutation {mutation}"
         );
         assert!(
             matches!(
-                lower_artifact_sections_for_native_realization(
-                    &semantic,
-                    &evidence,
+                lower_artifact_for_native_realization(
+                    terminal_psi_to_abstract_operations::ArtifactSections {
+                        semantic_bytes: &semantic,
+                        proof_bytes: &evidence,
+                        obligation_ledger_bytes: None
+                    },
                     &AdmissionProfile::default()
-                ),
+                )
+                .and_then(|admitted| admitted.try_into_native_input()),
                 Err(ArtifactLoweringError::Verification(_))
             ),
             "native proof mutation {mutation}"
@@ -293,17 +329,29 @@ fn unchanged_tail_cannot_reuse_the_strict_native_cycle_proof() {
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let evidence = terminal_codec::encode_proof_bundle(&proof).unwrap();
     assert!(matches!(
-        lower_artifact_sections(&semantic, &evidence, &AdmissionProfile::default()),
+        lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &evidence,
+                obligation_ledger_bytes: None
+            },
+            &AdmissionProfile::default()
+        )
+        .and_then(|admitted| admitted.try_into_plan()),
         Err(ArtifactLoweringError::Verification(
             terminal_verifier::VerificationError::RejectedControlCycle { .. }
         ))
     ));
     assert!(matches!(
-        lower_artifact_sections_for_native_realization(
-            &semantic,
-            &evidence,
+        lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &evidence,
+                obligation_ledger_bytes: None
+            },
             &AdmissionProfile::default()
-        ),
+        )
+        .and_then(|admitted| admitted.try_into_native_input()),
         Err(ArtifactLoweringError::Verification(_))
     ));
 }

@@ -1,7 +1,7 @@
 use super::error::ProviderInstallationError;
 use super::model::{AdmittedProviderInstallation, SelectedProviderAdapter};
 use super::replay::replay_installed_provider_calls;
-use crate::artifact::ArtifactLoweringError;
+use crate::artifact_admission::ArtifactLoweringError;
 use crate::lowering::lower_decoded_verified_module;
 use crate::shared::*;
 

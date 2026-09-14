@@ -927,30 +927,22 @@ Owners include
   valid views survive codec/native replay and stale plan, range, access, or
   backing substitutions reject.
 
-  Resume evidence: `9d894f8bf2` landed custody-owning artifact entrances.
-  `lower_replay_artifact_sections_with_placed_view_inputs` replays the
-  obligation ledger against the exact decoded module and returns
-  `AbstractOperationPlanWithPlacedViewInputs`;
-  `lower_artifact_sections_for_native_realization_with_placed_view_inputs`
-  returns `VerifiedNativeArtifactInputWithPlacedViewInputs` beside the verified
-  native authority (both in
-  `omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact/`).
-  Non-owning replay/native entrances still reject placed-view modules with
-  `PlacedViewInputsRequireCustodyLowering`. Witnessed on macOS arm64 by
-  `direct_placed_view_input_survives_codec_and_native_replay` in
-  `compiler/tests/access_plans.rs` (43/43 target pass): exact roster retention
-  across codec replay and native admission, stale-commitment ledger rejection,
-  canonical-encode rejection of a zeroed commitment. Remaining: realize the
-  retained roster through native-realization optimization stages and end-to-end
-  native placement; the roster is semantic custody only and still grants no
-  backing, range, access, or lifetime authority by itself.
+  Continue from `artifact_admission.rs` in
+  `omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/`.
+  `ArtifactSections` carries optional exact-ledger replay; ordinary, optimizer,
+  and native admission all retain the placed-view roster. Checked extraction
+  for consumers without custody support rejects nonempty rosters. Extend the
+  existing `direct_placed_view_input_survives_codec_and_native_replay` control
+  in `compiler/tests/access_plans.rs` through native-realization optimization
+  and end-to-end native placement. The retained roster is semantic custody,
+  not backing, range, access, or lifetime authority.
 
 - **SYMBOLIC-MATERIALIZATION.** Complete symbolic field/index materialization
   and its target-dependent realization. Preserve exact paths and bounds until
   assignment; physical lowering may choose locations but not change semantic
-  access. Recursive build-time projection/replay is shared across the currently
-  admitted exact record depths through 23; extend that recursive owner rather
-  than adding another copied depth implementation. Nested sum arrays, direct-
+  access. Recursive build-time projection/replay carries record depth as data,
+  with a bounded traversal; extend that owner rather than adding depth-specific
+  implementations. Nested sum arrays, direct-
   sum coexistence, recursive shapes, and target-dependent placement remain
   fenced until their general rules land. Acceptance includes nested field/index
   canaries on both Linux ISAs.

@@ -287,11 +287,15 @@ fn owned_match_preserves_the_selected_sources_full_width_payload() {
 }
 
 fn assert_return_cleanup_replay(artifact: &super::CanonicalTerminalArtifact) {
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: artifact.semantic_bytes(),
+            proof_bytes: artifact.proof_bytes(),
+            obligation_ledger_bytes: None,
+        },
         &super::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("selected return enters Omega with verified custody");
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

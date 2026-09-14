@@ -18,34 +18,202 @@ use terminal_psi::{
 };
 use terminal_psi_to_abstract_operations::{
     ProviderInstallationError, SelectedProviderAdapter, admit_provider_installation,
-    lower_artifact_sections, lower_replay_artifact_sections,
-    lower_replay_artifact_sections_for_optimization,
+    lower_artifact, lower_artifact_for_optimization,
 };
 use terminal_verifier::{ModuleError, validate_module};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
+fn all_artifact_authorities_preserve_decode_and_replay_diagnostic_order() {
+    use terminal_psi_to_abstract_operations::{
+        ArtifactLoweringError, ArtifactSections, lower_artifact_for_native_realization,
+    };
+    let module = provider_module();
+    let (semantic, _) = artifact(&module);
+    let trust = current_terminal_trust_graph().unwrap();
+    let ledger = build_terminal_obligation_ledger(&module, &trust)
+        .and_then(|ledger| encode_terminal_obligation_ledger(&ledger))
+        .unwrap();
+    let profile = AdmissionProfile::default();
+    let requests = [
+        ArtifactSections {
+            semantic_bytes: &[],
+            proof_bytes: &[],
+            obligation_ledger_bytes: Some(&[]),
+        },
+        ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &[],
+            obligation_ledger_bytes: Some(&[]),
+        },
+        ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &[],
+            obligation_ledger_bytes: Some(&ledger),
+        },
+        ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &[],
+            obligation_ledger_bytes: None,
+        },
+    ];
+    for (position, request) in requests.into_iter().enumerate() {
+        for result in [
+            lower_artifact(request, &profile).map(|_| ()),
+            lower_artifact_for_optimization(request, &profile).map(|_| ()),
+            lower_artifact_for_native_realization(request, &profile).map(|_| ()),
+        ] {
+            match position {
+                0 => assert!(matches!(
+                    result,
+                    Err(ArtifactLoweringError::SemanticDecode(_))
+                )),
+                1 => assert!(matches!(
+                    result,
+                    Err(ArtifactLoweringError::ObligationLedgerDecode(_))
+                )),
+                _ => assert!(matches!(result, Err(ArtifactLoweringError::ProofDecode(_)))),
+            }
+        }
+    }
+}
+
+#[test]
+fn admitted_artifacts_retain_rosters_and_reject_custody_free_extraction() {
+    use terminal_psi_to_abstract_operations::{
+        ArtifactLoweringError, ArtifactSections, lower_artifact_for_native_realization,
+    };
+    let mut module = provider_module();
+    let (original_semantic, _) = artifact(&module);
+    let trust = current_terminal_trust_graph().unwrap();
+    let stale_ledger = build_terminal_obligation_ledger(&module, &trust)
+        .and_then(|ledger| encode_terminal_obligation_ledger(&ledger))
+        .unwrap();
+    let identity = |name: &str| format!("package:{}::{name}", "01".repeat(32));
+    let policy_identity = identity("Uart");
+    let schema_identity = identity("Registers");
+    module
+        .placed_view_inputs
+        .push(terminal_psi::TerminalPlacedViewInput {
+            machine: module.entry,
+            position: 0,
+            source_machine_identity: identity("inspect"),
+            source_state_identity: identity("inspect::entry"),
+            source_parameter_identity: identity("inspect::entry::view0"),
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+            binding_is_const: false,
+            binding_is_mutable: true,
+            view_identity: terminal_psi::canonical_placed_view_identity(
+                &policy_identity,
+                &schema_identity,
+            ),
+            policy_identity,
+            policy_plan_machine_identity: identity("Uart::plan"),
+            schema_identity,
+            placement_report_fingerprint: 41,
+            placement_commitment: [0x5a; 32],
+        });
+    let (semantic, proof) = artifact(&module);
+    assert_ne!(semantic, original_semantic);
+    let ledger = build_terminal_obligation_ledger(&module, &trust)
+        .and_then(|ledger| encode_terminal_obligation_ledger(&ledger))
+        .unwrap();
+    let profile = AdmissionProfile::default();
+    for obligation_ledger_bytes in [None, Some(ledger.as_slice())] {
+        let sections = ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes,
+        };
+        let ordinary = lower_artifact(sections, &profile).unwrap();
+        let optimizer = lower_artifact_for_optimization(sections, &profile).unwrap();
+        let native = lower_artifact_for_native_realization(sections, &profile).unwrap();
+        assert_eq!(ordinary.placed_view_inputs(), module.placed_view_inputs);
+        assert_eq!(optimizer.placed_view_inputs(), module.placed_view_inputs);
+        assert_eq!(native.placed_view_inputs(), module.placed_view_inputs);
+        assert_eq!(
+            ordinary.clone().into_parts().placed_view_inputs,
+            module.placed_view_inputs
+        );
+        assert_eq!(
+            native
+                .clone()
+                .into_optimization_artifact()
+                .placed_view_inputs(),
+            module.placed_view_inputs
+        );
+        assert!(matches!(
+            ordinary.try_into_plan(),
+            Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+        ));
+        assert!(matches!(
+            optimizer.try_into_optimization_input(),
+            Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+        ));
+        assert!(matches!(
+            native.try_into_native_input(),
+            Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+        ));
+    }
+    let stale = ArtifactSections {
+        semantic_bytes: &semantic,
+        proof_bytes: &[],
+        obligation_ledger_bytes: Some(&stale_ledger),
+    };
+    for result in [
+        lower_artifact(stale, &profile).map(|_| ()),
+        lower_artifact_for_optimization(stale, &profile).map(|_| ()),
+        lower_artifact_for_native_realization(stale, &profile).map(|_| ()),
+    ] {
+        assert!(matches!(
+            result,
+            Err(ArtifactLoweringError::ObligationReplay(_))
+        ));
+    }
+}
+
+#[test]
 fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
     let module = provider_module();
     let (semantic, proof) = artifact(&module);
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified lowering");
     let trust_graph = current_terminal_trust_graph().expect("current trust graph");
     let obligation_ledger = build_terminal_obligation_ledger(&module, &trust_graph)
         .and_then(|ledger| encode_terminal_obligation_ledger(&ledger))
         .expect("canonical obligation ledger");
     assert_eq!(
-        lower_replay_artifact_sections(&semantic, &obligation_ledger, &proof, &profile)
-            .expect("locally replayed artifact lowering"),
+        lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: Some(&obligation_ledger)
+            },
+            &profile
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .expect("locally replayed artifact lowering"),
         plan
     );
-    let replayed_optimizer_input = lower_replay_artifact_sections_for_optimization(
-        &semantic,
-        &obligation_ledger,
-        &proof,
+    let replayed_optimizer_input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: Some(&obligation_ledger),
+        },
         &profile,
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("locally replayed optimizer input");
     assert_eq!(replayed_optimizer_input.plan(), &plan);
     assert_eq!(replayed_optimizer_input.context().module(), &module);
@@ -61,7 +229,15 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
         .and_then(|ledger| encode_terminal_obligation_ledger(&ledger))
         .expect("substituted obligation ledger");
     assert!(matches!(
-        lower_replay_artifact_sections(&semantic, &substituted_ledger, &proof, &profile),
+        lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: Some(&substituted_ledger)
+            },
+            &profile
+        )
+        .and_then(|admitted| admitted.try_into_plan()),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
     ));
     assert_eq!(plan.provider_candidates, module.provider_candidates);
@@ -170,11 +346,15 @@ fn provider_catalog_identity_and_admission_fail_closed_on_tamper_or_reorder() {
         original
     );
     let (identity_semantic, identity_proof) = artifact(&identity_tamper);
-    let identity_plan = lower_artifact_sections(
-        &identity_semantic,
-        &identity_proof,
+    let identity_plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &identity_semantic,
+            proof_bytes: &identity_proof,
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_plan())
     .expect("identity-tampered artifact remains valid");
     let formerly_selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     assert!(matches!(
@@ -217,7 +397,16 @@ fn provider_catalog_identity_and_admission_fail_closed_on_tamper_or_reorder() {
 
     let (semantic, proof) = artifact(&module);
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
         .expect("installation for original artifact");
@@ -350,7 +539,16 @@ fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).unwrap();
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .unwrap();
     admit_provider_installation(
         &plan,
         &semantic,

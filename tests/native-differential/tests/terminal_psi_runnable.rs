@@ -17,8 +17,7 @@ use terminal_codec::{decode_module, encode_proof_bundle};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::TerminalModule;
 use terminal_psi_to_abstract_operations::{
-    build_verified_psi_optimization_unit, lower_artifact_sections,
-    lower_artifact_sections_for_optimization,
+    build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_optimization,
 };
 use terminal_verifier::ProofBundle;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -121,9 +120,16 @@ fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
 #[test]
 fn source_byte_sequence_literal_reaches_verified_optimizer_admission() {
     let (semantic, proof) = project_source(canonical_console_source());
-    let input =
-        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
-            .expect("source byte literal verifies for optimizer admission");
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("source byte literal verifies for optimizer admission");
     let verified =
         build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
             .expect("source byte literal retains its optimizer unit");
@@ -175,9 +181,16 @@ fn source_byte_sequence_literal_reaches_verified_optimizer_admission() {
 #[test]
 fn source_provider_attachment_specialization_reaches_verified_optimizer_admission() {
     let (semantic, proof) = project_source(&straight_line_console_source(2, 0));
-    let input =
-        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
-            .expect("source provider attachment verifies for optimizer admission");
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("source provider attachment verifies for optimizer admission");
     let verified =
         build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
             .expect("source provider attachment retains its optimizer unit");
@@ -336,9 +349,16 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
 #[test]
 fn source_concrete_root_service_reach_reaches_verified_optimizer_admission() {
     let (semantic, proof) = project_source_entry(CONCRETE_ROOT_SERVICE_REACH_SOURCE, "Root::enter");
-    let input =
-        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
-            .expect("source concrete service reach verifies for optimizer admission");
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("source concrete service reach verifies for optimizer admission");
     let verified =
         build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
             .expect("source concrete service reach retains its optimizer unit");
@@ -378,9 +398,16 @@ fn source_concrete_root_service_reach_reaches_verified_optimizer_admission() {
 #[test]
 fn source_bounded_root_service_reach_reaches_verified_optimizer_admission() {
     let (semantic, proof) = project_source_entry(BOUNDED_ROOT_SERVICE_REACH_SOURCE, "Root::enter");
-    let input =
-        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
-            .expect("source bounded service reach verifies for optimizer admission");
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("source bounded service reach verifies for optimizer admission");
     let verified =
         build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
             .expect("source bounded service reach retains its optimizer unit");
@@ -430,8 +457,16 @@ fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("canonical empty proof");
     let decoded = decode_module(&semantic).expect("decode fixture");
     let (write_boundary, exit_boundary) = o0_boundaries(&decoded);
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("verified O0 plan");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified O0 plan");
     let target = NativeTarget::linux_x64();
     let wrong_write_provider = admit_native_provider(
         target,

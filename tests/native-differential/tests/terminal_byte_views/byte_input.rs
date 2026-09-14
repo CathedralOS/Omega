@@ -38,11 +38,15 @@ fn bounded_byte_input_cycle_keeps_case_edges_in_replay() {
         validate_psi_cycle_component_snapshot, validate_verified_psi_cycle_components,
     };
     let lowered = reader();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
-        &terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .unwrap();
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

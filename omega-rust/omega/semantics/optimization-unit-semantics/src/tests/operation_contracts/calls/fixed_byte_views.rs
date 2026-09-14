@@ -38,11 +38,15 @@ fn source_unit(source: &str) -> PsiOptimizationUnit {
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "enter").unwrap();
     let semantic = terminal_codec::encode_module(&terminal.semantic_module).unwrap();
     let proof = terminal_codec::encode_proof_bundle(&terminal.proof_bundle).unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        &semantic,
-        &proof,
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("independent Terminal verification accepts the exact fixed-array loan");
     terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

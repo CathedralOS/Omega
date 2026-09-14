@@ -7,7 +7,7 @@ use terminal_psi::{
 };
 use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationUnit, build_verified_psi_optimization_unit,
-    lower_artifact_sections_for_optimization,
+    lower_artifact_for_optimization,
 };
 
 fn verified(backedge_ordinal: u64) -> VerifiedPsiOptimizationUnit {
@@ -83,11 +83,15 @@ fn verified(backedge_ordinal: u64) -> VerifiedPsiOptimizationUnit {
             },
         }],
     };
-    let input = lower_artifact_sections_for_optimization(
-        &terminal_codec::encode_module(&module).unwrap(),
-        &terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &terminal_codec::encode_module(&module).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .unwrap();
     build_verified_psi_optimization_unit(input, FuelScheduleIdentity::new(1).unwrap()).unwrap()
 }

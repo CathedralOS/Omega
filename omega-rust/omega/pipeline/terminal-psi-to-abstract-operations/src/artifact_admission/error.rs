@@ -10,7 +10,7 @@ pub enum ArtifactLoweringError {
     ProofFingerprint(terminal_codec::ProofCodecError),
     Verification(terminal_verifier::VerificationError),
     UnsupportedUnsignedCountdownNativeCustody,
-    /// Entrances that do not own the separate plan-laid input carrier may not
+    /// Consumers that do not own the separate plan-laid input carrier may not
     /// silently discard the roster.
     PlacedViewInputsRequireCustodyLowering,
     Lowering(LoweringError),

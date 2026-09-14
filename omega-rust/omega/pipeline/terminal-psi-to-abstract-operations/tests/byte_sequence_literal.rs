@@ -12,7 +12,7 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use terminal_psi_to_abstract_operations::lower_artifact;
 use terminal_verifier::ProofBundle;
 
 #[path = "byte_sequence_literal/byte_sequence_operations.rs"]
@@ -24,8 +24,16 @@ fn preserves_exact_non_utf8_literal_and_structural_source() {
     let module = byte_sequence_module(literal_bytes.clone());
     let semantic = encode_module(&module).expect("byte-sequence semantics encode");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("verified byte-sequence artifact lowers");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified byte-sequence artifact lowers");
 
     let [
         AbstractOperation::EstablishByteSequenceLiteral {
@@ -86,7 +94,16 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
     let semantic = encode_module(&module).unwrap();
     let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).unwrap();
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .unwrap();
     let AbstractOperation::ByteSequenceLength {
         psi_operation,
         result,

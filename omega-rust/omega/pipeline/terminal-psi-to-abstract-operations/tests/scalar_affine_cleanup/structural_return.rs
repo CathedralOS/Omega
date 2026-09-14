@@ -11,7 +11,7 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use terminal_psi_to_abstract_operations::lower_artifact;
 use terminal_verifier::ProofBundle;
 
 use super::support::{
@@ -138,8 +138,16 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     let semantics = encode_module(&module).expect("structural return should encode");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof should encode");
 
-    let plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
-        .expect("exact structural custody return should enter Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantics,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("exact structural custody return should enter Omega");
     let [function] = plan.functions.as_slice() else {
         panic!("fixture has one terminal function")
     };
@@ -193,8 +201,16 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         frontier_lower_bound: vec![claim],
     };
     let semantics = encode_module(&crash_only).expect("structural crash-only machine encodes");
-    let lowered = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
-        .expect("a structural result does not change the crash operation's semantics");
+    let lowered = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantics,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("a structural result does not change the crash operation's semantics");
     assert!(matches!(lowered.functions[0].operations.as_slice(),
         [AbstractOperation::Crash { frontier_lower_bound, .. }] if frontier_lower_bound == &[claim]));
 
@@ -240,8 +256,16 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         terminator: original_return,
     });
     let semantics = encode_module(&branching).unwrap();
-    let lowered = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
-        .expect("verified operations compose before a structural return");
+    let lowered = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantics,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified operations compose before a structural return");
     assert_eq!(lowered.functions[0].block_entries.len(), 2);
     assert!(matches!(lowered.functions[0].operations.as_slice(),
         [AbstractOperation::BooleanConstant { .. }, AbstractOperation::Conditional { .. },
@@ -312,11 +336,15 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     {
         trivial_affine_discards.push(local.id);
     }
-    let lowered = lower_artifact_sections(
-        &encode_module(&with_local).unwrap(),
-        &proof,
+    let lowered = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &encode_module(&with_local).unwrap(),
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_plan())
     .unwrap();
     assert!(matches!(lowered.functions[0].operations.as_slice(),
         [AbstractOperation::EstablishTrivialAffineLocal { place, .. },
@@ -368,8 +396,16 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     };
     trivial_affine_discards.push(extra);
     let semantics = encode_module(&wider_cleanup).expect("wider cleanup return should encode");
-    let plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
-        .expect("one exact affine cleanup should enter Omega abstract operations");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantics,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("one exact affine cleanup should enter Omega abstract operations");
     let [function] = plan.functions.as_slice() else {
         panic!("fixture has one terminal function")
     };
@@ -413,8 +449,16 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     };
     *trivial_affine_discards = vec![second_extra, extra];
     let semantics = encode_module(&wider_cleanup).expect("two affine cleanups should encode");
-    let plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
-        .expect("a finite exact affine cleanup tail should enter Omega abstract operations");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantics,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("a finite exact affine cleanup tail should enter Omega abstract operations");
     let [function] = plan.functions.as_slice() else {
         panic!("fixture has one terminal function")
     };

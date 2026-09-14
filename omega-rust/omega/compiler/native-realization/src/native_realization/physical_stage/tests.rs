@@ -24,11 +24,15 @@ fn physical_and_object_publication_retain_the_original_abstract_allocation() {
         target::NativeTarget::linux_arm64(),
         target::NativeTarget::macos_arm64(),
     ] {
-        let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
+        let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: artifact.semantic_bytes(),
+                proof_bytes: artifact.proof_bytes(),
+                obligation_ledger_bytes: None,
+            },
             &proof_admission::AdmissionProfile::default(),
         )
+        .and_then(|admitted| admitted.try_into_optimization_input())
         .unwrap();
         let selections = optimization_core::OptimizationSelections::default();
         let optimized = crate::optimize_verified_abstract_input(
@@ -186,11 +190,15 @@ fn malformed_unit_inputs_reject_at_legalization() {
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
         .produce_artifact()
         .unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: artifact.semantic_bytes(),
+            proof_bytes: artifact.proof_bytes(),
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .unwrap();
     let optimized = crate::optimize_verified_abstract_input(
         input,

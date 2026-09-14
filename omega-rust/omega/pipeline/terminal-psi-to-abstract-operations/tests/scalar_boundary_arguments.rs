@@ -11,7 +11,7 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use terminal_psi_to_abstract_operations::lower_artifact;
 use terminal_verifier::ProofBundle;
 
 #[test]
@@ -120,8 +120,16 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     };
     let semantic = encode_module(&module).expect("scalar boundary artifact encodes");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof bundle encodes");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("verified scalar boundary call lowers into Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified scalar boundary call lowers into Omega");
 
     assert_eq!(plan.boundary_machines, module.boundary_machines);
     let [
@@ -160,7 +168,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     .expect("covered opaque boundary contract verifies independently");
     let crashing_semantic = encode_module(&crashing).unwrap();
     assert!(matches!(
-        lower_artifact_sections(&crashing_semantic, &proof, &AdmissionProfile::default()),
+        lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &crashing_semantic, proof_bytes: &proof, obligation_ledger_bytes: None }, &AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
             terminal_psi_to_abstract_operations::LoweringError::UnsupportedBoundaryCrashContract(id)
         )) if id == boundary
@@ -223,8 +231,16 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     };
     trivial_affine_discards.push(place);
     let semantic = encode_module(&module).expect("structural boundary artifact encodes");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("verified structural boundary call lowers into Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified structural boundary call lowers into Omega");
     let AbstractOperation::BoundaryCall { result, .. } = &plan.functions[0].operations[0] else {
         panic!("fixture retains its boundary call")
     };

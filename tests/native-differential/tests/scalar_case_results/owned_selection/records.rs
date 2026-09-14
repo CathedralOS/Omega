@@ -175,11 +175,15 @@ fn joined_record_cannot_move_and_lend_its_child_to_the_same_call() {
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
         .expect("Terminal control moves the selected record and borrows the distinct marker");
     let semantic_bytes = terminal_codec::encode_module(&module).unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        &semantic_bytes,
-        artifact.proof_bytes(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic_bytes,
+            proof_bytes: artifact.proof_bytes(),
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("the valid Terminal control admits to current IR");
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
@@ -300,11 +304,15 @@ fn fresh_first_record_arm_keeps_saved_fields_across_child_dispatch() {
 #[test]
 fn selected_record_loan_rejects_changed_origin_geometry_and_home() {
     let artifact = produce_source("choose", SOURCE);
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: artifact.semantic_bytes(),
+            proof_bytes: artifact.proof_bytes(),
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .unwrap();
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

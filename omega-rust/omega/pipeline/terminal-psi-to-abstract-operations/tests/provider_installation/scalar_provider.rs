@@ -6,7 +6,7 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule, ValueDeclaration};
 use terminal_psi_to_abstract_operations::{
-    ProviderInstallationError, admit_provider_installation, lower_artifact_sections,
+    ProviderInstallationError, admit_provider_installation, lower_artifact,
 };
 
 #[test]
@@ -14,7 +14,16 @@ fn omega_retains_the_exact_installed_provider_scalar_argument() {
     let module = scalar_provider_module();
     let (semantic, proof) = artifact(&module);
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
         .expect("fixed i32 provider installation");
@@ -33,7 +42,16 @@ fn omega_retains_the_exact_installed_provider_scalar_argument() {
 #[test]
 fn omega_rejects_removing_the_installed_provider_scalar_argument() {
     let (semantic, proof, profile, selected) = scalar_fixture();
-    let mut plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let mut plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified lowering");
     scalar_call_arguments_mut(&mut plan).clear();
 
     assert!(matches!(
@@ -70,8 +88,16 @@ fn omega_installs_the_verified_computed_argument_and_rejects_operand_substitutio
 
     let (semantic, proof) = artifact(&module);
     let profile = AdmissionProfile::default();
-    let mut plan = lower_artifact_sections(&semantic, &proof, &profile)
-        .expect("computed i32 argument is valid Terminal Psi");
+    let mut plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("computed i32 argument is valid Terminal Psi");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
         .expect("a verified computed argument composes with the selected provider");
@@ -90,7 +116,16 @@ fn omega_installs_the_verified_computed_argument_and_rejects_operand_substitutio
 #[test]
 fn omega_rejects_installed_provider_boundary_scalar_type_drift() {
     let (semantic, proof, profile, selected) = scalar_fixture();
-    let mut plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let mut plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified lowering");
     plan.boundary_machines[0].scalar_parameters[0] = ScalarType::Boolean;
 
     assert!(matches!(
@@ -102,7 +137,16 @@ fn omega_rejects_installed_provider_boundary_scalar_type_drift() {
 #[test]
 fn omega_rejects_installed_provider_candidate_scalar_type_drift() {
     let (semantic, proof, profile, selected) = scalar_fixture();
-    let mut plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let mut plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified lowering");
     plan.functions
         .iter_mut()
         .find(|function| function.machine == machine_id(3))
