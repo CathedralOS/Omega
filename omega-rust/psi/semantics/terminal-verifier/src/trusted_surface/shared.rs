@@ -100,10 +100,10 @@ rows! {
     NORM_PREDICATE_DENOTATION => (
         "conversion:predicate-denotation",
         NormalizationConversion,
-        "a proposition whose Boolean denotation is computed under a bounded recursion, substitution, and clone budget over the validated context",
-        "the denotation normal form used by the PredicateDenotation rule; unbounded or malformed propositions reject before evaluation",
-        &["formation:proposition-context", "formation:mathematical-core"],
-        &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/budget.rs")]
+        "a proposition whose Boolean and same-carrier closed fixed-integer literal denotation is computed under a bounded recursion, substitution, and clone budget over the validated context",
+        "the denotation normal form used by PredicateDenotation, including exact signed full-width literal comparisons; open arithmetic and IEEE relations remain unchanged, and unbounded or malformed propositions reject before evaluation",
+        &["formation:proposition-context", "formation:mathematical-core", "primitive:closed-integer-relation"],
+        &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/budget.rs"), pa!( "kernel.rs")]
     );
     NORM_VALUE_EQUALITY_DENOTATION => (
         "conversion:value-equality-denotation",

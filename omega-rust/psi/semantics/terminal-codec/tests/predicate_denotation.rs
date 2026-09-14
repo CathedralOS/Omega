@@ -105,3 +105,75 @@ fn predicate_denotation_child_obeys_encoding_and_decoding_depth_limits() {
         }
     }
 }
+
+#[test]
+fn integer_bound_contradiction_reloads_with_both_original_citations() {
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, PropositionContext, ScalarTerm, ScalarType, ValueId,
+    };
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let counter = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(integer));
+    let three = ScalarTerm::integer(integer, IntegerValue::Unsigned(3)).unwrap();
+    let context = PropositionContext::from_value_types([(
+        ValueId::new(1).unwrap(),
+        ScalarType::Integer(integer),
+    )])
+    .unwrap();
+    let premises = [
+        Proposition::LessOrEqual(three.clone(), counter.clone()),
+        Proposition::LessThan(counter, three.clone()),
+    ];
+    let original = bundle(ProofNode {
+        conclusion: Proposition::Falsehood,
+        rule: ProofRule::PredicateDenotation {
+            premise: Box::new(ProofNode {
+                conclusion: Proposition::LessThan(three.clone(), three),
+                rule: ProofRule::IntegerStrictOrderTransitivity {
+                    left_to_middle: Box::new(ProofNode {
+                        conclusion: premises[0].clone(),
+                        rule: ProofRule::SemanticAxiom { index: 0 },
+                    }),
+                    middle_to_right: Box::new(ProofNode {
+                        conclusion: premises[1].clone(),
+                        rule: ProofRule::Assumption { index: 0 },
+                    }),
+                },
+            }),
+        },
+    });
+    let bytes = encode_proof_bundle(&original).unwrap();
+    let decoded = decode_proof_bundle(&bytes).unwrap();
+    assert_eq!(decoded, original);
+    let EvidenceRoute::CertificateDerived(envelope) = &decoded.evidence[0].route else {
+        panic!("certificate route")
+    };
+    let accepted = proof_admission::accept_certificate(
+        &context,
+        &Proposition::Falsehood,
+        &premises[1..],
+        &premises[..1],
+        &envelope.proof,
+    )
+    .unwrap();
+    assert_eq!(accepted.assumptions.len(), 1);
+    assert_eq!(accepted.assumptions[0].proposition, premises[1]);
+    assert_eq!(accepted.semantic_axioms.len(), 1);
+    assert_eq!(accepted.semantic_axioms[0].proposition, premises[0]);
+    for (assumptions, axioms) in [
+        (&[][..], &premises[..1]),
+        (&premises[1..], &[][..]),
+        (&premises[..1], &premises[1..]),
+    ] {
+        assert!(
+            proof_admission::check_certificate(
+                &context,
+                &Proposition::Falsehood,
+                assumptions,
+                axioms,
+                &envelope.proof
+            )
+            .is_err()
+        );
+    }
+    assert_eq!(encode_proof_bundle(&decoded).unwrap(), bytes);
+}

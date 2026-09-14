@@ -166,7 +166,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/kernel.rs",
-        sha256: Some("06f33a6ab622f0d0aa0c22fff7c7105fcec078b2d284bccdd21fbeab79e3338c"),
+        sha256: Some("b155ab535c2a473bc7210d02667c0b45fe4a5e0283ccdcc70b8c6115a21b04de"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -211,7 +211,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/predicate_denotation.rs",
-        sha256: Some("3d8e6262db031abeed12d55a345e277dbd708b684b1a8da967c0c99774347d65"),
+        sha256: Some("0d999197d5cdcb619beb535de10f4625677cb19a6a5d337cfc9a10cfc7cccb8c"),
         inventory_machinery: false,
     },
     ImplementationSite {

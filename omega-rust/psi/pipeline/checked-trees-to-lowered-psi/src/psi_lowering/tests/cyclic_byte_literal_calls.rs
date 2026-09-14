@@ -242,10 +242,12 @@ machine Main::main(&mut self) reaches Trace {
 
 /// `self.place` is replaced every iteration and reaches zero on the last one,
 /// so the divide's nonzero-divisor obligation `1 <= self.place` needs a
-/// guarded-exit invariant such as `counter < 3 -> place >= 1`. Establishing
-/// that lockstep form still needs an integer-bound contradiction the kernel
-/// does not yet express, so this remains `OperationProofUnavailable`
-/// (see TASKS.md GENERAL-CYCLIC-EXECUTION).
+/// guarded-exit invariant. Integer contradictions now use ordinary order
+/// transitivity and predicate denotation, but `counter < 3 -> place >= 1`
+/// alone is not inductive: counter=0, place=1 satisfies it before the body and
+/// violates it afterward. Candidate synthesis still needs a stronger lockstep
+/// relation and checked updates at every arrival, so this remains
+/// `OperationProofUnavailable` (TASKS.md GENERAL-CYCLIC-EXECUTION).
 #[test]
 fn cyclic_field_divisor_awaits_storage_observation_invariants() {
     let checked = checked_source(
@@ -267,10 +269,86 @@ machine Main::main(&mut self) reaches Trace {
     }
     state done(&mut self) { Trace::write("done"); }
 }
+
 "#,
     );
     assert!(matches!(
         lower_machine(&checked, "Main::main"),
         Err(LoweringError::OperationProofUnavailable(_))
     ));
+}
+
+#[test]
+fn incompatible_integer_guards_keep_the_dead_operation_checked() {
+    let source = r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Main { counter: u32; divisor: u32; result: u32; }
+machine Main::main(&mut self) reaches Trace {
+    self.counter = 1;
+    self.divisor = 0;
+    transition { _ -> head() }
+    state head(&mut self) {
+        transition self.counter < 3 { true -> low() _ -> done() }
+    }
+    state low(&mut self) {
+        transition self.counter >= 3 { true -> impossible() _ -> done() }
+    }
+    state impossible(&mut self) { self.result = 100 / self.divisor; }
+    state done(&mut self) { Trace::write("done"); }
+}
+"#;
+    let checked = checked_source(source);
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("incompatible guards prove the dead operation's original obligation");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert!(
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::ExactIntegerDivide { .. }
+            )),
+        "retain and prove the dead division rather than silently pruning its obligation"
+    );
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let [receiver] = entry.structural_parameters.as_slice() else {
+        panic!("receiver")
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        &[TerminalStructuralValue {
+            opaque_identity: 1,
+            structural_type: receiver.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }],
+    )
+    .unwrap();
+    let mut meter = TerminalFuelMeter::with_allowance(1000);
+    let mut trace = ByteTrace::default();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut trace)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(trace.0, [b"done".to_vec()]);
+    let possible = checked_source(&source.replace("self.counter >= 3", "self.counter >= 1"));
+    assert!(
+        terminal_production::TerminalProductionRequest::new(&possible, "Main::main")
+            .produce_artifact()
+            .is_err(),
+        "a reachable zero divisor remains rejected"
+    );
 }

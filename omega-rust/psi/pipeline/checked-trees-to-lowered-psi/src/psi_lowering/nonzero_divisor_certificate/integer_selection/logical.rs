@@ -3,6 +3,8 @@
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::{Proposition, ScalarTerm};
 
+mod integer_contradiction;
+
 /// A selected edge can be impossible under a literal guard or declared guarantees.
 /// Keep that edge in the arrival roster and prove its contradiction using exact
 /// citations. `false and goal` has the same false denotation; the existing
@@ -27,7 +29,8 @@ pub(super) fn prove_contradiction(
                     assumptions,
                     semantic_axioms,
                 )
-            })?;
+            })
+            .or_else(|| integer_contradiction::prove(assumptions, semantic_axioms))?;
     Some(ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::ConjunctionElimination {

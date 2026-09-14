@@ -204,7 +204,7 @@ not silently reorder a canonical goal. Comparison-only normalization for crash
 coverage does not change the codec's canonical ordering.
 
 A carried `PredicateDenotation` inference converts one already proved
-proposition to another only when the proof owner's bounded Boolean-denotation
+proposition to another only when the proof owner's bounded predicate-denotation
 normalization gives identical results for both under their declared types.
 Its child is checked under the unchanged original premises; the outer
 conclusion must still equal the exact reconstructed obligation. Normalizing
@@ -212,6 +212,14 @@ a premise for search therefore requires an explicit conversion of its original
 citation. This rule neither substitutes contextual SSA definitions nor grants
 an unproved proposition merely because it has a normal form. Resource exhaustion
 rejects the conversion.
+
+Besides Boolean structure, this conversion decides equality and order between
+two literal fixed integers of exactly the same carrier using the primitive
+judgment's signed, full-width comparison. True and false relations normalize to
+`Truth` and `Falsehood`; false is not inferred from a proof-search failure.
+Open integer relations, mathematical arithmetic, IEEE relations, and storage
+observations remain unchanged. This is a bounded trusted conversion, not a
+new assumption or a claim of a proved general normalization theorem.
 
 `ValueEqualityTransport` additionally carries a nonempty ordered list of proved
 scalar equations, each oriented from an exact scalar value identity to its
