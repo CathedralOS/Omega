@@ -18,6 +18,69 @@ pub(super) fn diagnostic_path_source_span(
     )
 }
 
+/// Whether an authored domain reference may select `domain` from
+/// `reference` under module name law. A fully qualified spelling always
+/// selects its exact declaration. A relative spelling — the domain's
+/// declared carrier-qualified name or its leaf — reaches a module-owned
+/// domain only inside its own module or through a narrow import of the exact
+/// declaration, which exposes the leaf spelling just like ordinary name
+/// resolution. Unmoduled domains keep root scope; generated references
+/// carry no lexical module and select only qualified or unmoduled domains.
+/// Resolution-stratum and package visibility stay with the caller.
+pub(crate) fn domain_name_reaches(
+    symbols: &SymbolTable,
+    domain_symbol: SymbolHandle,
+    domain_name: &str,
+    authored: &str,
+    reference: source::SourceSpan,
+) -> bool {
+    let qualified = symbols.display_path(domain_symbol, "::");
+    if qualified == authored {
+        return true;
+    }
+    if !crate::signature_free_requirements::same_semantic_name(domain_name, authored) {
+        return false;
+    }
+    let domain_module = symbols.symbol_module(domain_symbol);
+    if !domain_module.is_valid() {
+        return true;
+    }
+    // A generated or source-free reference carries no lexical module; it can
+    // only select the domain through its complete qualified path above.
+    if reference.span.start == reference.span.end {
+        return false;
+    }
+    if symbols.source_module(reference.source_id) == domain_module {
+        return true;
+    }
+    !authored.contains("::")
+        && symbols
+            .source_module_import_paths(reference.source_id)
+            .any(|path| path == qualified)
+}
+
+/// A domain declared in the reference's own module outranks same-spelled
+/// foreign or root candidates, mirroring local-binding precedence.
+pub(crate) fn prefer_module_local_domain(
+    symbols: &SymbolTable,
+    candidates: Vec<SymbolHandle>,
+    reference: source::SourceSpan,
+) -> Vec<SymbolHandle> {
+    if reference.span.start == reference.span.end {
+        return candidates;
+    }
+    let reference_module = symbols.source_module(reference.source_id);
+    if !reference_module.is_valid() {
+        return candidates;
+    }
+    let local = candidates
+        .iter()
+        .copied()
+        .filter(|candidate| symbols.symbol_module(*candidate) == reference_module)
+        .collect::<Vec<_>>();
+    if local.is_empty() { candidates } else { local }
+}
+
 pub(super) fn top_level_type_symbol_for_source(
     symbols: &SymbolTable,
     name: &symbol_resolved_trees::name::DiagnosticName,

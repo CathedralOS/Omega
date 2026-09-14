@@ -69,17 +69,39 @@ pub(crate) fn validate_with_const_resolution_mode(
     // Trait defaults and conformances join by the same exact source selection:
     // a module-owned template and a same-spelled sibling never share identity,
     // and generated references carry the selected owner's logical path.
+    // Non-generic module domains and their operator homes resolve by the same
+    // namespace rules: qualified semantic identity, module-local precedence,
+    // and import-gated relative spellings. Two remaining surfaces still fence:
+    // generic templates (open index telescopes and carrier binders share the
+    // generic-template normalization queue) and same-named domain siblings
+    // (compile-time domain-fact evaluation still selects by declared spelling,
+    // so a collision could discharge facts against the wrong owner).
+    let domain_names_collide = |definition: &syntax_trees::item::DomainDefinition| {
+        syntax.root_items().any(|item| {
+            let Item::Domain(other) = item else {
+                return false;
+            };
+            !std::ptr::eq(other, definition) && other.name.as_str() == definition.name.as_str()
+        })
+    };
     for item in syntax.root_items() {
         let unsupported = match item {
             Item::Domain(definition)
                 if module_sources.contains(&definition.name.source_span().source_id) =>
             {
-                Some((&definition.name, "module-owned domains require namespace-aware operator home normalization"))
+                if !definition.type_parameters.is_empty() {
+                    Some((&definition.name, "module-owned generic domains require namespace-aware template normalization"))
+                } else if domain_names_collide(definition) {
+                    Some((&definition.name, "module-owned domains sharing a declared name with another domain require exact const-evaluation ownership"))
+                } else {
+                    None
+                }
             }
             Item::Operator(definition) => {
                 syntax.items.identifier_path_members(definition.name).first()
                     .filter(|name| module_sources.contains(&name.source_span().source_id))
-                    .map(|name| (name, "module-owned operators require namespace-aware operator home normalization"))
+                    .filter(|_| !definition.type_parameters.is_empty())
+                    .map(|name| (name, "module-owned generic operators require namespace-aware template normalization"))
             }
             Item::Const(constant)
                 if module_sources.contains(&constant.name.source_span().source_id) =>
@@ -546,17 +568,47 @@ mod tests {
     }
 
     #[test]
-    fn module_domain_and_operator_homes_reject_before_name_based_relocation() {
+    fn module_domains_and_operators_lower_under_their_namespace() {
         for source in [
             "module units; domain u64::Distance;",
             "module units; operator add(left: u64, right: u64) -> u64;",
+            "module units; domain u64::Distance requires self > 0; operator u64::Distance::add(left: u64 in u64::Distance, right: u64) -> u64;",
         ] {
             let syntax = parse(&[source]);
+            crate::lower_syntax_trees(&syntax)
+                .expect("module-owned domains and operators lower under exact namespaces");
+        }
+    }
+
+    #[test]
+    fn module_generic_templates_and_same_named_domain_siblings_remain_fenced() {
+        for (sources, message) in [
+            (
+                &["module units; domain<T> T::Distance;"][..],
+                "namespace-aware template normalization",
+            ),
+            (
+                &["module units; operator copy<T>(value: T) -> T;"][..],
+                "namespace-aware template normalization",
+            ),
+            (
+                &["domain u64::Distance; module units; domain u64::Distance;"][..],
+                "exact const-evaluation ownership",
+            ),
+            (
+                &[
+                    "module units; domain u64::Distance;",
+                    "module rooms; domain u64::Distance;",
+                ][..],
+                "exact const-evaluation ownership",
+            ),
+        ] {
+            let syntax = parse(sources);
+            let diagnostics = crate::lower_syntax_trees(&syntax)
+                .expect_err("fenced module declarations still reject");
             assert!(
-                crate::lower_syntax_trees(&syntax)
-                    .expect_err("operator home normalization needs exact namespaces")[0]
-                    .message
-                    .contains("operator home normalization")
+                diagnostics[0].message.contains(message),
+                "{sources:?}: {diagnostics:?}"
             );
         }
     }

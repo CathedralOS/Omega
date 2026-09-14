@@ -829,6 +829,7 @@ impl Lowerer {
     ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
         crate::domain_operator_homes::normalize_domain_operator_homes(
             &mut self.symbol_resolved_trees,
+            &self.namespace_declarations,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         match &finish_mode {
