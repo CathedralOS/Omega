@@ -1,13 +1,13 @@
 //! Erase validated source float-projection invocations into checked proof rows.
 
 use checked_trees::{
-    CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
-    CheckedDirectStructuralFloatLeaf, CheckedFloatMeaningEqualityProposition,
-    CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionOccurrence,
-    CheckedFloatMeaningProjectionOccurrenceId, CheckedFloatProjectionInput,
-    CheckedFloatProjectionInputId, CheckedFloatProjectionSource, CheckedProofOnlyValueType,
-    CheckedProofPropositionId, CheckedProofValueDeclaration, CheckedProofValueId,
-    ContractProofFactKind, ProofFacts,
+    CheckedDirectBlockFloatParameter, CheckedDirectMachineFloatParameter,
+    CheckedDirectMachineFloatResult, CheckedDirectStructuralFloatLeaf,
+    CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
+    CheckedFloatMeaningProjectionOccurrence, CheckedFloatMeaningProjectionOccurrenceId,
+    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
+    CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
+    CheckedProofValueId, ContractProofFactKind, ProofFacts,
 };
 use diagnostics::Diagnostic;
 use numerics::float_projection::FloatProjectionOperation;
@@ -27,6 +27,11 @@ enum CheckedFloatProjectionSourceKey {
     },
     DirectMachineResult {
         owner_machine: symbols::SymbolHandle,
+    },
+    DirectBlockParameter {
+        owner_machine: symbols::SymbolHandle,
+        owner_state: symbols::SymbolHandle,
+        parameter: symbols::SymbolHandle,
     },
     DirectStructuralLeaf {
         owner_machine: symbols::SymbolHandle,
@@ -57,6 +62,17 @@ fn projection_source_key(
                 direct_machine_result_source(program, proof, fact).map(|owner_machine| {
                     CheckedFloatProjectionSourceKey::DirectMachineResult { owner_machine }
                 })
+            })
+            .or_else(|| {
+                direct_block_parameter_source(program, proof, fact).map(
+                    |(owner_machine, owner_state, parameter)| {
+                        CheckedFloatProjectionSourceKey::DirectBlockParameter {
+                            owner_machine,
+                            owner_state,
+                            parameter,
+                        }
+                    },
+                )
             })
             .or_else(|| {
                 direct_structural_float_leaf_source(program, proof, fact).map(
@@ -97,18 +113,28 @@ fn projection_source_key(
     }
 }
 
+/// Unique machine contract owner carrying the validated invocation, retaining
+/// the owning nested state when the fact belongs to a state-owned arrival
+/// contract. Nested states admit `requires` only; their direct scalar
+/// parameters are Terminal block parameters, a distinct source class from
+/// machine parameters.
 fn direct_machine_contract_owner(
     program: &TypedTrees,
     proof: &ProofFacts,
     fact: ValidatedFloatMeaningProjectionInvocation,
-) -> Option<symbols::SymbolHandle> {
+) -> Option<(symbols::SymbolHandle, Option<symbols::SymbolHandle>)> {
     let mut owners = proof.contract_facts.iter().filter_map(|(_, contract)| {
-        let checked_trees::ContractProofFactOwner::Machine { machine_symbol } = contract.owner
-        else {
-            return None;
+        let owner = match contract.owner {
+            checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
+                (machine_symbol, None)
+            }
+            checked_trees::ContractProofFactOwner::MachineState {
+                machine_symbol,
+                state_symbol,
+            } => (machine_symbol, Some(state_symbol)),
+            _ => return None,
         };
-        proof_fact_contains_expression(program, contract.fact, fact.invocation)
-            .then_some(machine_symbol)
+        proof_fact_contains_expression(program, contract.fact, fact.invocation).then_some(owner)
     });
     let owner = owners.next()?;
     owners.next().is_none().then_some(owner)
@@ -122,7 +148,7 @@ fn direct_structural_float_leaf_source(
     symbols::SymbolHandle,
     checked_trees::CheckedStructuralParameterField,
 )> {
-    let owner_machine = direct_machine_contract_owner(program, proof, fact)?;
+    let (owner_machine, _) = direct_machine_contract_owner(program, proof, fact)?;
     let machine = program
         .machines()
         .iter()
@@ -220,7 +246,7 @@ fn direct_machine_result_source(
     if name.as_str() != "result" {
         return None;
     }
-    let owner_machine = direct_machine_contract_owner(program, proof, fact)?;
+    let (owner_machine, _) = direct_machine_contract_owner(program, proof, fact)?;
     let owning_contract = proof.contract_facts.iter().any(|(_, contract)| {
         matches!(
             contract.owner,
@@ -269,7 +295,7 @@ fn direct_machine_parameter_source(
     {
         return None;
     }
-    let owner_machine = direct_machine_contract_owner(program, proof, fact)?;
+    let (owner_machine, _) = direct_machine_contract_owner(program, proof, fact)?;
     let machine = program
         .machines()
         .iter()
@@ -289,6 +315,60 @@ fn direct_machine_parameter_source(
         return None;
     }
     Some((owner_machine, parameter.symbol))
+}
+
+/// A scalar parameter of the owning nested state is a Terminal block
+/// parameter. The entry state is excluded: its parameters already carry the
+/// machine-parameter class. States admit arrival `requires` only, so no
+/// result carrier exists here.
+fn direct_block_parameter_source(
+    program: &TypedTrees,
+    proof: &ProofFacts,
+    fact: ValidatedFloatMeaningProjectionInvocation,
+) -> Option<(
+    symbols::SymbolHandle,
+    symbols::SymbolHandle,
+    symbols::SymbolHandle,
+)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(fact.source) else {
+        return None;
+    };
+    if program
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        != 1
+    {
+        return None;
+    }
+    let (owner_machine, owner_state) = direct_machine_contract_owner(program, proof, fact)?;
+    let owner_state = owner_state?;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == owner_machine)?;
+    let entry = program.machine_states(machine).first()?;
+    if entry.symbol == owner_state {
+        return None;
+    }
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == owner_state)?;
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == path.symbol)?;
+    if parameter.is_const || parameter.is_self {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(parameter.type_reference)?;
+    if primitive != fact.source_primitive
+        || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+    {
+        return None;
+    }
+    Some((owner_machine, owner_state, parameter.symbol))
 }
 
 fn proof_fact_contains_expression(
@@ -547,6 +627,18 @@ pub(crate) fn bind_float_meaning_projection_facts(
                             },
                         )
                     }
+                    CheckedFloatProjectionSourceKey::DirectBlockParameter {
+                        owner_machine,
+                        owner_state,
+                        parameter,
+                    } => CheckedFloatProjectionSource::DirectBlockParameter(
+                        CheckedDirectBlockFloatParameter {
+                            owner_machine,
+                            owner_state,
+                            parameter,
+                            fallback,
+                        },
+                    ),
                     CheckedFloatProjectionSourceKey::DirectStructuralLeaf {
                         owner_machine,
                         field,
@@ -1118,7 +1210,7 @@ mod tests {
     }
 
     #[test]
-    fn cast_and_state_owned_sources_remain_transitional() {
+    fn cast_and_const_sources_remain_transitional() {
         let cast_checked = crate::lower_typed_trees(lower_projection_fixture(
             r#"
                 machine cast_source(value: f32)
@@ -1130,24 +1222,6 @@ mod tests {
         .expect("checked cast source");
         assert_eq!(
             cast_checked.facts.proof.float_meaning_projections[0].source,
-            transitional_source(CheckedFloatProjectionInput {
-                id: CheckedFloatProjectionInputId(0),
-                primitive: PrimitiveType::F64,
-            })
-        );
-
-        let state_checked = crate::lower_typed_trees(lower_projection_fixture(
-            r#"
-                machine state_source() {
-                    state inspect(value: f64)
-                    requires Float::meaning64(value) == Float::meaning64(value);
-                    {}
-                }
-            "#,
-        ))
-        .expect("checked state-owned source");
-        assert_eq!(
-            state_checked.facts.proof.float_meaning_projections[0].source,
             transitional_source(CheckedFloatProjectionInput {
                 id: CheckedFloatProjectionInputId(0),
                 primitive: PrimitiveType::F64,
@@ -1168,6 +1242,118 @@ mod tests {
                 id: CheckedFloatProjectionInputId(0),
                 primitive: PrimitiveType::F32,
             })
+        );
+    }
+
+    #[test]
+    fn nested_state_scalar_parameters_retain_direct_block_provenance() {
+        let checked = crate::lower_typed_trees(lower_projection_fixture(
+            r#"
+                data Probe {
+                }
+
+                machine Probe::state_source(&mut self, seed: f64)
+                requires
+                    Float::meaning64(seed) == Float::meaning64(seed)
+                {
+                    transition {
+                        _ -> inspect(seed)
+                    }
+
+                    state inspect(&mut self, value: f64)
+                    requires
+                        Float::meaning64(value) == Float::meaning64(value)
+                    {}
+                }
+            "#,
+        ))
+        .expect("checked state-owned source");
+        let parameter = checked
+            .facts
+            .proof
+            .float_meaning_projections
+            .iter()
+            .find_map(|projection| match projection.source {
+                CheckedFloatProjectionSource::DirectBlockParameter(parameter)
+                    if checked.symbols.name(parameter.parameter) == "value" =>
+                {
+                    Some(parameter)
+                }
+                _ => None,
+            })
+            .expect("state scalar parameter should retain direct block provenance");
+        assert_eq!(
+            checked.symbols.name(parameter.owner_machine),
+            "Probe::state_source"
+        );
+        assert_eq!(checked.symbols.name(parameter.owner_state), "inspect");
+        assert_eq!(parameter.fallback.primitive, PrimitiveType::F64);
+        let machine_parameter = checked
+            .facts
+            .proof
+            .float_meaning_projections
+            .iter()
+            .find_map(|projection| match projection.source {
+                CheckedFloatProjectionSource::DirectMachineParameter(parameter) => Some(parameter),
+                _ => None,
+            })
+            .expect("machine parameter should retain direct provenance");
+        assert_eq!(checked.symbols.name(machine_parameter.parameter), "seed");
+        assert_eq!(parameter.owner_machine, machine_parameter.owner_machine);
+        assert_ne!(parameter.fallback.id, machine_parameter.fallback.id);
+    }
+
+    #[test]
+    fn nested_state_contract_keeps_block_machine_and_literal_classes_disjoint() {
+        let checked = crate::lower_typed_trees(lower_projection_fixture(
+            r#"
+                data Probe {
+                }
+
+                machine Probe::mixed(&mut self, seed: f32)
+                requires
+                    Float::meaning32(seed) == Float::meaning32(0.0f32)
+                {
+                    transition {
+                        _ -> inspect(seed)
+                    }
+
+                    state inspect(&mut self, value: f32)
+                    requires
+                        Float::meaning32(value) == Float::meaning32(0.0f32)
+                    {}
+                }
+            "#,
+        ))
+        .expect("checked mixed-ownership source");
+        let proof = &checked.facts.proof;
+        assert_eq!(proof.float_meaning_projections.len(), 3);
+        let mut block = None;
+        let mut literal = None;
+        let mut machine = None;
+        for projection in &proof.float_meaning_projections {
+            match &projection.source {
+                CheckedFloatProjectionSource::DirectBlockParameter(parameter) => {
+                    block = Some(*parameter)
+                }
+                CheckedFloatProjectionSource::ExactBinary32Literal(bits) => literal = Some(*bits),
+                CheckedFloatProjectionSource::DirectMachineParameter(parameter) => {
+                    machine = Some(*parameter)
+                }
+                source => panic!("unexpected projection source: {source:?}"),
+            }
+        }
+        let block = block.expect("state parameter should retain direct block provenance");
+        let machine = machine.expect("entry parameter should retain machine provenance");
+        assert_eq!(literal, Some(0.0_f32.to_bits()));
+        assert_eq!(checked.symbols.name(block.parameter), "value");
+        assert_eq!(checked.symbols.name(machine.parameter), "seed");
+        assert_eq!(checked.symbols.name(block.owner_machine), "Probe::mixed");
+        assert_eq!(block.owner_machine, machine.owner_machine);
+        assert_eq!(checked.symbols.name(block.owner_state), "inspect");
+        assert_ne!(
+            proof.float_meaning_equalities[0].left,
+            proof.float_meaning_equalities[0].right
         );
     }
 

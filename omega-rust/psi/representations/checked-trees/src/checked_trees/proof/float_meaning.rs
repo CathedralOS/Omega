@@ -65,6 +65,20 @@ pub struct CheckedDirectMachineFloatResult {
     pub fallback: CheckedFloatProjectionInput,
 }
 
+/// Exact checked provenance for a direct primitive parameter of one nested
+/// machine state. A nested state admits arrival `requires` only, so its
+/// parameters are Terminal block parameters, never machine parameters or
+/// machine results. The owning machine and owning state symbols remain
+/// checked-only custody: Terminal lowering rejoins them to the emitted
+/// machine/block tables and exact scalar parameter membership.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedDirectBlockFloatParameter {
+    pub owner_machine: symbols::SymbolHandle,
+    pub owner_state: symbols::SymbolHandle,
+    pub parameter: symbols::SymbolHandle,
+    pub fallback: CheckedFloatProjectionInput,
+}
+
 /// Exact checked provenance for an IEEE leaf below one top-level structural
 /// machine parameter. Source handles remain checked-only; Terminal lowering
 /// rejoins the owner, parameter position, and complete retained member path to
@@ -86,6 +100,7 @@ pub enum CheckedFloatProjectionSource {
     TransitionalInput(CheckedFloatProjectionInput),
     DirectMachineParameter(CheckedDirectMachineFloatParameter),
     DirectMachineResult(CheckedDirectMachineFloatResult),
+    DirectBlockParameter(CheckedDirectBlockFloatParameter),
     DirectStructuralLeaf(CheckedDirectStructuralFloatLeaf),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
@@ -97,6 +112,7 @@ impl CheckedFloatProjectionSource {
             Self::TransitionalInput(input) => input.primitive,
             Self::DirectMachineParameter(parameter) => parameter.fallback.primitive,
             Self::DirectMachineResult(result) => result.fallback.primitive,
+            Self::DirectBlockParameter(parameter) => parameter.fallback.primitive,
             Self::DirectStructuralLeaf(leaf) => leaf.fallback.primitive,
             Self::ExactBinary32Literal(_) => PrimitiveType::F32,
             Self::ExactBinary64Literal(_) => PrimitiveType::F64,
@@ -158,6 +174,13 @@ impl CheckedFloatMeaningProjection {
             }
             CheckedFloatProjectionSource::DirectMachineResult(result)
                 if !result.owner_machine.is_valid() =>
+            {
+                return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
+            }
+            CheckedFloatProjectionSource::DirectBlockParameter(parameter)
+                if !parameter.owner_machine.is_valid()
+                    || !parameter.owner_state.is_valid()
+                    || !parameter.parameter.is_valid() =>
             {
                 return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
             }
