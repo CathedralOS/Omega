@@ -1770,11 +1770,14 @@ Owners include
   carrier's opaque construction (macOS arm64,
   `OMEGA_PASS_CANARY_FILTER=address_translation_canary` /
   `OMEGA_FAIL_CANARY_FILTER=translation_` under
-  `mbx nextest run -p compiler --test canary_suite`). Next surfaces:
-  borrowed-source custody, provider-visible obligation sets
-  (`TranslationInstallObligations`/`TranslationReleaseObligations` in
-  `psi/foundation/extents`), and a Cathedral package carrying real page-table
-  installation.
+  `mbx nextest run -p compiler --test canary_suite`). Provider-visible
+  obligation sets landed at 55d2790d01: `MappingGrant`, `PendingMap`,
+  `MappedExtent`, `PendingUnmap`, and `MappingReceiptContext` in
+  `psi/foundation/extents` each expose the exact install/release fact sets
+  a provider's receipt must establish (Linux x86_64,
+  `cargo test -p extents`). Next surfaces: borrowed-source custody, a
+  source-spelled obligation surface on the canary contract, and a
+  Cathedral package carrying real page-table installation.
 
 - **EXCEPTION-ROOTS-AND-TIMER.** Materialize all fatal exception entries,
   dedicated critical stacks, IDT installation, and a minimal timer root whose
