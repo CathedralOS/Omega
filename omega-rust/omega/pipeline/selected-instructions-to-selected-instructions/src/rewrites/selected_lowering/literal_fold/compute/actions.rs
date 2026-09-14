@@ -5,8 +5,8 @@ use selected_instructions::{SelectedFunction, SelectedInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
 use crate::{
-    LiteralFoldAction, LiteralFoldError, PairResultDisposition, RecoveryClassification,
-    RecoveryVictimRole,
+    LiteralFoldAction, LiteralFoldError, PairOperandShape, PairResultDisposition,
+    RecoveryClassification, RecoveryVictimRole,
 };
 
 use super::constraints::AdmittedPairs;
@@ -34,15 +34,16 @@ pub(super) fn derive_action(
             function: function_index,
         });
     };
-    let immediate = u64::try_from(*value).map_err(|_| LiteralFoldError::UnsupportedImmediate {
-        function: function_index,
-    })?;
+    let literal_u64 =
+        u64::try_from(*value).map_err(|_| LiteralFoldError::UnsupportedImmediate {
+            function: function_index,
+        })?;
     let [future_use] = future_uses.as_slice() else {
         return Err(LiteralFoldError::FutureUseMismatch {
             function: function_index,
         });
     };
-    if future_use.operand != 1 || future_use.block != candidate.block {
+    if future_use.block != candidate.block {
         return Err(LiteralFoldError::FutureUseMismatch {
             function: function_index,
         });
@@ -75,11 +76,22 @@ pub(super) fn derive_action(
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
-    if !pair.rule.admits_immediate(immediate) {
+    if future_use.operand != pair.rule.victim_operand() {
+        return Err(LiteralFoldError::FutureUseMismatch {
+            function: function_index,
+        });
+    }
+    if !pair.rule.admits_immediate(literal_u64) {
         return Err(LiteralFoldError::UnsupportedImmediate {
             function: function_index,
         });
     }
+    let immediate =
+        pair.rule
+            .fold_immediate(literal_u64)
+            .ok_or(LiteralFoldError::UnsupportedImmediate {
+                function: function_index,
+            })?;
     if literal.kind
         != (SelectedInstructionKind::MaterializeI64 {
             value: IntegerValue::Unsigned(*value),
@@ -96,8 +108,16 @@ pub(super) fn derive_action(
     }
 
     let row = pair.row;
-    let result = match (pair.rule.result(), consumer.operands.as_slice()) {
-        (PairResultDisposition::ScalarRegister, [left, right, result]) => {
+    let result = match (
+        pair.rule.operand_shape(),
+        pair.rule.result(),
+        consumer.operands.as_slice(),
+    ) {
+        (
+            PairOperandShape::BinaryRightLiteral,
+            PairResultDisposition::ScalarRegister,
+            [left, right, result],
+        ) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim
@@ -114,7 +134,11 @@ pub(super) fn derive_action(
         }
         // Flag-defining consumers carry `[left, right]` uses and no `Def`;
         // their result is the rewritten row's implicit unit definitions.
-        (PairResultDisposition::ImplicitUnits, [left, right]) => {
+        (
+            PairOperandShape::BinaryRightLiteral,
+            PairResultDisposition::ImplicitUnits,
+            [left, right],
+        ) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim
@@ -126,6 +150,26 @@ pub(super) fn derive_action(
                 });
             }
             None
+        }
+        // Unary consumers carry `[input, result]`; the folded literal is the
+        // sole `Use` operand and the rewritten row carries only its `Def`.
+        (
+            PairOperandShape::UnaryLiteral,
+            PairResultDisposition::ScalarRegister,
+            [input, result],
+        ) => {
+            if input.access != RegisterOperandAccess::Use
+                || input.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
         }
         _ => {
             return Err(LiteralFoldError::ConsumerMismatch {

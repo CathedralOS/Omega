@@ -7,7 +7,7 @@ use super::{LiteralFoldPolicy, SelectedInstructionPairRule};
 pub struct SelectedLoweringRuleCatalogPayload {
     target: RegisterAllocationRuleTargetApplicability,
     policy: LiteralFoldPolicy,
-    pair: SelectedInstructionPairRule,
+    pairs: &'static [SelectedInstructionPairRule],
 }
 
 impl SelectedLoweringRuleCatalogPayload {
@@ -19,8 +19,11 @@ impl SelectedLoweringRuleCatalogPayload {
         self.policy
     }
 
-    pub const fn pair(self) -> SelectedInstructionPairRule {
-        self.pair
+    /// Every symbolic instruction-pair rule this exact selection admits, in
+    /// catalog order. A selection names one family; a family may cover several
+    /// disjoint consumer kinds, as the extension-elimination selection does.
+    pub const fn pairs(self) -> &'static [SelectedInstructionPairRule] {
+        self.pairs
     }
 }
 
@@ -28,13 +31,13 @@ pub type SelectedLoweringRuleCatalogEntry =
     OptimizationCatalogDescriptor<SelectedLoweringRuleCatalogPayload>;
 
 /// The single selected-lowering enable/order catalog.
-pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 3] = [
+pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 4] = [
     SelectedLoweringRuleCatalogEntry::new(
         Optimization::SelectedIncomingU12ExactAddImmediate,
         SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: LiteralFoldPolicy::EXACT_ADD_V1,
-            pair: SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
+            pairs: &[SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12],
         },
     ),
     SelectedLoweringRuleCatalogEntry::new(
@@ -42,7 +45,7 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 3] 
         SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: LiteralFoldPolicy::EXACT_SUBTRACT_V1,
-            pair: SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
+            pairs: &[SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12],
         },
     ),
     SelectedLoweringRuleCatalogEntry::new(
@@ -50,7 +53,15 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 3] 
         SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: LiteralFoldPolicy::COMPARE_V1,
-            pair: SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
+            pairs: &[SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12],
+        },
+    ),
+    SelectedLoweringRuleCatalogEntry::new(
+        Optimization::SelectedIncomingLiteralExtensionElimination,
+        SelectedLoweringRuleCatalogPayload {
+            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            policy: LiteralFoldPolicy::EXTENSION_V1,
+            pairs: &SelectedInstructionPairRule::EXTENSION_LITERAL_FOLDS,
         },
     ),
 ];
@@ -62,14 +73,15 @@ pub fn enabled_pair_rules(
     SELECTED_LOWERING_RULE_CATALOG
         .into_iter()
         .filter(move |entry| policy.contains(entry.payload().policy()))
-        .map(|entry| entry.payload().pair())
+        .flat_map(|entry| entry.payload().pairs().iter().copied())
 }
 
 /// Compatibility view derived from the descriptor catalog.
-pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 3] = [
+pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 4] = [
     SELECTED_LOWERING_RULE_CATALOG[0].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[1].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[2].optimization(),
+    SELECTED_LOWERING_RULE_CATALOG[3].optimization(),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
