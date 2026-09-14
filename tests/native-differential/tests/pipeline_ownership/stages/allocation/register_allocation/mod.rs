@@ -37,4 +37,5 @@ mod spill_recovery_actions;
 mod spill_recovery_choice;
 mod spill_recovery_worklist;
 mod stack_slot_coloring;
+mod structural_call_chain;
 mod synthetic_reload_values;

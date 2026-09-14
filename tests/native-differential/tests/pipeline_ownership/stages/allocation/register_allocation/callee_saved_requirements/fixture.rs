@@ -26,6 +26,19 @@ pub(super) fn preserving_call_homes(target: NativeTarget) -> StagedOptimizedRegi
     .unwrap()
 }
 
+pub(super) fn structural_call_homes(target: NativeTarget) -> StagedOptimizedRegisterHomes {
+    stage_optimized_register_homes(
+        stage_optimized_allocation_legality(
+            stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_structural_call_preserving(target)).unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+}
+
 pub(super) fn ordinary_homes(target: NativeTarget) -> StagedOptimizedRegisterHomes {
     stage_optimized_register_homes(
         stage_optimized_allocation_legality(

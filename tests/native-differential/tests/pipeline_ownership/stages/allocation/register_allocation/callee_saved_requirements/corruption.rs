@@ -1,6 +1,8 @@
 use crate::tests::*;
 
-use super::fixture::{call_homes, preserving_call_homes, stage, wide_budget};
+use super::fixture::{
+    call_homes, preserving_call_homes, stage, structural_call_homes, wide_budget,
+};
 
 fn rejects_dropped_or_substituted_witnessed_unit(source: &StagedOptimizedRegisterHomes) {
     let canonical = stage(source, wide_budget()).unwrap().plan().clone();
@@ -112,6 +114,7 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
     for source in [
         call_homes(NativeTarget::linux_x64()),
         preserving_call_homes(NativeTarget::linux_x64()),
+        structural_call_homes(NativeTarget::linux_x64()),
     ] {
         rejects_dropped_or_substituted_witnessed_unit(&source);
     }
