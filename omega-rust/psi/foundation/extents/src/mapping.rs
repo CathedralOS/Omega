@@ -148,6 +148,20 @@ impl MappingGrant {
     pub const fn identity(&self) -> MappingGrantId {
         self.identity
     }
+
+    /// The translation-activation facts this admitted grant obliges an
+    /// install receipt to establish. Providers read the bound policy here;
+    /// the set carries no authority of its own.
+    pub const fn install_obligations(&self) -> &TranslationInstallObligations {
+        &self.map_obligations
+    }
+
+    /// The translation-completion facts this admitted grant obliges a
+    /// release receipt to establish before either side's authority becomes
+    /// reusable.
+    pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
+        &self.unmap_obligations
+    }
 }
 
 #[derive(Debug)]
@@ -266,6 +280,21 @@ struct MappingEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MappingReceiptContext(MappingEvidence);
 
+impl MappingReceiptContext {
+    /// The install obligations the bound grant demands of an activation
+    /// receipt for this mapping. Visible here so a provider holding only the
+    /// exported context can still discover the facts it must establish.
+    pub const fn install_obligations(&self) -> &TranslationInstallObligations {
+        &self.0.grant.map_obligations
+    }
+
+    /// The release obligations the bound grant demands of a release receipt
+    /// for this mapping.
+    pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
+        &self.0.grant.unmap_obligations
+    }
+}
+
 /// Opaque provider context binding one exact mapped subrange to the complete
 /// structural evidence for its active mapping.
 ///
@@ -323,6 +352,13 @@ impl<'source> PendingMap<'source> {
 
     pub fn receipt_context(&self) -> MappingReceiptContext {
         MappingReceiptContext(self.mapping.evidence.clone())
+    }
+
+    /// The exact install obligations this pending mapping's activation
+    /// receipt must establish. A provider holding only the pending carrier
+    /// reads the admitted fact set here; the obligations carry no authority.
+    pub const fn install_obligations(&self) -> &TranslationInstallObligations {
+        &self.map_obligations
     }
 
     /// Provider-side source address data for deriving target translation
@@ -582,6 +618,13 @@ impl<'source> MappedExtent<'source> {
         self.mapped.loan_mut(offset, length)
     }
 
+    /// The exact release obligations this active mapping's eventual release
+    /// receipt must establish. Reading them while the mapping is installed
+    /// lets a provider assemble teardown evidence before consuming it.
+    pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
+        &self.unmap_obligations
+    }
+
     pub fn begin_unmap(self) -> PendingUnmap<'source> {
         PendingUnmap { mapping: self }
     }
@@ -786,6 +829,12 @@ impl<'source> PendingUnmap<'source> {
 
     pub fn receipt_context(&self) -> MappingReceiptContext {
         MappingReceiptContext(self.mapping.evidence.clone())
+    }
+
+    /// The exact release obligations this teardown's release receipt must
+    /// establish before either side's authority becomes reusable.
+    pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
+        self.mapping.release_obligations()
     }
 
     pub(crate) fn validate_release_receipt(
@@ -1040,11 +1089,13 @@ mod tests {
         extent(2, 0xffff_8000_0000_0000, 0x1000, 11, 22, &[200])
     }
 
+    // A provider mints receipts covering exactly the obligations its
+    // carriers expose; no out-of-band fact identity is retained.
     fn release(pending: &PendingUnmap<'_>) -> TranslationReleaseReceipt {
         TranslationReleaseReceipt::from_admitted_provider(
             &pending.receipt_context(),
             true,
-            [translation_fact(700)],
+            pending.release_obligations().facts(),
         )
     }
 
@@ -1052,7 +1103,7 @@ mod tests {
         TranslationActivationReceipt::from_admitted_provider(
             &pending.receipt_context(),
             true,
-            [activation_fact(600)],
+            pending.install_obligations().facts(),
         )
     }
 
@@ -1189,6 +1240,39 @@ mod tests {
                 .program_local_origin(),
             Some(program_local_origin(1))
         );
+    }
+
+    #[test]
+    fn provider_reads_obligations_from_grant_and_mapping_carriers() {
+        let install = TranslationInstallObligations::from_normalized_facts([activation_fact(600)]);
+        let release_set =
+            TranslationReleaseObligations::from_normalized_facts([translation_fact(700)]);
+        let grant = mapping_grant(MappingSourceMode::BorrowedShared);
+        assert_eq!(grant.install_obligations(), &install);
+        assert_eq!(grant.release_obligations(), &release_set);
+
+        let source = source();
+        let source_loan = source.loan(0, 0x1000).expect("shared source loan");
+        let pending = map_borrowed(source_loan, destination(), mapping_id(56), &grant)
+            .expect("borrowed map candidate");
+        assert_eq!(pending.install_obligations(), &install);
+        let context = pending.receipt_context();
+        assert_eq!(context.install_obligations(), &install);
+        assert_eq!(context.release_obligations(), &release_set);
+
+        let receipt = activate(&pending);
+        let mapping = pending.complete(receipt).expect("translations installed");
+        assert_eq!(mapping.release_obligations(), &release_set);
+
+        let pending = mapping.begin_unmap();
+        assert_eq!(pending.release_obligations(), &release_set);
+        let receipt = release(&pending);
+        let (destination, owned_source) = pending
+            .complete(receipt)
+            .expect("translations released")
+            .into_parts();
+        assert!(owned_source.is_none());
+        assert_eq!(destination.base(), 0xffff_8000_0000_0000);
     }
 
     #[test]
