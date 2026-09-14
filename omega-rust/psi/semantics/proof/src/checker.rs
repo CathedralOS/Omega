@@ -2377,9 +2377,13 @@ fn constraints_satisfy_named_constraint(constraints: &[ProofConstraint], constra
 
     match constraint {
         "exact" => integer_range_from_constraints(constraints).is_some(),
+        // A float range satisfies `finite` only when its membership excludes
+        // the infinities too: an inclusive +inf endpoint admits +inf, so
+        // range EXISTENCE alone is not evidence.
         "finite" => {
             integer_range_from_constraints(constraints).is_some()
-                || float_range_from_constraints(constraints).is_some()
+                || float_range_from_constraints(constraints)
+                    .is_some_and(|range| range.proves_finite())
         }
         "non_negative" => integer_range_from_constraints(constraints)
             .is_some_and(|range| !range.minimum.is_negative()),
