@@ -28,9 +28,12 @@ fn result_comparisons_and_boolean_composition_publish_exact_cast_bounds() {
             machine value() -> u8 {{ bounded() as u8 }}
         "#
         ));
-        let facts =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .unwrap_or_else(|diagnostics| panic!("{guarantee}: {diagnostics:#?}"));
+        let facts = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .unwrap_or_else(|diagnostics| panic!("{guarantee}: {diagnostics:#?}"));
         let [cast] = facts.exact_integer_casts.as_slice() else {
             panic!("one cast: {guarantee}");
         };
@@ -53,9 +56,12 @@ fn signed_literal_result_bounds_publish_exact_narrowing_facts() {
             machine value() -> i8 {{ bounded() as i8 }}
         "#
         ));
-        let facts =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .unwrap_or_else(|diagnostics| panic!("{guarantee}: {diagnostics:#?}"));
+        let facts = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .unwrap_or_else(|diagnostics| panic!("{guarantee}: {diagnostics:#?}"));
         let [cast] = facts.exact_integer_casts.as_slice() else {
             panic!("one cast: {guarantee}");
         };
@@ -76,9 +82,12 @@ fn result_alias_uses_only_the_formals_declared_or_builtin_required_range() {
             machine value(input: u16 [0..=255]) -> u8 {{ bounded(input) as u8 }}
         "#
         ));
-        let facts =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .unwrap();
+        let facts = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .unwrap();
         assert_eq!(facts.exact_integer_casts.len(), 1);
         assert_eq!(
             facts.exact_integer_casts[0].maximum,
@@ -102,8 +111,12 @@ fn assignment_result_alias_retains_its_exact_cast_fact() {
         }
         "#,
     );
-    let facts = validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let facts = validation::validate_specialized_program(
+        &program,
+        validation::OpaquePropertyValidation::Required(&[]),
+    )
+    .map(|validated| validated.facts)
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let [cast] = facts.exact_integer_casts.as_slice() else {
         panic!("one assignment cast");
     };
@@ -123,8 +136,12 @@ fn assignment_cast_facts_use_the_value_before_each_write() {
         }
         "#,
     );
-    let facts = validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let facts = validation::validate_specialized_program(
+        &program,
+        validation::OpaquePropertyValidation::Required(&[]),
+    )
+    .map(|validated| validated.facts)
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let casts = facts
         .exact_integer_casts
         .iter()

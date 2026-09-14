@@ -1,6 +1,19 @@
 # Semantic validation
 
-Start at [lib.rs](src/lib.rs). Source automation must preserve the
+Start at [program_validation.rs](src/program_validation.rs): declaration checks,
+machine/state validation, and result publication run there in order.
+[Statement validation](src/program_validation/statements.rs) owns ordered value
+updates; [contract queries](src/program_validation/contract_queries.rs) owns
+entailment queries and pristine-template checks. [lib.rs](src/lib.rs) wires the API.
+
+Standalone validation checks generic contracts itself. Post-specialization
+validation requires the earlier template check and explicitly selects required
+opaque-property receipts or pending preliminary-build evidence. Its result
+retains operational and service-reach analyses for the same immutable program;
+checking consumes those analyses instead of rerunning their fixed points.
+This is local analysis reuse, not portable verification authority.
+
+Source automation must preserve the
 [mathematical proof contract](../../../../wiki/spec/proofs/contracts.md) and
 feed the separately reconstructed [Terminal questions](../../../../wiki/spec/terminal-psi/verification.md).
 

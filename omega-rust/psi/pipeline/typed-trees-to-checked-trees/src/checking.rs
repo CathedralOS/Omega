@@ -98,6 +98,7 @@ fn check_program(
         &program,
         &validated.proof_plan,
         validated.operational,
+        validated.service_reaches,
         &validated.validation_facts,
         nominal_machine_uses,
     )?;

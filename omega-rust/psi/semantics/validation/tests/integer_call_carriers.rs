@@ -24,8 +24,12 @@ fn free_call_remainder_retains_exact_narrowing_evidence() {
          }",
     );
     validation::validate_program(&program).expect("valid source");
-    let facts = validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-        .expect("retained validation facts");
+    let facts = validation::validate_specialized_program(
+        &program,
+        validation::OpaquePropertyValidation::Required(&[]),
+    )
+    .map(|validated| validated.facts)
+    .expect("retained validation facts");
     let [cast] = facts.exact_integer_casts.as_slice() else {
         panic!(
             "one exact narrowing occurrence: {:?}",

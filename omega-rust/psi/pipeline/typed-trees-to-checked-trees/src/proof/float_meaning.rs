@@ -831,9 +831,12 @@ mod tests {
     }
 
     fn bind_projection_facts_without_exit_proof(program: &TypedTrees) -> ProofFacts {
-        let validation =
-            validation::validate_program_after_generic_contract_entailment_with_facts(program)
-                .expect("validate projection facts");
+        let validation = validation::validate_specialized_program(
+            program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect("validate projection facts");
         let proof_plan = proof::obligations::build_proof_plan(program);
         let borrow = crate::build_borrow_facts(program);
         let mut proof = crate::build_proof_facts(program, &proof_plan, &borrow);
@@ -1209,9 +1212,12 @@ mod tests {
     #[test]
     fn checked_binding_rejects_source_identity_substitution() {
         let program = typed_projection_program();
-        let mut validation =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect("validate");
+        let mut validation = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect("validate");
         assert_eq!(validation.float_meaning_projection_invocations.len(), 4);
         validation.float_meaning_projection_invocations[0].source =
             validation.float_meaning_projection_invocations[1].invocation;
@@ -1234,9 +1240,12 @@ mod tests {
     #[test]
     fn checked_binding_rejects_cross_format_operation_tamper() {
         let program = typed_projection_program();
-        let mut validation =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect("validate");
+        let mut validation = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect("validate");
         validation.float_meaning_projection_invocations[0].operation =
             FloatProjectionOperation::Meaning64;
         let mut proof = ProofFacts::default();
@@ -1254,9 +1263,12 @@ mod tests {
     #[test]
     fn checked_binding_rejects_catalog_contract_tamper() {
         let program = typed_projection_program();
-        let mut validation =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect("validate");
+        let mut validation = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect("validate");
         validation.float_meaning_projection_invocations[0]
             .contract
             .catalog_version += 1;
@@ -1279,9 +1291,12 @@ mod tests {
     #[test]
     fn checked_binding_rejects_forged_cross_format_equality_fact() {
         let mut program = typed_projection_program();
-        let mut validation =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect("validate");
+        let mut validation = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect("validate");
         let cross_format_right = validation.float_meaning_equality_propositions[1].right;
         let equality = &mut validation.float_meaning_equality_propositions[0];
         equality.right = cross_format_right;
@@ -1316,9 +1331,12 @@ mod tests {
                 { }
             "#,
         );
-        let diagnostics =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect_err("FloatMeaningEqual is carrier-specific");
+        let diagnostics = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect_err("FloatMeaningEqual is carrier-specific");
         assert!(
             diagnostics[0]
                 .message
@@ -1328,11 +1346,11 @@ mod tests {
 
     #[test]
     fn proof_projection_call_rejects_a_local_operator_lookalike() {
-        let diagnostics =
-            validation::validate_program_after_generic_contract_entailment_with_facts(
-                &local_projection_program(),
-            )
-            .expect_err("a local projection spelling has no closed-catalog authority");
+        let diagnostics = validation::validate_specialized_program(
+            &local_projection_program(),
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .expect_err("a local projection spelling has no closed-catalog authority");
         assert!(
             diagnostics[0]
                 .message
@@ -1346,9 +1364,12 @@ mod tests {
     fn canonical_projection_rejects_a_user_owned_float_meaning_result() {
         let program =
             lower_projection_fixture_with_meaning_origin(projection_source(), SourceOrigin::User);
-        let diagnostics =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect_err("the canonical operator cannot return a user FloatMeaning lookalike");
+        let diagnostics = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect_err("the canonical operator cannot return a user FloatMeaning lookalike");
         assert!(
             diagnostics[0]
                 .message
@@ -1367,9 +1388,12 @@ mod tests {
             "float_projection_lookalike.omg",
             SourceOrigin::Toolchain,
         );
-        let diagnostics =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect_err("a different toolchain file cannot own Float projection semantics");
+        let diagnostics = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect_err("a different toolchain file cannot own Float projection semantics");
         assert!(
             diagnostics[0]
                 .message
@@ -1391,9 +1415,12 @@ mod tests {
             "float_operations.omg",
             SourceOrigin::Toolchain,
         );
-        let diagnostics =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect_err("the sealed meaning32 declaration cannot drift to binary64");
+        let diagnostics = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect_err("the sealed meaning32 declaration cannot drift to binary64");
         assert!(
             diagnostics[0].message.contains("from `f32`"),
             "unexpected diagnostic: {:?}",
@@ -1413,9 +1440,12 @@ mod tests {
             "float_operations.omg",
             SourceOrigin::Toolchain,
         );
-        let diagnostics =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect_err("the sealed projection declaration is private");
+        let diagnostics = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect_err("the sealed projection declaration is private");
         assert!(
             diagnostics[0]
                 .message
@@ -1436,9 +1466,12 @@ mod tests {
             "float_operations.omg",
             SourceOrigin::Toolchain,
         );
-        let diagnostics =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect_err("the sealed projection declaration is contract-free");
+        let diagnostics = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect_err("the sealed projection declaration is contract-free");
         assert!(
             diagnostics[0]
                 .message
@@ -1449,9 +1482,12 @@ mod tests {
     #[test]
     fn checked_binding_rejects_validated_facts_replayed_on_a_local_lookalike() {
         let canonical = typed_projection_program();
-        let validation =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&canonical)
-                .expect("validate canonical toolchain projections");
+        let validation = validation::validate_specialized_program(
+            &canonical,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect("validate canonical toolchain projections");
         let local = local_projection_program();
         let mut proof = ProofFacts::default();
         let diagnostics = bind_float_meaning_projection_facts(
@@ -1474,9 +1510,12 @@ mod tests {
     #[test]
     fn checked_binding_rejects_equality_operand_substitution_transactionally() {
         let program = typed_projection_program();
-        let mut validation =
-            validation::validate_program_after_generic_contract_entailment_with_facts(&program)
-                .expect("validate");
+        let mut validation = validation::validate_specialized_program(
+            &program,
+            validation::OpaquePropertyValidation::Required(&[]),
+        )
+        .map(|validated| validated.facts)
+        .expect("validate");
         validation.float_meaning_equality_propositions[0].left =
             validation.float_meaning_projection_invocations[2].invocation;
         let mut proof = ProofFacts::default();

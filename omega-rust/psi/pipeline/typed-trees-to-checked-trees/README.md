@@ -25,7 +25,9 @@ boundary, and termination dimensions. A checked tree is published only after
 diagnostics clear; these views are not persisted rejection certificates.
 
 `checking.rs` names complete, preliminary-package, and settled-package checking
-as distinct modes. Only the preliminary checkpoint permits pending opaque-copy
+as distinct modes. Semantic validation returns both operational and service-reach
+analyses; behavior checking and fact construction consume those exact results
+without re-inferring them on the unchanged typed tree. Only the preliminary checkpoint permits pending opaque-copy
 evidence; both package checkpoints retain unresolved toolchain selections. Crash
 admission is enforced in all production modes.
 
