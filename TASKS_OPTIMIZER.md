@@ -201,8 +201,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   offsets, resolved-slot retarget or erasure, unknown slot targets, the
   caller machine, initial and rebound sources, the selected table byte
   offset, the realization, and swapped, dropped, or duplicated slots,
-  tables, and calls are rejected at encoding as non-canonical. Remaining:
-  stored, forwarded-descriptor, and dynamic-parameter custody tables.
+  tables, and calls are rejected at encoding as non-canonical. Landed:
+  installed dynamic-parameter call rows
+  (`installation_dynamic_parameter_call_rejects_every_one_field_substitution`)
+  — `operation`, `source_value`, `requirement_slot`, in-function text offset,
+  and in-bounds byte count are independently representable and rejected by
+  replay; an unknown or other-function machine, out-of-function text offsets,
+  zero or overflowing byte counts, and a duplicated row are rejected at
+  encoding as non-canonical; a dropped row is rejected by replay. Remaining:
+  stored, forwarded-descriptor, and forwarded-dynamic-parameter custody
+  tables.
 
 ## Psi optimization and loops
 
