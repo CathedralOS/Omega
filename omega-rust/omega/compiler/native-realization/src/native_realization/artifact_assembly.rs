@@ -1,5 +1,10 @@
-use crate::native_realization::diagnostics::realization_error;
-use crate::native_realization::model::{NativeRealizationRequest, RequestedNativeArtifact};
+//! Assembly of the requested native artifact from the emitted object and
+//! its retained realization evidence.
+
+use crate::native_realization::realization_diagnostics::realization_error;
+use crate::native_realization::realization_request::{
+    NativeRealizationRequest, RequestedNativeArtifact,
+};
 use diagnostics::Diagnostic;
 use native_artifact::{
     DynamicElfNativeArtifact, DynamicElfNativeArtifactEmissionParts, NativeArtifact,

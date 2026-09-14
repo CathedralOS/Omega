@@ -1,5 +1,20 @@
 use super::super::error::OptimizedProgramStorageSemanticWrapperObjectError;
-use super::super::shared::*;
+use crate::{
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
+    StagedOptimizedProgramStorageSemanticWrapperEncoding, ValidatedNativeProgramEntrySettlement,
+    validate_native_program_entry_settlement,
+};
+use object_file::StagedValidatedOptimizedObjectArtifact;
+use program_entry_plan::{
+    OptimizedProgramStorageSemanticEntryContract,
+    bind_optimized_program_storage_semantic_entry_contract,
+    plan_optimized_program_storage_semantic_wrapper,
+};
+use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
+use terminal_psi::{
+    BindingRelevance, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
+    StructuralTypeShape, TerminalMachineResult,
+};
 
 pub(crate) fn replay_settlement(
     settlement: &ValidatedNativeProgramEntrySettlement,

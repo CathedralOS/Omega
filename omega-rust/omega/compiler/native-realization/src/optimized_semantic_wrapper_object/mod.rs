@@ -3,12 +3,17 @@
 //! The stage entrance composes one compiler-owned wrapper with one validated
 //! relocation-free child, independently replays the join, and grants custody.
 
+use crate::{
+    StagedOptimizedProgramStorageSemanticWrapperEncoding, ValidatedNativeProgramEntrySettlement,
+    validate_optimized_program_storage_semantic_wrapper_encoding,
+};
+use object_file::{StagedValidatedOptimizedObjectArtifact, validate_optimized_object_artifact};
+
 mod codec;
 mod custody;
 mod error;
 mod model;
 mod object;
-mod shared;
 mod validation;
 
 pub use codec::{
@@ -20,7 +25,20 @@ pub use error::{
     OptimizedProgramStorageSemanticWrapperObjectDecodeError,
     OptimizedProgramStorageSemanticWrapperObjectError,
 };
-pub use model::*;
+pub use model::{
+    OptimizedProgramStorageSemanticWrapperCallResolution,
+    OptimizedProgramStorageSemanticWrapperCallResolutionState,
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
+    OptimizedProgramStorageSemanticWrapperObjectManifest,
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectStage,
+    OptimizedProgramStorageSemanticWrapperObjectSymbol,
+    OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
+    OptimizedProgramStorageSemanticWrapperObjectUnavailableData,
+    StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
+    ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
+};
 pub use validation::{
     validate_installed_program_storage_continuation_evidence,
     validate_optimized_program_storage_semantic_wrapper_object,
@@ -28,7 +46,6 @@ pub use validation::{
 
 use custody::custody;
 use object::{construct_manifest, construct_object};
-use shared::*;
 use validation::{
     replay_semantic_contract, replay_settlement, validate_entry_shape,
     validate_retained_installed_provider_continuation,

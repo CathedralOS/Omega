@@ -10,7 +10,6 @@
 
 mod entry_settlement;
 mod native_pipeline;
-pub use native_pipeline::*;
 mod native_realization;
 mod optimized_semantic_wrapper_encoding;
 mod optimized_semantic_wrapper_object;
@@ -30,6 +29,17 @@ pub use native_artifact::{
     NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest, NormalizedForeignCallRelocation,
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations, PhysicalChildParent,
     PhysicalRelocationDisposition,
+};
+#[cfg(any(test, feature = "test-support"))]
+pub use native_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions;
+pub use native_pipeline::{
+    EmptyOptimizationSelections, ExplicitOptimizationRequest, OptimizationPipelineError,
+    OptimizationPipelineReport, OptimizationPipelineRequest,
+    OptimizedVerifiedPhysicalPipelineError, StagedOptimizedVerifiedPhysicalPipeline,
+    compiler_baseline_request_v1, optimization_pipeline_report,
+    optimization_pipeline_report_from_object_artifact,
+    optimization_pipeline_report_from_ordinary_callable_entry, optimize_artifact_sections,
+    optimize_verified_abstract_input, stage_optimized_verified_physical_pipeline,
 };
 pub use native_realization::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CallbackCustodyNativeRealizationError,
@@ -57,7 +67,28 @@ pub use optimized_semantic_wrapper_encoding::{
     select_optimized_program_storage_semantic_wrapper_encoding,
     validate_optimized_program_storage_semantic_wrapper_encoding,
 };
-pub use optimized_semantic_wrapper_object::*;
+pub use optimized_semantic_wrapper_object::{
+    InstalledProgramStorageContinuationEvidenceError,
+    OptimizedProgramStorageSemanticWrapperCallResolution,
+    OptimizedProgramStorageSemanticWrapperCallResolutionState,
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
+    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
+    OptimizedProgramStorageSemanticWrapperObjectError,
+    OptimizedProgramStorageSemanticWrapperObjectManifest,
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectStage,
+    OptimizedProgramStorageSemanticWrapperObjectSymbol,
+    OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
+    OptimizedProgramStorageSemanticWrapperObjectUnavailableData,
+    StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
+    ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
+    decode_optimized_program_storage_semantic_wrapper_object,
+    encode_optimized_program_storage_semantic_wrapper_object,
+    stage_validated_optimized_program_storage_semantic_wrapper_object,
+    validate_installed_program_storage_continuation_evidence,
+    validate_optimized_program_storage_semantic_wrapper_object,
+};
 
 #[cfg(test)]
 mod tests;

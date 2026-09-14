@@ -2,7 +2,7 @@ use super::{
     exact_plan::selected_plan_from_exact_evidence,
     normalized_foreign_call::rejoin_normalized_foreign_call,
 };
-use crate::native_realization::model::{
+use crate::native_realization::realization_request::{
     NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationInput,
     NativeRealizationRequest,
 };

@@ -1,6 +1,16 @@
+use crate::StagedOptimizedProgramStorageSemanticWrapperEncoding;
 use crate::optimized_semantic_wrapper_object::error::*;
+use crate::optimized_semantic_wrapper_object::model::WRAPPER_SYMBOL_NAME;
 use crate::optimized_semantic_wrapper_object::model::*;
-use crate::optimized_semantic_wrapper_object::shared::*;
+use isa_x86_64::{
+    X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT,
+    resolve_x86_64_semantic_unit_wrapper_private_continuation,
+};
+use object_file::{ObjectLocalSymbolId, RelocationFreeObjectPlan, RelocationFreeObjectSymbolRole};
+use optimization_core::{
+    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectIdentity, RelocationFreeObjectContainerIdentity,
+};
 
 use super::validate_object;
 

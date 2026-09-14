@@ -7,7 +7,20 @@ use super::error::{
     OptimizedProgramStorageSemanticWrapperObjectError,
 };
 use super::object::valid_manifest_shape;
-use super::shared::*;
+use crate::{
+    StagedOptimizedProgramStorageSemanticWrapperEncoding, ValidatedNativeProgramEntrySettlement,
+};
+use object_file::{ObjectLocalSymbolId, StagedValidatedOptimizedObjectArtifact};
+use optimization_core::{
+    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+};
+use semantic_vocabulary::MachineId;
+use target::NativeTarget;
+use terminal_psi::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
@@ -310,3 +323,11 @@ impl OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
         self.manifest
     }
 }
+
+// Wire identity of the wrapper object, its container, and its manifest.
+pub(crate) const PLAN_SCHEMA: &[u8] =
+    b"omega.optimized-program-storage-semantic-wrapper-object.v1\0";
+pub(crate) const CONTAINER_MAGIC: &[u8; 8] = b"OMGPSO\0\0";
+pub(crate) const MANIFEST_MAGIC: &[u8; 8] = b"OMGPSM\0\0";
+pub(crate) const CODEC_VERSION: u32 = 1;
+pub(crate) const WRAPPER_SYMBOL_NAME: &str = "__omega_program_entry_plan_semantic_wrapper_v1";

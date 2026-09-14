@@ -5,7 +5,7 @@ use terminal_production::ProducedProgramEntryTerminalArtifact;
 
 use crate::entry_settlement::validate_native_program_entry_settlement;
 
-use super::diagnostics::realization_error;
+use super::realization_diagnostics::realization_error;
 use super::{
     NativeRealizationRequest, RequestedNativeArtifactError, SettledNativeArtifact,
     realize_native_artifact,

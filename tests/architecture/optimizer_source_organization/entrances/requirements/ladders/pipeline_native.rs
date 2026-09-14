@@ -6,10 +6,10 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         paths: &[
             "omega-rust/omega/compiler/native-realization/src/native_realization.rs",
             "omega-rust/omega/compiler/native-realization/src/native_realization/boundary_applications.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/input.rs",
+            "omega-rust/omega/compiler/native-realization/src/native_realization/input_preparation.rs",
             "omega-rust/omega/compiler/native-realization/src/native_realization/providers/mod.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/object.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/output.rs",
+            "omega-rust/omega/compiler/native-realization/src/native_realization/object_emission.rs",
+            "omega-rust/omega/compiler/native-realization/src/native_realization/artifact_assembly.rs",
         ],
     },
     SemanticLadder {

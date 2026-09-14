@@ -1,5 +1,10 @@
-use crate::native_realization::diagnostics::realization_error;
-use crate::native_realization::model::{NativeRealizationInput, NativeRealizationRequest};
+//! Preparation of verified native input from a Terminal artifact and its
+//! separately supplied realization authority.
+
+use crate::native_realization::realization_diagnostics::realization_error;
+use crate::native_realization::realization_request::{
+    NativeRealizationInput, NativeRealizationRequest,
+};
 use diagnostics::Diagnostic;
 
 /// Reusable target-neutral lowering of one exact canonical Terminal artifact.

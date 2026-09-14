@@ -1,4 +1,9 @@
 //! Optimizer module role: executable entrance.
+
+use crate::{
+    StagedOptimizedProgramStorageSemanticWrapperEncoding, ValidatedNativeProgramEntrySettlement,
+};
+use object_file::StagedValidatedOptimizedObjectArtifact;
 mod composition;
 mod manifest;
 mod validation;
@@ -9,7 +14,6 @@ pub(crate) use validation::validate_object;
 
 use crate::optimized_semantic_wrapper_object::error::*;
 use crate::optimized_semantic_wrapper_object::model::*;
-use crate::optimized_semantic_wrapper_object::shared::*;
 
 pub(crate) fn construct_object(
     settlement: &ValidatedNativeProgramEntrySettlement,

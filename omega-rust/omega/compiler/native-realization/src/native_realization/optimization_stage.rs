@@ -1,7 +1,9 @@
 //! Complete the abstract-optimization phase for verified native input.
 
-use crate::native_realization::diagnostics::realization_error;
-use crate::native_realization::model::{NativeRealizationInput, NativeRealizationRequest};
+use crate::native_realization::realization_diagnostics::realization_error;
+use crate::native_realization::realization_request::{
+    NativeRealizationInput, NativeRealizationRequest,
+};
 use diagnostics::Diagnostic;
 
 /// Current verified abstract program, independent of pass selection.
