@@ -47,6 +47,11 @@ pub(crate) fn validate(
             let address = row
                 .address
                 .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+            // The symbolic operation must be the address family this kind
+            // owns; the producer's route declaration is not trusted here.
+            if !admits_address_operation(kind, address.symbolic) {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
             let SelectedFormEncodingState::Encoded { bytes, footprint } = &row.state else {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             };
@@ -121,23 +126,61 @@ pub(crate) fn validate(
         kind @ (SelectedInstructionKind::CallScalar { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }) => {
+            if row.address.is_some() {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
             scalar_call::validate(target, selected.id, kind, machine, physical, &row.state)
         }
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump => {
-            if row.state
-                != (SelectedFormEncodingState::DeferredControl {
-                    reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
-                })
+            if row.address.is_some()
+                || row.state
+                    != (SelectedFormEncodingState::DeferredControl {
+                        reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
+                    })
             {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
             Ok(())
         }
-        kind => validate_baseline(target, selected.id, kind, machine, physical, &row.state),
+        kind => validate_baseline(target, selected.id, kind, machine, physical, row),
     }
+}
+
+/// The validator's own kind→address-operation binding. The producer's route
+/// descriptors are not trusted here: a resolved address naming a different
+/// operation family contradicts the selected kind no matter how consistent
+/// its displacement is.
+fn admits_address_operation(
+    kind: SelectedInstructionKind,
+    operation: physical_instructions::PhysicalAddressOperation,
+) -> bool {
+    use SelectedInstructionKind as Kind;
+    use physical_instructions::PhysicalAddressOperation as Operation;
+    matches!(
+        (kind, operation),
+        (Kind::Store { .. }, Operation::Store { .. })
+            | (Kind::AddressOffset { .. }, Operation::AddressOffset { .. })
+            | (Kind::Load64 { .. }, Operation::Load64 { .. })
+            | (Kind::LoadPacked { .. }, Operation::LoadPacked { .. })
+            | (Kind::StorePacked { .. }, Operation::StorePacked { .. })
+            | (Kind::Load8 { .. }, Operation::Load8 { .. })
+            | (Kind::Load16 { .. }, Operation::Load16 { .. })
+            | (Kind::Load32 { .. }, Operation::Load32 { .. })
+            | (Kind::Load8Indexed, Operation::Load8Indexed { .. })
+            | (
+                Kind::HostedReadByte { .. },
+                Operation::HostedReadByte { .. }
+            )
+            | (
+                Kind::HostedWriteByteI32 { .. },
+                Operation::HostedWriteByteI32 { .. }
+            )
+            | (Kind::Store64 { .. }, Operation::Store64 { .. })
+            | (Kind::FrameAddress { .. }, Operation::FrameAddress { .. })
+    )
 }
 
 fn validate_baseline(
@@ -146,9 +189,14 @@ fn validate_baseline(
     kind: SelectedInstructionKind,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    state: &SelectedFormEncodingState,
+    row: &SelectedFormEncodingRow,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let SelectedFormEncodingState::Encoded { bytes, footprint } = state else {
+    // Ordinary routes declare no address operation; an attached resolved
+    // address is a contradiction the frame-equation parity check cannot see.
+    if row.address.is_some() {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    let SelectedFormEncodingState::Encoded { bytes, footprint } = &row.state else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };
     let views = operand_views(machine);

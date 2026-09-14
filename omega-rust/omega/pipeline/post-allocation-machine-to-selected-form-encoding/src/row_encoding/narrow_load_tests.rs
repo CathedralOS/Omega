@@ -210,6 +210,32 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                 crate::frame_address::validate_address(&function, None, &machine, Some(changed))
                     .is_err()
             );
+            // A resolved address naming a foreign operation family
+            // contradicts the declared kind route in the producer and in the
+            // replay, even when machine row and artifact agree with each
+            // other.
+            let mut foreign_machine = machine.clone();
+            foreign_machine.address = Some(PhysicalAddressOperation::Load64 {
+                base_operand: 0,
+                byte_offset: 2,
+            });
+            let foreign = crate::frame_address::resolve(&function, None, &foreign_machine).unwrap();
+            assert!(matches!(
+                encode_row(target, &selected, &foreign_machine, &physical, foreign),
+                Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+            ));
+            let mut changed_row = row.clone();
+            changed_row.address = foreign;
+            assert!(
+                crate::validation::row::validate(
+                    target,
+                    &selected,
+                    &foreign_machine,
+                    &physical,
+                    &changed_row
+                )
+                .is_err()
+            );
         }
     }
 }
