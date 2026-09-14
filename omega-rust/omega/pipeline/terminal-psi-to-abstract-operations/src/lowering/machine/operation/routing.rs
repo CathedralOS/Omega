@@ -75,8 +75,30 @@ pub(super) fn lower(
                 field: *field,
             })
         }
-        OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
-            Err(LoweringError::UnsupportedStructuralByteSequenceFieldByteStore(operation.id))
+        OperationKind::StructuralByteSequenceFieldByteStore {
+            destination,
+            path,
+            field,
+            index,
+            value,
+            length,
+            obligation,
+        } => {
+            if operation.result != terminal_psi::OperationResult::Unit {
+                return Err(LoweringError::InvalidStructuralByteSequenceFieldStore(
+                    operation.id,
+                ));
+            }
+            Ok(AbstractOperation::StructuralByteSequenceFieldByteStore {
+                psi_operation: operation.id,
+                destination: *destination,
+                path: path.clone(),
+                field: *field,
+                index: *index,
+                value: *value,
+                length: *length,
+                obligation: *obligation,
+            })
         }
         OperationKind::ByteSequenceWrite {
             destination,

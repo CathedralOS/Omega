@@ -12,37 +12,40 @@ use terminal_psi::{
 
 use crate::OptimizationUnitValidationError;
 
-/// Resolve replacement capacity from the exact writable destination declaration.
-/// Source-view validity and its dominating length are checked independently.
+/// Resolve the bounded field from the exact writable destination declaration.
+/// Replacement source validity and indexed-store freshness are checked separately.
 pub(crate) fn byte_field_store_capacity(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<u64> {
-    let AbstractOperation::StructuralByteSequenceFieldStore {
-        destination,
-        path,
-        field,
-        source,
-        ..
-    } = operation
-    else {
-        return None;
+    let (destination, path, field) = match operation {
+        AbstractOperation::StructuralByteSequenceFieldStore {
+            destination,
+            path,
+            field,
+            source,
+            ..
+        } if destination != source => (destination, path, field),
+        AbstractOperation::StructuralByteSequenceFieldByteStore {
+            destination,
+            path,
+            field,
+            ..
+        } => (destination, path, field),
+        _ => return None,
     };
     let parameter = function
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == *destination)?;
-    if destination == source
-        || !matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        || !matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        )
-        || !parameter.qualifications.is_empty()
+    if !matches!(
+        parameter.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) || !matches!(
+        parameter.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
         || !terminal_psi::is_bounded_structural_scalar_store_path(path)
         || function

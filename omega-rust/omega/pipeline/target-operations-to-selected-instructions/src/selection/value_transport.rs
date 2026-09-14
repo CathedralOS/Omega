@@ -40,7 +40,13 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 Instruction::StructuralByteSequenceFieldStore { length, .. } => {
                     pending.push(*length)
                 }
-                Instruction::ByteSequenceWrite {
+                Instruction::StructuralByteSequenceFieldByteStore {
+                    index,
+                    value,
+                    length,
+                    ..
+                }
+                | Instruction::ByteSequenceWrite {
                     index,
                     value,
                     length,

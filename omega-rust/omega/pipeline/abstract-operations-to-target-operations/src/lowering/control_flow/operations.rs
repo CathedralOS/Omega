@@ -272,6 +272,16 @@ pub(super) fn lower_operation(
                 provenance,
             )
         }
+        AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
+            super::byte_write::replace_byte(
+                operation,
+                function,
+                structural_types,
+                live,
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::StructuralByteSequenceFieldStore { .. } => super::byte_write::replace(
             operation,
             function,

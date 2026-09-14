@@ -79,6 +79,10 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             destination: source,
             ..
         }
+        | O::StructuralByteSequenceFieldByteStore {
+            destination: source,
+            ..
+        }
         | O::StructuralCase { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }

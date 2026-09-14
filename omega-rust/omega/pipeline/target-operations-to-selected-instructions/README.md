@@ -301,8 +301,20 @@ byte address with `ByteViewAddress`, and use the ordinary one-byte `Store`.
 The write footprint retains the exact destination, index, byte, current length,
 obligation and accepted fact. Independent replay checks the complete sequence;
 only the store carries the source operation's fuel. Descriptor words and bytes
-outside the selected element remain unchanged. Mutable subslices and bounded-owner
-field replacement remain separate realization work.
+outside the selected element remain unchanged. Mutable subslices remain separate
+realization work.
+
+Bounded inline byte fields reuse that one-byte store with their statically
+reconstructed payload offset added to the runtime index. The original writable
+record pointer remains the backing; no view descriptor, length publication or
+displaced-byte read is needed. Current-IR validation requires an exact same-field
+live-length observation that stays fresh across every arrival and backedge;
+capacity alone cannot authorize an index. Immutable Terminal replay retains the
+authored field and operands, while selection replay reconstructs the offset,
+single-byte footprint and committing fuel charge. Whole-field replacement still
+copies only live source bytes before publishing length through the existing
+`CopyBytes` route. Source/native and hostile replay coverage lives in
+`compiler/tests/byte_field_replacement/`.
 
 Ordinary Unit calls may present an initialized raw fixed-u8 array as a mutable
 byte view, retaining the whole source or exact field-only path. Independent

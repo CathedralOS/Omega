@@ -1,4 +1,5 @@
-//! Copy only live source bytes, then publish the bounded field's new length.
+//! Whole replacement copies live bytes before publishing the new length;
+//! indexed replacement addresses one byte in that same original inline backing.
 //! Capacity never supplies readable source extent; unused destination bytes are
 //! not observed or cleared. ISA-local scratch/control is not source control flow.
 use super::*;
@@ -145,6 +146,127 @@ pub(super) fn replace(
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![*length],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )
+}
+
+pub(super) fn replace_byte(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<(), SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
+        destination,
+        field,
+        index,
+        value,
+        length,
+        obligation,
+        accepted_fact,
+    } = &row.kind
+    else {
+        return Err(invalid());
+    };
+    let signature = function.structural.as_ref().ok_or_else(invalid)?;
+    let parameter = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == destination.place)
+        .ok_or_else(invalid)?;
+    if row.result.is_some()
+        || parameter.semantic.access != destination.access
+        || !matches!(
+            destination.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        )
+        || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !parameter.semantic.qualifications.is_empty()
+        || !parameter.semantic.projected_qualifications.is_empty()
+    {
+        return Err(invalid());
+    }
+    let (metadata_offset, _) = crate::structural_reference_input::byte_field_storage(
+        parameter.semantic.structural_type,
+        &destination.path,
+        *field,
+        &signature.structural_types,
+    )
+    .ok_or_else(invalid)?;
+    let payload_offset = metadata_offset.checked_add(8).ok_or_else(invalid)?;
+    let (_, index_register, _, index_type) = builder.resolve(*index).ok_or_else(invalid)?;
+    let (_, value_register, _, value_type) = builder.resolve(*value).ok_or_else(invalid)?;
+    let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(invalid)?;
+    let count_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?);
+    if index_type != count_type
+        || length_type != count_type
+        || value_type
+            != ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
+            )
+    {
+        return Err(invalid());
+    }
+    let root = builder
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == destination.place)
+        .map(|(_, pointer)| *pointer)
+        .ok_or_else(invalid)?;
+    let payload = transport_register(builder, destination.place, payload_offset)?;
+    builder.emit(
+        SelectedInstructionKind::AddressOffset {
+            byte_offset: payload_offset,
+        },
+        builder
+            .constraints
+            .keys
+            .address_offset
+            .ok_or_else(invalid)?,
+        &[root, payload],
+        provenance(row),
+    )?;
+    let address = transport_register(builder, destination.place, payload_offset)?;
+    builder.emit(
+        SelectedInstructionKind::ByteViewAddress,
+        builder.constraints.keys.add_i64,
+        &[payload, index_register, address],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![*index, *length],
+            obligations: vec![*obligation],
+            ..Default::default()
+        },
+    )?;
+    memory(
+        builder,
+        row,
+        destination.place,
+        payload_offset,
+        1,
+        SelectedMemoryAccessRole::WriteByteSequence {
+            index: *index,
+            value: *value,
+            length: *length,
+            obligation: *obligation,
+            accepted_fact: *accepted_fact,
+        },
+    )?;
+    // Metadata and displaced content are not loaded. Only this committing byte
+    // store carries fuel; the original inline backing and live length survive.
+    builder.emit(
+        SelectedInstructionKind::Store {
+            byte_offset: 0,
+            byte_size: 1,
+        },
+        builder.constraints.keys.store.ok_or_else(invalid)?,
+        &[address, value_register],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![*index, *value, *length],
             fuel: row.fuel.clone(),
             ..Default::default()
         },

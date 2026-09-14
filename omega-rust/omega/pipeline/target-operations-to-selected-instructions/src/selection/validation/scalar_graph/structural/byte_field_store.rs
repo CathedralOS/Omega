@@ -1,4 +1,4 @@
-//! Independently replay the exact copy range and subsequent length publication.
+//! Independently replay whole-field copy/length publication or one indexed byte.
 //! Capacity never supplies readable source extent; unused destination bytes are
 //! not observed or cleared. ISA-local scratch/control is not source control flow.
 use super::*;
@@ -160,6 +160,137 @@ pub(super) fn replace(
         &SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![*length],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )
+}
+
+pub(super) fn replace_byte(
+    function: &LegalizedScalarFunction,
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<(), SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
+        destination,
+        field,
+        index,
+        value,
+        length,
+        obligation,
+        accepted_fact,
+    } = &row.kind
+    else {
+        return Err(replay.invalid());
+    };
+    let signature = function
+        .structural
+        .as_ref()
+        .ok_or_else(|| replay.invalid())?;
+    let parameter = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == destination.place)
+        .ok_or_else(|| replay.invalid())?;
+    if row.result.is_some()
+        || parameter.semantic.access != destination.access
+        || !matches!(
+            destination.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        )
+        || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !parameter.semantic.qualifications.is_empty()
+        || !parameter.semantic.projected_qualifications.is_empty()
+    {
+        return Err(replay.invalid());
+    }
+    let (metadata_offset, _) = crate::structural_reference_input::byte_field_storage(
+        parameter.semantic.structural_type,
+        &destination.path,
+        *field,
+        &signature.structural_types,
+    )
+    .ok_or_else(|| replay.invalid())?;
+    let payload_offset = metadata_offset
+        .checked_add(8)
+        .ok_or_else(|| replay.invalid())?;
+    let (_, index_register, _, index_type) =
+        replay.resolve(*index).ok_or_else(|| replay.invalid())?;
+    let (_, value_register, _, value_type) =
+        replay.resolve(*value).ok_or_else(|| replay.invalid())?;
+    let (_, _, _, length_type) = replay.resolve(*length).ok_or_else(|| replay.invalid())?;
+    let count_type = ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?,
+    );
+    if index_type != count_type
+        || length_type != count_type
+        || value_type
+            != ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| replay.invalid())?,
+            )
+    {
+        return Err(replay.invalid());
+    }
+    let root = replay
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == destination.place)
+        .map(|(_, pointer)| *pointer)
+        .ok_or_else(|| replay.invalid())?;
+    let payload = result(replay, destination.place, payload_offset)?;
+    replay.check_instruction(
+        SelectedInstructionKind::AddressOffset {
+            byte_offset: payload_offset,
+        },
+        replay
+            .constraints
+            .keys
+            .address_offset
+            .ok_or_else(|| replay.invalid())?,
+        &[root, payload],
+        &provenance(row),
+    )?;
+    let address = result(replay, destination.place, payload_offset)?;
+    replay.check_instruction(
+        SelectedInstructionKind::ByteViewAddress,
+        replay.constraints.keys.add_i64,
+        &[payload, index_register, address],
+        &SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![*index, *length],
+            obligations: vec![*obligation],
+            ..Default::default()
+        },
+    )?;
+    memory(
+        replay,
+        row,
+        destination.place,
+        payload_offset,
+        1,
+        SelectedMemoryAccessRole::WriteByteSequence {
+            index: *index,
+            value: *value,
+            length: *length,
+            obligation: *obligation,
+            accepted_fact: *accepted_fact,
+        },
+    )?;
+    replay.check_instruction(
+        SelectedInstructionKind::Store {
+            byte_offset: 0,
+            byte_size: 1,
+        },
+        replay
+            .constraints
+            .keys
+            .store
+            .ok_or_else(|| replay.invalid())?,
+        &[address, value_register],
+        &SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![*index, *value, *length],
             fuel: row.fuel.clone(),
             ..Default::default()
         },

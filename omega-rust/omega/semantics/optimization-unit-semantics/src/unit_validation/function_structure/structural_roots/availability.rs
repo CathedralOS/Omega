@@ -182,6 +182,10 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
             destination: source,
             ..
         }
+        | O::StructuralByteSequenceFieldByteStore {
+            destination: source,
+            ..
+        }
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::BooleanStructuralField { source, .. }

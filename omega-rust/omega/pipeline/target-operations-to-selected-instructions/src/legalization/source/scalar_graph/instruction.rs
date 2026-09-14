@@ -359,6 +359,41 @@ pub(super) fn project(
                 crash_continuations: crash_continuations.clone(),
             })
         }
+        AbstractOperation::StructuralByteSequenceFieldByteStore {
+            psi_operation,
+            field,
+            index,
+            value,
+            length,
+            obligation,
+            ..
+        } => {
+            let destination =
+                crate::legalization::scalar_graph_input::structural_fields::replacement(
+                    optimized,
+                    &node.operation,
+                    &unit.structural_types,
+                )
+                .ok_or(Error::SourceCustodyMismatch)?;
+            let fact = unit
+                .accepted_obligation_facts
+                .iter()
+                .find(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == *psi_operation
+                        && fact.obligation == *obligation
+                })
+                .ok_or(Error::SourceCustodyMismatch)?;
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
+                destination,
+                field: *field,
+                index: *index,
+                value: *value,
+                length: *length,
+                obligation: *obligation,
+                accepted_fact: fact.identity,
+            }
+        }
         AbstractOperation::StructuralByteSequenceFieldStore {
             psi_operation,
             field,

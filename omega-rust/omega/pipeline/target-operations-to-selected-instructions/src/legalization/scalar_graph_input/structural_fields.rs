@@ -5,15 +5,21 @@ pub(in crate::legalization) fn replacement(
     operation: &AbstractOperation,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<terminal_psi::StructuralArgument> {
-    let AbstractOperation::StructuralByteSequenceFieldStore {
-        destination,
-        path,
-        field,
-        source,
-        ..
-    } = operation
-    else {
-        return None;
+    let (destination, path, field, source) = match operation {
+        AbstractOperation::StructuralByteSequenceFieldStore {
+            destination,
+            path,
+            field,
+            source,
+            ..
+        } => (destination, path, field, Some(*source)),
+        AbstractOperation::StructuralByteSequenceFieldByteStore {
+            destination,
+            path,
+            field,
+            ..
+        } => (destination, path, field, None),
+        _ => return None,
     };
     let parameter = function
         .structural_parameters
@@ -26,16 +32,16 @@ pub(in crate::legalization) fn replacement(
     ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
-        || source == destination
+        || source == Some(*destination)
         || function
             .entry_claim_declarations
             .iter()
-            .any(|claim| [*destination, *source].contains(&claim.input))
+            .any(|claim| claim.input == *destination || Some(claim.input) == source)
         || function
             .content_entry_claims
             .iter()
-            .any(|claim| [*destination, *source].contains(&claim.input.root))
-        || !super::byte_views::contains_view(function, *source)
+            .any(|claim| claim.input.root == *destination || Some(claim.input.root) == source)
+        || source.is_some_and(|source| !super::byte_views::contains_view(function, source))
     {
         return None;
     }

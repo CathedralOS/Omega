@@ -155,6 +155,13 @@ pub(super) fn operation(
 ) -> Result<bool, SelectedInstructionError> {
     if matches!(
         row.kind,
+        LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { .. }
+    ) {
+        byte_field_store::replace_byte(source, builder, row)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
     ) {
         byte_field_store::replace(source, builder, row)?;

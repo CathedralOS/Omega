@@ -1132,7 +1132,13 @@ Owners include
   **PROOF-KERNEL-CORE** before synthesizing that strengthening; do not substitute
   exact arithmetic or enumerate loop states. The unchanged decimal loop remains
   the next source acceptance, followed by the native customer.
-  Indexed byte-field writes still need composed-Unit closure coverage.
+  Indexed byte-field writes still need composed cyclic-Unit/customer closure
+  coverage. Reuse the ordinary native bounded-field store and exact live-length
+  replay, not a new byte-view adapter. Direct/nested source writes have a focused
+  macOS ARM64 runtime and four-target publication probe:
+  `cargo nextest run -p compiler --test byte_field_replacement indexed --no-fail-fast`
+  (`RUST_MIN_STACK=67108864`). This does not close the unchanged decimal or Console
+  customer; their missing invariant and transitive-call evidence remains above.
 
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
   operators, nested structural paths, calls, cycles, execution and package review.

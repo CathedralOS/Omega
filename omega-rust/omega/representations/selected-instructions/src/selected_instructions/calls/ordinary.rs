@@ -155,7 +155,8 @@ pub enum SelectedMemoryAccessRole {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
-    /// Exactly one written byte at the checked dynamic index in the current mutable view.
+    /// Exactly one written byte at the checked dynamic index, added to the row's
+    /// fixed payload offset. The subject is a mutable view or bounded inline field.
     WriteByteSequence {
         index: semantic_vocabulary::ValueId,
         value: semantic_vocabulary::ValueId,

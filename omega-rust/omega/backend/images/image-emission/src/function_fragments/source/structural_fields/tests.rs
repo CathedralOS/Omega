@@ -1,4 +1,4 @@
-use super::{replacement_retained, retained};
+use super::{indexed_store_retained, replacement_retained, retained};
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
 };
@@ -406,6 +406,123 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
             &function.operations[0],
             &target
         ));
+    }
+}
+
+#[test]
+fn indexed_byte_publication_retains_every_operand_and_writable_access() {
+    use semantic_vocabulary::ObligationId;
+    use target_operations::TargetUnitScalarArgumentSource;
+    let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let byte_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let scalar_input = |source_value, scalar_type| TargetUnitScalarArgumentSource::Parameter {
+        parameter_index: 0,
+        source_value,
+        scalar_type,
+    };
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        let (mut function, mut target) = field_fixture(count_type);
+        function.structural_parameters[0].access = access;
+        target.graph.parameters[0].access = access;
+        let psi_operation = OperationId::new(1).unwrap();
+        let field = StructuralFieldId::new(1).unwrap();
+        let index = ValueId::new(1).unwrap();
+        let value = ValueId::new(2).unwrap();
+        let length = ValueId::new(3).unwrap();
+        let obligation = ObligationId::new(1).unwrap();
+        let destination = StructuralArgument {
+            place: function.structural_parameters[0].place,
+            access,
+            path: vec![StructuralPathSegment::Field("inner".into())],
+        };
+        function.operations[0] = AbstractOperation::StructuralByteSequenceFieldByteStore {
+            psi_operation,
+            destination: destination.place,
+            path: destination.path.clone(),
+            field,
+            index,
+            value,
+            length,
+            obligation,
+        };
+        target.graph.blocks[0].operations[0] =
+            TargetUnitOperation::StructuralByteSequenceFieldByteStore {
+                psi_operation,
+                destination,
+                field,
+                index: scalar_input(index, count_type),
+                value: scalar_input(value, byte_type),
+                length,
+                obligation,
+            };
+        assert!(indexed_store_retained(
+            &function,
+            &function.operations[0],
+            &target
+        ));
+        assert!(super::super::requires_graph_storage_replay(
+            &function.operations
+        ));
+        assert!(!super::indexed_store_footprint_retained(
+            &function.operations[0],
+            &[]
+        ));
+        for corruption in 0..12 {
+            let mut changed = target.clone();
+            let operation = &mut changed.graph.blocks[0].operations[0];
+            let TargetUnitOperation::StructuralByteSequenceFieldByteStore {
+                psi_operation,
+                destination,
+                field,
+                index,
+                value,
+                length,
+                obligation,
+            } = operation
+            else {
+                unreachable!();
+            };
+            match corruption {
+                0 => *psi_operation = OperationId::new(2).unwrap(),
+                1 => destination.place = PlaceId::new(2).unwrap(),
+                2 => destination.path.clear(),
+                3 => destination.access = StructuralAccess::SharedBorrow,
+                4 => *field = StructuralFieldId::new(2).unwrap(),
+                5 => *index = scalar_input(ValueId::new(4).unwrap(), count_type),
+                6 => *value = scalar_input(ValueId::new(4).unwrap(), byte_type),
+                7 => *length = ValueId::new(4).unwrap(),
+                8 => *obligation = ObligationId::new(2).unwrap(),
+                9 => *index = scalar_input(index.source_value(), byte_type),
+                10 => *value = scalar_input(value.source_value(), count_type),
+                _ => {
+                    let duplicate = operation.clone();
+                    changed.graph.blocks[0].operations.push(duplicate);
+                }
+            }
+            assert!(
+                !indexed_store_retained(&function, &function.operations[0], &changed),
+                "corruption {corruption}"
+            );
+        }
+        // Matching source and target pointer authority must still be writable.
+        for access in [StructuralAccess::Owned, StructuralAccess::SharedBorrow] {
+            function.structural_parameters[0].access = access;
+            target.graph.parameters[0].access = access;
+            let TargetUnitOperation::StructuralByteSequenceFieldByteStore { destination, .. } =
+                &mut target.graph.blocks[0].operations[0]
+            else {
+                unreachable!();
+            };
+            destination.access = access;
+            assert!(!indexed_store_retained(
+                &function,
+                &function.operations[0],
+                &target
+            ));
+        }
     }
 }
 

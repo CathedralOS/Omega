@@ -8,6 +8,9 @@ use target::NativeTarget;
 #[path = "byte_field_replacement/replay.rs"]
 mod replay;
 
+#[path = "byte_field_replacement/indexed.rs"]
+mod indexed;
+
 // Reuse the host linker/executor without modifying the shared differential owner.
 #[path = "../../../../../tests/native-differential/tests/common/native_function.rs"]
 #[allow(dead_code)]

@@ -11,6 +11,118 @@ use terminal_psi::StructuralArgument;
 #[cfg(test)]
 mod tests;
 
+/// Join the exact indexed-write occurrence without replacing its structural
+/// subject with a byte offset. Mandatory replay checks layout and scalar homes.
+pub(super) fn indexed_store_retained(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+) -> bool {
+    let AbstractOperation::StructuralByteSequenceFieldByteStore {
+        psi_operation,
+        destination,
+        path,
+        field,
+        index,
+        value,
+        length,
+        obligation,
+    } = operation
+    else {
+        return false;
+    };
+    let Some((access, _)) = read_access(function, target, *destination, true) else {
+        return false;
+    };
+    if !matches!(
+        access,
+        terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+    ) {
+        return false;
+    }
+    let expected_destination = StructuralArgument {
+        place: *destination,
+        access,
+        path: path.clone(),
+    };
+    let mut writes = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|candidate| {
+            matches!(candidate,
+        TargetUnitOperation::StructuralByteSequenceFieldByteStore { psi_operation: retained, .. }
+            if retained == psi_operation)
+        });
+    let Some(TargetUnitOperation::StructuralByteSequenceFieldByteStore {
+        destination: retained_destination,
+        field: retained_field,
+        index: retained_index,
+        value: retained_value,
+        length: retained_length,
+        obligation: retained_obligation,
+        ..
+    }) = writes.next()
+    else {
+        return false;
+    };
+    *retained_destination == expected_destination
+        && retained_field == field
+        && retained_length == length
+        && retained_obligation == obligation
+        && retained_index.source_value() == *index
+        && retained_value.source_value() == *value
+        && matches!(retained_index.scalar_type(), ScalarType::Integer(integer)
+            if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+        && matches!(retained_value.scalar_type(), ScalarType::Integer(integer)
+            if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8))
+        && writes.next().is_none()
+}
+
+/// Exactly one one-byte write accounts for this effect. A read or metadata
+/// publication with the same origin is not part of indexed replacement.
+/// Mandatory source/selection replay independently reconstructs the additive
+/// payload offset and the accepted fact, rather than trusting this roster.
+pub(super) fn indexed_store_footprint_retained(
+    operation: &AbstractOperation,
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+) -> bool {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let AbstractOperation::StructuralByteSequenceFieldByteStore {
+        psi_operation,
+        destination,
+        index,
+        value,
+        length,
+        obligation,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let mut effects = accesses
+        .iter()
+        .filter(|access| access.origin == Origin::Operation(*psi_operation));
+    let Some(write) = effects.next() else {
+        return false;
+    };
+    write.place == *destination
+        && write.byte_count == 1
+        && matches!(write.role, Role::WriteByteSequence {
+            index: retained_index,
+            value: retained_value,
+            length: retained_length,
+            obligation: retained_obligation,
+            ..
+        } if retained_index == *index && retained_value == *value
+            && retained_length == *length && retained_obligation == *obligation)
+        && effects.next().is_none()
+}
+
 /// Account for replacement's exact graph occurrence. Mandatory source/selection
 /// replay owns capacity evidence, original backing, layout and copy correctness.
 pub(super) fn replacement_retained(

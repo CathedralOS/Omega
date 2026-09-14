@@ -127,6 +127,40 @@ fn validate_structural_field_range_authority(
     use terminal_psi::{RecordFieldValue, StructuralTypeShape};
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         match &node.operation {
+            O::StructuralByteSequenceFieldByteStore {
+                psi_operation,
+                index,
+                length,
+                obligation,
+                ..
+            } => {
+                use semantic_vocabulary::{IntegerSign, IntegerType, Proposition, ScalarTerm};
+                let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                let integer =
+                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
+                let proposition =
+                    terminal_codec::canonical_proposition_order_key(&Proposition::LessThan(
+                        ScalarTerm::value(*index, ScalarType::Integer(integer)),
+                        ScalarTerm::value(*length, ScalarType::Integer(integer)),
+                    ))
+                    .map_err(|_| invalid.clone())?;
+                if unit
+                    .accepted_obligation_facts
+                    .iter()
+                    .filter(|fact| {
+                        fact.machine == function.machine
+                            && fact.operation == *psi_operation
+                            && fact.obligation == *obligation
+                            && fact.proposition == proposition
+                            && fact.psi == unit.psi
+                            && fact.has_canonical_identity()
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(invalid);
+                }
+            }
             O::StructuralByteSequenceFieldStore {
                 psi_operation,
                 length,
