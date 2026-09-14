@@ -456,6 +456,40 @@ pub(super) fn build(
             let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
                 edge.transfers.iter().filter(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
             };
+            // An owned selection moved each candidate source's custody into
+            // the join's residual parameters, which die at the same authored
+            // exit. The receipt, not a transfer or disposal row on the dead
+            // source place, accounts for that consumption on an ordinary
+            // successor; other exits still need their own residual evidence.
+            let selection_residual_source = matches!(
+                terminator,
+                CheckedComposedUnitControlTerminatorPlan::Jump { .. }
+                    | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+            ) && result.multiplicity == Multiplicity::Affine
+                && facts
+                    .flow
+                    .ownership
+                    .owned_selections
+                    .iter()
+                    .any(|(_, receipt)| {
+                        receipt.machine == machine.symbol
+                            && receipt.state == state.symbol
+                            && receipt.death == PermissionEventSource::StateExit
+                            && facts
+                                .flow
+                                .ownership
+                                .selection_sources
+                                .span_or_empty(receipt.sources)
+                                .iter()
+                                .any(|source| {
+                                    source.statement_ordinal == result.statement_index
+                                        && matches!(
+                                            statements.get(result.statement_index as usize),
+                                            Some(StatementNode::LocalData(local))
+                                                if local.symbol == source.symbol
+                                        )
+                                })
+                    });
             let consumed = match &terminator {
                 CheckedComposedUnitControlTerminatorPlan::Guarded { .. } =>
                     result.multiplicity == Multiplicity::Unrestricted,
@@ -468,7 +502,7 @@ pub(super) fn build(
                 CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } => matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal) && cases.iter().all(|case| !case.successor.transfers.iter().any(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal))),
                 CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => matches!(returned.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal),
                 _ => false,
-            };
+            } || selection_residual_source;
             // A linear result moved into an ordinary call is no longer owed by the
             // state's terminator. Count its exact whole owned uses in the
             // completed sequence; returning it as well would duplicate custody.
