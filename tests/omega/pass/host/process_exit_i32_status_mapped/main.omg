@@ -1,0 +1,35 @@
+// Canonical `ProcessExit::exit_process` i32 statuses outside the host's 8-bit
+// presentation: the semantic status stays exact while the physical exit keeps
+// the target contract's low-byte mapping.
+//
+// `Main` carries the single admitted ProcessExit service carrier; console I/O
+// grants no exit authority and no console receiver participates here. Each
+// conditional helper branch terminates the containing process domain through
+// the exact canonical requirement with its own exact i32 status: the taken
+// branch reports -44, which a Unix host presents as its low byte (212), and
+// the untaken branch retains 300. Neither the interpreter's observation nor
+// the retained boundary custody may clamp the status to the presented range.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+
+data Main {
+    exit: ProcessExit;
+}
+
+machine Main::main(&mut self)
+reaches
+    ProcessExit
+{
+    transition 120 == 120 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.exit.exit_process(-44);
+    }
+
+    state bad(&mut self) {
+        self.exit.exit_process(300);
+    }
+}
