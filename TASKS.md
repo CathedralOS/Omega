@@ -1488,11 +1488,18 @@ Owners include
   normalization, admitting `param[k..]` (literal or immutable local copy,
   `k >= 1`) when the guard proves `len >= k` — `entries[step..]` under
   `entries.len >= step` with `let step: u64 = 2` compiles via
-  `mbx run -p omega -- --check` on Windows. The borrow-overlap selector proof
-  (`checks/borrows/overlap/indexes.rs`) still orders only literal and
-  same-symbol boundaries, and `place_segments_containment` remains
-  fixed-range/structural. Next slice: carry the same normalized-bound ordering
-  into borrow-compatibility places, then explicit compatibility theorems.
+  `mbx run -p omega -- --check` on Windows. Second slice landed at
+  7683795990 on macOS: `place_segments_containment`
+  (`checks/borrows/overlap/segments.rs`) now evaluates `Index` selectors as
+  normalized extents inside the shared selector-snapshot session, so
+  symbolic and `symbol ± k` windows prove directional containment, same
+  extent, and point membership; disjoint or unknown bounds stay `None`.
+  Overlap and containment record through one session, so certificates keep
+  replaying exact selector positions. Evidence only — admission still gates
+  on `non_interfering`, witnessed by
+  `proven_containment_never_licenses_a_second_mutable_loan` under
+  `tests/borrow/certificates/value_snapshots.rs`. Next slice: explicit
+  compatibility theorems over already-existing places and occurrences.
 
 - **CALLBACK-PARAMETER-REQUIREMENT.** Checked admission of the nominal
   `where machine Selected satisfies Trait::requirement` binder is pinned by
