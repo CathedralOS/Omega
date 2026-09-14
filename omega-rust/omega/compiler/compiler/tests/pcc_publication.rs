@@ -118,6 +118,12 @@ fn arbitrary_native_bytes_with_recomputed_custody_never_complete() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+fn build_source(body_lines: &str) -> String {
+    format!(
+        "machine build(builder: &mut Build) {{\n    builder.application(\"pcc-test\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n{body_lines}}}\n"
+    )
+}
+
 fn write_project(pcc_lines: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
         "omega-pcc-e2e-{}-{}",
@@ -129,20 +135,45 @@ fn write_project(pcc_lines: &str) -> PathBuf {
     ));
     fs::create_dir_all(&dir).expect("create project dir");
     fs::write(dir.join("main.omg"), MAIN).expect("write main.omg");
+    fs::write(dir.join("build.omg"), build_source(pcc_lines)).expect("write build.omg");
+    dir
+}
+
+// A receiver-less `main` avoids hosted-receiver custody provisioning on the
+// macOS ARM64 `ProgramEntry`, matching the GUI publication fixtures.
+const GUI_MAIN: &str = "data Main { }\nmachine Main::main() { }\n";
+
+fn write_gui_project() -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "omega-pcc-gui-e2e-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&dir).expect("create project dir");
+    fs::write(dir.join("main.omg"), GUI_MAIN).expect("write main.omg");
     fs::write(
         dir.join("build.omg"),
-        format!(
-            "machine build(builder: &mut Build) {{\n    builder.application(\"pcc-test\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n{pcc_lines}}}\n"
-        ),
+        "machine build(builder: &mut Build) {\n    builder.application(\"pcc-gui\");\n    builder.subsystem = Subsystem::Gui;\n    builder.identifier = \"com.omega.pcc-gui\";\n    builder.pcc.psi = true;\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}\n",
     )
     .expect("write build.omg");
     dir
 }
 
 fn compile_request(dir: &Path, product: RequestedCompileProduct) -> CompileRequest {
+    compile_request_for(dir, "linux_x86_64", product)
+}
+
+fn compile_request_for(
+    dir: &Path,
+    target: &str,
+    product: RequestedCompileProduct,
+) -> CompileRequest {
     CompileRequest::new(CompileOptions {
         root_path: dir.join("main.omg"),
-        target_name: Some("linux_x86_64".to_owned()),
+        target_name: Some(target.to_owned()),
         build_dir: None,
     })
     .with_requested_product(product)
@@ -237,6 +268,20 @@ fn psi_pcc_publishes_the_psi_pair_during_native_compilation() {
         pair.sidecar_path.extension().and_then(|e| e.to_str()),
         Some("proof")
     );
+    // Producer and receiver report the artifact and companion sizes separately.
+    assert_eq!(
+        pair.artifact_byte_len,
+        fs::metadata(&pair.artifact_path)
+            .expect("artifact metadata")
+            .len()
+    );
+    assert_eq!(
+        pair.sidecar_byte_len,
+        fs::metadata(&pair.sidecar_path)
+            .expect("sidecar metadata")
+            .len()
+    );
+    assert_ne!(pair.artifact_byte_len, pair.sidecar_byte_len);
 
     let psi = read(&pair.artifact_path);
     let proof = read(&pair.sidecar_path);
@@ -322,6 +367,48 @@ fn stale_or_substituted_bytes_and_wrong_policy_reject() {
     assert!(matches!(
         verify_native_proof_sidecar(&executable, &proof, &denied),
         PccVerificationOutcome::Reject(ref r) if r.subject == "assumption"
+    ));
+
+    // A guarantee premise the receiver does not admit rejects.
+    let mut premised_guarantees = sidecar.guarantees().to_vec();
+    premised_guarantees[0]
+        .premises
+        .push("receiver-unadmitted-premise".to_owned());
+    let premised = PccProofSidecar::new(
+        sidecar.product(),
+        *sidecar.artifact_commitment(),
+        sidecar.semantic_profile().to_owned(),
+        sidecar.checker_profile().to_owned(),
+        premised_guarantees,
+        sidecar.evidence().to_vec(),
+        sidecar.assumptions().to_vec(),
+        sidecar.dependencies().to_vec(),
+    )
+    .expect("premised sidecar");
+    assert!(matches!(
+        verify_native_proof_sidecar(&executable, &premised.to_bytes(), &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "guarantee premise"
+    ));
+
+    // An omitted dependency the receiver does not independently possess
+    // rejects by exact identity, not by proximity or version.
+    let dependent = PccProofSidecar::new(
+        sidecar.product(),
+        *sidecar.artifact_commitment(),
+        sidecar.semantic_profile().to_owned(),
+        sidecar.checker_profile().to_owned(),
+        sidecar.guarantees().to_vec(),
+        sidecar.evidence().to_vec(),
+        sidecar.assumptions().to_vec(),
+        vec![terminal_codec::PccDependency {
+            identity: "test::missing-material".to_owned(),
+            content_commitment: [3; 32],
+        }],
+    )
+    .expect("dependent sidecar");
+    assert!(matches!(
+        verify_native_proof_sidecar(&executable, &dependent.to_bytes(), &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "dependency"
     ));
 
     // A named resource limit reports Incomplete, not Reject.
@@ -422,5 +509,166 @@ fn terminal_stop_with_psi_pcc_publishes_the_psi_pair() {
         verify_psi_proof_sidecar(&psi, &proof, &policy),
         PccVerificationOutcome::Complete(_)
     ));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn macos_gui_psi_pcc_installs_the_inner_sidecar_pair() {
+    // Real bundle placement: the requested Psi pair sits beside the inner
+    // Contents/MacOS executable, and the receipt names those installed paths
+    // with separate byte sizes (wiki/spec/proofs/publication.md).
+    let dir = write_gui_project();
+    let out = dir.join("out");
+    let published = compile(compile_request_for(
+        &dir,
+        "macos_arm64",
+        RequestedCompileProduct::NativeArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("macOS GUI compilation")
+    .publish_retained_native_artifact(&out)
+    .expect("gui publication installs one .app package");
+    let package_root = published
+        .checked_native_package_path()
+        .expect("checked package root")
+        .to_path_buf();
+    assert_eq!(package_root, out.join("pcc-gui.app"));
+    assert_eq!(
+        published
+            .checked_native_executable_path()
+            .expect("checked inner executable"),
+        package_root.join("Contents/MacOS/pcc-gui").as_path()
+    );
+    let [pair] = published.pcc_publications() else {
+        panic!("expected exactly one published pair")
+    };
+    assert_eq!(pair.product, PccProductKind::Psi);
+    let macos_dir = package_root.join("Contents").join("MacOS");
+    assert_eq!(pair.artifact_path, macos_dir.join("pcc-gui.psi"));
+    assert_eq!(pair.sidecar_path, macos_dir.join("pcc-gui.psi.proof"));
+    assert_eq!(
+        pair.artifact_byte_len,
+        fs::metadata(&pair.artifact_path)
+            .expect("artifact metadata")
+            .len()
+    );
+    assert_eq!(
+        pair.sidecar_byte_len,
+        fs::metadata(&pair.sidecar_path)
+            .expect("sidecar metadata")
+            .len()
+    );
+    // The installed pair is a genuine certified product, not just staged bytes.
+    let psi = read(&pair.artifact_path);
+    let proof = read(&pair.sidecar_path);
+    let policy = receiver_policy(&PccProofSidecar::from_bytes(&proof).expect("decode"));
+    match verify_psi_proof_sidecar(&psi, &proof, &policy) {
+        PccVerificationOutcome::Complete(product) => {
+            assert_eq!(product.product, PccProductKind::Psi);
+        }
+        other => panic!("expected a complete verified inner pair, got {other:?}"),
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn republishing_without_pcc_removes_stale_companions() {
+    // A previous Psi-requested publication's companions must not stay bound
+    // to bytes they do not commit to: turning the request off and publishing
+    // again removes them rather than leaving a stale association.
+    let dir = write_project("    builder.pcc.psi = true;\n");
+    let out = dir.join("out");
+    let published = compile_native(&dir)
+        .publish_retained_native_artifact(&out)
+        .expect("psi pcc publication");
+    let pair = &published.pcc_publications()[0];
+    let stale_psi = pair.artifact_path.clone();
+    let stale_proof = pair.sidecar_path.clone();
+    let executable = published
+        .checked_native_executable_path()
+        .expect("executable")
+        .to_path_buf();
+    assert!(stale_psi.is_file() && stale_proof.is_file());
+
+    fs::write(dir.join("build.omg"), build_source("")).expect("rewrite build.omg");
+    let republished = compile_native(&dir)
+        .publish_retained_native_artifact(&out)
+        .expect("ordinary publication");
+    assert!(republished.pcc_publications().is_empty());
+    assert!(
+        !stale_proof.exists(),
+        "stale .proof must not survive beside new executable bytes"
+    );
+    assert!(
+        !stale_psi.exists(),
+        "stale .psi companion must not survive beside new executable bytes"
+    );
+    assert!(executable.is_file());
+    assert_eq!(fs::read_dir(&out).expect("out dir").count(), 1);
+
+    // The Terminal product follows the same rule for its own `.proof`.
+    let terminal_dir = write_project("    builder.pcc.psi = true;\n");
+    let terminal_out = terminal_dir.join("out");
+    let first = compile(compile_request(
+        &terminal_dir,
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("terminal compilation")
+    .publish_retained_terminal_artifact(&terminal_out)
+    .expect("first terminal publication");
+    let terminal_proof = first.pcc_publications()[0].sidecar_path.clone();
+    assert!(terminal_proof.is_file());
+    fs::write(terminal_dir.join("build.omg"), build_source("")).expect("rewrite build.omg");
+    let second = compile(compile_request(
+        &terminal_dir,
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("terminal recompilation")
+    .publish_retained_terminal_artifact(&terminal_out)
+    .expect("terminal republication");
+    assert!(second.pcc_publications().is_empty());
+    assert!(
+        !terminal_proof.exists(),
+        "stale .proof must not survive beside new artifact bytes"
+    );
+    let _ = fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(&terminal_dir);
+}
+
+#[test]
+fn native_pair_checking_needs_no_source_or_psi() {
+    // A native receiver holds only the executable bytes, its `.proof`
+    // companion, and its own pinned policy. Source and the Psi artifact are
+    // producer-side material; deleting them before verification changes
+    // nothing, and recomputed producer custody still cannot complete.
+    let dir = write_project("    builder.pcc.psi = true;\n");
+    let out = dir.join("out");
+    let published = compile_native(&dir)
+        .publish_retained_native_artifact(&out)
+        .expect("psi pcc publication");
+    let psi = read(&published.pcc_publications()[0].artifact_path);
+    let executable = published
+        .checked_native_executable_path()
+        .expect("executable")
+        .to_path_buf();
+    let executable_bytes = read(&executable);
+
+    fs::remove_file(dir.join("main.omg")).expect("delete source");
+    fs::remove_file(dir.join("build.omg")).expect("delete build");
+    fs::remove_file(&published.pcc_publications()[0].artifact_path).expect("delete psi companion");
+
+    let sidecar = forged_native_sidecar(&psi, &executable_bytes);
+    assert_eq!(
+        verify_native_proof_sidecar(
+            &executable_bytes,
+            &sidecar.to_bytes(),
+            &receiver_policy(&sidecar)
+        ),
+        PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+            product: PccProductKind::Native
+        })
+    );
     let _ = fs::remove_dir_all(&dir);
 }

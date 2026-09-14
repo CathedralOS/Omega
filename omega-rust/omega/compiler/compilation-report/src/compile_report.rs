@@ -6,7 +6,7 @@ use crate::executable_publication::{
     ExecutablePublicationReceipt, appended_file_name_path, executable_container_digest,
     executable_installation_evidence_digest, native_publication_certificate_digest,
     native_publication_evidence_digest, publish_exact_executable_bytes, publish_exact_file_bytes,
-    validate_psi_pair,
+    remove_stale_companion, validate_psi_pair,
 };
 use crate::package;
 use crate::{
@@ -169,6 +169,13 @@ impl CompileReport {
     /// Compilation ends before this operation. Path selection and filesystem
     /// mutation are an explicit product operation, never another compiler
     /// request route.
+    ///
+    /// A selected macOS GUI product instead installs one complete `.app`
+    /// package whose staged tree includes the requested Psi pair beside the
+    /// inner executable. On the flat route an unrequested pair cannot be left
+    /// behind: a previous publication's `.psi`/`.proof` companions are removed
+    /// before new executable bytes install, so no stale sidecar is ever
+    /// associated with bytes this report did not write.
     pub fn publish_retained_native_artifact(
         self,
         build_dir: &std::path::Path,
@@ -326,6 +333,15 @@ impl CompileReport {
                     sidecar_path: psi_sidecar_path,
                     sidecar_byte_len: psi_sidecar_bytes.len() as u64,
                 });
+            } else {
+                // An earlier Psi-requested publication's companions must not
+                // survive beside an executable they do not commit to; removing
+                // them cannot create a certified-looking install, so removal
+                // precedes the new bytes. Package publication needs no such
+                // pass: the staged tree rename replaces every prior member.
+                let psi_path = appended_file_name_path(&output_path, ".psi");
+                remove_stale_companion(&appended_file_name_path(&psi_path, ".proof"))?;
+                remove_stale_companion(&psi_path)?;
             }
             publish_exact_executable_bytes(&output_path, &output.bytes)?;
             output_path
@@ -411,7 +427,10 @@ impl CompileReport {
     /// Publish the retained Terminal product as one `<root>.psi` artifact,
     /// plus its adjacent `.proof` companion when the normalized Build
     /// requested Psi PCC. The artifact is staged, validated and replayed
-    /// before the pair is reported.
+    /// before the pair is reported. A native proof request reports
+    /// `Incomplete` rather than downgrading to custody-only success, and an
+    /// earlier publication's unrequested `.proof` is removed before the new
+    /// artifact installs so no stale sidecar binds the new bytes.
     pub fn publish_retained_terminal_artifact(
         self,
         build_dir: &std::path::Path,
@@ -424,6 +443,19 @@ impl CompileReport {
             return Err(
                 "terminal publication requires exactly one retained terminal artifact".to_owned(),
             );
+        }
+        // A Terminal stop cannot satisfy a native proof-product request; the
+        // compile route rejects this earlier, and the report fails closed
+        // rather than silently downgrading the requested pair.
+        if self.pcc_requests.native {
+            let outcome = terminal_codec::PccVerificationOutcome::Incomplete(
+                terminal_codec::PccIncompleteness::UnsupportedEvidence {
+                    product: terminal_codec::PccProductKind::Native,
+                },
+            );
+            return Err(format!(
+                "native PCC publication is {outcome:?}: a Terminal stop carries no native product"
+            ));
         }
         let artifact = self.artifact.as_ref().ok_or_else(|| {
             "terminal publication requires exactly one retained terminal artifact".to_owned()
@@ -459,6 +491,10 @@ impl CompileReport {
             validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
             Some(psi_sidecar_bytes)
         } else {
+            // Without a Psi proof request no `.proof` companion may remain
+            // beside the artifact bytes about to be replaced: an earlier
+            // publication's sidecar commits to bytes this run did not write.
+            remove_stale_companion(&appended_file_name_path(&psi_path, ".proof"))?;
             None
         };
         publish_exact_file_bytes(&psi_path, &psi_bytes)?;
