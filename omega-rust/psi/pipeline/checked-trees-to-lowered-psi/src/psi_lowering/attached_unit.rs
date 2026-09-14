@@ -2727,10 +2727,13 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                     kind
                 }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                    crate::psi_lowering::structural_byte_sequence_store::literal_view_type(
+                        &mut structural_types,
+                    )?;
                     crate::psi_lowering::structural_byte_sequence_store::emit(
                         store,
                         parameters,
-                        &mut structural_types,
+                        &structural_types,
                         &mut literal_places,
                         &mut next_place,
                         &mut next_value_identity,

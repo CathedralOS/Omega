@@ -5,6 +5,47 @@ use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_literal_carrier_requires_exact_prepared_declaration() {
+        let mut types = Vec::new();
+        assert!(existing_literal_view_type(&types).is_err());
+        let identity = literal_view_type(&mut types).expect("prepare literal carrier");
+        let original = types.clone();
+        assert_eq!(existing_literal_view_type(&types).unwrap(), identity);
+        assert_eq!(literal_view_type(&mut types).unwrap(), identity);
+        assert_eq!(types, original);
+
+        types[0].shape =
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                capacity: 8,
+            });
+        assert!(existing_literal_view_type(&types).is_err());
+        assert!(literal_view_type(&mut types).is_err());
+    }
+}
+
+/// Shared callees must use the closure's existing carrier, not allocate one.
+pub(crate) fn existing_literal_view_type(
+    types: &[StructuralTypeDeclaration],
+) -> Result<StructuralTypeId, LoweringError> {
+    let declaration = types
+        .iter()
+        .find(|declaration| declaration.identity == LITERAL_VIEW_IDENTITY)
+        .ok_or(LoweringError::Unsupported(
+            "composed callable produced a type absent from the shared catalog",
+        ))?;
+    if declaration.shape
+        != StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+    {
+        return unsupported("generated literal-view identity has a different carrier");
+    }
+    Ok(declaration.id)
+}
+
 pub(crate) fn validate_assignment(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -81,7 +122,7 @@ pub(crate) fn literal_view_type(
 pub(crate) fn emit(
     store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
     parameters: &[StructuralParameterDeclaration],
-    structural_types: &mut Vec<StructuralTypeDeclaration>,
+    structural_types: &[StructuralTypeDeclaration],
     literal_places: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
     next_value: &mut u64,
@@ -117,7 +158,7 @@ pub(crate) fn emit(
         return unsupported("byte-field store literal exceeds capacity");
     }
     let field = field.id;
-    let structural_type = literal_view_type(structural_types)?;
+    let structural_type = existing_literal_view_type(structural_types)?;
     let source = place_id(allocate_dense(next_place)?);
     let declaration_ordinal = u32::try_from(literal_places.len())
         .map_err(|_| LoweringError::Unsupported("literal declaration ordinal exceeds u32"))?;

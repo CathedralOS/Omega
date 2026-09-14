@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::psi_lowering::attached_unit::signatures::{self, MachineSignature};
+use std::borrow::Cow;
 
 pub(in crate::psi_lowering::attached_unit) enum CallableBody<'a> {
     Composed(admission::AdmittedComposedUnit<'a>),
@@ -123,15 +124,15 @@ pub(in crate::psi_lowering::attached_unit) fn emit(
     let mut catalogs = catalogs::ComposedCatalogs {
         temporary_places: Vec::new(),
         result_places: Vec::new(),
-        structural_types: shared.structural_types.to_vec(),
-        type_ids: shared.type_ids.to_vec(),
-        domain_ids: shared.domain_ids.to_vec(),
-        services: shared.services.to_vec(),
-        root_service_reach: shared.root_service_reach.clone(),
-        boundary_machines: shared.boundaries.to_vec(),
+        structural_types: Cow::Borrowed(shared.structural_types),
+        type_ids: Cow::Borrowed(shared.type_ids),
+        domain_ids: Cow::Borrowed(shared.domain_ids),
+        services: Cow::Borrowed(shared.services),
+        root_service_reach: Cow::Borrowed(shared.root_service_reach),
+        boundary_machines: Cow::Borrowed(shared.boundaries),
         lowered_boundaries,
         internal_targets,
-        service_ids: shared.service_ids.to_vec(),
+        service_ids: Cow::Borrowed(shared.service_ids),
         scalar_calls: scalar_calls::ComposedScalarCalls::from_shared(
             shared.machine_ids.to_vec(),
             shared.scalar_requirement_counts.to_vec(),
@@ -166,9 +167,6 @@ pub(in crate::psi_lowering::attached_unit) fn emit(
             &mut catalogs,
         )?,
     };
-    if catalogs.structural_types != shared.structural_types {
-        return unsupported("composed callable produced a type absent from the shared catalog");
-    }
     machine.contract.requires = signatures::find(shared.signatures, plan.machine)?
         .runtime_requirements
         .clone();

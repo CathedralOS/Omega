@@ -20,6 +20,9 @@ mod contexts;
 mod contract_resolution;
 mod review;
 
+#[cfg(test)]
+mod symbol_types_tests;
+
 pub(crate) use review::derive_checked_collection_view_intrinsic;
 
 pub(crate) fn derive_checked_nominal_call_target(
@@ -2631,20 +2634,35 @@ fn type_reference_for_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    if let Some(type_reference) = program
-        .const_declarations()
-        .iter()
-        .find_map(|declaration| (declaration.symbol == symbol).then_some(declaration.declared_type))
-    {
-        return Some(type_reference);
+    let declaration = program.symbols.get(symbol);
+    if declaration.kind == SymbolKind::Unknown {
+        return None;
     }
-    for data in program.data_definitions() {
+    let parent = declaration.parent;
+    let owner = program.symbols.get(parent);
+    if declaration.kind == SymbolKind::Const {
+        return program.const_declarations().iter().find_map(|declaration| {
+            (declaration.symbol == symbol).then_some(declaration.declared_type)
+        });
+    }
+    // Parent links select the declaration's current owner. generated_from is
+    // provenance, not a fallback to a template's potentially different type.
+    let data_owner = if owner.kind == SymbolKind::Variant {
+        owner.parent
+    } else {
+        parent
+    };
+    for data in program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.symbol == data_owner)
+    {
         for member in program.data_members(data) {
             match member {
                 typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
                     return Some(field.type_reference);
                 }
-                typed_trees::data::DataMember::Variant(variant) => {
+                typed_trees::data::DataMember::Variant(variant) if variant.symbol == parent => {
                     if let Some(type_reference) = program
                         .data_payload_fields(variant)
                         .iter()
@@ -2657,7 +2675,16 @@ fn type_reference_for_symbol(
             }
         }
     }
-    for machine in program.machines() {
+    let machine_owner = if owner.kind == SymbolKind::State {
+        owner.parent
+    } else {
+        parent
+    };
+    for machine in program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == machine_owner)
+    {
         if let Some(type_reference) = program
             .machine_owned_data(machine)
             .iter()
@@ -2668,7 +2695,6 @@ fn type_reference_for_symbol(
         // A bare attached field names the machine's inherited Field slot,
         // not the original data member. Rejoin that exact owner/slot before
         // inferring the type used to select a nested member declaration.
-        let declaration = program.symbols.get(symbol);
         if declaration.kind == symbols::SymbolKind::Field
             && declaration.parent == machine.symbol
             && let Some(field) = validation::exact_attached_field(
@@ -2680,7 +2706,11 @@ fn type_reference_for_symbol(
         {
             return Some(field.type_reference);
         }
-        for state in program.machine_states(machine) {
+        for state in program
+            .machine_states(machine)
+            .iter()
+            .filter(|state| state.symbol == parent)
+        {
             if let Some(type_reference) =
                 program
                     .state_parameters(state)
@@ -2708,8 +2738,16 @@ fn type_reference_for_symbol(
             }
         }
     }
-    for definition in program.traits() {
-        for signature in program.trait_machine_signatures(definition) {
+    for definition in program
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == owner.parent)
+    {
+        for signature in program
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|signature| signature.symbol == parent)
+        {
             if let Some(type_reference) = program
                 .state_signature_parameters(signature)
                 .iter()
@@ -2721,7 +2759,11 @@ fn type_reference_for_symbol(
             }
         }
     }
-    for proposition in program.propositions() {
+    for proposition in program
+        .propositions()
+        .iter()
+        .filter(|proposition| proposition.symbol == parent)
+    {
         if let Some(type_reference) = program
             .proposition_parameters(proposition)
             .iter()

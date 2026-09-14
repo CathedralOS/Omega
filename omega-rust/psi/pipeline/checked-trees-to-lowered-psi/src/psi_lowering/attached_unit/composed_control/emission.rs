@@ -646,10 +646,13 @@ pub(super) fn emit_call_operations(
             continue;
         }
         if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) = operation {
+            if let std::borrow::Cow::Owned(types) = &mut catalogs.structural_types {
+                crate::psi_lowering::structural_byte_sequence_store::literal_view_type(types)?;
+            }
             let kind = crate::psi_lowering::structural_byte_sequence_store::emit(
                 store,
                 parameters,
-                &mut catalogs.structural_types,
+                &catalogs.structural_types,
                 &mut catalogs.temporary_places,
                 &mut catalogs.next_place,
                 next_value,
@@ -1059,14 +1062,14 @@ pub(super) fn finish_module(
             scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry,
-            structural_types: catalogs.structural_types,
+            structural_types: catalogs.structural_types.into_owned(),
             structural_domains: Vec::new(),
-            services: catalogs.services,
-            root_service_reach: catalogs.root_service_reach,
+            services: catalogs.services.into_owned(),
+            root_service_reach: catalogs.root_service_reach.into_owned(),
             placed_view_inputs: Vec::new(),
             reborrow_root_handoffs: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
-            boundary_machines: catalogs.boundary_machines,
+            boundary_machines: catalogs.boundary_machines.into_owned(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
             float_meaning_equalities: Vec::new(),

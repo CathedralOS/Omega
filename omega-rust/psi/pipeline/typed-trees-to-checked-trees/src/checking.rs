@@ -151,26 +151,12 @@ fn check_program(
             &facts,
             &facts.flow.terminal_structural_returns,
         );
-    // Boundary-return bodies are independent of the Unit closure. Retain
-    // their real plans before deciding which ordinary scalar callees exist.
-    let boundary_returns =
-        crate::flow::build_checked_boundary_scalar_return_plans(&program, &facts);
-    let primitive_returns =
-        crate::flow::build_checked_primitive_store_scalar_return_plans(&program, &facts);
-    let scalar_callees = crate::flow::ScalarCalleePlans {
-        boundary_returns: &boundary_returns,
-        structural_returns: &primitive_returns,
-    };
-    let terminal_unit_effects =
-        crate::flow::build_checked_unit_effect_plans(&program, &facts, scalar_callees, &[], &[]);
-    let mut cleanup_diagnostics = Vec::new();
-    let structural_scalar_returns = crate::flow::build_checked_structural_scalar_return_plans(
-        &program,
-        &facts,
-        &terminal_unit_effects,
-        &[],
-        &mut cleanup_diagnostics,
-    );
+    let crate::execution_plans::ExecutionPlans {
+        boundary_returns,
+        unit_effects: terminal_unit_effects,
+        structural_scalar_returns,
+        mut cleanup_diagnostics,
+    } = crate::execution_plans::build_execution_plans(&program, &facts, None, &[], &[]);
     facts.flow.terminal_partial_affine_unit_cleanups =
         crate::flow::build_checked_partial_affine_unit_cleanup_plans(
             &program,

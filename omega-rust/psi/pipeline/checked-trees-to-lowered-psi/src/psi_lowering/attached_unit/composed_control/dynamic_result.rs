@@ -9,7 +9,7 @@ pub(crate) fn lower_control_catalogs(
     plan: &checked_trees::CheckedDynamicScalarCallPlan,
     continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
     stored: Option<&checked_trees::CheckedStoredDynamicScalarCallPlan>,
-) -> Result<ComposedCatalogs, LoweringError> {
+) -> Result<ComposedCatalogs<'static>, LoweringError> {
     let (boundaries, internal_targets) =
         admission::admit_dynamic_continuation(checked, plan, continuation, stored)?;
     catalogs::lower_dynamic_catalogs(checked, plan, continuation, &boundaries, &internal_targets)

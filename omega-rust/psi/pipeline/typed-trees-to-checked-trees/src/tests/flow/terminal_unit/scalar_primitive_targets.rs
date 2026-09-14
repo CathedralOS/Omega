@@ -11,6 +11,14 @@ fn failed_selected_rebuild_preserves_previously_published_facts() {
     "#
     );
     let mut checked = checked(&source);
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "enter"))
+            .is_some()
+    );
     let measure = machine_named(&checked, "measure");
     let premises = checked
         .facts
@@ -28,14 +36,15 @@ fn failed_selected_rebuild_preserves_previously_published_facts() {
     for premise in premises {
         assert!(checked.facts.proof.contract_facts.free(premise));
     }
-    // A rebuild would repopulate this roster before finding the missing cleanup
-    // premise. Failure must not leave that intermediate catalog published.
+    // A rebuild would repopulate both rosters before finding the missing cleanup
+    // premise. Failure must not publish independent returns or the Unit closure.
     checked
         .facts
         .flow
         .terminal_structural_scalar_returns
         .machines
         .clear();
+    checked.facts.flow.terminal_unit_effects.machines.clear();
     let before = checked.clone();
     let diagnostics =
         crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])

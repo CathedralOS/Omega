@@ -3,7 +3,7 @@
 //! Scalar-callee plans are borrowed inputs to Unit planning, not provisional
 //! mutations of published facts. Fallible rebuilds publish only on success.
 
-use crate::flow;
+use crate::execution_plans::{ExecutionPlans, build_execution_plans};
 use checked_trees::CheckedTrees;
 
 /// Exact compiler-owned join from one authored operator use to the checked
@@ -45,38 +45,23 @@ pub fn rebuild_checked_terminal_plans_with_selected_execution(
     operator_applications: &[SelectedOperatorApplication],
     ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let boundary_returns =
-        flow::build_checked_boundary_scalar_return_plans(&program.typed, &program.facts);
-    let primitive_returns =
-        flow::build_checked_primitive_store_scalar_return_plans(&program.typed, &program.facts);
-    let structural_returns = flow::reconcile_primitive_store_scalar_returns(
-        &program.facts.flow.terminal_structural_scalar_returns,
-        primitive_returns,
-    );
-    let scalar_callees = flow::ScalarCalleePlans {
-        boundary_returns: &boundary_returns,
-        structural_returns: &structural_returns,
-    };
-    let terminal_unit_effects = flow::build_checked_unit_effect_plans(
+    let ExecutionPlans {
+        boundary_returns,
+        unit_effects,
+        structural_scalar_returns,
+        cleanup_diagnostics,
+    } = build_execution_plans(
         &program.typed,
         &program.facts,
-        scalar_callees,
+        Some(&program.facts.flow.terminal_structural_scalar_returns),
         operator_applications,
         ieee_float_fma_applications,
     );
-    let mut diagnostics = Vec::new();
-    let structural_scalar_returns = flow::build_checked_structural_scalar_return_plans(
-        &program.typed,
-        &program.facts,
-        &terminal_unit_effects,
-        operator_applications,
-        &mut diagnostics,
-    );
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
+    if !cleanup_diagnostics.is_empty() {
+        return Err(cleanup_diagnostics);
     }
     program.facts.flow.terminal_boundary_scalar_returns = boundary_returns;
-    program.facts.flow.terminal_unit_effects = terminal_unit_effects;
+    program.facts.flow.terminal_unit_effects = unit_effects;
     program.facts.flow.terminal_structural_scalar_returns = structural_scalar_returns;
     Ok(())
 }

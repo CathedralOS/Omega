@@ -1,0 +1,64 @@
+//! Build dependent execution plans without publishing intermediate checked facts.
+
+use crate::flow;
+use crate::{SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication};
+use checked_trees::{
+    CheckFacts, CheckedBoundaryScalarReturnPlans, CheckedStructuralScalarReturnPlans,
+    CheckedUnitEffectPlans,
+};
+use diagnostics::Diagnostic;
+use typed_trees::TypedTrees;
+
+pub(crate) struct ExecutionPlans {
+    pub boundary_returns: CheckedBoundaryScalarReturnPlans,
+    pub unit_effects: CheckedUnitEffectPlans,
+    pub structural_scalar_returns: CheckedStructuralScalarReturnPlans,
+    pub cleanup_diagnostics: Vec<Diagnostic>,
+}
+
+/// Independent returns precede Unit closure; complete structural returns depend
+/// on that closure. Initial checking has no previous roster. Selected rebuilding
+/// preserves nominal and selected callees while refreshing primitive bodies.
+/// Diagnostics remain owned output so initial checking can aggregate its later
+/// affine-cleanup failures before deciding whether to publish checked trees.
+pub(crate) fn build_execution_plans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    previous_returns: Option<&CheckedStructuralScalarReturnPlans>,
+    operator_applications: &[SelectedOperatorApplication],
+    ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
+) -> ExecutionPlans {
+    let boundary_returns = flow::build_checked_boundary_scalar_return_plans(program, facts);
+    let primitive_returns = flow::build_checked_primitive_store_scalar_return_plans(program, facts);
+    let structural_callees = match previous_returns {
+        Some(previous) => {
+            flow::reconcile_primitive_store_scalar_returns(previous, primitive_returns)
+        }
+        None => primitive_returns,
+    };
+    let scalar_callees = flow::ScalarCalleePlans {
+        boundary_returns: &boundary_returns,
+        structural_returns: &structural_callees,
+    };
+    let unit_effects = flow::build_checked_unit_effect_plans(
+        program,
+        facts,
+        scalar_callees,
+        operator_applications,
+        ieee_float_fma_applications,
+    );
+    let mut cleanup_diagnostics = Vec::new();
+    let structural_scalar_returns = flow::build_checked_structural_scalar_return_plans(
+        program,
+        facts,
+        &unit_effects,
+        operator_applications,
+        &mut cleanup_diagnostics,
+    );
+    ExecutionPlans {
+        boundary_returns,
+        unit_effects,
+        structural_scalar_returns,
+        cleanup_diagnostics,
+    }
+}
