@@ -45,7 +45,7 @@ pub(super) fn definition_words(
     words
 }
 
-pub(super) fn definition_words_to_target(
+pub(in crate::proofs::nonzero_divisor_certificate) fn definition_words_to_target(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
@@ -62,7 +62,12 @@ pub(super) fn definition_words_to_target(
                 let Proposition::Equal(left, right) = &semantic_axioms[index] else {
                     unreachable!("definition words contain only equality rows")
                 };
-                left == target || right == target
+                // A word can end at an endpoint or, traversing an unsigned
+                // wrapping add backward, at one of its operand values.
+                left == target
+                    || right == target
+                    || wrapping_add_operand(left, target)
+                    || wrapping_add_operand(right, target)
             })
         })
         .cloned()
@@ -71,7 +76,14 @@ pub(super) fn definition_words_to_target(
     words
 }
 
-pub(super) fn literal_axioms(
+fn wrapping_add_operand(side: &ScalarTerm, target: &ScalarTerm) -> bool {
+    let ScalarTerm::WrappingIntegerAdd { left, right, .. } = side else {
+        return false;
+    };
+    left.as_ref() == target || right.as_ref() == target
+}
+
+pub(in crate::proofs::nonzero_divisor_certificate) fn literal_axioms(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,

@@ -36,7 +36,7 @@ pub use evidence::{
 pub use integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitness,
     IntegerAffineWitnessError, check_integer_affine_bound_conversion, check_integer_affine_witness,
-    integer_affine_truth_bounds, map_integer_affine_bound,
+    integer_affine_truth_bounds, integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
 pub use integer_cast::{
     CheckedIntegerCastChain, IntegerCastBoundConversionError, IntegerCastChainWitness,

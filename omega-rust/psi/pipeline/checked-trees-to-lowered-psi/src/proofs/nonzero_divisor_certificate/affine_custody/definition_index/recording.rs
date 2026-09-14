@@ -21,6 +21,7 @@ pub(crate) struct DefinitionIndex {
     literal_axioms_by_witness:
         BTreeMap<(ScalarTerm, Vec<usize>, ScalarTerm), Option<Vec<Option<usize>>>>,
     affine_proofs: BTreeMap<Proposition, Option<ProofNode>>,
+    wrapping_proofs: BTreeMap<Proposition, Option<ProofNode>>,
 }
 
 impl DefinitionIndex {
@@ -69,6 +70,7 @@ impl DefinitionIndex {
             words_by_root_and_target: BTreeMap::new(),
             literal_axioms_by_witness: BTreeMap::new(),
             affine_proofs: BTreeMap::new(),
+            wrapping_proofs: BTreeMap::new(),
         }
     }
 
@@ -77,9 +79,21 @@ impl DefinitionIndex {
         input: &ScalarTerm,
         start: usize,
     ) -> impl Iterator<Item = usize> + '_ {
-        let candidates = self.by_input.get(input).map(Vec::as_slice).unwrap_or(&[]);
-        let first = candidates.partition_point(|&index| index < start);
-        candidates[first..].iter().copied()
+        // A chain term resumes forward through a definition that uses it as
+        // an operand, or backward through a wrapping-add row that defines it;
+        // merge both source-ordered lists so the frontier sees every
+        // candidate. The kernel replay stays authoritative for each prefix.
+        let inputs = self.by_input.get(input).map(Vec::as_slice).unwrap_or(&[]);
+        let outputs = self.by_output.get(input).map(Vec::as_slice).unwrap_or(&[]);
+        let mut merged = inputs
+            .iter()
+            .chain(outputs)
+            .copied()
+            .filter(|&index| index >= start)
+            .collect::<Vec<_>>();
+        merged.sort_unstable();
+        merged.dedup();
+        merged.into_iter()
     }
 
     pub(in crate::proofs::nonzero_divisor_certificate) fn output_definitions_before(
@@ -199,5 +213,33 @@ impl DefinitionIndex {
         proof: Option<ProofNode>,
     ) {
         self.affine_proofs.insert(goal.clone(), proof);
+    }
+
+    // The wrapping leg shares the candidate index but not the affine proof
+    // cache: `bound::prove` runs the exact affine selection first, and a
+    // negative entry there must not suppress the wrapping conjunction leg for
+    // the same goal. The in-progress marker still breaks re-entrant cycles
+    // reached through `prove_candidate_endpoint` -> `shift::prove` ->
+    // `bound::prove` -> `wrapping::prove` for the same goal.
+    pub(in crate::proofs::nonzero_divisor_certificate) fn cached_wrapping_proof(
+        &self,
+        goal: &Proposition,
+    ) -> Option<Option<ProofNode>> {
+        self.wrapping_proofs.get(goal).cloned()
+    }
+
+    pub(in crate::proofs::nonzero_divisor_certificate) fn begin_wrapping_proof(
+        &mut self,
+        goal: &Proposition,
+    ) {
+        self.wrapping_proofs.insert(goal.clone(), None);
+    }
+
+    pub(in crate::proofs::nonzero_divisor_certificate) fn cache_wrapping_proof(
+        &mut self,
+        goal: &Proposition,
+        proof: Option<ProofNode>,
+    ) {
+        self.wrapping_proofs.insert(goal.clone(), proof);
     }
 }

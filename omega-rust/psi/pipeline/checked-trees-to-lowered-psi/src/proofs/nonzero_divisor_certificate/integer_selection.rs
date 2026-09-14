@@ -20,6 +20,7 @@ mod order;
 mod range;
 mod shift;
 mod substitution;
+mod wrapping;
 
 pub(super) fn build(
     context: &PropositionContext,

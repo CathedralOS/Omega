@@ -23,29 +23,43 @@ pub(super) fn select(
         let Proposition::Equal(left, right) = definition else {
             return None;
         };
-        let forward = step::select(left, right, &current, ScalarType::Integer(integer_type));
-        let reverse = step::select(right, left, &current, ScalarType::Integer(integer_type));
-        let (next, sibling) = match (forward, reverse) {
-            (Some(step), None) | (None, Some(step)) => step,
-            _ => return None,
-        };
-        let literal_axiom = match sibling.integer_value() {
-            Some((actual, IntegerValue::Signed(_) | IntegerValue::Unsigned(_)))
-                if actual == integer_type =>
-            {
-                None
+        let mut selected = None;
+        for (endpoint, expression) in [(left, right), (right, left)] {
+            for (next, sibling) in step::select(
+                endpoint,
+                expression,
+                &current,
+                ScalarType::Integer(integer_type),
+            ) {
+                let literal_axiom = match sibling.integer_value() {
+                    Some((actual, IntegerValue::Signed(_) | IntegerValue::Unsigned(_)))
+                        if actual == integer_type =>
+                    {
+                        Some(None)
+                    }
+                    None if matches!(sibling, ScalarTerm::Value { .. }) => landing::unique(
+                        context,
+                        semantic_axioms,
+                        definition_index,
+                        sibling,
+                        integer_type,
+                    )
+                    .map(Some),
+                    _ => None,
+                };
+                let Some(literal_axiom) = literal_axiom else {
+                    continue;
+                };
+                // More than one resolvable traversal forks the chain the same
+                // way the kernel rejects an ambiguous definition.
+                if selected.replace((next.clone(), literal_axiom)).is_some() {
+                    return None;
+                }
             }
-            None if matches!(sibling, ScalarTerm::Value { .. }) => Some(landing::unique(
-                context,
-                semantic_axioms,
-                definition_index,
-                sibling,
-                integer_type,
-            )?),
-            _ => return None,
-        };
+        }
+        let (next, literal_axiom) = selected?;
         literal_axioms.push(literal_axiom);
-        current = next.clone();
+        current = next;
     }
     (current == *target).then_some(literal_axioms)
 }
