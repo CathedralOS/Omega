@@ -30,6 +30,9 @@ reproduce the numbers below, and its output labels itself diagnostic.
 | `checked_wrong_tag.gamma` | B given another constructor's identity | hand-built | identity check fails | status 0, byte 201 |
 | `checked_wrong_arity.gamma` | B given a producer declaring six fields | hand-built | arity check fails | status 0, byte 202 |
 | `forged.gamma` | B given six fields under a forged seven-field header | hand-built | both checks pass | authored trap, status 2 |
+| `boundary.gamma` | C: the customer's `(pair kind payload)` frame, kind checked at the boundary | seven `pair` | one `eq`, then A's decode | status 0, byte 28 |
+| `boundary_wrong_kind.gamma` | C given another kind's frame | hand-built | kind check fails | status 0, byte 203 |
+| `boundary_short_payload.gamma` | C given six fields under the right kind | hand-built | kind check passes | authored trap, status 2 |
 
 Candidate B is the smallest source-level form of a "dynamically checked named
 product": the constructor is a named function, its identity is a nullary
@@ -38,6 +41,16 @@ nominal typing is a third candidate that needs declaration and call judgments
 the Gamma checker does not have; it is not represented by a fixture because no
 source in the selected language can express it, and it must not be read as
 implied by B.
+
+Candidate C is the "Delta-side status at the frame boundary" named below: the
+payload keeps A's spine, and the checked word is the continuation kind the
+customer's frame already carries — the real dispatcher maps an unknown kind to
+`InternalFailure` code 1 (`retained_frontend_contradiction`). The customer's
+actual frame is `(pair kind (pair payload previous))`; C collapses the
+previous-link pair because one frame is emulated, so its real cost there is
+eight pairs, not seven. C therefore measures a mechanism the selected checker
+already owns, not a new layout; its fixtures make that boundary's cost and
+residual hole observable on the same payload as A and B.
 
 ## Measured under `--reference` at the selected tape
 
@@ -49,12 +62,15 @@ implied by B.
 | `checked_wrong_tag.gamma` | 595 | 5 | 51,722 | 4 |
 | `checked_wrong_arity.gamma` | 591 | 5 | 55,275 | 4 |
 | `forged.gamma` | 1,232 | 5 | 111,655 | 7 |
+| `boundary.gamma` | 1,477 | 5 | 131,359 | 7 |
+| `boundary_wrong_kind.gamma` | 994 | 4 | 77,057 | 7 |
+| `boundary_short_payload.gamma` | 1,029 | 4 | 93,307 | 6 |
 
 Steps count every Alpha instruction from tape start to halt, so they include
 the evaluator's census and validation of the whole source, which grow with
 source size; they are a whole-run cost, not an isolated construction or
 projection cost. Pairs are 40-byte records, so the seven-field payload costs
-240 bytes as A and 320 bytes as B.
+240 bytes as A, 320 bytes as B, and 280 bytes as C.
 
 ## What the fixtures establish
 
@@ -76,6 +92,17 @@ projection cost. Pairs are 40-byte records, so the seven-field payload costs
 - Manual layout obligations removed by source-level B: none. The producer and
   consumer still agree on the right-nested spine by convention; B adds two more
   words to agree on.
+- C buys the same gain cheaper: one pair and one `eq` on the frame's kind word
+  map a wrong-kind delivery to a chosen scalar (203) at seven pairs instead of
+  eight, because B's identity word duplicates the constructor tag the
+  customer's frame already carries and already dispatches on. B's second
+  header word — payload arity — is implied by kind in the real customer, where
+  each continuation kind fixes its payload arity.
+- The residual hole is identical under A, B, and C: a payload with the wrong
+  shape under a *right* kind or header still traps
+  (`boundary_short_payload.gamma`, like `forged.gamma`). No source-level
+  candidate observes field order or spine shape; that agreement stays manual
+  under every candidate.
 
 ## What an evaluator-owned checked product would cost
 
@@ -101,8 +128,17 @@ Counted against the selected Beta evaluator, not built:
   `tests/gamma/` currently know pairs only; every new record kind adds
   formation, layout, and comparison rules.
 
-Adoption is not decided here. The remaining open comparison is whether the
-customer's actual defect history justifies that evaluator cost, or whether the
-one gain B demonstrates (a chosen failure status instead of an anonymous trap)
-is better bought by a Delta-side status at the frame boundary without any new
-Gamma value kind.
+The C fixtures settle the open question's cheaper half: the Delta-side status
+at the frame boundary is already purchased — the customer's continuation frame
+carries a checked kind word whose unknown-kind outcome is `InternalFailure`
+code 1 — and adding it to an unmarked payload costs one pair and one `eq`
+(131,359 steps for C versus 147,419 for B on the same decode). What remains
+uncovered by every source-level candidate is intra-payload shape under a known
+kind, and an evaluator-minted identity would add only construction-time arity
+enforcement and unforgeability over C — the counted cost above — for a defect
+class with no measured customer occurrence. The remaining half of the
+question, the customer's actual defect-localization history, is still
+unmeasured; until it exists, the evidence retains A's plain pairs with the
+kind-boundary status the checker already has, and static nominal typing stays
+the only candidate that could cover field order — still unrepresented and
+unpriced here.
