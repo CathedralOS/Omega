@@ -1384,6 +1384,290 @@ fn installation_boundary_settlement_rejects_every_one_field_substitution() {
     );
 }
 
+/// Every representable field of an installed semantic-code attribution row is
+/// an authenticated custody axis: a one-field substitution either cannot
+/// encode canonically or still encodes, recomputes a distinct installation
+/// fingerprint, and independent replay against the unchanged image rejects it.
+/// Operation and edge site identities and in-bounds byte counts join only
+/// against the retained image rows; the machine join, the canonical
+/// (machine, operation_ordinal, text_offset) order, interval geometry, and
+/// the boundary-joined nominal return edge are canonical record-shape
+/// custody rejected at encoding.
+#[test]
+fn installation_semantic_code_attribution_rejects_every_one_field_substitution() {
+    let write_provider = WriteExitProvider(970);
+    let plan = linux_write_line_exit_plan(&write_provider);
+    let artifact = build_object_artifact(&plan).expect("attribution artifact");
+    let image = emit_executable_image(&artifact, 3).expect("attribution image");
+    let record = build_installation_record_with_provider_executions(
+        &image,
+        ProfileDecisionId::new(97).unwrap(),
+        [&write_provider],
+    )
+    .expect("attribution installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let function = record
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_id(97))
+        .expect("attributed function row");
+    let function_byte_count = function.byte_count;
+    let [literal_row, write_row, constant_row, exit_row, return_row] =
+        record.semantic_code_attribution()
+    else {
+        panic!("write+exit fixture retains five attribution rows");
+    };
+    assert_eq!(literal_row.machine, machine_id(97));
+    assert_eq!(
+        literal_row.attribution,
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(operation_id(97)),
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 0,
+        }
+    );
+    assert_eq!(literal_row.text_offset, function.text_offset);
+    assert_eq!(
+        write_row.attribution.site,
+        SemanticCodeSite::Operation(operation_id(98))
+    );
+    assert_eq!(write_row.attribution.operation_ordinal, 1);
+    assert_eq!(write_row.attribution.code_offset, 0);
+    assert_eq!(
+        constant_row.attribution.site,
+        SemanticCodeSite::Operation(operation_id(99))
+    );
+    assert_eq!(constant_row.attribution.operation_ordinal, 2);
+    assert_eq!(constant_row.attribution.byte_count, 0);
+    assert_eq!(
+        exit_row.attribution.site,
+        SemanticCodeSite::Operation(operation_id(100))
+    );
+    assert_eq!(exit_row.attribution.operation_ordinal, 3);
+    assert_eq!(
+        return_row.attribution.site,
+        SemanticCodeSite::Edge(edge_id(97))
+    );
+    assert_eq!(return_row.attribution.operation_ordinal, 4);
+    assert_eq!(
+        return_row
+            .attribution
+            .code_offset
+            .checked_add(return_row.attribution.byte_count),
+        Some(function_byte_count)
+    );
+
+    type ReplayMutation = (
+        &'static str,
+        usize,
+        Box<dyn Fn(&mut image_emission::ObjectCodeAttribution)>,
+    );
+    // Semantic site identities and in-bounds byte counts have no canonical
+    // record-shape join: the substituted row still encodes and decodes, so
+    // rejection is the recomputed identity and the independent image replay.
+    let still_encodes: Vec<ReplayMutation> = vec![
+        (
+            "site::operation_identity",
+            0,
+            Box::new(|row| {
+                row.attribution.site = SemanticCodeSite::Operation(operation_id(199));
+            }),
+        ),
+        (
+            "site::edge_identity",
+            4,
+            Box::new(|row| {
+                row.attribution.site = SemanticCodeSite::Edge(edge_id(199));
+            }),
+        ),
+        (
+            "byte_count::zero_marker_row",
+            0,
+            Box::new(|row| {
+                row.attribution.byte_count = 1;
+            }),
+        ),
+        (
+            "byte_count::in_bounds_row",
+            1,
+            Box::new(|row| {
+                row.attribution.byte_count -= 1;
+            }),
+        ),
+    ];
+    for (field, index, mutate) in still_encodes {
+        let mut changed = record.clone();
+        mutate(&mut changed.semantic_code_attribution_mut_for_test()[index]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted row decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted row"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted row"
+        );
+    }
+
+    let invalid_attribution =
+        |site: SemanticCodeSite| InstallationError::InvalidSemanticCodeAttribution {
+            machine: machine_id(97),
+            site,
+        };
+    let exit_mismatch = || InstallationError::BoundaryRealizationMismatch {
+        machine: machine_id(97),
+        operation: operation_id(100),
+    };
+    // Canonical record-shape joins reject every other one-field substitution
+    // at encoding, before any identity or replay could accept it.
+    let rejected: Vec<(
+        &'static str,
+        usize,
+        Box<dyn Fn(&mut image_emission::ObjectCodeAttribution)>,
+        InstallationError,
+    )> = vec![
+        (
+            "machine::unknown",
+            4,
+            Box::new(|row| {
+                row.machine = machine_id(199);
+            }),
+            InstallationError::SemanticCodeAttributionMachineMissing(machine_id(199)),
+        ),
+        (
+            "operation_ordinal::reorders_roster",
+            0,
+            Box::new(|row| {
+                row.attribution.operation_ordinal = 5;
+            }),
+            InstallationError::NonCanonicalSemanticCodeAttributionOrder,
+        ),
+        (
+            "code_offset::operation_row",
+            1,
+            Box::new(|row| {
+                row.attribution.code_offset += 1;
+            }),
+            invalid_attribution(SemanticCodeSite::Operation(operation_id(98))),
+        ),
+        (
+            "text_offset::operation_row",
+            1,
+            Box::new(|row| {
+                row.text_offset += 1;
+            }),
+            invalid_attribution(SemanticCodeSite::Operation(operation_id(98))),
+        ),
+        (
+            "byte_count::past_function_end",
+            1,
+            Box::new(move |row| {
+                row.attribution.byte_count = function_byte_count + 1;
+            }),
+            invalid_attribution(SemanticCodeSite::Operation(operation_id(98))),
+        ),
+        (
+            "site::tail_edge_to_operation",
+            4,
+            Box::new(|row| {
+                row.attribution.site = SemanticCodeSite::Operation(operation_id(199));
+            }),
+            exit_mismatch(),
+        ),
+        (
+            "operation_ordinal::tail_edge",
+            4,
+            Box::new(|row| {
+                row.attribution.operation_ordinal = 5;
+            }),
+            exit_mismatch(),
+        ),
+        (
+            "code_offset::tail_edge",
+            4,
+            Box::new(|row| {
+                row.attribution.code_offset -= 1;
+            }),
+            invalid_attribution(SemanticCodeSite::Edge(edge_id(97))),
+        ),
+        (
+            "byte_count::tail_edge",
+            4,
+            Box::new(|row| {
+                row.attribution.byte_count = 0;
+            }),
+            exit_mismatch(),
+        ),
+    ];
+    for (field, index, mutate, expected) in rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed.semantic_code_attribution_mut_for_test()[index]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: canonical encoding rejects the substitution"
+        );
+    }
+
+    // Roster-level custody: dropping an unjoined operation row still encodes,
+    // so only the image binding rejects it; dropping the nominal return-edge
+    // row breaks the boundary-joined tail at encoding, while a duplicated or
+    // reordered roster hits the canonical ordering rule.
+    let mut dropped_row = record.clone();
+    dropped_row
+        .semantic_code_attribution_mut_for_test()
+        .remove(0);
+    let bytes = encode_installation_record(&dropped_row).expect("dropped row encodes");
+    let replayed = decode_installation_record(&bytes).expect("dropped row decodes");
+    assert_ne!(
+        installation_fingerprint(&replayed).expect("dropped fingerprint"),
+        authentic_fingerprint
+    );
+    assert_eq!(
+        validate_installation_record(&replayed, &image),
+        Err(InstallationError::ImageBindingMismatch)
+    );
+    let mut dropped_edge_row = record.clone();
+    dropped_edge_row
+        .semantic_code_attribution_mut_for_test()
+        .pop();
+    assert_eq!(
+        encode_installation_record(&dropped_edge_row),
+        Err(exit_mismatch())
+    );
+    let mut duplicated_row = record.clone();
+    let row = duplicated_row.semantic_code_attribution()[1].clone();
+    duplicated_row
+        .semantic_code_attribution_mut_for_test()
+        .insert(2, row);
+    assert_eq!(
+        encode_installation_record(&duplicated_row),
+        Err(InstallationError::NonCanonicalSemanticCodeAttributionOrder)
+    );
+    let mut reordered = record.clone();
+    reordered
+        .semantic_code_attribution_mut_for_test()
+        .swap(1, 2);
+    assert_eq!(
+        encode_installation_record(&reordered),
+        Err(InstallationError::NonCanonicalSemanticCodeAttributionOrder)
+    );
+}
+
 /// Every representable field of an installed compiler-private callback row is
 /// an authenticated custody axis: a one-field substitution either cannot
 /// encode canonically or still encodes, recomputes a distinct installation
