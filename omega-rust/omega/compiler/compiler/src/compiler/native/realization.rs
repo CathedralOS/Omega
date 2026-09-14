@@ -156,13 +156,33 @@ pub(super) fn realize(
             "native-artifact checked ProgramEntry settlement failed: {error}"
         ))]
     })?;
+    // The authored Build.identifier supplies the Mach-O CodeDirectory signing
+    // identity (wiki/spec/build/macos_application.md). Signed macOS GUI image
+    // emission requires it: absence is an early realization configuration
+    // error, not a source-semantic rejection. Console Mach-O and non-Mach-O
+    // output keep the executable-leaf ad-hoc label fallback.
+    let code_signature_identifier = checked
+        .application_identifier()
+        .map(|identifier| identifier.as_str().to_owned());
+    if admission.target.object_format == target::ObjectFormat::MachO
+        && matches!(
+            checked.application_intent(),
+            Some(build_evaluation::HostedApplicationIntent::Gui)
+        )
+        && code_signature_identifier.is_none()
+    {
+        return Err(vec![Diagnostic::error(
+            "signed macOS GUI image emission requires the authored Build identifier",
+        )]);
+    }
     let request = native_realization::NativeRealizationRequest {
         checked_scope: Some(&checked_boundary_operator_scope),
         prepared_input: Some(prepared_input),
         target: admission.target,
         image_request: native_realization::ExecutableImageEmissionRequest::direct(
             checked.subsystem(),
-        ),
+        )
+        .with_code_signature_identifier(code_signature_identifier),
         profile,
         terminal_authority_policy:
             native_realization::current_compiler_intrinsic_terminal_authority_policy(),

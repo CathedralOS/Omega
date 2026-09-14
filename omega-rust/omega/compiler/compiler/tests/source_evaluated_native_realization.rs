@@ -1043,6 +1043,10 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
     );
 
     let rejected = fixture.compile_terminal();
+    let rejected_subsystem = rejected
+        .native_realization_proposal()
+        .expect("native proposal")
+        .subsystem();
     let admission = admit_import(
         &rejected,
         SameStackContributionAdmissionReceiptId::from_normalized_identity(0x454c_4600_0004)
@@ -1060,7 +1064,7 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
             terminal_authority_permission_policy: permission_policy,
-            image_request: native::ExecutableImageEmissionRequest::direct(91),
+            image_request: native::ExecutableImageEmissionRequest::direct(rejected_subsystem),
             imports: &[SourceEvaluatedImportSettlement::new(
                 &admission.execution,
                 &admission.same_stack,
@@ -1070,7 +1074,8 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
     .expect_err("import-bearing ELF cannot enter direct image custody");
     assert!(matches!(
         request,
-        native::ExecutableImageEmissionRequest::Direct { subsystem: 91 }
+        native::ExecutableImageEmissionRequest::Direct { subsystem, .. }
+            if subsystem == rejected_subsystem
     ));
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

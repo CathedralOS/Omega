@@ -123,6 +123,14 @@ impl CheckedCompilation {
         self.execution.application_intent
     }
 
+    /// The build-validated authored application identifier retained beside
+    /// [`Self::application_intent`]. It supplies the GUI CodeDirectory signing
+    /// identity and `CFBundleIdentifier`; `None` means the build authored no
+    /// `identifier` and console output falls back to the executable leaf.
+    pub const fn application_identifier(&self) -> Option<&build_evaluation::ApplicationIdentifier> {
+        self.execution.application_identifier.as_ref()
+    }
+
     /// Exact image subsystem selected by the owning build configuration.
     pub const fn subsystem(&self) -> u16 {
         self.execution.subsystem

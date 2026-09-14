@@ -599,6 +599,12 @@ pub data Build {
     // compiler-owned Build.x86_deployment_features field
     subsystem: Subsystem;
     freestanding: bool;
+    // Authored application identifier (wiki/spec/build/macos_application.md):
+    // supplies the GUI CodeDirectory signing identity and CFBundleIdentifier.
+    // Empty means no authored identifier; console output falls back to the
+    // validated executable leaf. It is validated separately from the
+    // application name and is never inferred from the PE subsystem word.
+    identifier: &[u8];
     optimizations: Optimizations;
     pcc: Pcc;
     source: BuildSource;

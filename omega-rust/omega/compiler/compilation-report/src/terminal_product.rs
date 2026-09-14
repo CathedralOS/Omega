@@ -282,6 +282,8 @@ pub struct TerminalNativeRealizationProposal {
     target_profile: target::TargetProfile,
     native_target: target::NativeTarget,
     subsystem: u16,
+    application_intent: Option<build_evaluation::HostedApplicationIntent>,
+    application_identifier: Option<build_evaluation::ApplicationIdentifier>,
     post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
     program_entry: build_evaluation::SelectedCompilerProgramEntry,
     selected_provider_plans: effects::SelectedProviderPlanFacts,
@@ -303,6 +305,8 @@ impl TerminalNativeRealizationProposal {
         target_profile: target::TargetProfile,
         native_target: target::NativeTarget,
         subsystem: u16,
+        application_intent: Option<build_evaluation::HostedApplicationIntent>,
+        application_identifier: Option<build_evaluation::ApplicationIdentifier>,
         post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
         program_entry: build_evaluation::SelectedCompilerProgramEntry,
         selected_provider_plans: effects::SelectedProviderPlanFacts,
@@ -337,6 +341,8 @@ impl TerminalNativeRealizationProposal {
             target_profile,
             native_target,
             subsystem,
+            application_intent,
+            application_identifier,
             post_terminal_optimizations,
             program_entry,
             selected_provider_plans,
@@ -821,6 +827,20 @@ impl TerminalNativeRealizationProposal {
 
     pub const fn subsystem(&self) -> u16 {
         self.subsystem
+    }
+
+    /// The authored hosted application intent retained from the checked build,
+    /// kept separate from the PE loader word so a raw `Unspecified` value can
+    /// never impersonate `Gui` at native realization.
+    pub const fn application_intent(&self) -> Option<build_evaluation::HostedApplicationIntent> {
+        self.application_intent
+    }
+
+    /// The build-validated authored application identifier retained for
+    /// native realization. Signed macOS GUI emission requires it; console
+    /// output may fall back to the executable leaf as its ad-hoc label.
+    pub const fn application_identifier(&self) -> Option<&build_evaluation::ApplicationIdentifier> {
+        self.application_identifier.as_ref()
     }
 
     pub const fn post_terminal_optimizations(

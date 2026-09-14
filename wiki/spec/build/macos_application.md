@@ -39,9 +39,10 @@ Reject invalid path components; do not use independent sanitizers or derive
 names from source folders. The universal `omega-program` filename is replaced.
 
 An explicit authored identifier supplies GUI CodeDirectory signing identity and
-`CFBundleIdentifier`. Validate it separately from the filename; it proves neither
-globally unique ownership nor authenticity. Its ordinary Build field spelling
-remains to be specified by the implementation task.
+`CFBundleIdentifier`. The ordinary Build field is `builder.identifier`, a
+`&[u8]` member validated separately from the filename as nonempty ASCII in
+`A-Z a-z 0-9 . -` with no empty `.`-separated segment; it proves neither
+globally unique ownership nor authenticity.
 
 Require the identifier before signed macOS GUI image emission, including
 retained-native output. Absence is an early build/realization configuration error,

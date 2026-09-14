@@ -487,7 +487,7 @@ fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_
         let (image_request, diagnostics) = error.into_parts();
         assert!(matches!(
             image_request,
-            image_emission::ExecutableImageEmissionRequest::Direct { subsystem: 19 }
+            image_emission::ExecutableImageEmissionRequest::Direct { subsystem: 19, .. }
         ));
         assert!(
             diagnostics
@@ -519,7 +519,7 @@ fn program_entry_adapter_does_not_ignore_supplied_scope() {
     let (image, diagnostics) = error.into_parts();
     assert!(matches!(
         image,
-        image_emission::ExecutableImageEmissionRequest::Direct { subsystem: 3 }
+        image_emission::ExecutableImageEmissionRequest::Direct { subsystem: 3, .. }
     ));
     assert!(
         diagnostics[0]

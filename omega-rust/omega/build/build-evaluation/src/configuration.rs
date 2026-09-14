@@ -6,6 +6,51 @@ use optimization_core::OptimizationSelections;
 use provider_planning::ProviderSelection;
 use representation_planning::OpaqueRepresentationSelection;
 
+/// The authored application identifier: it supplies the GUI CodeDirectory
+/// signing identity and `CFBundleIdentifier`
+/// (wiki/spec/build/macos_application.md). Validation is deliberately
+/// separate from the executable-name rule: nonempty ASCII in
+/// `A-Z a-z 0-9 . -` with no empty `.`-separated segment.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ApplicationIdentifier(String);
+
+impl ApplicationIdentifier {
+    /// Validate authored `builder.identifier` bytes. An empty value is not
+    /// admitted here: omission and an empty field both produce `None` at
+    /// extraction, so `new` only sees an explicitly authored identity.
+    pub fn new(bytes: &[u8]) -> Result<Self, &'static str> {
+        if bytes.is_empty() {
+            return Err("identifier is empty");
+        }
+        if !bytes.is_ascii() {
+            return Err("identifier is not ASCII");
+        }
+        if bytes.iter().any(|byte| {
+            !matches!(
+                byte,
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'.' | b'-'
+            )
+        }) {
+            return Err("identifier contains a byte outside `A-Z a-z 0-9 . -`");
+        }
+        if bytes
+            .split(|byte| *byte == b'.')
+            .any(|segment| segment.is_empty())
+        {
+            return Err("identifier has an empty `.`-separated segment");
+        }
+        Ok(Self(
+            String::from_utf8(bytes.to_vec()).expect("ASCII identifier bytes are UTF-8"),
+        ))
+    }
+
+    /// The validated identifier spelling bound into CodeDirectory signing and
+    /// `CFBundleIdentifier` publication.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// The image facts the pipeline consumes, extracted from the augmented
 /// `Build`. ZII: the default IS the zero value's meaning.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,6 +58,10 @@ pub struct BuildConfig {
     /// Authored hosted presentation intent, independent of PE loader metadata.
     /// EFI and raw `Unspecified` words carry no hosted application intent.
     pub application_intent: Option<HostedApplicationIntent>,
+    /// Build-validated authored application identifier. `None` means the
+    /// build supplied no `identifier` bytes; console output then uses the
+    /// validated executable leaf as its ad-hoc signing label.
+    pub application_identifier: Option<ApplicationIdentifier>,
     /// PE optional-header Subsystem word (console 3 when unstated).
     pub subsystem: u16,
     /// Freestanding image: no ambient host packages or import thunks.
@@ -86,6 +135,7 @@ impl Default for BuildConfig {
     fn default() -> Self {
         Self {
             application_intent: Some(HostedApplicationIntent::Console),
+            application_identifier: None,
             subsystem: 3, // IMAGE_SUBSYSTEM_WINDOWS_CUI -- the Console case's meaning
             freestanding: false,
             optimizations: OptimizationSelections::default(),
@@ -213,6 +263,24 @@ pub(super) fn extract_build_config(
         }
     };
 
+    // An authored Build that predates the identifier surface carries no
+    // `identifier` field; omission and an empty authored value both mean no
+    // authored identity. Validation here is separate from the executable
+    // name and never feeds the PE subsystem word.
+    let application_identifier = match field("identifier") {
+        Ok(BuildTimeValue::Text(bytes)) => {
+            if bytes.is_empty() {
+                None
+            } else {
+                Some(ApplicationIdentifier::new(bytes).map_err(|reason| {
+                    format!("Build.identifier is not a valid application identifier: {reason}")
+                })?)
+            }
+        }
+        Ok(other) => return Err(format!("Build.identifier is not bytes: {other:?}")),
+        Err(_) => None,
+    };
+
     let freestanding = match field("freestanding")? {
         BuildTimeValue::Bool(value) => *value,
         other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
@@ -247,6 +315,7 @@ pub(super) fn extract_build_config(
     Ok((
         BuildConfig {
             application_intent,
+            application_identifier,
             subsystem,
             freestanding,
             optimizations,
@@ -333,5 +402,83 @@ mod tests {
             assert_eq!(raw.application_intent, None);
             assert_eq!(raw.subsystem, word as u16);
         }
+    }
+
+    #[test]
+    fn identifier_extraction_validates_authored_bytes() {
+        let mut typed = typed_trees::TypedTrees::default();
+        typed.push_data_definition(typed_trees::data::DataDefinition {
+            name: "Build".into(),
+            ..Default::default()
+        });
+        let extract = |identifier: Option<super::BuildTimeValue>| {
+            let mut fields = vec![
+                (
+                    "subsystem".into(),
+                    super::BuildTimeValue::Case {
+                        variant: "Gui".into(),
+                        payload: vec![],
+                    },
+                ),
+                ("freestanding".into(), super::BuildTimeValue::Bool(false)),
+            ];
+            if let Some(identifier) = identifier {
+                fields.push(("identifier".into(), identifier));
+            }
+            super::extract_build_config(
+                &super::BuildTimeValue::Struct {
+                    type_name: "Build".into(),
+                    fields,
+                },
+                super::optimization::BuildOptimizationAdmission::admit(&typed).unwrap(),
+                None,
+                false,
+            )
+        };
+        // A Build predating the field, or an empty authored value, means no
+        // authored identity.
+        assert_eq!(extract(None).unwrap().0.application_identifier, None);
+        assert_eq!(
+            extract(Some(super::BuildTimeValue::Text(Vec::new())))
+                .unwrap()
+                .0
+                .application_identifier,
+            None
+        );
+        let gui = extract(Some(super::BuildTimeValue::Text(
+            b"com.omega.window-app".to_vec(),
+        )))
+        .unwrap()
+        .0;
+        assert_eq!(
+            gui.application_identifier
+                .as_ref()
+                .map(super::ApplicationIdentifier::as_str),
+            Some("com.omega.window-app")
+        );
+        // The identifier never feeds the PE subsystem word or hosted intent.
+        assert_eq!(gui.subsystem, 2);
+        assert_eq!(
+            gui.application_intent,
+            Some(super::HostedApplicationIntent::Gui)
+        );
+        for invalid in [
+            b"has_underscore".as_slice(),
+            b"has space".as_slice(),
+            b"double..dot".as_slice(),
+            b".leading".as_slice(),
+            b"trailing.".as_slice(),
+            &[0x80, 0x81][..],
+        ] {
+            let diagnostic = extract(Some(super::BuildTimeValue::Text(invalid.to_vec())))
+                .expect_err("invalid identifier bytes must reject");
+            assert!(
+                diagnostic.contains("Build.identifier"),
+                "unexpected diagnostic: {diagnostic}"
+            );
+        }
+        let non_bytes = extract(Some(super::BuildTimeValue::Int(3)))
+            .expect_err("non-bytes identifier must reject");
+        assert!(non_bytes.contains("Build.identifier is not bytes"));
     }
 }

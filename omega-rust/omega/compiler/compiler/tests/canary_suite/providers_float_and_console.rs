@@ -2312,6 +2312,8 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             target::TargetProfile::MacosArm64,
             proposal.native_target(),
             proposal.subsystem(),
+            proposal.application_intent(),
+            proposal.application_identifier().cloned(),
             proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),

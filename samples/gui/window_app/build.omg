@@ -2,6 +2,7 @@
 // attaching a console box (PE Subsystem 2).
 machine build(builder: &mut Build) {
     builder.application("window-app");
+    builder.identifier = "com.omega.window-app";
     builder.depend(Source::Path {
         location: "../../../source/library/std"
     });

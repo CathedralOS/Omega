@@ -115,9 +115,39 @@ pub use loader_mapping::validate_macho_aarch64_loader_mapping;
 use plan::plan_macho_image;
 use rebases::macho_rebase_info;
 
+/// The executable leaf published today; it doubles as the ad-hoc signing
+/// label when the build authored no application identifier
+/// (wiki/spec/build/macos_application.md). The universal leaf is replaced when
+/// the validated application name reaches image emission; an authored
+/// identifier is bound through [`emit_macho_aarch64_executable_signed`]
+/// instead.
+const OMEGA_EXECUTABLE_LEAF: &str = "omega-program";
+
+/// Emit with the console fallback: the executable leaf is the ad-hoc
+/// CodeDirectory label because no authored application identifier was bound.
 pub fn emit_macho_aarch64_executable(
-    mut image: FinalImage,
+    image: FinalImage,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
+    emit_macho_aarch64_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
+}
+
+/// Emit one signed executable binding `code_signature_identifier` as the
+/// CodeDirectory identity.
+///
+/// The identifier must be the build-validated authored application
+/// identifier; it enters the planned `LC_CODE_SIGNATURE` extent before any
+/// load command is written and is embedded verbatim in the CodeDirectory
+/// after the finished bytes are hashed. Publication cannot substitute or
+/// re-sign with a different identity.
+pub fn emit_macho_aarch64_executable_signed(
+    mut image: FinalImage,
+    code_signature_identifier: &str,
+) -> Result<ExecutableImageOutput, Diagnostic> {
+    if code_signature_identifier.is_empty() {
+        return Err(Diagnostic::error(
+            "Mach-O code signature identifier is empty",
+        ));
+    }
     let imports = install_import_thunks(&mut image)?;
     let import_thunks = imports.thunks;
     // The exact ordered set of dylibs and every image-local ordinal were
@@ -131,6 +161,7 @@ pub fn emit_macho_aarch64_executable(
         rebase_info.bytes.len(),
         bind_info.len(),
         &dylibs,
+        code_signature_identifier,
     );
     let entry_offset = plan.text_offset + macho_entry_text_offset(&image)?;
     let layout = plan.final_image_layout();
@@ -203,7 +234,8 @@ pub fn emit_macho_aarch64_executable(
     bytes.resize(plan.bind_offset, 0);
     bytes.extend(bind_info);
     bytes.resize(plan.code_signature_offset, 0);
-    let code_signature = macho_ad_hoc_code_signature(&bytes, plan.text_file_size);
+    let code_signature =
+        macho_ad_hoc_code_signature(&bytes, plan.text_file_size, code_signature_identifier);
     debug_assert_eq!(code_signature.len(), plan.code_signature_size);
     bytes.extend(code_signature);
 
@@ -234,7 +266,7 @@ pub fn emit_macho_aarch64_executable(
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
         bytes,
-        file_name: "omega-program".to_owned(),
+        file_name: OMEGA_EXECUTABLE_LEAF.to_owned(),
         format: "mach-o-arm64-executable".to_owned(),
         text_bytes: image.memory.text.len(),
         data_bytes: image.memory.data.len(),
