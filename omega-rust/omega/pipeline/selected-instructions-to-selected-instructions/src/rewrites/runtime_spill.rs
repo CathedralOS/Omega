@@ -14,10 +14,14 @@
 //! each reloads at the end of its block, after the last body instruction and
 //! any definition store. A fixed view on such an operand (an ABI return or
 //! exit register) stays on the rewritten operand, pinning the fresh reload
-//! register to the same physical unit. Outgoing successor transports —
-//! value bindings, structural descriptors, and case payloads — remain
-//! unsupported; block-parameter victims additionally require an acyclic
-//! function.
+//! register to the same physical unit. A `Registers` value-binding argument
+//! on an outgoing successor reads at that same end-of-block position, after
+//! the terminator instruction executes: its reload pair follows any
+//! terminator-operand pairs in successor then binding order, and the binding
+//! keeps its semantic declaration while moving to the fresh reload register.
+//! Structural transports, case payloads, and the parameter side of every
+//! binding remain unsupported; block-parameter victims additionally require
+//! an acyclic function.
 //!
 //! Each retained rewrite shares unchanged selected functions. Replay still
 //! restores and compares the complete source by content, so separately allocated
@@ -148,6 +152,36 @@ pub(crate) fn control_mut(
         | SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. } => instruction,
+    }
+}
+
+/// The same projection for successor transports. The terminator instruction is
+/// untouched; only the outgoing successors' value bindings can move to fresh
+/// reload registers. Order matches `control`: polarity zero before one.
+pub(crate) fn control_successors_mut(
+    terminator: &mut selected_instructions::SelectedTerminator,
+) -> [Option<&mut selected_instructions::SelectedSuccessor>; 2] {
+    use selected_instructions::SelectedTerminator;
+    match terminator {
+        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+            [None, None]
+        }
+        SelectedTerminator::Jump { successor, .. } => [Some(successor), None],
+        SelectedTerminator::ConditionalBranch {
+            when_nonzero,
+            when_zero,
+            ..
+        } => [Some(when_nonzero), Some(when_zero)],
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        }
+        | SelectedTerminator::ConditionalBranchI64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        } => [Some(when_less), Some(when_not_less)],
     }
 }
 

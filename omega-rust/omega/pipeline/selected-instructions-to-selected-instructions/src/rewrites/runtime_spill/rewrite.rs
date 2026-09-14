@@ -3,7 +3,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedInstructionId, SelectedInstructionKind,
-    SelectedLocalStorageSlot, VirtualRegisterId,
+    SelectedLocalStorageSlot, SelectedValueTransport, VirtualRegisterId,
 };
 
 use super::{RuntimeSpillError, ValidatedRuntimeSpill, admission, validate_runtime_spill};
@@ -105,6 +105,39 @@ pub fn spill_selected_runtime_value(
             instructions.push(reload.address);
             instructions.push(reload.load);
             operand.virtual_register = reloaded;
+        }
+        // Edge-transport arguments read at the same end-of-block position,
+        // after the terminator instruction executes. Their pairs follow any
+        // terminator-operand pairs in successor then binding order; only the
+        // argument register moves while the binding keeps its declaration.
+        for successor in super::control_successors_mut(&mut terminator)
+            .into_iter()
+            .flatten()
+        {
+            for binding in &mut successor.bindings {
+                if !matches!(
+                    binding.transport,
+                    SelectedValueTransport::Registers { argument, .. } if argument == register)
+                {
+                    continue;
+                }
+                let reload = admission::reload(
+                    &admitted,
+                    register,
+                    &mut next_instruction,
+                    &mut next_register,
+                )?;
+                let reloaded = reload.reload_register.id;
+                function.virtual_registers.push(reload.address_register);
+                function.virtual_registers.push(reload.reload_register);
+                instructions.push(reload.address);
+                instructions.push(reload.load);
+                let SelectedValueTransport::Registers { argument, .. } = &mut binding.transport
+                else {
+                    unreachable!()
+                };
+                *argument = reloaded;
+            }
         }
         boundaries.push(
             u32::try_from(instructions.len()).map_err(|_| RuntimeSpillError::IdentityOverflow)?,

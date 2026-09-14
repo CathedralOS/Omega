@@ -210,10 +210,10 @@ fn undominated_lifetimes_and_uninitialized_parameters_do_not_gain_spill_authorit
 }
 
 #[test]
-fn successor_transports_still_exclude_the_victim_while_terminator_operands_admit() {
+fn registers_binding_arguments_admit_while_other_transports_reject() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     for terminator_kind in 0..6 {
-        for reference_kind in 0..4 {
+        for reference_kind in 0..5 {
             let mut source = cfg_fixture(NativeTarget::linux_x64());
             let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
             let mut instruction = super::super::control(&function.blocks[1].terminator)
@@ -235,7 +235,7 @@ fn successor_transports_still_exclude_the_victim_while_terminator_operands_admit
                         parameter: VirtualRegisterId(if reference_kind == 2 { 1 } else { 4 }),
                     },
                 }),
-                3 => edge.structural_bindings.push(SelectedStructuralBinding {
+                3 | 4 => edge.structural_bindings.push(SelectedStructuralBinding {
                     semantic: abstract_operations::AbstractStructuralBinding {
                         parameter: PlaceId::new(1).unwrap(),
                         argument: terminal_psi::StructuralArgument {
@@ -244,11 +244,22 @@ fn successor_transports_still_exclude_the_victim_while_terminator_operands_admit
                             access: terminal_psi::StructuralAccess::SharedBorrow,
                         },
                     },
-                    transport: SelectedStructuralTransport::Descriptor {
-                        argument: VirtualRegisterId(1),
-                        destination: LocalStorageSlotId::Boundary {
-                            operation: OperationId::new(1).unwrap(),
-                        },
+                    transport: if reference_kind == 3 {
+                        SelectedStructuralTransport::Descriptor {
+                            argument: VirtualRegisterId(1),
+                            destination: LocalStorageSlotId::Boundary {
+                                operation: OperationId::new(1).unwrap(),
+                            },
+                        }
+                    } else {
+                        SelectedStructuralTransport::WholeValue {
+                            argument: VirtualRegisterId(1),
+                            destination: LocalStorageSlotId::Boundary {
+                                operation: OperationId::new(1).unwrap(),
+                            },
+                            byte_size: 8,
+                            alignment: 8,
+                        }
                     },
                 }),
                 _ => unreachable!(),
@@ -297,10 +308,17 @@ fn successor_transports_still_exclude_the_victim_while_terminator_operands_admit
                 }
                 let admitted =
                     admission::admit(&source, 0, VirtualRegisterId(1), &environment, budget());
-                if reference_kind == 0 {
-                    // Terminator operand uses reload at the end of the block.
-                    assert!(admitted.is_ok(), "terminator {terminator_kind} operand use");
+                if reference_kind <= 1 {
+                    // Terminator operands and outgoing binding arguments are
+                    // both ordinary end-of-block uses.
+                    assert!(
+                        admitted.is_ok(),
+                        "terminator {terminator_kind} reference {reference_kind}"
+                    );
                 } else {
+                    // The parameter side of a transport on a foreign edge and
+                    // every structural-transport argument stay outside
+                    // admission.
                     assert_eq!(
                         admitted.err(),
                         Some(RuntimeSpillError::UnsupportedUse),
@@ -442,6 +460,340 @@ fn terminator_operand_uses_reload_at_block_end_on_every_target() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn edge_binding_arguments_reload_at_predecessor_end_on_every_target() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut source = cfg_fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            let scalar_type = function.virtual_registers[1].scalar_type;
+            // The destination's own parameter register receives the transport.
+            function.virtual_registers.push(VirtualRegister {
+                id: VirtualRegisterId(5),
+                scalar_type,
+                class: function.virtual_registers[1].class,
+                origin: VirtualRegisterOrigin::BlockParameter {
+                    source_value: ValueId::new(2).unwrap(),
+                    block: SelectedBlockId(2),
+                    parameter_index: 0,
+                },
+                definition_site: Some(ValueDefinitionSite::BlockParameter {
+                    block: BlockId::new(3).unwrap(),
+                    position: 0,
+                }),
+                entry_fixed_view: None,
+            });
+            let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[1].terminator
+            else {
+                unreachable!()
+            };
+            successor.bindings.push(SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(2).unwrap(),
+                    argument: ValueId::new(1).unwrap(),
+                    scalar_type,
+                },
+                transport: SelectedValueTransport::Registers {
+                    argument: VirtualRegisterId(1),
+                    parameter: VirtualRegisterId(5),
+                },
+            });
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let original = &source.transformed().functions[0];
+        let transformed = &result.transformed().functions[0];
+        let block = &transformed.blocks[1];
+        // Three body uses plus the edge-argument use each get their own pair;
+        // the transport pair lands after the last body instruction.
+        assert_eq!(
+            block.instructions.len(),
+            original.blocks[1].instructions.len() + 1 + 8
+        );
+        let tail = block.instructions.len() - 2;
+        assert!(matches!(
+            block.instructions[tail].kind,
+            SelectedInstructionKind::FrameAddress { .. }
+        ));
+        assert!(matches!(
+            block.instructions[tail + 1].kind,
+            SelectedInstructionKind::Load64 { .. }
+        ));
+        let reload_register = block.instructions[tail + 1].operands[1].virtual_register;
+        let SelectedTerminator::Jump { successor, .. } = &block.terminator else {
+            unreachable!()
+        };
+        let binding = &successor.bindings[0];
+        assert_eq!(
+            binding.transport,
+            SelectedValueTransport::Registers {
+                argument: reload_register,
+                parameter: VirtualRegisterId(5),
+            }
+        );
+        assert_eq!(
+            binding.semantic,
+            super::super::control(&original.blocks[1].terminator).1[0]
+                .unwrap()
+                .bindings[0]
+                .semantic
+        );
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
+        );
+        for mutation in 0..6 {
+            let mut proposed = result.transformed().clone();
+            let function = &mut proposed.functions[0];
+            match mutation {
+                0 => {
+                    function.blocks[1].instructions.remove(tail + 1);
+                }
+                1 => {
+                    function.blocks[1].instructions.swap(tail, tail + 1);
+                }
+                2 => {
+                    let SelectedTerminator::Jump { successor, .. } =
+                        &mut function.blocks[1].terminator
+                    else {
+                        unreachable!()
+                    };
+                    let SelectedValueTransport::Registers { argument, .. } =
+                        &mut successor.bindings[0].transport
+                    else {
+                        unreachable!()
+                    };
+                    *argument = VirtualRegisterId(1);
+                }
+                3 => {
+                    let SelectedTerminator::Jump { successor, .. } =
+                        &mut function.blocks[1].terminator
+                    else {
+                        unreachable!()
+                    };
+                    successor.bindings[0].semantic.argument = ValueId::new(2).unwrap();
+                }
+                4 => {
+                    function.virtual_registers.pop();
+                }
+                5 => {
+                    let SelectedTerminator::Jump { successor, .. } =
+                        &mut function.blocks[1].terminator
+                    else {
+                        unreachable!()
+                    };
+                    successor.bindings.clear();
+                }
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    proposed
+                )
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch,
+                "{target:?} mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn branch_bindings_reload_per_edge_after_terminator_operands() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let mut source = cfg_fixture(target);
+    {
+        let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+        let scalar_type = function.virtual_registers[1].scalar_type;
+        let class = function.virtual_registers[1].class;
+        // Both destination parameter registers receive the same victim.
+        for (id, block) in [(5, SelectedBlockId(2)), (6, SelectedBlockId(0))] {
+            function.virtual_registers.push(VirtualRegister {
+                id: VirtualRegisterId(id),
+                scalar_type,
+                class,
+                origin: VirtualRegisterOrigin::BlockParameter {
+                    source_value: ValueId::new(2).unwrap(),
+                    block,
+                    parameter_index: 0,
+                },
+                definition_site: Some(ValueDefinitionSite::BlockParameter {
+                    block: BlockId::new(3).unwrap(),
+                    position: 0,
+                }),
+                entry_fixed_view: None,
+            });
+        }
+        let instruction = super::super::control(&function.blocks[1].terminator)
+            .0
+            .clone();
+        let mut bound = successor(2);
+        bound.bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(2).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type,
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: VirtualRegisterId(1),
+                parameter: VirtualRegisterId(5),
+            },
+        });
+        let mut second = successor(0);
+        second.bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(2).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type,
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: VirtualRegisterId(1),
+                parameter: VirtualRegisterId(6),
+            },
+        });
+        function.blocks[1].terminator = SelectedTerminator::ConditionalBranch {
+            instruction,
+            when_nonzero: bound,
+            when_zero: second,
+        };
+    }
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    let result =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    let block = &result.transformed().functions[0].blocks[1];
+    // One edge use per successor: two pairs after the definition store and
+    // the three body-use pairs, in successor order.
+    assert_eq!(block.instructions.len(), 4 + 1 + 6 + 4);
+    let SelectedTerminator::ConditionalBranch {
+        when_nonzero,
+        when_zero,
+        ..
+    } = &block.terminator
+    else {
+        unreachable!()
+    };
+    for (successor, tail) in [(when_nonzero, 12), (when_zero, 14)] {
+        let SelectedValueTransport::Registers { argument, .. } = successor.bindings[0].transport
+        else {
+            unreachable!()
+        };
+        assert!(matches!(
+            block.instructions[tail - 1].kind,
+            SelectedInstructionKind::FrameAddress { .. }
+        ));
+        assert!(matches!(
+            block.instructions[tail].kind,
+            SelectedInstructionKind::Load64 { .. }
+        ));
+        assert_eq!(
+            argument,
+            block.instructions[tail].operands[1].virtual_register
+        );
+        assert_ne!(argument, VirtualRegisterId(1));
+    }
+    assert!(
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            result.transformed().clone()
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn undominated_and_misdeclared_binding_arguments_do_not_gain_spill_authority() {
+    let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
+    for mutation in 0..3 {
+        let mut source = cfg_fixture(NativeTarget::linux_x64());
+        let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+        let scalar_type = function.virtual_registers[1].scalar_type;
+        let binding = |argument, semantic_argument| SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(2).unwrap(),
+                argument: semantic_argument,
+                scalar_type,
+            },
+            transport: SelectedValueTransport::Registers {
+                argument,
+                parameter: VirtualRegisterId(5),
+            },
+        };
+        match mutation {
+            // The entry block's edge is not dominated by the victim's
+            // definition block, so the transport cannot read initialized
+            // storage.
+            0 => {
+                let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator
+                else {
+                    unreachable!()
+                };
+                successor
+                    .bindings
+                    .push(binding(VirtualRegisterId(1), ValueId::new(1).unwrap()));
+            }
+            // A declaration naming a different source value is an
+            // inconsistent plan, not a use of the victim.
+            1 => {
+                let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[1].terminator
+                else {
+                    unreachable!()
+                };
+                successor
+                    .bindings
+                    .push(binding(VirtualRegisterId(1), ValueId::new(99).unwrap()));
+            }
+            // A declaration naming a different scalar type is inconsistent
+            // the same way.
+            2 => {
+                let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[1].terminator
+                else {
+                    unreachable!()
+                };
+                let mut binding = binding(VirtualRegisterId(1), ValueId::new(1).unwrap());
+                binding.semantic.scalar_type = ScalarType::Boolean;
+                successor.bindings.push(binding);
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap_err(),
+            RuntimeSpillError::UnsupportedUse,
+            "mutation {mutation}"
+        );
     }
 }
 
