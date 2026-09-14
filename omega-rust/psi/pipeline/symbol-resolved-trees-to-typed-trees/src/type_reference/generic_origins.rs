@@ -35,7 +35,25 @@ pub(crate) fn validate_range_arguments(
     // One private replay copy retains complete operator meaning without adding
     // duplicate operands or warning occurrences to the published typed program.
     let mut replay = typed.clone();
+    let mut definitions = source
+        .data_definitions
+        .iter()
+        .inspect(|_| {
+            #[cfg(test)]
+            tests::DEFINITION_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
+        })
+        .collect::<Vec<_>>();
+    definitions.sort_by_key(|definition| symbol_key(definition.symbol));
+    let mut origins = Vec::new();
+    let mut malformed_origin = false;
     for (_, origin) in source.tables.types.generic_application_origins.iter() {
+        #[cfg(test)]
+        tests::ORIGIN_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
+        let references = &source.tables.declarations.child_type_references;
+        if !references.is_valid(origin.instance) || !references.is_valid(origin.application) {
+            malformed_origin = true;
+            break;
+        }
         let instance = source
             .tables
             .declarations
@@ -45,14 +63,92 @@ pub(crate) fn validate_range_arguments(
             TypeReference::Named { name, symbol } => (name, *symbol),
             TypeReference::Generic(value) => (&value.base_name, value.base_symbol),
             _ => {
-                return Err(Diagnostic::error(
-                    "generated instance lost its retained type",
-                ));
+                malformed_origin = true;
+                break;
             }
         };
-        application(source, Some(&mut replay), name, symbol)?;
+        origins.push((name, symbol, origin));
+    }
+    if origins.is_empty() && malformed_origin {
+        if let Some((_, origin)) = source
+            .tables
+            .types
+            .generic_application_origins
+            .iter()
+            .next()
+        {
+            match source.child_type_reference(origin.instance) {
+                TypeReference::Named { name, .. } => return Err(mismatch(name)),
+                TypeReference::Generic(value) => return Err(mismatch(&value.base_name)),
+                _ => {}
+            }
+        }
+        return Err(Diagnostic::error(
+            "generated instance lost its retained type",
+        ));
+    }
+    // Visit use groups in first-occurrence order, then their members in roster
+    // order, as the old whole-roster lookup did on its first visit to each use.
+    // A malformed roster suffix must not preempt an earlier member's error.
+    let mut uses = origins.iter().collect::<Vec<_>>();
+    uses.sort_by_key(|(name, symbol, _)| use_key(name, *symbol));
+    for (name, symbol, origin) in &origins {
+        let first = uses.partition_point(|(other_name, other_symbol, _)| {
+            use_key(other_name, *other_symbol) < use_key(name, *symbol)
+        });
+        if !std::ptr::eq(uses[first].2, *origin) {
+            continue;
+        }
+        let definition_start = definitions
+            .partition_point(|definition| symbol_key(definition.symbol) < symbol_key(*symbol));
+        let definition = definitions
+            .get(definition_start)
+            .filter(|definition| definition.symbol == *symbol)
+            .ok_or_else(|| mismatch(name))?;
+        if definitions
+            .get(definition_start + 1)
+            .is_some_and(|next| next.symbol == *symbol)
+        {
+            return Err(mismatch(name));
+        }
+        let mut previous = None;
+        for (_, _, member) in uses[first..]
+            .iter()
+            .take_while(|(other_name, other_symbol, _)| {
+                use_key(other_name, *other_symbol) == use_key(name, *symbol)
+            })
+        {
+            previous = Some(validate_origin(
+                source,
+                Some(&mut replay),
+                name,
+                member,
+                definition,
+                previous,
+            )?);
+        }
+        if malformed_origin {
+            return Err(mismatch(name));
+        }
     }
     Ok(())
+}
+
+fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
+fn use_key(
+    name: &resolved::name::DiagnosticName,
+    symbol: SymbolHandle,
+) -> ((u32, u32), usize, usize, usize) {
+    let span = name.source_span();
+    (
+        symbol_key(symbol),
+        span.source_id.0,
+        span.span.start,
+        span.span.end,
+    )
 }
 
 pub(super) fn application<'source>(
@@ -62,71 +158,50 @@ pub(super) fn application<'source>(
     symbol: SymbolHandle,
 ) -> Result<Option<&'source TypeReference>, Diagnostic> {
     let mut selected = None;
+    let mut selected_definition = None;
     for (_, origin) in source.tables.types.generic_application_origins.iter() {
+        #[cfg(test)]
+        tests::ORIGIN_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
         let references = &source.tables.declarations.child_type_references;
         if !references.is_valid(origin.instance) || !references.is_valid(origin.application) {
             return Err(mismatch(name));
         }
         let instance = references.get(origin.instance);
-        let (instance_symbol, instance_name, lifetimes) = match instance {
-            TypeReference::Named { symbol, name } => (*symbol, name, &[][..]),
-            TypeReference::Generic(value) => (
-                value.base_symbol,
-                &value.base_name,
-                value.lifetime_arguments.as_slice(),
-            ),
+        let (instance_symbol, instance_name) = match instance {
+            TypeReference::Named { symbol, name } => (*symbol, name),
+            TypeReference::Generic(value) => (value.base_symbol, &value.base_name),
             _ => return Err(mismatch(name)),
         };
         if instance_symbol != symbol || instance_name.source_span() != name.source_span() {
             continue;
         }
-        let application = references.get(origin.application);
-        let TypeReference::Generic(arguments) = application else {
-            return Err(mismatch(name));
+        let definition = match selected_definition {
+            Some(definition) => definition,
+            None => {
+                let mut definitions = source
+                    .data_definitions
+                    .iter()
+                    .inspect(|_| {
+                        #[cfg(test)]
+                        tests::DEFINITION_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
+                    })
+                    .filter(|data| data.symbol == symbol);
+                let definition = definitions.next().ok_or_else(|| mismatch(name))?;
+                if definitions.next().is_some() {
+                    return Err(mismatch(name));
+                }
+                definition
+            }
         };
-        if lifetimes.len() != arguments.lifetime_arguments.len()
-            || !lifetimes
-                .iter()
-                .zip(&arguments.lifetime_arguments)
-                .all(|(left, right)| left.as_str() == right.as_str())
-        {
-            return Err(mismatch(name));
-        }
-        let mut definitions = source
-            .data_definitions
-            .iter()
-            .filter(|data| data.symbol == symbol);
-        let definition = definitions.next().ok_or_else(|| mismatch(name))?;
-        if definitions.next().is_some() {
-            return Err(mismatch(name));
-        }
-        let Some(TypeReference::Generic(shared)) = &definition.generic_instance else {
-            return Err(mismatch(name));
-        };
-        let mut equality = Equality {
+        selected = Some(validate_origin(
             source,
-            typed: typed.as_deref_mut(),
-            active: Vec::new(),
-            canonical_lifetimes: &definition.lifetime_parameters,
-            actual_lifetimes: &arguments.lifetime_arguments,
-        };
-        if source.symbols.get(arguments.base_symbol).kind != SymbolKind::Data
-            || arguments.base_symbol != shared.base_symbol
-            || !equality.arguments(arguments.arguments, shared.arguments)
-            || selected.is_some_and(|previous| {
-                let mut exact = Equality {
-                    source,
-                    typed: typed.as_deref_mut(),
-                    active: Vec::new(),
-                    canonical_lifetimes: &[],
-                    actual_lifetimes: &[],
-                };
-                !exact.reference(previous, application)
-            })
-        {
-            return Err(mismatch(name));
-        }
-        selected = Some(application);
+            typed.as_deref_mut(),
+            name,
+            origin,
+            definition,
+            selected,
+        )?);
+        selected_definition = Some(definition);
     }
     if selected.is_none()
         && source
@@ -137,6 +212,63 @@ pub(super) fn application<'source>(
         return Err(mismatch(name));
     }
     Ok(selected)
+}
+
+fn validate_origin<'source>(
+    source: &'source resolved::SymbolResolvedTrees,
+    mut typed: Option<&mut typed::TypedTrees>,
+    name: &resolved::name::DiagnosticName,
+    origin: &resolved::types::GenericApplicationOrigin,
+    definition: &'source resolved::data::DataDefinition,
+    selected: Option<&TypeReference>,
+) -> Result<&'source TypeReference, Diagnostic> {
+    #[cfg(test)]
+    tests::ORIGIN_VALIDATIONS.with(|count| count.set(count.get() + 1));
+    let references = &source.tables.declarations.child_type_references;
+    let lifetimes = match references.get(origin.instance) {
+        TypeReference::Named { .. } => &[][..],
+        TypeReference::Generic(value) => value.lifetime_arguments.as_slice(),
+        _ => return Err(mismatch(name)),
+    };
+    let application = references.get(origin.application);
+    let TypeReference::Generic(arguments) = application else {
+        return Err(mismatch(name));
+    };
+    if lifetimes.len() != arguments.lifetime_arguments.len()
+        || !lifetimes
+            .iter()
+            .zip(&arguments.lifetime_arguments)
+            .all(|(left, right)| left.as_str() == right.as_str())
+    {
+        return Err(mismatch(name));
+    }
+    let Some(TypeReference::Generic(shared)) = &definition.generic_instance else {
+        return Err(mismatch(name));
+    };
+    let mut equality = Equality {
+        source,
+        typed: typed.as_deref_mut(),
+        active: Vec::new(),
+        canonical_lifetimes: &definition.lifetime_parameters,
+        actual_lifetimes: &arguments.lifetime_arguments,
+    };
+    if source.symbols.get(arguments.base_symbol).kind != SymbolKind::Data
+        || arguments.base_symbol != shared.base_symbol
+        || !equality.arguments(arguments.arguments, shared.arguments)
+        || selected.is_some_and(|previous| {
+            let mut exact = Equality {
+                source,
+                typed,
+                active: Vec::new(),
+                canonical_lifetimes: &[],
+                actual_lifetimes: &[],
+            };
+            !exact.reference(previous, application)
+        })
+    {
+        return Err(mismatch(name));
+    }
+    Ok(application)
 }
 
 fn mismatch(name: &resolved::name::DiagnosticName) -> Diagnostic {
