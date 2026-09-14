@@ -34,6 +34,8 @@ use terminal_psi::{
 mod control_cycles;
 #[path = "artifact/pcc.rs"]
 mod pcc;
+#[path = "artifact/proof_section.rs"]
+mod proof_section;
 
 fn canonical_artifact(
     module: &TerminalModule,

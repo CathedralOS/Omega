@@ -82,14 +82,15 @@ pub use program_local_root_catalog::{
     VerifiedProgramLocalRootProducerSchema,
 };
 pub use proof_bundle::{
-    ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, encode_proof_bundle,
+    ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, decode_proof_bundle_for,
+    decode_proof_section, decode_proof_section_for, encode_proof_bundle, encode_proof_section,
     proof_bundle_fingerprint, render_verified_native_ranked_countdown_synopsis,
     render_verified_proof_synopsis,
 };
 pub use proof_sidecar::{
     PSI_TERMINAL_VERIFIED_GUARANTEE, PccDependency, PccGuarantee, PccIncompleteness,
     PccProductKind, PccProofSidecar, PccReceiverPolicy, PccRejection, PccVerificationOutcome,
-    PccVerifiedProduct, admission_profile_identity, build_psi_proof_sidecar,
+    PccVerifiedProduct, TerminalProofVerdict, admission_profile_identity, build_psi_proof_sidecar,
     pcc_artifact_commitment, pcc_dependency_content_commitment, psi_semantic_profile_identity,
     terminal_assumption_closure, verify_pcc_claim_fields, verify_psi_proof_sidecar,
     verify_terminal_artifact_proof,

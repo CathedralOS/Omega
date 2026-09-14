@@ -18,13 +18,15 @@
 //! closure. General PCC claims remain blocked on `PROOF-KERNEL-CORE`,
 //! `PROOF-CERTIFICATION-BRIDGE` and the completed profile rules.
 
-use proof_admission::AdmissionProfile;
+use proof_admission::{AdmissionAcceptance, AdmissionProfile};
 use sha2::{Digest, Sha256};
+use terminal_psi::TerminalPsiIdentity;
 
 use crate::wire::{Reader, Writer};
 use crate::{
-    CanonicalTerminalArtifact, CodecError, TrustDependencyStatus, current_terminal_trust_graph,
-    decode_module, decode_proof_bundle, terminal_psi_identity,
+    CanonicalTerminalArtifact, CodecError, TerminalObligationLedgerFingerprint,
+    TrustDependencyStatus, current_terminal_trust_graph, decode_module, decode_proof_section_for,
+    terminal_psi_identity,
 };
 
 const PCC_MAGIC: &[u8; 8] = b"PCCPROOF";
@@ -508,20 +510,40 @@ pub fn build_psi_proof_sidecar(
     )
 }
 
+/// The subject-qualified result of independently replaying the terminal
+/// verification leg of one decoded artifact: which semantic subject,
+/// reconstructed obligation ledger, and admission profile the verdict rests
+/// on. A verified product is never reported unqualified.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalProofVerdict {
+    /// The verifier-reconstructed semantic subject the proof was admitted for.
+    pub semantic_subject: TerminalPsiIdentity,
+    /// The reconstructed obligation-ledger identity the proof discharged.
+    pub obligation_ledger: TerminalObligationLedgerFingerprint,
+    /// The semantic profile independently established by replay.
+    pub semantic_profile: String,
+    /// The admission-profile identity the evidence replayed under.
+    pub checker_profile: String,
+    /// The receiver-profile admissions the verdict rests on.
+    pub admissions: Vec<AdmissionAcceptance>,
+}
+
 /// Independently replay the terminal verification leg of one decoded
-/// artifact: decode the canonical sections and re-run the verifier under the
-/// receiver's admission profile.
+/// artifact: decode the canonical sections, require the proof section's seal
+/// to name this exact reconstructed semantic subject, and re-run the verifier
+/// under the receiver's admission profile. The returned verdict names the
+/// qualified subject, ledger, and admissions the acceptance rests on.
 pub fn verify_terminal_artifact_proof(
     artifact: &CanonicalTerminalArtifact,
     profile: &AdmissionProfile,
-) -> Result<(), PccRejection> {
+) -> Result<TerminalProofVerdict, PccRejection> {
     let module = decode_module(artifact.semantic_bytes()).map_err(|error| {
         PccRejection::new(
             "psi semantic section",
             format!("invalid canonical module: {error}"),
         )
     })?;
-    let proof = decode_proof_bundle(artifact.proof_bytes()).map_err(|error| {
+    let proof = decode_proof_section_for(&module, artifact.proof_bytes()).map_err(|error| {
         PccRejection::new(
             "psi proof section",
             format!("invalid canonical proof: {error}"),
@@ -533,7 +555,20 @@ pub fn verify_terminal_artifact_proof(
             format!("terminal verification failed: {error}"),
         )
     })?;
-    Ok(())
+    let manifest = artifact.manifest();
+    let semantic_profile = psi_semantic_profile_identity(artifact).map_err(|error| {
+        PccRejection::new(
+            "psi semantic profile",
+            format!("cannot reconstruct semantic profile: {error}"),
+        )
+    })?;
+    Ok(TerminalProofVerdict {
+        semantic_subject: manifest.semantic(),
+        obligation_ledger: manifest.obligations(),
+        semantic_profile,
+        checker_profile: admission_profile_identity(profile),
+        admissions: profile.acceptances().copied().collect(),
+    })
 }
 
 /// The receiver-owned policy for proof-sidecar admission.
@@ -596,11 +631,24 @@ impl PccReceiverPolicy {
     }
 }
 
-/// One verified artifact/proof pair acceptance.
+/// One verified artifact/proof pair acceptance. The verdict is always
+/// qualified: it names the exact reconstructed semantic subject, the
+/// reconstructed obligation ledger, the semantic and checker profiles, and
+/// the disclosed admissions the acceptance rests on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PccVerifiedProduct {
     pub product: PccProductKind,
     pub artifact_commitment: [u8; 32],
+    /// The verifier-reconstructed semantic subject the proof was admitted for.
+    pub semantic_subject: TerminalPsiIdentity,
+    /// The reconstructed obligation-ledger identity the proof discharged.
+    pub obligation_ledger: TerminalObligationLedgerFingerprint,
+    /// The semantic profile independently established by replay.
+    pub semantic_profile: String,
+    /// The admission/checker profile identity the evidence replayed under.
+    pub checker_profile: String,
+    /// The disclosed receiver-profile admissions the verdict rests on.
+    pub admissions: Vec<AdmissionAcceptance>,
     pub policy_package_identity: String,
     pub configuration_identity: String,
     pub accepted_guarantees: Vec<String>,
@@ -800,9 +848,10 @@ pub fn verify_psi_proof_sidecar(
             );
         }
     };
-    if let Err(rejection) = verify_terminal_artifact_proof(&artifact, &policy.admission_profile) {
-        return PccVerificationOutcome::Reject(rejection);
-    }
+    let verdict = match verify_terminal_artifact_proof(&artifact, &policy.admission_profile) {
+        Ok(verdict) => verdict,
+        Err(rejection) => return PccVerificationOutcome::Reject(rejection),
+    };
     // Replay establishes this exact bounded claim, not arbitrary labels offered
     // by the producer. Reconstruct its profiles and full trust/dependency closure
     // independently, including entries the sidecar might have omitted.
@@ -845,6 +894,11 @@ pub fn verify_psi_proof_sidecar(
     PccVerificationOutcome::Complete(PccVerifiedProduct {
         product: sidecar.product,
         artifact_commitment: sidecar.artifact_commitment,
+        semantic_subject: verdict.semantic_subject,
+        obligation_ledger: verdict.obligation_ledger,
+        semantic_profile: verdict.semantic_profile,
+        checker_profile: verdict.checker_profile,
+        admissions: verdict.admissions,
         policy_package_identity: policy.policy_package_identity.clone(),
         configuration_identity: policy.configuration_identity.clone(),
         accepted_guarantees: sidecar

@@ -14,7 +14,10 @@ use abstract_operations::{AbstractOperationPlan, AbstractOperationPlanWithPlaced
 use retention::retain_verified_optimization_input;
 
 /// Canonical artifact sections. An offered ledger must replay exactly before
-/// proof decoding; absence does not bypass ordinary verification.
+/// proof decoding; absence does not bypass ordinary verification. A
+/// subject-sealed proof section must name this module's reconstructed
+/// identity; an unsealed bundle is still accepted during the
+/// SUBJECT-QUALIFIED-ARTIFACT-PROOFS transition.
 #[derive(Clone, Copy)]
 pub struct ArtifactSections<'artifact> {
     pub semantic_bytes: &'artifact [u8],
@@ -103,7 +106,7 @@ fn prepare_artifact(
         terminal_codec::validate_terminal_obligation_ledger(&ledger, &module, &trust_graph)
             .map_err(ArtifactLoweringError::ObligationReplay)?;
     }
-    let proof = terminal_codec::decode_proof_bundle(sections.proof_bytes)
+    let proof = terminal_codec::decode_proof_bundle_for(&module, sections.proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)?;
     Ok((module, proof))
 }
