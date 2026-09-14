@@ -559,8 +559,12 @@ closed record, or case-payload literal. `computed_constant_initializers` selects
 record fields in their declared carriers and executes a direct field read from
 the source-free Terminal artifact. Aggregate identity is the canonical literal
 rebuilt from evaluated leaves, retaining the exact constructor and field owners.
-Machine-call, aggregate-producing, floating and public NaN initializers still
-need their complete evaluation and explicit representation contexts. Closed module-owned
+Closed ordinary integer/Boolean machine calls also evaluate in these leaves;
+the [initializer admission owner](../semantics/build-time-evaluation/README.md#semantic-admission-boundary)
+checks concrete crash discharge before execution and repeats it during receiving
+replay. Specialized generic/provider calls, aggregate-producing expressions,
+floating and public NaN initializers still need their complete evaluation and
+explicit representation contexts. Closed module-owned
 record/case constants, including nested records and fixed arrays, use the existing
 structural encoder after selecting each declared carrier and constructor in its
 own source. Module-local nongeneric attachments use the same scope checks as

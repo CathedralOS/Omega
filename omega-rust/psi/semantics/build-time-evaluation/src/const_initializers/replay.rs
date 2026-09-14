@@ -134,7 +134,13 @@ pub(crate) fn validate(
     let mut probe = typed.clone();
     let mut owners = Vec::new();
     for (ordinal, leaf) in leaves.iter().enumerate() {
-        owners.push(append_probe(&mut probe, ordinal, leaf));
+        owners.push(super::invocations::append_probe(
+            &mut probe,
+            leaf.owner,
+            format!("@const-replay-{ordinal}"),
+            leaf.original,
+            leaf.destination,
+        ));
     }
     let checked = super::invocations::CheckedInitializers::prepare(&probe, authority, &owners)?;
     let program = checked.typed();
@@ -219,45 +225,6 @@ pub(crate) fn validate(
         })?;
     }
     Ok(())
-}
-
-fn append_probe(program: &mut TypedTrees, ordinal: usize, leaf: &Leaf) -> symbols::SymbolHandle {
-    let name = format!("@const-replay-{ordinal}");
-    let symbol =
-        program
-            .symbols
-            .insert_generated_root_from(leaf.owner, symbols::SymbolKind::Machine, &name);
-    let children = program
-        .symbols
-        .insert_generated_children(symbol, [(symbols::SymbolKind::State, name.as_str())]);
-    let target = program.statement_table.insert_transition_target(
-        typed_trees::statement::TransitionTargetNode::Value(leaf.original),
-    );
-    let mut state = typed_trees::state::State {
-        symbol: children.start(),
-        name: typed_trees::name::Identifier::generated(name.clone()),
-        return_type: leaf.destination,
-        ..Default::default()
-    };
-    let source_span = program.expression_table.source_span(leaf.original);
-    program.statement_table.push_statement(
-        &mut state.statement_nodes,
-        typed_trees::statement::StatementNode::Transition(
-            typed_trees::statement::TableTransition {
-                target,
-                source_span,
-                ..Default::default()
-            },
-        ),
-    );
-    let mut machine = typed_trees::machine::Machine {
-        symbol,
-        name: typed_trees::name::Identifier::generated(name),
-        ..Default::default()
-    };
-    program.push_machine_state(&mut machine, state);
-    program.push_machine(machine);
-    symbol
 }
 
 fn pair(

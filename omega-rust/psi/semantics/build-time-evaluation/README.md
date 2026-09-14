@@ -193,9 +193,16 @@ The call customer is
 `cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_initializers/main.omg`;
 `cargo nextest run -p compiler --test module_machine_indices machine_initializers:: --no-fail-fast --no-tests fail`
 checks source-free Terminal execution and module/index identity.
-Demanded callees currently need a complete empty checked failure summary.
-Concrete invocation discharge for otherwise fallible bodies, specialized
-generic/provider applications, aggregate-producing expressions,
+An empty checked callee failure summary admits every argument with respect to
+crashes. Otherwise, a disposable ordinary call checks the exact materialized
+scalar arguments and must have a complete empty invocation summary before the
+interpreter starts. Published ceilings remain authoritative even when a body
+would return successfully. Receiving replay repeats this discharge; an unchanged
+folded result cannot conceal changed arguments. Literal integer comparisons and
+Boolean guards compose through private call summaries when their exact checked
+owner establishes builtin operator meaning. Authored or unknown meanings,
+unsupported arithmetic, and unknown entry origins stay conservative.
+Specialized generic/provider applications, aggregate-producing expressions,
 constrained/target-dependent and floating declarations remain unfinished.
 This path does not establish native aggregate execution or NaN identity.
 
