@@ -234,7 +234,7 @@ mod tests {
              machine forward<const K: u64>(v: u64[0..=K]) -> u64 { upper_bound(v) }
              machine caller(v: u64[0..=256]) -> u64 { forward<256>(v) }",
         );
-        crate::specialize_static_machine_calls_with_nominal_uses(&mut program)
+        crate::checking::specialize_static_machine_calls_with_nominal_uses(&mut program)
             .expect("open endpoint forwards the caller binder");
         let forward = program
             .machines()
@@ -269,7 +269,7 @@ mod tests {
              machine forward<const K: u64>(v: u64[0..K]) -> u64 { upper_bound(v) }
              machine caller(v: u64[0..256]) -> u64 { forward<256>(v) }",
         );
-        crate::specialize_static_machine_calls_with_nominal_uses(&mut program)
+        crate::checking::specialize_static_machine_calls_with_nominal_uses(&mut program)
             .expect("exclusive open endpoint forwards the caller binder");
         let upper_bound = program
             .machines()

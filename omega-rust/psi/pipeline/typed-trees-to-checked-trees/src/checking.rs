@@ -42,7 +42,7 @@ fn check_program(
     // expression handles and concrete substitutions.
     crate::authored_selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
-    crate::normalize_open_index_identities(&mut program)?;
+    normalize_open_index_identities(&mut program)?;
     // Keep the authored generic provider templates immutable while ordinary
     // machine specialization closes caller binders. Selected providers may be
     // demanded only by applications copied into those newly concrete bodies,
@@ -54,9 +54,8 @@ fn check_program(
         &program,
         selected_generic_operator_providers,
     );
-    let mut nominal_machine_uses =
-        crate::specialize_static_machine_calls_with_nominal_uses(&mut program)?;
-    crate::normalize_open_index_identities(&mut program)?;
+    let mut nominal_machine_uses = specialize_static_machine_calls_with_nominal_uses(&mut program)?;
+    normalize_open_index_identities(&mut program)?;
     while let Some(templates) = &selected_provider_templates {
         let materialized = crate::monomorphization::specialize_selected_generic_operator_providers(
             templates,
@@ -66,9 +65,8 @@ fn check_program(
         if materialized == 0 {
             break;
         }
-        nominal_machine_uses =
-            crate::specialize_static_machine_calls_with_nominal_uses(&mut program)?;
-        crate::normalize_open_index_identities(&mut program)?;
+        nominal_machine_uses = specialize_static_machine_calls_with_nominal_uses(&mut program)?;
+        normalize_open_index_identities(&mut program)?;
     }
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
     // their format on the text carrier HERE, while the tree is still mutable
@@ -293,4 +291,44 @@ mod tests {
         assert!(!CheckingMode::SettledPackage.allows_pending_opaque_copy());
         assert!(CheckingMode::SettledPackage.allows_unresolved_toolchain_selections());
     }
+}
+
+/// Bind exact PDI3 operation/algebra authority and refresh every enclosing
+/// indexed-domain semantic ID. Orchestration calls this before typed
+/// snapshots and trust receipts; checked lowering calls it before capturing
+/// generic template fingerprints and again after specialization.
+pub fn normalize_open_index_identities(
+    program: &mut typed_trees::TypedTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    ::validation::normalize_open_index_expressions(program)?;
+    crate::monomorphization::refresh_closed_domain_instance_identities(program)
+        .map_err(|diagnostic| vec![diagnostic])
+}
+
+/// Validate and consume compile-time machine-symbol selections, rewriting
+/// every complete generic call tuple to direct concrete calls. The ordinary
+/// checked-tree path invokes this before validation; orchestration also uses
+/// it on a private clone before interpreting build.omg so build-time execution
+/// sees the same specialized program as runtime lowering.
+pub fn specialize_static_machine_calls(
+    program: &mut typed_trees::TypedTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    specialize_static_machine_calls_with_nominal_uses(program).map(|_| ())
+}
+
+pub(crate) fn specialize_static_machine_calls_with_nominal_uses(
+    program: &mut typed_trees::TypedTrees,
+) -> Result<Vec<::validation::ValidatedNominalMachineUse>, Vec<diagnostics::Diagnostic>> {
+    crate::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(program)?;
+    crate::conformance_applications::validate_conformance_applications(program)?;
+    let mut nominal_uses = ::validation::validate_static_machine_selections_with_facts(program)?;
+    ::validation::validate_generic_machine_contract_entailment(program)?;
+    crate::monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses(
+        program,
+        &mut nominal_uses,
+    )?;
+    let operational = ::validation::infer_operational_may(program);
+    ::validation::validate_static_machine_call_contracts(program, &operational)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(nominal_uses)
 }
