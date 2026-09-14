@@ -583,7 +583,8 @@ pub(super) fn block_parameter_shape(
     if let terminal_psi::StructuralTypeShape::Record { .. } = &declaration.shape {
         // A join carries the complete owned payload, including nested records;
         // it does not change the geometry established by record construction.
-        return crate::structural_reference_input::plain_record_shape(
+        // Borrowable geometry alone cannot authorize copying byte-owner fields.
+        return crate::structural_reference_input::owned_aggregate_shape(
             parameter.structural_type,
             &source.structural.as_ref()?.structural_types,
         );
