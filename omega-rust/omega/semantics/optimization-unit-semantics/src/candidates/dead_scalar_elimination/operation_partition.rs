@@ -1,6 +1,6 @@
 //! Exhaustive independent partition of operations eligible for dead-scalar removal.
 
-use super::rule_catalog::{dead_scalar_family, DeadScalarFamily};
+use super::rule_catalog::{DeadScalarFamily, dead_scalar_family};
 use super::*;
 
 /// Independent exhaustive mirror of the producer's closed safety partition.

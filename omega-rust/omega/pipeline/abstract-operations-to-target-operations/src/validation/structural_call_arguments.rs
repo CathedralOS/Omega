@@ -3,9 +3,12 @@
 use std::collections::BTreeMap;
 
 use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::{CallingPolicy, evaluate_call_plan};
 use semantic_vocabulary::OperationId;
+use target::NativeTarget;
 use target_operations::{
     NativeCallOrigin, TargetFunction, TargetStructuralArgument, TargetUnitOperation,
+    TargetUnitScalarCallArgument,
 };
 use terminal_psi::{
     StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
@@ -18,7 +21,7 @@ struct TargetCall<'a> {
     origin: &'a NativeCallOrigin,
     callee: semantic_vocabulary::MachineId,
     call_plan: &'a calling_conventions::CallPlan,
-    scalar_argument_count: usize,
+    scalar_arguments: &'a [TargetUnitScalarCallArgument],
     arguments: &'a [TargetStructuralArgument],
 }
 
@@ -27,6 +30,7 @@ pub(super) fn validate(
     source_functions: &[AbstractFunction],
     target: &TargetFunction,
     declarations: &[StructuralTypeDeclaration],
+    native_target: NativeTarget,
 ) -> Result<(), OperationId> {
     let target_calls = target
         .graph
@@ -34,7 +38,7 @@ pub(super) fn validate(
         .iter()
         .flat_map(|block| &block.operations)
         .filter_map(|operation| {
-            let (psi_operation, origin, callee, call_plan, scalar_argument_count, arguments) =
+            let (psi_operation, origin, callee, call_plan, scalar_arguments, arguments) =
                 match operation {
                     TargetUnitOperation::Call {
                         origin,
@@ -67,7 +71,7 @@ pub(super) fn validate(
                         origin,
                         *callee,
                         call_plan,
-                        scalar_arguments.len(),
+                        scalar_arguments.as_slice(),
                         arguments.as_slice(),
                     ),
                     _ => return None,
@@ -78,7 +82,7 @@ pub(super) fn validate(
                     origin,
                     callee,
                     call_plan,
-                    scalar_argument_count,
+                    scalar_arguments,
                     arguments,
                 },
             ))
@@ -86,22 +90,26 @@ pub(super) fn validate(
         .collect::<BTreeMap<_, _>>();
 
     for operation in &source.operations {
-        let (psi_operation, source_callee, structural_arguments) = match operation {
+        let (psi_operation, source_callee, scalar_arguments, structural_arguments) = match operation
+        {
             AbstractOperation::CallUnit {
                 psi_operation,
                 callee,
+                arguments,
                 structural_arguments,
                 ..
             }
             | AbstractOperation::CallStructuralScalar {
                 psi_operation,
                 callee,
+                arguments,
                 structural_arguments,
                 ..
             }
             | AbstractOperation::CallStructural {
                 psi_operation,
                 callee,
+                arguments,
                 structural_arguments,
                 ..
             } => {
@@ -111,7 +119,12 @@ pub(super) fn validate(
                 {
                     return Err(*psi_operation);
                 }
-                (*psi_operation, *callee, structural_arguments.as_slice())
+                (
+                    *psi_operation,
+                    *callee,
+                    arguments.as_slice(),
+                    structural_arguments.as_slice(),
+                )
             }
             AbstractOperation::BoundaryCall {
                 psi_operation,
@@ -139,13 +152,14 @@ pub(super) fn validate(
                     || provider.candidate != call.callee
                     || sources != completion_claim_sources
                     || receipts != completion_receipts
-                    || call.scalar_argument_count != arguments.len()
+                    || call.scalar_arguments.len() != arguments.len()
                 {
                     return Err(*psi_operation);
                 }
                 (
                     *psi_operation,
                     provider.candidate,
+                    arguments.as_slice(),
                     structural_arguments.as_slice(),
                 )
             }
@@ -156,6 +170,7 @@ pub(super) fn validate(
         };
         if target_call.callee != source_callee
             || target_call.arguments.len() != structural_arguments.len()
+            || target_call.scalar_arguments.len() != scalar_arguments.len()
         {
             return Err(psi_operation);
         }
@@ -165,8 +180,42 @@ pub(super) fn validate(
         else {
             return Err(psi_operation);
         };
-        if callee.structural_parameters.len() != target_call.arguments.len() {
+        if callee.structural_parameters.len() != target_call.arguments.len()
+            || callee.parameters.len() != scalar_arguments.len()
+        {
             return Err(psi_operation);
+        }
+        // The embedded plan is not authority: independently re-derive the
+        // callee's signature and evaluated plan so a substituted scalar row,
+        // result placement, or plan detail cannot carry matching destinations.
+        let Some(signature) = super::structural_signatures::signature(callee, declarations) else {
+            return Err(psi_operation);
+        };
+        let Ok(expected_plan) =
+            evaluate_call_plan(CallingPolicy::native_for_target(native_target), &signature)
+        else {
+            return Err(psi_operation);
+        };
+        if target_call.call_plan != &expected_plan {
+            return Err(psi_operation);
+        }
+        for (position, ((actual, value), declared)) in target_call
+            .scalar_arguments
+            .iter()
+            .zip(scalar_arguments)
+            .zip(&callee.parameters)
+            .enumerate()
+        {
+            let Ok(index) = u32::try_from(position) else {
+                return Err(psi_operation);
+            };
+            if actual.parameter_index != index
+                || actual.source.source_value() != *value
+                || actual.scalar_type() != declared.scalar_type
+                || actual.placement != expected_plan.parameters[position]
+            {
+                return Err(psi_operation);
+            }
         }
         for (index, ((actual, semantic), declared)) in target_call
             .arguments
@@ -186,10 +235,9 @@ pub(super) fn validate(
             if actual.shape != structural_shapes::parameter_shape(referent, actual.access) {
                 return Err(psi_operation);
             }
-            let Some(destination) = target_call
-                .call_plan
+            let Some(destination) = expected_plan
                 .parameters
-                .get(target_call.scalar_argument_count.saturating_add(index))
+                .get(scalar_arguments.len().saturating_add(index))
             else {
                 return Err(psi_operation);
             };

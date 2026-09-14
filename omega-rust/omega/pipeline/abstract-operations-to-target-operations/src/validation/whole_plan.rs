@@ -103,6 +103,7 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
             &source.functions,
             target_function,
             &source.structural_types,
+            expected_target,
         )
         .map_err(|operation| {
             AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
