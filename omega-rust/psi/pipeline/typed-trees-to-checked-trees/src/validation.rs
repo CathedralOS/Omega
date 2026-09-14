@@ -1,5 +1,5 @@
 use diagnostics::Diagnostic;
-use flow_effects::OperationalPlan;
+use flow_effects::{OperationalPlan, ServiceReachInferencePlan};
 use proof::obligations::ProofPlan;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
@@ -7,6 +7,7 @@ use typed_trees::expression::ExpressionNode;
 pub(crate) struct ValidatedTypedProgram<'program> {
     pub(crate) proof_plan: ProofPlan<'program>,
     pub(crate) operational: OperationalPlan,
+    pub(crate) service_reaches: ServiceReachInferencePlan,
     pub(crate) validation_facts: validation::ProgramValidationFacts,
 }
 
@@ -17,28 +18,25 @@ pub(crate) fn validate_typed_program<'program>(
 ) -> Result<ValidatedTypedProgram<'program>, Vec<Diagnostic>> {
     validate_atomic_result_custody(program)?;
 
-    let validation_facts = if allow_pending_opaque_copy {
-        validation::validate_preliminary_program_after_generic_contract_entailment_with_facts(
-            program,
-        )?
+    let opaque_properties = if allow_pending_opaque_copy {
+        validation::OpaquePropertyValidation::PendingBuildSelection
     } else {
-        validation::validate_program_after_generic_contract_entailment_with_facts_and_opaque_property_receipts(
-            program,
-            opaque_property_receipts,
-        )?
+        validation::OpaquePropertyValidation::Required(opaque_property_receipts)
     };
+    let validated = validation::validate_specialized_program(program, opaque_properties)?;
 
     let proof_plan = proof::obligations::build_proof_plan(program);
     proof::checker::check_proof_plan(&proof_plan)?;
 
-    let operational = validation::infer_operational_may(program);
+    let operational = validated.operational;
     validation::validate_behavior_plan(program, &operational)?;
     crate::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
 
     Ok(ValidatedTypedProgram {
         proof_plan,
         operational,
-        validation_facts,
+        validation_facts: validated.facts,
+        service_reaches: validated.service_reaches,
     })
 }
 

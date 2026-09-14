@@ -62,6 +62,7 @@ pub(crate) fn build_check_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
     operational: OperationalPlan,
+    service_reach_inference: flow_effects::ServiceReachInferencePlan,
     validation_facts: &validation::ProgramValidationFacts,
     nominal_machine_uses: Vec<validation::ValidatedNominalMachineUse>,
 ) -> Result<CheckFacts, Vec<diagnostics::Diagnostic>> {
@@ -82,7 +83,6 @@ pub(crate) fn build_check_facts(
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
     let dynamic_conformances = build_dynamic_conformance_facts(program)?;
-    let service_reach_inference = validation::infer_service_reaches(program, &operational);
     // Meaning selection depends only on declarations and signatures. Complete
     // selected scalar plans before flow captures their evaluated local values.
     select_pending_domain_operator_meanings(program, &mut operators);
