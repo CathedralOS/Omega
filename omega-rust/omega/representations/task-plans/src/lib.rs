@@ -10,8 +10,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub use semantic_vocabulary::SuspensionCrossingId;
 
-mod wcsu;
-pub use wcsu::{
+mod stack_composition;
+pub use stack_composition::{
     AdmittedSameStackContribution, ComposedTaskStackDemand,
     SameStackContributionAdmissionCandidate, SameStackContributionCommitment,
     SameStackProviderPlanCommitment, StackCallContribution, TaskStackFrameSummary,
