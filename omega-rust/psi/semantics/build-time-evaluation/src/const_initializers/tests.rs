@@ -172,6 +172,82 @@ fn concrete_invocation_rejects_arithmetic_guards_that_hold_or_trap() {
 }
 
 #[test]
+fn concrete_invocation_discharges_authored_requires_at_snapshot_arguments() {
+    // The conservative closure fence rejects any authored `requires` because a
+    // context-free evaluation cannot prove it. A concrete invocation is not
+    // context-free: the snapshot probe re-runs ordinary contract checking on
+    // the exact call, so `constrained(3)` proves `3 > 0` before interpretation.
+    let evaluated = evaluate(
+        "machine constrained(value: u64) -> u64 requires value > 0 { value }
+        machine forward(value: u64) -> u64 requires value > 0 { constrained(value) }
+        machine paired(left: u64, right: u64) -> u64
+        requires left > 1
+        requires right > 1
+        { left }
+        machine guarded(value: u64) -> u64
+        requires value > 0
+        crashes Trap value == 1
+        { transition { value != 1 -> 10 / value } crash Trap; }
+        const USED: u64 = constrained(3);
+        const FORWARDED: u64 = forward(2);
+        const PAIRED: u64 = paired(3, 4);
+        const GUARDED: u64 = guarded(2);",
+    )
+    .expect("concrete arguments prove authored requires premises");
+    integer_encoding(&evaluated, "USED", 3);
+    integer_encoding(&evaluated, "FORWARDED", 2);
+    integer_encoding(&evaluated, "PAIRED", 3);
+    integer_encoding(&evaluated, "GUARDED", 5);
+}
+
+#[test]
+fn concrete_invocation_rejects_requires_that_fail_at_snapshot_arguments() {
+    for source in [
+        // The premise itself is false at the concrete argument.
+        "machine constrained(value: u64) -> u64 requires value > 0 { value }
+        const UNUSED: u64 = constrained(0);",
+        // The same premise is false through one forwarding hop: `forward`'s own
+        // requires is what proves its internal `constrained(value)` call, and
+        // that premise is equally false at the snapshot argument.
+        "machine constrained(value: u64) -> u64 requires value > 0 { value }
+        machine forward(value: u64) -> u64 requires value > 0 { constrained(value) }
+        const UNUSED: u64 = forward(0);",
+        // One of two premises fails.
+        "machine paired(left: u64, right: u64) -> u64
+        requires left > 1
+        requires right > 1
+        { left }
+        const UNUSED: u64 = paired(3, 0);",
+        // A requires premise must not be weakened just because a guarded route
+        // also exists: the crash check would pass (`guarded(0)` cannot reach its
+        // `value == 1` Trap) but the authored premise is still violated.
+        "machine guarded(value: u64) -> u64
+        requires value > 0
+        crashes Trap value == 1
+        { transition { value != 1 -> 10 / value } crash Trap; }
+        const UNUSED: u64 = guarded(0);",
+    ] {
+        let diagnostics = evaluate(source)
+            .expect_err("a requires premise false at the concrete arguments must reject");
+        assert!(
+            !diagnostics.is_empty(),
+            "requires violation produced no diagnostic"
+        );
+    }
+    assert!(
+        evaluate(
+            "machine guarded(value: u64) -> u64
+            requires value > 0
+            crashes Trap value == 1
+            { transition { value != 1 -> 10 / value } crash Trap; }
+            const UNUSED: u64 = guarded(1);"
+        )
+        .is_err(),
+        "a satisfied requires premise never erases a retained crash route"
+    );
+}
+
+#[test]
 fn ordinary_machine_initializers_retain_calls_and_exact_scalar_composition() {
     let evaluated = evaluate(
         "machine size() -> u64 { 7 }

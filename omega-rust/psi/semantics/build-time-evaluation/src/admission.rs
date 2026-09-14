@@ -23,7 +23,7 @@ mod closure_validation;
 mod const_evaluable;
 mod selection_authority;
 
-use closure_validation::checked_closure_violation;
+use closure_validation::checked_closure_violation_with_premise_discharge;
 use const_evaluable::require_const_evaluable_result;
 use selection_authority::selection_authority_violation;
 pub(crate) use selection_authority::{
@@ -181,7 +181,35 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
     ) -> Result<(), String> {
-        self.require_common_floor_with_custody(program, machine, Some(custody))
+        self.require_common_floor_with_premise_discharge(program, machine, Some(custody), false)
+    }
+
+    /// Common floor for one concrete invocation whose own checked probe
+    /// discharges authored `requires` premises at snapshot arguments. An
+    /// authored premise has no meaning outside an invocation, so the
+    /// conservative closure fence stands down on that axis only: the probe
+    /// re-runs ordinary contract checking on the exact call before any
+    /// interpretation, and termination, linear carriers, service reach, and
+    /// selection authority still apply unchanged.
+    pub(crate) fn require_common_floor_for_concrete_premise_invocation(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<(), String> {
+        self.require_common_floor_with_premise_discharge(program, machine, Some(custody), true)
+    }
+
+    /// Whether `machine`'s call closure carries any authored `requires`
+    /// premise — on a reachable machine, one of its states, or a callable
+    /// signature target. Callers that answer `true` must discharge those
+    /// premises through the concrete checked probe before interpreting.
+    pub(crate) fn closure_includes_authored_requires(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+    ) -> bool {
+        closure_validation::closure_has_authored_requires(&self.call_edges, program, machine.symbol)
     }
 
     fn require_common_floor_with_custody(
@@ -189,6 +217,16 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         machine: &Machine,
         custody: Option<BuildTimeInvocationCustody>,
+    ) -> Result<(), String> {
+        self.require_common_floor_with_premise_discharge(program, machine, custody, false)
+    }
+
+    fn require_common_floor_with_premise_discharge(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        custody: Option<BuildTimeInvocationCustody>,
+        discharge_authored_requires: bool,
     ) -> Result<(), String> {
         crate::validate_selected_operators(program, &self.selected_operators)?;
         let service_summary = self
@@ -230,7 +268,12 @@ impl BuildTimeAdmissionPlan {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let closure_violation = checked_closure_violation(&self.call_edges, program, machine);
+        let closure_violation = checked_closure_violation_with_premise_discharge(
+            &self.call_edges,
+            program,
+            machine,
+            discharge_authored_requires,
+        );
         let selection_violation = selection_authority_violation(
             &self.call_edges,
             program,
@@ -460,6 +503,28 @@ impl BuildTimeAdmissionPlan {
         .map(crate::MeasuredEvaluation::into_value)
     }
 
+    /// [`Self::evaluate_const_evaluable_machine_symbol_for_invocation`] for a
+    /// concrete invocation whose own checked probe has already discharged the
+    /// closure's authored `requires` premises at these exact snapshot
+    /// arguments. The premise evidence comes from the probe's ordinary
+    /// contract checking, never from interpretation succeeding.
+    pub(crate) fn evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
+        &self,
+        program: &TypedTrees,
+        machine_symbol: SymbolHandle,
+        arguments: Vec<BuildTimeValue>,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<BuildTimeValue, String> {
+        self.evaluate_const_evaluable_machine_symbol_for_invocation_measured_with_premise_discharge(
+            program,
+            machine_symbol,
+            arguments,
+            custody,
+            true,
+        )
+        .map(crate::MeasuredEvaluation::into_value)
+    }
+
     /// [`Self::evaluate_const_evaluable_machine_symbol_for_invocation`]
     /// retaining the deterministic evaluator usage beside the admitted
     /// snapshot. Invocation positions such as `via` that commit the measured
@@ -472,6 +537,23 @@ impl BuildTimeAdmissionPlan {
         arguments: Vec<BuildTimeValue>,
         custody: BuildTimeInvocationCustody,
     ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
+        self.evaluate_const_evaluable_machine_symbol_for_invocation_measured_with_premise_discharge(
+            program,
+            machine_symbol,
+            arguments,
+            custody,
+            false,
+        )
+    }
+
+    fn evaluate_const_evaluable_machine_symbol_for_invocation_measured_with_premise_discharge(
+        &self,
+        program: &TypedTrees,
+        machine_symbol: SymbolHandle,
+        arguments: Vec<BuildTimeValue>,
+        custody: BuildTimeInvocationCustody,
+        discharge_authored_requires: bool,
+    ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
         let matching: Vec<_> = program
             .machines()
             .iter()
@@ -480,7 +562,11 @@ impl BuildTimeAdmissionPlan {
         let [machine] = matching.as_slice() else {
             return Err("build-time invocation has no unique exact machine".into());
         };
-        self.require_common_floor_for_invocation(program, machine, custody)?;
+        if discharge_authored_requires {
+            self.require_common_floor_for_concrete_premise_invocation(program, machine, custody)?;
+        } else {
+            self.require_common_floor_for_invocation(program, machine, custody)?;
+        }
         let measured =
             checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
                 program,
