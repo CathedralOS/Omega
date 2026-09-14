@@ -34,10 +34,15 @@ an observed wrong native exit.
 Bounded scalar field writes carry independently checked pre-write range proofs.
 The native regression `bounded_integer_field_stores_run_natively` checks signed
 literal initialization followed by guarded `i32` addition and negative `i8`
-subtraction, with updated values observed by the caller after return. The source
+subtraction in one body under a conjunctive guard, with updated values observed
+by the caller after return. Disjoint writes preserve the other guard facts;
+short-circuit control reaches the writes without merging Boolean outcomes first.
+Native selection uses its existing checked edge bridges when conditional
+fallthrough destinations conflict. The source
 regression
 `guarded_bounded_integer_field_increment_publishes_checked_terminal` checks the
-guarded `i32` increment through Terminal production. Neither closes this scanner.
+combined updates through Terminal production and rejects redirected guard edges.
+Neither closes this scanner.
 
 Live bounded byte-field lengths reach verified Terminal interpretation through
 ordinary scalar operands. The field-length regression observes a nested field's

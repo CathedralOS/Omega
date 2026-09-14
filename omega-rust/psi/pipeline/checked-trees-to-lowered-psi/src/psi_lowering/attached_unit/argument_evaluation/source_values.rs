@@ -5,6 +5,73 @@
 use super::*;
 
 impl Evaluation {
+    /// A pure Boolean used only to choose an edge needs no joined value.
+    /// Merging its outcomes before branching would discard predecessor bounds
+    /// that the selected body's independent operation proofs still need.
+    /// Effectful computations keep the existing selective value evaluator.
+    pub(crate) fn branch_guard(
+        &self,
+        checked: &CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        statement: u32,
+        values: &[ValueDeclaration],
+    ) -> Result<Option<LoweredBooleanReturnExpression>, LoweringError> {
+        let role = CheckedScalarExpressionRole::Guard;
+        if checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .any(|(_, root)| {
+                root.state == state && root.statement_ordinal == statement && root.role == role
+            })
+        {
+            return Ok(None);
+        }
+        let (binding, value) = checked
+            .facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(state, statement, role)
+            .ok_or(LoweringError::Unsupported(
+                "guard has no retained source value",
+            ))?;
+        crate::psi_lowering::scalar_source_custody::validate_pure(
+            checked,
+            binding,
+            ScalarType::Boolean,
+        )?;
+        prepare_shared_qualifications(checked, machine, values)?;
+        let bindings = self
+            .scalar_bindings
+            .clone()
+            .unwrap_or_else(|| {
+                crate::psi_lowering::scalar_bindings::ScalarBindings::new(values.len())
+            })
+            .with_primitive_storage(&self.primitive_storage)
+            .with_local_cases(&self.local_cases)
+            .with_structural_locals(&self.structural_locals)
+            .with_structural_parameters(&self.structural_parameters)
+            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
+        let expression = bindings.expression(value)?;
+        if !direct_expression_contains_short_circuit(&expression) {
+            return Ok(None);
+        }
+        validate_direct_parameter_types(
+            &expression,
+            &values
+                .iter()
+                .map(|value| value.scalar_type)
+                .collect::<Vec<_>>(),
+        )?;
+        let LoweredDirectExpression::Boolean { expression } = expression else {
+            return unsupported("branch guard source value is not Boolean");
+        };
+        Ok(Some(*expression))
+    }
+
     /// Guards share the same selective source evaluator as initializers and
     /// arguments. Selection chooses retained evidence, never a Boolean spelling.
     #[allow(clippy::too_many_arguments)]

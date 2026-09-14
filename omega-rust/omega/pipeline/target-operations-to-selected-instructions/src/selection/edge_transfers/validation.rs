@@ -65,7 +65,16 @@ pub(in crate::selection) fn project(
     let mut next_register = register_count;
     let mut next_bridge = source_count;
     for source in &mut projected.blocks {
-        for successor in successors_mut(&mut source.terminator) {
+        let conditional = matches!(
+            source.terminator,
+            SelectedTerminator::ConditionalBranch { .. }
+                | SelectedTerminator::ConditionalBranchU64LessThan { .. }
+                | SelectedTerminator::ConditionalBranchI64LessThan { .. }
+        );
+        for (position, successor) in successors_mut(&mut source.terminator)
+            .into_iter()
+            .enumerate()
+        {
             if successor.role == SelectedSuccessorRole::CaseDispatchContinuation {
                 if successor.block.0 as usize >= source_count
                     || !matches!(
@@ -205,7 +214,10 @@ pub(in crate::selection) fn project(
                 .and_then(|count| count.checked_add(descriptor_words))
                 .and_then(|count| count.checked_add(addresses))
                 .ok_or_else(error)?;
-            if (active.is_empty() && descriptor_words == 0)
+            // A conditional false edge may need only a physical fallthrough
+            // bridge. It still retains the exact semantic edge and continuation;
+            // all instruction, provenance, operand and fuel checks below apply.
+            if (active.is_empty() && descriptor_words == 0 && !(conditional && position == 1))
                 || register_delta.checked_add(descriptor_words) != Some(bridge.instructions.len())
             {
                 return Err(error());

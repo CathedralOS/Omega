@@ -12,22 +12,14 @@ machine Counter::replace(&mut self) {
 }
 
 machine Counter::step(&mut self) {
-    transition self.value < 16 {
+    transition self.value < 16 && self.signed > -5 {
         true -> update()
         false -> done()
     }
     state update(&mut self) {
         self.value = self.value + 1;
+        self.signed = self.signed - 1;
     }
-    state done(&mut self) {}
-}
-
-machine Counter::decrement(&mut self) {
-    transition self.signed > -5 {
-        true -> update()
-        false -> done()
-    }
-    state update(&mut self) { self.signed = self.signed - 1; }
     state done(&mut self) {}
 }
 
@@ -39,7 +31,6 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.counter.replace();
     self.counter.step();
-    self.counter.decrement();
     // Compare the narrow arithmetic result before another store can truncate
     // it: incorrect zero-extension of the negative input must be observable.
     transition self.counter.value == 8 && self.counter.signed + 1 == -3 {
