@@ -5,8 +5,7 @@ mod segments;
 mod unresolved_identities;
 
 use self::segments::{
-    place_segments_containment, place_segments_may_overlap_from_snapshot,
-    place_segments_may_overlap_with_snapshot,
+    place_segments_compatibility_from_snapshot, place_segments_compatibility_with_snapshot,
 };
 
 pub(super) struct CapturedPlaceCompatibilityEvidence {
@@ -40,17 +39,16 @@ fn captured_place_compatibility_with_selector_snapshot(
 ) -> CapturedPlaceCompatibilityEvidence {
     let roots_valid = left.root_symbol.is_valid() && right.root_symbol.is_valid();
     let same_root = roots_valid && left.root_symbol == right.root_symbol;
-    let (segments_may_overlap, selector_snapshot) = if same_root {
-        place_segments_may_overlap_with_snapshot(program, &left.segments, &right.segments)
+    let (segments_may_overlap, containment, selector_snapshot) = if same_root {
+        place_segments_compatibility_with_snapshot(program, &left.segments, &right.segments)
     } else {
-        (false, Vec::new())
+        (
+            false,
+            checked_trees::CapturedPlaceContainment::None,
+            Vec::new(),
+        )
     };
     let disjoint = roots_valid && (!same_root || !segments_may_overlap);
-    let containment = if same_root {
-        place_segments_containment(&left.segments, &right.segments)
-    } else {
-        checked_trees::CapturedPlaceContainment::None
-    };
     let shares_dependent_fact = same_root
         && place_segments_share_dependent_fact(
             program,
@@ -83,8 +81,8 @@ fn captured_place_compatibility_from_selector_snapshot(
 ) -> Option<checked_trees::CapturedPlaceCompatibility> {
     let roots_valid = left.root_symbol.is_valid() && right.root_symbol.is_valid();
     let same_root = roots_valid && left.root_symbol == right.root_symbol;
-    let segments_may_overlap = if same_root {
-        place_segments_may_overlap_from_snapshot(
+    let (segments_may_overlap, containment) = if same_root {
+        place_segments_compatibility_from_snapshot(
             program,
             &left.segments,
             &right.segments,
@@ -94,14 +92,9 @@ fn captured_place_compatibility_from_selector_snapshot(
         if !selector_snapshot.is_empty() {
             return None;
         }
-        false
+        (false, checked_trees::CapturedPlaceContainment::None)
     };
     let disjoint = roots_valid && (!same_root || !segments_may_overlap);
-    let containment = if same_root {
-        place_segments_containment(&left.segments, &right.segments)
-    } else {
-        checked_trees::CapturedPlaceContainment::None
-    };
     let shares_dependent_fact = same_root
         && place_segments_share_dependent_fact(
             program,

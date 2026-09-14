@@ -269,6 +269,111 @@ fn separately_captured_snapshots_cannot_license_overlapping_mutable_windows() {
 }
 
 #[test]
+fn immutable_copy_windows_certify_same_extent_and_replay() {
+    for parameter in [false, true] {
+        for reverse in [false, true] {
+            let (first, second) = if reverse {
+                ("self.items[0..last]", "self.items[0..cut]")
+            } else {
+                ("self.items[0..cut]", "self.items[0..last]")
+            };
+            let source = split_source(
+                parameter,
+                &format!(
+                    "
+                    let cut: u64 = original;
+                    let last: u64 = cut;
+                    let left: &[i32] = {first};
+                    original = 1;
+                    let right: &[i32] = {second};
+                "
+                ),
+            );
+            let mut checked = checked_source(&source);
+            let certificate = sole_certificate(&checked);
+            assert_eq!(
+                certificate.conclusion.containment,
+                checked_trees::CapturedPlaceContainment::Same,
+                "immutable copies of one boundary certify the same extent"
+            );
+            assert!(!certificate.conclusion.disjoint);
+            assert!(certificate.conclusion.non_interfering);
+            // The containment bounds reuse the overlap selector rows; the
+            // snapshot stays the four window bounds.
+            assert_eq!(certificate.selector_snapshot.len(), 4);
+            let before = checked.facts.borrow.compatibility_certificates.clone();
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .expect("same-extent certificates replay their selector rows");
+            assert_eq!(checked.facts.borrow.compatibility_certificates, before);
+        }
+    }
+}
+
+#[test]
+fn shared_symbol_offsets_certify_nested_window_containment_and_replay() {
+    for parameter in [false, true] {
+        let source = split_source(
+            parameter,
+            "
+            let cut: u64 = original;
+            let left: &[i32] = self.items[cut..cut + 2];
+            original = 1;
+            let right: &[i32] = self.items[cut..cut + 1];
+        ",
+        );
+        let mut checked = checked_source(&source);
+        let certificate = sole_certificate(&checked);
+        let cut = local(&checked, "cut").symbol;
+        assert_eq!(
+            certificate.conclusion.containment,
+            checked_trees::CapturedPlaceContainment::RightContainsLeft,
+            "the active [cut, cut + 2) window provably contains [cut, cut + 1)"
+        );
+        assert!(!certificate.conclusion.disjoint);
+        assert!(certificate.conclusion.non_interfering);
+        assert_eq!(
+            certificate
+                .selector_snapshot
+                .iter()
+                .map(|row| row.value)
+                .collect::<Vec<_>>(),
+            vec![
+                Some(BorrowCompatibilitySelectorValue::Symbol(cut)),
+                Some(BorrowCompatibilitySelectorValue::SymbolOffset {
+                    symbol: cut,
+                    offset: 1
+                }),
+                Some(BorrowCompatibilitySelectorValue::Symbol(cut)),
+                Some(BorrowCompatibilitySelectorValue::SymbolOffset {
+                    symbol: cut,
+                    offset: 2
+                }),
+            ]
+        );
+        let before = checked.facts.borrow.compatibility_certificates.clone();
+        crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+            .expect("nested-window certificates replay their selector rows");
+        assert_eq!(checked.facts.borrow.compatibility_certificates, before);
+    }
+}
+
+#[test]
+fn proven_containment_never_licenses_a_second_mutable_loan() {
+    for parameter in [false, true] {
+        assert_borrow_conflict(&split_source(
+            parameter,
+            "
+            let cut: u64 = original;
+            let last: u64 = cut;
+            let left: &mut [i32] = self.items[0..cut];
+            original = 1;
+            let right: &mut [i32] = self.items[0..last];
+        ",
+        ));
+    }
+}
+
+#[test]
 fn shared_windows_retain_distinct_snapshots_of_one_mutable_source() {
     for parameter in [false, true] {
         let source = split_source(
