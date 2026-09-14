@@ -24,14 +24,27 @@
 //!   stale, or corrupted graph rejects; the stored revision is report-only
 //!   beside that exact replay (matching the repository's fingerprint rule).
 //!
-//! Scoped typed selections, `reflect::visit_runtime_fields` per-member calls,
-//! and recursive derivations are later slices on the same contract; none of
-//! them are required to read or extend this graph shape.
+//! - `selection` is the TYPED SELECTION half on top of the graph. A
+//!   `ScopedSelectionReceiver` projects a scoped subset of the authorized
+//!   graph's members under a required contract; `freeze` seals the completed
+//!   choices into an owned `SelectionSnapshot` with a canonical fingerprint;
+//!   `replay_selection_snapshot` re-binds the subject and re-checks every
+//!   member/type/requirement correspondence from the typed trees.
+//!
+//! `reflect::visit_runtime_fields` per-member calls and recursive derivations
+//! are later slices on the same contract; none of them are required to read
+//! or extend these graph and snapshot shapes.
 
 mod schema_graph;
+mod selection;
 
 pub use schema_graph::{
     CaseDescription, DeclarationDescription, FieldDescription, NominalReferenceDescription,
     SchemaNode, SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
     TypeParameterDescription, construct_semantic_schema_graph, replay_semantic_schema_graph,
+};
+pub use selection::{
+    MemberSelectionKey, ScopedSelectionReceiver, SelectionChoice, SelectionCoverage,
+    SelectionProjection, SelectionRecord, SelectionRequirement, SelectionSnapshot,
+    replay_selection_snapshot,
 };
