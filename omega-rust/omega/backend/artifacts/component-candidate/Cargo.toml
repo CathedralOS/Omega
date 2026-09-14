@@ -13,4 +13,7 @@ effects = { path = "../../../representations/effects" }
 native-artifact = { path = "../native-artifact" }
 target = { path = "../../../representations/target" }
 image-emission = { path = "../../images/image-emission" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+sha2 = "0.10.9"

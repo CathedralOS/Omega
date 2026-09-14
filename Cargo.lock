@@ -502,8 +502,11 @@ dependencies = [
  "effects",
  "image-emission",
  "native-artifact",
+ "semantic-vocabulary",
+ "sha2",
  "target",
  "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
