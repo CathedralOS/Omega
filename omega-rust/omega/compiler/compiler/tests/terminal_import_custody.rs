@@ -231,3 +231,122 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
         "an unmatched evaluated import row must reject"
     );
 }
+
+/// Compile one scratch program whose called `Leaf::exit` leaf is supplied by
+/// the given declaration text, through the complete windows_x86_64 native
+/// pipeline. `Ok` means native emission succeeded; `Err` carries every
+/// rendered diagnostic.
+fn compile_called_leaf(leaf_declaration: &str) -> Result<(), Vec<String>> {
+    let root = std::env::temp_dir().join(format!("omega-called-leaf-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("create called-leaf fixture");
+    let main = root.join("main.omg");
+    fs::write(
+        &main,
+        format!(
+            r#"use omega::language::core::external_binding;
+
+boundary trait Leaf {{
+    machine exit(code: i32) -> i32;
+}}
+
+{leaf_declaration}
+
+data Main {{ p: Leaf; }}
+machine Main::main(&mut self) reaches Leaf {{
+    let rc: i32 = self.p.exit(70);
+    let keep: i32 = rc;
+}}
+"#,
+        ),
+    )
+    .expect("write called-leaf source");
+    fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("called-leaf");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+"#,
+    )
+    .expect("write called-leaf build policy");
+    let request = CompileRequest::new(CompileOptions {
+        root_path: main,
+        build_dir: Some(root.join("build")),
+        target_name: Some("windows_x86_64".to_owned()),
+    })
+    .with_requested_product(RequestedCompileProduct::NativeArtifact)
+    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    let outcome = compile(request).and_then(compiler::CompileOutcomes::into_single_report);
+    let _ = fs::remove_dir_all(&root);
+    outcome
+        .map(|_| ())
+        .map_err(|diagnostics| diagnostics.iter().map(ToString::to_string).collect())
+}
+
+/// A called evaluated `via` leaf keeps its exact normalized foreign identity
+/// all the way to the terminal-authority boundary: the only refusal is the
+/// missing independently admitted mechanism row, never a legacy fallback.
+#[test]
+fn called_evaluated_import_reaches_native_authority_as_normalized_foreign() {
+    let diagnostics = compile_called_leaf(
+        r#"windows_x86_64 machine exit_binding() -> Binding<12, 11, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    }
+}
+
+machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via exit_binding();"#,
+    )
+    .expect_err(
+        "a called evaluated import still requires independently admitted terminal authority",
+    );
+    let expected_locator = normalize_foreign_locator(
+        ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"ExitProcess".to_vec(),
+        },
+        TargetProfile::WindowsX64,
+    )
+    .expect("valid test locator");
+    let expected_digest = format!("{:?}", expected_locator.identity_digest().as_bytes());
+    assert!(
+        diagnostics.iter().any(|message| {
+            message.contains("does not classify normalized foreign mechanism")
+                && message.contains(&expected_digest)
+        }),
+        "the called evaluated import must reach terminal-authority classification \
+         as the exact normalized foreign mechanism: {diagnostics:?}"
+    );
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|message| message.contains("string-backed")),
+        "an evaluated `via` row must never degrade to legacy string-backed \
+         bootstrap: {diagnostics:?}"
+    );
+}
+
+/// A called legacy `via Binding::DllImport(...)` leaf is refused at
+/// source-import coverage: raw foreign strings are data, never native import
+/// authority.
+#[test]
+fn called_legacy_string_backed_leaf_is_refused_at_native_coverage() {
+    let diagnostics = compile_called_leaf(
+        r#"machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via Binding::DllImport("kernel32.dll", "ExitProcess");"#,
+    )
+    .expect_err("a called legacy leaf must not reach native emission");
+    assert!(
+        diagnostics.iter().any(|message| {
+            message.contains(
+                "retains a legacy string-backed binding with no normalized \
+                 terminal-mechanism identity",
+            )
+        }),
+        "the called legacy leaf must be refused at source-import coverage: \
+         {diagnostics:?}"
+    );
+}
