@@ -12,6 +12,10 @@ use super::{
     ProgramLocalRootInstallationLedger, RetiredProgramLocalRootOccurrence,
 };
 
+mod retained_foreign_arguments;
+
+pub use retained_foreign_arguments::*;
+
 /// Installation-checked runtime facts required to realize one interval account
 /// as one concrete Extent. These facts describe the runtime address-space
 /// occurrence; they are not authority and cannot replace the established root.
@@ -108,10 +112,18 @@ impl ProgramLocalExtentMaterializationPlan {
 }
 
 #[derive(Debug)]
+struct LiveRetention {
+    base: u64,
+    length: u64,
+    access: RetainedForeignAccess,
+}
+
+#[derive(Debug)]
 struct HeldProgramLocalExtent<'root, 'code> {
     root: EstablishedProgramLocalRoot<'root, 'code>,
     lineage: ExtentLineageId,
     plan: ProgramLocalExtentMaterializationPlan,
+    retained: BTreeMap<RetainedForeignArgumentId, LiveRetention>,
 }
 
 /// Epoch/installation owner for exact program-local Extent accounts.
@@ -125,6 +137,7 @@ struct HeldProgramLocalExtent<'root, 'code> {
 pub struct ProgramLocalExtentRegistry<'root, 'code> {
     held: BTreeMap<ExtentProgramLocalOrigin, HeldProgramLocalExtent<'root, 'code>>,
     next_lineage: u64,
+    next_retention: u64,
 }
 
 impl<'root, 'code> Default for ProgramLocalExtentRegistry<'root, 'code> {
@@ -132,6 +145,7 @@ impl<'root, 'code> Default for ProgramLocalExtentRegistry<'root, 'code> {
         Self {
             held: BTreeMap::new(),
             next_lineage: 1,
+            next_retention: 1,
         }
     }
 }
@@ -143,6 +157,10 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
 
     pub fn held_accounts(&self) -> usize {
         self.held.len()
+    }
+
+    pub fn live_retained_foreign_arguments(&self) -> usize {
+        self.held.values().map(|held| held.retained.len()).sum()
     }
 
     /// Atomically materialize a batch. Every account and plan is validated
@@ -229,6 +247,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                     root,
                     lineage,
                     plan,
+                    retained: BTreeMap::new(),
                 },
             );
             debug_assert!(previous.is_none());
@@ -284,6 +303,15 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                 "program-local Extent retirement requires the exact recombined root and compatible runtime facts",
             )));
         }
+        if !held.retained.is_empty() {
+            return Err(Box::new(ProgramLocalExtentRetirementError::new(
+                extent,
+                format!(
+                    "program-local Extent account retirement is blocked by {} live retained foreign argument(s)",
+                    held.retained.len()
+                ),
+            )));
+        }
 
         let held = self
             .held
@@ -299,6 +327,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                         root,
                         lineage: held.lineage,
                         plan: held.plan,
+                        retained: held.retained,
                     },
                 );
                 debug_assert!(replaced.is_none());
