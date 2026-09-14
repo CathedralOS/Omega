@@ -224,6 +224,17 @@ pub(super) fn validate_machine(
                 }
                 continue;
             }
+            if let OperationKind::StructuralScalarFieldStore {
+                range_obligation: Some(obligation),
+                ..
+            } = operation.kind
+            {
+                insert_unique(
+                    &mut registry.obligations,
+                    obligation,
+                    ModuleError::DuplicateObligation,
+                )?;
+            }
             if matches!(
                 operation.kind,
                 OperationKind::EstablishRecord { .. }

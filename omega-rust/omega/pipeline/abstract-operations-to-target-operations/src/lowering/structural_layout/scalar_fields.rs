@@ -73,14 +73,11 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
         offset = checked_align_up_u32(offset, u32::from(shape.alignment))
             .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
         if candidate.id == field {
-            return (candidate.field_type == StructuralFieldType::Scalar(expected_type)
-                || matches!(
-                    (&candidate.field_type, expected_type),
-                    (StructuralFieldType::IeeeFloat(actual), ScalarType::IeeeFloat(expected))
-                        if *actual == expected
-                ))
-            .then_some(offset)
-            .ok_or(LoweringError::UnknownStructuralType(structural_type));
+            // This is layout, not store admission: current-IR validation separately
+            // binds bounded writes to their own accepted range obligations.
+            return (candidate.field_type.scalar_type() == Some(expected_type))
+                .then_some(offset)
+                .ok_or(LoweringError::UnknownStructuralType(structural_type));
         }
         offset = offset
             .checked_add(u32::from(shape.byte_size))

@@ -404,6 +404,29 @@ fn declared_range_inference_nested_results_keep_source_type_errors() {
 }
 
 #[test]
+fn bounded_integer_field_stores_run_natively() {
+    let canary = pass_canary("borrows/bounded_integer_field_store");
+    let scratch = unique_no_output_build_dir();
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "bounded stores must publish ({}): {diagnostics:?}",
+                scratch.display()
+            )
+        });
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("retain the bounded-store executable");
+    let output = Command::new(executable)
+        .output()
+        .expect("execute bounded stores");
+    assert_eq!(output.status.code(), Some(70), "{output:?}");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    assert!(output.stderr.is_empty(), "{output:?}");
+    fs::remove_dir_all(&scratch).expect("remove successful native observations");
+}
+
+#[test]
 fn declared_range_inference_hosted_entry_runs_natively() {
     let canary = pass_canary("generics/declared_range_endpoint_inference");
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(

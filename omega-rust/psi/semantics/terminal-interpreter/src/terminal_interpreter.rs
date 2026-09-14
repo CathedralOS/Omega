@@ -1898,6 +1898,7 @@ impl TerminalExecution {
                         ref path,
                         field,
                         value,
+                        ..
                     } => {
                         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);

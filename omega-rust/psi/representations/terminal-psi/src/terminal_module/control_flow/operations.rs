@@ -210,6 +210,8 @@ pub enum OperationKind {
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
         value: ValueId,
+        /// Required exactly for a bounded integer field; proved before mutation.
+        range_obligation: Option<ObligationId>,
     },
     /// Atomically establish one exact scalar-payload case of a declared sum.
     /// The structural operation result supplies the destination and type. The

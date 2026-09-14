@@ -164,6 +164,7 @@ pub(crate) fn validate_structural_root_operations(
                     path,
                     field,
                     value,
+                    range_obligation,
                     ..
                 } => {
                     let parent = super::super::structural_catalog::resolve_structural_path(
@@ -204,8 +205,12 @@ pub(crate) fn validate_structural_root_operations(
                                     && *is_self == destination.is_self
                         )
                         && parent.is_some_and(|parent| {
-                            direct_relevant_scalar_field(structural_types, parent, *field, false)
-                                == Some(value.scalar_type)
+                            direct_relevant_scalar_field(
+                                structural_types,
+                                parent,
+                                *field,
+                                range_obligation.is_some(),
+                            ) == Some(value.scalar_type)
                         });
                     if !valid {
                         return Err(

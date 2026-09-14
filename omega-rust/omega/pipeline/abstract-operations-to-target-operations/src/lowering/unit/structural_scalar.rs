@@ -35,6 +35,7 @@ pub(in crate::lowering) fn lower_field_store(
         path,
         field,
         value,
+        ..
     } = operation
     else {
         unreachable!("projected field-store lowering receives only field stores")

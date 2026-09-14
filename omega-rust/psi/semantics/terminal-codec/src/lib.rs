@@ -1387,6 +1387,7 @@ fn validate_operation_foundation(
             path,
             field,
             value,
+            range_obligation,
         } => {
             if operation.result != OperationResult::Unit {
                 return malformed("structural scalar field store declares a non-Unit result");
@@ -1473,8 +1474,21 @@ fn validate_operation_foundation(
                         (candidate.id == *field && !candidate.relevance.is_erased())
                             .then_some(&candidate.field_type)
                             .and_then(|field_type| match field_type {
-                                StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
-                                StructuralFieldType::IeeeFloat(format) => {
+                                StructuralFieldType::Scalar(scalar_type)
+                                    if range_obligation.is_none() =>
+                                {
+                                    Some(*scalar_type)
+                                }
+                                StructuralFieldType::BoundedInteger(bounds)
+                                    if range_obligation.is_some() =>
+                                {
+                                    Some(semantic_vocabulary::ScalarType::Integer(
+                                        bounds.integer_type(),
+                                    ))
+                                }
+                                StructuralFieldType::IeeeFloat(format)
+                                    if range_obligation.is_none() =>
+                                {
                                     Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
                                 }
                                 _ => None,

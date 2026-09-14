@@ -52,6 +52,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
                     path: Vec::new(),
                     field: id(1),
                     value: id(1),
+                    range_obligation: None,
                 },
             },
         ]);

@@ -28,6 +28,14 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
         .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
     {
         match operation {
+            O::StructuralScalarFieldStore {
+                psi_operation,
+                range_obligation: Some(obligation),
+                ..
+            } => expected.push(OptimizationFact::OperationObligationReference {
+                obligation: *obligation,
+                support: *psi_operation,
+            }),
             O::EstablishRecord {
                 psi_operation,
                 fields,

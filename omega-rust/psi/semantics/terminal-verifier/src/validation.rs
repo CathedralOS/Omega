@@ -99,6 +99,7 @@ pub(crate) use structural_operations::{
     structural_field_store_write_path,
 };
 pub(crate) use structural_scalar_fields::integer_structural_field_read_range;
+pub(crate) use structural_scalar_fields::structural_scalar_field_store_range;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatedTerminalModule<'module> {

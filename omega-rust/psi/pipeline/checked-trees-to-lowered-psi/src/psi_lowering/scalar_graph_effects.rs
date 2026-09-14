@@ -34,6 +34,7 @@ pub(crate) fn emit(
                         path: path.clone(),
                         field: *field,
                         value: value.id,
+                        range_obligation: None,
                     },
                 });
             }

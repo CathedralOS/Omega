@@ -60,6 +60,41 @@ pub(super) fn append_operation(
     // Private crash questions retain their own entry-origin discipline. A
     // current-value capture cannot manufacture an invocation-entry observation.
     let capture_snapshots = matches!(purpose, OperationFactPurpose::ProofObligations);
+    if let OperationKind::StructuralScalarFieldStore {
+        value,
+        range_obligation: Some(id),
+        ..
+    } = operation.kind
+        && let Some(bounds) =
+            crate::validation::structural_scalar_field_store_range(module, machine, operation)
+    {
+        let integer_type = bounds.integer_type();
+        let value = ScalarTerm::value(value, ScalarType::Integer(integer_type));
+        let endpoint = |value| ScalarTerm::Integer {
+            scalar_type: integer_type,
+            value,
+        };
+        let mut clauses = vec![
+            Proposition::LessOrEqual(endpoint(bounds.minimum()), value.clone()),
+            Proposition::LessOrEqual(value, endpoint(bounds.maximum())),
+        ];
+        clauses.sort();
+        // The written field's new equality cannot justify its own invariant.
+        // Preserve the pre-write facts before invalidation and replacement.
+        operation_obligations.push(ReconstructedOperationObligation {
+            owner: ReconstructedTerminalObligationOwner::Operation {
+                machine: machine.id,
+                operation: operation.id,
+            },
+            obligation: Obligation {
+                id,
+                proposition: Proposition::Conjunction(clauses),
+                class: ObligationClass::Derivable,
+            },
+            semantic_axioms: axioms.clone(),
+            canonical_certificate: true,
+        });
+    }
     if matches!(operation.kind, OperationKind::EstablishRecord { .. }) {
         return record::append(module, machine, operation, axioms, operation_obligations);
     }

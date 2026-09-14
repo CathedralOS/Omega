@@ -118,6 +118,7 @@ fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
             panic!("store")
         };
         *store = AbstractOperation::StructuralScalarFieldStore {
+            range_obligation: None,
             psi_operation: *psi_operation,
             destination: destination.clone(),
             value: *value,

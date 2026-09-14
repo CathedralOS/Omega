@@ -214,15 +214,23 @@ static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
     "operation:structural-scalar-field-store",
-    "a validated scalar field store whose canonical write path may resolve to an exact leaf",
-    "propositions observing the write are invalidated; a resolvable leaf additionally publishes the leaf-equals-stored-value equation",
+    "a validated scalar field store with a range obligation exactly when its destination declaration is a bounded integer",
+    "the exact stored SSA value's declared bounds are required against pre-write axioms; then propositions observing the write are invalidated and a resolvable leaf publishes its stored-value equation",
     &[
         "fact:structural-effect-observation",
         "invalidation:structural-field-store",
         "fact:field-store-leaf-equation",
         "formation:operation-validation",
     ],
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS, VAL_STRUCTURAL_OPS],
+    &[
+        VOCAB,
+        TS_LIB,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_STRUCTURAL_OPS,
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_scalar_fields.rs",
+    ],
 );
 static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE: TrustedSurfaceEntry = entry(
     "operation:structural-byte-sequence-field-store",

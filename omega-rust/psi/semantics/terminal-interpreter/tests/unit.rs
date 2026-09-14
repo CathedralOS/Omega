@@ -3867,6 +3867,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
                 path: vec![StructuralPathSegment::Field("item".into())],
                 field: structural_field_id(1),
                 value: value_id(1),
+                range_obligation: None,
             },
         },
         Operation {

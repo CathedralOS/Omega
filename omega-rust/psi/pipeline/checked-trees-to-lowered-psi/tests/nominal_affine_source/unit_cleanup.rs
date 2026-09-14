@@ -414,6 +414,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
             id: semantic_vocabulary::OperationId::new(9002).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
+                range_obligation: None,
                 destination: borrowed_place,
                 path: Vec::new(),
                 field: *target_field,

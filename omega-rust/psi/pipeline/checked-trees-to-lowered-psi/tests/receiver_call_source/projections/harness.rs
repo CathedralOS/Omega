@@ -299,6 +299,7 @@ pub(super) fn assert_projected_receiver(
             );
             let store = callee_block.operations.last().unwrap();
             let OperationKind::StructuralScalarFieldStore {
+                range_obligation: None,
                 destination,
                 path,
                 field: stored_field,

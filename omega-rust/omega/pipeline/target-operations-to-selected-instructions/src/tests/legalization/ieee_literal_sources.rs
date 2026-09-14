@@ -75,6 +75,7 @@ fn fixture(
                 value: literal,
             },
             AbstractOperation::StructuralScalarFieldStore {
+                range_obligation: None,
                 psi_operation: OperationId::new(2).unwrap(),
                 destination,
                 path: Vec::new(),

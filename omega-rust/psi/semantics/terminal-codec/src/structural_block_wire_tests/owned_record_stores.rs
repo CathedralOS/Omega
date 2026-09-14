@@ -98,6 +98,7 @@ fn store_module(block_home: bool) -> TerminalModule {
                 path: Vec::new(),
                 field: id(1),
                 value: id(1),
+                range_obligation: None,
             },
         });
     module
@@ -162,4 +163,52 @@ fn owned_record_store_codec_rejects_forged_home_field_and_custody() {
             );
         }
     }
+}
+
+#[test]
+fn bounded_owned_record_store_round_trips_and_requires_exact_obligation_presence() {
+    let mut module = store_module(false);
+    let integer =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+            .unwrap();
+    let bounds = semantic_vocabulary::BoundedIntegerType::new(
+        integer,
+        semantic_vocabulary::IntegerValue::Signed(0),
+        semantic_vocabulary::IntegerValue::Signed(16),
+    )
+    .unwrap();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("record");
+    };
+    fields[0].field_type = StructuralFieldType::BoundedInteger(bounds);
+    module.machines[0].parameters[0].scalar_type = ScalarType::Integer(integer);
+    let OperationKind::EstablishRecord { fields } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("record");
+    };
+    let RecordFieldValue::Scalar {
+        range_obligation, ..
+    } = &mut fields[0].value
+    else {
+        panic!("scalar");
+    };
+    *range_obligation = Some(id(1));
+    let OperationKind::StructuralScalarFieldStore {
+        range_obligation, ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        panic!("store");
+    };
+    *range_obligation = Some(id(2));
+    let bytes = encode_module(&module).expect("bounded store encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), module);
+    let OperationKind::StructuralScalarFieldStore {
+        range_obligation, ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        panic!("store");
+    };
+    *range_obligation = None;
+    assert!(encode_module(&module).is_err());
 }

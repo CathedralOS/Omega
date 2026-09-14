@@ -11,7 +11,7 @@ mod index;
 mod one;
 mod two;
 
-use index::distinct_same_carrier_values;
+use index::distinct_same_carrier_subjects;
 
 pub(super) use cast::{prove_landed_literal_cast, prove_stronger_cast};
 

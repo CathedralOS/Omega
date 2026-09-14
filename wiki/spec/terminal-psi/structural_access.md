@@ -208,9 +208,15 @@ while linear, qualified and claim-bearing roots require further support.
 Field-store admission independently checks the
 complete home declaration, path, field, access, qualifications/claims,
 scalar type, and dominating definition. Owned destinations must be established
-and live as whole values, with no conflicting reference custody. Raw bounded
-integer field stores remain unsupported: accepting the underlying scalar carrier
-alone would invalidate subsequent declaration-derived range snapshots.
+and live as whole values, with no conflicting reference custody. A bounded
+integer field store additionally retains its own `range_obligation`; unbounded
+fields must not carry one. Independent reconstruction derives the conjunction
+of the destination declaration's lower and upper bounds on the exact stored
+SSA value, using only pre-write facts. The completed write's new field equality
+cannot prove its own validity. The canonical certificate is checked before
+execution, and Omega's current-IR validation binds the retained obligation to
+the current destination, value and bounds before native lowering. Accepting
+only the underlying scalar carrier would invalidate later range snapshots.
 Integer and Boolean field observations
 remain distinct operations and require readable access.
 

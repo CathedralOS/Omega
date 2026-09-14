@@ -155,6 +155,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                             id: id::<OperationId>(2),
                             result: OperationResult::Unit,
                             kind: OperationKind::StructuralScalarFieldStore {
+                                range_obligation: None,
                                 destination: caller_self,
                                 path: vec![StructuralPathSegment::Field("item".into())],
                                 field: value_field,
@@ -492,6 +493,7 @@ fn retains_exact_store_and_integer_field_read_custody() {
         path,
         field,
         value,
+        range_obligation: None,
     } = &caller.operations[store_index]
     else {
         unreachable!()
@@ -568,6 +570,7 @@ fn retains_direct_mutable_self_store_in_scalar_function() {
             id: id::<OperationId>(5),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
+                range_obligation: None,
                 destination: self_place,
                 path: Vec::new(),
                 field,

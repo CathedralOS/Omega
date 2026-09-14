@@ -28,6 +28,7 @@ pub(super) fn lower(
             path,
             field,
             value,
+            range_obligation,
         } => lower_store(
             operation,
             block,
@@ -37,6 +38,7 @@ pub(super) fn lower(
             path,
             *field,
             *value,
+            *range_obligation,
         ),
         OperationKind::IntegerStructuralField {
             source,
@@ -57,6 +59,7 @@ fn lower_store(
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
     value: semantic_vocabulary::ValueId,
+    range_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidStructuralScalarFieldStore(operation.id);
     let destination = exact_parameter(machine, destination).ok_or_else(invalid)?;
@@ -78,8 +81,27 @@ fn lower_store(
     }
     let parent_type = resolve_structural_path(structural_types, destination.structural_type, path)
         .ok_or_else(invalid)?;
-    if direct_relevant_scalar_field(structural_types, parent_type, field, false)
-        != Some(scalar_type)
+    let declaration = structural_types
+        .iter()
+        .find(|candidate| candidate.id == parent_type)
+        .ok_or_else(invalid)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return Err(invalid());
+    };
+    let declaration = fields
+        .iter()
+        .find(|candidate| candidate.id == field)
+        .ok_or_else(invalid)?;
+    if matches!(
+        declaration.field_type,
+        StructuralFieldType::BoundedInteger(_)
+    ) != range_obligation.is_some()
+        || direct_relevant_scalar_field(
+            structural_types,
+            parent_type,
+            field,
+            range_obligation.is_some(),
+        ) != Some(scalar_type)
     {
         return Err(invalid());
     }
@@ -89,6 +111,7 @@ fn lower_store(
         path: path.to_vec(),
         field,
         value: AbstractResult { value, scalar_type },
+        range_obligation,
     })
 }
 

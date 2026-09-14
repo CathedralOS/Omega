@@ -1,6 +1,82 @@
 use super::*;
 
 #[test]
+fn guarded_bounded_integer_field_increment_publishes_checked_terminal() {
+    let checked = checked_source(
+        "data Counter [copy] { value: i32 [0..=16]; }
+         machine Counter::advance(&mut self) {
+             transition self.value < 16 {
+                 true -> increment()
+                 false -> done()
+             }
+             state increment(&mut self) { self.value = self.value + 1; }
+             state done(&mut self) {}
+         }",
+    );
+    let artifact =
+        terminal_production::TerminalProductionRequest::new(&checked, "Counter::advance")
+            .produce_artifact()
+            .expect(
+                "guarded replacement proves arithmetic and the destination range independently",
+            );
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert!(
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                operation.kind,
+                OperationKind::StructuralScalarFieldStore {
+                    range_obligation: Some(_),
+                    ..
+                }
+            ))
+    );
+}
+
+#[test]
+fn bounded_integer_field_store_retains_the_destination_range() {
+    for (field_type, replacement) in [
+        ("i32 [0..=16]", "7"),
+        ("i8 [-5..=5]", "-3"),
+        ("u64 [0..=18446744073709551615]", "18446744073709551615"),
+    ] {
+        let checked = checked_source(&format!(
+            "data Counter [copy] {{ value: {field_type}; }}
+                 machine Counter::replace(&mut self) {{ self.value = {replacement}; }}",
+        ));
+        let artifact =
+            terminal_production::TerminalProductionRequest::new(&checked, "Counter::replace")
+                .produce_artifact()
+                .expect("bounded counter replacement publishes checked Terminal");
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        assert!(
+            entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::StructuralScalarFieldStore {
+                            range_obligation: Some(_),
+                            ..
+                        }
+                    )
+                }),
+            "the exact store retains its own range proof"
+        );
+    }
+}
+
+#[test]
 fn ieee_field_store_literals_require_their_exact_format() {
     for (value, primitive_type, wrong_type) in [
         (

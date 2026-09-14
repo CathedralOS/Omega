@@ -348,6 +348,7 @@ fn multiple_record_inputs_keep_exact_field_store_destination_through_replay() {
             unreachable!()
         };
         *store = AbstractOperation::StructuralScalarFieldStore {
+            range_obligation: None,
             psi_operation: *psi_operation,
             destination: destination.clone(),
             value: *value,

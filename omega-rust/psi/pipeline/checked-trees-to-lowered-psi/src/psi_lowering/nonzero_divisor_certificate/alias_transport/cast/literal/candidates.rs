@@ -4,7 +4,7 @@ use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, ScalarTerm};
 
 use super::super::super::super::integer_evidence::cited_facts;
-use super::super::super::distinct_same_carrier_values;
+use super::super::super::distinct_same_carrier_subjects;
 
 pub(super) fn find<T>(
     assumptions: &[Proposition],
@@ -16,7 +16,7 @@ pub(super) fn find<T>(
             continue;
         };
         for (root, alias) in [(root_left, root_right), (root_right, root_left)] {
-            if !distinct_same_carrier_values(root, alias) {
+            if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
             for (literal_citation, literal_equality) in cited_facts(assumptions, semantic_axioms) {

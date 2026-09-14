@@ -419,12 +419,11 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit_store(
         static_reach_binding: None,
         id,
         result: OperationResult::Unit,
-        kind: OperationKind::StructuralScalarFieldStore {
-            destination: destination.place,
-            path: lowered.path,
-            field: lowered.field,
-            value: value.id,
-        },
+        kind: lowered.into_operation(
+            destination.place,
+            value.id,
+            &mut catalogs.scalar_calls.next_call_obligation,
+        )?,
     });
     Ok(())
 }

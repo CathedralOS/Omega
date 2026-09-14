@@ -3499,12 +3499,11 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                             "structural scalar store RHS differs from its field type",
                         );
                     }
-                    OperationKind::StructuralScalarFieldStore {
-                        destination: destination.place,
-                        path: lowered.path,
-                        field: lowered.field,
-                        value: value.id,
-                    }
+                    lowered.into_operation(
+                        destination.place,
+                        value.id,
+                        &mut next_call_obligation,
+                    )?
                 }
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {

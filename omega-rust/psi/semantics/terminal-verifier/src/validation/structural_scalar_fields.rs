@@ -166,7 +166,40 @@ pub(super) fn structural_scalar_field_store_type(
         return Err(invalid());
     }
     let parent_type = resolve_structural_path(module, structural_type, path).ok_or_else(invalid)?;
-    direct_relevant_scalar_field(module, parent_type, field, false).ok_or_else(invalid)
+    direct_relevant_scalar_field(module, parent_type, field, true).ok_or_else(invalid)
+}
+
+/// Resolve the declaration's invariant independently of the stored SSA value.
+pub(crate) fn structural_scalar_field_store_range(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Option<semantic_vocabulary::BoundedIntegerType> {
+    let OperationKind::StructuralScalarFieldStore {
+        destination,
+        ref path,
+        field,
+        ..
+    } = operation.kind
+    else {
+        return None;
+    };
+    let signature = super::structural_result_contracts::source_signature(machine, destination)?;
+    let parent = resolve_structural_path(module, signature.structural_type, path)?;
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parent)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    let declaration = fields
+        .iter()
+        .find(|declaration| declaration.id == field && !declaration.relevance.is_erased())?;
+    match declaration.field_type {
+        StructuralFieldType::BoundedInteger(bounds) => Some(bounds),
+        _ => None,
+    }
 }
 
 pub(super) fn validate_integer_structural_field(
