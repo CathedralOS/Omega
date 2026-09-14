@@ -168,8 +168,10 @@ pub(crate) fn replay_function(
 /// only after every view that keeps all of them feasible; among them the view
 /// satisfying the most copy edges whose partner is already assigned wins
 /// first, then the view the most still-unassigned partners that remain
-/// unconstrained with this domain can still take, then the plain first
-/// candidate.
+/// unconstrained with this domain would themselves take once this domain's
+/// home is fixed — the partner's own satisfied-edge ranking plus the edges
+/// pending here, lowest still-viable view breaking ties — then the plain
+/// first candidate.
 fn preferred_view(
     function: usize,
     domain_index: usize,
@@ -202,6 +204,15 @@ fn preferred_view(
     } else {
         &keeping
     };
+    let outlooks = partner_outlooks(
+        domain_index,
+        domains,
+        unassigned,
+        assigned,
+        affinities,
+        domain_of,
+        ranges,
+    );
     let mut leading = None::<(usize, usize, RegisterViewId)>;
     for &view in pool {
         let mut guaranteed = 0usize;
@@ -212,16 +223,19 @@ fn preferred_view(
             };
             if assigned.get(&partner) == Some(&view) {
                 guaranteed += 1;
-            } else if domain_of.get(&partner).is_some_and(|&partner_domain| {
-                partner_domain != domain_index
-                    && unassigned.contains(&partner_domain)
-                    && !conflicts::constrained(domain, &domains[partner_domain], ranges)
-                    && domains[partner_domain]
-                        .candidates
-                        .binary_search(&view)
-                        .is_ok()
-            }) {
-                votes += 1;
+            } else if let Some(&partner_domain) = domain_of.get(&partner)
+                && let Some(outlook) = outlooks.get(&partner_domain)
+                && domains[partner_domain]
+                    .candidates
+                    .binary_search(&view)
+                    .is_ok()
+            {
+                let drawn = outlook.assigned.get(&view).copied().unwrap_or(0) + outlook.pending;
+                if drawn > outlook.peak
+                    || (drawn == outlook.peak && outlook.peak_view.is_some_and(|peak| view < peak))
+                {
+                    votes += 1;
+                }
             }
         }
         if (guaranteed, votes) > (0, 0)
@@ -235,6 +249,71 @@ fn preferred_view(
     Ok(leading
         .map(|(_, _, view)| view)
         .or_else(|| pool.first().copied()))
+}
+
+/// Replay twin of the producer's per-partner outlook: pending edges this
+/// domain would satisfy at a shared view, the partner's satisfied copy edges
+/// per already-assigned view, and the peak of those counts across the
+/// partner's still-viable views with the lowest view reaching it.
+#[derive(Default)]
+struct PartnerOutlook {
+    pending: usize,
+    assigned: BTreeMap<RegisterViewId, usize>,
+    peak: usize,
+    peak_view: Option<RegisterViewId>,
+}
+
+/// Reconstruct the producer's partner outlooks from source facts: every
+/// still-unassigned partner domain unconstrained with this one. Assigned,
+/// constrained, or unconnected partners cast no vote.
+fn partner_outlooks(
+    domain_index: usize,
+    domains: &[domain::ReplayDomain],
+    unassigned: &BTreeSet<usize>,
+    assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
+    affinities: &[CopyAffinity],
+    domain_of: &BTreeMap<VirtualRegisterId, usize>,
+    ranges: &crate::FunctionLiveRanges,
+) -> BTreeMap<usize, PartnerOutlook> {
+    let domain = &domains[domain_index];
+    let mut outlooks = BTreeMap::<usize, PartnerOutlook>::new();
+    for affinity in affinities {
+        let Some(partner) = affinity_partner(domain, *affinity) else {
+            continue;
+        };
+        let Some(&partner_domain) = domain_of.get(&partner) else {
+            continue;
+        };
+        if partner_domain != domain_index
+            && unassigned.contains(&partner_domain)
+            && !conflicts::constrained(domain, &domains[partner_domain], ranges)
+        {
+            outlooks.entry(partner_domain).or_default().pending += 1;
+        }
+    }
+    for affinity in affinities {
+        for (member, other) in [
+            (affinity.source, affinity.destination),
+            (affinity.destination, affinity.source),
+        ] {
+            if let (Some(&partner_domain), Some(&home)) =
+                (domain_of.get(&member), assigned.get(&other))
+                && let Some(outlook) = outlooks.get_mut(&partner_domain)
+            {
+                *outlook.assigned.entry(home).or_default() += 1;
+            }
+        }
+    }
+    for (partner_domain, outlook) in &mut outlooks {
+        for &view in &domains[*partner_domain].candidates {
+            let count = outlook.assigned.get(&view).copied().unwrap_or(0);
+            if outlook.peak_view.is_none() || count > outlook.peak {
+                outlook.peak = count;
+                outlook.peak_view = Some(view);
+            }
+        }
+    }
+    outlooks
 }
 
 /// Reproduce the producer's feasibility guard: assigning `view` to this domain

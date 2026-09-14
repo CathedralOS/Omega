@@ -1,8 +1,9 @@
 use register_model::{RegisterUnitId, RegisterWriteSemantics, validate_physical_register_model};
-use selected_instructions::VirtualRegisterId;
+use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 
 use super::super::compute::scan_reference;
 use super::{compute_function, fixtures::*, validate};
+use crate::CopyAffinity;
 
 #[test]
 fn prepared_constraints_match_original_scans_for_candidate_and_interference_rosters() {
@@ -36,6 +37,58 @@ fn prepared_constraints_match_original_scans_for_candidate_and_interference_rost
                             expected,
                             "candidate rosters {first:?}/{second:?}/{third:?}, interference {pairs:?}",
                         );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn prepared_partner_outlooks_match_rescans_for_copy_affinity_rosters() {
+    // Partner votes depend on the partner's own satisfied-edge outlook, which
+    // mixes pending edges, assigned homes, and still-viable views. Sweep
+    // candidate rosters against every subset of a three-edge affinity web,
+    // with and without interference inside the copied pair, so the prepared
+    // placement and the full rescan make every outlook branch agree.
+    let candidate_rosters: &[&[u16]] = &[&[0, 1], &[0, 2], &[1, 2], &[0]];
+    let affinity_edges: &[(u32, u32)] = &[(0, 1), (1, 2), (0, 2)];
+    for physical in [physical(), aliased_physical()] {
+        for first in candidate_rosters {
+            for second in candidate_rosters {
+                for third in candidate_rosters {
+                    let mut legality = legality(&[(0, 3), (1, 4), (2, 5)]);
+                    for (register, candidates) in [first, second, third].into_iter().enumerate() {
+                        set_candidates(&mut legality, register, candidates);
+                    }
+                    for affinity_mask in 0..8 {
+                        for interference in [&[][..], &[(0, 1)][..]] {
+                            let mut ranges = ranges(3, interference);
+                            for (position, &(source, destination)) in
+                                affinity_edges.iter().enumerate()
+                            {
+                                if affinity_mask & (1 << position) != 0 {
+                                    ranges.copy_affinities.push(CopyAffinity {
+                                        block: SelectedBlockId(0),
+                                        instruction: SelectedInstructionId(0),
+                                        source: VirtualRegisterId(source),
+                                        destination: VirtualRegisterId(destination),
+                                    });
+                                }
+                            }
+                            let expected =
+                                scan_reference::compute_function(7, &legality, &ranges, &physical);
+                            assert_eq!(
+                                compute_function(7, &legality, &ranges, &physical),
+                                expected,
+                                "candidate rosters {first:?}/{second:?}/{third:?}, affinity mask {affinity_mask}, interference {interference:?}",
+                            );
+                            assert_eq!(
+                                validate::replay_function(7, &legality, &ranges, &physical),
+                                expected,
+                                "candidate rosters {first:?}/{second:?}/{third:?}, affinity mask {affinity_mask}, interference {interference:?}",
+                            );
+                        }
                     }
                 }
             }
