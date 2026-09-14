@@ -1794,7 +1794,7 @@ mod module_tests {
 
     fn resolve_seeded(
         extension: &str,
-    ) -> Result<crate::lowerer::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
+    ) -> Result<crate::continuations::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
         resolve_seeded_with_base(
             "module combat; pub const DAMAGE: u64 = 7;",
             extension,
@@ -1806,7 +1806,7 @@ mod module_tests {
         base_text: &str,
         extension: &str,
         change_base: impl FnOnce(&mut SymbolResolvedTrees),
-    ) -> Result<crate::lowerer::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
+    ) -> Result<crate::continuations::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
         use std::{path::PathBuf, sync::Arc};
         let mut sources = source::SourceMap::default();
         let base_source = sources
@@ -1830,7 +1830,7 @@ mod module_tests {
         let mut syntax = SyntaxTrees::default();
         parse_syntax_trees_into_with_id(&mut syntax, extension_source, &tokens)
             .expect("parse constant extension");
-        crate::lowerer::lower_syntax_extension_with_authored_selection_frontier(
+        crate::resolution::lower_syntax_extension_with_authored_selection_frontier(
             base,
             &syntax,
             Arc::new(sources),

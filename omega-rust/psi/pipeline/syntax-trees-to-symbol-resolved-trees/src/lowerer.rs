@@ -1,25 +1,17 @@
-//! The resolution route and its working state.
+//! The lowerer's working state.
 //!
-//! `lower_syntax_trees` and its variants validate the module, synthesize
-//! trait defaults, walk every root item through `lowering`, then `finish`:
-//! operator homes, symbol assignment, constant finalization, the
-//! authored-selection ledger, machine-parameter requirements, evidence
-//! forwarding owners, closed conformance blocks, establishment routes, and
-//! service reaches, in that order. `Lowerer` holds the pending sidecars each
-//! phase leaves for a later one. Seeded and rebased carriers extend a
-//! retained base with a later stratum without parsing again.
+//! `Lowerer` carries the carrier under construction plus the pending sidecars
+//! each translator leaves for a later phase: authored expressions awaiting
+//! selection, constant declarations and selections, service-reach names,
+//! outcome-specific contracts, synthesized continuation states. `resolution`
+//! drives it; nothing here decides phase order. Seeding fills the same
+//! sidecars from a retained base so an extension resolves against it.
 
-use crate::lowering::item::lower_item;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use source::SourceMap;
 use std::sync::Arc;
-use symbol_resolved_trees::{
-    AuthoredDeclarationSelections, AuthoredSelectionExtensionFrontier,
-    AuthoredSelectionExtensionRebaseError, SymbolResolvedTrees,
-};
-use syntax_trees::SyntaxTrees;
-
-use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionHandle;
 
 #[derive(Debug, Clone, Copy)]
@@ -73,206 +65,6 @@ pub(crate) struct PendingOutcomeSpecificContract {
     pub(crate) result_data_source_span: source::SourceSpan,
     pub(crate) result_case_name: String,
 }
-
-pub fn lower_syntax_trees(
-    syntax_trees: &SyntaxTrees,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_trees_with_optional_sources(syntax_trees, None, Vec::new())
-}
-
-pub fn lower_syntax_trees_with_sources(
-    syntax_trees: &SyntaxTrees,
-    sources: Arc<SourceMap>,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_trees_with_optional_sources(syntax_trees, Some(sources), Vec::new())
-}
-
-pub fn lower_syntax_trees_with_sources_and_top_level_bindings(
-    syntax_trees: &SyntaxTrees,
-    sources: Arc<SourceMap>,
-    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_trees_with_optional_sources(syntax_trees, Some(sources), bindings)
-}
-
-/// Resolve raw index expressions in their authored owners through normal
-/// lexical selection. This performs no generic instance synthesis or evaluation;
-/// callers must still admit every selected leaf and checked operator meaning.
-pub fn lower_syntax_trees_for_const_argument_selection(
-    syntax: &SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_trees_with_const_selection(
-        syntax,
-        sources,
-        bindings,
-        ConstResolutionMode::ArgumentSelection,
-    )
-    .map(|prepared| prepared.trees)
-}
-
-/// Private preparation evidence for semantic initializer evaluation. The forest
-/// retains unresolved values and operator obligations; it is not a completed
-/// resolution result and grants no authority to type, execute, or publish it.
-pub struct ConstInitializerSelection {
-    trees: SymbolResolvedTrees,
-    selection: crate::generic_data::constant_selection::ConstantSelection<'static>,
-}
-
-impl ConstInitializerSelection {
-    pub fn initializer_expression_dependencies(
-        &self,
-        syntax: &SyntaxTrees,
-        definition: &syntax_trees::item::ConstDefinition,
-        expression: syntax_trees::expression::ExpressionHandle,
-    ) -> Result<crate::ConstInitializerDependencies, Vec<Diagnostic>> {
-        if !self
-            .pending_leaves(syntax, definition)?
-            .iter()
-            .any(|leaf| leaf.0 == expression)
-        {
-            return Err(vec![
-                Diagnostic::error("dependency request is not an authored scalar initializer leaf")
-                    .with_source_span(definition.name.source_span()),
-            ]);
-        }
-        let declaration = self
-            .trees
-            .const_declarations
-            .iter()
-            .find(|declaration| {
-                self.trees.symbols.symbol_source_span(declaration.symbol)
-                    == Some(definition.name.source_span())
-            })
-            .ok_or_else(|| vec![Diagnostic::error("initializer leaf lost its declaration")])?;
-        let root = if declaration.authored_initializer.is_valid() {
-            declaration.authored_initializer
-        } else {
-            declaration.initializer
-        };
-        crate::constant::initializer_dependencies::expression_at_source(
-            &self.trees,
-            root,
-            syntax.expressions.source_span(expression),
-        )
-        .and_then(|expression| {
-            crate::constant::initializer_dependencies::collect(&self.trees, expression)
-        })
-        .map_err(|reason| {
-            vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
-        })
-    }
-
-    pub fn initializer_dependencies(
-        &self,
-        _syntax: &SyntaxTrees,
-        definition: &syntax_trees::item::ConstDefinition,
-    ) -> Result<crate::ConstInitializerDependencies, Vec<Diagnostic>> {
-        let declaration = self
-            .trees
-            .const_declarations
-            .iter()
-            .find(|declaration| {
-                self.trees.symbols.symbol_source_span(declaration.symbol)
-                    == Some(definition.name.source_span())
-            })
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "initializer dependencies lost their exact declaration",
-                )]
-            })?;
-        crate::constant::initializer_dependencies::collect(
-            &self.trees,
-            if declaration.authored_initializer.is_valid() {
-                declaration.authored_initializer
-            } else {
-                declaration.initializer
-            },
-        )
-        .map_err(|reason| {
-            vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
-        })
-    }
-
-    pub fn trees(&self) -> &SymbolResolvedTrees {
-        &self.trees
-    }
-
-    pub fn pending_leaves(
-        &self,
-        syntax: &SyntaxTrees,
-        definition: &syntax_trees::item::ConstDefinition,
-    ) -> Result<
-        Vec<(
-            syntax_trees::expression::ExpressionHandle,
-            syntax_trees::types::TypeReferenceHandle,
-        )>,
-        Vec<Diagnostic>,
-    > {
-        crate::constant::pending_const_initializer_leaves(syntax, definition, &self.selection)
-            .map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
-            })
-    }
-
-    pub fn canonicalize_value(
-        &self,
-        syntax: &SyntaxTrees,
-        definition: &syntax_trees::item::ConstDefinition,
-    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
-        crate::generic_data::canonicalize_selected_declared_const_definition(
-            syntax,
-            definition,
-            Some(&self.selection),
-        )
-    }
-}
-
-/// Resolve declaration dependencies without inventing provisional values.
-/// Computed fixed-integer/Boolean initializers remain authored expression roots
-/// with no canonical encoding. Every operator occurrence remains an obligation
-/// for ordinary typed selection, not an assertion of builtin execution meaning.
-pub fn lower_syntax_trees_for_const_initializer_selection(
-    syntax: &SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
-    let preparation = lower_syntax_trees_with_const_selection(
-        syntax,
-        sources,
-        bindings,
-        ConstResolutionMode::InitializerSelection,
-    )?;
-    for definition in syntax.root_items().filter_map(|item| match item {
-        syntax_trees::item::Item::Const(definition)
-            if crate::constant::requires_const_initializer_evaluation(syntax, definition) =>
-        {
-            Some(definition)
-        }
-        _ => None,
-    }) {
-        preparation
-            .trees
-            .const_declarations
-            .iter()
-            .find(|declaration| {
-                preparation
-                    .trees
-                    .symbols
-                    .symbol_source_span(declaration.symbol)
-                    == Some(definition.name.source_span())
-            })
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "initializer preparation lost its exact declaration",
-                )]
-            })?;
-        preparation.pending_leaves(syntax, definition)?;
-    }
-    Ok(preparation)
-}
-
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum ConstResolutionMode {
     #[default]
@@ -280,212 +72,6 @@ pub(crate) enum ConstResolutionMode {
     ArgumentSelection,
     InitializerSelection,
 }
-
-/// Append one already-parsed later-stratum syntax forest to an exact retained
-/// symbol-resolved base. Existing arenas and symbol tables are consumed and
-/// extended in place; no source bytes are read and neither forest is parsed
-/// again.
-pub fn lower_syntax_extension_against_resolved_base(
-    base: SymbolResolvedTrees,
-    extension_syntax: &SyntaxTrees,
-    sources: Arc<SourceMap>,
-    additional_source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_extension_with_authored_selection_frontier(
-        base,
-        extension_syntax,
-        sources,
-        additional_source_scoped_top_level_bindings,
-    )
-    .map(SeededSymbolResolvedTrees::into_unrebased_trees)
-}
-
-/// Resolve one syntax extension while retaining the exact append frontier of
-/// every authored-selection occurrence store.
-///
-/// The returned carrier is readable, but its trees can enter a later seeded
-/// phase only by transactionally rebasing the extension suffix against that
-/// phase's exact retained authored-selection ledger.
-pub fn lower_syntax_extension_with_authored_selection_frontier(
-    base: SymbolResolvedTrees,
-    extension_syntax: &SyntaxTrees,
-    sources: Arc<SourceMap>,
-    additional_source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
-    let constant_selection = crate::generic_data::constant_selection::ConstantSelection::new(
-        extension_syntax,
-        Some(sources.clone()),
-        additional_source_scoped_top_level_bindings.clone(),
-    )?;
-    crate::module_normalization::validate_with_selection(extension_syntax, &constant_selection)?;
-    let retained_sources = base.symbols.source_files().collect::<Vec<_>>();
-    if retained_sources.len() > sources.len()
-        || !retained_sources
-            .iter()
-            .copied()
-            .eq(sources.files().take(retained_sources.len()))
-    {
-        return Err(vec![Diagnostic::error(
-            "seeded symbol resolution source map does not retain the exact base frontier",
-        )]);
-    }
-    let authored_selection_frontier = base.authored_selection_extension_frontier();
-    let retained_base = base.clone();
-    let roots = RootWatermarks::capture(&base);
-    let retained_service_reaches = base.service_reaches.clone();
-    let retained_service_reach_rows = base.service_reach_rows.clone();
-    let mut syntax_trees = extension_syntax.clone();
-    crate::trait_defaults::synthesize_trait_defaults_after_module_validation(
-        &mut syntax_trees,
-        &constant_selection,
-    )?;
-    let mut lowerer = Lowerer::new(Some(sources), additional_source_scoped_top_level_bindings);
-    lowerer.constant_selection = Some(constant_selection);
-    lowerer.seed_resolved_base(base);
-
-    for item in syntax_trees.root_items() {
-        lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
-    }
-    for selection in &mut lowerer.pending_const_selections {
-        selection.declaration_ordinal = selection
-            .declaration_ordinal
-            .checked_add(roots.const_declarations)
-            .expect("seeded const declaration ordinal overflow");
-    }
-
-    lowerer
-        .finish_with(FinishMode::Seeded {
-            roots,
-            retained_service_reaches,
-            retained_service_reach_rows,
-        })
-        .map(|trees| SeededSymbolResolvedTrees {
-            trees,
-            authored_selection_frontier,
-            retained_base: Box::new(retained_base),
-        })
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct SeededSymbolResolvedTrees {
-    trees: SymbolResolvedTrees,
-    authored_selection_frontier: AuthoredSelectionExtensionFrontier,
-    retained_base: Box<SymbolResolvedTrees>,
-}
-
-/// A seeded resolved extension whose authored-selection suffix has been
-/// joined to the destination typed base ledger. The exact resolved base stays
-/// inside the carrier so the next phase can reject cross-paired continuations.
-#[derive(Debug, PartialEq, Eq)]
-pub struct RebasedSeededSymbolResolvedTrees {
-    trees: SymbolResolvedTrees,
-    retained_base: Box<SymbolResolvedTrees>,
-}
-
-impl SeededSymbolResolvedTrees {
-    pub fn trees(&self) -> &SymbolResolvedTrees {
-        &self.trees
-    }
-
-    pub fn rebase_authored_selections(
-        self,
-        destination_base: &AuthoredDeclarationSelections,
-    ) -> Result<SymbolResolvedTrees, (Self, AuthoredSelectionExtensionRebaseError)> {
-        self.rebase_authored_selections_for_typed_continuation(destination_base)
-            .map(RebasedSeededSymbolResolvedTrees::into_trees)
-    }
-
-    pub fn rebase_authored_selections_for_typed_continuation(
-        self,
-        destination_base: &AuthoredDeclarationSelections,
-    ) -> Result<RebasedSeededSymbolResolvedTrees, (Self, AuthoredSelectionExtensionRebaseError)>
-    {
-        // This is a representation join, not an authority boundary. The
-        // seeded typed continuation must supply the ledger owned by its exact
-        // retained base rather than accepting one from compilation input.
-        match self
-            .trees
-            .rebase_authored_selection_extension(self.authored_selection_frontier, destination_base)
-        {
-            Ok(trees) => Ok(RebasedSeededSymbolResolvedTrees {
-                trees,
-                retained_base: self.retained_base,
-            }),
-            Err((trees, error)) => Err((Self { trees, ..self }, error)),
-        }
-    }
-
-    fn into_unrebased_trees(self) -> SymbolResolvedTrees {
-        self.trees
-    }
-}
-
-impl RebasedSeededSymbolResolvedTrees {
-    pub fn trees(&self) -> &SymbolResolvedTrees {
-        &self.trees
-    }
-
-    pub fn into_trees(self) -> SymbolResolvedTrees {
-        self.trees
-    }
-
-    pub fn into_typing_continuation_parts(self) -> (SymbolResolvedTrees, SymbolResolvedTrees) {
-        (self.trees, *self.retained_base)
-    }
-}
-
-fn lower_syntax_trees_with_optional_sources(
-    syntax_trees: &SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_trees_with_const_selection(
-        syntax_trees,
-        sources,
-        source_scoped_top_level_bindings,
-        ConstResolutionMode::Complete,
-    )
-    .map(|prepared| prepared.trees)
-}
-
-fn lower_syntax_trees_with_const_selection(
-    syntax_trees: &SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    const_resolution_mode: ConstResolutionMode,
-) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
-    let constant_selection = crate::generic_data::constant_selection::ConstantSelection::new(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings.clone(),
-    )?;
-    crate::module_normalization::validate_with_const_resolution_mode(
-        syntax_trees,
-        &constant_selection,
-        const_resolution_mode,
-    )?;
-    let mut syntax_trees = syntax_trees.clone();
-    crate::trait_defaults::synthesize_trait_defaults_after_module_validation(
-        &mut syntax_trees,
-        &constant_selection,
-    )?;
-    let mut lowerer = Lowerer::new(sources, source_scoped_top_level_bindings);
-    lowerer.constant_selection = Some(constant_selection);
-    lowerer.const_resolution_mode = const_resolution_mode;
-
-    for item in syntax_trees.root_items() {
-        lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
-    }
-
-    let selection = lowerer.constant_selection.take().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "constant preparation lost its source-aware selector",
-        )]
-    })?;
-    let trees = lowerer.finish()?;
-    Ok(ConstInitializerSelection { trees, selection })
-}
-
 pub(crate) struct Lowerer {
     pub(crate) const_resolution_mode: ConstResolutionMode,
     pub(crate) constant_selection:
@@ -536,8 +122,8 @@ pub(crate) struct Lowerer {
     /// differently in distinct conformances and is cleared between machines.
     pub(crate) current_compiler_selection_partition:
         Option<language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
-    sources: Option<Arc<SourceMap>>,
-    source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    pub(crate) sources: Option<Arc<SourceMap>>,
+    pub(crate) source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     /// Per-lowering counter that mints unique names for synthetic `let`
     /// temporaries hoisted out of operand-position indexed reads (see
     /// `statement::hoist_indexed_operands`). `__hoist_` prefixed so the
@@ -606,7 +192,6 @@ pub(crate) struct Lowerer {
         Vec<SynthesizedTransitionArgumentState>,
     arm_state_counter: u32,
 }
-
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RootWatermarks {
     pub(crate) const_declarations: usize,
@@ -622,7 +207,7 @@ pub(crate) struct RootWatermarks {
 }
 
 impl RootWatermarks {
-    fn capture(program: &SymbolResolvedTrees) -> Self {
+    pub(crate) fn capture(program: &SymbolResolvedTrees) -> Self {
         Self {
             const_declarations: program.const_declarations.len(),
             data_definitions: program.data_definitions.len(),
@@ -637,16 +222,6 @@ impl RootWatermarks {
         }
     }
 }
-
-enum FinishMode {
-    Complete,
-    Seeded {
-        roots: RootWatermarks,
-        retained_service_reaches: language_semantics::ServiceReachTable,
-        retained_service_reach_rows: language_semantics::ServiceReachRowTable,
-    },
-}
-
 /// One continuation state the guarded-arm value-call rewrite synthesizes.
 pub(crate) struct SynthesizedArmState {
     pub(crate) name: String,
@@ -667,9 +242,8 @@ pub(crate) struct SynthesizedTransitionArgumentState {
     pub(crate) target: symbol_resolved_trees::statement::NamedTransitionTarget,
     pub(crate) calls: Vec<symbol_resolved_trees::expression::ExpressionHandle>,
 }
-
 impl Lowerer {
-    fn new(
+    pub(crate) fn new(
         sources: Option<Arc<SourceMap>>,
         source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     ) -> Self {
@@ -719,7 +293,7 @@ impl Lowerer {
         }
     }
 
-    fn seed_resolved_base(&mut self, base: SymbolResolvedTrees) {
+    pub(crate) fn seed_resolved_base(&mut self, base: SymbolResolvedTrees) {
         self.pending_const_declarations = base
             .const_declarations
             .iter()
@@ -830,125 +404,17 @@ impl Lowerer {
         name
     }
 
-    pub(crate) fn finish(self) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-        self.finish_with(FinishMode::Complete)
-    }
-
-    fn finish_with(
-        mut self,
-        finish_mode: FinishMode,
-    ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-        crate::selection::domain_operator_homes::normalize_domain_operator_homes(
-            &mut self.symbol_resolved_trees,
-            &self.namespace_declarations,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        match &finish_mode {
-            FinishMode::Complete => crate::symbols::assign_symbols(
-                &mut self.symbol_resolved_trees,
-                self.sources,
-                self.source_scoped_top_level_bindings,
-                &self.pending_const_declarations,
-                &self.namespace_declarations,
-            )?,
-            FinishMode::Seeded { roots, .. } => {
-                let sources = self.sources.ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "seeded symbol resolution requires retained source custody",
-                    )]
-                })?;
-                crate::symbols::assign_symbols_against_resolved_base(
-                    &mut self.symbol_resolved_trees,
-                    sources,
-                    self.source_scoped_top_level_bindings,
-                    *roots,
-                    &self.pending_const_declarations,
-                    &self.namespace_declarations,
-                )?;
-            }
-        }
-        crate::symbols::normalize_static_module_calls(
-            &mut self.symbol_resolved_trees,
-            &self.pending_static_module_calls,
-            &self.pending_static_module_statement_calls,
-        );
-        crate::lowering::state::finalize_outcome_specific_contract_symbols(
-            &mut self.symbol_resolved_trees,
-            &self.pending_outcome_specific_contracts,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        crate::constant::finalize_const_declarations(
-            &mut self.symbol_resolved_trees,
-            &self.pending_const_declarations,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        crate::constant::finalize_const_argument_selections(
-            &mut self.symbol_resolved_trees,
-            &self.pending_const_argument_selections,
-            &self.pending_const_argument_slots,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        crate::symbols::assign_constant_expression_symbols(
-            &mut self.symbol_resolved_trees,
-            self.pending_const_values
-                .iter()
-                .copied()
-                .chain(self.pending_const_argument_expressions.iter().copied()),
-        );
-        crate::selection::authored_selections::finalize_constant_expression_selections(
-            &mut self.symbol_resolved_trees,
-            self.pending_const_values
-                .iter()
-                .copied()
-                .chain(self.pending_const_argument_expressions.iter().copied()),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        crate::constant::initializer_normalization::finalize(
-            &mut self.symbol_resolved_trees,
-            &self.pending_const_initializers,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        {
-            crate::constant::substitute_resolved_constants(
-                &mut self.symbol_resolved_trees,
-                &self.pending_authored_expressions,
-                &mut self.pending_const_selections,
-                self.const_resolution_mode != ConstResolutionMode::Complete,
-            )
-            .map_err(|diagnostic| vec![diagnostic])?;
-        }
-        crate::constant::finalize_const_selections(
-            &mut self.symbol_resolved_trees,
-            &self.pending_const_selections,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        crate::selection::authored_selections::finalize_authored_expression_selections(
-            &mut self.symbol_resolved_trees,
-            &self.pending_authored_expressions,
-            &self.pending_authored_proof_memberships,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        crate::constant::initializer_normalization::finalize_operator_obligations(
-            &mut self.symbol_resolved_trees,
-            &self.pending_const_initializers,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        let compatibility =
-            crate::selection::signature_free_requirements::validate_signature_free_requirement_compatibility(
-                &self.symbol_resolved_trees,
-            );
-        if !compatibility.is_empty() {
-            return Err(compatibility);
-        }
-        crate::selection::machine_parameter_requirements::normalize_nominal_machine_parameter_requirements(
-            &mut self.symbol_resolved_trees,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        crate::selection::machine_parameter_requirements::normalize_trait_machine_requirement_arguments(
-            &mut self.symbol_resolved_trees,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        bind_evidence_forwarding_owners(&mut self.symbol_resolved_trees);
+    /// Pair every root machine and pending signature with its authored
+    /// service-reach names once their symbols exist.
+    pub(crate) fn pending_service_reaches(
+        &self,
+    ) -> (
+        Vec<(
+            symbols::SymbolHandle,
+            crate::selection::service_reaches::PendingAuthoredServiceReach,
+        )>,
+        Vec<crate::selection::service_reaches::PendingSignatureServiceReach>,
+    ) {
         assert_eq!(
             self.symbol_resolved_trees.machines.len(),
             self.pending_machine_service_reaches.len(),
@@ -991,125 +457,10 @@ impl Lowerer {
                 }
             })
             .collect::<Vec<_>>();
-        crate::selection::conformance_blocks::normalize_closed_conformance_blocks(
-            &mut self.symbol_resolved_trees,
+        (
+            pending_machine_service_reaches,
+            pending_signature_service_reaches,
         )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        crate::selection::authored_selections::finalize_conformance_reference_selections(
-            &mut self.symbol_resolved_trees,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        crate::selection::domain_establishment::normalize_domain_establishment_routes(
-            &mut self.symbol_resolved_trees,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
-        match finish_mode {
-            FinishMode::Complete => crate::selection::service_reaches::normalize_service_reaches(
-                &mut self.symbol_resolved_trees,
-                &pending_machine_service_reaches,
-                &pending_signature_service_reaches,
-            ),
-            FinishMode::Seeded {
-                retained_service_reaches,
-                retained_service_reach_rows,
-                ..
-            } => crate::selection::service_reaches::normalize_service_reaches_with_retained_tables(
-                &mut self.symbol_resolved_trees,
-                &pending_machine_service_reaches,
-                &pending_signature_service_reaches,
-                retained_service_reaches,
-                retained_service_reach_rows,
-            ),
-        }
-        .map_err(|diagnostic| vec![diagnostic])?;
-        self.symbol_resolved_trees.rebuild_tables();
-        crate::selection::conformance_blocks::route_inline_member_calls(
-            &mut self.symbol_resolved_trees,
-        );
-        let SymbolResolvedTrees {
-            roots,
-            tables,
-            symbols,
-            service_reaches,
-            service_reach_rows,
-            authored_service_reach_rows,
-            semantic_domains,
-            external_bindings,
-            evidence_forwardings,
-        } = self.symbol_resolved_trees;
-
-        let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
-        // The interned semantic rows/domains built during lowering survive
-        // the rebuild.
-        trees.service_reaches = service_reaches;
-        trees.service_reach_rows = service_reach_rows;
-        trees.authored_service_reach_rows = authored_service_reach_rows;
-        trees.semantic_domains = semantic_domains;
-        trees.external_bindings = external_bindings;
-        trees.evidence_forwardings = evidence_forwardings;
-        Ok(trees)
-    }
-}
-
-fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees) {
-    let mut owners = Vec::new();
-    let mut incoming_evidence_names = Vec::new();
-    for (machine_root_index, machine) in program.machines.iter().enumerate() {
-        incoming_evidence_names.extend(program.machine_contracts(machine).iter().filter_map(
-            |contract| {
-                (contract.kind == symbol_resolved_trees::signature::SignatureContractKind::Requires)
-                    .then_some(contract.binding.as_ref())
-                    .flatten()
-                    .map(|binding| (machine.symbol, binding.as_str().to_owned()))
-            },
-        ));
-        for state_handle in program.machine_state_handles(machine.states) {
-            let state = program.machine_state(*state_handle);
-            owners.push((
-                machine_root_index,
-                state.name.as_str().to_owned(),
-                machine.symbol,
-                state.symbol,
-            ));
-        }
-    }
-    let subjectless_conformances = program
-        .conformances
-        .iter()
-        .filter_map(|conformance| {
-            (matches!(
-                conformance.subject,
-                symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
-            ))
-            .then(|| {
-                conformance
-                    .alias
-                    .as_ref()
-                    .map(|alias| (alias.as_str().to_owned(), conformance.symbol))
-            })
-            .flatten()
-        })
-        .collect::<Vec<_>>();
-    for forwarding in &mut program.evidence_forwardings {
-        if let Some((_, _, machine_symbol, state_symbol)) =
-            owners
-                .iter()
-                .find(|(machine_root_index, state_name, _, _)| {
-                    *machine_root_index == forwarding.machine_root_index
-                        && state_name == forwarding.state_name.as_str()
-                })
-        {
-            forwarding.machine_symbol = *machine_symbol;
-            forwarding.state_symbol = *state_symbol;
-        }
-        if !incoming_evidence_names.iter().any(|(machine, name)| {
-            *machine == forwarding.machine_symbol && name == forwarding.source.as_str()
-        }) {
-            forwarding.source_conformance =
-                subjectless_conformances.iter().find_map(|(alias, symbol)| {
-                    (alias == forwarding.source.as_str()).then_some(*symbol)
-                });
-        }
     }
 }
 
@@ -1170,117 +521,4 @@ pub(crate) struct PendingSignatureServiceReach {
     pub(crate) owner: PendingSignatureOwner,
     pub(crate) keyword_source_spans: Vec<source::SourceSpan>,
     pub(crate) authored: Vec<symbol_resolved_trees::name::DiagnosticName>,
-}
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod initializer_selection_tests {
-    use super::*;
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
-    };
-    use source::SourceId;
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees::expression::ExpressionNode;
-
-    fn parse(sources: &[(SourceId, &str)]) -> SyntaxTrees {
-        let mut syntax = SyntaxTrees::default();
-        for (source, text) in sources {
-            let tokens = Lexer::new(text).tokenize().expect("tokenize initializers");
-            tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, *source, &tokens)
-                .expect("parse initializers");
-        }
-        syntax
-    }
-
-    #[test]
-    fn initializer_preparation_retains_forward_module_dependencies_without_values() {
-        for reverse in [false, true] {
-            let mut sources = [
-                (
-                    SourceId(1),
-                    "module consumer; use settings::BASE; pub const COUNT: u64 = BASE + 1; const UNUSED: u64 = COUNT + 2;",
-                ),
-                (SourceId(2), "module settings; pub const BASE: u64 = 4;"),
-            ];
-            if reverse {
-                sources.reverse();
-            }
-            let syntax = parse(&sources);
-            assert!(lower_syntax_trees(&syntax).is_err());
-            assert!(
-                lower_syntax_trees_for_const_argument_selection(&syntax, None, Vec::new()).is_err()
-            );
-            let preparation =
-                lower_syntax_trees_for_const_initializer_selection(&syntax, None, Vec::new())
-                    .expect("prepare selected initializer dependencies");
-            let trees = preparation.trees();
-            let base = trees
-                .const_declarations
-                .iter()
-                .find(|declaration| trees.symbols.name(declaration.symbol) == "BASE")
-                .expect("retain BASE declaration");
-            assert!(base.canonical_value_encoding.is_some());
-            for (name, dependency) in [("COUNT", "BASE"), ("UNUSED", "COUNT")] {
-                let declaration = trees
-                    .const_declarations
-                    .iter()
-                    .find(|declaration| trees.symbols.name(declaration.symbol) == name)
-                    .expect("retain computed declaration");
-                assert!(declaration.canonical_value_encoding.is_none());
-                let ExpressionNode::Binary(binary) = trees
-                    .tables
-                    .bodies
-                    .expressions
-                    .expression(declaration.initializer)
-                else {
-                    panic!("preparation must retain original binary initializer");
-                };
-                assert!(matches!(
-                    trees.tables.bodies.expressions.expression(binary.left),
-                    ExpressionNode::Name(_)
-                ));
-                let mut selections = trees
-                    .tables
-                    .bodies
-                    .expressions
-                    .authored_selection_occurrences(binary.left);
-                assert!(selections.any(|occurrence| {
-                    let selection = trees.authored_declaration_selections().get(occurrence).expect("retained selection");
-                    matches!(selection.target(), AuthoredDeclarationSelectionTarget::Resolved(selected)
-                        if trees.symbols.name(selected.selected_symbol()) == dependency)
-                }));
-                assert!(
-                    trees
-                        .tables
-                        .bodies
-                        .expressions
-                        .authored_selection_occurrences(declaration.initializer)
-                        .any(|occurrence| trees
-                            .authored_declaration_selections()
-                            .get(occurrence)
-                            .is_some_and(|selection| selection.kind()
-                                == AuthoredDeclarationSelectionKind::Operator))
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn initializer_preparation_does_not_relax_literal_or_declaration_validity() {
-        for text in [
-            "const BAD: u8 = 256; const PENDING: u64 = 1 + 2;",
-            "const SAME: u64 = 1 + 2; const SAME: u64 = 3 + 4;",
-            "const BAD: f32 = 1 + 2;",
-        ] {
-            let syntax = parse(&[(SourceId(1), text)]);
-            assert!(
-                lower_syntax_trees_for_const_initializer_selection(&syntax, None, Vec::new())
-                    .is_err(),
-                "{text}"
-            );
-        }
-    }
 }
