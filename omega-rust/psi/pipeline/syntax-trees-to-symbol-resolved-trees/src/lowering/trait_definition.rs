@@ -1,10 +1,10 @@
 //! Trait definitions: parents, requirements, conformance bounds, and machine
 //! signatures.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::data::lower_type_parameters;
 use crate::lowering::state::lower_state_signature_node;
 use crate::lowering::type_reference::lower_child_type_references;
+use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::signature::StateSignature;
@@ -147,9 +147,9 @@ fn lower_trait_machine_signatures(
             .trait_machine_signatures
             .append_to_span(&mut span, lowered.signature);
         lowerer.pending_signature_service_reaches.push(
-            crate::lowerer::PendingSignatureServiceReach {
-                location: crate::lowerer::PendingSignatureLocation::Trait(handle),
-                owner: crate::lowerer::PendingSignatureOwner::Trait(
+            crate::resolution::lowerer::PendingSignatureServiceReach {
+                location: crate::resolution::lowerer::PendingSignatureLocation::Trait(handle),
+                owner: crate::resolution::lowerer::PendingSignatureOwner::Trait(
                     crate::lowering::name::lower_name(trait_name),
                 ),
                 keyword_source_spans: lowered.service_reach_keyword_source_spans,

@@ -342,7 +342,7 @@ pub fn normalize_generic_data_with_retained_base(
         bindings,
         retained,
     )?;
-    crate::module_normalization::validate_with_selection(&syntax, &selection)?;
+    crate::preparation::module_normalization::validate_with_selection(&syntax, &selection)?;
     let mut warnings = Vec::new();
     synthesis::desugar_generic_data_instances_with_selection(
         &mut syntax,
@@ -359,7 +359,7 @@ pub fn normalize_generic_data_with_retained_base(
 fn normalize_generic_data_with_warnings(
     mut syntax: SyntaxTrees,
 ) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
-    crate::module_normalization::validate_module_normalization(&syntax)?;
+    crate::preparation::module_normalization::validate_module_normalization(&syntax)?;
     let mut warnings = Vec::new();
     desugar_generic_data_instances(&mut syntax, &mut warnings)?;
     deduplicate_generic_warnings(&mut warnings);

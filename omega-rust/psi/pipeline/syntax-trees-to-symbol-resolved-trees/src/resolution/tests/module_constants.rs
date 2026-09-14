@@ -349,7 +349,7 @@ fn normalized_constant_argument_rejects_missing_and_drifted_declaration_custody(
             }
             _ => unreachable!(),
         }
-        let selection = crate::lowerer::PendingConstArgumentSelection {
+        let selection = crate::resolution::lowerer::PendingConstArgumentSelection {
             origin,
             exposure: AuthoredDeclarationSelectionExposure::PrivateImplementation,
         };
@@ -475,10 +475,12 @@ fn normalized_result_is_independent_of_each_selected_declaration_value() {
     let pending = table
         .const_argument_origins(normalization.selections)
         .iter()
-        .map(|origin| crate::lowerer::PendingConstArgumentSelection {
-            origin: origin.clone(),
-            exposure: AuthoredDeclarationSelectionExposure::PrivateImplementation,
-        })
+        .map(
+            |origin| crate::resolution::lowerer::PendingConstArgumentSelection {
+                origin: origin.clone(),
+                exposure: AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            },
+        )
         .collect::<Vec<_>>();
     crate::constant::finalize_const_argument_selections(&mut program, &pending, &[])
         .expect("both occurrences retain declaration value 2 independently of result 4");
@@ -522,7 +524,7 @@ fn normalized_builtin_operators_keep_occurrence_exposure_and_exact_exclusions() 
             [],
             [first, independent],
         );
-        let mut lowerer = crate::lowerer::Lowerer::new(None, Vec::new());
+        let mut lowerer = crate::resolution::lowerer::Lowerer::new(None, Vec::new());
         lowerer.current_authored_expression_exposure = Some(exposure);
         lowerer.derived_const_argument_builtin_operators.push(first);
         crate::lowering::type_reference::lower_type_reference_handle(
@@ -638,11 +640,11 @@ fn nominal_constant_receiving_slot_rejects_carrier_and_parent_substitution() {
             Some((handle, application.clone()))
         })
         .expect("actual generic parameter");
-    let selection = crate::lowerer::PendingConstArgumentSelection {
+    let selection = crate::resolution::lowerer::PendingConstArgumentSelection {
         origin: original,
         exposure: AuthoredDeclarationSelectionExposure::PrivateImplementation,
     };
-    let slot = crate::lowerer::PendingConstArgumentSlot {
+    let slot = crate::resolution::lowerer::PendingConstArgumentSlot {
         selection: 0,
         arguments: application.arguments,
         ordinal: 0,

@@ -6,10 +6,10 @@
 //! into pending form. The guarded-arm rewrites in `statement` mint their
 //! continuation states here.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::domain::lower_proof_facts;
 use crate::lowering::statement::lower_statement_handle;
 use crate::lowering::type_reference::lower_type_reference_handle;
+use crate::resolution::lowerer::Lowerer;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::name::DiagnosticName;
@@ -464,7 +464,7 @@ fn lower_signature_contracts_with_result_sum(
         if let Some((result_data_name, result_data_source_span, result_case_name)) = pending_outcome
         {
             lowerer.pending_outcome_specific_contracts.push(
-                crate::lowerer::PendingOutcomeSpecificContract {
+                crate::resolution::lowerer::PendingOutcomeSpecificContract {
                     contract: handle,
                     result_data_name,
                     result_data_source_span,
@@ -479,7 +479,7 @@ fn lower_signature_contracts_with_result_sum(
 
 pub(crate) fn finalize_outcome_specific_contract_symbols(
     program: &mut symbol_resolved_trees::SymbolResolvedTrees,
-    pending: &[crate::lowerer::PendingOutcomeSpecificContract],
+    pending: &[crate::resolution::lowerer::PendingOutcomeSpecificContract],
 ) -> Result<(), Diagnostic> {
     for pending in pending {
         let (result_data, result_case) = {
@@ -708,7 +708,7 @@ fn reference_struct_parameter_names(
 /// parameters here).
 pub(crate) fn build_synthesized_arm_state(
     lowerer: &mut Lowerer,
-    arm: crate::lowerer::SynthesizedArmState,
+    arm: crate::resolution::lowerer::SynthesizedArmState,
 ) -> State {
     use symbol_resolved_trees::expression::{ExpressionNode, TableNamePath};
     use symbol_resolved_trees::statement::{
@@ -794,7 +794,7 @@ pub(crate) fn build_synthesized_arm_state(
 /// original target with those result locals substituted at their positions.
 pub(crate) fn build_synthesized_transition_argument_state(
     lowerer: &mut Lowerer,
-    arm: crate::lowerer::SynthesizedTransitionArgumentState,
+    arm: crate::resolution::lowerer::SynthesizedTransitionArgumentState,
 ) -> State {
     use symbol_resolved_trees::expression::{ExpressionNode, TableNamePath};
     use symbol_resolved_trees::statement::{

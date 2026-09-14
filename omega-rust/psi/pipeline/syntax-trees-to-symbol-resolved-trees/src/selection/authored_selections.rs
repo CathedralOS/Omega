@@ -6,7 +6,7 @@
 //! Expression, conformance-reference, and constant-initializer selections
 //! finalize here once their declarations have symbols.
 
-use crate::lowerer::{PendingAuthoredExpression, PendingAuthoredProofMembership};
+use crate::resolution::lowerer::{PendingAuthoredExpression, PendingAuthoredProofMembership};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,

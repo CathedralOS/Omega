@@ -6,7 +6,7 @@ use super::super::*;
 /// the subject is a state parameter or local with an exact synthesized type,
 /// that annotation selects the corresponding closed case identity even when
 /// another closed instance of the same generic sum exists in the program.
-pub(in crate::generic_data) fn relabel_closed_sum_memberships_from_local_types(
+pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_local_types(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&constant_selection::ConstantSelection>,
@@ -132,7 +132,7 @@ pub(in crate::generic_data) fn relabel_closed_sum_memberships_from_local_types(
     }
 }
 
-pub(in crate::generic_data) fn named_type_name(
+pub(in crate::preparation::generic_data) fn named_type_name(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<String> {
@@ -152,7 +152,7 @@ pub(in crate::generic_data) fn named_type_name(
 /// fallback cohort to the synthesized nominal identity before symbol
 /// resolution. Multiple-instance uses must already have been selected by exact
 /// context above. Generic template bodies remain parameterized declarations.
-pub(in crate::generic_data) fn relabel_unique_closed_sum_paths(
+pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&constant_selection::ConstantSelection>,
@@ -247,7 +247,7 @@ pub(in crate::generic_data) fn relabel_unique_closed_sum_paths(
     }
 }
 
-pub(in crate::generic_data) fn closed_sum_path(
+pub(in crate::preparation::generic_data) fn closed_sum_path(
     syntax: &mut SyntaxTrees,
     closed: Identifier,
     carrier_span: source::SourceSpan,
@@ -330,7 +330,7 @@ mod tests {
 }
 
 #[derive(Clone)]
-pub(in crate::generic_data) enum SumPathExpressionKind {
+pub(in crate::preparation::generic_data) enum SumPathExpressionKind {
     Name,
     Membership(ExpressionHandle),
     StructLiteral(syntax_trees::expression::TableStructLiteral),

@@ -4,14 +4,14 @@ use super::anonymous::AnonymousNumericValue;
 use super::*;
 use std::cmp::Ordering;
 
-pub(in crate::generic_data) enum ConstFactValue {
+pub(in crate::preparation::generic_data) enum ConstFactValue {
     Anonymous(AnonymousNumericValue),
     Integer(i128),
     Boolean(bool),
 }
 
 impl ConstFactValue {
-    pub(in crate::generic_data) fn into_integer(
+    pub(in crate::preparation::generic_data) fn into_integer(
         self,
         syntax: &SyntaxTrees,
         warnings: &mut Vec<Diagnostic>,
@@ -24,7 +24,7 @@ impl ConstFactValue {
     }
 }
 
-pub(in crate::generic_data) fn evaluate_const_fact_binary(
+pub(in crate::preparation::generic_data) fn evaluate_const_fact_binary(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     operator: BinaryOperator,

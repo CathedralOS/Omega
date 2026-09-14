@@ -7,12 +7,18 @@
 //! pending selections, and [`finish`] assigns symbols and settles those
 //! selections through `symbols`, `constant`, and `selection`. The extension
 //! entries run the same route against a retained base and return a carrier
-//! the typed continuation rebases; see `continuations`.
+//! the typed continuation rebases; see `continuations`. `lowerer` is the
+//! working state this route drives.
 
-use crate::continuations::{ConstInitializerSelection, SeededSymbolResolvedTrees};
-use crate::lowerer::{ConstResolutionMode, Lowerer, RootWatermarks};
+mod continuations;
+pub(crate) mod lowerer;
+
 use crate::lowering::item::lower_item;
+pub use continuations::{
+    ConstInitializerSelection, RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
+};
 use diagnostics::Diagnostic;
+use lowerer::{ConstResolutionMode, Lowerer, RootWatermarks};
 use source::SourceMap;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -149,12 +155,16 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
     sources: Arc<SourceMap>,
     additional_source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
-    let constant_selection = crate::generic_data::constant_selection::ConstantSelection::new(
+    let constant_selection =
+        crate::preparation::generic_data::constant_selection::ConstantSelection::new(
+            extension_syntax,
+            Some(sources.clone()),
+            additional_source_scoped_top_level_bindings.clone(),
+        )?;
+    crate::preparation::module_normalization::validate_with_selection(
         extension_syntax,
-        Some(sources.clone()),
-        additional_source_scoped_top_level_bindings.clone(),
+        &constant_selection,
     )?;
-    crate::module_normalization::validate_with_selection(extension_syntax, &constant_selection)?;
     let retained_sources = base.symbols.source_files().collect::<Vec<_>>();
     if retained_sources.len() > sources.len()
         || !retained_sources
@@ -172,7 +182,7 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
     let retained_service_reaches = base.service_reaches.clone();
     let retained_service_reach_rows = base.service_reach_rows.clone();
     let mut syntax_trees = extension_syntax.clone();
-    crate::trait_defaults::synthesize_trait_defaults_after_module_validation(
+    crate::preparation::trait_defaults::synthesize_trait_defaults_after_module_validation(
         &mut syntax_trees,
         &constant_selection,
     )?;
@@ -213,18 +223,19 @@ fn resolve(
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     const_resolution_mode: ConstResolutionMode,
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
-    let constant_selection = crate::generic_data::constant_selection::ConstantSelection::new(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings.clone(),
-    )?;
-    crate::module_normalization::validate_with_const_resolution_mode(
+    let constant_selection =
+        crate::preparation::generic_data::constant_selection::ConstantSelection::new(
+            syntax_trees,
+            sources.clone(),
+            source_scoped_top_level_bindings.clone(),
+        )?;
+    crate::preparation::module_normalization::validate_with_const_resolution_mode(
         syntax_trees,
         &constant_selection,
         const_resolution_mode,
     )?;
     let mut syntax_trees = syntax_trees.clone();
-    crate::trait_defaults::synthesize_trait_defaults_after_module_validation(
+    crate::preparation::trait_defaults::synthesize_trait_defaults_after_module_validation(
         &mut syntax_trees,
         &constant_selection,
     )?;

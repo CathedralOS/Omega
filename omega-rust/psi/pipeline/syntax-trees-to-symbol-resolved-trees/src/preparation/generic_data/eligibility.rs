@@ -5,7 +5,7 @@ use super::*;
 /// Whether every field of a record or sum can be substituted soundly. A
 /// field may be exactly the parameter, a concrete Named, a parameter-free
 /// composite, or a nested known generic whose arguments are substitutable.
-pub(in crate::generic_data) fn base_is_fully_monomorphizable(
+pub(in crate::preparation::generic_data) fn base_is_fully_monomorphizable(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     selection: Option<&constant_selection::ConstantSelection>,
@@ -71,7 +71,7 @@ pub(in crate::generic_data) fn base_is_fully_monomorphizable(
         })
 }
 
-pub(in crate::generic_data) fn generic_data_is_recursive(
+pub(in crate::preparation::generic_data) fn generic_data_is_recursive(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     selection: Option<&constant_selection::ConstantSelection>,
@@ -116,7 +116,7 @@ pub(in crate::generic_data) fn generic_data_is_recursive(
     )
 }
 
-pub(in crate::generic_data) fn generic_inline_data_edges(
+pub(in crate::preparation::generic_data) fn generic_inline_data_edges(
     syntax: &SyntaxTrees,
     definition: &GenericData,
 ) -> Vec<Identifier> {
@@ -173,7 +173,7 @@ pub(in crate::generic_data) fn generic_inline_data_edges(
     edges
 }
 
-pub(in crate::generic_data) fn generic_data_shape(
+pub(in crate::preparation::generic_data) fn generic_data_shape(
     syntax: &SyntaxTrees,
     base_info: &GenericData,
 ) -> Option<GenericDataShape> {
@@ -193,7 +193,7 @@ pub(in crate::generic_data) fn generic_data_shape(
     }
 }
 
-pub(in crate::generic_data) fn type_reference_is_substitutable(
+pub(in crate::preparation::generic_data) fn type_reference_is_substitutable(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     selection: Option<&constant_selection::ConstantSelection>,
@@ -211,7 +211,7 @@ pub(in crate::generic_data) fn type_reference_is_substitutable(
     )
 }
 
-pub(in crate::generic_data) fn type_reference_handle_is_substitutable(
+pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutable(
     syntax: &SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     selection: Option<&constant_selection::ConstantSelection>,

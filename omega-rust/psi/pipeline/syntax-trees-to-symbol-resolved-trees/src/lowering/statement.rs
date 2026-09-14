@@ -6,9 +6,9 @@
 //! see only root-level reads and plain locals. `guarded_call_arguments`
 //! captures the values an arm-local return call needs.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::expression::lower_private_expression_into_table;
 use crate::lowering::type_reference::lower_type_reference_handle;
+use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
@@ -1353,7 +1353,7 @@ fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> 
     let state_name = lowerer.next_arm_state_name();
     lowerer
         .pending_synthesized_states
-        .push(crate::lowerer::SynthesizedArmState {
+        .push(crate::resolution::lowerer::SynthesizedArmState {
             name: state_name.clone(),
             parameters: parameters.clone(),
             return_type,
@@ -1471,7 +1471,7 @@ fn rewrite_guarded_transition_argument_calls(
 
     let state_name = lowerer.next_arm_state_name();
     lowerer.pending_synthesized_transition_argument_states.push(
-        crate::lowerer::SynthesizedTransitionArgumentState {
+        crate::resolution::lowerer::SynthesizedTransitionArgumentState {
             name: state_name.clone(),
             self_parameter,
             parameters: parameters.clone(),

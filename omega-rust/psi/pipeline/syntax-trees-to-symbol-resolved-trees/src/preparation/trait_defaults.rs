@@ -84,9 +84,12 @@ struct RequirementInstance {
 }
 
 pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
-    let selection =
-        crate::generic_data::constant_selection::ConstantSelection::new(syntax, None, Vec::new())?;
-    crate::module_normalization::validate_with_selection(syntax, &selection)?;
+    let selection = crate::preparation::generic_data::constant_selection::ConstantSelection::new(
+        syntax,
+        None,
+        Vec::new(),
+    )?;
+    crate::preparation::module_normalization::validate_with_selection(syntax, &selection)?;
     synthesize_trait_defaults_after_module_validation(syntax, &selection)
 }
 
@@ -97,7 +100,7 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
 /// pass follows was already admitted by the caller's namespace validation.
 pub(crate) fn synthesize_trait_defaults_after_module_validation(
     syntax: &mut SyntaxTrees,
-    selection: &crate::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     let traits = syntax
         .root_items()

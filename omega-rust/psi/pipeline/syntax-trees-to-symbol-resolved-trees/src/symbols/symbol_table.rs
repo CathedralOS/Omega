@@ -25,8 +25,8 @@ pub(super) fn extend_symbol_table(
     program: &mut SymbolResolvedTrees,
     sources: Arc<SourceMap>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    roots: crate::lowerer::RootWatermarks,
-    const_declarations: &[crate::lowerer::PendingConstDeclaration],
+    roots: crate::resolution::lowerer::RootWatermarks,
+    const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
 ) {
     let has_sources = true;
     let mut extension = std::mem::take(&mut program.symbols)
@@ -159,7 +159,7 @@ pub(super) fn build_symbol_table(
     program: &SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    const_declarations: &[crate::lowerer::PendingConstDeclaration],
+    const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     has_authored_modules: bool,
 ) -> SymbolTable {
     let has_sources = sources.is_some() || has_authored_modules;

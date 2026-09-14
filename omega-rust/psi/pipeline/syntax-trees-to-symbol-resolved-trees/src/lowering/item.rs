@@ -5,7 +5,6 @@
 //! result into the lowerer's trees. Target-marked machines the pre-resolution
 //! filter left inert are skipped; their call sites fail resolution loudly.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::data::lower_data_definition;
 use crate::lowering::domain::lower_domain_definition;
 use crate::lowering::machine::lower_machine_into;
@@ -14,6 +13,7 @@ use crate::lowering::operator::lower_operator_definition;
 use crate::lowering::proposition::lower_proposition_definition;
 use crate::lowering::trait_definition::lower_trait_definition;
 use crate::lowering::type_reference::lower_child_type_references;
+use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -222,7 +222,7 @@ fn lower_item_with_exposure(
         // later resolution continuations, not as runtime constant storage.
         syntax::item::Item::Const(definition) => {
             let pending = lowerer.const_resolution_mode
-                == crate::lowerer::ConstResolutionMode::InitializerSelection
+                == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
                 && crate::constant::requires_const_initializer_evaluation(syntax_trees, definition)
                 && !crate::constant::pending_const_initializer_leaves(
                     syntax_trees,
@@ -264,7 +264,7 @@ fn lower_item_with_exposure(
                     })?,
                 )
             } else {
-                crate::generic_data::canonicalize_selected_declared_const_definition(
+                crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
                     syntax_trees,
                     definition,
                     lowerer.constant_selection.as_ref(),
@@ -295,14 +295,14 @@ fn lower_item_with_exposure(
                     canonical_value_encoding,
                 },
             );
-            lowerer
-                .pending_const_declarations
-                .push(crate::lowerer::PendingConstDeclaration {
+            lowerer.pending_const_declarations.push(
+                crate::resolution::lowerer::PendingConstDeclaration {
                     scope: definition.scope.clone(),
                     semantic_name: crate::constant::semantic_const_name(definition),
                     source_span: definition.name.source_span(),
                     is_public: definition.is_public,
-                });
+                },
+            );
         }
         syntax::item::Item::Module(module) => {
             lowerer.namespace_declarations.modules.push(

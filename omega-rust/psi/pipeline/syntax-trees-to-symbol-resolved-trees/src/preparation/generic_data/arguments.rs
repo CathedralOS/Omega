@@ -7,7 +7,7 @@ use super::*;
 /// this syntax owner never evaluates their bounds. Substitution retains the
 /// original argument type and its constraints. Instance sharing uses the exact
 /// declaration/argument identities below, not matching rendered names.
-pub(in crate::generic_data) fn monomorphizable_argument_slugs(
+pub(in crate::preparation::generic_data) fn monomorphizable_argument_slugs(
     syntax: &SyntaxTrees,
     argument_handles: &[TypeReferenceHandle],
 ) -> Option<Vec<String>> {
@@ -25,7 +25,7 @@ pub(in crate::generic_data) fn monomorphizable_argument_slugs(
 /// That preserves one stable synthesized definition across differently named
 /// use-site lifetimes without inventing binders or choosing an alias/routing
 /// policy. Broader permutations remain on the unnormalized path.
-pub(in crate::generic_data) fn canonicalize_monomorphizable_argument_handles(
+pub(in crate::preparation::generic_data) fn canonicalize_monomorphizable_argument_handles(
     syntax: &mut SyntaxTrees,
     base_info: &GenericData,
     outer_lifetime_arguments: &[Identifier],
@@ -50,7 +50,7 @@ pub(in crate::generic_data) fn canonicalize_monomorphizable_argument_handles(
         .collect()
 }
 
-pub(in crate::generic_data) fn canonicalize_lifetime_bearing_type_argument(
+pub(in crate::preparation::generic_data) fn canonicalize_lifetime_bearing_type_argument(
     syntax: &mut SyntaxTrees,
     type_reference: TypeReferenceHandle,
     outer_lifetime_parameters: &[Identifier],
@@ -122,7 +122,7 @@ pub(in crate::generic_data) fn canonicalize_lifetime_bearing_type_argument(
     }
 }
 
-pub(in crate::generic_data) fn exact_synthesized_lifetime_instance(
+pub(in crate::preparation::generic_data) fn exact_synthesized_lifetime_instance(
     syntax: &SyntaxTrees,
     name: &str,
     lifetime_arity: usize,
@@ -142,7 +142,7 @@ pub(in crate::generic_data) fn exact_synthesized_lifetime_instance(
 
 /// Naming metadata for closed types, arrays, qualifications and observed ranges.
 /// Unsupported or open shapes remain on the ordinary generic path.
-pub(in crate::generic_data) fn type_reference_slug(
+pub(in crate::preparation::generic_data) fn type_reference_slug(
     syntax: &SyntaxTrees,
     handle: TypeReferenceHandle,
 ) -> Option<String> {
@@ -205,7 +205,9 @@ pub(in crate::generic_data) fn type_reference_slug(
 
 /// Nameable behavior/domain tags. Ranges need their exact owner observation,
 /// handled by the caller, rather than rendering an arbitrary expression here.
-pub(in crate::generic_data) fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
+pub(in crate::preparation::generic_data) fn constraint_slug(
+    constraint: &TypeConstraintNode,
+) -> Option<String> {
     match constraint {
         TypeConstraintNode::Named(name) => Some(name.as_str().to_string()),
         TypeConstraintNode::Domain(domain) if domain.arguments.is_empty() => {

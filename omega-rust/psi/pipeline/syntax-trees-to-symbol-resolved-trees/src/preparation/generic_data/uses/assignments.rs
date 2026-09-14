@@ -5,7 +5,7 @@ use super::super::*;
 /// An assignment target is another explicit destination type. Relabel a bare
 /// generic literal only when that type is available directly from a local or
 /// an attached data field; computed targets remain fail-closed.
-pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_assignments(
+pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_assignments(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&constant_selection::ConstantSelection>,
