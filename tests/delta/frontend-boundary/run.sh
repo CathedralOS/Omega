@@ -37,7 +37,7 @@ directory = Path(os.environ["FRONTEND_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
 identity = (len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest())
 if identity != (
-    3425, 155440, "65e23e66c57885382a90c5b910a9064d8c829d62ffd1f028091d22e32a8eca84"
+    3421, 155477, "08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 

@@ -33,7 +33,7 @@ replaces an existing terminal after resolution without changing child edges.
 A cursor contains its focus depth, a source coordinate identifying that prefix,
 the ordinary sparse trie at the focus, and a counted immutable ancestor spine.
 The ancestors retain complete tagged tries, including terminal options and
-sibling order. A seek rebuilds
+every live or superseded sibling row. A seek rebuilds
 only departed prefixes; a commit leaves common ancestors deferred. Earlier
 cursors and finished roots remain immutable and independently usable.
 
@@ -64,7 +64,7 @@ pair per byte, with no separate absent terminal or singleton child list. Source
 identifier bytes cannot collide with the absence or branch tags. Lookup and
 ancestor reconstruction read this form directly. Adding a prefix terminal or
 sibling expands just that node into the ordinary tag-1 form, preserving its
-existing edge and sibling position. Terminal nodes keep tag 1 even when they
+existing edge. Terminal nodes keep tag 1 even when they
 have no children. No node deletion or recompression pass is needed.
 
 For a fresh length-`L` name subsequently visited and rebuilt during declaration
@@ -93,19 +93,26 @@ preflighted under the
 | `name_trie_with_terminal` | <=7 | terminal committed on an existing node |
 | `name_trie_with_child` | <=10 | divergent-edge commit point |
 | `name_trie_replace_child` on a unary parent | 1 | rebuilt ancestor level |
-| `name_trie_replace_child` on a branch parent | <=191 | rebuilt ancestor level |
+| `name_trie_replace_child` on a branch parent | <=5 | rebuilt ancestor level |
 | `identity_cursor` record | 3 | seek |
 | `identity_cursor_commit` wrapper | 1 | commit |
 | `identity_cursor_replace` | <=8 | resolved-row replacement |
 | `identity_cursor_present` | <=1 | presence check |
 | `empty_identity_cursor` | 4 | builder |
 
-The 191-pair level bound is a rebuilt tag-1 node: two pairs retain its tag and
-terminal option and each copied sibling row is
-`(pair stored-byte (pair child rest))` at three pairs. Byte-keyed rows admit
-at most 63 children because source identifier bytes are 26 uppercase, 26
-lowercase, ten digits, and underscore
-([`../source.gamma`](../source.gamma)).
+The 5-pair level bound is a rebuilt tag-1 node: two pairs retain its tag and
+terminal option, and the replacement prepends one fresh
+`(pair stored-byte (pair child rest))` row at three pairs. Replacement no
+longer copies each younger sibling over the retained row: exact-byte lookup
+stops at the first matching row, so a superseded row stays an unreachable
+predecessor inside this version and inside every older immutable snapshot.
+The presence precondition still scans the existing rows without allocating,
+and absence remains a contradiction. Byte-keyed rows admit at most 63
+children because source identifier bytes are 26 uppercase, 26 lowercase, ten
+digits, and underscore ([`../source.gamma`](../source.gamma)); retained
+predecessors may lengthen a children list past that count, but a lookup scan
+still stops at the newest matching row, so repeated replacement costs its
+prepending events, not a rescanned copy per level.
 
 ### Builder aggregates
 
@@ -118,10 +125,10 @@ descended spine cells, and fresh suffix bytes are therefore each bounded by
 `W_b`. An ordinary `name_trie_insert` rebuilds exactly its descended levels,
 so the same `W_b` bound applies to a plain insertion sequence. One finish per
 builder rebuilds its remaining depth, itself bounded by its last name's bytes.
-Each cursor event allocates at most `19 + descended + fresh + 191*departed`
+Each cursor event allocates at most `19 + descended + fresh + 5*departed`
 pairs — the cursor record, absent-edge marker, presence check, and commit node
 work — and each ordinary insert at most
-`15 + descended + fresh + 191*rebuilt`.
+`15 + descended + fresh + 5*rebuilt`.
 
 ### Whole-compiler rollup
 
@@ -138,17 +145,21 @@ and `Q <= 3*S + 1` lookup evaluations serve every caller.
 
 ```text
 name-trie and cursor pairs
-  <= 2*Q + 19*E_n + 8*K_r + 4*(F + M + 5) + 2*W_n + 573*W_n
-  <= 2*Q + 19*E_n + 8*K_r + 4*(F + M + 5) + 575*W_n
-  <= 6*S + 2 + 38*V + 8*V + 4*S + 20 + 1150*N
-  <= 10*S + 46*V + 1150*N + 22
+  <= 2*Q + 19*E_n + 8*K_r + 4*(F + M + 5) + 2*W_n + 15*W_n
+  <= 2*Q + 19*E_n + 8*K_r + 4*(F + M + 5) + 17*W_n
+  <= 6*S + 2 + 38*V + 8*V + 4*S + 20 + 34*N
+  <= 10*S + 46*V + 34*N + 22
 ```
 
-The `575*W_n` coefficient is dominated by the at-most-191 sibling-row copies
-charged per rebuilt branch level. Departures are amortized by earlier descents
-through the zipper identity above, but every level of a departed path may still
-be a 63-row branch, so this accounting does not establish that the product
-stays below the 40,265,318-pair arena for every admitted name order. That is
-the same posture as the capture `k*d` merge term in the
+The former `575*W_n` coefficient was dominated by at-most-191 sibling-row
+copies charged per rebuilt branch level. Replacement now prepends the fresh
+row at a fixed five pairs per level, so the product no longer multiplies
+departed levels by sibling counts. The remaining `34*N` term is still a loose
+envelope: departed and rebuilt levels remain amortized by earlier descents
+through the zipper identity above, but a builder processing names with short
+shared prefixes departs a level per name byte, so this accounting does not by
+itself prove the product stays below the 40,265,318-pair arena for every
+admitted name order. That is the same posture as the capture `k*d` merge term
+in the
 [normalization audit](../../normalization/README.md#capture-allocation-ownership),
 not a demonstrated overflow.

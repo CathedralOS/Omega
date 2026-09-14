@@ -280,9 +280,12 @@ prerequisite to every lower-rung milestone.
   resolution rows, typing/lowering continuations, plan construction, and the
   shared name-trie/cursor rebuilds — bounding the produced plan
   `G <= 40*S + 15` that the normalizer bounds consume (`acbcbbd808`).
-  Whether every admitted shape keeps the per-occurrence products — dominated
-  by at-most-191 sibling-row copies per rebuilt name-trie branch level and
-  the capture `k*d` merge term — below the selected pair arena remains the
+  Name-trie branch replacement now prepends the fresh row at five pairs per
+  rebuilt level instead of copying up to 63 sibling rows, so the name audit's
+  dominant product is reduced to `34*N` and its recursion weight is removed
+  from the call-context bound. Whether every admitted shape keeps the
+  per-occurrence products — now dominated by the capture `k*d` merge term and
+  the residual name-event envelope — below the selected pair arena remains the
   open part of that allocation argument.
   The [canonical compiler execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md)
   bounds its call contexts, lexical rows, and temporary values separately;

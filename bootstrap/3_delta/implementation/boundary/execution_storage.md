@@ -7,8 +7,8 @@ it is not a checked refinement certificate or a cumulative pair-allocation bound
 
 The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 155,440 bytes, SHA-256
-`65e23e66c57885382a90c5b910a9064d8c829d62ffd1f028091d22e32a8eca84`.
+closure: 155,477 bytes, SHA-256
+`08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../2_gamma/EVALUATOR_PROFILE.md).
 Changes to either executable subject require rechecking the corresponding
@@ -54,34 +54,34 @@ The evaluator releases that tail context before reusing the current activation.
 
 Weight each caller-to-callee edge by the pending enclosing user calls plus one
 for a non-tail callee activation. Include each call's temporary argument context
-as a local peak. The complete inventory has 65 recursive components. Only four
+as a local peak. The complete inventory has 64 recursive components. Only three
 call sites on recursive cycles have positive weight: two in `capture_sort` and
-one in each of `name_children_replace` and `emit_decimal`.
+one in `emit_decimal`.
 
 | Non-tail recursive owner | Decreasing quantity | Conservative additional contexts |
 | --- | --- | ---: |
 | [`capture_sort`](../normalization/capture/sets.gamma) | For `count >= 2`, both children are at most `ceil(count / 2)` and run sequentially. Any positive signed 64-bit count reaches the base case in at most 63 halvings. | 63 |
-| [`name_children_replace`](../checking/names.gamma) | Each step consumes one distinct sibling edge. Insertions use admitted identifier bytes: 26 uppercase, 26 lowercase, ten digits, and underscore. New edges prepend only after absence; replacement preserves identity/order. | 63 |
 | [`emit_decimal`](../emission/text.gamma) | Recursive calls divide a value at least ten by ten. A positive signed 64-bit value has at most 19 decimal digits. | 18 |
 
 The sort allowance does not depend on a capture-allocation estimate. Values
-below two do not recurse. Trie descent across name bytes and ancestor rebuilding
-are tail-driven; name length does not multiply the sibling-rebuild allowance.
-The remaining parser, grammar, typing, lowering, normalization, capture, emission,
+below two do not recurse. Trie descent across name bytes, sibling-row scans,
+and ancestor rebuilding are tail-driven; name length does not multiply the
+sibling-rebuild allowance. The remaining parser, grammar, typing, lowering,
+normalization, capture, emission,
 list, and cursor cycles have only zero-weight tail edges.
 
-Remove those four bounded edges, collapse zero-weight recursive components,
+Remove those three bounded edges, collapse zero-weight recursive components,
 and propagate maximum weighted demands from local peaks through the resulting
 acyclic graph. The previous 18-context fixed overhead from `main` remains a
 conservative bound: the fixed-emitter rewrite removes counted-writer calls and
 replaces the recursive unpacking writer with one call containing only primitive
 writes and additions, not additional nested user calls. Reserving 64 for
-that overhead and adding all three recursion allowances, even though their
+that overhead and adding both recursion allowances, even though their
 deepest paths do not coexist, gives:
 
 ```text
-live call contexts <= 64 + 63 + 63 + 18 = 208 < 256
-live function frames <= one main frame + live contexts = 209
+live call contexts <= 64 + 63 + 18 = 145 < 256
+live function frames <= one main frame + live contexts = 146
 ```
 
 This inventory was checked with disposable source inspection and direct review
@@ -100,7 +100,7 @@ therefore retains at most its parameters plus all its body's local bindings,
 including every binding in a grouped `let`:
 
 ```text
-live lexical rows <= 209 * 16 = 3,344 < 131,072
+live lexical rows <= 146 * 16 = 2,336 < 131,072
 ```
 
 Every expression-list level retains at most eleven temporary-value entries:
@@ -114,7 +114,7 @@ does not retain previous argument blocks. Allow one extra result entry per
 activation for `enter_function`'s return handling:
 
 ```text
-temporary entries <= 209 * (17 * 11 + 1) = 39,292 < 524,288
+temporary entries <= 146 * (17 * 11 + 1) = 27,448 < 524,288
 ```
 
 The validator executes no Gamma bodies, so its one-body requirements are smaller
@@ -143,14 +143,14 @@ per-occurrence charge derived in the same style:
 - The shared [name-trie and cursor audit](../checking/names/README.md#pair-accounting)
   charges lookups, descents, fresh suffixes, and immutable rebuilds; departed
   ancestor levels amortize to descended name bytes through the cursor zipper
-  identity, but each rebuilt branch level can still copy up to 63 sibling
-  rows.
+  identity, and each rebuilt branch level now prepends one fresh row at five
+  pairs rather than copying up to 63 sibling rows.
 
 What remains open is whether these per-occurrence products stay below the
 40,265,318-pair arena for every admitted shape: the coarse checking,
-lowering, and shared-name envelope is at most `295*S + 1150*N + 149` pairs
-— before the normalizer's own `45*G + 7*F + 1` term — dominated by the
-`191`-per-level sibling copies in name rebuilds and exceeding the arena at
+lowering, and shared-name envelope is at most `295*S + 34*N + 149` pairs
+— before the normalizer's own `45*G + 7*F + 1` term — no longer dominated by
+sibling-row copies in name rebuilds, though it can still exceed the arena at
 maximum source extents.
 The capture `k*d` merge product carries the same open status. This audit
 neither supplies a DCOUT heap refusal nor converts an outer Gamma failure

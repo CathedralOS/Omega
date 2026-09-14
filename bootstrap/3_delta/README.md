@@ -48,9 +48,9 @@ against every materialization and by `tests/bootstrap/delta-identity.sh`:
 | Subject | Bytes | SHA-256 |
 | --- | ---: | --- |
 | `delta_compiler.gamma` request entry | 717 | `b4edbdaa38f2c308178bcf24a368203c5d30780149ed7f06c4f481dd0b4ec5dd` |
-| `implementation/implementation.gamma.sources` manifest | 11,136 | `376c42e10f5e6d785533d57d5f662b46431547015eebe6097878aa22a03e3311` |
-| `delta_compiler.composed` record | 198 | `8ac7a3f8b606baf4fbb6fe12a684ac80260c639bef75539e33d47fee6fa459d8` |
-| Packed canonical closure | 155,440 | `65e23e66c57885382a90c5b910a9064d8c829d62ffd1f028091d22e32a8eca84` |
+| `implementation/implementation.gamma.sources` manifest | 11,136 | `34db03c999f7c342156b88e0307a86fed2b02424564461f41e65f9212693f8c6` |
+| `delta_compiler.composed` record | 198 | `d1457dded7d5c8a72213b6b37f62ce9bcfb56fe6e6ae48225186b20ad2f3e703` |
+| Packed canonical closure | 155,477 | `08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d` |
 
 A digest is an identity check on the bytes being compiled, not a proof of the
 compiler; historical stress evidence pins the closure identity of its own run.
