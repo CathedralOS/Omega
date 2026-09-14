@@ -272,10 +272,12 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
     ] {
         assert!(entrance.contains(operation));
     }
-    let normalization = std::fs::read_to_string(owner.join("preparation/generic_data/mod.rs")).unwrap();
+    let normalization =
+        std::fs::read_to_string(owner.join("preparation/generic_data/mod.rs")).unwrap();
     assert!(normalization.contains("mut syntax: SyntaxTrees"));
     assert!(normalization.contains("Result<SyntaxTrees, Vec<Diagnostic>>"));
-    let scratch = std::fs::read_to_string(owner.join("preparation/generic_data/discovery.rs")).unwrap();
+    let scratch =
+        std::fs::read_to_string(owner.join("preparation/generic_data/discovery.rs")).unwrap();
     for name in ["GenericData", "PendingRewrite", "Instantiation"] {
         assert!(scratch.contains(&format!("pub(super) struct {name}")));
         assert!(
@@ -284,12 +286,12 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
         );
     }
     let declarations = std::fs::read_to_string(owner.join("lowering/item.rs")).unwrap();
-    assert!(
-        declarations
-            .contains("crate::preparation::generic_data::canonicalize_selected_declared_const_definition")
-    );
+    assert!(declarations.contains(
+        "crate::preparation::generic_data::canonicalize_selected_declared_const_definition"
+    ));
     let selection =
-        std::fs::read_to_string(owner.join("preparation/generic_data/constant_selection.rs")).unwrap();
+        std::fs::read_to_string(owner.join("preparation/generic_data/constant_selection.rs"))
+            .unwrap();
     assert!(selection.contains("pub(crate) struct ConstantSelection"));
     assert!(selection.contains("find_top_level_by_name_and_kinds_from_source"));
     assert!(!entrance.contains("ConstantSelection"));
