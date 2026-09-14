@@ -3,35 +3,57 @@ use external_roots::{
     CompletedOpaqueCallbackUnregistration, ExternalRootDiagnostic, InstalledExternalRoot,
     InstalledRootLedger, OpaqueCallbackRegistrationCapacityOccurrence,
     OpaqueCallbackRegistrationReceipt, OpaqueCallbackUnregistrationReceipt,
-    ReclaimableOpaqueCallback, RootAdmission, RootInstallError, RootRemovalReceipt,
-    RootSlotAuthority, ValidatedExternalRoot, admit_reclaimable_opaque_callback,
+    ReclaimableOpaqueCallback, RootAdmission, RootRemovalReceipt, RootSlotAuthority,
+    ValidatedExternalRoot, admit_reclaimable_opaque_callback,
 };
 use image_emission::InstalledCompilerPrivateFunctionEntry;
 
 use crate::RunnableComponentEraLedger;
+use crate::stack_provision::{
+    ProvisionedExternalStackSet, ProvisionedRootInstallError, check_external_stack_provision,
+};
 use effects::{
     ComponentEraEntryLedger, ProgramLocalRootEpochLease,
     ProgramLocalRootEpochLeaseAcquisitionError, ProgramLocalRootEpochLeaseId,
 };
 
-/// Split borrow of one runnable component's installed code and root ledger.
-/// The split is required because an installed root pins the code while
-/// unregister and quiescence must continue mutating the independent ledger.
+/// Split borrow of one runnable component's installed code, root ledger, and
+/// retained external stack provision. The split is required because an
+/// installed root pins the code while unregister and quiescence must continue
+/// mutating the independent ledger.
 #[derive(Debug)]
 #[must_use = "runtime root custody must be retained while installed roots are live"]
 pub struct InstalledRunnableExternalRootRuntime<'code> {
     pub(crate) installed: &'code InstalledCode,
     pub(crate) roots: &'code mut InstalledRootLedger,
+    pub(crate) stack_provision: Option<&'code ProvisionedExternalStackSet>,
 }
 
 impl<'code> InstalledRunnableExternalRootRuntime<'code> {
+    /// Install one validated root under runtime custody. The retained
+    /// provider-owned stack provision must bind this installed occurrence and
+    /// cover the root's composed domain demand — an absent set, a
+    /// cross-context set, or an uncovered domain rejects before the ledger
+    /// sees the install.
     pub fn install(
         &mut self,
         root: ValidatedExternalRoot,
         slot: RootSlotAuthority,
         admission: RootAdmission,
-    ) -> Result<InstalledExternalRoot<'code>, Box<RootInstallError>> {
-        self.roots.install(self.installed, root, slot, admission)
+    ) -> Result<InstalledExternalRoot<'code>, Box<ProvisionedRootInstallError>> {
+        if let Err(diagnostic) =
+            check_external_stack_provision(self.stack_provision, self.installed, &root)
+        {
+            return Err(Box::new(ProvisionedRootInstallError::Provision {
+                root,
+                slot,
+                admission,
+                diagnostic,
+            }));
+        }
+        self.roots
+            .install(self.installed, root, slot, admission)
+            .map_err(|error| Box::new(ProvisionedRootInstallError::Ledger(error)))
     }
 
     /// Join compiler-private entry attribution to an already-installed root
@@ -109,12 +131,13 @@ pub struct RunnableComponentCallbackRegistrationRuntime<'component> {
     era_identity: u64,
     installed: &'component InstalledCode,
     roots: &'component mut InstalledRootLedger,
+    stack_provision: Option<&'component ProvisionedExternalStackSet>,
     lifecycle: &'component mut ComponentEraEntryLedger,
 }
 
 impl RunnableComponentEraLedger {
-    /// Borrow one retained component and its lifecycle as disjoint callback
-    /// registration custody.
+    /// Borrow one retained component, its retained stack provision, and its
+    /// lifecycle as disjoint callback registration custody.
     pub fn callback_registration_runtime(
         &mut self,
         era_identity: u64,
@@ -124,6 +147,7 @@ impl RunnableComponentEraLedger {
             era_identity,
             installed: runnable.artifact.installed(),
             roots: &mut runnable.roots,
+            stack_provision: runnable.external_stack_provision.as_ref(),
             lifecycle: &mut self.lifecycle,
         })
     }
@@ -143,13 +167,30 @@ impl<'component> RunnableComponentCallbackRegistrationRuntime<'component> {
             .program_local_root_authority_holds(self.era_identity)
     }
 
+    /// Install one validated root under era custody. The retained
+    /// provider-owned stack provision must bind this installed occurrence and
+    /// cover the root's composed domain demand — an absent set, a
+    /// cross-context set, or an uncovered domain rejects before the ledger
+    /// sees the install.
     pub fn install(
         &mut self,
         root: ValidatedExternalRoot,
         slot: RootSlotAuthority,
         admission: RootAdmission,
-    ) -> Result<InstalledExternalRoot<'component>, Box<RootInstallError>> {
-        self.roots.install(self.installed, root, slot, admission)
+    ) -> Result<InstalledExternalRoot<'component>, Box<ProvisionedRootInstallError>> {
+        if let Err(diagnostic) =
+            check_external_stack_provision(self.stack_provision, self.installed, &root)
+        {
+            return Err(Box::new(ProvisionedRootInstallError::Provision {
+                root,
+                slot,
+                admission,
+                diagnostic,
+            }));
+        }
+        self.roots
+            .install(self.installed, root, slot, admission)
+            .map_err(|error| Box::new(ProvisionedRootInstallError::Ledger(error)))
     }
 
     pub fn admit_compiler_private_callback(

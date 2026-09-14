@@ -41,10 +41,10 @@ use external_roots::{
     ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId,
     ProviderStackSummary, ResolvedRootServiceReach, RootAdmission, RootAdmissionId, RootEffectId,
     RootProviderId, RootRemovalReceipt, RootRemovalReceiptId, RootSlotAuthority, RootSlotId,
-    RootSlotOwnerId, StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
-    StateValidationReceiptId, TrustReceiptId, admit_opaque_arrival_context_set,
-    bind_opaque_adapter_stack_realization, compose_bound_entry_stack_epochs, compose_fixed_fuel,
-    validate_external_root,
+    RootSlotOwnerId, StackDomain, StackNestingRelation, StackResourceColumn,
+    StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
+    admit_opaque_arrival_context_set, bind_opaque_adapter_stack_realization,
+    compose_bound_entry_stack_epochs, compose_fixed_fuel, validate_external_root,
 };
 use function_identity::{MachineFunctionIdentity, StateKey};
 use image_emission::{
@@ -394,6 +394,19 @@ fn runnable_fixture(seed: u64) -> RunnableFixture {
 /// chain under test joins exact installed-occurrence evidence, not provider
 /// plan content.
 fn runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
+    let mut fixture = unprovisioned_runnable_fixture_at(seed, placement_base);
+    let provision = callback_stack_provision(fixture.runnable.installed());
+    fixture
+        .runnable
+        .admit_external_stack_provision(provision)
+        .expect("admitted callback stack provision");
+    fixture
+}
+
+/// One installed runnable component with no admitted external stack
+/// provision. Installs through its runtime custody reject until provider
+/// supply is admitted and sealed against this exact occurrence.
+fn unprovisioned_runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
     let (object, image) = terminal_image();
     let mut installed = install_terminal_text(&object, seed + 20, seed + 21, placement_base);
     let installed_code = installed.identity();
@@ -415,6 +428,24 @@ fn runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
         installed_code,
         runnable,
     }
+}
+
+/// Provider-owned stack supply covering the interrupted domain the callback
+/// root's bound epoch composition demands (2048 bytes at 16-byte alignment).
+fn callback_stack_provision(installed: &InstalledCode) -> ProvisionedExternalStackSet {
+    seal_external_stack_provision(
+        installed,
+        [admit_external_stack_domain_lease(
+            installed,
+            StackDomain::Interrupted,
+            8192,
+            16,
+            root_id(760, RootProviderId::from_normalized_identity),
+            root_id(761, StackValidationReceiptId::from_normalized_identity),
+        )
+        .expect("interrupted-domain stack lease")],
+    )
+    .expect("sealed callback stack provision")
 }
 
 fn callback_boundary() -> ValidatedBoundaryEntryPlan {
@@ -973,4 +1004,241 @@ fn package_registration_owns_exact_component_era_lease_through_replacement() {
     assert_eq!(replaced_capacity.identity(), capacity_identity);
     drop(runtime);
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+/// The retained stack-lease set is an independent lane beside WCSU evidence,
+/// artifact entry, and ledger custody: an external root can install only
+/// while provider-owned supply binds the exact installed occurrence and
+/// covers the root's composed domain demand.
+///
+/// An unresolved provider-selected disposition can never be leased — it is a
+/// pending choice, and leasing it would admit the root without deciding which
+/// concrete domain runs. A lease sealed to another installed occurrence is a
+/// cross-context disposition and rejects both at seal and at admission. An
+/// install with no retained set, with no lease for a demanded domain, or
+/// below the composed demand all reject with the validated root, slot, and
+/// admission returned for correction and retry.
+#[test]
+fn external_root_install_rejoins_exact_admitted_stack_provision() {
+    let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
+    let mut fixture = unprovisioned_runnable_fixture_at(600, 0x1000);
+    let other = runnable_fixture_at(600, 0x9000);
+    assert_ne!(
+        fixture.runnable.installed().receipt_context(),
+        other.runnable.installed().receipt_context(),
+        "different exact placements retain distinct installed occurrence evidence"
+    );
+
+    let lease_authority = || {
+        (
+            root_id(760, RootProviderId::from_normalized_identity),
+            root_id(761, StackValidationReceiptId::from_normalized_identity),
+        )
+    };
+    let (provisioner, lease_receipt) = lease_authority();
+
+    // An unresolved provider-selected disposition is a pending choice, not a
+    // provisionable domain.
+    admit_external_stack_domain_lease(
+        fixture.runnable.installed(),
+        StackDomain::ProviderSelected,
+        8192,
+        16,
+        provisioner,
+        lease_receipt,
+    )
+    .expect_err("provider-selected disposition cannot be leased");
+
+    // Zero capacity and non-power-of-two alignment cannot describe real
+    // stack supply.
+    admit_external_stack_domain_lease(
+        fixture.runnable.installed(),
+        StackDomain::Interrupted,
+        0,
+        16,
+        provisioner,
+        lease_receipt,
+    )
+    .expect_err("zero-capacity lease cannot provision a domain");
+    admit_external_stack_domain_lease(
+        fixture.runnable.installed(),
+        StackDomain::Interrupted,
+        8192,
+        24,
+        provisioner,
+        lease_receipt,
+    )
+    .expect_err("non-power-of-two alignment cannot provision a domain");
+
+    // A lease bound to another installed occurrence is a cross-context
+    // disposition: it cannot seal into this occurrence's set, and the foreign
+    // set cannot be admitted over this component.
+    let foreign_lease = admit_external_stack_domain_lease(
+        other.runnable.installed(),
+        StackDomain::Interrupted,
+        8192,
+        16,
+        provisioner,
+        lease_receipt,
+    )
+    .expect("foreign-occurrence stack lease");
+    let error = seal_external_stack_provision(fixture.runnable.installed(), [foreign_lease])
+        .expect_err("a lease bound to another occurrence cannot seal here");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("different installed-code occurrence")
+    );
+    let foreign_set =
+        seal_external_stack_provision(other.runnable.installed(), error.into_leases())
+            .expect("the returned lease reseals against its own occurrence");
+    let error = fixture
+        .runnable
+        .admit_external_stack_provision(foreign_set)
+        .expect_err("cross-context provision set cannot be admitted");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("different installed-code occurrence")
+    );
+    drop(error);
+
+    // Build the exact root, slot, and admission once; every rejected install
+    // returns them so the same inputs retry.
+    let boundary = callback_boundary();
+    let root_candidate = callback_root_candidate(fixture.runnable.installed(), private_entry);
+    let validated = validate_external_root(root_candidate, &boundary).expect("callback root");
+    let slot = RootSlotAuthority::from_admitted_owner(
+        root_id(720, RootSlotId::from_normalized_identity),
+        root_id(721, RootSlotOwnerId::from_normalized_identity),
+    );
+    let execution = ProviderExecution::from_admitted_provider(
+        root_id(754, ProviderExecutionId::from_normalized_identity),
+        &validated,
+        Some(OpaqueProviderExitAssurance::AcceptedClaim {
+            realization: ProviderExitRealization {
+                control: validated.boundary().call.entry_control,
+                restored_state: validated.boundary().state.restored_state,
+            },
+            validation_receipt: root_id(704, TrustReceiptId::from_normalized_identity),
+        }),
+    )
+    .expect("callback provider execution");
+    let admission = RootAdmission::from_admitted_provider(
+        root_id(722, RootAdmissionId::from_normalized_identity),
+        &validated,
+        &execution,
+        fixture.runnable.installed(),
+        &slot,
+        validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("callback root admission");
+
+    // No retained provision: install rejects before the ledger sees the root.
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let error = runtime
+        .install(validated, slot, admission)
+        .expect_err("install requires admitted external stack provision");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("no admitted external stack provision")
+    );
+    let (validated, slot, admission) = (*error).into_parts();
+    drop(runtime);
+
+    // A set leasing only an unrelated dedicated domain leaves the demanded
+    // interrupted domain uncovered.
+    let dedicated_only = seal_external_stack_provision(
+        fixture.runnable.installed(),
+        [admit_external_stack_domain_lease(
+            fixture.runnable.installed(),
+            StackDomain::Dedicated { class: 7 },
+            8192,
+            16,
+            provisioner,
+            lease_receipt,
+        )
+        .expect("dedicated-domain stack lease")],
+    )
+    .expect("dedicated-only provision set");
+    fixture
+        .runnable
+        .admit_external_stack_provision(dedicated_only)
+        .expect("dedicated-only provision admitted while no roots are live");
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let error = runtime
+        .install(validated, slot, admission)
+        .expect_err("a demanded domain without a lease rejects");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("no admitted stack lease"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let (validated, slot, admission) = (*error).into_parts();
+    drop(runtime);
+
+    // A lease below the composed domain demand rejects — demand evidence, not
+    // the lease's own claim, sets the floor.
+    let undersized = seal_external_stack_provision(
+        fixture.runnable.installed(),
+        [admit_external_stack_domain_lease(
+            fixture.runnable.installed(),
+            StackDomain::Interrupted,
+            1024,
+            16,
+            provisioner,
+            lease_receipt,
+        )
+        .expect("undersized stack lease")],
+    )
+    .expect("undersized provision set");
+    fixture
+        .runnable
+        .admit_external_stack_provision(undersized)
+        .expect("undersized provision replaces while no roots are live");
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let error = runtime
+        .install(validated, slot, admission)
+        .expect_err("a lease below the composed domain demand rejects");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("below the composed"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let (validated, slot, admission) = (*error).into_parts();
+    drop(runtime);
+
+    // A covering set admits and the same retained inputs install.
+    let covering = callback_stack_provision(fixture.runnable.installed());
+    fixture
+        .runnable
+        .admit_external_stack_provision(covering)
+        .expect("covering provision admitted while no roots are live");
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let root = runtime
+        .install(validated, slot, admission)
+        .expect("a covering lease set admits the install");
+    assert_eq!(
+        root.root(),
+        root_id(701, ExternalRootId::from_normalized_identity)
+    );
+
+    // While the root is live the provision is pinned: replacing the supply
+    // under it would revoke the storage its demand was admitted against.
+    drop(runtime);
+    let replacement = callback_stack_provision(fixture.runnable.installed());
+    fixture
+        .runnable
+        .admit_external_stack_provision(replacement)
+        .expect_err("external stack provision is pinned while a root is live");
 }
