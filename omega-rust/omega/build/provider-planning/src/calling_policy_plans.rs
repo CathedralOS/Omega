@@ -370,6 +370,7 @@ pub fn evaluate_compatibility_boundary_entry_plan(
     typed: &TypedTrees,
     native_target: NativeTarget,
     trait_name: &str,
+    trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     method_name: &str,
     requirement_identity: &str,
     policy: CallingPolicy,
@@ -380,7 +381,11 @@ pub fn evaluate_compatibility_boundary_entry_plan(
     let trait_candidates = typed
         .traits()
         .iter()
-        .filter(|definition| definition.name.as_str().rsplit("::").next() == Some(trait_leaf))
+        .filter(|definition| {
+            definition.name.as_str().rsplit("::").next() == Some(trait_leaf)
+                && typed.symbols.symbol_package_identity(definition.symbol)
+                    == trait_package_identity
+        })
         .flat_map(|definition| {
             typed
                 .trait_machine_signatures(definition)
@@ -402,6 +407,8 @@ pub fn evaluate_compatibility_boundary_entry_plan(
         .filter(|requirement| {
             requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
                 && requirement.name.as_str() == trait_name
+                && typed.symbols.symbol_package_identity(requirement.symbol)
+                    == trait_package_identity
         })
         .filter_map(|requirement| {
             let [entry] = typed.machine_states(requirement) else {

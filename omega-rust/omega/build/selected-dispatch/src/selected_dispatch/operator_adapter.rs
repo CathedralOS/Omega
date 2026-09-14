@@ -585,9 +585,15 @@ pub(super) fn resolve_checked_adapter_for_operator(
             plan.name,
         )));
     };
+    let operator_package = checked
+        .typed
+        .symbols
+        .symbol_package_identity(operator.symbol);
     if plan.schema.trait_name != overload_identity
+        || plan.schema.trait_package_identity != operator_package
         || method.name != "realize"
         || method.requirement_owner != overload_identity
+        || method.requirement_owner_package_identity != operator_package
         || method.requirement_identity != overload_identity
         || !plan.schema.row_binds_method(row, method)
     {
@@ -731,11 +737,10 @@ pub(super) fn resolve_checked_adapter_for_operator(
                 && conformance.name.as_str() == namespace.as_str()
                 && conformance.requirement.as_ref().map(|name| name.as_str())
                     == Some(requirement.as_str())
-                && (typed_trees::operator::resolve_satisfied_checked_operator(
+                && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                     &checked.typed,
                     provider,
-                    namespace.as_str(),
-                    requirement.as_str(),
+                    conformance,
                 )
                 .is_some_and(|resolved| resolved.symbol == operator.symbol)
                     || typed_trees::operator::resolve_specialized_checked_operator_application(

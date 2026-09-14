@@ -99,6 +99,55 @@ pub fn from_typed_operator(
     })
 }
 
+/// Whether a service schema binds exactly this boundary-operator coordinate.
+///
+/// [`typed_trees::operator::boundary_operator_requirement_identity`] is
+/// deliberately package-blind: two packages may declare same-spelled,
+/// same-signature boundary operators whose canonical identities are equal.
+/// Every replay join must therefore compare the retained package identity
+/// too, or a foreign declaration could substitute for the selected
+/// coordinate.
+pub fn schema_binds_exact_boundary_operator(
+    program: &typed_trees::TypedTrees,
+    schema: &ServiceSchema,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> bool {
+    operator.is_boundary
+        && typed_trees::operator::boundary_operator_requirement_identity(program, operator)
+            == schema.trait_name
+        && program.symbols.symbol_package_identity(operator.symbol) == schema.trait_package_identity
+}
+
+/// Whether a service schema binds exactly this boundary trait declaration.
+/// Trait names share the same package-blind replay hazard as operator
+/// requirement identities.
+pub fn schema_binds_exact_boundary_trait(
+    program: &typed_trees::TypedTrees,
+    schema: &ServiceSchema,
+    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+) -> bool {
+    trait_definition.is_boundary
+        && trait_definition.name.as_str() == schema.trait_name
+        && program
+            .symbols
+            .symbol_package_identity(trait_definition.symbol)
+            == schema.trait_package_identity
+}
+
+/// Whether a service schema binds exactly this top-level boundary
+/// requirement machine.
+pub fn schema_binds_exact_boundary_requirement(
+    program: &typed_trees::TypedTrees,
+    schema: &ServiceSchema,
+    requirement: &typed_trees::machine::Machine,
+) -> bool {
+    requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        && program.symbols.symbol_package_identity(requirement.symbol)
+            == schema.trait_package_identity
+        && from_typed_boundary_requirement(program, requirement)
+            .is_some_and(|candidate| candidate.trait_name == schema.trait_name)
+}
+
 /// Reify one exact explicit top-level boundary requirement as a
 /// single-row provider slot. This first planning rung is deliberately
 /// closed over a non-generic callable: lifetime and static generic

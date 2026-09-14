@@ -179,11 +179,11 @@ fn plan_selected_operator_provider_evidence(
     let mut diagnostics = Vec::new();
     for plan in selected.plans() {
         let operator = checked.typed.operators().iter().find(|operator| {
-            operator.is_boundary
-                && typed_trees::operator::boundary_operator_requirement_identity(
-                    &checked.typed,
-                    operator,
-                ) == plan.schema.trait_name
+            crate::service_schema::schema_binds_exact_boundary_operator(
+                &checked.typed,
+                &plan.schema,
+                operator,
+            )
         });
         let Some(operator) = operator else {
             continue;
@@ -286,21 +286,34 @@ fn selected_operator_provider_evidence(
     };
     let slot =
         typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
-    if !candidates
-        .iter()
-        .any(|candidate| candidate.schema.trait_name == slot)
-    {
+    let operator_package = checked
+        .typed
+        .symbols
+        .symbol_package_identity(operator.symbol);
+    // Canonical overload identities are package-blind; every candidate and
+    // selected-plan join must also bind the exact declaration package or a
+    // same-spelled foreign coordinate would substitute for this slot.
+    if !candidates.iter().any(|candidate| {
+        candidate.schema.trait_name == slot
+            && candidate.schema.trait_package_identity == operator_package
+    }) {
         return Ok(None);
     }
-    let Some(plan) = selected
+    let matching_selected = selected
         .plans()
         .iter()
-        .find(|plan| plan.schema.trait_name == slot)
-    else {
+        .filter(|plan| {
+            plan.schema.trait_name == slot && plan.schema.trait_package_identity == operator_package
+        })
+        .collect::<Vec<_>>();
+    let [plan] = matching_selected.as_slice() else {
         return Err(diagnostics::Diagnostic::error(format!(
-            "boundary operator `{slot}` has provider candidates but no exact selected ProviderPlan realization for this target"
+            "boundary operator `{slot}` in package {:?} resolves to {} selected ProviderPlans; expected exactly one",
+            operator_package,
+            matching_selected.len(),
         )));
     };
+    let plan = *plan;
     let [row] = plan.rows.as_slice() else {
         return Err(diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` must contain exactly one realization row",
@@ -430,11 +443,10 @@ fn selected_operator_provider_evidence(
                 .iter()
                 .any(|conformance| {
                     conformance.external_binding.is_none()
-                        && (typed_trees::operator::resolve_satisfied_checked_operator(
+                        && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                             &checked.typed,
                             checked_provider,
-                            namespace.as_str(),
-                            requirement.as_str(),
+                            conformance,
                         )
                         .is_some_and(|resolved| resolved.symbol == operator.symbol)
                             || typed_trees::operator::resolve_specialized_checked_operator_application(
@@ -505,9 +517,6 @@ pub fn intrinsic_realization_matches_operator(
     realization_machine_identity: &str,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> bool {
-    let [namespace, requirement] = typed.operator_path_members(operator.name) else {
-        return false;
-    };
     typed.machines().iter().any(|machine| {
         typed
             .normalized_machine_overload_identity(machine)
@@ -516,13 +525,17 @@ pub fn intrinsic_realization_matches_operator(
                 .machine_trait_conformances(machine)
                 .iter()
                 .any(|conformance| conformance.external_binding.is_some())
-            && typed_trees::operator::resolve_satisfied_boundary_operator(
-                typed,
-                machine,
-                namespace.as_str(),
-                requirement.as_str(),
-            )
-            .is_some_and(|resolved| resolved.symbol == operator.symbol)
+            && typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| {
+                    typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                        typed,
+                        machine,
+                        conformance,
+                    )
+                    .is_some_and(|resolved| resolved.symbol == operator.symbol)
+                })
     })
 }
 

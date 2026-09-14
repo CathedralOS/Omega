@@ -277,11 +277,10 @@ pub fn resolve_satisfied_declaration<'program>(
     // policy. External supply does not turn an ordinary operator into a
     // boundary operator; validation and package admission reject that
     // unsupported association independently while retaining its exact subject.
-    let operator = crate::operator::resolve_satisfied_checked_operator(
+    let operator = crate::operator::resolve_satisfied_checked_operator_for_conformance(
         program,
         machine,
-        conformance.name.as_str(),
-        requirement_name.as_str(),
+        conformance,
     )?;
     Some(SatisfiedDeclaration::Operator(operator))
 }
