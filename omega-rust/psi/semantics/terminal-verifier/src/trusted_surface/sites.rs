@@ -126,7 +126,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/src/terminal_module/control_flow/operations.rs",
-        sha256: Some("9834918e06efb5855b92d9bd474da5c8c03a318347d668133d8a13a5dcabb099"),
+        sha256: Some("4709b6af738b8bd36c7603e68282df005452ca805c039415c85142b535840cf2"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -291,7 +291,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-semantics/src/structural_effect.rs",
-        sha256: Some("b4bb2a0f3164ef0bd2e2f4699529803ffe6fb5b28b5ff8f96723dcf08eb85389"),
+        sha256: Some("9b1ecc85543f2139792c5d309b21a460eb69e840050c97cd8c6a4214438a0bd1"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -521,7 +521,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/machine.rs",
-        sha256: Some("16ef4f00d56c52c48e5b006cbd34e7fdc0f5a33c8b5fffa9b0b11c02ae2e6170"),
+        sha256: Some("bf4fab4742704d0c5d1a8ac4291dd98778cee98598aa3c13378fbf33f3f6af42"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -571,7 +571,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/references.rs",
-        sha256: Some("0c5e7869fb0eca0856615f231c5330d70c0699fff7ccc00e4fa525472c39a984"),
+        sha256: Some("60a790ff1219ff675e2820eeb385c8a9b51726ff1e5d53223ba0d730c10dd2ec"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -616,7 +616,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case_membership.rs",
-        sha256: Some("c3c018b39df12f4bd3676ca04b307d82b88dc79832c23e03a39456542cc1d8ed"),
+        sha256: Some("6a2c4b117f0ebebb3538aec310c1eeab531629358fa9c35dea6f7dd56ebf1068"),
         inventory_machinery: false,
     },
     ImplementationSite {

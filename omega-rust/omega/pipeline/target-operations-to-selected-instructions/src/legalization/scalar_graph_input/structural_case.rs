@@ -125,9 +125,12 @@ pub(in crate::legalization) fn membership_layout(
         }
         parameter.structural_type
     };
-    let (identity, byte_offset) =
+    let (identity, byte_offset) = if path.is_empty() {
+        (identity, 0)
+    } else {
         crate::structural_reference_input::project(identity, path, &plan.structural_types)
-            .ok_or(invalid.clone())?;
+            .ok_or(invalid.clone())?
+    };
     let layout = super::aggregate_results::sum_type_layout(identity, plan)?;
     if layout.tag_byte_offset != 0
         || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
