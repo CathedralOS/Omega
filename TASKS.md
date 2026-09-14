@@ -230,15 +230,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `dungeon_crawler_cli` (case-literal construction and branch-local
   transfer joins unsupported). `math_proofs` — its owned Bag/multiset row.
 
-  Native resume for `generic_counters`: at `b61f658601fd` (2026-09-14 UTC,
-  macOS ARM64), the copy-bound getter and whole sample pass checking;
+  Native resume for `generic_counters`: at `6791c3988e` (2026-09-14 UTC,
+  macOS ARM64), the unchanged sample passes verified Terminal production
+  (`generic_counter_sample_reaches_terminal_psi` in `samples_compile`);
   `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=generic_counters cargo
   nextest run -p compiler --test samples_compile --no-fail-fast
   -E 'test(=samples_with_documented_exit_run_correctly)'` now reaches
-  `InvalidUnitMachinePlan` for `Main::main`: the attached Unit closure lacks
-  a checked transitive machine plan. Trace the missing callee through
-  `typed-trees-to-checked-trees/src/flow/terminal_unit/` and its
-  `checked-trees-to-lowered-psi` consumer; native exit 16 remains the acceptance.
+  `Selection(Legalization(SourceCustodyMismatch))` during native physical
+  staging. Trace the exact rejected custody relationship in
+  `target-operations-to-selected-instructions/src/legalization/` and its
+  verified optimization input; native exit 16 remains the acceptance.
+  Closed generic receiver stores, ordinary unconditional getters, and
+  arithmetic-policy-only integer results now use the shared checked Psi route;
+  do not restart the missing-callee diagnosis or bypass independent custody.
   Preserve the exact generic attachment applications and selected method bounds;
   do not constrain the whole container or simplify the two-counter program.
 
