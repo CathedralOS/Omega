@@ -19,6 +19,18 @@ struct Fixture {
 
 impl Fixture {
     fn new(statements: &str, argument: &str) -> Self {
+        Self::with_helper_calls(statements, argument, &[])
+    }
+
+    /// `helper_call_statements` are statement indexes containing one
+    /// value-position helper call each; each call's flow row is retained in
+    /// execution order before the terminal demand call, matching how the
+    /// real pipeline publishes authored call occurrences.
+    fn with_helper_calls(
+        statements: &str,
+        argument: &str,
+        helper_call_statements: &[usize],
+    ) -> Self {
         let source = format!(
             r#"
             data Main {{}}
@@ -27,6 +39,11 @@ impl Fixture {
             data Context {{ scheduler: SchedulerHandle; }}
             data Holder {{ view: Context; }}
             machine observe_scheduler(value: SchedulerHandle) -> u64 {{ 0 }}
+            machine pick(context: &Context) -> SchedulerHandle {{ context.scheduler }}
+            machine pick_second(former: &Context, latter: &Context) -> SchedulerHandle {{ latter.scheduler }}
+            machine pick_cached(context: &Context) -> SchedulerHandle {{ let s: SchedulerHandle = context.scheduler; s }}
+            machine pick_mutated(context: &Context) -> SchedulerHandle {{ let mut s: SchedulerHandle = context.scheduler; s = s; s }}
+            machine pick_mut(context: &mut Context) -> SchedulerHandle {{ context.scheduler }}
             machine probe(context: &mut Context, replacement: &Context, holder: Holder) -> u64 {{
                 {statements}
                 transition {{ _ -> observe_scheduler({argument}) }}
@@ -56,11 +73,30 @@ impl Fixture {
             .find(|machine| machine.name.as_str() == "observe_scheduler")
             .expect("observed call")
             .symbol;
-        // The prefix is call-free. Retain the sole real call occurrence in a
-        // minimal flow row so at_call exercises its ordinary pointer lookup,
-        // backward stores, declaration capture, and shared frame adapter.
+        // Retain each authored call occurrence in execution order so at_call
+        // exercises its ordinary pointer lookup, backward stores, declaration
+        // capture, helper-result resolution, and shared frame adapter.
         let mut flow = FlowFacts::default();
         let mut calls = HandleSpan::empty();
+        for &index in helper_call_statements {
+            let statement = statements.get(index).expect("helper call statement");
+            let expression =
+                helper_call_expression(&program, statement).expect("helper call expression");
+            let typed_trees::expression::ExpressionNode::Call(call) =
+                program.expression_table.expression(expression)
+            else {
+                unreachable!("helper call node")
+            };
+            flow.control.calls.append_to_span(
+                &mut calls,
+                FlowCallFact {
+                    statement_index: index,
+                    authored_expression: expression,
+                    target_symbol: call.target_symbol,
+                    ..FlowCallFact::default()
+                },
+            );
+        }
         flow.control.calls.append_to_span(
             &mut calls,
             FlowCallFact {
@@ -139,7 +175,15 @@ impl Fixture {
             .iter()
             .find(|machine| machine.symbol == self.state.machine_symbol)
             .expect("fixture machine");
-        let call = &self.flow.control.calls.span_or_empty(self.state.calls)[0];
+        // The terminal demand call is always the last retained row; helper
+        // calls occupy earlier rows in execution order.
+        let call = self
+            .flow
+            .control
+            .calls
+            .span_or_empty(self.state.calls)
+            .last()
+            .expect("demand call row");
         at_call(
             &self.program,
             &self.flow,
@@ -267,4 +311,136 @@ fn field_assignment_checks_the_stored_field_not_the_reference_root() {
     assert_eq!(fixture.query(subject.clone()), Some(expected));
     fixture.make_field_reference("Context", "scheduler");
     assert_eq!(fixture.query(subject), None);
+}
+
+/// The value-position helper call inside a store or declaration, reached
+/// through any member or index projections around it.
+fn helper_call_expression(
+    program: &TypedTrees,
+    statement: &StatementNode,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    let mut expression = match statement {
+        StatementNode::Assignment(assignment) => assignment.value,
+        StatementNode::LocalData(local) => local.initial_value,
+        _ => return None,
+    };
+    loop {
+        match program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Call(_) => return Some(expression),
+            typed_trees::expression::ExpressionNode::Member(member) => {
+                expression = member.receiver;
+            }
+            typed_trees::expression::ExpressionNode::Indexed(indexed) => {
+                expression = indexed.collection;
+            }
+            typed_trees::expression::ExpressionNode::Borrow(borrow) => {
+                expression = borrow.target;
+            }
+            _ => return None,
+        }
+    }
+}
+
+#[test]
+fn helper_result_store_derives_the_exact_input_projection() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = pick(replacement);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn helper_result_local_capture_derives_the_exact_input_projection() {
+    let fixture = Fixture::with_helper_calls(
+        "let saved: SchedulerHandle = pick(replacement);",
+        "saved",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn helper_result_follows_the_matching_parameter_not_the_first() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = pick_second(&holder.view, replacement);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn helper_result_traces_an_immutable_local_capture_in_the_body() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = pick_cached(replacement);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn helper_result_stays_exact_through_a_later_owned_store() {
+    let fixture = Fixture::with_helper_calls(
+        "let saved: SchedulerHandle = pick(replacement); context.scheduler = saved;",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn helper_result_survives_writes_after_the_capture() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = pick(replacement); replacement.scheduler = pick(replacement);",
+        "context.scheduler",
+        &[0, 1],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn mutable_body_capture_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = pick_mutated(replacement);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        None
+    );
+}
+
+#[test]
+fn mutable_input_helper_result_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = pick_mut(context);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        None
+    );
 }

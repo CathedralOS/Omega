@@ -4,7 +4,10 @@ use crate::flow::{self, CanonicalPlace};
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::{
-    TypedTrees, expression::ExpressionHandle, machine::Machine, statement::StatementNode,
+    TypedTrees,
+    expression::{ExpressionHandle, ExpressionNode, TableCallExpression},
+    machine::Machine,
+    statement::StatementNode,
     types::TypeReferenceHandle,
 };
 
@@ -14,8 +17,31 @@ pub(crate) fn value_origin_at_call(
     machine: &Machine,
     state: &FlowStateFact,
     call: &FlowCallFact,
-    mut place: CanonicalPlace,
+    place: CanonicalPlace,
 ) -> Option<CanonicalPlace> {
+    value_origin_at_call_resolving(program, flow, machine, state, call, place, |_, _, _, _| {
+        None
+    })
+}
+
+/// The shared backward origin trace with one extra producer a domain may
+/// prove: a decisive store whose captured value is an owned call result. The
+/// resolver receives the result-position call, the store's statement index,
+/// and the projection into the result value; it returns the exact caller-side
+/// place the result arrived from, or None to keep the call opaque.
+pub(crate) fn value_origin_at_call_resolving<Resolve>(
+    program: &TypedTrees,
+    flow: &FlowFacts,
+    machine: &Machine,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    mut place: CanonicalPlace,
+    resolve: Resolve,
+) -> Option<CanonicalPlace>
+where
+    Resolve:
+        Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
+{
     let frames = validation::CallFrameResolver::new(program)?;
     place =
         flow::local_reference_storage_at_call(program, &frames, machine, flow, state, call, place)?;
@@ -72,6 +98,7 @@ pub(crate) fn value_origin_at_call(
                         assignment.value,
                         stored_type,
                         suffix,
+                        &resolve,
                     )?;
                     place = flow::local_reference_storage_before_statement(
                         program, &frames, machine, state, index, source,
@@ -103,6 +130,7 @@ pub(crate) fn value_origin_at_call(
                     local.initial_value,
                     local.type_reference,
                     &place.segments,
+                    &resolve,
                 )?;
                 place = flow::local_reference_storage_before_statement(
                     program, &frames, machine, state, index, source,
@@ -135,20 +163,33 @@ pub(crate) fn value_origin_at_call(
 /// A constructor has no storage of its own: a projection into a captured
 /// record or array literal arrives from the selected field or element
 /// expression, so the origin continues from that operand with the remaining
-/// projection. Any other expression keeps the whole projection.
-fn captured_source_place(
+/// projection. A result-position call asks the domain resolver for the exact
+/// caller place its checked callee proves; an unresolved call stays opaque.
+/// Any other expression keeps the whole projection.
+fn captured_source_place<Resolve>(
     program: &TypedTrees,
     state: &FlowStateFact,
     statement_index: usize,
     value: ExpressionHandle,
     stored_type: TypeReferenceHandle,
     suffix: &[PlaceSegment],
-) -> Option<CanonicalPlace> {
+    resolve: &Resolve,
+) -> Option<CanonicalPlace>
+where
+    Resolve:
+        Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
+{
     let mut projections =
         flow::literal_value_projections(program, value, stored_type, suffix, false)?;
     let projection = projections.pop()?;
     if !projections.is_empty() {
         return None;
+    }
+    if let Some((call, relative)) =
+        result_call(program, projection.expression, &projection.remaining)
+        && let Some(place) = resolve(state, statement_index, call, &relative)
+    {
+        return Some(place);
     }
     let mut source = flow::canonical_place_from_expression_in_state(
         program,
@@ -158,6 +199,42 @@ fn captured_source_place(
     )?;
     source.segments.extend_from_slice(&projection.remaining);
     Some(source)
+}
+
+/// Peel member and index projections around a result-position call,
+/// accumulating the path into the result value in place-segment order. The
+/// result-relative path is the peeled projection followed by the subject's
+/// remaining projection.
+fn result_call<'program>(
+    program: &'program TypedTrees,
+    mut expression: ExpressionHandle,
+    remaining: &[PlaceSegment],
+) -> Option<(&'program TableCallExpression, Vec<PlaceSegment>)> {
+    let mut relative = Vec::new();
+    loop {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => {
+                let mut peeled = Vec::new();
+                flow::push_field_place_segments(
+                    program,
+                    &mut peeled,
+                    flow::effective_member_symbol(program, member.receiver, member),
+                );
+                peeled.extend_from_slice(&relative);
+                relative = peeled;
+                expression = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                relative.insert(0, flow::index_place_segment(program, indexed.index));
+                expression = indexed.collection;
+            }
+            ExpressionNode::Call(call) => {
+                relative.extend_from_slice(remaining);
+                return Some((call, relative));
+            }
+            _ => return None,
+        }
+    }
 }
 
 fn exact_suffix<'place>(
