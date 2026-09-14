@@ -1,5 +1,5 @@
 use super::*;
-use crate::SelectedBuildTimeBinaryOperator;
+use crate::{SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody};
 
 fn fixture(namespace: &str) -> (TypedTrees, Vec<SelectedBuildTimeBinaryOperator>) {
     fixture_with_receiver(namespace, "data Main { bytes:[u8;length()]; }")
@@ -124,15 +124,15 @@ fn operator_crash_fence_ignores_unselected_overload_and_survives_expression_rewr
 #[test]
 fn folded_result_replay_rejects_paired_literal_forgery_and_lost_owner() {
     let (mut typed, rows) = fixture("Float");
-    let folds = evaluate_with_selected_operators(&mut typed, None, &rows).unwrap();
+    let folds = evaluate_with_selected_operators(&mut typed, None, &rows, &[]).unwrap();
     assert_eq!(folds.len(), 1);
-    validate_folded_array_lengths(&typed, &folds, &rows, None).unwrap();
+    validate_folded_array_lengths(&typed, &folds, &rows, &[], None).unwrap();
     let mut forged = folds.clone();
     forged[0].value = 5;
     typed
         .type_reference_table
         .set_fixed_array_length(forged[0].type_reference, 5);
-    assert!(validate_folded_array_lengths(&typed, &forged, &rows, None).is_err());
+    assert!(validate_folded_array_lengths(&typed, &forged, &rows, &[], None).is_err());
     typed
         .type_reference_table
         .set_fixed_array_length(forged[0].type_reference, 4);
@@ -148,7 +148,7 @@ fn folded_result_replay_rejects_paired_literal_forgery_and_lost_owner() {
         panic!("bytes");
     };
     field.type_reference = TypeReferenceHandle::invalid();
-    assert!(validate_folded_array_lengths(&typed, &folds, &rows, None).is_err());
+    assert!(validate_folded_array_lengths(&typed, &folds, &rows, &[], None).is_err());
 }
 
 #[test]
@@ -168,7 +168,7 @@ fn independent_and_selected_lengths_share_full_width_integer_decoding() {
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         let mut independent = selected.clone();
         let independent_result = evaluate_const_array_lengths(&mut independent);
-        let selected_result = evaluate_with_selected_operators(&mut selected, None, &[]);
+        let selected_result = evaluate_with_selected_operators(&mut selected, None, &[], &[]);
         if carrier == "i64" || usize::BITS < 64 {
             assert!(independent_result.is_err());
             assert!(selected_result.is_err());
@@ -190,7 +190,7 @@ fn independent_and_selected_lengths_share_full_width_integer_decoding() {
                 .fixed_array_lengths()
                 .collect::<Vec<_>>()
         );
-        validate_folded_array_lengths(&selected, &folds, &[], None)
+        validate_folded_array_lengths(&selected, &folds, &[], &[], None)
             .expect("independent replay retains the unsigned result");
     }
 }
@@ -230,14 +230,154 @@ fn single_supplied_row_cannot_authorize_another_live_expression_origin() {
     );
 }
 
+/// A selected boundary-operator use whose settled plan binds an ordinary
+/// checked adapter. The provider's body computes `left + right`, which differs
+/// from the builtin `%` result, so a fold of 9 instead of 1 is the positive
+/// witness that the provider's machine -- not host arithmetic -- ran.
+fn provider_fixture() -> (TypedTrees, Vec<SelectedBuildTimeProviderBody>) {
+    let source = r#"
+data Math {}
+boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+data Provider {}
+machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left + right }
+machine length() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
+data Main { bytes:[u8;length()]; }
+"#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
+    let rows = facts
+        .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
+        .filter(|fact| {
+            typed.operators().iter().any(|operator| {
+                operator.symbol == fact.selected_operator_symbol && operator.is_boundary
+            })
+        })
+        .map(|fact| {
+            let provider = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "Provider::remainder")
+                .unwrap();
+            let entry = typed.machine_states(provider).first().unwrap();
+            SelectedBuildTimeProviderBody {
+                expression: fact.expression,
+                origin: fact.origin,
+                requirement: fact.selected_operator_symbol,
+                operands: fact.operands(&typed).unwrap(),
+                provider_machine: provider.symbol,
+                provider_state: entry.symbol,
+                provider_type: provider.attached_data.as_ref().unwrap().as_str().to_owned(),
+                provider: checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]),
+            }
+        })
+        .collect();
+    (typed, rows)
+}
+
+#[test]
+fn selected_provider_body_executes_its_ordinary_machine_and_replays() {
+    let (mut typed, rows) = provider_fixture();
+    assert_eq!(rows.len(), 1);
+    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
+    let folds = evaluate_with_selected_operators(&mut typed, None, &[], &rows).unwrap();
+    assert_eq!(folds.len(), 1);
+    assert_eq!(
+        folds[0].value, 9,
+        "the provider's `left + right` body must run; builtin `%` would fold 1"
+    );
+    validate_folded_array_lengths(&typed, &folds, &[], &rows, None).unwrap();
+}
+
+#[test]
+fn unselected_boundary_use_cannot_fall_back_to_host_semantics() {
+    let (mut typed, _rows) = provider_fixture();
+    let diagnostics = evaluate_with_selected_operators(&mut typed, None, &[], &[]).unwrap_err();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .to_string()
+            .contains("requires exact authored selection")),
+        "an unselected boundary use must never reach builtin execution: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn provider_body_fold_rejects_a_forged_builtin_result() {
+    let (mut typed, rows) = provider_fixture();
+    let folds = evaluate_with_selected_operators(&mut typed, None, &[], &rows).unwrap();
+    let mut forged = folds.clone();
+    forged[0].value = 1;
+    typed
+        .type_reference_table
+        .set_fixed_array_length(forged[0].type_reference, 1);
+    assert!(
+        validate_folded_array_lengths(&typed, &forged, &[], &rows, None).is_err(),
+        "a fold claiming the builtin `%` result must not survive provider replay"
+    );
+}
+
+#[test]
+fn provider_body_row_rejects_stale_and_substituted_custody() {
+    let (typed, rows) = provider_fixture();
+    let mut invalid_entry = rows.clone();
+    invalid_entry[0].provider_state = symbols::SymbolHandle::invalid();
+    assert!(
+        crate::validate_selected_provider_bodies(&typed, &invalid_entry)
+            .unwrap_err()
+            .contains("executable entry")
+    );
+
+    let caller = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "length")
+        .unwrap();
+    let mut substituted = rows.clone();
+    substituted[0].provider_machine = caller.symbol;
+    substituted[0].provider_state = typed.machine_states(caller).first().unwrap().symbol;
+    assert!(
+        crate::validate_selected_provider_bodies(&typed, &substituted).is_err(),
+        "a substituted provider machine must never satisfy the row"
+    );
+
+    let mut anonymous = rows.clone();
+    anonymous[0].provider = checked_trees::CheckedProviderPlanCommitment::default();
+    assert!(
+        crate::validate_selected_provider_bodies(&typed, &anonymous)
+            .unwrap_err()
+            .contains("unique exact provider custody")
+    );
+
+    let mut swapped = rows.clone();
+    swapped[0].operands.swap(0, 1);
+    assert!(
+        crate::validate_selected_provider_bodies(&typed, &swapped)
+            .unwrap_err()
+            .contains("differ")
+    );
+
+    let mut stale = rows.clone();
+    stale[0].expression = stale[0].operands[0];
+    assert!(
+        crate::validate_selected_provider_bodies(&typed, &stale).is_err(),
+        "a stale expression coordinate must never rejoin a current use"
+    );
+}
+
 #[test]
 fn folded_payload_retains_its_exact_variant_parent() {
     let (mut typed, rows) = fixture_with_receiver(
         "Float",
         "data Main { case First(bytes:[u8;length()]); case Second; }",
     );
-    let folds = evaluate_with_selected_operators(&mut typed, None, &rows).unwrap();
-    validate_folded_array_lengths(&typed, &folds, &rows, None).unwrap();
+    let folds = evaluate_with_selected_operators(&mut typed, None, &rows, &[]).unwrap();
+    validate_folded_array_lengths(&typed, &folds, &rows, &[], None).unwrap();
     let owner = typed
         .data_definitions()
         .iter()
@@ -253,5 +393,5 @@ fn folded_payload_retains_its_exact_variant_parent() {
         panic!("two cases");
     };
     std::mem::swap(&mut first.payload, &mut second.payload);
-    assert!(validate_folded_array_lengths(&typed, &folds, &rows, None).is_err());
+    assert!(validate_folded_array_lengths(&typed, &folds, &rows, &[], None).is_err());
 }

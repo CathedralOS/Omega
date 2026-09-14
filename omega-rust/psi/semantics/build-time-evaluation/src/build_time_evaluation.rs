@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 use crate::{
     BuildTimeSelectionAuthority, FoldedArrayLength, PlacedViewRecord, PlanLaidRecord,
-    SelectedBuildTimeBinaryOperator, const_domain_facts, const_generic_calls,
-    const_generic_expressions, const_initializers, const_lengths, placed_views, plan_laid,
-    range_arguments, range_endpoints, wire_plans,
+    SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody, const_domain_facts,
+    const_generic_calls, const_generic_expressions, const_initializers, const_lengths,
+    placed_views, plan_laid, range_arguments, range_endpoints, wire_plans,
 };
 
 /// Inputs retained by package-aware probes and generated extension evaluation.
@@ -154,15 +154,22 @@ impl PreCheckEvaluation {
         self.evaluate_or_defer(typed)
     }
 
+    /// Finish the deferred const lengths under exact selected execution.
+    /// `operators` supplies the sealed primitive-float meanings and
+    /// `provider_bodies` the exact selected checked provider bodies; each
+    /// retained occurrence keeps its own row so a stale or substituted
+    /// selection can never stand in for the current one.
     pub fn evaluate_with_selected_operators(
         self,
         typed: &mut typed_trees::TypedTrees,
         operators: &[SelectedBuildTimeBinaryOperator],
+        provider_bodies: &[SelectedBuildTimeProviderBody],
     ) -> Result<Vec<FoldedArrayLength>, Vec<diagnostics::Diagnostic>> {
         let folds = const_lengths::evaluate_with_selected_operators(
             typed,
             self.selection_authority.clone(),
             operators,
+            provider_bodies,
         )?;
         self.evaluate(typed)?;
         Ok(folds)
