@@ -363,6 +363,64 @@ fn encode_term(
             node.u32(endpoint);
             node.u32(proof);
         }
+        Term::W { carrier, children } => {
+            let carrier =
+                encode_term(table, arena, carrier, by_handle, by_bytes, count, depth + 1)?;
+            let children = encode_term(
+                table,
+                arena,
+                children,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            node.u8(17);
+            node.u32(carrier);
+            node.u32(children);
+        }
+        Term::Sup {
+            carrier,
+            children,
+            label,
+            function,
+        } => {
+            let carrier =
+                encode_term(table, arena, carrier, by_handle, by_bytes, count, depth + 1)?;
+            let children = encode_term(
+                table,
+                arena,
+                children,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            let label = encode_term(table, arena, label, by_handle, by_bytes, count, depth + 1)?;
+            let function = encode_term(
+                table,
+                arena,
+                function,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            node.u8(18);
+            node.u32(carrier);
+            node.u32(children);
+            node.u32(label);
+            node.u32(function);
+        }
+        Term::IndW { motive, step, tree } => {
+            let motive = encode_term(table, arena, motive, by_handle, by_bytes, count, depth + 1)?;
+            let step = encode_term(table, arena, step, by_handle, by_bytes, count, depth + 1)?;
+            let tree = encode_term(table, arena, tree, by_handle, by_bytes, count, depth + 1)?;
+            node.u8(19);
+            node.u32(motive);
+            node.u32(step);
+            node.u32(tree);
+        }
     }
     let bytes = node.finish();
     if let Some(&index) = by_bytes.get(&bytes) {
@@ -510,6 +568,41 @@ fn decode_term(
                     .max(base_depth)
                     .max(endpoint_depth)
                     .max(proof_depth),
+            )
+        }
+        17 => {
+            let (carrier, carrier_depth) = child(reader)?;
+            let (children, children_depth) = child(reader)?;
+            (
+                Term::W { carrier, children },
+                1 + carrier_depth.max(children_depth),
+            )
+        }
+        18 => {
+            let (carrier, carrier_depth) = child(reader)?;
+            let (children, children_depth) = child(reader)?;
+            let (label, label_depth) = child(reader)?;
+            let (function, function_depth) = child(reader)?;
+            (
+                Term::Sup {
+                    carrier,
+                    children,
+                    label,
+                    function,
+                },
+                1 + carrier_depth
+                    .max(children_depth)
+                    .max(label_depth)
+                    .max(function_depth),
+            )
+        }
+        19 => {
+            let (motive, motive_depth) = child(reader)?;
+            let (step, step_depth) = child(reader)?;
+            let (tree, tree_depth) = child(reader)?;
+            (
+                Term::IndW { motive, step, tree },
+                1 + motive_depth.max(step_depth).max(tree_depth),
             )
         }
         tag => return Err(CodecError::InvalidTag("MathematicalTerm", tag)),

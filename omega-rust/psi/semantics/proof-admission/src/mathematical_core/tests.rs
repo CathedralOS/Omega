@@ -93,6 +93,34 @@ fn id_elim(
     })
 }
 
+fn w_type(arena: &mut TermArena, carrier: TermHandle, children: TermHandle) -> TermHandle {
+    arena.insert(Term::W { carrier, children })
+}
+
+fn sup(
+    arena: &mut TermArena,
+    carrier: TermHandle,
+    children: TermHandle,
+    label: TermHandle,
+    function: TermHandle,
+) -> TermHandle {
+    arena.insert(Term::Sup {
+        carrier,
+        children,
+        label,
+        function,
+    })
+}
+
+fn ind_w(
+    arena: &mut TermArena,
+    motive: TermHandle,
+    step: TermHandle,
+    tree: TermHandle,
+) -> TermHandle {
+    arena.insert(Term::IndW { motive, step, tree })
+}
+
 fn default_budget() -> Budget {
     Budget::new(DEFAULT_CONVERSION_STEPS)
 }
@@ -1914,4 +1942,612 @@ fn identity_proofs_stay_relevant_without_uip() {
         )
         .unwrap()
     );
+}
+
+/// The `indW` step type `Π(a' : A). Π(k' : Π(b : B a'). W A B).
+/// Π(_ : Π(b : B a'). P (k' b)). P (sup A B a' k')` over the prefix
+/// `A : Type 0, B : Π(_:A). Type 0, a : A, k : Π(b:B a). W A B,
+/// P : Π(_:W A B). Type 0` — written by hand so the kernel's own
+/// step-type construction is cross-checked against an independent
+/// encoding rather than against itself.
+fn w_step_binding(arena: &mut TermArena) -> TermHandle {
+    let a_domain = variable(arena, 4);
+    // k' : Π(b : B a'). W A B — under `a'` B is index 4 and under
+    // `a', b` the ambient A and B are indices 6 and 5.
+    let b_at = variable(arena, 4);
+    let a_bound = variable(arena, 0);
+    let child_positions = apply(arena, b_at, a_bound);
+    let carrier = variable(arena, 6);
+    let children = variable(arena, 5);
+    let w_at_two = w_type(arena, carrier, children);
+    let function_type = pi(arena, child_positions, w_at_two);
+    // ih : Π(b : B a'). P (k' b) — the domain at depth 2 has B = 5,
+    // a' = 1; the codomain at depth 3 has P = 3, k' = 1, b = 0.
+    let b_at = variable(arena, 5);
+    let a_bound = variable(arena, 1);
+    let hypothesis_domain = apply(arena, b_at, a_bound);
+    let p_at = variable(arena, 3);
+    let k_bound = variable(arena, 1);
+    let b_bound = variable(arena, 0);
+    let child = apply(arena, k_bound, b_bound);
+    let hypothesis_codomain = apply(arena, p_at, child);
+    let hypothesis = pi(arena, hypothesis_domain, hypothesis_codomain);
+    // P (sup A B a' k') at depth 3: P = 3, a' = 2, k' = 1, and the
+    // ambient A and B sit at 7 and 6.
+    let p_at = variable(arena, 3);
+    let carrier = variable(arena, 7);
+    let children = variable(arena, 6);
+    let label = variable(arena, 2);
+    let function = variable(arena, 1);
+    let node = sup(arena, carrier, children, label, function);
+    let result = apply(arena, p_at, node);
+    let inner = pi(arena, hypothesis, result);
+    let middle = pi(arena, function_type, inner);
+    pi(arena, a_domain, middle)
+}
+
+/// `A : Type 0, B : Π(_:A). Type 0, a : A, k : Π(b : B a). W A B,
+/// P : Π(_ : W A B). Type 0, s : <step type>, t : W A B, u : W A B`.
+/// At depth 0: u = 0, t = 1, s = 2, P = 3, k = 4, a = 5, B = 6, A = 7.
+fn w_context(arena: &mut TermArena) -> Context {
+    let type_zero = type_sort(arena, 0);
+    let a_in_prefix = variable(arena, 0);
+    let b_binding = pi(arena, a_in_prefix, type_zero);
+    let a_binding = variable(arena, 1);
+    // k : Π(b : B a). W A B over prefix [A, B, a].
+    let b_at = variable(arena, 1);
+    let a_at = variable(arena, 0);
+    let child_positions = apply(arena, b_at, a_at);
+    let carrier = variable(arena, 3);
+    let children = variable(arena, 2);
+    let w_under_b = w_type(arena, carrier, children);
+    let k_binding = pi(arena, child_positions, w_under_b);
+    // P : Π(_ : W A B). Type 0 over prefix [A, B, a, k].
+    let carrier = variable(arena, 3);
+    let children = variable(arena, 2);
+    let w = w_type(arena, carrier, children);
+    let p_binding = pi(arena, w, type_zero);
+    let s_binding = w_step_binding(arena);
+    // t over prefix [A, B, a, k, P, s]; u over one more binding.
+    let carrier = variable(arena, 5);
+    let children = variable(arena, 4);
+    let t_binding = w_type(arena, carrier, children);
+    let carrier = variable(arena, 6);
+    let children = variable(arena, 5);
+    let u_binding = w_type(arena, carrier, children);
+    Context::empty()
+        .extend(type_zero)
+        .extend(b_binding)
+        .extend(a_binding)
+        .extend(k_binding)
+        .extend(p_binding)
+        .extend(s_binding)
+        .extend(t_binding)
+        .extend(u_binding)
+}
+
+/// `λ(a' : A). λ(k' : Π(b : B a'). W A B). λ(ih : Π(b : B a'). Two).
+/// zero` — a concrete induction step for the constant motive
+/// `λ(_ : W A B). Two`, checked against the kernel's built step type
+/// through the motive's own reductions. Written in the 8-binding
+/// `w_context` (A = 7, B = 6).
+fn concrete_step(arena: &mut TermArena) -> TermHandle {
+    let a_domain = variable(arena, 7);
+    // Π(b : B a'). W A B under a': B = 7, a' = 0; codomain at depth 2:
+    // A = 9, B = 8.
+    let b_at = variable(arena, 7);
+    let a_bound = variable(arena, 0);
+    let child_positions = apply(arena, b_at, a_bound);
+    let carrier = variable(arena, 9);
+    let children = variable(arena, 8);
+    let w_at_two = w_type(arena, carrier, children);
+    let function_type = pi(arena, child_positions, w_at_two);
+    // Π(b : B a'). Two at depth 2: B = 8, a' = 1.
+    let b_at = variable(arena, 8);
+    let a_bound = variable(arena, 1);
+    let hypothesis_domain = apply(arena, b_at, a_bound);
+    let hypothesis_codomain = two(arena);
+    let hypothesis = pi(arena, hypothesis_domain, hypothesis_codomain);
+    let body = two_zero(arena);
+    let inner = lambda(arena, hypothesis, body);
+    let middle = lambda(arena, function_type, inner);
+    lambda(arena, a_domain, middle)
+}
+
+#[test]
+fn w_forms_at_the_maximum_component_level() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let empty = Context::empty();
+
+    // `W (Type 0) (λ(_ : Type 0). Two) : Type 1` — the carrier's own
+    // universe `u = 1` dominates the family's `v = 0`.
+    let carrier = type_sort(&mut arena, 0);
+    let domain = type_sort(&mut arena, 0);
+    let body = two(&mut arena);
+    let children = lambda(&mut arena, domain, body);
+    let w = w_type(&mut arena, carrier, children);
+    let inferred = infer_type(&mut arena, &empty, w, &mut budget).unwrap();
+    let expected = type_sort(&mut arena, 1);
+    assert!(arena.structurally_equal(inferred, expected));
+
+    // `W Two (λ(_ : Two). Type 0) : Type 1` — a family into a higher
+    // universe lifts the formation: `max(0, 1) = 1`.
+    let carrier = two(&mut arena);
+    let domain = two(&mut arena);
+    let body = type_sort(&mut arena, 0);
+    let children = lambda(&mut arena, domain, body);
+    let w = w_type(&mut arena, carrier, children);
+    let inferred = infer_type(&mut arena, &empty, w, &mut budget).unwrap();
+    let expected = type_sort(&mut arena, 1);
+    assert!(arena.structurally_equal(inferred, expected));
+
+    // `W Two (λ(_ : Two). Two) : Type 0` stays at the floor.
+    let carrier = two(&mut arena);
+    let domain = two(&mut arena);
+    let body = two(&mut arena);
+    let children = lambda(&mut arena, domain, body);
+    let w = w_type(&mut arena, carrier, children);
+    let inferred = infer_type(&mut arena, &empty, w, &mut budget).unwrap();
+    let expected = type_sort(&mut arena, 0);
+    assert!(arena.structurally_equal(inferred, expected));
+
+    // In the context, `W A B : Type 0` — the opaque family `B` is as
+    // dependent as formation allows.
+    let context = w_context(&mut arena);
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let w = w_type(&mut arena, carrier, children);
+    let inferred = infer_type(&mut arena, &context, w, &mut budget).unwrap();
+    let expected = type_sort(&mut arena, 0);
+    assert!(arena.structurally_equal(inferred, expected));
+}
+
+#[test]
+fn w_formation_rejects_strict_and_malformed_families() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context S : Strict 0, A : Type 0, A2 : Type 0, a : A. At depth 4:
+    // a = 0, A2 = 1, A = 2, S = 3.
+    let strict_zero = strict_sort(&mut arena, 0);
+    let type_zero = type_sort(&mut arena, 0);
+    let type_zero_again = type_sort(&mut arena, 0);
+    let a_binding = variable(&mut arena, 1);
+    let context = Context::empty()
+        .extend(strict_zero)
+        .extend(type_zero)
+        .extend(type_zero_again)
+        .extend(a_binding);
+
+    // A strict carrier has no relevant data for a well-founded tree.
+    let s = variable(&mut arena, 3);
+    let any_children = two(&mut arena);
+    let w = w_type(&mut arena, s, any_children);
+    let error = infer_type(&mut arena, &context, w, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::StrictWCarrier { .. }));
+
+    // A branching family that is not a function gives child positions
+    // no domain.
+    let a = variable(&mut arena, 0);
+    let carrier = variable(&mut arena, 2);
+    let w = w_type(&mut arena, carrier, a);
+    let error = infer_type(&mut arena, &context, w, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::NotAFunction { .. }));
+
+    // A family over a different carrier is not `B : A → Type v`:
+    // `λ(_ : A2). Two` has domain `A2`, not `A`.
+    let a2 = variable(&mut arena, 1);
+    let body = two(&mut arena);
+    let wrong_family = lambda(&mut arena, a2, body);
+    let carrier = variable(&mut arena, 2);
+    let w = w_type(&mut arena, carrier, wrong_family);
+    let error = infer_type(&mut arena, &context, w, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+
+    // A family into `Strict` makes child positions propositions —
+    // boxing owns those, not `W`.
+    let a = variable(&mut arena, 2);
+    let s_body = variable(&mut arena, 4);
+    let strict_family = lambda(&mut arena, a, s_body);
+    let carrier = variable(&mut arena, 2);
+    let w = w_type(&mut arena, carrier, strict_family);
+    let error = infer_type(&mut arena, &context, w, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::StrictWChildrenCodomain { .. }));
+
+    // A family into a non-universe `λ(_ : A). a` leaves `B a` without
+    // a type for child positions.
+    let a = variable(&mut arena, 2);
+    let a_body = variable(&mut arena, 1);
+    let term_family = lambda(&mut arena, a, a_body);
+    let carrier = variable(&mut arena, 2);
+    let w = w_type(&mut arena, carrier, term_family);
+    let error = infer_type(&mut arena, &context, w, &mut budget).unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::WChildrenCodomainNotAUniverse { .. }
+    ));
+}
+
+#[test]
+fn sup_checks_its_annotation_and_components() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = w_context(&mut arena);
+
+    // `sup A B a k : W A B` — the positive control.
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let w = w_type(&mut arena, carrier, children);
+    let label = variable(&mut arena, 5);
+    let function = variable(&mut arena, 4);
+    let node = sup(&mut arena, carrier, children, label, function);
+    check_type(&mut arena, &context, node, w, &mut budget).unwrap();
+    let inferred = infer_type(&mut arena, &context, node, &mut budget).unwrap();
+    assert!(arena.structurally_equal(inferred, w));
+
+    // The child function's expected domain `B a` is computed through
+    // reduction: an eta-expanded annotation `λ(x : A). B x` still
+    // checks `k` at `Π(b : B a). W A B`, and the resulting `W` type is
+    // the same one by typed function eta.
+    let x = variable(&mut arena, 0);
+    let b_under = variable(&mut arena, 7);
+    let applied = apply(&mut arena, b_under, x);
+    let a_domain = variable(&mut arena, 7);
+    let eta_family = lambda(&mut arena, a_domain, applied);
+    let carrier = variable(&mut arena, 7);
+    let label = variable(&mut arena, 5);
+    let function = variable(&mut arena, 4);
+    let node = sup(&mut arena, carrier, eta_family, label, function);
+    check_type(&mut arena, &context, node, w, &mut budget).unwrap();
+
+    // The annotation is checked, never trusted: a strict carrier
+    // rejects inside `sup` exactly as in formation.
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let strict_zero = strict_sort(&mut arena, 0);
+    let context = Context::empty().extend(strict_zero);
+    let s = variable(&mut arena, 0);
+    let node = sup(&mut arena, s, s, s, s);
+    let error = infer_type(&mut arena, &context, node, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::StrictWCarrier { .. }));
+
+    // A label that is not an `A` rejects; so does a child function
+    // that is not a `Π(b : B a). W A B`.
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = w_context(&mut arena);
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let wrong_label_term = variable(&mut arena, 1);
+    let function = variable(&mut arena, 4);
+    let wrong_label = sup(&mut arena, carrier, children, wrong_label_term, function);
+    let error = infer_type(&mut arena, &context, wrong_label, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let label = variable(&mut arena, 5);
+    let wrong_function_term = variable(&mut arena, 5);
+    let wrong_function = sup(&mut arena, carrier, children, label, wrong_function_term);
+    let error = infer_type(&mut arena, &context, wrong_function, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+}
+
+#[test]
+fn w_induction_checks_the_step_against_its_dependent_type() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = w_context(&mut arena);
+
+    // `indW(P, s, t) : P t` with the step supplied as a context
+    // variable — the hand-written `w_step_binding` and the kernel's
+    // `w_step_type` must agree for this to check.
+    let p = variable(&mut arena, 3);
+    let s = variable(&mut arena, 2);
+    let t = variable(&mut arena, 1);
+    let induction = ind_w(&mut arena, p, s, t);
+    let p = variable(&mut arena, 3);
+    let expected = apply(&mut arena, p, t);
+    check_type(&mut arena, &context, induction, expected, &mut budget).unwrap();
+    let inferred = infer_type(&mut arena, &context, induction, &mut budget).unwrap();
+    assert!(arena.structurally_equal(inferred, expected));
+
+    // The same elimination over `sup A B a k` lands at `P (sup …)`.
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let label = variable(&mut arena, 5);
+    let function = variable(&mut arena, 4);
+    let node = sup(&mut arena, carrier, children, label, function);
+    let p = variable(&mut arena, 3);
+    let induction = ind_w(&mut arena, p, s, node);
+    let p = variable(&mut arena, 3);
+    let expected = apply(&mut arena, p, node);
+    check_type(&mut arena, &context, induction, expected, &mut budget).unwrap();
+
+    // A concrete lambda step for the constant motive `λ(_ : W A B).
+    // Two` checks through the motive's reductions: the step's
+    // `Π(b : B a'). Two` hypothesis and `Two` result convert to the
+    // built `Π(b : B a'). C (k' b)` and `C (sup …)`.
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let w = w_type(&mut arena, carrier, children);
+    let body = two(&mut arena);
+    let constant_motive = lambda(&mut arena, w, body);
+    let step = concrete_step(&mut arena);
+    let induction = ind_w(&mut arena, constant_motive, step, t);
+    let expected = two(&mut arena);
+    check_type(&mut arena, &context, induction, expected, &mut budget).unwrap();
+
+    // The tree must inhabit a `W` type — `a : A` does not.
+    let a = variable(&mut arena, 5);
+    let p = variable(&mut arena, 3);
+    let induction = ind_w(&mut arena, p, s, a);
+    let error = infer_type(&mut arena, &context, induction, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::NotAW { .. }));
+
+    // A motive that is not a function cannot name a family.
+    let not_a_function = two_zero(&mut arena);
+    let induction = ind_w(&mut arena, not_a_function, s, t);
+    let error = infer_type(&mut arena, &context, induction, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::NotAFunction { .. }));
+
+    // A motive over `A` is not a `W A B` family.
+    let wrong_domain = variable(&mut arena, 7);
+    let body = two(&mut arena);
+    let wrong_motive = lambda(&mut arena, wrong_domain, body);
+    let induction = ind_w(&mut arena, wrong_motive, s, t);
+    let error = infer_type(&mut arena, &context, induction, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+
+    // A step of the wrong shape — `λ(a' : A). a'` is `A → A`, not the
+    // dependent step type — rejects at `check_type`.
+    let a_domain = variable(&mut arena, 7);
+    let a_bound = variable(&mut arena, 0);
+    let wrong_step = lambda(&mut arena, a_domain, a_bound);
+    let p = variable(&mut arena, 3);
+    let induction = ind_w(&mut arena, p, wrong_step, t);
+    let error = infer_type(&mut arena, &context, induction, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+}
+
+#[test]
+fn w_induction_rejects_strict_and_non_universe_motives() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // Context S : Strict 0, A : Type 0, B : Π(_:A). Type 0, a : A,
+    // t : W A B. At depth 5: t = 0, a = 1, B = 2, A = 3, S = 4.
+    let strict_zero = strict_sort(&mut arena, 0);
+    let type_zero = type_sort(&mut arena, 0);
+    let a_in_prefix = variable(&mut arena, 0);
+    let b_binding = pi(&mut arena, a_in_prefix, type_zero);
+    let a_binding = variable(&mut arena, 1);
+    let carrier = variable(&mut arena, 2);
+    let children = variable(&mut arena, 1);
+    let t_binding = w_type(&mut arena, carrier, children);
+    let context = Context::empty()
+        .extend(strict_zero)
+        .extend(type_zero)
+        .extend(b_binding)
+        .extend(a_binding)
+        .extend(t_binding);
+
+    // A motive `λ(_ : W A B). S` into `Strict 0` is not an admitted
+    // elimination target: boxing owns strict motives.
+    let carrier = variable(&mut arena, 3);
+    let children = variable(&mut arena, 2);
+    let w = w_type(&mut arena, carrier, children);
+    let s_body = variable(&mut arena, 5);
+    let strict_motive = lambda(&mut arena, w, s_body);
+    let t = variable(&mut arena, 0);
+    let step_placeholder = variable(&mut arena, 0);
+    let induction = ind_w(&mut arena, strict_motive, step_placeholder, t);
+    let error = infer_type(&mut arena, &context, induction, &mut budget).unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::StrictInductionMotiveCodomain { .. }
+    ));
+
+    // A motive `λ(_ : W A B). a` into the non-universe `A` leaves
+    // `P t` without a type to check against.
+    let carrier = variable(&mut arena, 3);
+    let children = variable(&mut arena, 2);
+    let w = w_type(&mut arena, carrier, children);
+    let a_body = variable(&mut arena, 2);
+    let term_motive = lambda(&mut arena, w, a_body);
+    let induction = ind_w(&mut arena, term_motive, step_placeholder, t);
+    let error = infer_type(&mut arena, &context, induction, &mut budget).unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::InductionMotiveCodomainNotAUniverse { .. }
+    ));
+}
+
+#[test]
+fn w_induction_computes_on_sup_with_a_neutral_child_function() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = w_context(&mut arena);
+
+    // `indW(P, s, sup A B a k)` with `k` an arbitrary variable — the
+    // supplied child function is neutral, not an expanded lambda.
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let label = variable(&mut arena, 5);
+    let function = variable(&mut arena, 4);
+    let node = sup(&mut arena, carrier, children, label, function);
+    let p = variable(&mut arena, 3);
+    let s = variable(&mut arena, 2);
+    let induction = ind_w(&mut arena, p, s, node);
+
+    // One budgeted step unfolds to `s a k (λ(b : B a). indW(P, s,
+    // k b))`: the induction hypothesis is rebuilt from the `sup`'s
+    // checked `B` annotation even though `W A B` itself is neutral.
+    let before = budget.remaining();
+    let normalized = weak_head_normalize(&mut arena, induction, &mut budget).unwrap();
+    assert_eq!(before - budget.remaining(), 1);
+    let ih_domain = {
+        let b = variable(&mut arena, 6);
+        let a = variable(&mut arena, 5);
+        apply(&mut arena, b, a)
+    };
+    let ih_body = {
+        let p = variable(&mut arena, 4);
+        let s = variable(&mut arena, 3);
+        let k = variable(&mut arena, 5);
+        let bound = variable(&mut arena, 0);
+        let child = apply(&mut arena, k, bound);
+        ind_w(&mut arena, p, s, child)
+    };
+    let ih = lambda(&mut arena, ih_domain, ih_body);
+    let expected = {
+        let s = variable(&mut arena, 2);
+        let a = variable(&mut arena, 5);
+        let k = variable(&mut arena, 4);
+        let applied = apply(&mut arena, s, a);
+        let applied = apply(&mut arena, applied, k);
+        apply(&mut arena, applied, ih)
+    };
+    assert!(arena.structurally_equal(normalized, expected));
+
+    // The result type follows the same reduction: `P (sup …)` is the
+    // inferred type, and it stays stuck while `P` is neutral.
+    let inferred = infer_type(&mut arena, &context, induction, &mut budget).unwrap();
+    let p = variable(&mut arena, 3);
+    let expected_type = apply(&mut arena, p, node);
+    assert!(arena.structurally_equal(inferred, expected_type));
+
+    // Constructor computation is a budgeted step: an exhausted budget
+    // refuses instead of reporting a judgment.
+    let mut empty_budget = Budget::new(0);
+    let error = weak_head_normalize(&mut arena, induction, &mut empty_budget).unwrap_err();
+    assert_eq!(error, CoreError::StepCeiling);
+
+    // A neutral tree keeps the elimination stuck — `indW(P, s, t)` is
+    // its own normal form.
+    let t = variable(&mut arena, 1);
+    let p = variable(&mut arena, 3);
+    let s = variable(&mut arena, 2);
+    let stuck = ind_w(&mut arena, p, s, t);
+    let normalized = weak_head_normalize(&mut arena, stuck, &mut budget).unwrap();
+    assert_eq!(normalized, stuck);
+}
+
+#[test]
+fn stuck_w_inductions_compare_componentwise() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = w_context(&mut arena);
+
+    // Under the constant motive `λ(_ : W A B). Two` every induction
+    // lands at `Two`, so the shared type is honest for both sides.
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let w = w_type(&mut arena, carrier, children);
+    let body = two(&mut arena);
+    let motive = lambda(&mut arena, w, body);
+    let step = concrete_step(&mut arena);
+    let t = variable(&mut arena, 1);
+    let u = variable(&mut arena, 0);
+    let shared = two(&mut arena);
+
+    let left = ind_w(&mut arena, motive, step, t);
+    let left_again = ind_w(&mut arena, motive, step, t);
+    let right = ind_w(&mut arena, motive, step, u);
+    assert!(convertible(&mut arena, &context, left, left_again, shared, &mut budget).unwrap());
+    assert!(!convertible(&mut arena, &context, left, right, shared, &mut budget).unwrap());
+
+    // A different step rejects as well: `λ(a':A).λ(k':…).λ(ih:…). one`
+    // is not the supplied step.
+    let a_domain = variable(&mut arena, 7);
+    let b_at = variable(&mut arena, 7);
+    let a_bound = variable(&mut arena, 0);
+    let child_positions = apply(&mut arena, b_at, a_bound);
+    let carrier = variable(&mut arena, 9);
+    let children = variable(&mut arena, 8);
+    let w_at_two = w_type(&mut arena, carrier, children);
+    let function_type = pi(&mut arena, child_positions, w_at_two);
+    let b_at = variable(&mut arena, 8);
+    let a_bound = variable(&mut arena, 1);
+    let hypothesis_domain = apply(&mut arena, b_at, a_bound);
+    let hypothesis_codomain = two(&mut arena);
+    let hypothesis = pi(&mut arena, hypothesis_domain, hypothesis_codomain);
+    let body = two_one(&mut arena);
+    let inner = lambda(&mut arena, hypothesis, body);
+    let middle = lambda(&mut arena, function_type, inner);
+    let other_step = lambda(&mut arena, a_domain, middle);
+    let other = ind_w(&mut arena, motive, other_step, t);
+    assert!(!convertible(&mut arena, &context, left, other, shared, &mut budget).unwrap());
+}
+
+#[test]
+fn w_types_convert_componentwise_and_sup_has_no_eta() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = w_context(&mut arena);
+    let shared_sort = type_sort(&mut arena, 0);
+
+    // `W A B` converts to itself; an eta-expanded family `λ(x : A).
+    // B x` names the same `W` type by typed function eta.
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let w = w_type(&mut arena, carrier, children);
+    let x = variable(&mut arena, 0);
+    let b_under = variable(&mut arena, 7);
+    let applied = apply(&mut arena, b_under, x);
+    let a_domain = variable(&mut arena, 7);
+    let eta_family = lambda(&mut arena, a_domain, applied);
+    let carrier = variable(&mut arena, 7);
+    let w_eta = w_type(&mut arena, carrier, eta_family);
+    assert!(convertible(&mut arena, &context, w, w_eta, shared_sort, &mut budget).unwrap());
+
+    // A different family gives a different `W`: `λ(_ : A). Two` never
+    // agrees with the opaque `B`.
+    let a_domain = variable(&mut arena, 7);
+    let body = two(&mut arena);
+    let constant_family = lambda(&mut arena, a_domain, body);
+    let carrier = variable(&mut arena, 7);
+    let w_constant = w_type(&mut arena, carrier, constant_family);
+    assert!(
+        !convertible(
+            &mut arena,
+            &context,
+            w,
+            w_constant,
+            shared_sort,
+            &mut budget
+        )
+        .unwrap()
+    );
+
+    // A family at a different level — `λ(_ : A). Type 0` is
+    // `Π(_ : A). Type 1` — can never convert to `B : Π(_ : A). Type 0`:
+    // without cumulativity the two `W` types share no universe, so the
+    // judgment is false rather than undecided.
+    let a_domain = variable(&mut arena, 7);
+    let body = type_sort(&mut arena, 0);
+    let higher_family = lambda(&mut arena, a_domain, body);
+    let carrier = variable(&mut arena, 7);
+    let w_higher = w_type(&mut arena, carrier, higher_family);
+    let higher_sort = type_sort(&mut arena, 1);
+    assert!(!convertible(&mut arena, &context, w, w_higher, higher_sort, &mut budget).unwrap());
+
+    // Two constructor trees compare at the shared `W A B`: the labels
+    // at `A`, the child functions at `Π(b : B a). W A B`. Identical
+    // children convert; a different label does not — and there is no
+    // W eta, so `sup A B a k` never converts to the neutral `t`.
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let label = variable(&mut arena, 5);
+    let function = variable(&mut arena, 4);
+    let node = sup(&mut arena, carrier, children, label, function);
+    let carrier = variable(&mut arena, 7);
+    let children = variable(&mut arena, 6);
+    let label = variable(&mut arena, 5);
+    let function = variable(&mut arena, 4);
+    let node_again = sup(&mut arena, carrier, children, label, function);
+    assert!(convertible(&mut arena, &context, node, node_again, w, &mut budget).unwrap());
+    let t = variable(&mut arena, 1);
+    assert!(!convertible(&mut arena, &context, node, t, w, &mut budget).unwrap());
+    assert!(!convertible(&mut arena, &context, t, node, w, &mut budget).unwrap());
 }

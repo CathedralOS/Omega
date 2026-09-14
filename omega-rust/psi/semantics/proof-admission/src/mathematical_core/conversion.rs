@@ -1,9 +1,9 @@
-//! Typed conversion for the Π/Σ fragment and the `Two`/`Id` primitives:
-//! β, pair-projection and constructor-scrutinee `caseTwo`/`J` weak-head
-//! normalization under a step ceiling, pair eta at a `Sigma` shared type,
-//! typed function eta at a `Pi` shared type, and definitional proof
-//! irrelevance gated on the *shared type's* sort — never on the shape of
-//! either side.
+//! Typed conversion for the Π/Σ fragment and the `Two`/`Id`/`W`
+//! primitives: β, pair-projection and constructor-scrutinee
+//! `caseTwo`/`J`/`indW` weak-head normalization under a step ceiling,
+//! pair eta at a `Sigma` shared type, typed function eta at a `Pi`
+//! shared type, and definitional proof irrelevance gated on the *shared
+//! type's* sort — never on the shape of either side.
 //!
 //! Function eta is the profile's selected extension (`inductive_profile.md`
 //! §typed-function-eta): a lambda and a non-lambda convert only when the
@@ -13,8 +13,8 @@
 //! `x ↦ g x` and `f` convert only when `g` and `f` already do.
 
 use super::substitution::{shift, substitute};
-use super::term::{Term, TermArena, TermHandle};
-use super::typing::{Context, CoreError, infer_sort, infer_type};
+use super::term::{Level, Sort, Term, TermArena, TermHandle};
+use super::typing::{Context, CoreError, infer_sort, infer_type, w_step_type};
 
 /// The default number of β steps a conversion attempt may take.
 pub const DEFAULT_CONVERSION_STEPS: u32 = 65_536;
@@ -168,6 +168,71 @@ pub fn weak_head_normalize(
                             base,
                             endpoint,
                             proof: head,
+                        }));
+                    }
+                }
+            }
+            Term::IndW { motive, step, tree } => {
+                // `indW(P, step, sup A B a k) → step a k (λ(b : B a).
+                // indW(P, step, k b))`: a constructor tree supplies the
+                // label, the child function, and the checked `B`
+                // annotation the induction hypothesis's `B a` domain is
+                // rebuilt from, so the reduct is exact even when the
+                // surrounding `W` type is neutral. The hypothesis's
+                // child function stays arbitrary — a neutral `k` never
+                // blocks the step. A non-`sup` tree keeps the
+                // elimination stuck; there is no W eta.
+                let head = weak_head_normalize(arena, tree, budget)?;
+                match arena.get(head) {
+                    Term::Sup {
+                        children,
+                        label,
+                        function,
+                        ..
+                    } => {
+                        budget.consume()?;
+                        let bound_domain = arena.insert(Term::Apply {
+                            function: children,
+                            argument: label,
+                        });
+                        let shifted_motive = shift(arena, motive, 0, 1);
+                        let shifted_step = shift(arena, step, 0, 1);
+                        let shifted_function = shift(arena, function, 0, 1);
+                        let bound = arena.insert(Term::Variable(0));
+                        let child = arena.insert(Term::Apply {
+                            function: shifted_function,
+                            argument: bound,
+                        });
+                        let body = arena.insert(Term::IndW {
+                            motive: shifted_motive,
+                            step: shifted_step,
+                            tree: child,
+                        });
+                        let hypothesis = arena.insert(Term::Lambda {
+                            domain: bound_domain,
+                            body,
+                        });
+                        let applied = arena.insert(Term::Apply {
+                            function: step,
+                            argument: label,
+                        });
+                        let applied = arena.insert(Term::Apply {
+                            function: applied,
+                            argument: function,
+                        });
+                        current = arena.insert(Term::Apply {
+                            function: applied,
+                            argument: hypothesis,
+                        });
+                    }
+                    _ => {
+                        if head == tree {
+                            return Ok(current);
+                        }
+                        return Ok(arena.insert(Term::IndW {
+                            motive,
+                            step,
+                            tree: head,
                         }));
                     }
                 }
@@ -536,6 +601,145 @@ pub fn convertible(
             });
             convertible(arena, context, left_base, right_base, base_type, budget)
         }
+        (
+            Term::W {
+                carrier: left_carrier,
+                children: left_children,
+            },
+            Term::W {
+                carrier: right_carrier,
+                children: right_children,
+            },
+        ) => {
+            // Two W types compare componentwise: the carriers at their
+            // common sort, then the branching families at the canonical
+            // `Π(_ : A). Type v` rebuilt from the left carrier and the
+            // left family's codomain level. A sort or level mismatch on
+            // either side can never convert — without cumulativity the
+            // two sides share no type to be compared at.
+            let left_sort = infer_sort(arena, context, left_carrier, budget)?;
+            let right_sort = infer_sort(arena, context, right_carrier, budget)?;
+            if left_sort != right_sort {
+                return Ok(false);
+            }
+            let shared_carrier = arena.insert(Term::Sort(left_sort));
+            if !convertible(
+                arena,
+                context,
+                left_carrier,
+                right_carrier,
+                shared_carrier,
+                budget,
+            )? {
+                return Ok(false);
+            }
+            let left_level = w_children_level(arena, context, left_children, budget)?;
+            let right_level = w_children_level(arena, context, right_children, budget)?;
+            let (Some(level), Some(other)) = (left_level, right_level) else {
+                return Ok(false);
+            };
+            if level != other {
+                return Ok(false);
+            }
+            let codomain = arena.insert(Term::Sort(Sort::Type(level)));
+            let family_type = arena.insert(Term::Pi {
+                domain: left_carrier,
+                codomain,
+            });
+            convertible(
+                arena,
+                context,
+                left_children,
+                right_children,
+                family_type,
+                budget,
+            )
+        }
+        (
+            Term::Sup {
+                label: left_label,
+                function: left_function,
+                ..
+            },
+            Term::Sup {
+                label: right_label,
+                function: right_function,
+                ..
+            },
+        ) => {
+            // Two constructor trees at a shared `W A B`: the labels
+            // compare at `A`, then the child functions at `Π(b : B a).
+            // W A B` built from the shared family and the left label —
+            // the dependent second position mirrors pair conversion.
+            // The annotation fields were already checked into the
+            // shared `W`, so they decide nothing here; and there is no
+            // W eta, so a `sup` never converts to a non-`sup`.
+            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            match arena.get(type_head) {
+                Term::W { carrier, children } => {
+                    if !convertible(arena, context, left_label, right_label, carrier, budget)? {
+                        return Ok(false);
+                    }
+                    let domain = arena.insert(Term::Apply {
+                        function: children,
+                        argument: left_label,
+                    });
+                    let codomain = shift(arena, type_head, 0, 1);
+                    let function_type = arena.insert(Term::Pi { domain, codomain });
+                    convertible(
+                        arena,
+                        context,
+                        left_function,
+                        right_function,
+                        function_type,
+                        budget,
+                    )
+                }
+                _ => Ok(false),
+            }
+        }
+        (
+            Term::IndW {
+                motive: left_motive,
+                step: left_step,
+                tree: left_tree,
+            },
+            Term::IndW {
+                motive: right_motive,
+                step: right_step,
+                tree: right_tree,
+            },
+        ) => {
+            // Two stuck inductions compare componentwise: the motives
+            // at the left motive's inferred `Π(_ : W A B). Type w`, the
+            // trees at the left tree's inferred `W A B`, and the steps
+            // at the induction step type rebuilt from them. A `sup`
+            // tree never reaches here — weak-head normalization already
+            // unfolded `step a k ih` — so only stuck trees meet this
+            // rule.
+            let motive_type = infer_type(arena, context, left_motive, budget)?;
+            if !convertible(
+                arena,
+                context,
+                left_motive,
+                right_motive,
+                motive_type,
+                budget,
+            )? {
+                return Ok(false);
+            }
+            let tree_type = infer_type(arena, context, left_tree, budget)?;
+            let tree_head = weak_head_normalize(arena, tree_type, budget)?;
+            let (carrier, children) = match arena.get(tree_head) {
+                Term::W { carrier, children } => (carrier, children),
+                _ => return Ok(false),
+            };
+            if !convertible(arena, context, left_tree, right_tree, tree_head, budget)? {
+                return Ok(false);
+            }
+            let step_type = w_step_type(arena, carrier, children, left_motive);
+            convertible(arena, context, left_step, right_step, step_type, budget)
+        }
         (Term::Pair { first, second }, _) => {
             // Pair eta: a literal pair converts to a non-pair only when the
             // non-pair's projections convert to its components.
@@ -599,5 +803,28 @@ pub fn convertible(
             }
         }
         _ => Ok(false),
+    }
+}
+
+/// The `v` of a checked `Π(_ : A). Type v` branching family, or `None`
+/// when the inferred type has another shape. W formation and `sup`
+/// checking already enforce this shape, so `None` can only arise on a
+/// malformed input — where `false` is the honest answer.
+fn w_children_level(
+    arena: &mut TermArena,
+    context: &Context,
+    family: TermHandle,
+    budget: &mut Budget,
+) -> Result<Option<Level>, CoreError> {
+    let family_type = infer_type(arena, context, family, budget)?;
+    let head = weak_head_normalize(arena, family_type, budget)?;
+    let codomain = match arena.get(head) {
+        Term::Pi { codomain, .. } => codomain,
+        _ => return Ok(None),
+    };
+    let codomain_head = weak_head_normalize(arena, codomain, budget)?;
+    match arena.get(codomain_head) {
+        Term::Sort(Sort::Type(level)) => Ok(Some(level)),
+        _ => Ok(None),
     }
 }

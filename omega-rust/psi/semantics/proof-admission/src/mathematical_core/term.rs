@@ -1,6 +1,7 @@
 //! Term model for the common mathematical core: closed universe levels,
-//! relevant and strict sorts, arena-held de Bruijn terms, the selected
-//! inductive profile's two-element type, and its relevant identity type.
+//! relevant and strict sorts, arena-held de Bruijn terms, and the selected
+//! inductive profile's two-element type, relevant identity type, and
+//! W-type of well-founded trees.
 
 use arena::Arena;
 
@@ -122,6 +123,41 @@ pub enum Term {
         base: TermHandle,
         endpoint: TermHandle,
         proof: TermHandle,
+    },
+    /// The profile's W-type `W A B : Type max(u, v)` for `A : Type u`
+    /// and `B : A → Type v` — well-founded trees whose nodes carry an
+    /// `A` label and one child per `B a` position. `children` is the
+    /// branching family `B`, not a child term. Both sides must be
+    /// relevant: strict labels or strict child positions belong to the
+    /// reference core's boxing rules, not this type former.
+    W {
+        carrier: TermHandle,
+        children: TermHandle,
+    },
+    /// `sup A B a k : W A B` — the W constructor bundling a label
+    /// `a : A` with a child function `k : Π(b : B a). W A B`. The
+    /// `carrier`/`children` fields are annotations like `Refl`'s `ty`:
+    /// checked against the formation rule, never trusted, and kept on
+    /// the node so constructor computation can rebuild the induction
+    /// hypothesis's domain `B a` even when the surrounding `W` type is
+    /// neutral. No child lives under a binder.
+    Sup {
+        carrier: TermHandle,
+        children: TermHandle,
+        label: TermHandle,
+        function: TermHandle,
+    },
+    /// Dependent W-induction `indW(motive, step, tree) : motive tree`
+    /// for `tree : W A B`, `motive : Π(_ : W A B). Type w`, and
+    /// `step : Π(a : A). Π(k : Π(b : B a). W A B). Π(_ : Π(b : B a).
+    /// motive (k b)). motive (sup A B a k)` — an induction hypothesis
+    /// for every child. Computes on `sup` to `step a k (λ(b : B a).
+    /// indW(motive, step, k b))` as a budgeted step; a neutral tree
+    /// stays stuck. No child lives under a binder.
+    IndW {
+        motive: TermHandle,
+        step: TermHandle,
+        tree: TermHandle,
     },
 }
 
@@ -289,6 +325,54 @@ impl TermArena {
                     && self.structurally_equal(left_base, right_base)
                     && self.structurally_equal(left_endpoint, right_endpoint)
                     && self.structurally_equal(left_proof, right_proof)
+            }
+            (
+                Term::W {
+                    carrier: left_carrier,
+                    children: left_children,
+                },
+                Term::W {
+                    carrier: right_carrier,
+                    children: right_children,
+                },
+            ) => {
+                self.structurally_equal(left_carrier, right_carrier)
+                    && self.structurally_equal(left_children, right_children)
+            }
+            (
+                Term::Sup {
+                    carrier: left_carrier,
+                    children: left_children,
+                    label: left_label,
+                    function: left_function,
+                },
+                Term::Sup {
+                    carrier: right_carrier,
+                    children: right_children,
+                    label: right_label,
+                    function: right_function,
+                },
+            ) => {
+                self.structurally_equal(left_carrier, right_carrier)
+                    && self.structurally_equal(left_children, right_children)
+                    && self.structurally_equal(left_label, right_label)
+                    && self.structurally_equal(left_function, right_function)
+            }
+            (
+                Term::IndW {
+                    motive: left_motive,
+                    step: left_step,
+                    tree: left_tree,
+                },
+                Term::IndW {
+                    motive: right_motive,
+                    step: right_step,
+                    tree: right_tree,
+                },
+            ) => {
+                self.structurally_equal(left_motive, right_motive)
+                    && self.structurally_equal(left_step, right_step)
+                    && self.structurally_equal(left_tree, right_tree)
             }
             _ => false,
         }

@@ -439,6 +439,163 @@ mod tests {
     }
 
     #[test]
+    fn a_certificate_carries_w_induction() {
+        let mut arena = TermArena::new();
+        // Γ = A : Type 0, B : Π(_:A). Type 0, a : A,
+        //     k : Π(b : B a). W A B, P : Π(_ : W A B). Type 0,
+        //     s : <step type>, t : W A B
+        // proves `indW(P, s, sup A B a k) : P (sup A B a k)` — the
+        // kernel re-decides W formation, the `sup` annotation, and the
+        // dependent induction step type. At depth 7: t = 0, s = 1,
+        // P = 2, k = 3, a = 4, B = 5, A = 6.
+        let type_zero = type_sort(&mut arena, 0);
+        let b_binding = {
+            let a_in_prefix = variable(&mut arena, 0);
+            pi(&mut arena, a_in_prefix, type_zero)
+        };
+        let a_binding = variable(&mut arena, 1);
+        let k_binding = {
+            let b_at = variable(&mut arena, 1);
+            let a_at = variable(&mut arena, 0);
+            let child_positions = arena.insert(Term::Apply {
+                function: b_at,
+                argument: a_at,
+            });
+            let carrier = variable(&mut arena, 3);
+            let children = variable(&mut arena, 2);
+            let w_under_b = arena.insert(Term::W { carrier, children });
+            pi(&mut arena, child_positions, w_under_b)
+        };
+        let p_binding = {
+            let carrier = variable(&mut arena, 3);
+            let children = variable(&mut arena, 2);
+            let w = arena.insert(Term::W { carrier, children });
+            pi(&mut arena, w, type_zero)
+        };
+        // `Π(a' : A). Π(k' : Π(b : B a'). W A B). Π(_ : Π(b : B a').
+        // P (k' b)). P (sup A B a' k')` over the five-binding prefix.
+        let s_binding = {
+            let a_domain = variable(&mut arena, 4);
+            let function_type = {
+                let b_at = variable(&mut arena, 4);
+                let a_bound = variable(&mut arena, 0);
+                let child_positions = arena.insert(Term::Apply {
+                    function: b_at,
+                    argument: a_bound,
+                });
+                let carrier = variable(&mut arena, 6);
+                let children = variable(&mut arena, 5);
+                let w_at_two = arena.insert(Term::W { carrier, children });
+                pi(&mut arena, child_positions, w_at_two)
+            };
+            let hypothesis = {
+                let b_at = variable(&mut arena, 5);
+                let a_bound = variable(&mut arena, 1);
+                let hypothesis_domain = arena.insert(Term::Apply {
+                    function: b_at,
+                    argument: a_bound,
+                });
+                let p_at = variable(&mut arena, 3);
+                let k_bound = variable(&mut arena, 1);
+                let b_bound = variable(&mut arena, 0);
+                let child = arena.insert(Term::Apply {
+                    function: k_bound,
+                    argument: b_bound,
+                });
+                let hypothesis_codomain = arena.insert(Term::Apply {
+                    function: p_at,
+                    argument: child,
+                });
+                pi(&mut arena, hypothesis_domain, hypothesis_codomain)
+            };
+            let result = {
+                let p_at = variable(&mut arena, 3);
+                let carrier = variable(&mut arena, 7);
+                let children = variable(&mut arena, 6);
+                let label = variable(&mut arena, 2);
+                let function = variable(&mut arena, 1);
+                let node = arena.insert(Term::Sup {
+                    carrier,
+                    children,
+                    label,
+                    function,
+                });
+                arena.insert(Term::Apply {
+                    function: p_at,
+                    argument: node,
+                })
+            };
+            let inner = pi(&mut arena, hypothesis, result);
+            let middle = pi(&mut arena, function_type, inner);
+            pi(&mut arena, a_domain, middle)
+        };
+        let t_binding = {
+            let carrier = variable(&mut arena, 5);
+            let children = variable(&mut arena, 4);
+            arena.insert(Term::W { carrier, children })
+        };
+        let node = {
+            let carrier = variable(&mut arena, 6);
+            let children = variable(&mut arena, 5);
+            let label = variable(&mut arena, 4);
+            let function = variable(&mut arena, 3);
+            arena.insert(Term::Sup {
+                carrier,
+                children,
+                label,
+                function,
+            })
+        };
+        let term = {
+            let motive = variable(&mut arena, 2);
+            let step = variable(&mut arena, 1);
+            arena.insert(Term::IndW {
+                motive,
+                step,
+                tree: node,
+            })
+        };
+        let expected = {
+            let p = variable(&mut arena, 2);
+            arena.insert(Term::Apply {
+                function: p,
+                argument: node,
+            })
+        };
+        let certificate = MathematicalCertificate {
+            context: vec![
+                type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
+            ],
+            term,
+            expected,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+
+        // Claiming `P t` instead of `P (sup …)` is a different, false
+        // judgment: the neutral tree `t` is not the constructor the
+        // induction ran on.
+        let wrong_expected = {
+            let p = variable(&mut arena, 2);
+            let t = variable(&mut arena, 0);
+            arena.insert(Term::Apply {
+                function: p,
+                argument: t,
+            })
+        };
+        let certificate = MathematicalCertificate {
+            context: vec![
+                type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
+            ],
+            term,
+            expected: wrong_expected,
+        };
+        assert!(matches!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::TypeMismatch { .. })
+        ));
+    }
+
+    #[test]
     fn strict_sorts_flow_through_the_certificate() {
         let mut arena = TermArena::new();
         // Γ = P : Strict 0, x : P. In the full context x's type is

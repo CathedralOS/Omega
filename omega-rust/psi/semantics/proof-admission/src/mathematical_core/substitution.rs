@@ -160,6 +160,54 @@ pub fn shift(arena: &mut TermArena, term: TermHandle, cutoff: u32, amount: u32) 
                 proof: shifted_proof,
             })
         }
+        Term::W { carrier, children } => {
+            let shifted_carrier = shift(arena, carrier, cutoff, amount);
+            let shifted_children = shift(arena, children, cutoff, amount);
+            if shifted_carrier == carrier && shifted_children == children {
+                return term;
+            }
+            arena.insert(Term::W {
+                carrier: shifted_carrier,
+                children: shifted_children,
+            })
+        }
+        Term::Sup {
+            carrier,
+            children,
+            label,
+            function,
+        } => {
+            let shifted_carrier = shift(arena, carrier, cutoff, amount);
+            let shifted_children = shift(arena, children, cutoff, amount);
+            let shifted_label = shift(arena, label, cutoff, amount);
+            let shifted_function = shift(arena, function, cutoff, amount);
+            if shifted_carrier == carrier
+                && shifted_children == children
+                && shifted_label == label
+                && shifted_function == function
+            {
+                return term;
+            }
+            arena.insert(Term::Sup {
+                carrier: shifted_carrier,
+                children: shifted_children,
+                label: shifted_label,
+                function: shifted_function,
+            })
+        }
+        Term::IndW { motive, step, tree } => {
+            let shifted_motive = shift(arena, motive, cutoff, amount);
+            let shifted_step = shift(arena, step, cutoff, amount);
+            let shifted_tree = shift(arena, tree, cutoff, amount);
+            if shifted_motive == motive && shifted_step == step && shifted_tree == tree {
+                return term;
+            }
+            arena.insert(Term::IndW {
+                motive: shifted_motive,
+                step: shifted_step,
+                tree: shifted_tree,
+            })
+        }
         Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Dummy => term,
     }
 }
@@ -325,6 +373,54 @@ fn substitute_at(
                 base: new_base,
                 endpoint: new_endpoint,
                 proof: new_proof,
+            })
+        }
+        Term::W { carrier, children } => {
+            let new_carrier = substitute_at(arena, carrier, argument, depth);
+            let new_children = substitute_at(arena, children, argument, depth);
+            if new_carrier == carrier && new_children == children {
+                return term;
+            }
+            arena.insert(Term::W {
+                carrier: new_carrier,
+                children: new_children,
+            })
+        }
+        Term::Sup {
+            carrier,
+            children,
+            label,
+            function,
+        } => {
+            let new_carrier = substitute_at(arena, carrier, argument, depth);
+            let new_children = substitute_at(arena, children, argument, depth);
+            let new_label = substitute_at(arena, label, argument, depth);
+            let new_function = substitute_at(arena, function, argument, depth);
+            if new_carrier == carrier
+                && new_children == children
+                && new_label == label
+                && new_function == function
+            {
+                return term;
+            }
+            arena.insert(Term::Sup {
+                carrier: new_carrier,
+                children: new_children,
+                label: new_label,
+                function: new_function,
+            })
+        }
+        Term::IndW { motive, step, tree } => {
+            let new_motive = substitute_at(arena, motive, argument, depth);
+            let new_step = substitute_at(arena, step, argument, depth);
+            let new_tree = substitute_at(arena, tree, argument, depth);
+            if new_motive == motive && new_step == step && new_tree == tree {
+                return term;
+            }
+            arena.insert(Term::IndW {
+                motive: new_motive,
+                step: new_step,
+                tree: new_tree,
             })
         }
         Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Dummy => term,

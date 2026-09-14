@@ -2,13 +2,15 @@
 //! PROOF-KERNEL-CORE board item requires, with its independent checker for the
 //! dependent-function and dependent-pair fragment of the predicative sMLTT
 //! reference core (Gilbert, Cockx, Sozeau and Tabareau, *Definitional
-//! Proof-Irrelevance without K*, sections 3.1-3.6) plus two primitives
+//! Proof-Irrelevance without K*, sections 3.1-3.6) plus three primitives
 //! of the selected [W-based inductive
 //! profile](../../../../wiki/spec/proofs/inductive_profile.md): the
 //! two-element type `Two` with `zero`/`one` introduction and dependent
-//! `caseTwo` elimination computing on each constructor, and the relevant
+//! `caseTwo` elimination computing on each constructor, the relevant
 //! identity type `Id A x y` with `refl` introduction and dependent `J`
-//! elimination computing only on reflexivity. The checker never
+//! elimination computing only on reflexivity, and the W-type `W A B` of
+//! well-founded trees with `sup` introduction and dependent `indW`
+//! induction computing on each constructor. The checker never
 //! searches: producers elaborate terms, this kernel re-decides formation,
 //! typing and permitted conversion, and producer success flags are never
 //! trusted as evidence.
@@ -77,6 +79,27 @@
 //! proofs of the same identity never collapse, and `refl` never converts
 //! to a neutral proof. Level variables and universe-polymorphic
 //! declarations remain separate steps.
+//!
+//! `W` is the profile's primitive well-founded tree: `W A B : Type
+//! max(u, v)` for `A : Type u` and `B : A → Type v`, where a node pairs
+//! an `A` label with one child per `B a` position. Formation is
+//! relevant-only on both sides — a strict carrier or a family into
+//! `Strict` rejects, since propositional positions belong to the
+//! boxing rules. `sup A B a k` carries its carrier and branching
+//! family as checked annotations (never trusted), so constructor
+//! computation can rebuild the induction hypothesis's domain `B a`
+//! even when the surrounding `W` type is neutral; the child function
+//! `k` stays arbitrary — a neutral `k` never blocks reduction.
+//! `indW(P, step, t)` checks `P` as a `Π(_ : W A B). Type w` family
+//! with `w` read off the checked codomain, checks `step` at the
+//! built dependent step type `Π(a : A). Π(k : Π(b : B a). W A B).
+//! Π(_ : Π(b : B a). P (k b)). P (sup A B a k)`, and computes
+//! `indW(P, step, sup A B a k) → step a k (λ(b : B a). indW(P, step,
+//! k b))` as a budgeted step. Stuck inductions compare componentwise
+//! at the left tree's inferred `W` type; the profile adds no W eta
+//! law, so a `sup` never converts to a neutral tree.
+//! Certificates carry `W`/`sup`/`indW` through the canonical wire
+//! (term tags 17-19) and re-verify after decode.
 
 mod certificate;
 mod conversion;
