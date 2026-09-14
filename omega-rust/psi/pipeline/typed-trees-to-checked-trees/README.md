@@ -68,13 +68,19 @@ authority. Omega's coordinator owns the
 [ordered settlement boundary](../../../omega/compiler/compiler/checked_settlement.md)
 outside this crate.
 
-Ordinary multi-tuple machine specialization appends additional instances before
-rewriting the authored first tuple. Its input remains in the live program;
-only selected expression, type, and statement graphs pass through temporary
-cross-table copying storage. Selected call-site rewrites wait until all copies
-finish, including sites owned by the template. Receipt order remains first
-tuple followed by additional instances. Separate saved operator-provider
-templates retain their existing distinct-source path.
+[Specialization](src/monomorphization.rs) runs explicit fixed-point rounds:
+discover call tuples, validate bounds, prepare the round's contract analyses,
+materialize missing instances, then rewrite calls and recheck selections.
+Authored templates remain generic and unchanged. Application candidates borrow
+the round's immutable template metadata while owning their bindings.
+[Selection](src/monomorphization/selection.rs),
+[body cloning](src/monomorphization/body_cloning.rs),
+[body rewriting](src/monomorphization/body_rewriting.rs), and
+[identity encoding/replay](src/monomorphization/identities.rs) own those mechanisms.
+Cloned runtime calls resolve subjects in a state-owned traversal rather than
+rediscovering their enclosing statement trees for each call. The collected
+subjects preserve the first lexical owner and exact generational handles.
+Separate saved operator-provider templates retain their distinct-source path.
 
 Selected-provider checking prepares its immutable authored snapshot and reach
 summary once per invocation, only when providers are selected. Fixed-point rounds
@@ -539,36 +545,21 @@ It verifies retained requirements and unchanged call routes, not execution of
 arbitrary host records as entry proofs. Generic/lifetime attachments, broader
 entry arithmetic, and mutable value-origin transport remain distinct work.
 
-## Scalar convergence classification
+## Scalar convergence inputs
 
-[shared_convergence.rs](src/flow/terminal_unit/shared_convergence.rs) recognizes
-sufficient source shapes for a shared Boolean cleanup tail. It is a producer
-classifier, not proof authority or the definition of legal integer arithmetic.
-The classifier families are organized by their actual expression structure:
+[shared_convergence.rs](src/flow/terminal_unit/shared_convergence.rs) collects
+runtime inputs by walking supported scalar operations. Arithmetic association,
+cast-chain length, and combinations of exact and proof-free operations do not
+select separate producer families. Collection establishes input coordinates and
+supported carrier/operation shapes, not arithmetic safety.
 
-| Owner | Recognized structure |
-| --- | --- |
-| `affine` | Ordered landed-literal offset/coefficient chains and bounded same-/distinct-root arithmetic joins. |
-| `cast_chains` | Partial casts, strict widenings, and ordered conversion words between computed families. |
-| `products` | Literal-factor multiply chains and bounded literal/runtime-divisor chains. |
-| `shifts` | Ordered exact shifts and bounded cross-family/conversion compositions. |
-
-These paths retain exact runtime parameter roots, carrier types, literal siblings,
-source order, and independent operation identities. Recognizing a quadratic,
-conversion, or cancellation shape does not establish that proof production or
-native composition supports it. In particular, historical sufficient bounds
-must not replace the operation-local questions in
-[integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md).
-
-Each arithmetic prefix and partial cast needs its own proof. A final zero factor,
-cancellation, or representable conversion result cannot excuse an earlier unsafe
-operation. Missing/reordered/cyclic definitions, changed roots or carriers, invalid
-literal landings, and checked analysis overflow decline the candidate. A failed
-bounded analysis is not a proof of mathematical falsehood.
-
-Keep source-family limits here rather than adding a language rule per composition.
-Extending a classifier alone does not extend artifact admission or erase a
-downstream unsupported-shape rejection.
+Boolean, structural-member, and nominal-cleanup custody retain their own
+restrictions. The lowerer collects the same inputs from its representation,
+emits each operation in order, and completes its canonical proof obligations.
+Every arithmetic prefix and partial cast needs its own proof. A final zero
+factor, cancellation, or representable result cannot excuse an earlier unsafe
+operation. Missing proof remains a failure, not a reason to trust this collector.
+See [integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md).
 
 ## Bounded Terminal correspondence
 

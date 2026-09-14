@@ -22,3 +22,11 @@ The subordinate owners follow the work:
 - [Evidence lowering](src/psi_lowering/evidence_lowering.rs) retains proof subjects.
 - [Source custody](src/psi_lowering/call_source_custody.rs) preserves call identities.
 - [Tests](src/psi_lowering/tests.rs) exercise completed artifacts and invalid custody.
+
+Shared scalar cleanup collects runtime inputs through
+[ordinary operation traversal](src/psi_lowering/shared_runtime_parameters.rs),
+rather than a catalogue of arithmetic compositions. This grants no arithmetic
+authority: emission retains each operation, proof completion discharges every
+canonical pre-result obligation, and independent verification checks source
+custody and the completed graph. Unsupported storage or cleanup relationships
+remain separate admission limits.

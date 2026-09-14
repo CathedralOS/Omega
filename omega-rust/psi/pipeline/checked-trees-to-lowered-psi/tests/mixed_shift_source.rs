@@ -13,6 +13,181 @@ use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
+const COMPOSITION_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::composed(token: Token, value: u8, flag: bool) -> bool
+    $REQUIRES
+    {
+        let staged: bool = ($EXPRESSION == 0u8) || flag;
+        staged
+    }
+"#;
+
+fn check_composition_source(expression: &str, requirements: &str) -> checked_trees::CheckedTrees {
+    let source = COMPOSITION_SOURCE
+        .replace("$EXPRESSION", expression)
+        .replace("$REQUIRES", requirements);
+    let tokens = Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize arithmetic composition");
+    let syntax = parse_syntax_trees(&tokens).expect("parse arithmetic composition");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve arithmetic composition");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type arithmetic composition");
+    lower_typed_trees(typed).expect("check arithmetic composition")
+}
+
+#[test]
+fn exact_arithmetic_after_bitwise_computation_uses_one_verified_cleanup_join() {
+    let checked = check_composition_source("(value ^ 1u8) + 0u8", "");
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .machines
+            .iter()
+            .filter(|plan| plan.shared_boolean_convergence.is_some())
+            .count(),
+        1,
+        "the source-distributed fallback must not hide the missing shared composition",
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::composed")
+        .expect("computed bitwise operand composes with exact addition");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry");
+    let [token] = entry.structural_parameters.as_slice() else {
+        panic!("the nominal cleanup root must remain owned by the entry")
+    };
+    let returns = entry
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            terminal_psi::Terminator::Return {
+                cleanup_actions, ..
+            } => Some(cleanup_actions),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        returns.len(),
+        1,
+        "all decisions join before nominal cleanup"
+    );
+    assert_eq!(returns[0].len(), 1, "the root is cleaned up exactly once");
+    let verified = terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("independent operation and cleanup replay");
+    drop(verified);
+    let semantics = encode_module(&lowered.semantic_module).expect("encode composition");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode composition proof");
+    terminal_verifier::verify_module(
+        &decode_module(&semantics).expect("decode composition"),
+        &decode_proof_bundle(&proof).expect("decode composition proof"),
+        &AdmissionProfile::default(),
+    )
+    .expect("decoded composition verifies independently");
+    let structural = [TerminalStructuralValue {
+        opaque_identity: token.place.get(),
+        structural_type: token.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    }];
+    for (value, flag, expected) in [(1, false, true), (2, false, false), (2, true, true)] {
+        let scalar = [
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+                value: IntegerValue::Unsigned(value),
+            },
+            TerminalScalarValue::Boolean(flag),
+        ];
+        let execution = interpret_terminal_artifact_with_effect_handler_measured(
+            &semantics,
+            &proof,
+            &AdmissionProfile::default(),
+            &scalar,
+            &structural,
+            &mut AcceptTerminalEffects,
+        )
+        .expect("execute decoded arithmetic and cleanup");
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected)),
+        );
+    }
+}
+
+#[test]
+fn erased_arithmetic_prefix_still_requires_its_own_certificate() {
+    let checked = check_composition_source("(value + 1u8) * 0u8", "requires value <= 254u8");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::composed")
+        .expect("bounded prefix and erased suffix each have a proof");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("valid prefix certificate");
+    let prefix_obligation = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("the erased exact prefix is still emitted");
+    let mut missing_prefix_proof = lowered.proof_bundle.clone();
+    let original_count = missing_prefix_proof.evidence.len();
+    missing_prefix_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != prefix_obligation);
+    assert_eq!(missing_prefix_proof.evidence.len() + 1, original_count);
+    assert!(
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &missing_prefix_proof,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "the final multiplication by zero cannot justify an unproved earlier addition",
+    );
+}
+
+#[test]
+fn erased_arithmetic_prefix_without_a_bound_is_rejected() {
+    let source = COMPOSITION_SOURCE
+        .replace("$EXPRESSION", "(value + 1u8) * 0u8")
+        .replace("$REQUIRES", "");
+    let tokens = Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize unsafe prefix");
+    let syntax = parse_syntax_trees(&tokens).expect("parse unsafe prefix");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve unsafe prefix");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type unsafe prefix");
+    if let Ok(checked) = lower_typed_trees(typed) {
+        assert!(
+            matches!(
+                checked_trees_to_lowered_psi::lower_machine(&checked, "Root::composed"),
+                Err(checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_)),
+            ),
+            "an admitted source shape still needs the unbounded prefix's operation proof",
+        );
+    }
+}
+
 const SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
