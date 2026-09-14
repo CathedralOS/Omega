@@ -341,6 +341,16 @@ prerequisite to every lower-rung milestone.
   passed, but does not close final checking, resource/entry conformance, or
   whole-D compilation. Do not replace those remaining requirements with more
   parser-only controls.
+  Checking-side reason coverage is now complete: `sh tests/epsilon/checking/run.sh`
+  runs 97 judgments, of which eleven added controls execute the ten previously
+  uncovered closed rejection reasons — `InvalidToken`, `InvalidCharacterLiteral`,
+  both `IntegerLiteralOutOfRange` boundaries, `UnexpectedToken`, `MissingEntry`,
+  `InvalidBoundary`, `InvalidDataShape`, `InvalidArrayLength`,
+  `UseBeforeInitialization`, and `EscapingView` — each at its contract anchor
+  under the unchanged 716,212-byte checker receipt `a6d49f0f7b2eca2c66e985daeb9380d0285a160ce468803ee5ce74dce9ac690c`
+  on macOS arm64. No evaluator defect was witnessed; runtime conformance,
+  resource containment, evaluator entry, complete D composition, and
+  `RunEpsilon` refinement remain.
   Final acceptance depends on complete D: that exact source executes through
   the selected lower chain and refines `RunEpsilon`, with no Epsilon-owned
   Alpha backend or hidden host implementation.
