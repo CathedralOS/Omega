@@ -3969,6 +3969,523 @@ fn program_local_extent_registry_retains_exact_account_through_split_and_retirem
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
 }
 
+fn retained_foreign_argument_plan(
+    base: u64,
+    length: u64,
+    mapping_era: u64,
+) -> ProgramLocalExtentMaterializationPlan {
+    ProgramLocalExtentMaterializationPlan::new(
+        "Region",
+        "Region::Owned",
+        "Nat",
+        base,
+        length,
+        extent_id(10, AddressSpaceId::from_normalized_identity),
+        ExtentRights::from_normalized_identities([
+            extent_id(100, ExtentRightId::from_normalized_identity),
+            extent_id(101, ExtentRightId::from_normalized_identity),
+        ]),
+        extent_id(20, ExtentProvenanceId::from_normalized_identity),
+        extent_id(mapping_era, MappingEraId::from_normalized_identity),
+    )
+    .expect("checked retained foreign argument plan")
+}
+
+#[test]
+fn retained_foreign_argument_borrowed_pins_the_account_until_release() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        790,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 890, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_extent_subject(&root, 990, 1090, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let extent = registry
+        .materialize(
+            established,
+            retained_foreign_argument_plan(0x4000, 0x100, 30),
+        )
+        .expect("established interval materializes one Extent");
+    let exclusive = RetainedForeignArgumentRequest::new(
+        0x10,
+        0x20,
+        RetainedForeignAccess::Exclusive,
+        ExtentRights::from_normalized_identities([extent_id(
+            100,
+            ExtentRightId::from_normalized_identity,
+        )]),
+    )
+    .expect("nonempty exclusive request");
+    let retained = registry
+        .retain_foreign_argument_borrowed(&extent, exclusive)
+        .expect("exclusive borrowed retention");
+    assert_eq!(retained.identity().normalized_identity(), 1);
+    assert_eq!(retained.origin(), extent.program_local_origin().unwrap());
+    assert_eq!(retained.base(), 0x4010);
+    assert_eq!(retained.length(), 0x20);
+    assert_eq!(retained.era().normalized_identity(), 30);
+    assert_eq!(
+        retained.disposition(),
+        RetainedForeignArgumentDisposition::LifetimeBorrowed
+    );
+
+    let overlapping_exclusive = RetainedForeignArgumentRequest::new(
+        0x20,
+        0x10,
+        RetainedForeignAccess::Exclusive,
+        ExtentRights::from_normalized_identities([extent_id(
+            100,
+            ExtentRightId::from_normalized_identity,
+        )]),
+    )
+    .expect("nonempty overlapping request");
+    assert!(
+        registry
+            .retain_foreign_argument_borrowed(&extent, overlapping_exclusive)
+            .expect_err("exclusive overlap")
+            .0
+            .contains("overlaps")
+    );
+
+    let disjoint_shared = RetainedForeignArgumentRequest::new(
+        0x80,
+        0x10,
+        RetainedForeignAccess::Shared,
+        ExtentRights::from_normalized_identities([extent_id(
+            100,
+            ExtentRightId::from_normalized_identity,
+        )]),
+    )
+    .expect("nonempty disjoint request");
+    let disjoint = registry
+        .retain_foreign_argument_borrowed(&extent, disjoint_shared)
+        .expect("disjoint shared retention");
+    let overlapping_shared = RetainedForeignArgumentRequest::new(
+        0x20,
+        0x10,
+        RetainedForeignAccess::Shared,
+        ExtentRights::from_normalized_identities([extent_id(
+            100,
+            ExtentRightId::from_normalized_identity,
+        )]),
+    )
+    .expect("nonempty shared overlap request");
+    assert!(
+        registry
+            .retain_foreign_argument_borrowed(&extent, overlapping_shared)
+            .expect_err("shared overlap with exclusive")
+            .0
+            .contains("overlaps")
+    );
+
+    let rejected = registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect_err("live retained arguments block retirement");
+    assert!(rejected.diagnostic().0.contains("live retained"));
+    let extent = (*rejected).into_extent();
+    registry
+        .release_retained_foreign_argument(retained)
+        .expect("release exclusive borrowed retention");
+    registry
+        .release_retained_foreign_argument(disjoint)
+        .expect("release shared borrowed retention");
+    registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("retirement succeeds after releases");
+    assert_eq!(registry.live_retained_foreign_arguments(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn retained_foreign_argument_rejects_unknown_or_stale_backing() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        791,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 891, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_extent_subject(&root, 991, 1091, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let extent = registry
+        .materialize(
+            established,
+            retained_foreign_argument_plan(0x4000, 0x100, 30),
+        )
+        .expect("established interval materializes one Extent");
+    let request = RetainedForeignArgumentRequest::new(
+        0,
+        1,
+        RetainedForeignAccess::Shared,
+        ExtentRights::from_normalized_identities([extent_id(
+            100,
+            ExtentRightId::from_normalized_identity,
+        )]),
+    )
+    .expect("nonempty request");
+    let provider = ExtentRootGrant::from_admitted_provider(
+        extent_provider_issuance(100),
+        extent_id(2, ExtentLineageId::from_normalized_identity),
+        extent.address_space(),
+        extent.rights().clone(),
+        extent.provenance(),
+        extent.era(),
+    )
+    .mint(0x5000, 0x20)
+    .expect("provider extent");
+    let error = registry
+        .retain_foreign_argument_borrowed(&provider, request.clone())
+        .expect_err("provider backing is unknown ambient backing");
+    assert!(error.0.contains("unknown ambient backing"));
+
+    let stale = ExtentRootGrant::from_established_program_local(
+        extent.program_local_origin().unwrap(),
+        extent.lineage_root(),
+        extent.address_space(),
+        extent.rights().clone(),
+        extent.provenance(),
+        extent_id(31, MappingEraId::from_normalized_identity),
+    )
+    .mint(extent.base(), extent.length())
+    .expect("stale same-origin extent");
+    let error = registry
+        .retain_foreign_argument_borrowed(&stale, request)
+        .expect_err("stale mapping era");
+    assert!(error.0.contains("revision provenance"));
+
+    let out_of_range = RetainedForeignArgumentRequest::new(
+        0xf0,
+        0x20,
+        RetainedForeignAccess::Shared,
+        ExtentRights::from_normalized_identities([extent_id(
+            100,
+            ExtentRightId::from_normalized_identity,
+        )]),
+    )
+    .expect("nonempty out-of-range request");
+    assert!(
+        registry
+            .retain_foreign_argument_borrowed(&extent, out_of_range)
+            .expect_err("range exceeds extent")
+            .0
+            .contains("exceeds")
+    );
+    let wrong_rights = RetainedForeignArgumentRequest::new(
+        0,
+        1,
+        RetainedForeignAccess::Shared,
+        ExtentRights::from_normalized_identities([extent_id(
+            102,
+            ExtentRightId::from_normalized_identity,
+        )]),
+    )
+    .expect("nonempty rights request");
+    assert!(
+        registry
+            .retain_foreign_argument_borrowed(&extent, wrong_rights)
+            .expect_err("rights exceed extent")
+            .0
+            .contains("rights")
+    );
+    assert!(
+        RetainedForeignArgumentRequest::new(
+            0,
+            0,
+            RetainedForeignAccess::Shared,
+            ExtentRights::none(),
+        )
+        .expect_err("zero-length request")
+        .0
+        .contains("nonempty")
+    );
+}
+
+#[test]
+fn retained_foreign_argument_moved_returns_exact_authority_on_release() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        792,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 892, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_extent_subject(&root, 992, 1092, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let extent = registry
+        .materialize(
+            established,
+            retained_foreign_argument_plan(0x4000, 0x100, 30),
+        )
+        .expect("established interval materializes one Extent");
+    let (lower, upper) = extent.split_at(0x40).expect("split program-local Extent");
+    let retained = registry
+        .retain_foreign_argument_moved(
+            lower,
+            RetainedForeignAccess::Shared,
+            ExtentRights::from_normalized_identities([extent_id(
+                100,
+                ExtentRightId::from_normalized_identity,
+            )]),
+        )
+        .expect("move lower extent into retention");
+    assert_eq!(retained.base(), 0x4000);
+    assert_eq!(retained.length(), 0x40);
+    assert_eq!(
+        retained.disposition(),
+        RetainedForeignArgumentDisposition::Moved
+    );
+    let released = registry
+        .release_retained_foreign_argument(retained)
+        .expect("release moved retention");
+    let returned = released.into_returned().expect("moved authority returns");
+    assert_eq!(returned.base(), 0x4000);
+    assert_eq!(returned.length(), 0x40);
+    let extent = returned.merge(upper).expect("recombine exact root Extent");
+    registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("retirement succeeds after moved release");
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn retained_foreign_argument_snapshot_pins_only_private_backing() {
+    let entry = entry_id(1);
+    let mut first_code = installed_code(1, entry);
+    let first_code_identity = first_code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut first_root_ledger, first_root, _first_open_root) =
+        install_program_local_required_root(&mut first_code, entry, vec![program_local_claim()]);
+    let mut first_installation = first_root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("first program-local cohort verifier");
+    let [first_prebinding] = first_installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&first_root])
+        .expect("first Extent prebinding")
+        .try_into()
+        .expect("one first producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        793,
+        10,
+        first_root.installed_artifact_occurrence_digest(),
+        first_code_identity,
+        "TestRoot::entry",
+    );
+    let first_lease = program_local_epoch_lease(&mut lifecycle, 893, 10, "TestRoot::entry");
+    let mut first_runtime = first_installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                first_prebinding.identity(),
+                &first_root,
+                first_lease,
+            )],
+        )
+        .expect("first exact Extent epoch cohort")
+        .into_runtime();
+    let first_established = first_installation
+        .establish(
+            &mut first_runtime,
+            &lifecycle,
+            program_local_extent_subject(&first_root, 993, 1093, 0x4000, 0x100),
+        )
+        .expect("first interval subject establishes its root");
+
+    let mut second_code = installed_code_with_fill_and_installation_identity(2, entry, 0, 301);
+    let second_code_identity = second_code.identity().normalized_identity();
+    publish_program_local_era(
+        &mut lifecycle,
+        20,
+        second_code.occurrence_digest(),
+        second_code_identity,
+        "TestRoot::entry",
+        120,
+        true,
+    );
+    let (mut second_root_ledger, second_root, _second_open_root) =
+        install_program_local_required_root(&mut second_code, entry, vec![program_local_claim()]);
+    let mut second_installation = second_root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("second program-local cohort verifier");
+    let [second_prebinding] = second_installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&second_root])
+        .expect("second Extent prebinding")
+        .try_into()
+        .expect("one second producer schema");
+    let second_lease = program_local_epoch_lease(&mut lifecycle, 894, 20, "TestRoot::entry");
+    let mut second_runtime = second_installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                second_prebinding.identity(),
+                &second_root,
+                second_lease,
+            )],
+        )
+        .expect("second exact Extent epoch cohort")
+        .into_runtime();
+    let second_established = second_installation
+        .establish(
+            &mut second_runtime,
+            &lifecycle,
+            program_local_extent_subject(&second_root, 994, 1094, 0x5000, 0x20),
+        )
+        .expect("second interval subject establishes its root");
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let source = registry
+        .materialize(
+            first_established,
+            retained_foreign_argument_plan(0x4000, 0x100, 30),
+        )
+        .expect("source interval materializes");
+    let backing = registry
+        .materialize(
+            second_established,
+            retained_foreign_argument_plan(0x5000, 0x20, 20),
+        )
+        .expect("snapshot backing materializes");
+    let backing_origin = backing.program_local_origin().unwrap();
+    let request = RetainedForeignArgumentRequest::new(
+        0x10,
+        0x20,
+        RetainedForeignAccess::Shared,
+        ExtentRights::from_normalized_identities([extent_id(
+            100,
+            ExtentRightId::from_normalized_identity,
+        )]),
+    )
+    .expect("snapshot request");
+    let retained = registry
+        .retain_foreign_argument_snapshot(&source, request, backing)
+        .expect("private backing snapshot retention");
+    assert_eq!(retained.origin(), backing_origin);
+    assert_eq!(
+        retained.disposition(),
+        RetainedForeignArgumentDisposition::Snapshot
+    );
+    assert_eq!(registry.live_retained_foreign_arguments(), 1);
+    registry
+        .retire(source, &mut first_installation, &mut lifecycle)
+        .expect("snapshot does not pin source account");
+    let released = registry
+        .release_retained_foreign_argument(retained)
+        .expect("release snapshot backing");
+    let backing = released.into_returned().expect("snapshot backing returns");
+    assert_eq!(backing.base(), 0x5000);
+    assert_eq!(backing.length(), 0x20);
+    registry
+        .retire(backing, &mut second_installation, &mut lifecycle)
+        .expect("retire snapshot backing");
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+    assert_eq!(lifecycle.program_local_root_authority_holds(20), Some(0));
+}
+
 #[test]
 fn counted_program_local_capacity_cannot_mint_an_extent() {
     let entry = entry_id(1);
