@@ -123,7 +123,7 @@ impl<'module> ValidatedTerminalModule<'module> {
     }
 }
 
-fn machine_value_context(
+pub(crate) fn machine_value_context(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<PropositionContext, ModuleError> {

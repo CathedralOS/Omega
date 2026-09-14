@@ -62,7 +62,12 @@ static OWNER_SCALAR_BLOCK_INVARIANT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     binding: owner(),
     premises: "a validated scalar block invariant declaration on a machine header block and one incoming edge",
     conclusion: "a derivable obligation whose proposition is the declared invariant instantiated for that edge's arrival state",
-    dependencies: &["fact:semantic-axiom-roster", "scope:header-edge-arrival"],
+    dependencies: &[
+        "fact:semantic-axiom-roster",
+        "fact:branch-condition",
+        "fact:branch-condition-transport",
+        "scope:header-edge-arrival",
+    ],
     implementation: &[BLOCK_INVARIANTS, RECONSTRUCTION],
     soundness: TRUSTED,
 };
@@ -140,6 +145,7 @@ static TERMINATOR_CONDITIONAL: TrustedSurfaceEntry = TrustedSurfaceEntry {
     conclusion: "each arm receives the axioms, its parameter bindings, and the selected branch's truth fact; private crash reconstruction also retains the exact SSA truth",
     dependencies: &[
         "fact:branch-condition",
+        "fact:branch-condition-transport",
         "fact:successor-parameter-binding",
         "scope:iteration-cut",
     ],
@@ -481,10 +487,28 @@ static FACT_BRANCH_CONDITION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a conditional's Boolean condition and the reconstructed axiom set at the terminator",
-    conclusion: "the selected arm's condition fact, from a denotation-recognized form or the exact SSA truth",
+    conclusion: "the selected arm's condition fact where the emission is a licensed premise introduction the fixed-shape transport certificate does not re-derive: the literal-adjacency strengthening of a fixed-carrier disequality, an equal-terms unsatisfiable arm's falsehood, or a boundary truth whose walk consulted a backward-only edge; every other emission is discharged under fact:branch-condition-transport",
     dependencies: &["fact:boolean-polarity-implications"],
     implementation: &[PATH_FACTS, PATH_FACTS_CONDITIONS],
     soundness: TRUSTED,
+};
+
+static FACT_BRANCH_CONDITION_TRANSPORT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:branch-condition-transport",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "a conditional's Boolean condition, the selected arm's polarity, and the reconstructed axiom roster's own value equations",
+    conclusion: "the selected arm's denotation-recognized condition fact, emitted only after its certificate is accepted: the arm's truth premise is assumption zero, every roster equation headed by an SSA value is a cited semantic axiom in newest-first order, and the emitted fact is exactly what that premise transports to",
+    dependencies: &[
+        "fact:branch-condition",
+        "rule:value-equality-transport",
+        "rule:semantic-axiom",
+        "rule:assumption",
+    ],
+    implementation: &[PATH_FACTS_CONDITIONS],
+    soundness: SoundnessStatus::Proved {
+        evidence: "condition_fact builds a fixed-shape ValueEqualityTransport certificate for every reconstructed arm fact and calls proof-admission's certificate checker before classifying the emission; only an accepted certificate marks the fact under this entry — a rejected certificate leaves the emission under fact:branch-condition's licensed premise introductions and never fails the module",
+    },
 };
 
 static FACT_STRUCTURAL_CASE_ARM: TrustedSurfaceEntry = TrustedSurfaceEntry {
@@ -552,6 +576,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_CONTENT_PARTITION_COMPOSITION,
     FACT_SUCCESSOR_PARAMETER_BINDING,
     FACT_BRANCH_CONDITION,
+    FACT_BRANCH_CONDITION_TRANSPORT,
     FACT_STRUCTURAL_CASE_ARM,
     FACT_RETURN_RESULT_BINDING,
     FACT_CRASH_SITE_RETENTION,

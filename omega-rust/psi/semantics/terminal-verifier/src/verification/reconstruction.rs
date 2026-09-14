@@ -515,6 +515,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 machine,
                 &block.terminator,
                 &|value| context.value_term(value),
+                context.proposition_context(),
                 &axioms,
                 &mut operation_obligations,
             );
@@ -534,13 +535,15 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 } => {
                     for (successor, positive) in [(when_true, true), (when_false, false)] {
                         let mut selected = axioms.clone();
-                        if let Some(fact) =
-                            path_facts::condition_fact(*condition, positive, &axioms, &|value| {
-                                context.value_term(value)
-                            })
-                            && !selected.contains(&fact)
+                        if let Some(fact) = path_facts::condition_fact(
+                            *condition,
+                            positive,
+                            &axioms,
+                            &|value| context.value_term(value),
+                            context.proposition_context(),
+                        ) && !selected.contains(&fact.proposition)
                         {
-                            selected.push(fact);
+                            selected.push(fact.proposition);
                         }
                         edge_axioms.insert(successor.edge, selected);
                     }
@@ -556,6 +559,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
             &context.blocks,
             machines,
             &|id| context.value_term(id),
+            context.proposition_context(),
             context.reconstruct_path_facts,
             crash_facts,
             axioms,

@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use proof_admission::{Obligation, ObligationClass};
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, MachineId, Proposition, ScalarTerm,
-    ScalarType, StructuralCaseSubject, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, MachineId, Proposition, PropositionContext,
+    ScalarTerm, ScalarType, StructuralCaseSubject, ValueId,
 };
 use terminal_psi::OutcomeSpecificGuard;
 use terminal_psi::{Block, TerminalMachine, Terminator};
@@ -24,6 +24,7 @@ pub(super) fn append_terminator(
     blocks: &BTreeMap<BlockId, &Block>,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     value_term: &impl Fn(ValueId) -> ScalarTerm,
+    proposition_context: &PropositionContext,
     reconstruct_path_facts: bool,
     crash_facts: bool,
     mut axioms: Vec<Proposition>,
@@ -60,8 +61,20 @@ pub(super) fn append_terminator(
             when_true,
             when_false,
         } => {
-            let true_fact = path_facts::condition_fact(*condition, true, &axioms, value_term);
-            let false_fact = path_facts::condition_fact(*condition, false, &axioms, value_term);
+            let true_fact = path_facts::condition_fact(
+                *condition,
+                true,
+                &axioms,
+                value_term,
+                proposition_context,
+            );
+            let false_fact = path_facts::condition_fact(
+                *condition,
+                false,
+                &axioms,
+                value_term,
+                proposition_context,
+            );
             for (successor, condition_fact, positive) in [
                 (when_true, true_fact.as_ref(), true),
                 (when_false, false_fact.as_ref(), false),
@@ -83,7 +96,7 @@ pub(super) fn append_terminator(
                 if reconstruct_path_facts && let Some(condition_fact) = condition_fact {
                     path_facts::append_successor_fact(
                         &mut arm_axioms,
-                        condition_fact,
+                        &condition_fact.proposition,
                         target_block,
                         &successor.arguments,
                         value_term,

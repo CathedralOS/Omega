@@ -148,6 +148,7 @@ pub(super) fn reconstruct(
             &context.blocks,
             machines,
             &|id| context.value_term(id),
+            context.proposition_context(),
             context.reconstruct_path_facts,
             true,
             axioms,

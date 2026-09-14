@@ -1,11 +1,108 @@
 //! Selected Boolean polarity reconstructed from prior terminal equations.
 
-use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, ValueId};
+use proof_admission::{ProofNode, ProofRule, check_certificate};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
 
 #[cfg(test)]
 mod tests;
 
+/// One reconstructed path-condition fact tagged by how the generator
+/// discharged it.
+pub(in super::super) struct ConditionFact {
+    /// The reconstructed proposition appended to the selected successor's
+    /// axiom roster.
+    pub proposition: Proposition,
+    /// `true` when a fixed-shape `ValueEqualityTransport` certificate —
+    /// the selected arm's truth premise transported through the roster's
+    /// own value equations — was re-decided by the certificate checker
+    /// before this fact was emitted. `false` marks a licensed premise
+    /// introduction recorded under `fact:branch-condition`: boundary arm
+    /// truths the transport cannot represent, the literal-adjacency
+    /// disequality strengthening, a closed unsatisfiable arm's falsehood,
+    /// and any emission whose fixed-shape certificate was rejected.
+    ///
+    /// The generation-time check runs in production regardless; only the
+    /// test module reads the classification back. The certificate
+    /// machinery is exercised against every reconstructed arm fact either
+    /// way.
+    #[allow(dead_code)]
+    pub certified: bool,
+}
+
 pub(in super::super) fn condition_fact(
+    condition: ValueId,
+    positive: bool,
+    axioms: &[Proposition],
+    value_term: &impl Fn(ValueId) -> ScalarTerm,
+    context: &PropositionContext,
+) -> Option<ConditionFact> {
+    condition_proposition(condition, positive, axioms, value_term).map(|proposition| {
+        ConditionFact {
+            certified: transport_certified(
+                condition,
+                positive,
+                &proposition,
+                axioms,
+                value_term,
+                context,
+            ),
+            proposition,
+        }
+    })
+}
+
+/// Re-decide a fixed-shape transport certificate for the reconstructed fact
+/// before it is classified. The selected arm's truth premise —
+/// `condition == Boolean(positive)` — is assumption zero, and every roster
+/// equation headed by an SSA value is cited as a semantic axiom in
+/// newest-first order so the transport's first-match equation discipline
+/// reproduces the walk's `.rev()` lookup. A certificate the checker rejects
+/// leaves the emission under `fact:branch-condition`'s licensed premise
+/// introductions rather than failing the module.
+fn transport_certified(
+    condition: ValueId,
+    positive: bool,
+    proposition: &Proposition,
+    axioms: &[Proposition],
+    value_term: &impl Fn(ValueId) -> ScalarTerm,
+    context: &PropositionContext,
+) -> bool {
+    let premise = Proposition::Equal(value_term(condition), ScalarTerm::Boolean(positive));
+    let equalities = axioms
+        .iter()
+        .enumerate()
+        .rev()
+        .filter_map(|(index, axiom)| match axiom {
+            Proposition::Equal(left @ ScalarTerm::Value { .. }, right) if left != right => {
+                Some(ProofNode {
+                    conclusion: axiom.clone(),
+                    rule: ProofRule::SemanticAxiom { index },
+                })
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let certificate = ProofNode {
+        conclusion: proposition.clone(),
+        rule: ProofRule::ValueEqualityTransport {
+            premise: Box::new(ProofNode {
+                conclusion: premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            equalities,
+        },
+    };
+    check_certificate(
+        context,
+        proposition,
+        std::slice::from_ref(&premise),
+        axioms,
+        &certificate,
+    )
+    .is_ok()
+}
+
+fn condition_proposition(
     condition: ValueId,
     mut positive: bool,
     axioms: &[Proposition],
