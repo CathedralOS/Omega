@@ -8,24 +8,10 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::{DataSupplyMode, Multiplicity};
 use layout_plans::{
-    ConventionalDepthEightRecordSumPathsLayoutReport,
-    ConventionalDepthElevenRecordSumPathsLayoutReport,
-    ConventionalDepthFifteenRecordSumPathsLayoutReport,
-    ConventionalDepthFiveRecordSumPathsLayoutReport,
-    ConventionalDepthFourRecordSumPathsLayoutReport,
-    ConventionalDepthFourteenRecordSumPathsLayoutReport,
-    ConventionalDepthNineRecordSumPathsLayoutReport,
-    ConventionalDepthSevenRecordSumPathsLayoutReport,
-    ConventionalDepthSixRecordSumPathsLayoutReport, ConventionalDepthTenRecordSumPathsLayoutReport,
-    ConventionalDepthThirteenRecordSumPathsLayoutReport,
-    ConventionalDepthThreeRecordSumPathLayoutReport,
-    ConventionalDepthThreeRecordSumPathsLayoutReport,
-    ConventionalDepthTwelveRecordSumPathsLayoutReport,
-    ConventionalDepthTwoRecordSumPathLayoutReport, ConventionalDepthTwoRecordSumPathsLayoutReport,
     ConventionalNestedRecordSumOccurrenceLayoutReport, ConventionalNestedRecordSumPathLayoutReport,
     ConventionalNestedRecordSumPathsLayoutReport, ConventionalRecordSumPathsLayoutReport,
-    ConventionalSumArrayFieldLayoutReport, ConventionalSumCaseLayoutReport,
-    ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
+    ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
+    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport,
     LayoutPlanReport,
 };
@@ -34,10 +20,6 @@ use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
 use crate::{DataShape, ENUM_TAG_BYTES, LayoutPlan, TypeLayoutDescriptor};
-
-mod fixed_depths;
-
-pub use fixed_depths::*;
 
 /// Project the bounded nested-sum materialization set from the exact target
 /// runtime layout: one closed `[copy]` record with one or more direct,
@@ -429,944 +411,58 @@ fn project_conventional_record_with_nested_sum_records_materialization_layout_wi
     })
 }
 
-/// Project one exact fixed-depth record chain:
-/// `Outer -> Middle -> Leaf -> direct conventional sums`.
-///
-/// Exactly one runtime-relevant outer field may reach any sum, and the middle
-/// record must itself satisfy the existing singular one-level path judgment.
-/// All three whole-record layouts and the leaf sum rows come from `plan`.
-pub fn project_conventional_record_with_depth_two_nested_sum_materialization_layout(
+/// Project exact conventional record paths without encoding depth in the API.
+pub fn project_conventional_record_with_recursive_nested_sums_materialization_layout(
     program: &CheckedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthTwoRecordSumPathLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "depth-two sum owner")?;
-    validate_closed_copy_record(program, definition, "depth-two sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for depth-two sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for depth-two sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error("depth-two sum outer report exceeds compiler resources"))?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error("depth-two sum outer offsets exceed compiler resources"))?;
-    let mut selected = None;
+) -> Result<ConventionalRecursiveRecordSumPathsLayoutReport, Diagnostic> {
     let mut reachability = SumReachability::new(program);
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "depth-two sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
+    project_recursive_paths(program, plan, data_symbol, &mut reachability, 1)
+}
 
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "depth-two sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "depth-two sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "depth-two sum outer field `{}` does not name the required middle record",
-                    declared.name
-                )));
-            }
-            if selected.is_some() {
-                return Err(Diagnostic::error(
-                    "depth-two sum projection requires exactly one sum-reachable outer record field",
-                ));
-            }
-            let middle_path =
-                project_conventional_record_with_nested_sum_record_materialization_layout(
-                    program,
-                    plan,
-                    named.symbol,
-                )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared middle record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its middle record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "middle record extent")?
-                != middle_path
-                    .outer_layout
-                    .size
-                    .expect("middle projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "middle record alignment")?
-                    != middle_path.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact middle record extent/alignment",
-                    declared.name
-                )));
-            }
-            selected = Some((declared.name.to_string(), declared.identity, middle_path));
-        }
-
-        let offset = usize_to_u64(laid.offset, "depth-two outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    let Some((outer_field, outer_member_identity, middle_path)) = selected else {
+fn project_recursive_paths(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+    reachability: &mut SumReachability<'_>,
+    depth: usize,
+) -> Result<ConventionalRecursiveRecordSumPathsLayoutReport, Diagnostic> {
+    if depth > layout_plans::CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
         return Err(Diagnostic::error(
-            "depth-two sum projection requires exactly one qualifying record chain",
+            "recursive record paths exceed the compiler depth resource bound of 64",
         ));
-    };
-    Ok(ConventionalDepthTwoRecordSumPathLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint: typed_trees::identity::normalized_schema_report_fingerprint(
-                program, definition,
-            ),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "depth-two outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "depth-two outer record alignment",
-            )?,
-        },
-        outer_field,
-        outer_member_identity,
-        middle_path,
-    })
-}
-
-/// Project one exact fixed-depth record chain:
-/// `Outer -> First -> Middle -> Leaf -> direct conventional sums`.
-///
-/// Exactly one runtime-relevant outer field may reach any sum, and that field's
-/// exact closed record type must satisfy the existing singular depth-two path
-/// judgment. All four whole-record layouts and the leaf sum rows come from the
-/// same target plan.
-pub fn project_conventional_record_with_depth_three_nested_sum_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthThreeRecordSumPathLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "depth-three sum owner")?;
-    validate_closed_copy_record(program, definition, "depth-three sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for depth-three sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for depth-three sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
     }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("depth-three sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("depth-three sum outer offsets exceed compiler resources")
-        })?;
-    let mut selected = None;
-    let mut reachability = SumReachability::new(program);
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "depth-three sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "depth-three sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "depth-three sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "depth-three sum outer field `{}` does not name the required enclosing record",
-                    declared.name
-                )));
-            }
-            if selected.is_some() {
-                return Err(Diagnostic::error(
-                    "depth-three sum projection requires exactly one sum-reachable outer record field",
-                ));
-            }
-            let depth_two_path =
-                project_conventional_record_with_depth_two_nested_sum_materialization_layout(
-                    program,
-                    plan,
-                    named.symbol,
-                )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared enclosing record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its enclosing record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-two record extent")?
-                != depth_two_path
-                    .outer_layout
-                    .size
-                    .expect("depth-two projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-two record alignment")?
-                    != depth_two_path.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact depth-two record extent/alignment",
-                    declared.name
-                )));
-            }
-            selected = Some((declared.name.to_string(), declared.identity, depth_two_path));
-        }
-
-        let offset = usize_to_u64(laid.offset, "depth-three outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    let Some((outer_field, outer_member_identity, depth_two_path)) = selected else {
-        return Err(Diagnostic::error(
-            "depth-three sum projection requires exactly one qualifying record chain",
-        ));
-    };
-    Ok(ConventionalDepthThreeRecordSumPathLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint: typed_trees::identity::normalized_schema_report_fingerprint(
-                program, definition,
-            ),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "depth-three outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "depth-three outer record alignment",
-            )?,
-        },
-        outer_field,
-        outer_member_identity,
-        depth_two_path,
-    })
-}
-
-/// Project the complete nonempty authored-order set of exact depth-three
-/// record chains: `Outer -> First -> Middle -> Leaf -> direct sums`.
-///
-/// The outer layout is retained once. Every sum-reachable outer field owns the
-/// unchanged plural depth-two report for its exact first record. The shared
-/// reachability walk and global leaf-path ceiling prevent repeated nominal
-/// subgraphs from amplifying traversal or retained custody.
-pub fn project_conventional_record_with_depth_three_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthThreeRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_three_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_three_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthThreeRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-three",
-        "first",
-        "depth-two",
-        project_conventional_record_with_depth_two_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-four
-/// record chains: `Outer -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-three
-/// report for its exact second record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_four_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthFourRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_four_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_four_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthFourRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-four",
-        "second",
-        "depth-three",
-        project_conventional_record_with_depth_three_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-five
-/// record chains:
-/// `Outer -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-four
-/// report for its exact third record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_five_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthFiveRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_five_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_five_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthFiveRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-five",
-        "third",
-        "depth-four",
-        project_conventional_record_with_depth_four_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-six
-/// record chains:
-/// `Outer -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-five
-/// report for its exact fourth record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_six_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthSixRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_six_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_six_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthSixRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-six",
-        "fourth",
-        "depth-five",
-        project_conventional_record_with_depth_five_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-seven
-/// record chains:
-/// `Outer -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-six
-/// report for its exact fifth record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_seven_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthSevenRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_seven_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_seven_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthSevenRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-seven",
-        "fifth",
-        "depth-six",
-        project_conventional_record_with_depth_six_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-eight
-/// record chains:
-/// `Outer -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-seven
-/// report for its exact sixth record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_eight_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthEightRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_eight_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_eight_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthEightRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-eight",
-        "sixth",
-        "depth-seven",
-        project_conventional_record_with_depth_seven_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-nine
-/// record chains:
-/// `Outer -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-eight
-/// report for its exact seventh record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_nine_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthNineRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_nine_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_nine_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthNineRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-nine",
-        "seventh",
-        "depth-eight",
-        project_conventional_record_with_depth_eight_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-ten record
-/// chains:
-/// `Outer -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-nine
-/// report for its exact eighth record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_ten_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthTenRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_ten_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_ten_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthTenRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-ten",
-        "eighth",
-        "depth-nine",
-        project_conventional_record_with_depth_nine_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-eleven
-/// record chains:
-/// `Outer -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-ten
-/// report for its exact ninth record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_eleven_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthElevenRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_eleven_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_eleven_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthElevenRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-eleven",
-        "ninth",
-        "depth-ten",
-        project_conventional_record_with_depth_ten_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-thirteen
-/// record chains:
-/// `Outer -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-twelve
-/// report for its exact eleventh record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_thirteen_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthThirteenRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_thirteen_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_thirteen_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthThirteenRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-thirteen",
-        "eleventh",
-        "depth-twelve",
-        project_conventional_record_with_depth_twelve_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-fourteen
-/// record chains:
-/// `Outer -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-thirteen
-/// report for its exact twelfth record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_fourteen_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthFourteenRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_fourteen_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_fourteen_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthFourteenRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-fourteen",
-        "twelfth",
-        "depth-thirteen",
-        project_conventional_record_with_depth_thirteen_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-fifteen
-/// record chains:
-/// `Outer -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-fourteen
-/// report for its exact thirteenth record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_fifteen_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthFifteenRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_fifteen_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_fifteen_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthFifteenRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-fifteen",
-        "thirteenth",
-        "depth-fourteen",
-        project_conventional_record_with_depth_fourteen_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact depth-twelve
-/// record chains:
-/// `Outer -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`.
-///
-/// Each qualifying outer occurrence owns the unchanged plural depth-eleven
-/// report for its exact tenth record. One shared memoized reachability walk
-/// and one global leaf-occurrence ceiling bound the complete projection.
-pub fn project_conventional_record_with_depth_twelve_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthTwelveRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_twelve_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_twelve_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthTwelveRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-twelve",
-        "tenth",
-        "depth-eleven",
-        project_conventional_record_with_depth_eleven_nested_sums_materialization_layout_with_reachability,
-    )
-}
-
-/// Project the complete nonempty authored-order set of exact fixed-depth
-/// record chains: `Outer -> Middle -> Leaf -> direct conventional sums`.
-///
-/// Every sum-reachable outer field must name one exact middle record satisfying
-/// the existing plural one-level judgment. The outer layout is retained once,
-/// while each occurrence owns its middle layout and complete authored-order
-/// leaf-path set without flattening child rows across either record boundary.
-pub fn project_conventional_record_with_depth_two_nested_sums_materialization_layout(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<ConventionalDepthTwoRecordSumPathsLayoutReport, Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    project_conventional_record_with_depth_two_nested_sums_materialization_layout_with_reachability(
-        program,
-        plan,
-        data_symbol,
-        &mut reachability,
-    )
-}
-
-fn project_conventional_record_with_depth_two_nested_sums_materialization_layout_with_reachability(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ConventionalDepthTwoRecordSumPathsLayoutReport, Diagnostic> {
-    project_recursive_record_sum_paths_layout(
-        program,
-        plan,
-        data_symbol,
-        reachability,
-        "depth-two",
-        "middle",
-        "one-level",
-        project_conventional_record_with_nested_sum_records_materialization_layout_with_reachability,
-    )
-}
-
-trait RecursiveRecordSumPathsLayout {
-    fn outer_layout(&self) -> &LayoutPlanReport;
-
-    fn leaf_occurrence_count(&self) -> Option<usize>;
-}
-
-impl RecursiveRecordSumPathsLayout for ConventionalNestedRecordSumPathsLayoutReport {
-    fn outer_layout(&self) -> &LayoutPlanReport {
-        &self.outer_layout
-    }
-
-    fn leaf_occurrence_count(&self) -> Option<usize> {
-        Some(self.paths.len())
-    }
-}
-
-impl<InnerPaths: RecursiveRecordSumPathsLayout> RecursiveRecordSumPathsLayout
-    for ConventionalRecordSumPathsLayoutReport<InnerPaths>
-{
-    fn outer_layout(&self) -> &LayoutPlanReport {
-        &self.outer_layout
-    }
-
-    fn leaf_occurrence_count(&self) -> Option<usize> {
-        self.paths.iter().try_fold(0usize, |total, path| {
-            total.checked_add(path.inner.leaf_occurrence_count()?)
+    let definition = unique_data_definition(program, data_symbol, "recursive sum owner")?;
+    validate_closed_copy_record(program, definition, "recursive sum owner")?;
+    let profile = record_sum_profile(program, definition, reachability)?;
+    if profile.deeper {
+        project_record_sum_branches(program, plan, data_symbol, reachability, depth)
+            .map(ConventionalRecursiveRecordSumPathsLayoutReport::Branch)
+    } else {
+        let (outer_layout, child_sum_layouts) =
+            project_conventional_record_with_sum_materialization_layout(
+                program,
+                plan,
+                data_symbol,
+            )?;
+        Ok(ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+            outer_layout,
+            child_sum_layouts,
         })
     }
 }
 
-fn project_recursive_record_sum_paths_layout<InnerPaths, ProjectInner>(
+fn project_record_sum_branches(
     program: &CheckedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
-    depth_label: &str,
-    inner_record_label: &str,
-    prior_depth_label: &str,
-    mut project_inner: ProjectInner,
-) -> Result<ConventionalRecordSumPathsLayoutReport<InnerPaths>, Diagnostic>
-where
-    InnerPaths: RecursiveRecordSumPathsLayout,
-    ProjectInner: FnMut(
-        &CheckedTrees,
-        &LayoutPlan,
-        SymbolHandle,
-        &mut SumReachability<'_>,
-    ) -> Result<InnerPaths, Diagnostic>,
-{
-    let owner = format!("plural {depth_label} sum owner");
-    let definition = unique_data_definition(program, data_symbol, &owner)?;
-    validate_closed_copy_record(program, definition, &owner)?;
+    depth: usize,
+) -> Result<ConventionalRecordSumPathsLayoutReport, Diagnostic> {
+    let owner = "plural recursive sum owner";
+    let definition = unique_data_definition(program, data_symbol, owner)?;
+    validate_closed_copy_record(program, definition, owner)?;
     let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
     let DataShape::Record {
         fields: laid_fields,
@@ -1415,7 +511,7 @@ where
             || plan.repeated_field(declared.symbol).is_some()
         {
             return Err(Diagnostic::error(format!(
-                "plural {depth_label} sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
+                "plural recursive sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
                 declared.name
             )));
         }
@@ -1428,13 +524,13 @@ where
                 TypeReferenceNode::FixedArray { .. }
             ) {
                 return Err(Diagnostic::error(format!(
-                    "plural {depth_label} sum outer field `{}` reaches a sum through an array",
+                    "plural recursive sum outer field `{}` reaches a sum through an array",
                     declared.name
                 )));
             }
             let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
                 Diagnostic::error(format!(
-                    "plural {depth_label} sum outer field `{}` lacks one exact record identity",
+                    "plural recursive sum outer field `{}` lacks one exact record identity",
                     declared.name
                 ))
             })?;
@@ -1442,18 +538,19 @@ where
                 != DataShapeKind::Record
             {
                 return Err(Diagnostic::error(format!(
-                    "plural {depth_label} sum outer field `{}` does not name the required {inner_record_label} record",
+                    "plural recursive sum outer field `{}` does not name the required inner record",
                     declared.name
                 )));
             }
-            let inner = project_inner(program, plan, named.symbol, reachability)?;
+            let inner =
+                project_recursive_paths(program, plan, named.symbol, reachability, depth + 1)?;
             let TypeLayoutDescriptor::Named {
                 symbol: laid_symbol,
                 name: laid_name,
             } = &laid.type_descriptor
             else {
                 return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared {inner_record_label} record",
+                    "target runtime layout field `{}` is not the exact declared inner record",
                     declared.name
                 )));
             };
@@ -1462,38 +559,34 @@ where
                 || laid_name.as_str() != named.name.as_str()
             {
                 return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its {inner_record_label} record type",
+                    "target runtime layout field `{}` substitutes its inner record type",
                     declared.name
                 )));
             }
-            if usize_to_u64(
-                laid.layout.size,
-                &format!("{depth_label} {inner_record_label}-record extent"),
-            )? != inner
-                .outer_layout()
-                .size
-                .expect("recursive inner projection has fixed extent")
-                || usize_to_u64(
-                    laid.layout.alignment,
-                    &format!("{depth_label} {inner_record_label}-record alignment"),
-                )? != inner.outer_layout().align
+            if usize_to_u64(laid.layout.size, "recursive inner-record extent")?
+                != inner
+                    .outer_layout()
+                    .size
+                    .expect("recursive inner projection has fixed extent")
+                || usize_to_u64(laid.layout.alignment, "recursive inner-record alignment")?
+                    != inner.outer_layout().align
             {
                 return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact {inner_record_label}-record extent/alignment from {prior_depth_label}",
+                    "target runtime layout field `{}` does not retain the exact inner-record extent/alignment from child",
                     declared.name
                 )));
             }
             total_leaf_paths = total_leaf_paths
                 .checked_add(inner.leaf_occurrence_count().ok_or_else(|| {
-                    Diagnostic::error(format!("plural {depth_label} leaf-path count overflows"))
+                    Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
                 })?)
                 .ok_or_else(|| {
-                    Diagnostic::error(format!("plural {depth_label} leaf-path count overflows"))
+                    Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
                 })?;
             if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(format!(
-                    "plural {depth_label} paths exceed bounded total leaf occurrences"
-                )));
+                return Err(Diagnostic::error(
+                    "plural recursive paths exceed bounded total leaf occurrences".to_owned(),
+                ));
             }
             paths.push(layout_plans::ConventionalRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
@@ -1502,10 +595,7 @@ where
             });
         }
 
-        let offset = usize_to_u64(
-            laid.offset,
-            &format!("plural {depth_label} outer field offset"),
-        )?;
+        let offset = usize_to_u64(laid.offset, "plural recursive outer field offset")?;
         entries.push(LayoutFieldEntryReport {
             field: declared.name.to_string(),
             member_identity: declared.identity,
@@ -1514,9 +604,10 @@ where
         offsets.push(offset);
     }
     if paths.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "plural {depth_label} sum projection requires a nonempty qualifying record-chain set"
-        )));
+        return Err(Diagnostic::error(
+            "plural recursive sum projection requires a nonempty qualifying record-chain set"
+                .to_owned(),
+        ));
     }
     Ok(ConventionalRecordSumPathsLayoutReport {
         outer_layout: LayoutPlanReport {
@@ -1527,11 +618,11 @@ where
             offsets: Some(offsets),
             size: Some(usize_to_u64(
                 data_layout.layout.size,
-                &format!("plural {depth_label} outer record extent"),
+                "plural recursive outer record extent",
             )?),
             align: usize_to_u64(
                 data_layout.layout.alignment,
-                &format!("plural {depth_label} outer record alignment"),
+                "plural recursive outer record alignment",
             )?,
         },
         paths,

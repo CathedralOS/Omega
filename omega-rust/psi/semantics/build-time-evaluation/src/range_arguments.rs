@@ -172,7 +172,7 @@ pub(super) fn evaluate(
     if probes.is_empty() {
         return Ok(syntax);
     }
-    let resolved = crate::lower_probe_with_optional_sources(&probe, sources, bindings)?;
+    let resolved = crate::syntax_probes::resolve(&probe, sources, bindings)?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     for (probe_ordinal, (reference, carrier, bounds)) in probes.into_iter().enumerate() {

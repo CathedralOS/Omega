@@ -63,17 +63,14 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
             TypeReferenceNode::Named(Identifier::generated("0")),
         );
     }
-    let probe = crate::normalize_generic_data_with_optional_sources(
+    let probe = crate::syntax_probes::normalize_generic_data(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
         None,
     )?;
-    let resolved = crate::lower_probe_with_optional_sources(
-        &probe,
-        sources,
-        source_scoped_top_level_bindings,
-    )?;
+    let resolved =
+        crate::syntax_probes::resolve(&probe, sources, source_scoped_top_level_bindings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     let admission = crate::BuildTimeAdmissionPlan::infer_with_selection_authority(

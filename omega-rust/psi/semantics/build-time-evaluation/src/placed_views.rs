@@ -126,18 +126,15 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
 
     let mut probe = syntax.clone();
     synthesize_probe_records(&mut probe, &applications, &rewrites, &schemas);
-    let mut probe = crate::normalize_generic_data_with_optional_sources(
+    let mut probe = crate::syntax_probes::normalize_generic_data(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
         None,
     )?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
-    let resolved = crate::lower_probe_with_optional_sources(
-        &probe,
-        sources,
-        source_scoped_top_level_bindings,
-    )?;
+    let resolved =
+        crate::syntax_probes::resolve(&probe, sources, source_scoped_top_level_bindings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     crate::evaluate_const_array_lengths_with_authority(&mut typed, selection_authority.clone())?;

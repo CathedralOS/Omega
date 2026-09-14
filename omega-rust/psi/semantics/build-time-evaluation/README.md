@@ -1,5 +1,18 @@
 # Build-time evaluation
 
+Start at [build_time_evaluation.rs](src/build_time_evaluation.rs). Its
+`evaluate_pre_resolution` operation takes one `BuildTimeEvaluationRequest`,
+runs syntax evaluation in order, and returns syntax paired with a one-shot
+`PreCheckEvaluation`. The consuming `evaluate` method shows the typed work in
+order; target selection and typing remain between these stages in Omega.
+
+Standalone requests have no source context. Package-aware and extension requests
+carry a `BuildTimeSourceContext` with the exact source map, borrowed loader
+bindings, optional selection authority, and optional retained predecessor.
+Those are inputs to one lifecycle, not alternative `with_*` routes. The
+continuation retains the same authority; an extension cannot normalize its
+predecessor's templates or silently combine sibling generated units.
+
 This target-neutral service owns the admission floor, checked zero-argument and
 fixed-array evaluation, ownership-taking const-generic pre-resolution evaluation,
 and machine-backed concrete const-domain fact discharge. Omega schedules the

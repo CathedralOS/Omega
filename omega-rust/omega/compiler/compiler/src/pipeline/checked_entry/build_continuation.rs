@@ -275,21 +275,20 @@ fn lower_checked_frontend(
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<CheckedFrontend, Vec<Diagnostic>> {
-    let evaluated = match package_inputs {
-        Some(package_inputs) => {
-            build_time_evaluation::evaluate_pre_resolution_with_sources_top_level_bindings_and_authority(
-                syntax.syntax_trees,
-                syntax.sources.clone(),
-                syntax.source_scoped_top_level_bindings.clone(),
-                std::sync::Arc::new(package_inputs.clone()),
-            )
-        }
-        None => build_time_evaluation::evaluate_pre_resolution_with_sources_and_top_level_bindings(
-            syntax.syntax_trees,
-            syntax.sources.clone(),
-            syntax.source_scoped_top_level_bindings.clone(),
-        ),
-    }?;
+    let evaluated = build_time_evaluation::evaluate_pre_resolution(
+        build_time_evaluation::BuildTimeEvaluationRequest {
+            syntax_trees: syntax.syntax_trees,
+            source_context: Some(build_time_evaluation::BuildTimeSourceContext {
+                sources: syntax.sources.clone(),
+                source_scoped_top_level_bindings: &syntax.source_scoped_top_level_bindings,
+                selection_authority: package_inputs.map(|inputs| {
+                    Arc::new(inputs.clone())
+                        as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+                }),
+                retained_base: None,
+            }),
+        },
+    )?;
     let (syntax_trees, pre_check) = evaluated.into_syntax_and_pre_check();
     syntax.syntax_trees = syntax_trees;
     let selected_target_machine_declarations =
@@ -349,12 +348,16 @@ fn try_seeded_extension(
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         });
     for unit in extension_units {
-        let evaluated = build_time_evaluation::evaluate_pre_resolution_extension(
-            unit,
-            sources.clone(),
-            Vec::new(),
-            authority.clone(),
-            &resolved_base,
+        let evaluated = build_time_evaluation::evaluate_pre_resolution(
+            build_time_evaluation::BuildTimeEvaluationRequest {
+                syntax_trees: unit,
+                source_context: Some(build_time_evaluation::BuildTimeSourceContext {
+                    sources: sources.clone(),
+                    source_scoped_top_level_bindings: &[],
+                    selection_authority: authority.clone(),
+                    retained_base: Some(&resolved_base),
+                }),
+            },
         )?;
         let (unit, pre_check) = evaluated.into_syntax_and_pre_check();
         extension_syntax.extend_from(&unit);
