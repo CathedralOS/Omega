@@ -5,7 +5,7 @@ This crate sequences production; it does not own another executable IR.
 The [scalar computation and call map](scalar_calls.md) covers authored occurrence
 replay, argument evaluation, and shared ordinary/composed call closures.
 
-Enter [production.rs](src/production.rs). The sequence is
+Enter [terminal_production.rs](src/terminal_production.rs). The sequence is
 `checked-trees-to-lowered-psi` -> `lowered-psi-to-lowered-psi` ->
 `lowered-psi-to-terminal-psi`. `LoweredPsi` belongs to representations.
 Publication consumes the validated optimization-stage result, not an unoptimized
