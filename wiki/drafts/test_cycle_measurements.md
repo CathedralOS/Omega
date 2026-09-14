@@ -15,7 +15,7 @@ processors), mbx 1.8.1. The scheduling samples used existing library binaries
 without compilation on an active workstation; background desktop/indexing work
 was not disabled. The recorded worktree head was
 `014327fb2ce19367a8b14468641fa78be185fc16`. These are workload timings, not a
-measurement of hardware capacity. macOS performance was not measured.
+measurement of hardware capacity. macOS scheduling performance was not measured.
 
 ## Scheduling samples
 
@@ -68,3 +68,49 @@ startup/build checks, and execution. Different cache conditions prevent a
 matched comparison with the earlier full library run. The useful result is
 that document-only selection omitted unrelated library execution, not a claimed
 full-suite speedup ratio.
+
+## macOS package-review classification experiment
+
+On 2026-09-13, macOS ARM64, base
+`0989d752aeef9bb17b36f25b6c0ee993e0752d29`, the unchanged hosted-consumer
+review test was compared with an unpublished crash-guard classifier prototype:
+
+```sh
+RUST_MIN_STACK=67108864 cargo nextest run -p package-manager \
+  --test semantic_binding_review --no-fail-fast \
+  -E 'test(=macos_entry::target_entry_dependency_discovery_requires_explicit_consumer_acceptance)'
+```
+
+Both used the same checkout, shared target directory, default debug/test
+profile, and unchanged application/standard-library inputs. No concurrent
+agent-owned builds or tests ran. Each passed discovery, missing-acceptance
+rejection, exact explicit acceptance, and stale-binding rejection.
+
+| Implementation | Rust build (seconds) | Test execution (seconds) |
+| --- | ---: | ---: |
+| Unchanged base | 39.18 | 540.531 |
+| Snapshot-local integer classification | 8.57 | 532.465 |
+
+The prototype traversed the existing live declaration roster once per immutable
+crash-coverage pass, retaining first-match integer/float classification in a
+sorted vector keyed by full generational symbol identity. Queries used binary
+search instead of rescanning machines, states, locals, owned data and fields.
+It preserved existing expression classification and added four passing
+equivalence/boundary tests. The affected crate ran 3,673 tests: 3,661 passed;
+all 12 failures also reproduced, with the same diagnostics/assertions, in a
+focused unchanged-base run.
+
+The single paired execution difference is only 8.066 seconds (about 1.5%);
+it does not establish a material whole-route improvement. Different rebuild
+work makes the build-time difference unsuitable as a speedup claim. Release
+performance and repeat-run variance were not measured. The prototype was
+discarded rather than adding an index on this evidence.
+
+The next CRASH-GUARD-COST investigation should measure cumulative phase costs
+and repeated checking across the whole review route before choosing another
+lookup structure. A two-second sample of the unchanged run reached preliminary
+flow-fact construction, illustrating that the earlier crash-classification
+sample does not attribute the entire nine-minute route. Neither sample measures
+a phase's total share. Preserve the explicit review controls above; no thread
+cap, weakened checking, or disabled observation contract follows from these
+measurements.

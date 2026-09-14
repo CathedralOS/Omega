@@ -398,15 +398,18 @@ do not claim a faster compiler from a smaller helper alone.
 
 - **CRASH-GUARD-COST.** Investigate repeated classification in
   `typed-trees-to-checked-trees/src/checks/crashes.rs` before adding caches or
-  threads. At retained bridge checkpoint `25551c2978` on macOS ARM64,
+  threads. At `0989d752ae` on macOS ARM64,
   `RUST_MIN_STACK=67108864 cargo nextest run -p package-manager --test
-  semantic_binding_review --no-fail-fast -E 'test(macos_entry)'` passes but
-  spends 566.133 seconds executing after a 29.20-second build. A two-second
-  sample during the run places the compile thread in preliminary crash-guard
-  checking; integer classification repeatedly scans all machines, states,
-  locals and fields in `symbol_is_integer_typed`. This is a debug-run hotspot,
-  not a measured attribution of the entire route or a release speedup claim.
-  Acceptance: compare unchanged whole-route inputs and release/debug timings,
+  semantic_binding_review --no-fail-fast -E 'test(macos_entry)'` passes in
+  540.531 seconds of execution. An unpublished snapshot-local integer-type
+  index passed the same route in 532.465 seconds; that single 1.5% difference
+  is inconclusive, so the prototype was discarded. See the
+  [paired experiment](wiki/drafts/test_cycle_measurements.md#macos-package-review-classification-experiment).
+  Next: measure cumulative phase costs and repeated checking across the whole
+  review route before selecting another lookup structure. A short sample in
+  `symbol_is_integer_typed` alone does not attribute the nine-minute route;
+  a later sample also reached preliminary flow-fact construction.
+  Acceptance: compare unchanged whole-route inputs with repeated release/debug timings,
   remove material repeated work through existing typed ownership/type facts
   where possible, and preserve positive/negative crash-guard outcomes for
   parameters, locals and fields. Coordinate with live checking-stage work.
