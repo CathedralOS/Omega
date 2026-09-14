@@ -18,16 +18,20 @@ use effects::{
     ProgramLocalRootEpochLeaseId, ProgramLocalRootEpochLeaseReleaseError,
 };
 use executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
-use external_roots::{InstalledComponentProgressClosure, InstalledRootLedger};
+use external_roots::{
+    ExternalRootDiagnostic, InstalledComponentProgressClosure, InstalledRootLedger,
+};
 use image_emission::InstalledArtifact;
 
 mod callback_registration;
 mod deployment_journal;
 mod deployment_journal_storage;
+mod stack_provision;
 
 pub use callback_registration::*;
 pub use deployment_journal::*;
 pub use deployment_journal_storage::*;
+pub use stack_provision::*;
 
 /// Installed terminal artifact plus the concrete accepted progress closure
 /// committed by its canonical installation record.
@@ -40,6 +44,11 @@ pub struct InstalledRunnableComponent {
     artifact: InstalledArtifact,
     roots: InstalledRootLedger,
     progress: Option<InstalledComponentProgressClosure>,
+    /// Provider-owned stack supply admitted for this exact installed
+    /// occurrence. It is runtime custody, not candidate evidence: an external
+    /// root can install only while a retained set binds this occurrence and
+    /// covers the root's composed domain demand.
+    external_stack_provision: Option<ProvisionedExternalStackSet>,
 }
 
 impl InstalledRunnableComponent {
@@ -67,13 +76,55 @@ impl InstalledRunnableComponent {
         self.artifact.installed()
     }
 
-    /// Borrow the installed code and its root ledger as disjoint runtime
-    /// custody. Root handles may borrow the code while this owner continues to
-    /// mutate only the ledger for registration teardown and quiescence.
+    /// The retained provider-owned stack provision for this exact installed
+    /// occurrence, when admitted.
+    pub const fn external_stack_provision(&self) -> Option<&ProvisionedExternalStackSet> {
+        self.external_stack_provision.as_ref()
+    }
+
+    /// Admit the provider-owned stack provision for this exact installed
+    /// occurrence.
+    ///
+    /// The set must already be sealed against this occurrence; a set bound to
+    /// a different placement is a cross-context disposition and rejects.
+    /// While any external root is live the retained provision is pinned —
+    /// replacing supply under a live root would revoke the storage its
+    /// composed domain demand was admitted against. Before the first install
+    /// the set may still be corrected by admitting a replacement.
+    pub fn admit_external_stack_provision(
+        &mut self,
+        provision: ProvisionedExternalStackSet,
+    ) -> Result<(), Box<ExternalStackProvisionAdmissionError>> {
+        if !provision.binds_installed_code(self.artifact.installed()) {
+            return Err(Box::new(ExternalStackProvisionAdmissionError::new(
+                provision,
+                ExternalRootDiagnostic(
+                    "external stack provision names a different installed-code occurrence than the retained runnable component"
+                        .into(),
+                ),
+            )));
+        }
+        if !self.roots.live_external_roots_are_empty() {
+            return Err(Box::new(ExternalStackProvisionAdmissionError::new(
+                provision,
+                ExternalRootDiagnostic(
+                    "external stack provision is pinned while external roots are live".into(),
+                ),
+            )));
+        }
+        self.external_stack_provision = Some(provision);
+        Ok(())
+    }
+
+    /// Borrow the installed code, its root ledger, and the retained stack
+    /// provision as disjoint runtime custody. Root handles may borrow the
+    /// code while this owner continues to mutate only the ledger for
+    /// registration teardown and quiescence.
     pub fn external_root_runtime(&mut self) -> InstalledRunnableExternalRootRuntime<'_> {
         InstalledRunnableExternalRootRuntime {
             installed: self.artifact.installed(),
             roots: &mut self.roots,
+            stack_provision: self.external_stack_provision.as_ref(),
         }
     }
 }
@@ -86,6 +137,7 @@ pub struct RetiredRunnableComponent {
     artifact: InstalledArtifact,
     roots: InstalledRootLedger,
     progress: Option<InstalledComponentProgressClosure>,
+    external_stack_provision: Option<ProvisionedExternalStackSet>,
 }
 
 impl RetiredRunnableComponent {
@@ -97,14 +149,26 @@ impl RetiredRunnableComponent {
         self.artifact.installed()
     }
 
+    /// The stack provision retained through retirement so the caller can
+    /// release the provider-owned supply it admitted.
+    pub const fn external_stack_provision(&self) -> Option<&ProvisionedExternalStackSet> {
+        self.external_stack_provision.as_ref()
+    }
+
     pub fn into_parts(
         self,
     ) -> (
         InstalledArtifact,
         InstalledRootLedger,
         Option<InstalledComponentProgressClosure>,
+        Option<ProvisionedExternalStackSet>,
     ) {
-        (self.artifact, self.roots, self.progress)
+        (
+            self.artifact,
+            self.roots,
+            self.progress,
+            self.external_stack_provision,
+        )
     }
 }
 
@@ -245,6 +309,7 @@ pub fn bind_installed_runnable_component(
         artifact,
         roots,
         progress,
+        external_stack_provision: None,
     })
 }
 
@@ -421,6 +486,7 @@ impl RunnableComponentEraLedger {
             artifact: runnable.artifact,
             roots: runnable.roots,
             progress: runnable.progress,
+            external_stack_provision: runnable.external_stack_provision,
         })
     }
 }
