@@ -99,35 +99,71 @@ the coordinator spawns one agent per `.codex/worktrees/<wave>-<task>` worktree
 and each agent claims, works, lands, and releases exactly like a cloud session.
 `worktree_status.py` is the local wave's `status`/`report` equivalent.
 
+### Launching
+
+Local sessions carry `"host": "local"` in the manifest; a manifest may mix
+hosts — `plan`/`launch` handle the `linux` entries and `local` handles the
+rest, each reporting the skipped side. `waves/local-example.json` is the
+minimal shape.
+
+```sh
+python3 tools/swarm/launch.py local \
+    --manifest tools/swarm/waves/<wave>.json --create-worktrees
+```
+
+`local` runs the same validation, host gates, route check, and claims check
+as `plan`, renders one prompt per local session from
+`prompt_template_local.md` into `build/swarm/<wave>/prompts/<name>.md`, and
+prints the launch table: name, item, prompt path, worktree, branch, and owner
+label per row. The coordinator then spawns one agent per row with that
+prompt.
+
+`--create-worktrees` pre-creates `.codex/worktrees/<wave>-<name>` on
+`swarm/<wave>-<name>` from `origin/main`; without it agents create their own.
+When the branch already carries unpublished commits the rendered prompt marks
+the slot a continuation and instructs the agent to resume that work — the
+same path as recovery step 4 below. Local claims default to a 120-minute
+lease in the rendered command so interrupted slots self-release sooner than
+the registry's 480-minute default.
+
+The local template differs from the cloud one where the waves proved it
+matters: conflict-to-pivot instead of stop-and-block, `mbx` instead of Cargo,
+the worktree/`git stash` rules, validate-before-claim landing order, and a
+per-host block generated from `platform` (Intel macOS gets the
+`--target linux_x86_64` workaround).
+
 ### Coordinator runbook
 
 Lessons below are from the macw1–macw3 waves (three rate-limit wipeouts and
-three recoveries across ~40 slots).
+three recoveries across ~40 slots); the local template bakes the agent-side
+ones in — the rest are the coordinator's.
 
 - Every session on every machine — local subagents, cloud waves, other hosts —
   draws from one org message budget. A 20-at-once burst died within minutes;
   sustained waves at 8 stayed up while the budget was quiet and died when it
   was not. Launch a batch, let claims register, then backfill each freed slot
   instead of launching the whole wave at once.
-- Give each agent the conflict-to-pivot rule in its prompt: on a claim
-  conflict it narrows its path set and reclaims; if its item is claimed, it
-  takes an unclaimed item outside the wave's list rather than stopping. That
-  rule turned five would-be-blocked slots into landings; the template's "stop
-  and report blocked" suits a coordinator that reassigns, not a parent that
-  can backfill.
-- Keep `TASKS*.md` out of claimed path lists. Board files are hot singletons:
-  a session claiming one blocks every other session's board update for the
-  lease duration. Resume evidence belongs in the session's report or a
-  separate `board:` commit when the file is free.
-- Agents must never `git stash` inside a wave worktree: `refs/stash` is
-  repository-global, so one worktree's stash pop can consume another's stash.
-  Baseline comparisons belong in a scratch worktree or a WIP commit.
-- Agents finish validation before claiming the landing queue. The head lease
-  is fixed at 180 seconds starting at promotion; a post-enqueue rebase that
-  rebuilds dependencies burns it. Claim the queue only when the rebase will
-  be a no-op; otherwise validate, rebase, re-validate, then claim.
+- Give each agent the conflict-to-pivot rule (the local template carries it):
+  on a claim conflict it narrows its path set and reclaims; if its item is
+  claimed, it takes an unclaimed item outside the wave's list rather than
+  stopping. That rule turned five would-be-blocked slots into landings; the
+  cloud template's "stop and report blocked" suits a coordinator that
+  reassigns, not a parent that can backfill.
+- Keep `TASKS*.md` out of claimed path lists (the local template forbids it):
+  board files are hot singletons: a session claiming one blocks every other
+  session's board update for the lease duration. Resume evidence belongs in
+  the session's report or a separate `board:` commit when the file is free.
+- Agents must never `git stash` inside a wave worktree (the local template
+  forbids it): `refs/stash` is repository-global, so one worktree's stash pop
+  can consume another's stash. Baseline comparisons belong in a scratch
+  worktree or a WIP commit.
+- Agents finish validation before claiming the landing queue (the local
+  template orders it). The head lease is fixed at 180 seconds starting at
+  promotion; a post-enqueue rebase that rebuilds dependencies burns it. Claim
+  the queue only when the rebase will be a no-op; otherwise validate, rebase,
+  re-validate, then claim.
 - `mbx gc` is the first answer to "No space left on device" during parallel
-  worktree builds.
+  worktree builds (the local template says so).
 
 ### Recovering an interrupted wave
 

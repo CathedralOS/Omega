@@ -1,0 +1,24 @@
+{
+  "wave": "macwN",
+  "max_acu_limit": 1,
+  "bypass_approval": false,
+  "resumable": true,
+  "tags": [],
+  "owner_label_prefix": "Jarod / macos-wN",
+  "exclusions": [],
+  "sessions": [
+    {
+      "name": "macos-app-pub",
+      "board": "TASKS.md",
+      "item": "MACOS-APPLICATION-PUBLICATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/build",
+        "omega-rust/omega/backend/object"
+      ],
+      "suggested_first_slice": "the identifier field in ordinary build vocabulary",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    }
+  ]
+}
