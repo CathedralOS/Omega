@@ -75,6 +75,34 @@ machine generic_named_bound() -> u64 {
     let bounded: RangeValue<u64[0..=RANGE_CAPACITY]> = RangeValue { value: 0 };
     upper_bound(bounded.value)
 }
+machine generic_call_bound() -> u64 {
+    let bounded: RangeValue<u64[0..=limit()]> = RangeValue { value: 0 };
+    upper_bound(bounded.value)
+}
+machine generic_exclusive_call_bound() -> u64 {
+    let bounded: RangeValue<u64[0..limit()]> = RangeValue { value: 0 };
+    upper_bound(bounded.value)
+}
+machine generic_scoped_call_bound() -> u64 {
+    let bounded: RangeValue<u64[0..=Limits::capacity()]> = RangeValue { value: 0 };
+    upper_bound(bounded.value)
+}
+machine generic_argument_call_bound() -> u64 {
+    let bounded: RangeValue<u64[0..=endpoint(256)]> = RangeValue { value: 0 };
+    upper_bound(bounded.value)
+}
+machine generic_nested_call_bound() -> u64 {
+    let bounded: RangeValue<u64[0..=endpoint(limit())]> = RangeValue { value: 0 };
+    upper_bound(bounded.value)
+}
+machine generic_signed_call_bound() -> i64 {
+    let bounded: RangeValue<i64[-2..=negative_limit()]> = RangeValue { value: -2 };
+    bounded.value
+}
+machine generic_free_capacity_bound() -> u64 {
+    let bounded: RangeValue<u64[0..=capacity()]> = RangeValue { value: 0 };
+    upper_bound(bounded.value)
+}
 data ForwardRange<T [copy]> [copy] { inner: RangeValue<T>; }
 machine generic_forwarded_bound() -> u64 {
     let bounded: ForwardRange<u64[0..=256]> = ForwardRange { inner: RangeValue { value: 0 } };

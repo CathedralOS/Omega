@@ -361,3 +361,135 @@ fn cyclic_signature_bounds_do_not_depend_on_source_order_or_retries() {
         );
     }
 }
+
+#[test]
+fn generic_record_arguments_fold_endpoint_calls_before_synthesis() {
+    // A declared range endpoint inside a generic argument is a const position:
+    // the instance's canonical interval must exist before resolution. The
+    // pre-resolution bridge folds each authored call leaf through the shared
+    // typed endpoint gate, so downstream const-parameter inference sees the
+    // same bound a literal spelling would produce.
+    for (argument, instance, bound) in [
+        ("u64[0..=limit()]", "RangeValue<u64 in [0..=256]>", 256),
+        ("u64[0..limit()]", "RangeValue<u64 in [0..=255]>", 255),
+        (
+            "u64[0..=endpoint(256)]",
+            "RangeValue<u64 in [0..=256]>",
+            256,
+        ),
+        (
+            "u64[0..=endpoint(limit())]",
+            "RangeValue<u64 in [0..=256]>",
+            256,
+        ),
+        (
+            "u64[0..=Limits::capacity()]",
+            "RangeValue<u64 in [0..=256]>",
+            256,
+        ),
+        ("u64[0..=limit() + 0]", "RangeValue<u64 in [0..=256]>", 256),
+    ] {
+        let source = format!(
+            "machine limit() -> u64 {{ 256 }}
+             machine endpoint(value: u64) -> u64 {{ value }}
+             data Limits {{}} machine Limits::capacity() -> u64 {{ 256 }}
+             machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 {{ N }}
+             data RangeValue<T [copy]> [copy] {{ value: T; }}
+             machine keep() -> u64 {{
+                 let bounded: RangeValue<{argument}> = RangeValue {{ value: 0 }};
+                 upper_bound(bounded.value)
+             }}"
+        );
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens)
+                .unwrap();
+        let evaluated = crate::evaluate_pre_resolution(syntax)
+            .unwrap_or_else(|errors| panic!("{argument}: pre-resolution: {errors:?}"));
+        let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .unwrap_or_else(|errors| panic!("{argument}: resolution: {errors:?}"));
+        let mut program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .unwrap_or_else(|error| panic!("{argument}: typed lowering: {error:?}"));
+        let instance = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == instance)
+            .unwrap_or_else(|| panic!("{argument}: no synthesized instance `{instance}`"));
+        assert!(instance.generic_instance.is_some(), "{argument}");
+        // The endpoint call folded before resolution, so the typed program has
+        // no pending endpoint left at the generic argument.
+        assert!(
+            pending_endpoints(&program).unwrap().is_empty(),
+            "{argument}"
+        );
+        pre_check
+            .evaluate(&mut program)
+            .unwrap_or_else(|errors| panic!("{argument}: pre-check: {errors:?}"));
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(program)
+            .unwrap_or_else(|errors| panic!("{argument}: checked lowering: {errors:?}"));
+        let keep = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "keep")
+            .expect("consumer machine");
+        let admission = crate::BuildTimeAdmissionPlan::infer(&checked.typed);
+        let execution = admission
+            .evaluate_machine_symbol_for_invocation_measured(
+                &checked.typed,
+                keep.symbol,
+                Vec::new(),
+                crate::BuildTimeInvocationCustody::Symbol(keep.symbol),
+            )
+            .unwrap_or_else(|reason| panic!("{argument}: {reason}"));
+        assert_eq!(
+            *execution.value(),
+            crate::BuildTimeValue::Int(bound),
+            "{argument}"
+        );
+    }
+}
+
+fn checked_pipeline(source: &str) -> Result<(), Vec<Diagnostic>> {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
+    let evaluated = crate::evaluate_pre_resolution(syntax)?;
+    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)?;
+    let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .map_err(|error| vec![error])?;
+    pre_check.evaluate(&mut program)?;
+    typed_trees_to_checked_trees::lower_typed_trees(program).map(|_| ())
+}
+
+#[test]
+fn generic_record_arguments_still_reject_unclosable_endpoint_calls() {
+    // An endpoint call that cannot resolve, and a callee the shared gate
+    // cannot close, must both stay rejected rather than weakening admission.
+    for source in [
+        "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+         data RangeValue<T [copy]> [copy] { value: T; }
+         machine keep() -> u64 {
+             let bounded: RangeValue<u64[0..=missing()]> = RangeValue { value: 0 };
+             upper_bound(bounded.value)
+         }",
+        "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+         data RangeValue<T [copy]> [copy] { value: T; }
+         machine keep() -> u64 {
+             let bounded: RangeValue<u64[0..=upper_bound<256>(0)]> = RangeValue { value: 0 };
+             upper_bound(bounded.value)
+         }",
+    ] {
+        assert!(
+            checked_pipeline(source).is_err(),
+            "unclosable endpoint must reject: {source}"
+        );
+    }
+}

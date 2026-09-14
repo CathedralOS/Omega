@@ -5,6 +5,16 @@
 //! type it, reuse the same normalized build-time gate and interpreter entry as
 //! fixed-array lengths, then substitute canonical decimal leaves into the
 //! authoritative syntax tree before monomorphization.
+//!
+//! Declared range endpoints inside those arguments are const positions of the
+//! same kind: `RangeValue<u64[0..=limit()]>` can only synthesize its instance
+//! once the canonical interval is known, so each authored endpoint call leaf is
+//! folded through the shared typed endpoint gate on the probe program and its
+//! evaluated literal is written back before resolution. Folding here does not
+//! replace `range_endpoints`: the probe evaluation applies the same resolved
+//! machine identity, closed-argument, result-carrier, and dependency checks,
+//! while calls it cannot close keep their authored expression for ordinary
+//! post-typing admission.
 
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
@@ -12,7 +22,7 @@ use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
-use syntax_trees::types::TypeReferenceNode;
+use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 pub fn evaluate_const_generic_calls(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     evaluate_const_generic_calls_with_optional_sources(syntax, None, &[], None)
@@ -33,7 +43,12 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
             pending_type_references.push(type_reference);
         }
     }
-    if pending.is_empty() {
+    // Range endpoints nested in generic arguments also feed synthesis. Only
+    // their call leaves are collected here; the probe's shared endpoint fold
+    // decides which of them can actually close.
+    let mut endpoint_leaves = Vec::new();
+    collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
+    if pending.is_empty() && endpoint_leaves.is_empty() {
         return Ok(syntax);
     }
 
@@ -59,10 +74,12 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
         sources,
         source_scoped_top_level_bindings,
     )?;
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+    let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let admission =
-        crate::BuildTimeAdmissionPlan::infer_with_selection_authority(&typed, selection_authority);
+    let admission = crate::BuildTimeAdmissionPlan::infer_with_selection_authority(
+        &typed,
+        selection_authority.clone(),
+    );
 
     for (expression, machine_name, source_span) in pending {
         let value = crate::evaluate_zero_argument_machine_for_invocation(
@@ -89,7 +106,110 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
             .expressions
             .replace_expression(expression, ExpressionNode::Integer(literal));
     }
+
+    if !endpoint_leaves.is_empty() {
+        // The probe carries resolved endpoint calls. Fold them through the
+        // shared typed evaluator so resolved machine identity, closed argument,
+        // declared result-carrier, and signature-bound dependency checks match
+        // post-typing admission exactly. Only leaves the gate actually closed
+        // are written back; an endpoint it leaves authored keeps its original
+        // expression and its ordinary post-typing route.
+        crate::evaluate_const_range_endpoints_with_authority(
+            &mut typed,
+            selection_authority.clone(),
+        )?;
+        for (expression, source_span) in endpoint_leaves {
+            let value = typed
+                .expression_table
+                .iter_expressions()
+                .filter(|(handle, _)| typed.expression_table.source_span(*handle) == source_span)
+                .find_map(|(_, node)| match node {
+                    typed_trees::expression::ExpressionNode::Integer(literal) => {
+                        literal.value_bignum()
+                    }
+                    _ => None,
+                });
+            let Some(value) = value else {
+                continue;
+            };
+            let literal = IntegerLiteral::from_parts(
+                value.is_negative(),
+                IntegerRadix::Decimal,
+                value.abs().to_string().as_str(),
+            )
+            .expect("an evaluated range endpoint is a valid integer literal");
+            syntax
+                .expressions
+                .replace_expression(expression, ExpressionNode::Integer(literal));
+        }
+    }
     Ok(syntax)
+}
+
+/// Every authored call leaf inside declared range endpoints of generic
+/// arguments. Synthesis needs those canonical intervals before resolution, so
+/// each call's position is marked here; the typed probe fold supplies values.
+fn collect_generic_range_endpoint_call_leaves(
+    syntax: &SyntaxTrees,
+    pending: &mut Vec<(ExpressionHandle, source::SourceSpan)>,
+) {
+    let mut visited = Vec::new();
+    let mut worklist = syntax.type_references.generic_nodes();
+    while let Some(reference) = worklist.pop() {
+        if visited.contains(&reference) {
+            continue;
+        }
+        visited.push(reference);
+        match syntax.type_references.type_reference(reference) {
+            TypeReferenceNode::Generic { arguments, .. } => {
+                worklist.extend(syntax.type_references.type_reference_handles(*arguments));
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                worklist.push(*base_type);
+                for constraint in syntax.type_references.constraints(*constraints) {
+                    let TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } = constraint
+                    else {
+                        continue;
+                    };
+                    collect_endpoint_call_leaves(syntax, *minimum, pending);
+                    collect_endpoint_call_leaves(syntax, *maximum, pending);
+                }
+            }
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => worklist.push(*element_type),
+            TypeReferenceNode::Reference { referee, .. } => worklist.push(*referee),
+            _ => {}
+        }
+    }
+}
+
+/// Call leaves of one range endpoint, matching the shared typed fold's
+/// traversal: binary operands and call arguments may each contain the next
+/// authored invocation. Calls with runtime receivers or unresolved static
+/// applications are still marked; the probe gate leaves them authored.
+fn collect_endpoint_call_leaves(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    pending: &mut Vec<(ExpressionHandle, source::SourceSpan)>,
+) {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            collect_endpoint_call_leaves(syntax, binary.left, pending);
+            collect_endpoint_call_leaves(syntax, binary.right, pending);
+        }
+        ExpressionNode::Call(call) => {
+            pending.push((expression, syntax.expressions.source_span(expression)));
+            for argument in syntax.expressions.expression_handles(call.arguments) {
+                collect_endpoint_call_leaves(syntax, *argument, pending);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn collect_call_leaves(
