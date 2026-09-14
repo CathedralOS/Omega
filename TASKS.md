@@ -961,7 +961,7 @@ Owners include
   `78685f4bff`, and `955ce0427a` landed the `SymbolicFieldInnerLayout` carrier
   and bounded recursive path traversal
   (`derive_symbolic_materialization_with_inner_layouts`,
-  `omega-rust/psi/foundation/layout-plans/src/lib.rs`); `c045400290` lowers the
+  `omega-rust/psi/foundation/layout-plans/src/symbolic_materialization.rs`); `c045400290` lowers the
   nested writers for `linux_x64` and `linux_arm64`. The compiler tests
   `*_symbolic_materialization_*` in
   `omega-rust/omega/compiler/compiler/tests/layout_plans.rs` now also execute
