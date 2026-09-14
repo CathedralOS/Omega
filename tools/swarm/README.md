@@ -92,6 +92,58 @@ python tools/swarm/worktree_status.py
 registries degrade to `unavailable` in the record rather than failing the
 run; `--offline` skips them deliberately.
 
+## Local waves
+
+A local wave runs the same protocol from one machine without Devin sessions:
+the coordinator spawns one agent per `.codex/worktrees/<wave>-<task>` worktree
+and each agent claims, works, lands, and releases exactly like a cloud session.
+`worktree_status.py` is the local wave's `status`/`report` equivalent.
+
+### Coordinator runbook
+
+Lessons below are from the macw1–macw3 waves (three rate-limit wipeouts and
+three recoveries across ~40 slots).
+
+- Every session on every machine — local subagents, cloud waves, other hosts —
+  draws from one org message budget. A 20-at-once burst died within minutes;
+  sustained waves at 8 stayed up while the budget was quiet and died when it
+  was not. Launch a batch, let claims register, then backfill each freed slot
+  instead of launching the whole wave at once.
+- Give each agent the conflict-to-pivot rule in its prompt: on a claim
+  conflict it narrows its path set and reclaims; if its item is claimed, it
+  takes an unclaimed item outside the wave's list rather than stopping. That
+  rule turned five would-be-blocked slots into landings; the template's "stop
+  and report blocked" suits a coordinator that reassigns, not a parent that
+  can backfill.
+- Keep `TASKS*.md` out of claimed path lists. Board files are hot singletons:
+  a session claiming one blocks every other session's board update for the
+  lease duration. Resume evidence belongs in the session's report or a
+  separate `board:` commit when the file is free.
+- Agents must never `git stash` inside a wave worktree: `refs/stash` is
+  repository-global, so one worktree's stash pop can consume another's stash.
+  Baseline comparisons belong in a scratch worktree or a WIP commit.
+- Agents finish validation before claiming the landing queue. The head lease
+  is fixed at 180 seconds starting at promotion; a post-enqueue rebase that
+  rebuilds dependencies burns it. Claim the queue only when the rebase will
+  be a no-op; otherwise validate, rebase, re-validate, then claim.
+- `mbx gc` is the first answer to "No space left on device" during parallel
+  worktree builds.
+
+### Recovering an interrupted wave
+
+1. `python3 tools/swarm/worktree_status.py` matches each worktree to its live
+   claim and lists claims whose owner has no worktree.
+2. For each dead agent, release its ticket with
+   `python3 tools/claims.py release --ticket <ticket>` from the status row.
+   Expired claims reap themselves on the next registry action; only
+   live-leased orphans need the explicit release.
+3. Preserve dirty worktrees before removing them:
+   `git -C <wt> add -A && git -C <wt> commit -m "wip(...): interrupted"` keeps
+   the work on the branch. Clean worktrees and landed branches can be removed
+   outright.
+4. Relaunch continuations onto the same branches (fresh worktree per branch)
+   and have them reclaim the item; the wave loses no work.
+
 ## Coordinator selection rules
 
 Prioritize immediate customer outcomes within the requested scope, not the ease

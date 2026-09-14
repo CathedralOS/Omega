@@ -66,3 +66,24 @@ Certificate(UnknownAssumption(2)) }`.
 during test-binary linking on the pinned `nightly-2026-09-04` toolchain on
 this host. It is a warning in build output only and does not fail compilation
 or tests; do not investigate it as a test failure.
+
+## Intel macOS host gap (x86_64-apple-darwin)
+
+Environmental, not a test regression, verified across the macw3 wave on
+2026-09-14 (independent sessions reproduced identical sets on unmodified
+bases including `d1b7165cd6`, `07782416b4`, and `1055e88f31`):
+
+- `TargetProfile::host()`
+  (`omega-rust/omega/representations/target/src/lib.rs`, `host()`) has cfg
+  arms for macos-aarch64, linux-aarch64, linux-x86_64, and windows-x86_64
+  only, so host-profiled tests panic with `unsupported host profile for
+  Omega native planning`. Observed sets: ~20 `package-manager` ops tests and
+  2 `compiler::request` tests in the workspace `--lib` run.
+- `native_hosted_target()` in `compiler/tests/canary_suite.rs` has the same
+  four cfg arms, so `mbx nextest run -p compiler --test canary_suite` does
+  not compile on this host.
+
+On this host, route `omega` invocations through an explicit `--target` (for
+example `linux_x86_64`) and report native-host coverage as unavailable rather
+than re-running the baseline; a `MacosX64` host profile is open board work,
+not a fix to inline into a task.
