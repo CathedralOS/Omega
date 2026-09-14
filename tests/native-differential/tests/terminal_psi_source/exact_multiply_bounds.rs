@@ -74,9 +74,16 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("exact multiplication should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("exact multiplication should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -149,9 +156,16 @@ fn checked_source_exact_multiply_uses_joint_runtime_bound() {
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("joint-bound exact multiplication should cross Omega");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("joint-bound exact multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("joint-bound exact multiplication should select");
@@ -209,9 +223,16 @@ fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("signed joint-bound exact multiplication should cross Omega");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("signed joint-bound exact multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("signed joint-bound exact multiplication should select");
@@ -278,9 +299,16 @@ fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("negative signed joint-bound multiplication should cross Omega");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("negative signed joint-bound multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("negative signed joint-bound multiplication should select");
@@ -338,9 +366,16 @@ fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("runtime-negation exact multiplication should cross Omega");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("runtime-negation exact multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("runtime-negation exact multiplication should select");
@@ -424,9 +459,16 @@ fn checked_source_exact_multiply_uses_all_signed_i64_runtime_bounds() {
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("signed i64 runtime-bound multiplication should cross Omega");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("signed i64 runtime-bound multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("signed i64 runtime-bound multiplication should select");

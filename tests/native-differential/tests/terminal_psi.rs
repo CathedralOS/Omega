@@ -17,7 +17,7 @@ use terminal_psi::{
     Operation, OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration, VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
+use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 
 #[test]
@@ -196,9 +196,16 @@ fn verified_integer_control_contract_slice_executes_directly() {
     .expect("equal artifact execution reproduces deterministic usage");
     assert_eq!(first, second);
     assert_eq!(first.value(), TerminalExecutionResult::Scalar(expected));
-    let artifact_abstract =
-        lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
-            .expect("artifact-root abstract lowering decodes and verifies first");
+    let artifact_abstract = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic_bytes,
+            proof_bytes: &proof_bytes,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("artifact-root abstract lowering decodes and verifies first");
     assert_eq!(artifact_abstract.entry, module.entry);
     assert_eq!(
         interpret_terminal_artifact(
@@ -222,11 +229,15 @@ fn verified_integer_control_contract_slice_executes_directly() {
         Err(TerminalArtifactInterpretError::SemanticDecode(_))
     ));
     assert!(matches!(
-        lower_artifact_sections(
-            &malformed_semantic,
-            &proof_bytes,
-            &AdmissionProfile::default(),
-        ),
+        lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &malformed_semantic,
+                proof_bytes: &proof_bytes,
+                obligation_ledger_bytes: None
+            },
+            &AdmissionProfile::default()
+        )
+        .and_then(|admitted| admitted.try_into_plan()),
         Err(ArtifactLoweringError::SemanticDecode(_))
     ));
     let mut malformed_proof = proof_bytes.clone();
@@ -241,11 +252,15 @@ fn verified_integer_control_contract_slice_executes_directly() {
         Err(TerminalArtifactInterpretError::ProofDecode(_))
     ));
     assert!(matches!(
-        lower_artifact_sections(
-            &semantic_bytes,
-            &malformed_proof,
-            &AdmissionProfile::default(),
-        ),
+        lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic_bytes,
+                proof_bytes: &malformed_proof,
+                obligation_ledger_bytes: None
+            },
+            &AdmissionProfile::default()
+        )
+        .and_then(|admitted| admitted.try_into_plan()),
         Err(ArtifactLoweringError::ProofDecode(_))
     ));
     let empty_proof_bytes =
@@ -260,11 +275,15 @@ fn verified_integer_control_contract_slice_executes_directly() {
         Err(TerminalArtifactInterpretError::Verification(_))
     ));
     assert!(matches!(
-        lower_artifact_sections(
-            &semantic_bytes,
-            &empty_proof_bytes,
-            &AdmissionProfile::default(),
-        ),
+        lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic_bytes,
+                proof_bytes: &empty_proof_bytes,
+                obligation_ledger_bytes: None
+            },
+            &AdmissionProfile::default()
+        )
+        .and_then(|admitted| admitted.try_into_plan()),
         Err(ArtifactLoweringError::Verification(_))
     ));
     assert!(matches!(

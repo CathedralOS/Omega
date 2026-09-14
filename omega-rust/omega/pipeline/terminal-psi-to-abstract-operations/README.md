@@ -5,7 +5,11 @@ and [boundary realization](../../../../wiki/spec/terminal-psi/boundary_calls.md)
 
 The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
 
-- `artifact`: canonical admission and replay.
+- [artifact_admission.rs](src/artifact_admission.rs): canonical preparation,
+  optional obligation-ledger replay, and distinct ordinary/optimizer/native
+  admission. Every admitted result retains the exact placed-view input roster.
+  Extraction into a consumer without roster custody rejects nonempty inputs;
+  this check follows verification and lowering, not canonical decode.
 - `optimization`: verified optimization-unit construction and proof questions.
 - `provider_installation`: exact selected-adapter and installation custody.
 - `lowering`: one operation-by-operation walk for scalar, Unit, and structural
@@ -15,11 +19,14 @@ No checked tree, StateGraph, or caller-created module substitutes for the
 canonical artifact. Unsupported vocabulary rejects at admission or lowering;
 provider installation is not permission to drop an unsupported result.
 
-Native admission returns `VerifiedNativeArtifactInput`: one abstract program and
+Native admission returns `AdmittedNativeArtifact`: one abstract program and
 its checked optimizer context. It decodes and reconstructs proofs once, lowers
 through ordinary native authority, then checks optimizer eligibility while moving
 the already-verified state. These admission gates remain distinct; optimizer-only
 input cannot be promoted into native authority or paired with an unrelated plan.
+Optimizer and native custody borrow the roster from their retained canonical
+module, without a second mutable roster. A native consumer lacking placement
+support extracts `VerifiedNativeArtifactInput` only after an empty-roster check.
 
 Image-writer storage must not be relabeled as compiler-authored object data.
 For example, Mach-O replay derives aligned eight-byte lazy-binding pointer slots
@@ -80,7 +87,7 @@ successful optimization are not native-publication claims.
 ## Ranked native admission
 
 Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).
-[native.rs](src/artifact/native.rs) routes natural-ranked modules through ordinary
+[native.rs](src/artifact_admission/native.rs) routes natural-ranked modules through ordinary
 Terminal verification and abstract lowering. That verifier checks the exact
 grouped control-cycle evidence, including slice-decrease proofs; the route does
 not require or manufacture a fixed-work ceiling. The abstract graph retains its

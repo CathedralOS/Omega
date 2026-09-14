@@ -6,24 +6,16 @@
 //! Enter the named responsibility modules for artifact replay, optimizer-unit
 //! construction, provider-installation custody, or machine lowering.
 
-mod artifact;
+mod artifact_admission;
 mod lowering;
 mod optimization;
 mod provider_installation;
 mod shared;
 
-pub use artifact::{
-    ArtifactLoweringError, VerifiedNativeArtifactInput,
-    VerifiedNativeArtifactInputWithPlacedViewInputs,
-    VerifiedPsiOptimizationInputWithPlacedViewInputs, lower_artifact_sections,
-    lower_artifact_sections_for_native_realization,
-    lower_artifact_sections_for_native_realization_with_placed_view_inputs,
-    lower_artifact_sections_for_optimization,
-    lower_artifact_sections_for_optimization_with_placed_view_inputs,
-    lower_artifact_sections_with_placed_view_inputs, lower_replay_artifact_sections,
-    lower_replay_artifact_sections_for_optimization,
-    lower_replay_artifact_sections_for_optimization_with_placed_view_inputs,
-    lower_replay_artifact_sections_with_placed_view_inputs,
+pub use artifact_admission::{
+    AdmittedArtifactPlan, AdmittedNativeArtifact, AdmittedOptimizationArtifact,
+    ArtifactLoweringError, ArtifactSections, VerifiedNativeArtifactInput, lower_artifact,
+    lower_artifact_for_native_realization, lower_artifact_for_optimization,
 };
 pub use lowering::LoweringError;
 pub use optimization::{

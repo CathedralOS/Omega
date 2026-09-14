@@ -52,11 +52,15 @@ pub(super) fn verified(
     replace_truth_placeholders_with_checked_operation_certificates(&module, &mut proof);
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let proof = terminal_codec::encode_proof_bundle(&proof).unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        &semantic,
-        &proof,
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .unwrap();
     terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

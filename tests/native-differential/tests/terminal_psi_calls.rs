@@ -18,7 +18,7 @@ use terminal_psi::{
     OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration, VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use terminal_psi_to_abstract_operations::lower_artifact;
 use terminal_verifier::{ProofBundle, verify_module};
 
 const SCALAR_CALL_FIXTURE: &str = include_str!("../../fixtures/terminal-psi/scalar-call.hex");
@@ -125,11 +125,16 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
         })
     );
 
-    let abstract_plan = lower_artifact_sections(
-        &semantic,
-        &encode_proof_bundle(&ProofBundle::default()).expect("empty lowering proof"),
+    let abstract_plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &encode_proof_bundle(&ProofBundle::default())
+                .expect("empty lowering proof"),
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_plan())
     .expect("lower scalar call fixture");
     let _target = lower_to_target_operations(&abstract_plan, NativeTarget::linux_x64())
         .expect("select Linux x86-64 scalar call ABI");
@@ -269,8 +274,16 @@ fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
         "resumption must not replay the paid call"
     );
 
-    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("lower verified call artifact");
+    let abstract_plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("lower verified call artifact");
     assert!(matches!(
         abstract_plan.functions[0].operations[1],
         AbstractOperation::Call { .. }
@@ -351,8 +364,16 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
         1
     );
 
-    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("lower verified crash-capable call artifact");
+    let abstract_plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("lower verified crash-capable call artifact");
     assert!(matches!(
         abstract_plan.functions[0].operations[1],
         AbstractOperation::Call { .. }

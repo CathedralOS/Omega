@@ -411,11 +411,15 @@ fn verified_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizati
     };
     let semantic = terminal_codec::encode_module(&module).expect("encode unit module");
     let proof = terminal_codec::encode_proof_bundle(&proof).expect("encode empty proof");
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        &semantic,
-        &proof,
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("verified optimizer input");
     terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

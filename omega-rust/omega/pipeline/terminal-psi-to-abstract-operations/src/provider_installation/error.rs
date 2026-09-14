@@ -1,4 +1,4 @@
-use crate::artifact::ArtifactLoweringError;
+use crate::artifact_admission::ArtifactLoweringError;
 use crate::shared::*;
 
 #[derive(Debug)]

@@ -86,7 +86,7 @@ use terminal_interpreter::{
     interpret_terminal_artifact_measured,
 };
 use terminal_psi::{CrashCause, OperationKind, Terminator, VocabularyMarker};
-use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
+use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
 use terminal_verifier::{VerifiedTerminalModule, verify_module};
 
 #[cfg(unix)]
@@ -292,7 +292,15 @@ fn lower_verified_artifact(
     verified: &VerifiedTerminalModule<'_>,
 ) -> Result<AbstractOperationPlan, ArtifactLoweringError> {
     let (semantic_bytes, proof_bytes) = artifact_sections(verified);
-    lower_artifact_sections(&semantic_bytes, &proof_bytes, &AdmissionProfile::default())
+    lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic_bytes,
+            proof_bytes: &proof_bytes,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
 }
 
 fn start_verified_artifact(
@@ -811,11 +819,15 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     let terminal = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
         .produce_artifact()
         .expect("progress source produces canonical Terminal custody");
-    let abstract_plan = lower_artifact_sections(
-        terminal.semantic_bytes(),
-        terminal.proof_bytes(),
+    let abstract_plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: terminal.semantic_bytes(),
+            proof_bytes: terminal.proof_bytes(),
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_plan())
     .expect("independently verified abstract boundary contract");
     let boundary = abstract_plan
         .boundary_machines

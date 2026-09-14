@@ -151,11 +151,15 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
         .expect("source-independent consumer should recompute the certificate");
     assert_eq!(fixed_fuel.terminal_psi(), original_identity);
     assert_eq!(fixed_fuel.ceiling_units(), 4);
-    let abstract_operations = lower_artifact_sections(
-        &canonical_bytes,
-        &canonical_proof_bytes,
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &canonical_bytes,
+            proof_bytes: &canonical_proof_bytes,
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_plan())
     .expect("canonical artifact sections should lower without producer state");
     let measured = interpret_terminal_artifact_measured(
         &canonical_bytes,

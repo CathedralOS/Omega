@@ -4,8 +4,7 @@ use proof_admission::AdmissionProfile;
 use terminal_codec::{encode_module, encode_proof_bundle};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::{
-    lower_artifact_sections, lower_artifact_sections_for_native_realization,
-    lower_artifact_sections_for_optimization,
+    lower_artifact, lower_artifact_for_native_realization, lower_artifact_for_optimization,
 };
 
 #[test]
@@ -49,11 +48,35 @@ fn borrowed_primitive_local_survives_every_abstract_entrance() {
     terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
         .expect("valid primitive storage");
     for result in [
-        lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile),
-        lower_artifact_sections_for_optimization(&semantic_bytes, &proof_bytes, &profile)
-            .map(|input| input.plan().clone()),
-        lower_artifact_sections_for_native_realization(&semantic_bytes, &proof_bytes, &profile)
-            .map(|input| input.plan().clone()),
+        lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic_bytes,
+                proof_bytes: &proof_bytes,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .and_then(|admitted| admitted.try_into_plan()),
+        lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic_bytes,
+                proof_bytes: &proof_bytes,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .and_then(|admitted| admitted.try_into_optimization_input())
+        .map(|input| input.plan().clone()),
+        lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic_bytes,
+                proof_bytes: &proof_bytes,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .and_then(|admitted| admitted.try_into_native_input())
+        .map(|input| input.plan().clone()),
     ] {
         let plan = result.expect("primitive storage survives abstract admission");
         let operations = plan

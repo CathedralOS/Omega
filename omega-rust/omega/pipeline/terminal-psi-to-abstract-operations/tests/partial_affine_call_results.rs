@@ -12,7 +12,7 @@ use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_codec::{encode_module, encode_proof_bundle};
 use terminal_psi::{StructuralPathSegment, TerminalAffineCleanupAction};
 use terminal_psi_to_abstract_operations::{
-    build_verified_psi_optimization_unit, lower_artifact_sections_for_optimization,
+    build_verified_psi_optimization_unit, lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -125,9 +125,16 @@ fn omega_retains_verified_partial_result_continuation_cleanup() {
         .expect("partial continuation is valid target-neutral Terminal Psi");
     let semantic = encode_module(module).unwrap();
     let proof = encode_proof_bundle(&terminal.proof_bundle).unwrap();
-    let input =
-        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
-            .expect("Omega retains the verified partial continuation");
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("Omega retains the verified partial continuation");
     let verified = build_verified_psi_optimization_unit(
         input,
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
@@ -241,11 +248,15 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous:
             .expect("lower authored cleanup");
         let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
         let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-        let input = lower_artifact_sections_for_optimization(
-            &semantic,
-            &proof,
+        let input = lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
             &AdmissionProfile::default(),
         )
+        .and_then(|admitted| admitted.try_into_optimization_input())
         .expect("verified Terminal enters Omega");
         let verified = build_verified_psi_optimization_unit(
             input,

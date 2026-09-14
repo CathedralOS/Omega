@@ -4,7 +4,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, lower_artifact_sections, lower_artifact_sections_for_native_realization,
+    ArtifactLoweringError, lower_artifact, lower_artifact_for_native_realization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -46,10 +46,29 @@ fn unsigned_countdown_tag_is_explicitly_rejected_at_native_entrance() {
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
     assert!(matches!(
-        lower_artifact_sections_for_native_realization(&semantic, &proof, &profile),
+        lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None
+            },
+            &profile
+        )
+        .and_then(|admitted| admitted.try_into_native_input()),
         Err(ArtifactLoweringError::UnsupportedUnsignedCountdownNativeCustody)
     ));
-    assert!(lower_artifact_sections(&semantic, &proof, &profile).is_err());
+    assert!(
+        lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None
+            },
+            &profile
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .is_err()
+    );
 }
 
 #[test]
@@ -60,11 +79,15 @@ fn deleting_countdown_metadata_cannot_convert_a_cycle_to_ordinary_custody() {
     }
     let semantic = terminal_codec::encode_module(&module).unwrap();
     assert!(
-        lower_artifact_sections_for_native_realization(
-            &semantic,
-            &proof,
-            &proof_admission::AdmissionProfile::default(),
+        lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None
+            },
+            &proof_admission::AdmissionProfile::default()
         )
+        .and_then(|admitted| admitted.try_into_native_input())
         .is_err()
     );
 }

@@ -234,11 +234,15 @@ pub(super) fn acyclic_unit() -> terminal_psi_to_abstract_operations::VerifiedPsi
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode acyclic semantics");
     let proof =
         terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode acyclic proof");
-    let input = lower_artifact_sections_for_optimization(
-        &semantic,
-        &proof,
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("admit acyclic optimizer unit");
     build_verified_psi_optimization_unit(
         input,

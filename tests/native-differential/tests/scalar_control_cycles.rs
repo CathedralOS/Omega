@@ -5,7 +5,7 @@ use proof_admission::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{OperationKind, TerminalRankedScc};
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, lower_artifact_sections_for_native_realization,
+    ArtifactLoweringError, lower_artifact_for_native_realization,
 };
 
 #[path = "scalar_control_cycles/publication.rs"]
@@ -118,11 +118,15 @@ fn produce_for_entry(source: &str, entry_name: &str, ranked: bool) -> CanonicalT
         verified.accepted_control_cycles().len(),
         usize::from(ranked)
     );
-    let abstracted = lower_artifact_sections_for_native_realization(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
+    let abstracted = lower_artifact_for_native_realization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: artifact.semantic_bytes(),
+            proof_bytes: artifact.proof_bytes(),
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_native_input())
     .expect("Natural and unranked cycles use the same verified native entrance");
     assert_eq!(
         abstracted.plan().functions.len(),
@@ -205,11 +209,15 @@ fn native_entrance_rejects_corrupted_natural_cycle_evidence() {
         assert_ne!(changed, artifact.proof_bytes(), "{corruption}");
         assert!(
             matches!(
-                lower_artifact_sections_for_native_realization(
-                    artifact.semantic_bytes(),
-                    &changed,
-                    &AdmissionProfile::default(),
-                ),
+                lower_artifact_for_native_realization(
+                    terminal_psi_to_abstract_operations::ArtifactSections {
+                        semantic_bytes: artifact.semantic_bytes(),
+                        proof_bytes: &changed,
+                        obligation_ledger_bytes: None
+                    },
+                    &AdmissionProfile::default()
+                )
+                .and_then(|admitted| admitted.try_into_native_input()),
                 Err(ArtifactLoweringError::Verification(_))
             ),
             "native entrance must reject {corruption} during verification"

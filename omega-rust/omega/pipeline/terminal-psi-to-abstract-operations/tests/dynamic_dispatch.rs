@@ -10,7 +10,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_codec::{encode_module, encode_proof_bundle};
 use terminal_psi::StructuralPathSegment;
-use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -42,8 +42,16 @@ fn verified_stored_dynamic_descriptor_retains_aggregate_custody_through_optimiza
         .expect("stored dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("stored descriptor reaches target-neutral Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("stored descriptor reaches target-neutral Omega");
     let caller = plan
         .functions
         .iter()
@@ -156,8 +164,16 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
         .expect("rebound dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("verified rebound dispatch reaches target-neutral Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified rebound dispatch reaches target-neutral Omega");
 
     let caller = plan
         .functions
@@ -286,8 +302,16 @@ fn verified_changed_conformance_rebound_retains_both_applications() {
         .expect("changed-conformance rebound lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("verified changed-conformance rebound reaches target-neutral Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified changed-conformance rebound reaches target-neutral Omega");
 
     let caller = plan
         .functions
@@ -397,8 +421,16 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
         .expect("forwarded dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("verified forwarded dispatch reaches target-neutral Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified forwarded dispatch reaches target-neutral Omega");
 
     let caller = plan
         .functions
@@ -596,8 +628,16 @@ fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
         .expect("direct scalar forwarding lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("direct scalar forwarding reaches target-neutral Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("direct scalar forwarding reaches target-neutral Omega");
 
     let caller = plan
         .functions

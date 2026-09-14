@@ -12,11 +12,15 @@ fn optimized_target(
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
         .produce_artifact()
         .expect("publish independent Terminal fixture");
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: artifact.semantic_bytes(),
+            proof_bytes: artifact.proof_bytes(),
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("verified abstract input");
     let abstract_program = crate::optimize_verified_abstract_input(
         input,

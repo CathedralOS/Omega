@@ -11,8 +11,8 @@ use terminal_psi::{
     Block, Operation, OperationKind, OperationResult, SuccessorEdge, Terminator, ValueDeclaration,
 };
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, LoweringError, lower_artifact_sections,
-    lower_artifact_sections_for_native_realization, lower_artifact_sections_for_optimization,
+    ArtifactLoweringError, LoweringError, lower_artifact, lower_artifact_for_native_realization,
+    lower_artifact_for_optimization,
 };
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
@@ -261,11 +261,36 @@ fn verified_field_length_and_indexed_store_reject_at_every_native_entrance() {
             LoweringError::UnsupportedStructuralByteSequenceFieldLength(id(101))
         };
         for result in [
-            lower_artifact_sections(&semantics, &proof_bytes, &profile).map(|_| ()),
-            lower_artifact_sections_for_optimization(&semantics, &proof_bytes, &profile)
-                .map(|_| ()),
-            lower_artifact_sections_for_native_realization(&semantics, &proof_bytes, &profile)
-                .map(|_| ()),
+            lower_artifact(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: &semantics,
+                    proof_bytes: &proof_bytes,
+                    obligation_ledger_bytes: None,
+                },
+                &profile,
+            )
+            .and_then(|admitted| admitted.try_into_plan())
+            .map(|_| ()),
+            lower_artifact_for_optimization(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: &semantics,
+                    proof_bytes: &proof_bytes,
+                    obligation_ledger_bytes: None,
+                },
+                &profile,
+            )
+            .and_then(|admitted| admitted.try_into_optimization_input())
+            .map(|_| ()),
+            lower_artifact_for_native_realization(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: &semantics,
+                    proof_bytes: &proof_bytes,
+                    obligation_ledger_bytes: None,
+                },
+                &profile,
+            )
+            .and_then(|admitted| admitted.try_into_native_input())
+            .map(|_| ()),
         ] {
             assert!(
                 matches!(result, Err(ArtifactLoweringError::Lowering(error)) if error == expected)

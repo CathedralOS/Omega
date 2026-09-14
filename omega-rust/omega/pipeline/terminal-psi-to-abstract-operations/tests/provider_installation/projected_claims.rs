@@ -8,7 +8,7 @@ use terminal_psi::{
     TerminalModule,
 };
 use terminal_psi_to_abstract_operations::{
-    ProviderInstallationError, admit_provider_installation, lower_artifact_sections,
+    ProviderInstallationError, admit_provider_installation, lower_artifact,
 };
 
 #[test]
@@ -16,7 +16,16 @@ fn omega_rebases_projected_provider_claims_and_preserves_sibling_sources() {
     let module = projected_structural_provider_module();
     let (semantic, proof) = artifact(&module);
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
         .expect("projected structural provider installation");
@@ -70,7 +79,16 @@ fn projected_provider_replay_rejects_path_receipt_and_provider_substitution() {
     let module = projected_structural_provider_module();
     let (semantic, proof) = artifact(&module);
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
 
     let mut path_tamper = plan.clone();

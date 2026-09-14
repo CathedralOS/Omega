@@ -84,11 +84,15 @@ pub(crate) fn lower_realization_input(
     proof_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
-    terminal_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
-        semantic_bytes,
-        proof_bytes,
+    terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes,
+            proof_bytes,
+            obligation_ledger_bytes: None,
+        },
         profile,
     )
+    .and_then(|admitted| admitted.try_into_native_input())
     .map_err(|error| realization_error("native artifact lowering", error))
 }
 
@@ -169,11 +173,15 @@ mod tests {
                 &profile,
             )
             .expect("native input");
-            let expected = terminal_psi_to_abstract_operations::lower_artifact_sections(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
+            let expected = terminal_psi_to_abstract_operations::lower_artifact(
+                terminal_psi_to_abstract_operations::ArtifactSections {
+                    semantic_bytes: artifact.semantic_bytes(),
+                    proof_bytes: artifact.proof_bytes(),
+                    obligation_ledger_bytes: None,
+                },
                 &profile,
             )
+            .and_then(|admitted| admitted.try_into_plan())
             .expect("independent ordinary lowering");
             assert_eq!(input.plan(), &expected);
             let input = input.into_optimization_input();

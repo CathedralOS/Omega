@@ -45,11 +45,15 @@ fn dynamic_unit() -> optimization_unit::PsiOptimizationUnit {
         .expect("lower rebound dynamic source");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let plan = terminal_psi_to_abstract_operations::lower_artifact_sections(
-        &semantic,
-        &proof,
+    let plan = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_plan())
     .expect("lower verified Terminal artifact");
     optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,

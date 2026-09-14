@@ -38,11 +38,15 @@ fn boolean_parameter_uses_exact_scalar_abi_and_shared_publication() {
         target::NativeTarget::linux_arm64(),
         target::NativeTarget::macos_arm64(),
     ] {
-        let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-            &semantic,
-            &proof,
+        let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
             &proof_admission::AdmissionProfile::default(),
         )
+        .and_then(|admitted| admitted.try_into_optimization_input())
         .unwrap();
         let optimized = crate::optimize_verified_abstract_input(
             input,
@@ -185,11 +189,15 @@ fn publish(
     machine_emission::StagedOptimizedFunctionFragmentEmission,
 ) {
     let build = || {
-        let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-            semantic,
-            proof,
+        let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: semantic,
+                proof_bytes: proof,
+                obligation_ledger_bytes: None,
+            },
             &proof_admission::AdmissionProfile::default(),
         )
+        .and_then(|admitted| admitted.try_into_optimization_input())
         .unwrap();
         let optimized = crate::optimize_verified_abstract_input(
             input,
@@ -340,11 +348,15 @@ fn source_common_return_conditionals_use_the_shared_native_pipeline() {
 #[test]
 fn substituted_conditional_inputs_reject_at_legalization() {
     let (semantic, proof) = conditional_fixture::artifact(Comparison::Equal, IntegerSign::Unsigned);
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        &semantic,
-        &proof,
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .unwrap();
     let optimized = crate::optimize_verified_abstract_input(
         input,

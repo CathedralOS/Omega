@@ -63,9 +63,16 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
         TerminalExecutionResult::Scalar(argument(100))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("exact division should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("exact division should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -112,9 +119,16 @@ fn checked_source_signed_exact_divide_truncates_toward_zero() {
 
     #[cfg(unix)]
     {
-        let abstract_operations =
-            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-                .expect("signed exact division should cross the Omega boundary");
+        let abstract_operations = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .expect("signed exact division should cross the Omega boundary");
         let _target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .expect("signed exact-divide host selection");
@@ -184,9 +198,16 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
         TerminalExecutionResult::Scalar(argument(3))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("exact remainder should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("exact remainder should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -234,9 +255,16 @@ fn checked_source_signed_exact_remainder_is_truncating() {
 
     #[cfg(unix)]
     {
-        let abstract_operations =
-            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-                .expect("signed exact remainder should cross the Omega boundary");
+        let abstract_operations = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .expect("signed exact remainder should cross the Omega boundary");
         let _target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .expect("signed exact-remainder host selection");
@@ -364,9 +392,16 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
         TerminalExecutionResult::Scalar(argument(101))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("wrapping division should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("wrapping division should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -476,9 +511,16 @@ fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
 
     #[cfg(unix)]
     {
-        let abstract_operations =
-            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-                .expect("signed wrapping division should cross the Omega boundary");
+        let abstract_operations = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .expect("signed wrapping division should cross the Omega boundary");
         let _target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .expect("signed wrapping-divide host selection");
@@ -613,9 +655,16 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
         TerminalExecutionResult::Scalar(argument(3))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("wrapping remainder should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("wrapping remainder should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -667,9 +716,16 @@ fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative
 
     #[cfg(unix)]
     {
-        let abstract_operations =
-            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-                .expect("signed wrapping remainder should cross the Omega boundary");
+        let abstract_operations = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .expect("signed wrapping remainder should cross the Omega boundary");
         let _target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .expect("signed wrapping-remainder host selection");
@@ -803,9 +859,16 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
         TerminalExecutionResult::Scalar(argument(101))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("saturating division should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("saturating division should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -854,9 +917,16 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
         TerminalExecutionResult::Scalar(argument(i64::MAX as i128))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("signed saturating division should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("signed saturating division should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("signed saturating-divide should select for both Linux targets");
@@ -998,9 +1068,16 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
         TerminalExecutionResult::Scalar(argument(2))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("saturating remainder should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("saturating remainder should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
             .operations
@@ -1050,9 +1127,16 @@ fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negati
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("signed saturating remainder should cross the Omega boundary");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("signed saturating remainder should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("signed saturating-remainder should select for both Linux targets");
@@ -1119,9 +1203,16 @@ fn checked_source_signed_saturating_i64_ordinary_divisors_execute_on_the_host() 
             "{machine} interpreter result"
         );
 
-        let abstract_operations =
-            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-                .unwrap_or_else(|error| panic!("lower {machine}: {error:?}"));
+        let abstract_operations = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .unwrap_or_else(|error| panic!("lower {machine}: {error:?}"));
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let _target_operations = lower_to_target_operations(&abstract_operations, target)
                 .unwrap_or_else(|error| panic!("select {machine} for {target:?}: {error:?}"));
@@ -1235,9 +1326,16 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
             TerminalExecutionResult::Scalar(argument(0))
         );
 
-        let abstract_operations =
-            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-                .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
+        let abstract_operations = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let _target_operations = lower_to_target_operations(&abstract_operations, target)
                 .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
@@ -1285,9 +1383,16 @@ fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_on
         TerminalExecutionResult::Scalar(argument(0))
     );
 
-    let abstract_operations =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("negative-divisor artifact should cross Omega");
+    let abstract_operations = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("negative-divisor artifact should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("negative-divisor control should select");
@@ -1334,9 +1439,16 @@ fn checked_source_negative_one_range_uses_policy_appropriate_dividend_evidence()
             execution.value(),
             TerminalExecutionResult::Scalar(argument(expected))
         );
-        let abstract_operations =
-            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-                .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
+        let abstract_operations = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let _target_operations = lower_to_target_operations(&abstract_operations, target)
                 .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));

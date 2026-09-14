@@ -10,8 +10,8 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
 };
 use terminal_psi_to_abstract_operations::{
-    SelectedProviderAdapter, admit_provider_installation, lower_artifact_sections,
-    lower_artifact_sections_for_optimization,
+    SelectedProviderAdapter, admit_provider_installation, lower_artifact,
+    lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -80,7 +80,16 @@ fn omega_installs_affine_result_providers_without_relabeling_custody() {
 fn check_source(source: &str) {
     let (module, semantic, proof) = artifact(source);
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).unwrap();
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .unwrap();
     let caller = module
         .machines
         .iter()
@@ -113,8 +122,16 @@ fn check_source(source: &str) {
                 &installation,
             );
         assert_eq!(evidence[0].result, operation.result);
-        let optimized =
-            lower_artifact_sections_for_optimization(&semantic, &proof, &profile).unwrap();
+        let optimized = lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .and_then(|admitted| admitted.try_into_optimization_input())
+        .unwrap();
         let optimized_installation =
             admit_provider_installation(optimized.plan(), &semantic, &proof, &profile, &selected)
                 .unwrap();
@@ -182,7 +199,16 @@ fn installed_affine_result_custody_rejects_changed_plan_and_selection() {
 
     let (_, semantic, proof) = artifact(SOURCE);
     let profile = AdmissionProfile::default();
-    let plan = lower_artifact_sections(&semantic, &proof, &profile).unwrap();
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .unwrap();
     let candidate = &plan.provider_candidates[1];
     let selected = [SelectedProviderAdapter {
         requirement_identity: candidate.requirement_identity.clone(),

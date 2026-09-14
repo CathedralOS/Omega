@@ -11,7 +11,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_codec::{encode_module, encode_proof_bundle};
-use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -64,8 +64,16 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
             .expect("dynamic Unit source lowers to verified Terminal Psi");
         let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
         let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-        let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-            .expect("verified dynamic Unit dispatch reaches target-neutral Omega");
+        let plan = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_plan())
+        .expect("verified dynamic Unit dispatch reaches target-neutral Omega");
 
         let caller = plan
             .functions
@@ -195,8 +203,16 @@ fn verified_rebound_dynamic_unit_retains_exact_indirect_custody() {
         .expect("rebound dynamic Unit source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("verified rebound Unit dispatch reaches target-neutral Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified rebound Unit dispatch reaches target-neutral Omega");
     let caller = plan
         .functions
         .iter()
@@ -250,8 +266,16 @@ fn verified_changed_conformance_unit_retains_both_applications() {
         .expect("changed-conformance Unit source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-        .expect("verified changed-conformance Unit dispatch reaches target-neutral Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified changed-conformance Unit dispatch reaches target-neutral Omega");
     let caller = plan
         .functions
         .iter()

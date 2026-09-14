@@ -2233,16 +2233,16 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     );
     let input = input.split_whitespace().collect::<Vec<_>>().join(" ");
     let native_admission = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact/native.rs",
+        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
     ))
     .expect("native artifact admission owner");
     let production_input = input.split("#[cfg(test)]").next().unwrap();
     assert!(
         production_input
-            .matches("lower_artifact_sections_for_native_realization(")
+            .matches("lower_artifact_for_native_realization(")
             .count()
             == 1
-            && !production_input.contains("lower_artifact_sections_for_optimization(")
+            && !production_input.contains("lower_artifact_for_optimization(")
             && !production_input.contains("NativeRealizationInput::new(")
             && model.contains("VerifiedNativeArtifactInput as NativeRealizationInput")
             && native_admission.contains("pub struct VerifiedNativeArtifactInput")
@@ -2311,7 +2311,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", component_path.display()));
     assert!(component.contains("native_artifact: NativeArtifact"));
     for forbidden in [
-        "lower_artifact_sections(",
+        "lower_artifact(",
         "lower_to_target_operations",
         "assign_registers(",
         "emit_machine_code(",
@@ -4328,7 +4328,7 @@ fn selected_construction_uses_one_ordinary_instruction_graph() {
 fn native_publication_has_no_countdown_execution_fork() {
     let root = workspace_root();
     let native = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact/native.rs",
+        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
     ))
     .unwrap();
     assert!(native.contains("UnsupportedUnsignedCountdownNativeCustody"));

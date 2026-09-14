@@ -9,7 +9,7 @@ use terminal_psi::{
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use terminal_psi_to_abstract_operations::lower_artifact;
 use terminal_verifier::ProofBundle;
 
 use super::support::{block_id, contract_id, edge_id, machine_id, place_id, structural_type_id};
@@ -139,7 +139,15 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
     };
     let semantic = encode_module(&module).expect("the payloadless case module verifies");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
-    let result = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default());
+    let result = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan());
     result.expect("empty scalar-case constructor reaches abstract operations");
 
     let mut called = module;
@@ -226,6 +234,14 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
     };
     called.machines = vec![caller, callee];
     let semantic = encode_module(&called).expect("payloadless caller verifies");
-    let result = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default());
+    let result = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan());
     result.expect("ordinary empty scalar-case call reaches abstract operations");
 }

@@ -18,8 +18,8 @@ use terminal_psi::{
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, build_verified_psi_optimization_unit, lower_artifact_sections,
-    lower_artifact_sections_for_optimization,
+    ArtifactLoweringError, build_verified_psi_optimization_unit, lower_artifact,
+    lower_artifact_for_optimization,
 };
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -91,23 +91,31 @@ fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
     let semantics = encode_module(&module).expect("contextual scalar cleanup encodes");
     let proof_bytes = encode_proof_bundle(&proof).expect("contextual scalar proof encodes");
     assert!(matches!(
-        lower_artifact_sections(
-            &semantics,
-            &encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes"),
-            &AdmissionProfile::default(),
-        ),
+        lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantics, proof_bytes: &encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes"), obligation_ledger_bytes: None }, &AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
         Err(ArtifactLoweringError::Verification(
             terminal_verifier::VerificationError::MissingEvidence(obligation)
         )) if obligation == obligation_id(1)
     ));
 
-    let plan = lower_artifact_sections(&semantics, &proof_bytes, &AdmissionProfile::default())
-        .expect("verified contextual scalar cleanup enters Omega");
-    let optimizer_input = lower_artifact_sections_for_optimization(
-        &semantics,
-        &proof_bytes,
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantics,
+            proof_bytes: &proof_bytes,
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified contextual scalar cleanup enters Omega");
+    let optimizer_input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantics,
+            proof_bytes: &proof_bytes,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("verified contextual scalar cleanup retains optimizer context");
     assert_eq!(optimizer_input.plan(), &plan);
     let optimizer_context = optimizer_input.context();

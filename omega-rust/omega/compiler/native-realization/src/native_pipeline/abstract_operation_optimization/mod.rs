@@ -19,7 +19,7 @@ use abstract_operations_to_abstract_operations::{
 };
 use proof_admission::AdmissionProfile;
 use terminal_psi_to_abstract_operations::{
-    VerifiedPsiOptimizationInput, lower_artifact_sections_for_optimization,
+    VerifiedPsiOptimizationInput, lower_artifact_for_optimization,
 };
 
 pub fn optimize_artifact_sections(
@@ -28,8 +28,16 @@ pub fn optimize_artifact_sections(
     profile: &AdmissionProfile,
     request: impl Into<OptimizationPipelineRequest>,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
-    let input = lower_artifact_sections_for_optimization(semantic_bytes, proof_bytes, profile)
-        .map_err(OptimizationPipelineError::ArtifactLowering)?;
+    let input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes,
+            proof_bytes,
+            obligation_ledger_bytes: None,
+        },
+        profile,
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map_err(OptimizationPipelineError::ArtifactLowering)?;
     optimize_verified_abstract_input(input, request)
 }
 

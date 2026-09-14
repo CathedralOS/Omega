@@ -9,7 +9,7 @@ use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use target::NativeTarget;
 use target_operations::{TargetOperationPlan, TargetStructuralArgument, TargetUnitOperation};
 use terminal_codec::{encode_module, encode_proof_bundle};
-use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -21,11 +21,15 @@ fn source_plan(source: &str) -> abstract_operations::AbstractOperationPlan {
     let checked = lower_typed_trees(typed).expect("check source");
     let terminal =
         checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run").expect("lower source");
-    lower_artifact_sections(
-        &encode_module(&terminal.semantic_module).expect("encode semantics"),
-        &encode_proof_bundle(&terminal.proof_bundle).expect("encode proof"),
+    lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &encode_module(&terminal.semantic_module).expect("encode semantics"),
+            proof_bytes: &encode_proof_bundle(&terminal.proof_bundle).expect("encode proof"),
+            obligation_ledger_bytes: None,
+        },
         &AdmissionProfile::default(),
     )
+    .and_then(|admitted| admitted.try_into_plan())
     .expect("verify and lower canonical artifact")
 }
 

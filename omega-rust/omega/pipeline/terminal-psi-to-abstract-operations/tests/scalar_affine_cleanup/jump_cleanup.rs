@@ -11,8 +11,7 @@ use terminal_psi::{
     ValueDeclaration, VocabularyMarker,
 };
 use terminal_psi_to_abstract_operations::{
-    build_verified_psi_optimization_unit, lower_artifact_sections,
-    lower_artifact_sections_for_optimization,
+    build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_optimization,
 };
 use terminal_verifier::ProofBundle;
 
@@ -137,8 +136,16 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     let semantics = encode_module(&module).expect("exact jump affine cleanup should encode");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof should encode");
 
-    let plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
-        .expect("verified jump affine cleanup should lower through Omega");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantics,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified jump affine cleanup should lower through Omega");
     let [function] = plan.functions.as_slice() else {
         panic!("fixture has one terminal function")
     };
@@ -175,9 +182,16 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     assert_eq!(*value, value_id(3));
     assert_eq!(*scalar_type, ScalarType::Boolean);
 
-    let optimizer_input =
-        lower_artifact_sections_for_optimization(&semantics, &proof, &AdmissionProfile::default())
-            .expect("verified jump cleanup retains optimizer context");
+    let optimizer_input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantics,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("verified jump cleanup retains optimizer context");
     let verified = build_verified_psi_optimization_unit(
         optimizer_input,
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),

@@ -5,8 +5,8 @@ use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::{
-    build_verified_psi_optimization_unit, lower_artifact_sections,
-    lower_artifact_sections_for_native_realization, lower_artifact_sections_for_optimization,
+    build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_native_realization,
+    lower_artifact_for_optimization,
 };
 
 #[test]
@@ -82,12 +82,36 @@ fn assert_array_retention(source: &str, entry: &str) {
     let profile = AdmissionProfile::default();
     terminal_verifier::verify_module(&module, &decoded_proof, &profile)
         .expect("array construction verifies independently before Omega lowering");
-    let plan = lower_artifact_sections(&semantic, &proof, &profile)
-        .expect("ordinary abstract lowering retains the verified array payload");
-    let optimizer_input = lower_artifact_sections_for_optimization(&semantic, &proof, &profile)
-        .expect("optimizer admission retains arrays");
-    let native_input = lower_artifact_sections_for_native_realization(&semantic, &proof, &profile)
-        .expect("native artifact admission retains arrays");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("ordinary abstract lowering retains the verified array payload");
+    let optimizer_input = lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("optimizer admission retains arrays");
+    let native_input = lower_artifact_for_native_realization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .and_then(|admitted| admitted.try_into_native_input())
+    .expect("native artifact admission retains arrays");
     assert_eq!(&plan, optimizer_input.plan());
     assert_eq!(&plan, native_input.plan());
     let unit = build_verified_psi_optimization_unit(
