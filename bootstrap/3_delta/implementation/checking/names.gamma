@@ -20,20 +20,16 @@
   ((children Int) (byte Int) (child Int)) Int
   (pair 1 (pair byte (pair child children))))
 
+; Replacing an edge prepends its fresh row rather than copying every younger
+; sibling over the retained row. Exact-byte lookup stops at the first matching
+; row, so an earlier row for the same byte is unreachable in this version and
+; in every older immutable snapshot that shares it. Callers replace only an
+; existing edge; absence remains a contradiction, proved by the same scan.
 (def name_children_replace
   ((children Int) (byte Int) (child Int)) Int
-  (if (eq (first children) 0)
-    (fail)
-    (let ((row Int (second children))
-          (stored_byte Int (first row))
-          (child_and_rest Int (second row)))
-      (if (eq stored_byte byte)
-        (pair 1 (pair stored_byte (pair child (second child_and_rest))))
-        (pair 1
-          (pair stored_byte
-            (pair (first child_and_rest)
-              (name_children_replace
-                (second child_and_rest) byte child))))))))
+  (if (first (name_child children byte))
+    (name_children_prepend children byte child)
+    (fail)))
 
 ; Trie tags: 0 is absent; 1 carries terminal option and child rows; byte+2
 ; carries one child directly and has no terminal. Long unbranched names need

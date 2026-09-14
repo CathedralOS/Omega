@@ -74,8 +74,8 @@ forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
 epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("development compiler", compiler, 3417, 155139, "5617c8540b45968dd66b94bab52f762ad9dbbbb15f21619759ac6f0fc4c80c0e"),
-    ("canonical compiler", canonical_compiler, 3425, 155440, "65e23e66c57885382a90c5b910a9064d8c829d62ffd1f028091d22e32a8eca84"),
+    ("development compiler", compiler, 3413, 155176, "d1dc3fdd391877c09b3c2891f900b39b97c4a8d9c0d042b0c3fd6c111fcb9e5c"),
+    ("canonical compiler", canonical_compiler, 3421, 155477, "08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),

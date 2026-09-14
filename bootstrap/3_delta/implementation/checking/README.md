@@ -124,12 +124,12 @@ Name-trie and cursor work is shared with lowering, so it is bounded once in
 the [name-trie audit](names/README.md#whole-compiler-rollup):
 
 ```text
-name pairs <= 10*S + 46*V + 1150*N + 22
+name pairs <= 10*S + 46*V + 34*N + 22
 ```
 
 These envelopes are deliberately coarse: every pair is now charged to an
 admitted-source occurrence, but the constants do not establish that the total
-stays below the pair arena for maximum-size sources. The dominant `1150*N`
-name-rebuild product and its ordering question are flagged there; resolving it
-is what remains for a whole-producer pair bound, together with the capture
-`k*d` term in normalization.
+stays below the pair arena for maximum-size sources. Branch-level rebuilds no
+longer multiply by sibling count, so the former `1150*N` name-rebuild product
+is now `34*N`; what remains for a whole-producer pair bound is the residual
+name-event envelope together with the capture `k*d` term in normalization.

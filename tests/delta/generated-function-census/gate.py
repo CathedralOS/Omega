@@ -75,8 +75,8 @@ def main():
     gate = Path(__file__).resolve().parent
     timeout = positive_timeout("OMEGA_DELTA_CENSUS_SECONDS", 1200)
     compiler = (directory / "compiler.gamma").read_bytes()
-    require_identity("Delta compiler", compiler, 155440,
-                     "65e23e66c57885382a90c5b910a9064d8c829d62ffd1f028091d22e32a8eca84")
+    require_identity("Delta compiler", compiler, 155477,
+                     "08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d")
     with (gate / "fixtures.tsv").open(encoding="ascii", newline="") as stream:
         reader = csv.DictReader(stream, delimiter="\t")
         if reader.fieldnames != ["functions", "width", "source_bytes", "source_sha256",
