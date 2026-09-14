@@ -36,9 +36,11 @@ pub(super) fn prove_atomic(
                 // weaken its conclusion, rather than adding another evaluator
                 // or replacing the original non-strict call requirement.
                 let relation = strict::prove(
+                    context,
                     &Proposition::LessThan(left.clone(), right.clone()),
                     assumptions,
                     semantic_axioms,
+                    definitions,
                 )?;
                 Some(ProofNode {
                     conclusion: goal.clone(),
@@ -48,7 +50,13 @@ pub(super) fn prove_atomic(
                 })
             }),
         ),
-        Proposition::LessThan(_, _) => Some(strict::prove(goal, assumptions, semantic_axioms)),
+        Proposition::LessThan(_, _) => Some(strict::prove(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            definitions,
+        )),
         Proposition::IntegerMathEqual(_, _)
         | Proposition::IntegerMathLessThan(_, _)
         | Proposition::IntegerMathLessOrEqual(_, _) => Some(prove_math_relation(

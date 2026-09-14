@@ -4,7 +4,7 @@ use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, PropositionContext};
 
 use super::super::{affine_custody::DefinitionIndex, affine_selection, cast_selection};
-use super::{order, range, shift, substitution};
+use super::{order, range, shift, substitution, wrapping};
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -45,6 +45,7 @@ pub(super) fn prove(
                 definitions,
             )
         })
+        .or_else(|| wrapping::prove(context, goal, assumptions, semantic_axioms, definitions))
         .or_else(|| shift::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| range::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| order::prove_equal_integer_bound(goal, assumptions, semantic_axioms))

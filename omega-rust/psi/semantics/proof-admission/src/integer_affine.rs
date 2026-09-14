@@ -22,7 +22,7 @@ pub struct CheckedIntegerAffineForm {
     endpoint_steps: Vec<CheckedIntegerEndpointStep>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum CheckedIntegerEndpointStep {
     Add(i128),
     Subtract(i128),
@@ -31,6 +31,22 @@ enum CheckedIntegerEndpointStep {
     Remainder(i128),
     ShiftLeft(u32),
     ShiftRight(u32),
+    /// `target = wrapping_add(operand, literal)` traversed toward the defined
+    /// result, unsigned fixed carriers only. An upper mapped bound is
+    /// unconditional because reduction modulo the width can only lower the
+    /// result; a lower mapped bound is sound only when the same definition
+    /// carries the checked no-wrap conjunct `operand <= maximum - literal`.
+    WrappingAdd {
+        operand: ScalarTerm,
+        literal: i128,
+    },
+    /// The same equation traversed toward the operand: a lower mapped bound
+    /// is unconditional, while an upper mapped bound is sound only under the
+    /// checked `operand <= maximum - literal` evidence.
+    WrappingAddBackward {
+        operand: ScalarTerm,
+        literal: i128,
+    },
     CorrelatedAddLower,
     CorrelatedAddUpper,
     CorrelatedSubtractLower,
@@ -38,6 +54,20 @@ enum CheckedIntegerEndpointStep {
     CorrelatedUnsignedSubtract,
     CorrelatedMultiplyMinimum,
     CorrelatedMultiplyMaximum,
+}
+
+impl CheckedIntegerEndpointStep {
+    /// Strict endpoints survive only pure translations: scaling, division,
+    /// remainder, and shift steps change the strict relation's strength.
+    fn preserves_strict_endpoint(&self) -> bool {
+        matches!(
+            self,
+            Self::Add(_)
+                | Self::Subtract(_)
+                | Self::WrappingAdd { .. }
+                | Self::WrappingAddBackward { .. }
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -264,10 +294,37 @@ pub fn check_integer_affine_witness(
             apply_shift_definition(left, right, &current, integer_type, landed.as_ref(), index);
         let shift_reverse =
             apply_shift_definition(right, left, &current, integer_type, landed.as_ref(), index);
-        let candidates = [forward, reverse, shift_forward, shift_reverse]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+        let wrapping_backward = apply_wrapping_add_inverse(
+            left,
+            right,
+            &current,
+            integer_type,
+            coefficient,
+            offset,
+            landed.as_ref(),
+            index,
+        );
+        let wrapping_backward_reverse = apply_wrapping_add_inverse(
+            right,
+            left,
+            &current,
+            integer_type,
+            coefficient,
+            offset,
+            landed.as_ref(),
+            index,
+        );
+        let candidates = [
+            forward,
+            reverse,
+            shift_forward,
+            shift_reverse,
+            wrapping_backward,
+            wrapping_backward_reverse,
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
         let (next, next_coefficient, next_offset, used_landing, endpoint_step) =
             match candidates.as_slice() {
                 [next] => next.clone()?,
@@ -672,6 +729,70 @@ fn apply_definition(
                 CheckedIntegerEndpointStep::Multiply(literal),
             )
         }
+        // Only unsigned fixed carriers traverse a wrapping definition: signed
+        // wrapping arithmetic is not monotone around its reduced endpoints,
+        // and address carriers have no literal order evidence here.
+        ScalarTerm::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type
+            && integer_type.sign() == IntegerSign::Unsigned
+            && left.as_ref() == current =>
+        {
+            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+            (
+                Some(coefficient),
+                offset.checked_add(literal),
+                used_landing,
+                CheckedIntegerEndpointStep::WrappingAdd {
+                    operand: left.as_ref().clone(),
+                    literal,
+                },
+            )
+        }
+        ScalarTerm::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type
+            && integer_type.sign() == IntegerSign::Unsigned
+            && right.as_ref() == current =>
+        {
+            let (literal, used_landing) = signed_literal(left, integer_type, landed)?;
+            (
+                Some(coefficient),
+                offset.checked_add(literal),
+                used_landing,
+                CheckedIntegerEndpointStep::WrappingAdd {
+                    operand: right.as_ref().clone(),
+                    literal,
+                },
+            )
+        }
+        // Unsigned wrapping division by a landed nonzero literal is exact
+        // floor division: both bound directions are monotone and need no
+        // evidence conjunct. A zero divisor still rejects so the chain never
+        // pretends a trapping operation has an image.
+        ScalarTerm::WrappingIntegerDivide {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type
+            && integer_type.sign() == IntegerSign::Unsigned
+            && left.as_ref() == current =>
+        {
+            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+            if literal == 0 {
+                return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
+            }
+            (
+                Some(coefficient),
+                Some(offset),
+                used_landing,
+                CheckedIntegerEndpointStep::Divide(literal),
+            )
+        }
         _ => return None,
     };
     Some(match transformed {
@@ -829,6 +950,74 @@ fn nonnegative_count(
     }
 }
 
+/// Traverse an `Equal(defined, wrapping_add(operand, literal))` row toward its
+/// operand. Only unsigned fixed carriers qualify, and exactly one addend may
+/// be the chain operand: if both addends land as literals the backward step is
+/// ambiguous and rejects rather than guessing which value produced the sum.
+#[allow(clippy::too_many_arguments)]
+fn apply_wrapping_add_inverse(
+    defined: &ScalarTerm,
+    expression: &ScalarTerm,
+    current: &ScalarTerm,
+    integer_type: IntegerType,
+    coefficient: i128,
+    offset: i128,
+    landed: Option<&LandedInteger>,
+    definition_index: usize,
+) -> Option<
+    Result<(ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep), IntegerAffineWitnessError>,
+> {
+    if !matches!(defined, ScalarTerm::Value { .. }) || defined != current {
+        return None;
+    }
+    let ScalarTerm::WrappingIntegerAdd {
+        scalar_type,
+        left,
+        right,
+    } = expression
+    else {
+        return None;
+    };
+    if *scalar_type != integer_type || integer_type.sign() != IntegerSign::Unsigned {
+        return None;
+    }
+    let left_operand = if matches!(left.as_ref(), ScalarTerm::Value { .. }) {
+        signed_literal(right, integer_type, landed)
+    } else {
+        None
+    };
+    let right_operand = if matches!(right.as_ref(), ScalarTerm::Value { .. }) {
+        signed_literal(left, integer_type, landed)
+    } else {
+        None
+    };
+    let (operand, literal, used_landing) = match (left_operand, right_operand) {
+        (Some((literal, used)), None) => (left.as_ref(), literal, used),
+        (None, Some((literal, used))) => (right.as_ref(), literal, used),
+        (None, None) => return None,
+        (Some(_), Some(_)) => {
+            return Some(Err(IntegerAffineWitnessError::AmbiguousDefinition(
+                definition_index,
+            )));
+        }
+    };
+    // `x = defined - literal (mod 2^w)` keeps the coefficient; the mapped
+    // offset moves opposite the forward step.
+    Some(match offset.checked_sub(literal) {
+        Some(offset) => Ok((
+            operand.clone(),
+            coefficient,
+            offset,
+            used_landing,
+            CheckedIntegerEndpointStep::WrappingAddBackward {
+                operand: operand.clone(),
+                literal,
+            },
+        )),
+        None => Err(IntegerAffineWitnessError::CoefficientOverflow),
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IntegerAffineWitnessError {
     RootNotValue,
@@ -929,42 +1118,38 @@ pub fn map_integer_affine_bound(
     {
         return map_direct_shift_left_bound(form, *count_type, count, root_bound);
     }
-    let Proposition::LessOrEqual(bound_left, bound_right) = root_bound else {
-        return Err(IntegerAffineBoundConversionError::RootBoundNotLessOrEqual);
-    };
-    let (bound, root_is_lower_endpoint) = if bound_left == form.root() {
-        (bound_right, false)
-    } else if bound_right == form.root() {
-        (bound_left, true)
-    } else {
-        return Err(IntegerAffineBoundConversionError::RootBoundMismatch);
-    };
+    let (strict, bound, root_is_lower_endpoint, evidence_members) =
+        destructure_chain_root_bound(form, root_bound)?;
     let Some(bound) = integer_literal_as_i128(bound, form.integer_type()) else {
         return Err(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral);
     };
     let mut mapped = bound;
     let mut reverses_order = false;
+    let mut required_evidence = Vec::new();
     for step in &form.endpoint_steps {
-        mapped = match *step {
-            CheckedIntegerEndpointStep::Add(value) => mapped.checked_add(value),
-            CheckedIntegerEndpointStep::Subtract(value) => mapped.checked_sub(value),
+        let current_is_lower = root_is_lower_endpoint ^ reverses_order;
+        if strict && !step.preserves_strict_endpoint() {
+            return Err(IntegerAffineBoundConversionError::StrictBoundNotTranslation);
+        }
+        mapped = match step {
+            CheckedIntegerEndpointStep::Add(value) => mapped.checked_add(*value),
+            CheckedIntegerEndpointStep::Subtract(value) => mapped.checked_sub(*value),
             CheckedIntegerEndpointStep::Multiply(value) => {
-                if value < 0 {
+                if *value < 0 {
                     reverses_order = !reverses_order;
                 }
-                mapped.checked_mul(value)
+                mapped.checked_mul(*value)
             }
             CheckedIntegerEndpointStep::Divide(value) => {
-                if value < 0 {
+                if *value < 0 {
                     reverses_order = !reverses_order;
                 }
-                mapped.checked_div(value)
+                mapped.checked_div(*value)
             }
             CheckedIntegerEndpointStep::Remainder(value) => {
                 let magnitude = value
                     .checked_abs()
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
-                let current_is_lower = root_is_lower_endpoint ^ reverses_order;
                 Some(
                     if current_is_lower && form.integer_type().sign() == IntegerSign::Signed {
                         1_i128
@@ -981,10 +1166,39 @@ pub fn map_integer_affine_bound(
             }
             CheckedIntegerEndpointStep::ShiftLeft(count) => mapped.checked_mul(
                 1_i128
-                    .checked_shl(count)
+                    .checked_shl(*count)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?,
             ),
             CheckedIntegerEndpointStep::ShiftRight(count) => Some(mapped >> count),
+            // `v = (x + c) mod 2^w` never exceeds `x + c`, so an upper bound on
+            // `x` maps unconditionally. A lower bound survives only when the
+            // same definition proves `x <= maximum - c`, so the sum cannot
+            // reduce modulo the width.
+            CheckedIntegerEndpointStep::WrappingAdd { operand, literal } => {
+                if current_is_lower && *literal != 0 {
+                    push_wrapping_evidence(
+                        &mut required_evidence,
+                        form.integer_type(),
+                        operand,
+                        *literal,
+                    )?;
+                }
+                mapped.checked_add(*literal)
+            }
+            // `x = v - c (mod 2^w)` is never below `v - c`, so a lower bound
+            // on `v` maps unconditionally. An upper bound `v < k` yields
+            // `x <= k - c - 1` only when `x + c` cannot wrap.
+            CheckedIntegerEndpointStep::WrappingAddBackward { operand, literal } => {
+                if !current_is_lower && *literal != 0 {
+                    push_wrapping_evidence(
+                        &mut required_evidence,
+                        form.integer_type(),
+                        operand,
+                        *literal,
+                    )?;
+                }
+                mapped.checked_sub(*literal)
+            }
             CheckedIntegerEndpointStep::CorrelatedAddLower
             | CheckedIntegerEndpointStep::CorrelatedAddUpper
             | CheckedIntegerEndpointStep::CorrelatedSubtractLower
@@ -996,6 +1210,18 @@ pub fn map_integer_affine_bound(
             }
         }
         .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+    }
+    for member in evidence_members {
+        let Some(position) = required_evidence
+            .iter()
+            .position(|required| required == member)
+        else {
+            return Err(IntegerAffineBoundConversionError::WrappingEvidenceUnexpected);
+        };
+        required_evidence.remove(position);
+    }
+    if !required_evidence.is_empty() {
+        return Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing);
     }
     let mapped_value = match form.integer_type().sign() {
         IntegerSign::Signed => IntegerValue::Signed(mapped),
@@ -1015,11 +1241,127 @@ pub fn map_integer_affine_bound(
     } else {
         !root_is_lower_endpoint
     };
-    Ok(if target_is_left {
-        Proposition::LessOrEqual(form.target().clone(), mapped)
-    } else {
-        Proposition::LessOrEqual(mapped, form.target().clone())
+    Ok(match (strict, target_is_left) {
+        (false, true) => Proposition::LessOrEqual(form.target().clone(), mapped),
+        (false, false) => Proposition::LessOrEqual(mapped, form.target().clone()),
+        (true, true) => Proposition::LessThan(form.target().clone(), mapped),
+        (true, false) => Proposition::LessThan(mapped, form.target().clone()),
     })
+}
+
+/// Decompose the admitted root bound of a chain form. A bare relation on the
+/// root is the ordinary case; a `Conjunction` designates its first member as
+/// the relation and treats every later member as a candidate evidence
+/// conjunct, matched exactly against the no-wrap requirements the endpoint
+/// steps impose. The designated-slot rule keeps evidence such as
+/// `operand <= maximum - c` unambiguous even when the operand is itself the
+/// root value.
+fn destructure_chain_root_bound<'a>(
+    form: &CheckedIntegerAffineForm,
+    root_bound: &'a Proposition,
+) -> Result<(bool, &'a ScalarTerm, bool, Vec<&'a Proposition>), IntegerAffineBoundConversionError> {
+    let (relation, evidence_members) = match root_bound {
+        Proposition::Conjunction(members) => {
+            let Some((relation, evidence)) = members.split_first() else {
+                return Err(IntegerAffineBoundConversionError::RootBoundNotLessOrEqual);
+            };
+            (relation, evidence.iter().collect::<Vec<_>>())
+        }
+        _ => (root_bound, Vec::new()),
+    };
+    let (strict, bound_left, bound_right) = match relation {
+        Proposition::LessOrEqual(left, right) => (false, left, right),
+        Proposition::LessThan(left, right) => (true, left, right),
+        _ => return Err(IntegerAffineBoundConversionError::RootBoundNotLessOrEqual),
+    };
+    let (bound, root_is_lower_endpoint) = if bound_left == form.root() {
+        (bound_right, false)
+    } else if bound_right == form.root() {
+        (bound_left, true)
+    } else {
+        return Err(IntegerAffineBoundConversionError::RootBoundMismatch);
+    };
+    Ok((strict, bound, root_is_lower_endpoint, evidence_members))
+}
+
+/// Compute the exact no-wrap conjuncts a checked form needs from its root
+/// bound for the supplied relation shape, in step order and deduplicated.
+/// This is producer convenience: bound conversion recomputes the same set at
+/// admission and rejects any member that is missing or unexpected.
+pub fn integer_affine_wrapping_evidence(
+    form: &CheckedIntegerAffineForm,
+    relation: &Proposition,
+) -> Result<Vec<Proposition>, IntegerAffineBoundConversionError> {
+    let (strict, bound, root_is_lower_endpoint, evidence_members) =
+        destructure_chain_root_bound(form, relation)?;
+    if !evidence_members.is_empty() {
+        return Err(IntegerAffineBoundConversionError::WrappingEvidenceUnexpected);
+    }
+    let _ = integer_literal_as_i128(bound, form.integer_type())
+        .ok_or(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral)?;
+    let mut reverses_order = false;
+    let mut required_evidence = Vec::new();
+    for step in &form.endpoint_steps {
+        let current_is_lower = root_is_lower_endpoint ^ reverses_order;
+        if strict && !step.preserves_strict_endpoint() {
+            return Err(IntegerAffineBoundConversionError::StrictBoundNotTranslation);
+        }
+        match step {
+            CheckedIntegerEndpointStep::Multiply(value)
+            | CheckedIntegerEndpointStep::Divide(value)
+                if *value < 0 =>
+            {
+                reverses_order = !reverses_order;
+            }
+            CheckedIntegerEndpointStep::WrappingAdd { operand, literal }
+                if current_is_lower && *literal != 0 =>
+            {
+                push_wrapping_evidence(
+                    &mut required_evidence,
+                    form.integer_type(),
+                    operand,
+                    *literal,
+                )?;
+            }
+            CheckedIntegerEndpointStep::WrappingAddBackward { operand, literal }
+                if !current_is_lower && *literal != 0 =>
+            {
+                push_wrapping_evidence(
+                    &mut required_evidence,
+                    form.integer_type(),
+                    operand,
+                    *literal,
+                )?;
+            }
+            _ => {}
+        }
+    }
+    Ok(required_evidence)
+}
+
+/// The required evidence shape for a wrapping-add step on `operand` with
+/// addend `literal`: the operand stays inside the headroom
+/// `operand <= maximum - literal`, so `operand + literal` cannot reduce
+/// modulo the carrier width. Deduplicated so repeated steps cite one conjunct.
+fn push_wrapping_evidence(
+    required_evidence: &mut Vec<Proposition>,
+    integer_type: IntegerType,
+    operand: &ScalarTerm,
+    literal: i128,
+) -> Result<(), IntegerAffineBoundConversionError> {
+    let IntegerValue::Unsigned(maximum) = integer_type.maximum_value() else {
+        return Err(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier);
+    };
+    let headroom = maximum
+        .checked_sub(u128::try_from(literal).unwrap_or(u128::MAX))
+        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+    let bound = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(headroom))
+        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+    let evidence = Proposition::LessOrEqual(operand.clone(), bound);
+    if !required_evidence.contains(&evidence) {
+        required_evidence.push(evidence);
+    }
+    Ok(())
 }
 
 fn map_correlated_add_bound(
@@ -1786,44 +2128,44 @@ pub fn integer_affine_truth_bounds(
     let carrier_maximum = maximum;
     let mut saw_total_image = false;
     for step in &form.endpoint_steps {
-        match *step {
+        match step {
             CheckedIntegerEndpointStep::Add(value) => {
                 minimum = minimum
-                    .checked_add(value)
+                    .checked_add(*value)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
                 maximum = maximum
-                    .checked_add(value)
+                    .checked_add(*value)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
             }
             CheckedIntegerEndpointStep::Subtract(value) => {
                 minimum = minimum
-                    .checked_sub(value)
+                    .checked_sub(*value)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
                 maximum = maximum
-                    .checked_sub(value)
+                    .checked_sub(*value)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
             }
             CheckedIntegerEndpointStep::Multiply(value) => {
                 let left = minimum
-                    .checked_mul(value)
+                    .checked_mul(*value)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
                 let right = maximum
-                    .checked_mul(value)
+                    .checked_mul(*value)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
                 (minimum, maximum) = (left.min(right), left.max(right));
-                if value == 0 {
+                if *value == 0 {
                     saw_total_image = true;
                 }
             }
             CheckedIntegerEndpointStep::Divide(value) => {
-                if form.integer_type().sign() == IntegerSign::Signed && value == -1 {
+                if form.integer_type().sign() == IntegerSign::Signed && *value == -1 {
                     return Err(IntegerAffineBoundConversionError::NonTotalDivisionImage);
                 }
                 let left = carrier_minimum
-                    .checked_div(value)
+                    .checked_div(*value)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
                 let right = carrier_maximum
-                    .checked_div(value)
+                    .checked_div(*value)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
                 (minimum, maximum) = (left.min(right), left.max(right));
                 saw_total_image = true;
@@ -1845,14 +2187,14 @@ pub fn integer_affine_truth_bounds(
                 saw_total_image = true;
             }
             CheckedIntegerEndpointStep::ShiftLeft(count) => {
-                if count == 0 {
+                if *count == 0 {
                     minimum = carrier_minimum;
                     maximum = carrier_maximum;
                     saw_total_image = true;
                     continue;
                 }
                 let scale = 1_i128
-                    .checked_shl(count)
+                    .checked_shl(*count)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
                 minimum = minimum
                     .checked_mul(scale)
@@ -1866,7 +2208,11 @@ pub fn integer_affine_truth_bounds(
                 maximum = carrier_maximum >> count;
                 saw_total_image = true;
             }
-            CheckedIntegerEndpointStep::CorrelatedAddLower
+            // A wrapping step has no total endpoint image: its reduced result
+            // is not a monotone function of a quantified root range.
+            CheckedIntegerEndpointStep::WrappingAdd { .. }
+            | CheckedIntegerEndpointStep::WrappingAddBackward { .. }
+            | CheckedIntegerEndpointStep::CorrelatedAddLower
             | CheckedIntegerEndpointStep::CorrelatedAddUpper
             | CheckedIntegerEndpointStep::CorrelatedSubtractLower
             | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
@@ -1942,6 +2288,9 @@ pub enum IntegerAffineBoundConversionError {
     DirectSubtractBoundOverflow,
     DirectMultiplyEvidenceMismatch,
     DirectMultiplyBoundOverflow,
+    StrictBoundNotTranslation,
+    WrappingEvidenceMissing,
+    WrappingEvidenceUnexpected,
     ConclusionMismatch,
 }
 
@@ -3521,6 +3870,371 @@ mod tests {
                 ]),
             ),
             Err(IntegerAffineBoundConversionError::DirectShiftCountOutsideValueWidth),
+        );
+    }
+
+    fn unsigned_literal(integer_type: IntegerType, value: u128) -> ScalarTerm {
+        ScalarTerm::integer(integer_type, IntegerValue::Unsigned(value)).expect("unsigned literal")
+    }
+
+    #[test]
+    fn wrapping_add_chain_maps_lower_bound_only_with_no_wrap_evidence() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let root = value(1, integer_type);
+        let target = value(2, integer_type);
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+        ])
+        .unwrap();
+        let axioms = vec![Proposition::Equal(
+            target.clone(),
+            ScalarTerm::wrapping_integer_add(
+                integer_type,
+                root.clone(),
+                unsigned_literal(integer_type, 1),
+            )
+            .unwrap(),
+        )];
+        let checked = check_integer_affine_witness(
+            &context,
+            &axioms,
+            &IntegerAffineWitness {
+                root: root.clone(),
+                target: target.clone(),
+                definition_axioms: vec![0],
+                literal_axioms: vec![None],
+            },
+        )
+        .expect("unsigned wrapping add traverses forward");
+
+        // An upper bound on the operand is unconditional: the reduced sum can
+        // only be lower than the exact sum.
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::LessOrEqual(root.clone(), unsigned_literal(integer_type, 9)),
+            ),
+            Ok(Proposition::LessOrEqual(
+                target.clone(),
+                unsigned_literal(integer_type, 10),
+            )),
+        );
+
+        // A lower bound requires the checked `operand <= maximum - literal`
+        // conjunct; the helper reports exactly that proposition.
+        let lower = Proposition::LessOrEqual(unsigned_literal(integer_type, 2), root.clone());
+        let evidence = Proposition::LessOrEqual(root.clone(), unsigned_literal(integer_type, 254));
+        assert_eq!(
+            integer_affine_wrapping_evidence(&checked, &lower),
+            Ok(vec![evidence.clone()]),
+        );
+        assert_eq!(
+            map_integer_affine_bound(&checked, &lower),
+            Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing),
+        );
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![lower.clone(), evidence.clone()]),
+            ),
+            Ok(Proposition::LessOrEqual(
+                unsigned_literal(integer_type, 3),
+                target.clone(),
+            )),
+        );
+        // A wrong headroom, a duplicated conjunct, or a stray member all
+        // reject: the evidence set must match the checked requirement exactly.
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![
+                    lower.clone(),
+                    Proposition::LessOrEqual(root.clone(), unsigned_literal(integer_type, 253)),
+                ]),
+            ),
+            Err(IntegerAffineBoundConversionError::WrappingEvidenceUnexpected),
+        );
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![
+                    lower.clone(),
+                    evidence.clone(),
+                    Proposition::LessOrEqual(root.clone(), unsigned_literal(integer_type, 200)),
+                ]),
+            ),
+            Err(IntegerAffineBoundConversionError::WrappingEvidenceUnexpected),
+        );
+        assert_eq!(
+            map_integer_affine_bound(&checked, &Proposition::Conjunction(vec![lower, evidence]),),
+            Ok(Proposition::LessOrEqual(
+                unsigned_literal(integer_type, 3),
+                target,
+            )),
+        );
+    }
+
+    #[test]
+    fn wrapping_add_backward_maps_strict_bounds_with_headroom_evidence() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let operand = value(1, integer_type);
+        let defined = value(2, integer_type);
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+        ])
+        .unwrap();
+        let axioms = vec![Proposition::Equal(
+            defined.clone(),
+            ScalarTerm::wrapping_integer_add(
+                integer_type,
+                operand.clone(),
+                unsigned_literal(integer_type, 1),
+            )
+            .unwrap(),
+        )];
+        // Traverse the same equation from the defined value toward the operand.
+        let checked = check_integer_affine_witness(
+            &context,
+            &axioms,
+            &IntegerAffineWitness {
+                root: defined.clone(),
+                target: operand.clone(),
+                definition_axioms: vec![0],
+                literal_axioms: vec![None],
+            },
+        )
+        .expect("wrapping add traverses toward its operand");
+
+        // `defined < 2` yields `operand < 1` only under the no-wrap headroom
+        // `operand <= 65534`.
+        let strict = Proposition::LessThan(defined.clone(), unsigned_literal(integer_type, 2));
+        let headroom =
+            Proposition::LessOrEqual(operand.clone(), unsigned_literal(integer_type, 65_534));
+        assert_eq!(
+            integer_affine_wrapping_evidence(&checked, &strict),
+            Ok(vec![headroom.clone()]),
+        );
+        assert_eq!(
+            map_integer_affine_bound(&checked, &strict),
+            Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing),
+        );
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![strict, headroom.clone()]),
+            ),
+            Ok(Proposition::LessThan(
+                operand.clone(),
+                unsigned_literal(integer_type, 1),
+            )),
+        );
+
+        // The non-strict twin maps through the same evidence.
+        let upper = Proposition::LessOrEqual(defined.clone(), unsigned_literal(integer_type, 2));
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![upper, headroom.clone()]),
+            ),
+            Ok(Proposition::LessOrEqual(
+                operand.clone(),
+                unsigned_literal(integer_type, 1),
+            )),
+        );
+
+        // A lower bound on the defined value is unconditional backward:
+        // `operand = defined - 1 (mod 2^w)` stays at or above `bound - 1`.
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::LessOrEqual(unsigned_literal(integer_type, 1), defined.clone()),
+            ),
+            Ok(Proposition::LessOrEqual(
+                unsigned_literal(integer_type, 0),
+                operand.clone(),
+            )),
+        );
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::LessThan(unsigned_literal(integer_type, 1), defined),
+            ),
+            Ok(Proposition::LessThan(
+                unsigned_literal(integer_type, 0),
+                operand,
+            )),
+        );
+    }
+
+    #[test]
+    fn wrapping_add_backward_lands_a_sibling_literal_and_rejects_ambiguity() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let operand = value(1, integer_type);
+        let defined = value(2, integer_type);
+        let sibling = value(3, integer_type);
+        let context = PropositionContext::from_value_types(
+            (1..=4).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+        )
+        .unwrap();
+        // `sibling == 3` lands before `defined == operand + sibling`, so the
+        // backward traversal resolves `operand` uniquely.
+        let landing = Proposition::Equal(sibling.clone(), unsigned_literal(integer_type, 3));
+        let definition = Proposition::Equal(
+            defined.clone(),
+            ScalarTerm::wrapping_integer_add(integer_type, operand.clone(), sibling.clone())
+                .unwrap(),
+        );
+        let checked = check_integer_affine_witness(
+            &context,
+            &[landing.clone(), definition],
+            &IntegerAffineWitness {
+                root: defined.clone(),
+                target: operand.clone(),
+                definition_axioms: vec![1],
+                literal_axioms: vec![Some(0)],
+            },
+        )
+        .expect("landed sibling resolves the wrapping operand");
+        let upper = Proposition::LessOrEqual(defined.clone(), unsigned_literal(integer_type, 10));
+        let headroom =
+            Proposition::LessOrEqual(operand.clone(), unsigned_literal(integer_type, 252));
+        assert_eq!(
+            integer_affine_wrapping_evidence(&checked, &upper),
+            Ok(vec![headroom.clone()]),
+        );
+        assert_eq!(
+            map_integer_affine_bound(&checked, &Proposition::Conjunction(vec![upper, headroom]),),
+            Ok(Proposition::LessOrEqual(
+                operand.clone(),
+                unsigned_literal(integer_type, 7),
+            )),
+        );
+
+        // With both addends landed the backward direction cannot tell which
+        // one is the operand, so the definition rejects as ambiguous.
+        let ambiguous = Proposition::Equal(
+            defined.clone(),
+            ScalarTerm::wrapping_integer_add(integer_type, operand.clone(), operand.clone())
+                .unwrap(),
+        );
+        let landed_operand = Proposition::Equal(operand.clone(), unsigned_literal(integer_type, 4));
+        assert_eq!(
+            check_integer_affine_witness(
+                &context,
+                &[landed_operand, ambiguous],
+                &IntegerAffineWitness {
+                    root: defined,
+                    target: operand,
+                    definition_axioms: vec![1],
+                    literal_axioms: vec![Some(0)],
+                },
+            ),
+            Err(IntegerAffineWitnessError::AmbiguousDefinition(1)),
+        );
+    }
+
+    #[test]
+    fn wrapping_divide_maps_both_directions_and_rejects_zero_or_signed() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let root = value(1, integer_type);
+        let target = value(2, integer_type);
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+        ])
+        .unwrap();
+        let axioms = vec![Proposition::Equal(
+            target.clone(),
+            ScalarTerm::wrapping_integer_divide(
+                integer_type,
+                root.clone(),
+                unsigned_literal(integer_type, 3),
+            )
+            .unwrap(),
+        )];
+        let witness = IntegerAffineWitness {
+            root: root.clone(),
+            target: target.clone(),
+            definition_axioms: vec![0],
+            literal_axioms: vec![None],
+        };
+        let checked = check_integer_affine_witness(&context, &axioms, &witness)
+            .expect("unsigned wrapping divide traverses forward");
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::LessOrEqual(root.clone(), unsigned_literal(integer_type, 9)),
+            ),
+            Ok(Proposition::LessOrEqual(
+                target.clone(),
+                unsigned_literal(integer_type, 3),
+            )),
+        );
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::LessOrEqual(unsigned_literal(integer_type, 4), root.clone()),
+            ),
+            Ok(Proposition::LessOrEqual(
+                unsigned_literal(integer_type, 1),
+                target.clone(),
+            )),
+        );
+        // Division is not a translation: strict endpoints cannot traverse it.
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::LessThan(root.clone(), unsigned_literal(integer_type, 9)),
+            ),
+            Err(IntegerAffineBoundConversionError::StrictBoundNotTranslation),
+        );
+
+        let zero_divisor = vec![Proposition::Equal(
+            target.clone(),
+            ScalarTerm::wrapping_integer_divide(
+                integer_type,
+                root.clone(),
+                unsigned_literal(integer_type, 0),
+            )
+            .unwrap(),
+        )];
+        assert_eq!(
+            check_integer_affine_witness(&context, &zero_divisor, &witness),
+            Err(IntegerAffineWitnessError::ZeroDivisionLiteral),
+        );
+
+        // Signed carriers never traverse a wrapping definition.
+        let signed_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_root = value(3, signed_type);
+        let signed_target = value(4, signed_type);
+        let signed_context = PropositionContext::from_value_types([
+            (ValueId::new(3).unwrap(), ScalarType::Integer(signed_type)),
+            (ValueId::new(4).unwrap(), ScalarType::Integer(signed_type)),
+        ])
+        .unwrap();
+        let signed_axioms = vec![Proposition::Equal(
+            signed_target.clone(),
+            ScalarTerm::wrapping_integer_add(
+                signed_type,
+                signed_root.clone(),
+                literal(signed_type, 1),
+            )
+            .unwrap(),
+        )];
+        assert_eq!(
+            check_integer_affine_witness(
+                &signed_context,
+                &signed_axioms,
+                &IntegerAffineWitness {
+                    root: signed_root.clone(),
+                    target: signed_target.clone(),
+                    definition_axioms: vec![0],
+                    literal_axioms: vec![None],
+                },
+            ),
+            Err(IntegerAffineWitnessError::DefinitionShapeMismatch(0)),
         );
     }
 }

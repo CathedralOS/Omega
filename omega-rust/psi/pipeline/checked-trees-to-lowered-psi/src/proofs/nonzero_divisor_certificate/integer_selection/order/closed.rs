@@ -14,7 +14,22 @@ pub(super) fn prove(
         return None;
     };
     for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::LessOrEqual(fact_left, fact_right) = fact else {
+        // A strict fact first weakens to the same non-strict endpoints; the
+        // kernel checks both steps, so a cited `v < k` discharges checked
+        // evidence such as `v <= maximum - addend` through `k <= bound`.
+        let fact_bound = match fact {
+            Proposition::LessOrEqual(_, _) => citation.proof(fact),
+            Proposition::LessThan(left, right) => ProofNode {
+                conclusion: Proposition::LessOrEqual(left.clone(), right.clone()),
+                rule: ProofRule::IntegerOrderWeakening {
+                    relation: Box::new(citation.proof(fact)),
+                },
+            },
+            _ => continue,
+        };
+        let (Proposition::LessOrEqual(fact_left, fact_right)
+        | Proposition::LessThan(fact_left, fact_right)) = fact
+        else {
             continue;
         };
         if fact_left == goal_left {
@@ -23,7 +38,7 @@ pub(super) fn prove(
                 return Some(ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::IntegerLessOrEqualTransitivity {
-                        left_less_or_equal_middle: Box::new(citation.proof(fact)),
+                        left_less_or_equal_middle: Box::new(fact_bound),
                         middle_less_or_equal_right: Box::new(tail),
                     },
                 });
@@ -36,7 +51,7 @@ pub(super) fn prove(
                     conclusion: goal.clone(),
                     rule: ProofRule::IntegerLessOrEqualTransitivity {
                         left_less_or_equal_middle: Box::new(head),
-                        middle_less_or_equal_right: Box::new(citation.proof(fact)),
+                        middle_less_or_equal_right: Box::new(fact_bound),
                     },
                 });
             }
