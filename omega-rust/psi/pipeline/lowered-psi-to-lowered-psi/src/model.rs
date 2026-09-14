@@ -55,6 +55,7 @@ impl PsiOptimizationStageResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PsiOptimizationStageError {
+    InvalidControlFlowCleanupRewrite(terminal_verifier::ControlFlowCleanupRewriteError),
     InvalidCopyPropagationRewrite(terminal_verifier::CopyPropagationRewriteError),
     InvalidDeadScalarRewrite(terminal_verifier::DeadScalarRewriteError),
     InvalidGlobalValueNumberingRewrite(terminal_verifier::GlobalValueNumberingRewriteError),
@@ -72,6 +73,9 @@ pub enum PsiOptimizationStageError {
 impl std::fmt::Display for PsiOptimizationStageError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidControlFlowCleanupRewrite(error) => {
+                write!(formatter, "invalid control flow cleanup rewrite: {error:?}")
+            }
             Self::InvalidCopyPropagationRewrite(error) => {
                 write!(formatter, "invalid copy propagation rewrite: {error:?}")
             }

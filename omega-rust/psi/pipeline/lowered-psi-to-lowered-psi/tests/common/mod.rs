@@ -496,3 +496,228 @@ pub fn dead_scalar_fixture() -> LoweredPsi {
         ],
     )])
 }
+
+/// Control-flow-cleanup fixture. One machine with a literal-selected branch
+/// whose untaken arm owns a deeper stranded region, plus one trivially
+/// conditional branch whose arms agree:
+///
+/// ```text
+/// b1 (entry): v10 = true; v11 = true; cond v10 ──e2:t──▶ b2 ──e3:f──▶ b3
+/// b2: v20 = 1; cond v11 ──e4:t──▶ b4 ──e5:f──▶ b4
+/// b3: v30 = 2 ──e6──▶ b5
+/// b5: v50 = 3 ──e7──▶ b4
+/// b4: v40 = 9; return v40 ──e8
+/// ```
+///
+/// The `v10` fold keeps edge `e2`, strands `b3` and its sole successor `b5`,
+/// and removes both. The `v11` fold keeps edge `e4` and strands nothing:
+/// every path already reached `b4`. Dead scalar rows the cleanup leaves behind
+/// — `v10`, `v11`, `v20` — stay for the dead-scalar rule.
+pub fn control_flow_fixture() -> LoweredPsi {
+    let (b1, b2, b3, b4, b5) = (
+        block_id(1),
+        block_id(2),
+        block_id(3),
+        block_id(4),
+        block_id(5),
+    );
+    let (v10, v11) = (value(10), value(11));
+    lowered(vec![machine(
+        1,
+        Vec::new(),
+        TerminalMachineResult::Scalar(i32(9)),
+        b1,
+        vec![
+            block(
+                1,
+                Vec::new(),
+                vec![
+                    operation(
+                        10,
+                        boolean(10),
+                        OperationKind::BooleanConstant { value: true },
+                    ),
+                    operation(
+                        11,
+                        boolean(11),
+                        OperationKind::BooleanConstant { value: true },
+                    ),
+                ],
+                conditional(v10, successor(2, b2, vec![]), successor(3, b3, vec![])),
+            ),
+            block(
+                2,
+                Vec::new(),
+                vec![integer_constant(20, i32(20), 1)],
+                conditional(v11, successor(4, b4, vec![]), successor(5, b4, vec![])),
+            ),
+            block(
+                3,
+                Vec::new(),
+                vec![integer_constant(30, i32(30), 2)],
+                jump(6, b5, vec![]),
+            ),
+            block(
+                4,
+                Vec::new(),
+                vec![integer_constant(40, i32(40), 9)],
+                return_value(8, value(40)),
+            ),
+            block(
+                5,
+                Vec::new(),
+                vec![integer_constant(50, i32(50), 3)],
+                jump(7, b4, vec![]),
+            ),
+        ],
+    )])
+}
+
+/// A conditional whose false arm carries a qualification coercion row on the
+/// exact untaken edge. Dropping `e3` would orphan the coercion, so cleanup
+/// keeps the conditional — the edge identity is evidence, not just a choice.
+///
+/// ```text
+/// b1 (entry): v10 = true; cond v10 ──e2:t──▶ b2 ──e3:f──▶ b3(v31)
+///             coercion (e3, arg 0): v5{i32,d1} → v31{i32,∅}
+/// b2: ──e4──▶ b4
+/// b3: ──e6──▶ b4
+/// b4: v40 = 9; return v40
+/// ```
+pub fn coercion_edge_fixture() -> LoweredPsi {
+    let (b1, b2, b3, b4) = (block_id(1), block_id(2), block_id(3), block_id(4));
+    let (v5, v10, v31) = (value(5), value(10), value(31));
+    let mut lowered = lowered(vec![machine(
+        1,
+        vec![qualified_i32(5, 1)],
+        TerminalMachineResult::Scalar(i32(9)),
+        b1,
+        vec![
+            block(
+                1,
+                Vec::new(),
+                vec![operation(
+                    10,
+                    boolean(10),
+                    OperationKind::BooleanConstant { value: true },
+                )],
+                conditional(v10, successor(2, b2, vec![]), successor(3, b3, vec![v5])),
+            ),
+            block(2, Vec::new(), Vec::new(), jump(4, b4, vec![])),
+            block(3, vec![i32(31)], Vec::new(), jump(6, b4, vec![])),
+            block(
+                4,
+                Vec::new(),
+                vec![integer_constant(40, i32(40), 9)],
+                return_value(8, value(40)),
+            ),
+        ],
+    )]);
+    lowered.semantic_module.scalar_qualifications = terminal_psi::ScalarQualificationCatalog {
+        domains: vec![terminal_psi::ScalarDomainDeclaration {
+            id: semantic_vocabulary::ScalarDomainId::new(1).unwrap(),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+            identity: "d1".to_string(),
+            carrier: i32_type(),
+        }],
+        sets: vec![terminal_psi::ScalarQualificationSet {
+            id: semantic_vocabulary::ScalarQualificationSetId::new(1),
+            domains: vec![semantic_vocabulary::ScalarDomainId::new(1).unwrap()],
+        }],
+        coercions: vec![terminal_psi::ScalarQualificationCoercion {
+            machine: machine_id(1),
+            edge: edge(3),
+            argument_ordinal: 0,
+            source: v5,
+            destination: v31,
+        }],
+    };
+    lowered
+}
+
+/// The untaken edge is clean, but a coercion inside the stranded region keeps
+/// `b3`'s outgoing edge alive: removing `b3` and `b5` would orphan it, so the
+/// whole conditional survives.
+///
+/// ```text
+/// b1 (entry): v10 = true; cond v10 ──e2:t──▶ b2 ──e3:f──▶ b3
+/// b2: ──e4──▶ b4
+/// b3: v30 = 2 ──e6──▶ b5(v51)   coercion (e6, arg 0): v30{i32,∅} → v51{i32,d1}
+/// b5: ──e7──▶ b4
+/// b4: v40 = 9; return v40
+/// ```
+pub fn coercion_region_fixture() -> LoweredPsi {
+    let (b1, b2, b3, b4, b5) = (
+        block_id(1),
+        block_id(2),
+        block_id(3),
+        block_id(4),
+        block_id(5),
+    );
+    let (v10, v30, v51) = (value(10), value(30), value(51));
+    let mut lowered = lowered(vec![machine(
+        1,
+        Vec::new(),
+        TerminalMachineResult::Scalar(i32(9)),
+        b1,
+        vec![
+            block(
+                1,
+                Vec::new(),
+                vec![operation(
+                    10,
+                    boolean(10),
+                    OperationKind::BooleanConstant { value: true },
+                )],
+                conditional(v10, successor(2, b2, vec![]), successor(3, b3, vec![])),
+            ),
+            block(2, Vec::new(), Vec::new(), jump(4, b4, vec![])),
+            block(
+                3,
+                Vec::new(),
+                vec![integer_constant(30, i32(30), 2)],
+                jump(6, b5, vec![v30]),
+            ),
+            block(
+                4,
+                Vec::new(),
+                vec![integer_constant(40, i32(40), 9)],
+                return_value(8, value(40)),
+            ),
+            block(
+                5,
+                vec![qualified_i32(51, 1)],
+                Vec::new(),
+                jump(7, b4, vec![]),
+            ),
+        ],
+    )]);
+    lowered.semantic_module.scalar_qualifications = terminal_psi::ScalarQualificationCatalog {
+        domains: vec![terminal_psi::ScalarDomainDeclaration {
+            id: semantic_vocabulary::ScalarDomainId::new(1).unwrap(),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+            identity: "d1".to_string(),
+            carrier: i32_type(),
+        }],
+        sets: vec![terminal_psi::ScalarQualificationSet {
+            id: semantic_vocabulary::ScalarQualificationSetId::new(1),
+            domains: vec![semantic_vocabulary::ScalarDomainId::new(1).unwrap()],
+        }],
+        coercions: vec![terminal_psi::ScalarQualificationCoercion {
+            machine: machine_id(1),
+            edge: edge(6),
+            argument_ordinal: 0,
+            source: v30,
+            destination: v51,
+        }],
+    };
+    lowered
+}
+
+fn qualified_i32(ordinal: u64, set: u64) -> ValueDeclaration {
+    ValueDeclaration {
+        qualifications: semantic_vocabulary::ScalarQualificationSetId::new(set),
+        id: ValueId::new(ordinal).unwrap(),
+        scalar_type: i32_type(),
+    }
+}

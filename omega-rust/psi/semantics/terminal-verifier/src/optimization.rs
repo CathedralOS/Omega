@@ -4,8 +4,146 @@ use crate::{
     ModuleError, reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, ValueId};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{TerminalModule, Terminator};
+
+/// Block-local identities that module-level evidence carriers name by
+/// identity rather than through a direct executable use. A control-flow
+/// rewrite may not drop a row one of these carriers retains: the referent
+/// stays authoritative even where no ordinary operand reads it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BlockLocalEvidence {
+    /// Blocks named as invariant headers or exact projection owners.
+    pub blocks: BTreeSet<BlockId>,
+    /// Edges carrying qualification coercions or invariant arrivals.
+    pub edges: BTreeSet<EdgeId>,
+    /// Operations carrying suspension plans, proof-output joins, dynamic
+    /// dispatches, reborrow restorations, closed reach calls, or partition
+    /// theorem producers.
+    pub operations: BTreeSet<OperationId>,
+    /// Values named inside propositions, coercion endpoints, retained
+    /// suspension frontiers, or float-meaning projection sources.
+    pub values: BTreeSet<ValueId>,
+}
+
+/// Inventory the block-local rows semantic evidence retains across rewrites.
+///
+/// Every Terminal identity is module-unique, so the carrier that names a row
+/// pins it wherever the row lives. The scan covers only carriers stored in the
+/// module itself; the lowering stage separately protects rows its unsealed
+/// sidecars name.
+pub fn block_local_evidence(module: &TerminalModule) -> BlockLocalEvidence {
+    let mut evidence = BlockLocalEvidence::default();
+    fn retain_proposition(
+        proposition: &semantic_vocabulary::Proposition,
+        evidence: &mut BlockLocalEvidence,
+    ) {
+        proposition.visit_value_ids(|value| {
+            evidence.values.insert(value);
+        });
+    }
+    for coercion in &module.scalar_qualifications.coercions {
+        evidence.edges.insert(coercion.edge);
+        evidence.values.insert(coercion.source);
+        evidence.values.insert(coercion.destination);
+    }
+    for invariant in &module.scalar_block_invariants {
+        evidence.blocks.insert(invariant.header);
+        retain_proposition(&invariant.predicate, &mut evidence);
+        for arrival in &invariant.arrivals {
+            evidence.edges.insert(arrival.edge);
+        }
+    }
+    for site in &module.suspension_call_sites {
+        evidence.operations.insert(site.operation);
+    }
+    for plan in &module.suspension_call_plans {
+        evidence.operations.insert(plan.operation);
+        for live in &plan.live_values {
+            if let terminal_psi::TerminalSuspensionPlace::Scalar(value) = live.place {
+                evidence.values.insert(value);
+            }
+        }
+    }
+    for call in &module.proof_output_calls {
+        if let Some(runtime) = &call.runtime_call {
+            evidence.operations.insert(runtime.operation);
+        }
+    }
+    let dispatch = &module.dynamic_dispatch;
+    for operation in dispatch
+        .arguments
+        .iter()
+        .map(|row| row.operation)
+        .chain(dispatch.direct_dispatches.iter().map(|row| row.operation))
+        .chain(dispatch.indirect_dispatches.iter().map(|row| row.operation))
+        .chain(dispatch.stored_dispatches.iter().map(|row| row.operation))
+        .chain(
+            dispatch
+                .parameter_dispatches
+                .iter()
+                .map(|row| row.operation),
+        )
+    {
+        evidence.operations.insert(operation);
+    }
+    for restoration in &module.reborrow_restored_call_uses {
+        evidence.operations.insert(restoration.operation);
+    }
+    for projection in &module.float_meaning_projections {
+        match &projection.source {
+            terminal_psi::FloatMeaningSource::DirectMachineParameter(parameter) => {
+                evidence.values.insert(parameter.parameter);
+            }
+            terminal_psi::FloatMeaningSource::DirectMachineResult(result) => {
+                evidence.values.insert(result.result);
+            }
+            terminal_psi::FloatMeaningSource::DirectBlockParameter(parameter) => {
+                evidence.blocks.insert(parameter.block);
+                evidence.values.insert(parameter.parameter);
+            }
+            terminal_psi::FloatMeaningSource::DirectOperationResult(result) => {
+                evidence.operations.insert(result.producer);
+                evidence.values.insert(result.result);
+            }
+            terminal_psi::FloatMeaningSource::DirectCallResult(result) => {
+                evidence.operations.insert(result.producer);
+                evidence.values.insert(result.result);
+            }
+            terminal_psi::FloatMeaningSource::TransitionalInput(_)
+            | terminal_psi::FloatMeaningSource::DirectStructuralLeaf(_)
+            | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
+            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_) => {}
+        }
+    }
+    for machine in &module.machines {
+        if let Some(application) = &machine.closed_reach_application {
+            for call in &application.calls {
+                evidence.operations.insert(call.operation);
+            }
+        }
+        for composition in &machine.content_partition_compositions {
+            evidence.operations.insert(composition.producer_operation);
+        }
+        for proposition in &machine.contract.requires {
+            retain_proposition(proposition, &mut evidence);
+        }
+        for clause in &machine.contract.ensures {
+            retain_proposition(&clause.proposition, &mut evidence);
+        }
+        for clause in &machine.contract.outcome_specific_ensures {
+            retain_proposition(&clause.proposition, &mut evidence);
+        }
+        for bucket in &machine.contract.crash_routes {
+            for alternative in &bucket.alternatives {
+                if let terminal_psi::CrashRouteGuard::Predicate(term) = alternative {
+                    retain_proposition(term.proposition(), &mut evidence);
+                }
+            }
+        }
+    }
+    evidence
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeadScalarRewriteError {
@@ -705,4 +843,213 @@ fn resolve_copy_source_in(
     visiting.remove(&value);
     memo.insert(value, result);
     result
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ControlFlowCleanupRewriteError {
+    InvalidModule(ModuleError),
+    ChangedProgramStructure,
+    ChangedMachine(MachineId),
+    ChangedSurvivingBlock(BlockId),
+    UnjustifiedFold(BlockId),
+    RemovedReachableBlock(BlockId),
+    RemovedEvidenceBlock(BlockId),
+    ChangedProofQuestion,
+}
+
+/// Check the exact branch-cleanup relation, not the producer's folding order.
+///
+/// A rewritten terminator is justified only when the `before` conditional's
+/// condition is the result of a `BooleanConstant` operation in `before`: the
+/// selected successor edge — identity, scalar and structural bindings, and
+/// edge-scoped cleanup rows — is carried verbatim onto an unconditional
+/// `Jump` with an empty residual cleanup list, and the untaken successor
+/// disappears with the conditional. Every other surviving block row is
+/// identical; no block is added, reordered, or re-entered.
+///
+/// A removed block is justified only when it is unreachable under the
+/// performed folds and carries nothing evidence retains: no static reach
+/// binding, no structural result or parameter row whose machine-level place
+/// declaration would orphan, and no identity the module's contract,
+/// qualification, invariant, suspension, dispatch, call-evidence, or
+/// projection carriers name. Removing any such row would leave evidence
+/// pointing at structure the module no longer contains.
+///
+/// A `before` module carrying reconstructed proof obligations admits only the
+/// identity: the complete closure stays frozen until proof-context transport
+/// is implemented. Ranked machines carry ranking evidence over exact control
+/// positions and pass through unchanged.
+pub fn validate_control_flow_cleanup(
+    before: &TerminalModule,
+    after: &TerminalModule,
+) -> Result<(), ControlFlowCleanupRewriteError> {
+    use ControlFlowCleanupRewriteError as RewriteError;
+    let before_valid =
+        validate_module_for_optimization(before).map_err(RewriteError::InvalidModule)?;
+    let after_valid =
+        validate_module_for_optimization(after).map_err(RewriteError::InvalidModule)?;
+    if before.machines.len() != after.machines.len() {
+        return Err(RewriteError::ChangedProgramStructure);
+    }
+    let old_question = reconstruct_optimizable_terminal_obligations(before_valid)
+        .map_err(RewriteError::InvalidModule)?;
+    let new_question = reconstruct_optimizable_terminal_obligations(after_valid)
+        .map_err(RewriteError::InvalidModule)?;
+    if old_question != new_question {
+        return Err(RewriteError::ChangedProofQuestion);
+    }
+    if !old_question.obligations().is_empty() {
+        for (old, new) in before.machines.iter().zip(&after.machines) {
+            if old != new {
+                return Err(RewriteError::ChangedMachine(old.id));
+            }
+        }
+        if before != after {
+            return Err(RewriteError::ChangedProgramStructure);
+        }
+        return Ok(());
+    }
+    let evidence = block_local_evidence(before);
+    for (old, new) in before.machines.iter().zip(&after.machines) {
+        if old.id != new.id {
+            return Err(RewriteError::ChangedProgramStructure);
+        }
+        let mut non_blocks = new.clone();
+        non_blocks.blocks.clone_from(&old.blocks);
+        if &non_blocks != old {
+            return Err(RewriteError::ChangedMachine(old.id));
+        }
+        if old.ranked_scc.is_some() {
+            if new != old {
+                return Err(RewriteError::ChangedMachine(old.id));
+            }
+            continue;
+        }
+        // `after` is already validated, so every surviving block's condition
+        // still resolves: a literal producer inside a removed block can never
+        // feed a surviving conditional.
+        let mut literals = BTreeMap::new();
+        for block in &old.blocks {
+            for operation in &block.operations {
+                if let terminal_psi::OperationKind::BooleanConstant { value } = &operation.kind {
+                    if let Some(result) = operation.result.scalar() {
+                        literals.insert(result.id, *value);
+                    }
+                }
+            }
+        }
+        let mut folded = BTreeMap::new();
+        let mut old_blocks = old.blocks.iter();
+        for new_block in &new.blocks {
+            let Some(old_block) = old_blocks.find(|block| block.id == new_block.id) else {
+                return Err(RewriteError::ChangedProgramStructure);
+            };
+            if new_block == old_block {
+                continue;
+            }
+            if new_block.parameters != old_block.parameters
+                || new_block.structural_parameters != old_block.structural_parameters
+                || new_block.operations != old_block.operations
+            {
+                return Err(RewriteError::ChangedSurvivingBlock(old_block.id));
+            }
+            let Terminator::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } = &old_block.terminator
+            else {
+                return Err(RewriteError::UnjustifiedFold(old_block.id));
+            };
+            let taken = match literals.get(condition) {
+                Some(true) => when_true,
+                Some(false) => when_false,
+                None => return Err(RewriteError::UnjustifiedFold(old_block.id)),
+            };
+            let expected = Terminator::Jump {
+                edge: taken.edge,
+                target: taken.target,
+                arguments: taken.arguments.clone(),
+                structural_arguments: taken.structural_arguments.clone(),
+                trivial_affine_discards: taken.trivial_affine_discards.clone(),
+                residual_affine_discards: Vec::new(),
+            };
+            if new_block.terminator != expected {
+                return Err(RewriteError::UnjustifiedFold(old_block.id));
+            }
+            folded.insert(old_block.id, new_block.terminator.clone());
+        }
+        let mut simulated = old.clone();
+        for block in &mut simulated.blocks {
+            if let Some(terminator) = folded.get(&block.id) {
+                block.terminator = terminator.clone();
+            }
+        }
+        let outgoing = crate::control_graph::successors(&simulated);
+        let mut reachable = BTreeSet::from([simulated.entry]);
+        let mut pending = vec![simulated.entry];
+        while let Some(block) = pending.pop() {
+            for (_, target) in &outgoing[&block] {
+                if reachable.insert(*target) {
+                    pending.push(*target);
+                }
+            }
+        }
+        let surviving: BTreeSet<BlockId> = new.blocks.iter().map(|block| block.id).collect();
+        for old_block in &old.blocks {
+            if surviving.contains(&old_block.id) {
+                continue;
+            }
+            if reachable.contains(&old_block.id) {
+                return Err(RewriteError::RemovedReachableBlock(old_block.id));
+            }
+            if evidence_bound_block(old_block, &evidence) {
+                return Err(RewriteError::RemovedEvidenceBlock(old_block.id));
+            }
+        }
+    }
+    let mut non_machines = after.clone();
+    non_machines.machines.clone_from(&before.machines);
+    if &non_machines != before {
+        return Err(RewriteError::ChangedProgramStructure);
+    }
+    Ok(())
+}
+
+/// Whether dropping `block` would erase a row module-level evidence still
+/// names, or orphan a machine-level structural place declaration rooted at
+/// this block's parameters or operation results.
+fn evidence_bound_block(block: &terminal_psi::Block, evidence: &BlockLocalEvidence) -> bool {
+    if evidence.blocks.contains(&block.id) || !block.structural_parameters.is_empty() {
+        return true;
+    }
+    for operation in &block.operations {
+        if operation.static_reach_binding.is_some()
+            || evidence.operations.contains(&operation.id)
+            || matches!(
+                operation.result,
+                terminal_psi::OperationResult::Structural(_)
+            )
+        {
+            return true;
+        }
+        if operation
+            .result
+            .scalar()
+            .is_some_and(|result| evidence.values.contains(&result.id))
+        {
+            return true;
+        }
+    }
+    if block
+        .parameters
+        .iter()
+        .any(|parameter| evidence.values.contains(&parameter.id))
+    {
+        return true;
+    }
+    block
+        .terminator
+        .edges()
+        .any(|edge| evidence.edges.contains(&edge))
 }
