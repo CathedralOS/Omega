@@ -653,6 +653,64 @@ fn declared_reference_access(
     }
 }
 
+/// The reference access one argument actually supplies: an explicit `&`,
+/// `&mut`, or `&write` borrow expression, or a resolved call result carrying
+/// its declared access. Shared by the statement/transition path
+/// (`validate_call_arguments_handles`) and the value-position path
+/// (`validate_value_call_argument_classes`).
+fn supplied_reference_access(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+) -> Option<language_semantics::ReferenceAccess> {
+    match program.expression_table.expression(argument) {
+        ExpressionNode::Borrow(borrow) => Some(borrow.access),
+        ExpressionNode::Call(call) => {
+            // A resolved result carries its declared reference access;
+            // passing it onward is not a new borrow of a binding slot.
+            resolved_call_result_type(program, call)
+                .and_then(|reference| declared_reference_access(program, reference))
+        }
+        _ => None,
+    }
+}
+
+/// The `&write` no-read contract is identical at every call boundary: a
+/// `&write` parameter requires an explicit `&write` borrow argument, and a
+/// `&write` argument never widens to shared or mutable authority. Returns
+/// whether it reported, so callers skip the remaining checks on an
+/// already-reported argument.
+fn report_write_only_argument_access(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    parameter: &StateParameter,
+    expected_access: Option<language_semantics::ReferenceAccess>,
+    supplied_access: Option<language_semantics::ReferenceAccess>,
+    target_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if expected_access == Some(language_semantics::ReferenceAccess::WriteOnly)
+        && !matches!(program.expression_table.expression(argument),
+            ExpressionNode::Borrow(borrow)
+                if borrow.access == language_semantics::ReferenceAccess::WriteOnly)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "argument `{}` for state `{}` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)",
+            parameter.name, target_name,
+        )));
+        return true;
+    }
+    if supplied_access == Some(language_semantics::ReferenceAccess::WriteOnly)
+        && expected_access != Some(language_semantics::ReferenceAccess::WriteOnly)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "argument `{}` for state `{}` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access",
+            parameter.name, target_name,
+        )));
+        return true;
+    }
+    false
+}
+
 /// Forward the selected reference permission, not the mutability of its slot.
 /// An owned aggregate can carry an exclusive reference without a mutable local
 /// binding. Every enclosing reference still limits access: reading that same
@@ -879,35 +937,17 @@ fn validate_call_arguments_with_type_correspondence(
             diagnostics,
         );
         let expected_access = declared_reference_access(program, parameter.type_reference);
-        let supplied_access = match program.expression_table.expression(*argument) {
-            ExpressionNode::Borrow(borrow) => Some(borrow.access),
-            ExpressionNode::Call(call) => {
-                // A resolved result carries its declared reference access;
-                // passing it onward is not a new borrow of a binding slot.
-                resolved_call_result_type(program, call)
-                    .and_then(|reference| declared_reference_access(program, reference))
-            }
-            _ => None,
-        };
+        let supplied_access = supplied_reference_access(program, *argument);
 
-        if expected_access == Some(language_semantics::ReferenceAccess::WriteOnly)
-            && !matches!(program.expression_table.expression(*argument),
-                ExpressionNode::Borrow(borrow)
-                    if borrow.access == language_semantics::ReferenceAccess::WriteOnly)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for state `{}` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)",
-                parameter.name, target_name,
-            )));
-            continue;
-        }
-        if supplied_access == Some(language_semantics::ReferenceAccess::WriteOnly)
-            && expected_access != Some(language_semantics::ReferenceAccess::WriteOnly)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for state `{}` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access",
-                parameter.name, target_name,
-            )));
+        if report_write_only_argument_access(
+            program,
+            *argument,
+            parameter,
+            expected_access,
+            supplied_access,
+            target_name,
+            diagnostics,
+        ) {
             continue;
         }
 
@@ -1225,6 +1265,22 @@ fn validate_value_call_argument_classes_with_self_argument(
             parameter.type_reference,
             diagnostics,
         );
+        // The write-only access contract is the same one the statement and
+        // transition paths enforce in `validate_call_arguments_handles`; the
+        // `self` receiver place is not an authored borrow argument.
+        if !parameter.is_self
+            && report_write_only_argument_access(
+                program,
+                *argument,
+                parameter,
+                declared_reference_access(program, parameter.type_reference),
+                supplied_reference_access(program, *argument),
+                callee_state.name.as_str(),
+                diagnostics,
+            )
+        {
+            continue;
+        }
         // Narrowing is checked only when the numeric classes agree, so a
         // cross-class argument is not reported twice. This matches the
         // statement/transition path in `validate_call_arguments_handles`.
