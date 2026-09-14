@@ -65,15 +65,18 @@ ordinals, complete payload overlay, and total geometry. They are not authorable
 opaque whole `At` extents. Psi rejoins exact reports and occurrence-distinct
 values, reconstructing zero-padded images before one atomic outer copy.
 
-Direct pure-sum fields, direct nonzero literal arrays of sums, and exact-depth
-record paths have separate validating entrances. The nested path APIs extend
-through depth 23 using shared recursive carriers and a bounded memoized walk;
-each public wrapper still admits only its named depth and identity domain.
-Repeated nominal types retain separate field/index occurrences. Deeper,
-recursive, array-mediated nested paths, mixed common-field/case shapes,
-coexisting shallower/direct-sum paths, and target-dependent sum geometry remain
-unsupported by these exact-depth entrances. These bounds do not authorize
-flattening children into the outer schema or adding programmable tag placement.
+Direct pure-sum fields and direct nonzero literal arrays of sums retain their
+validating entrances. Recursive record paths use one report and custody tree:
+leaves retain direct-sum geometry and branches retain each exact record-field
+occurrence. Depth is report data, not a family of Rust APIs. Sibling record
+paths may have different depths, and repeated nominal types retain separate
+field/index occurrences. Projection and validation share a private resource
+bound of 64 record nodes along a path; validation also bounds total occurrences.
+Cycles, array-mediated nested paths, mixed common-field/case shapes, direct sums
+coexisting with deeper sum paths in one record, and target-dependent sum geometry
+remain unsupported. These bounds do not authorize flattening children into the
+outer schema or adding programmable tag placement. Replay independently checks
+every record boundary and selected sum before copying the complete staged image.
 
 ## Other consumers
 

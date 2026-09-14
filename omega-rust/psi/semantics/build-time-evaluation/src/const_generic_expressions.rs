@@ -173,13 +173,9 @@ pub(super) fn evaluate(
     for (ordinal, (_, expression, destination, _)) in pending.iter().enumerate() {
         append_probe(&mut probe, ordinal, *expression, *destination);
     }
-    let probe = crate::normalize_generic_data_with_optional_sources(
-        probe,
-        sources.clone(),
-        bindings,
-        None,
-    )?;
-    let resolved = crate::lower_probe_with_optional_sources(&probe, sources, bindings)?;
+    let probe =
+        crate::syntax_probes::normalize_generic_data(probe, sources.clone(), bindings, None)?;
+    let resolved = crate::syntax_probes::resolve(&probe, sources, bindings)?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
 

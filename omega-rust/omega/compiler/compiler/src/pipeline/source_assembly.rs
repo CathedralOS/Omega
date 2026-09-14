@@ -1367,10 +1367,16 @@ mod tests {
         let normalized_counts = units
             .into_iter()
             .map(|unit| {
-                build_time_evaluation::evaluate_pre_resolution_with_sources_and_top_level_bindings(
-                    unit,
-                    sources.clone(),
-                    Vec::new(),
+                build_time_evaluation::evaluate_pre_resolution(
+                    build_time_evaluation::BuildTimeEvaluationRequest {
+                        syntax_trees: unit,
+                        source_context: Some(build_time_evaluation::BuildTimeSourceContext {
+                            sources: sources.clone(),
+                            source_scoped_top_level_bindings: &[],
+                            selection_authority: None,
+                            retained_base: None,
+                        }),
+                    },
                 )
                 .expect("evaluate one extension unit")
                 .into_syntax_and_pre_check()

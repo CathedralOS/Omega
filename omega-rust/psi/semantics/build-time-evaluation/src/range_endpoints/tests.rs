@@ -406,8 +406,11 @@ fn generic_record_arguments_fold_endpoint_calls_before_synthesis() {
         let syntax =
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens)
                 .unwrap();
-        let evaluated = crate::evaluate_pre_resolution(syntax)
-            .unwrap_or_else(|errors| panic!("{argument}: pre-resolution: {errors:?}"));
+        let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
+            syntax_trees: syntax,
+            source_context: None,
+        })
+        .unwrap_or_else(|errors| panic!("{argument}: pre-resolution: {errors:?}"));
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
         let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
             .unwrap_or_else(|errors| panic!("{argument}: resolution: {errors:?}"));
@@ -460,7 +463,10 @@ fn checked_pipeline(source: &str) -> Result<(), Vec<Diagnostic>> {
         .unwrap();
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
-    let evaluated = crate::evaluate_pre_resolution(syntax)?;
+    let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: None,
+    })?;
     let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
     let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)?;
     let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

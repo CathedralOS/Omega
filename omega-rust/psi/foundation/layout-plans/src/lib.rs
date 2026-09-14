@@ -171,441 +171,59 @@ pub struct ConventionalNestedRecordSumPathsLayoutReport {
 
 /// One exact outer-field occurrence in a recursively nested record path.
 ///
-/// `InnerPaths` retains the complete path report for the next record boundary.
-/// Fixed-depth public reports are aliases over this carrier, so adding a
-/// validated depth does not require another representation-shaped struct.
+/// `inner` retains the complete path report for the next record boundary.
+/// The recursive report uses this carrier for each record boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConventionalRecordSumOccurrenceLayoutReport<InnerPaths> {
+pub struct ConventionalRecordSumOccurrenceLayoutReport {
     pub outer_field: String,
     pub outer_member_identity: Option<u64>,
-    pub inner: InnerPaths,
+    pub inner: ConventionalRecursiveRecordSumPathsLayoutReport,
 }
 
 /// Complete authored-order path reports below one enclosing record layout.
 ///
-/// The generic parameter preserves the exact recursive depth in the type. It
-/// does not admit arbitrary-depth or mixed-depth reports at an existing public
-/// API boundary.
+/// The child report retains exact geometry and semantic occurrence identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConventionalRecordSumPathsLayoutReport<InnerPaths> {
+pub struct ConventionalRecordSumPathsLayoutReport {
     pub outer_layout: LayoutPlanReport,
-    pub paths: Vec<ConventionalRecordSumOccurrenceLayoutReport<InnerPaths>>,
+    pub paths: Vec<ConventionalRecordSumOccurrenceLayoutReport>,
 }
 
-/// One exact fixed-depth chain from an outer record through one middle record
-/// to one leaf record containing the complete direct conventional-sum set.
-///
-/// The middle-to-leaf portion reuses the existing singular one-level report;
-/// no child placement is flattened into either parent layout.
+/// Recursive record-path geometry. Each occurrence retains its own exact record
+/// boundary; nesting depth is data rather than a family of Rust interfaces.
+/// This report is not custody; consumers independently validate it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConventionalDepthTwoRecordSumPathLayoutReport {
-    pub outer_layout: LayoutPlanReport,
-    pub outer_field: String,
-    pub outer_member_identity: Option<u64>,
-    pub middle_path: ConventionalNestedRecordSumPathLayoutReport,
+pub enum ConventionalRecursiveRecordSumPathsLayoutReport {
+    Leaf {
+        outer_layout: LayoutPlanReport,
+        child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
+    },
+    Branch(ConventionalRecordSumPathsLayoutReport),
 }
 
-/// One exact direct outer-field occurrence and the complete authored-order
-/// middle-to-leaf record paths reachable through that occurrence.
-///
-/// The nested report retains its middle whole-record layout once and one leaf
-/// layout plus complete direct-sum row set per middle occurrence. No child row
-/// is flattened into the outer record or duplicated across sibling paths.
-pub type ConventionalDepthTwoRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalNestedRecordSumPathsLayoutReport>;
+/// Compiler resource limit shared by recursive projection and materialization.
+/// This is not a language limit or a distinct layout judgment per depth.
+pub const CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT: usize = 64;
 
-/// Compact complete authored-order set of qualifying depth-two record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural one-level report for its exact middle record, preserving both path
-/// boundaries instead of flattening their layouts or child sum rows.
-pub type ConventionalDepthTwoRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalNestedRecordSumPathsLayoutReport>;
+impl ConventionalRecursiveRecordSumPathsLayoutReport {
+    pub fn outer_layout(&self) -> &LayoutPlanReport {
+        match self {
+            Self::Leaf { outer_layout, .. } => outer_layout,
+            Self::Branch(report) => &report.outer_layout,
+        }
+    }
 
-/// One exact fixed-depth chain through three enclosing records to one leaf
-/// record containing the complete direct conventional-sum set.
-///
-/// The inner portion reuses the existing singular depth-two report whole. No
-/// child placement or selected value is flattened into the new outer record.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConventionalDepthThreeRecordSumPathLayoutReport {
-    pub outer_layout: LayoutPlanReport,
-    pub outer_field: String,
-    pub outer_member_identity: Option<u64>,
-    pub depth_two_path: ConventionalDepthTwoRecordSumPathLayoutReport,
+    pub fn leaf_occurrence_count(&self) -> Option<usize> {
+        match self {
+            Self::Leaf {
+                child_sum_layouts, ..
+            } => Some(child_sum_layouts.len()),
+            Self::Branch(report) => report.paths.iter().try_fold(0usize, |total, path| {
+                total.checked_add(path.inner.leaf_occurrence_count()?)
+            }),
+        }
+    }
 }
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-two record paths reachable through that occurrence.
-///
-/// The nested report retains its first-record layout once and its complete
-/// middle-to-leaf occurrence set. No child layout or selected value is
-/// flattened into the enclosing record.
-pub type ConventionalDepthThreeRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthTwoRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying depth-three record
-/// chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-two report for its exact first record, preserving every path
-/// boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthThreeRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthTwoRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-three record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-three boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthFourRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthThreeRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-four record
-/// chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-three report for its exact second record, preserving every
-/// path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthFourRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthThreeRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-four record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-four boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthFiveRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthFourRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-five record
-/// chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-four report for its exact third record, preserving every path
-/// boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthFiveRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthFourRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-five record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-five boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthSixRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthFiveRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-six record
-/// chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-five report for its exact fourth record, preserving every path
-/// boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthSixRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthFiveRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-six record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-six boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthSevenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthSixRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-seven record
-/// chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-six report for its exact fifth record, preserving every path
-/// boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthSevenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthSixRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-seven record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-seven boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthEightRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthSevenRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-eight
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-seven report for its exact sixth record, preserving every path
-/// boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthEightRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthSevenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-eight record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-eight boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthNineRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthEightRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-nine record
-/// chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-eight report for its exact seventh record, preserving every
-/// path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthNineRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthEightRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-nine record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-nine boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthTenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthNineRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-ten record
-/// chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-nine report for its exact eighth record, preserving every path
-/// boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthTenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthNineRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-ten record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-ten boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthElevenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthTenRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-eleven
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-ten report for its exact ninth record, preserving every path
-/// boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthElevenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthTenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-eleven record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-eleven boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthTwelveRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthElevenRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-twelve
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-eleven report for its exact tenth record, preserving every path
-/// boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthTwelveRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthElevenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-twelve record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-twelve boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthThirteenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthTwelveRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-thirteen
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-twelve report for its exact eleventh record, preserving every
-/// path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthThirteenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthTwelveRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-thirteen record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-thirteen boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthFourteenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<
-        ConventionalDepthThirteenRecordSumPathsLayoutReport,
-    >;
-
-/// Compact complete authored-order set of qualifying plural depth-fourteen
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-thirteen report for its exact twelfth record, preserving every
-/// path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthFourteenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthThirteenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-fourteen record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-fourteen boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthFifteenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<
-        ConventionalDepthFourteenRecordSumPathsLayoutReport,
-    >;
-
-/// Compact complete authored-order set of qualifying plural depth-fifteen
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-fourteen report for its exact thirteenth record, preserving every
-/// path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthFifteenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthFourteenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-fifteen record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-fifteen boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthSixteenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthFifteenRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-sixteen
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-fifteen report for its exact fourteenth record, preserving every
-/// path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthSixteenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthFifteenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-sixteen record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-sixteen boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthSeventeenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthSixteenRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-seventeen
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-sixteen report for its exact fifteenth record, preserving every
-/// path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthSeventeenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthSixteenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-seventeen record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-seventeen boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthEighteenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<
-        ConventionalDepthSeventeenRecordSumPathsLayoutReport,
-    >;
-
-/// Compact complete authored-order set of qualifying plural depth-eighteen
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-seventeen report for its exact sixteenth record, preserving
-/// every path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthEighteenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthSeventeenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-eighteen record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-eighteen boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthNineteenRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<
-        ConventionalDepthEighteenRecordSumPathsLayoutReport,
-    >;
-
-/// Compact complete authored-order set of qualifying plural depth-nineteen
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-eighteen report for its exact seventeenth record, preserving
-/// every path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthNineteenRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthEighteenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-nineteen record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-nineteen boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthTwentyRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<
-        ConventionalDepthNineteenRecordSumPathsLayoutReport,
-    >;
-
-/// Compact complete authored-order set of qualifying plural depth-twenty
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-nineteen report for its exact eighteenth record, preserving
-/// every path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthTwentyRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthNineteenRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-twenty record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-twenty boundary whole. No
-/// child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthTwentyOneRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<ConventionalDepthTwentyRecordSumPathsLayoutReport>;
-
-/// Compact complete authored-order set of qualifying plural depth-twenty-one
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-twenty report for its exact nineteenth record, preserving every
-/// path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthTwentyOneRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthTwentyRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-twenty-one record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-twenty-one boundary whole.
-/// No child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthTwentyTwoRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<
-        ConventionalDepthTwentyOneRecordSumPathsLayoutReport,
-    >;
-
-/// Compact complete authored-order set of qualifying plural depth-twenty-two
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-twenty-one report for its exact twentieth record, preserving
-/// every path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthTwentyTwoRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthTwentyOneRecordSumPathsLayoutReport>;
-
-/// One exact direct outer-field occurrence and the complete authored-order
-/// depth-twenty-two record paths reachable through that occurrence.
-///
-/// The nested report retains every existing depth-twenty-two boundary whole.
-/// No child layout or selected value is flattened into the new enclosing record.
-pub type ConventionalDepthTwentyThreeRecordSumOccurrenceLayoutReport =
-    ConventionalRecordSumOccurrenceLayoutReport<
-        ConventionalDepthTwentyTwoRecordSumPathsLayoutReport,
-    >;
-
-/// Compact complete authored-order set of qualifying plural depth-twenty-three
-/// record chains.
-///
-/// The outer layout is retained once. Each occurrence owns the unchanged
-/// plural depth-twenty-two report for its exact twenty-first record, preserving
-/// every path boundary without forming a flattened cross-product of nested rows.
-pub type ConventionalDepthTwentyThreeRecordSumPathsLayoutReport =
-    ConventionalRecordSumPathsLayoutReport<ConventionalDepthTwentyTwoRecordSumPathsLayoutReport>;
 
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Canonical strings remain report coordinates; the retained slot
