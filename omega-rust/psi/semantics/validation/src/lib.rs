@@ -221,8 +221,9 @@ pub use traits::{
 };
 pub use type_references::normalize_open_index_expressions;
 pub use type_references::{
-    closed_integer_range_bound, closed_integer_range_maximum, closed_scalar_result_range,
-    declared_integer_range, is_arithmetic_policy_only_integer,
+    closed_float_range_endpoint, closed_integer_range_bound, closed_integer_range_maximum,
+    closed_scalar_result_range, declared_integer_range, ieee_float_range_ordered,
+    is_arithmetic_policy_only_integer,
 };
 
 pub use arithmetic_domains::arrival_integer_expression_bounds;

@@ -40,6 +40,7 @@ mod content;
 mod contracts;
 mod domain_identity;
 mod dynamic_conformances;
+mod float_entry_ranges;
 mod flow;
 mod generics;
 mod multiplicity;

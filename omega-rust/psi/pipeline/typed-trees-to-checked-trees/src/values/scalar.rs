@@ -52,7 +52,8 @@ pub(crate) use contract_entry::{
     lower_signature_crash_contract_expression,
 };
 pub(crate) use result_contract::{
-    lower_integer_parameter_range_requirements, lower_scalar_contract_predicate,
+    lower_float_parameter_range_requirements, lower_integer_parameter_range_requirements,
+    lower_scalar_contract_predicate,
 };
 
 #[derive(Debug, Clone)]

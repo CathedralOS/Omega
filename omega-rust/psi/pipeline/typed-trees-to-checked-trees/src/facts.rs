@@ -1356,6 +1356,9 @@ fn build_closed_scalar_value_contract_plan(
         has_crash_clauses,
         has_outcome_specific_clauses,
     )
+    .with_float_entry_ranges(crate::values::lower_float_parameter_range_requirements(
+        program, machine,
+    ))
 }
 
 fn build_crash_contract_capsules(
