@@ -5,6 +5,7 @@ use register_model::{
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
+use selected_instructions::{SelectedConstraintKeys, ValidatedMachineEffectCatalog};
 
 use crate::{
     LiteralFoldError, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
@@ -25,6 +26,7 @@ pub(super) fn validate_literal_fold_roots<S: ValidatedSelectedAnalysis>(
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    effect_catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<(), LiteralFoldError> {
     if ranges.receipt().selected() != selected.selected_identity()
         || ranges.receipt().optimization_unit() != selected.optimization_unit_identity()
@@ -57,8 +59,66 @@ pub(super) fn validate_literal_fold_roots<S: ValidatedSelectedAnalysis>(
         || recovery.receipt().optimization_unit() != selected.optimization_unit_identity()
         || recovery.receipt().fuel_schedule() != selected.fuel_schedule_identity()
         || selected.selected_plan().functions.len() != recovery.plan().functions.len()
+        // The machine-effect catalog must be bound to the same target,
+        // register-constraint catalog, and selected key inventory the rest
+        // of the roots prove — a foreign catalog's declarations could not
+        // honestly describe the bound rows.
+        || effect_catalog.catalog().target != selected.selected_plan().target
+        || effect_catalog.catalog().register_constraints != constraints.identity()
+        || effect_catalog.catalog().selected_keys != environment_selected_keys(selected_keys)
     {
         return Err(LiteralFoldError::RootMismatch);
     }
     Ok(())
+}
+
+/// The selected-instruction key inventory `selected_keys` projects into.
+fn environment_selected_keys(
+    keys: &TargetRegisterEnvironmentConstraintKeys,
+) -> SelectedConstraintKeys {
+    SelectedConstraintKeys {
+        hosted_write_byte_i32: keys.hosted_write_byte_i32,
+        hosted_read_byte: keys.hosted_read_byte,
+        hosted_exit_process_i32: keys.hosted_exit_process_i32,
+        load64: keys.load64,
+        load_packed: keys.load_packed,
+        store_packed: keys.store_packed,
+        load8: keys.load8,
+        load16: keys.load16,
+        load32: keys.load32,
+        load8_indexed: keys.load8_indexed,
+        copy_bytes: keys.copy_bytes,
+        store: keys.store,
+        address_offset: keys.address_offset,
+        store64: keys.store64,
+        frame_address: keys.frame_address,
+        call_unit: keys.call_unit.clone(),
+        call_unit_mixed: keys.call_unit_mixed.clone(),
+        call_scalar: keys.call_scalar.clone(),
+        call_aggregate: keys.call_aggregate.clone(),
+        return_aggregate: keys.return_aggregate.clone(),
+        materialize_i64: keys.materialize_i64,
+        materialize_boolean: keys.materialize_boolean,
+        copy_i64: keys.copy_i64,
+        float32_to_bits: keys.float32_to_bits,
+        float64_to_bits: keys.float64_to_bits,
+        bits_to_float32: keys.bits_to_float32,
+        bits_to_float64: keys.bits_to_float64,
+        add_i64: keys.add_i64,
+        subtract_i64: keys.subtract_i64,
+        saturating_subtract_u64: keys.saturating_subtract_u64,
+        saturating_add_u64: keys.saturating_add_u64,
+        divide_u64: keys.divide_u64,
+        remainder_i64: keys.remainder_i64,
+        add_i64_immediate: keys.add_i64_immediate,
+        subtract_i64_immediate: keys.subtract_i64_immediate,
+        compare_i64_zero: keys.compare_i64_zero,
+        compare_i64: keys.compare_i64,
+        compare_i64_immediate: keys.compare_i64_immediate,
+        conditional_branch: keys.conditional_branch,
+        jump: keys.jump,
+        return_float: keys.return_float.clone(),
+        return_i64: keys.return_i64,
+        return_unit: keys.return_unit,
+    }
 }

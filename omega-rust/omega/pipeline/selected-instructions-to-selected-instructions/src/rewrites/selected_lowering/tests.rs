@@ -9,11 +9,11 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ObligationId, 
 use target::NativeTarget;
 
 use super::{
-    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, PairOperandShape, PairResultDisposition,
-    PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG, SelectedInstructionPairRule,
-    enabled_pair_rules, resolve_selected_lowering_rules,
+    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, PairMachineEffects, PairOperandShape,
+    PairResultDisposition, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
+    SelectedInstructionPairRule, enabled_pair_rules, resolve_selected_lowering_rules,
 };
-use crate::RegisterAllocationRuleTargetApplicability;
+use crate::{RegisterAllocationRuleTargetApplicability, validated_machine_effect_catalog};
 
 #[test]
 fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
@@ -239,6 +239,83 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             decorated.operands[0].early_clobber = true;
             assert!(!rule.unit_effects().admits_operand(&decorated.operands[0]));
         }
+    }
+}
+
+#[test]
+fn declared_machine_effects_admit_the_real_catalog_declarations() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.selected_keys();
+        let catalog = validated_machine_effect_catalog(target, environment.constraints()).unwrap();
+        let declaration = |semantic: MachineSemanticKind| {
+            let constraint = keys
+                .for_semantic(semantic)
+                .expect("the selected key inventory binds the semantic");
+            let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
+                declaration.semantic == semantic && declaration.constraint == constraint
+            });
+            let declaration = matches.next().expect("the catalog declares the form");
+            assert!(matches.next().is_none(), "exactly one declaration binds it");
+            declaration
+        };
+
+        // Every landed pair admits its own triple of real declarations on
+        // both targets, whatever flag traffic the target's consumer row
+        // actually carries.
+        for rule in [
+            SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
+            SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
+            SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
+        ]
+        .into_iter()
+        .chain(SelectedInstructionPairRule::EXTENSION_LITERAL_FOLDS)
+        {
+            assert_eq!(rule.machine_effects(), PairMachineEffects::Isolated);
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+        }
+
+        // Declarations carrying memory traffic cannot take any role in an
+        // isolated pair on either target.
+        for semantic in [MachineSemanticKind::Load64, MachineSemanticKind::Store64] {
+            let memory_bound = declaration(semantic);
+            let isolated = declaration(MachineSemanticKind::MaterializeI64);
+            assert!(!PairMachineEffects::Isolated.admits_producer(memory_bound));
+            assert!(!PairMachineEffects::Isolated.admits_consumer(memory_bound, isolated));
+            assert!(!PairMachineEffects::Isolated.admits_rewritten(memory_bound));
+        }
+        // A branching form carries control-flow, barrier, and trap surface.
+        let jump = declaration(MachineSemanticKind::Jump);
+        let isolated = declaration(MachineSemanticKind::MaterializeI64);
+        assert!(!PairMachineEffects::Isolated.admits_producer(jump));
+        assert!(!PairMachineEffects::Isolated.admits_consumer(jump, isolated));
+        assert!(!PairMachineEffects::Isolated.admits_rewritten(jump));
+        // A flag-consuming materialization is isolated outside its units but
+        // declares implicit unit uses — an implicit use the rewritten form
+        // does not carry cannot be dropped silently.
+        let flag_consuming = declaration(MachineSemanticKind::MaterializeBooleanEqual);
+        assert!(!PairMachineEffects::Isolated.admits_producer(flag_consuming));
+        assert!(!PairMachineEffects::Isolated.admits_consumer(flag_consuming, isolated));
+        assert!(!PairMachineEffects::Isolated.admits_rewritten(flag_consuming));
+        // A flag-defining consumer cannot feed a scalar-result rewrite: its
+        // condition-state definition would not stay defined.
+        let compare = declaration(MachineSemanticKind::CompareI64);
+        let add_immediate = declaration(MachineSemanticKind::ExactAddI64Immediate);
+        assert!(!PairMachineEffects::Isolated.admits_consumer(compare, add_immediate));
     }
 }
 

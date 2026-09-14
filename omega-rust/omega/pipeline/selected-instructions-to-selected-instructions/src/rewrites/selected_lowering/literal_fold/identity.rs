@@ -4,7 +4,7 @@ use crate::{LiteralFoldIdentity, LiteralFoldPlan};
 
 pub fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v4\0");
+    bytes.extend_from_slice(b"omega.terminal-literal-fold.v5\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
     LiteralFoldIdentity(Sha256::digest(bytes).into())
 }
@@ -18,6 +18,7 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
     bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
+    bytes.extend_from_slice(&plan.machine_effect_catalog.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(plan.policy.canonical_bits());
@@ -76,7 +77,8 @@ mod tests {
         RegisterConstraintFamily, RegisterConstraintKey, TargetRegisterEnvironmentIdentity,
     };
     use selected_instructions::{
-        SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
+        MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId,
+        SelectedInstructionPlanIdentity, VirtualRegisterId,
     };
     use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
@@ -96,6 +98,7 @@ mod tests {
             legality: AllocationLegalityIdentity::from_bytes([5; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([6; 32]),
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([7; 32]),
+            machine_effect_catalog: MachineEffectCatalogIdentity::from_bytes([17; 32]),
             optimization_unit: OptimizationUnitIdentity::from_bytes([8; 32]),
             fuel_schedule: FuelScheduleIdentity::new(9).unwrap(),
             policy: LiteralFoldPolicy::EXACT_ADD_V1,
@@ -137,6 +140,11 @@ mod tests {
         assert_ne!(literal_fold_identity(&changed), identity);
         changed = baseline.clone();
         changed.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([12; 32]);
+        assert_ne!(literal_fold_identity(&changed), identity);
+        // The bound effect catalog is identity-bearing: a plan carrying a
+        // different catalog identity must not collide.
+        changed = baseline.clone();
+        changed.machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes([18; 32]);
         assert_ne!(literal_fold_identity(&changed), identity);
 
         let encoded = baseline.encode();

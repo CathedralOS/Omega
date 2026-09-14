@@ -9,7 +9,7 @@ use crate::{
     RecoveryClassification, RecoveryVictimRole,
 };
 
-use super::constraints::AdmittedPairs;
+use super::constraints::{AdmittedPairs, effect_declaration};
 
 pub(super) fn derive_action(
     function_index: usize,
@@ -101,6 +101,10 @@ pub(super) fn derive_action(
         || literal.operands.len() != 1
         || literal.operands[0].virtual_register != candidate.victim
         || literal.operands[0].access != RegisterOperandAccess::Def
+        // The eliminated instruction's record must carry no unit traffic at
+        // all: removing it would silently drop any implicit use, definition,
+        // clobber, or operand binding it declared.
+        || !pair.rule.unit_effects().admits_producer(literal)
     {
         return Err(LiteralFoldError::LiteralMismatch {
             function: function_index,
@@ -183,6 +187,32 @@ pub(super) fn derive_action(
     // consumer operands.
     if !pair.rule.unit_effects().admits_consumer(consumer) {
         return Err(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        });
+    }
+    // The pair's declared machine-effect surface must hold in the bound
+    // catalog for both instructions the rewrite touches: the eliminated
+    // literal must be fully effect-isolated so its removal drops nothing
+    // machine-visible, and the consumer must be isolated outside the unit
+    // surface the rewrite replaces wholesale. The rewritten declaration was
+    // already admitted against the same surface when the pair was bound.
+    let producer_declaration =
+        effect_declaration(rows.catalog, pair.rule.producer(), literal.constraint).ok_or(
+            LiteralFoldError::EffectSurfaceMismatch {
+                function: function_index,
+            },
+        )?;
+    let consumer_declaration =
+        effect_declaration(rows.catalog, pair.rule.consumer(), consumer.constraint).ok_or(
+            LiteralFoldError::EffectSurfaceMismatch {
+                function: function_index,
+            },
+        )?;
+    let effects = pair.rule.machine_effects();
+    if !effects.admits_producer(producer_declaration)
+        || !effects.admits_consumer(consumer_declaration, pair.declaration)
+    {
+        return Err(LiteralFoldError::EffectSurfaceMismatch {
             function: function_index,
         });
     }

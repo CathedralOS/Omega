@@ -416,6 +416,12 @@ fn build_attempt<S: ValidatedSelectedAnalysis>(
         budget,
     )
     .map_err(OptimizedLiteralFoldCustodyError::RecoveryClassification)?;
+    // The fold's pair descriptors admit machine-effect declarations through
+    // the environment's own validated catalog; its identity enters the plan
+    // so the independent replay binds the same catalog.
+    let effect_catalog =
+        validated_machine_effect_catalog(environment.target(), environment.constraints())
+            .map_err(OptimizedLiteralFoldCustodyError::MachineEffects)?;
     let fold = fold_selected_incoming_literal(
         selected,
         ranges,
@@ -428,6 +434,7 @@ fn build_attempt<S: ValidatedSelectedAnalysis>(
         environment.constraints(),
         environment.reservations(),
         &environment.allocation_constraint_keys(),
+        &effect_catalog,
         fold_policy,
         budget,
     )

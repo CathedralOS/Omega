@@ -372,6 +372,7 @@ pub enum OptimizedLiteralFoldCustodyError {
     UpstreamLegality(OptimizedAllocationLegalityCustodyError),
     SpillChoice(SpillChoiceError),
     RecoveryClassification(RecoveryClassificationError),
+    MachineEffects(MachineEffectStageError),
     Fold(LiteralFoldError),
     NoAppliedFold,
     Liveness(LivenessError),

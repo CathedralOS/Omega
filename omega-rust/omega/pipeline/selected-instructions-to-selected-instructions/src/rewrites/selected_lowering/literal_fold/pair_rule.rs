@@ -5,25 +5,33 @@
 //! catalog already uses. Only the producer (`compute/`) reads descriptors; the
 //! validator keeps its own inline matching so a descriptor mistake cannot
 //! self-certify. `LiteralFoldPolicy` bits stay the identity-bearing selection;
-//! descriptors are realization data derived from the catalog row. Three
+//! descriptors are realization data derived from the catalog row. Four
 //! dimensions are declared today: the result disposition carries the
 //! physical-register-unit output channel — whether the rewritten instruction
 //! delivers its output through a scalar `Def` operand or through implicit
 //! unit definitions such as the target condition state — the unit-effect
 //! surface carries the remaining implicit-unit traffic the rewrite may touch
-//! (implicit uses, clobbers, and operand unit bindings on the rewritten row
-//! and on the admitted consumer), and the operand shape carries the
-//! consumer-grammar dimension: whether the folded literal is a binary
+//! (implicit uses, clobbers, and operand unit bindings on the rewritten row,
+//! on the admitted consumer, and on the eliminated producer), the
+//! machine-effect surface carries the non-unit dimensions — memory, trap,
+//! stack, control flow, barrier, call, and cleanup — that each form's
+//! [`MachineEffectDeclaration`] must satisfy, and the operand shape carries
+//! the consumer-grammar dimension: whether the folded literal is a binary
 //! consumer's right `Use` operand or a unary consumer's sole `Use` operand.
-//! When a rule needs shape data beyond those — traps, memory, stack, control
-//! flow, or further operand roles — extend this struct rather than
+//! When a rule needs shape data beyond those — a non-isolated effect
+//! relationship or further operand roles — extend this struct rather than
 //! re-inlining kind matches in compute.
 
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandConstraint,
     TargetRegisterEnvironmentConstraintKeys,
 };
-use selected_instructions::{MachineSemanticKind, SelectedInstruction, SelectedInstructionKind};
+use selected_instructions::{
+    MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionKind,
+};
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
 use crate::machine_semantic_kind;
@@ -95,6 +103,153 @@ impl PairUnitEffects {
             }),
         }
     }
+
+    /// Whether the eliminated producer's instruction record carries no unit
+    /// traffic — implicit uses, definitions, clobbers, or operand bindings —
+    /// that removing the instruction would silently drop.
+    pub fn admits_producer(self, producer: &SelectedInstruction) -> bool {
+        match self {
+            Self::Isolated => {
+                producer.implicit_uses.is_empty()
+                    && producer.implicit_defs.is_empty()
+                    && producer.clobbers.is_empty()
+                    && producer.operands.iter().all(|operand| {
+                        operand.fixed_view.is_none()
+                            && operand.tied_to.is_none()
+                            && !operand.early_clobber
+                    })
+            }
+        }
+    }
+}
+
+/// The non-unit machine-effect surface the pair's rewrite may carry, plus the
+/// unit-traffic relation the three declarations must satisfy.
+///
+/// `PairUnitEffects` owns the physical-register-unit traffic carried by the
+/// selected instruction records and constraint rows (implicit uses,
+/// definitions as the declared result channel, clobbers, and operand unit
+/// bindings); this declaration covers the validated
+/// [`MachineEffectDeclaration`] surface — memory, trap, stack, control flow,
+/// barrier, call, and cleanup — for all three instruction forms the rewrite
+/// involves, and the relationship between the consumer's and rewritten
+/// form's encoded implicit-unit traffic. The producer admits the eliminated
+/// producer's, the admitted consumer's, and the rewritten form's catalog
+/// declarations through this dimension; the validator re-derives the same
+/// requirements from its own matching so a descriptor mistake cannot
+/// self-certify.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairMachineEffects {
+    /// Every form the rewrite touches is effect-isolated: its declaration
+    /// carries no memory access, no trap or fault behavior, no barrier, call,
+    /// or cleanup behavior, and every encoded alternative falls through
+    /// without memory, stack, or trap traffic.
+    ///
+    /// The three roles differ only in their encoded implicit-unit traffic.
+    /// The eliminated producer must declare none at all — removing the
+    /// instruction would silently drop it. The consumer declares no implicit
+    /// unit uses — a use the rewritten form does not carry would be unit
+    /// state the rewrite silently stops observing — and every unit it
+    /// defines must stay defined by every rewritten alternative, or its
+    /// readers would observe a stale unit. Its clobbers are unrestricted:
+    /// dropping a clobber only narrows what may be destroyed, which is the
+    /// intended refinement when the x86-64 `sub` consumer's `rflags` clobber
+    /// disappears under the flag-preserving immediate form. The rewritten
+    /// form declares no implicit uses or clobbers; its implicit definitions
+    /// are the declared result channel under `PairResultDisposition`.
+    Isolated,
+}
+
+impl PairMachineEffects {
+    /// Whether the eliminated producer's catalog declaration is
+    /// effect-isolated including every implicit unit it could have written.
+    pub fn admits_producer(self, declaration: &MachineEffectDeclaration) -> bool {
+        match self {
+            Self::Isolated => {
+                isolated_declaration(declaration)
+                    && declaration.alternatives.iter().all(|alternative| {
+                        isolated_alternative(alternative)
+                            && alternative.encoded.implicit_unit_uses.is_empty()
+                            && alternative.encoded.implicit_unit_defs.is_empty()
+                            && alternative.encoded.implicit_unit_clobbers.is_empty()
+                    })
+            }
+        }
+    }
+
+    /// Whether the admitted consumer's catalog declaration is
+    /// effect-isolated outside its unit surface, and whether the rewrite may
+    /// replace that surface with `rewritten`'s: no implicit uses at all, and
+    /// every implicit definition covered by every alternative the rewritten
+    /// form could select.
+    pub fn admits_consumer(
+        self,
+        declaration: &MachineEffectDeclaration,
+        rewritten: &MachineEffectDeclaration,
+    ) -> bool {
+        match self {
+            Self::Isolated => {
+                isolated_declaration(declaration)
+                    && declaration.alternatives.iter().all(|alternative| {
+                        isolated_alternative(alternative)
+                            && alternative.encoded.implicit_unit_uses.is_empty()
+                            && implicit_defs_covered(alternative, rewritten)
+                    })
+            }
+        }
+    }
+
+    /// Whether the rewritten form's catalog declaration is effect-isolated
+    /// and declares no implicit unit uses or clobbers beyond its result
+    /// channel.
+    pub fn admits_rewritten(self, declaration: &MachineEffectDeclaration) -> bool {
+        match self {
+            Self::Isolated => {
+                isolated_declaration(declaration)
+                    && declaration.alternatives.iter().all(|alternative| {
+                        isolated_alternative(alternative)
+                            && alternative.encoded.implicit_unit_uses.is_empty()
+                            && alternative.encoded.implicit_unit_clobbers.is_empty()
+                    })
+            }
+        }
+    }
+}
+
+/// Every implicit unit `consumer`'s alternative defines remains defined no
+/// matter which alternative the rewritten form selects: the encoding choice
+/// is not fixed at fold time, so coverage must hold unconditionally.
+fn implicit_defs_covered(
+    consumer: &MachineAlternative,
+    rewritten: &MachineEffectDeclaration,
+) -> bool {
+    rewritten.alternatives.iter().all(|alternative| {
+        consumer
+            .encoded
+            .implicit_unit_defs
+            .iter()
+            .all(|unit| alternative.encoded.implicit_unit_defs.contains(unit))
+    })
+}
+
+/// The non-unit declaration surface an isolated pair form must carry: no
+/// memory access, no trap, no barrier, no call, no cleanup.
+fn isolated_declaration(declaration: &MachineEffectDeclaration) -> bool {
+    declaration.memory == MachineMemoryEffect::NoneV1
+        && declaration.trap == MachineTrapBehavior::NeverV1
+        && declaration.barrier == MachineBarrier::None
+        && declaration.call == MachineCallEffect::NoneV1
+        && declaration.cleanup == MachineCleanupEffect::NoneV1
+}
+
+/// The non-unit encoded surface an isolated pair form's alternatives must
+/// carry: no memory access, unchanged stack, never traps, falls through.
+fn isolated_alternative(alternative: &MachineAlternative) -> bool {
+    let encoded = &alternative.encoded;
+    encoded.memory == MachineEncodedMemoryEffect::NoneV1
+        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+        && encoded.trap == MachineEncodedTrapBehavior::NeverV1
+        && encoded.control == MachineEncodedControlEffect::FallThroughV1
 }
 
 /// Where the folded literal sits in the consumer's operand list, and therefore
@@ -118,7 +273,8 @@ pub enum PairOperandShape {
 }
 
 /// The symbolic instruction triple, immediate bound, result channel,
-/// unit-effect surface, and consumer operand grammar of one lowering rule.
+/// unit-effect surface, machine-effect surface, and consumer operand grammar
+/// of one lowering rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedInstructionPairRule {
     producer: MachineSemanticKind,
@@ -128,6 +284,7 @@ pub struct SelectedInstructionPairRule {
     immediate_limit: u64,
     result: PairResultDisposition,
     unit_effects: PairUnitEffects,
+    machine_effects: PairMachineEffects,
 }
 
 impl SelectedInstructionPairRule {
@@ -139,6 +296,7 @@ impl SelectedInstructionPairRule {
         immediate_limit: 4095,
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
+        machine_effects: PairMachineEffects::Isolated,
     };
     pub const EXACT_SUBTRACT_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
@@ -148,6 +306,7 @@ impl SelectedInstructionPairRule {
         immediate_limit: 4095,
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
+        machine_effects: PairMachineEffects::Isolated,
     };
     pub const COMPARE_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
@@ -157,6 +316,7 @@ impl SelectedInstructionPairRule {
         immediate_limit: 4095,
         result: PairResultDisposition::ImplicitUnits,
         unit_effects: PairUnitEffects::Isolated,
+        machine_effects: PairMachineEffects::Isolated,
     };
 
     const EXTENSION_FOLD: Self = Self {
@@ -169,6 +329,7 @@ impl SelectedInstructionPairRule {
         immediate_limit: u64::MAX,
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
+        machine_effects: PairMachineEffects::Isolated,
     };
     /// Eliminate `MaterializeI64` feeding `ZeroExtendU8`: the result is the
     /// literal's low eight bits materialized directly.
@@ -245,6 +406,13 @@ impl SelectedInstructionPairRule {
     /// clobbers, and operand bindings the rewrite may carry.
     pub const fn unit_effects(self) -> PairUnitEffects {
         self.unit_effects
+    }
+
+    /// The pair's declared machine-effect surface: which memory, trap, stack,
+    /// and control-flow traffic the producer, consumer, and rewritten forms
+    /// may carry in the bound effect catalog.
+    pub const fn machine_effects(self) -> PairMachineEffects {
+        self.machine_effects
     }
 
     /// The consumer operand index the literal victim must occupy.

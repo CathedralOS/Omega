@@ -32,6 +32,7 @@ pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    effect_catalog: &selected_instructions::ValidatedMachineEffectCatalog,
     policy: LiteralFoldPolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedLiteralFold, LiteralFoldError> {
@@ -47,6 +48,7 @@ pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
         constraints,
         reservations,
         selected_keys,
+        effect_catalog,
         policy,
         budget,
     )?;
@@ -62,6 +64,7 @@ pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
         constraints,
         reservations,
         selected_keys,
+        effect_catalog,
         plan,
     )
 }

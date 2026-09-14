@@ -19,6 +19,7 @@ pub(super) fn admit_literal_fold(
         legality: plan.legality,
         register_environment: plan.register_environment,
         allocator_availability: plan.allocator_availability,
+        machine_effect_catalog: plan.machine_effect_catalog,
         optimization_unit: plan.optimization_unit,
         fuel_schedule: plan.fuel_schedule,
         transformed_selected,
