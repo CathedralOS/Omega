@@ -1,3 +1,11 @@
+//! Retain authored declaration custody through specialization and final checking.
+//!
+//! Operator occurrences in static type endpoints may lack executable use facts.
+//! Their conservative candidate query uses independently known operand carriers,
+//! not runtime intervals or a guessed peer type. Validated literal suffixes can
+//! exclude unrelated operators; they cannot bypass a matching authored meaning
+//! or replace the final selection and package-admission checks.
+
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -1863,6 +1871,14 @@ fn authored_operand_type(
         return None;
     }
     match program.expression_table.expression(expression) {
+        // A suffix supplies an exact carrier even in a declaration endpoint
+        // with no executable use fact. Reuse numeric landing validation;
+        // anonymous literals must remain unknown, not inherit a peer's type.
+        ExpressionNode::Integer(_) => {
+            program
+                .closed_integer_value_in(expression, SymbolHandle::invalid())?
+                .type_reference
+        }
         ExpressionNode::Atomic(atomic) => authored_operand_type(program, atomic.value),
         ExpressionNode::Borrow(borrow) => authored_operand_type(program, borrow.target),
         ExpressionNode::Cast(cast) => Some(cast.target_type),

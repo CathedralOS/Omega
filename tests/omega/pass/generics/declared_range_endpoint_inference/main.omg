@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
 machine exclusive_upper_bound<const N: u64>(value: u64[0..N]) -> u64 { N }
@@ -118,7 +119,7 @@ machine field_scoped_exclusive() -> u64 {
     upper_bound(bounded.second)
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console> in Bound; }
 machine Main::main(&mut self) reaches Console {
     let bound: u64 = inferred(0);
     transition bound == 256 {

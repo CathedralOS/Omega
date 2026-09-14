@@ -800,6 +800,68 @@ fn unrelated_nominal_operator_does_not_capture_primitive_comparison() {
 }
 
 #[test]
+fn endpoint_operator_candidates_retain_explicit_literal_carriers() {
+    for (operator, endpoint, expected_candidates) in [
+        (
+            "operator % Quantity::remainder(left: Quantity, right: Quantity) -> Quantity;",
+            "18446744073709551615u64 % 512u64",
+            0,
+        ),
+        (
+            "operator % u64::custom(left: u64, right: u64) -> u64;",
+            "7u64 % 3u64",
+            1,
+        ),
+        (
+            "operator % u64::custom(left: u64, right: f64) -> u64;",
+            "7u64 % 3",
+            1,
+        ),
+        (
+            "operator % Quantity::remainder(left: Quantity, right: Quantity) -> Quantity;",
+            "18446744073709551616u64 % 18446744073709551616u64",
+            1,
+        ),
+    ] {
+        let source = format!(
+            "data Quantity {{ value: u64; }}\n{operator}\nmachine bounded(value: u64[0..={endpoint}]) {{}}"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let expression = typed
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| {
+                matches!(node, typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == typed_trees::expression::BinaryOperator::Modulo)
+                .then_some(expression)
+            })
+            .expect("authored endpoint modulo");
+        assert_eq!(
+            crate::authored_selections::typed_operator_authored_selection_candidates(
+                &typed, expression
+            )
+            .len(),
+            expected_candidates,
+            "{source}"
+        );
+        assert_eq!(
+            crate::authored_selections::typed_operator_has_no_authored_selection(
+                &typed, expression
+            ),
+            expected_candidates == 0,
+            "{source}"
+        );
+        if expected_candidates == 0 {
+            let checked = lower_typed_trees(typed).expect("check primitive endpoint");
+            assert!(checked.authored_declaration_selections().all_finalized());
+        }
+    }
+}
+
+#[test]
 fn successful_checking_finalizes_inferred_field_members_and_primitive_operators() {
     let source = r#"
         data Build { freestanding: bool; }
