@@ -210,3 +210,75 @@ fn projected_mutable_call_wraps_and_read_after_return_observes_original_storage(
         }",
     );
 }
+
+#[test]
+fn scalar_updates_preserve_neighboring_bounded_byte_storage() {
+    let artifact = produce_source(
+        "Outer::update",
+        "
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        domain [u8; 9]::Utf8 requires valid_utf8(self);
+        domain [u8; 0]::Utf8 requires valid_utf8(self);
+        data Inner {
+            prefix: [u8; 3] in Utf8;
+            value: i32 in Wrapping;
+            middle: [u8; 9] in Utf8;
+            suffix: [u8; 0] in Utf8;
+        }
+        data Outer { prefix: u64; inner: Inner; sibling: Inner; }
+        machine Inner::increment(&mut self, delta: i32 in Wrapping) {
+            self.value = self.value + delta;
+        }
+        machine Inner::read(&self) -> i32 in Wrapping {
+            transition { _ -> (self.value) }
+        }
+        machine Outer::update(&mut self, delta: i32 in Wrapping) -> i32 in Wrapping {
+            let prior: i32 in Wrapping = self.inner.read();
+            self.inner.increment(delta);
+            let current: i32 in Wrapping = self.inner.read();
+            transition { _ -> (prior + current) }
+        }",
+    );
+    for target in [
+        super::NativeTarget::linux_x64(),
+        super::NativeTarget::linux_arm64(),
+        super::NativeTarget::macos_arm64(),
+        super::NativeTarget::windows_x64(),
+    ] {
+        super::publish(&artifact, target);
+    }
+    // This function-level harness supplies valid empty buffers. It establishes
+    // no hosted ProgramEntry receiver eligibility or byte-content operations.
+    membership::execute(
+        &artifact,
+        "#include <stdint.h>\n#include <stddef.h>\n#include <string.h>\n
+        struct inner {
+            _Alignas(8) unsigned char prefix[11];
+            int32_t value;
+            _Alignas(8) unsigned char middle[17];
+            _Alignas(8) unsigned char suffix[8];
+        };
+        struct outer { uint64_t prefix; struct inner inner, sibling; };
+        _Static_assert(sizeof(struct inner) == 48, \"bounded storage extent\");
+        _Static_assert(offsetof(struct inner, value) == 12, \"scalar offset\");
+        extern int32_t omega_entry(int32_t delta, struct outer *);
+        int main(void) {
+            const int32_t initial[] = { INT32_MAX, INT32_MIN, -7, 19 };
+            const int32_t deltas[] = { 1, -1, 4, -3 };
+            for (unsigned case_index = 0; case_index < 4; ++case_index) {
+                struct outer actual, expected;
+                memset(&actual, 0, sizeof actual);
+                actual.prefix = UINT64_C(0x8123456789abcdef);
+                actual.inner.value = initial[case_index];
+                actual.sibling.value = -12345;
+                memcpy(&expected, &actual, sizeof expected);
+                uint32_t next_bits = (uint32_t)initial[case_index] + (uint32_t)deltas[case_index];
+                memcpy(&expected.inner.value, &next_bits, sizeof next_bits);
+                uint32_t result_bits = (uint32_t)initial[case_index] + next_bits;
+                if ((uint32_t)omega_entry(deltas[case_index], &actual) != result_bits) return 1;
+                if (memcmp(&actual, &expected, sizeof actual)) return 2;
+            }
+            return 0;
+        }",
+    );
+}

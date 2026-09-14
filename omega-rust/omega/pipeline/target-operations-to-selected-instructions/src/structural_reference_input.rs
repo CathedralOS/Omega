@@ -199,7 +199,9 @@ pub(crate) fn plain_record_shape(
         .iter()
         .find(|declaration| declaration.id == structural_type)
         .filter(|declaration| matches!(declaration.shape, StructuralTypeShape::Record { .. }))?;
-    owned_aggregate_shape(structural_type, declarations)
+    // Borrowing needs the complete referent footprint, including untouched byte
+    // siblings. It does not need permission to construct or copy that payload.
+    shape(structural_type, declarations)
 }
 
 /// Whole owned records, arrays, and sums share payload geometry. This checks
@@ -460,6 +462,18 @@ fn field_shape(
             scalar_shape(ScalarType::Integer(bounds.integer_type()))
         }
         StructuralFieldType::IeeeFloat(format) => scalar_shape(ScalarType::IeeeFloat(*format)),
+        StructuralFieldType::ByteSequence(carrier) => {
+            // Match target layout: an inline bounded buffer retains capacity
+            // bytes and a length word; a borrowed view retains two words. This
+            // supplies sibling offsets only, not byte access or replacement.
+            let bytes = match carrier {
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                    capacity.checked_add(8)?
+                }
+                terminal_psi::ByteSequenceCarrier::BorrowedView => 16,
+            };
+            Some(ValueShape::integer(u16::try_from(bytes).ok()?, 8))
+        }
         StructuralFieldType::Structural(nested) => shape_inner(*nested, declarations, active),
         _ => None,
     }
@@ -634,6 +648,109 @@ pub(crate) fn field_read(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scalar_geometry_preserves_bounded_byte_siblings_without_owning_them() {
+        use terminal_psi::{BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration};
+
+        let root = StructuralTypeId::new(1).unwrap();
+        let scalar = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                .unwrap(),
+        );
+        let byte_field = StructuralFieldId::new(1).unwrap();
+        let scalar_field = StructuralFieldId::new(2).unwrap();
+        for (capacity, expected) in [
+            (0, Some((16, 8))),
+            (3, Some((16, 12))),
+            (9, Some((24, 20))),
+            (65_520, Some((65_536, 65_528))),
+            (65_528, None),
+            (u64::MAX, None),
+        ] {
+            let declarations = [StructuralTypeDeclaration {
+                id: root,
+                identity: "BufferedCounter".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: byte_field,
+                            identity: "bytes".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::ByteSequence(
+                                ByteSequenceCarrier::BoundedOwned { capacity },
+                            ),
+                        },
+                        StructuralFieldDeclaration {
+                            id: scalar_field,
+                            identity: "counter".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(scalar),
+                        },
+                    ],
+                },
+            }];
+            let expected = expected.filter(|(size, _)| *size <= u32::from(u16::MAX));
+            assert_eq!(
+                shape(root, &declarations),
+                expected.map(|(size, _)| ValueShape::integer(size as u16, 8)),
+            );
+            let expected_access = expected.map(|(_, offset)| (offset, 4));
+            assert_eq!(
+                store(root, &[], scalar_field, scalar, &declarations),
+                expected_access
+            );
+            assert_eq!(
+                field_read(root, &[], scalar_field, scalar, &declarations),
+                expected_access
+            );
+            assert_eq!(store(root, &[], byte_field, scalar, &declarations), None);
+            assert_eq!(
+                field_read(root, &[], byte_field, scalar, &declarations),
+                None
+            );
+            assert_eq!(
+                field_read(root, &[], scalar_field, ScalarType::Boolean, &declarations),
+                None,
+            );
+            assert_eq!(
+                field_read(
+                    root,
+                    &[StructuralPathSegment::Field("bytes".into())],
+                    scalar_field,
+                    scalar,
+                    &declarations,
+                ),
+                None,
+            );
+            assert_eq!(owned_aggregate_shape(root, &declarations), None);
+        }
+    }
+
+    #[test]
+    fn byte_field_layout_does_not_admit_owned_byte_roots() {
+        use terminal_psi::ByteSequenceCarrier;
+
+        assert_eq!(
+            field_shape(
+                &StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView),
+                &[],
+                &mut Vec::new(),
+            ),
+            Some(ValueShape::integer(16, 8)),
+        );
+        let root = StructuralTypeId::new(1).unwrap();
+        let declarations = [StructuralTypeDeclaration {
+            id: root,
+            identity: "Buffer".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                capacity: 3,
+            }),
+        }];
+        assert_eq!(shape(root, &declarations), None);
+        assert_eq!(plain_record_shape(root, &declarations), None);
+        assert_eq!(owned_aggregate_shape(root, &declarations), None);
+    }
 
     #[test]
     fn bounded_integer_geometry_retains_exact_read_and_store_carriers() {

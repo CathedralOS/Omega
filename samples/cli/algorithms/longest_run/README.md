@@ -54,3 +54,19 @@ length/replacement. After those operations compose, the complete state
 loop must still pass its termination/proof and native execution checks. Keep this
 command as the outer acceptance check rather than deriving completion from a
 passing isolated store test.
+
+Native scalar access beside bounded byte fields now uses the existing record
+layout. `record_reads::scalar_updates_preserve_neighboring_bounded_byte_storage`
+in `omega-native-differential-test --test scalar_case_results` publishes for all
+four hosted targets and executes on macOS ARM64: shared reads around a nested
+mutable call observe signed updates, while byte-buffer regions, padding, and the
+sibling record remain unchanged. Its function harness supplies valid empty
+buffers; it does not provision a hosted receiver or execute byte replacement.
+
+A hosted receiver containing those fields still needs source-backed ZII
+eligibility in `terminal-production/src/production/receiver_eligibility.rs`.
+The native-entry probe rejects with `hosted receiver requires a checked ZII-valid
+value with no executable nominal cleanup`. Do not admit every bounded byte carrier:
+its domain might exclude empty values. The existing resolved-domain byte-predicate
+denotation can distinguish UTF-8/ASCII/no-NUL from nonempty requirements; source
+eligibility must rejoin all actual field constraints before admitting empty storage.
