@@ -469,6 +469,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "source",
+ "source-assembly",
  "source-files-to-tokens",
  "symbol-resolved-trees",
  "symbol-resolved-trees-to-typed-trees",
@@ -1952,6 +1953,30 @@ name = "source"
 version = "0.1.0"
 dependencies = [
  "semantic-vocabulary",
+]
+
+[[package]]
+name = "source-assembly"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "artifacts",
+ "build-declarations",
+ "build-evaluation",
+ "build-output",
+ "build-time-evaluation",
+ "diagnostics",
+ "optimization-core",
+ "package-compilation",
+ "semantic-vocabulary",
+ "source",
+ "source-files-to-tokens",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "tokens",
+ "tokens-to-syntax-trees",
 ]
 
 [[package]]

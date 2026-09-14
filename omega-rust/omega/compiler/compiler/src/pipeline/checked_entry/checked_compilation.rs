@@ -3,7 +3,7 @@
 use super::build_continuation::BuildSourceCustody;
 use super::execution_settlement::CheckedExecution;
 use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::timing::CompileTimings;
+use artifacts::compile_timings::CompileTimings;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use std::sync::Arc;

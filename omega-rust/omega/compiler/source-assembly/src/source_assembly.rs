@@ -1,35 +1,35 @@
-use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::frontend::{
+use crate::frontend::{
     discover_imports, discover_imports_with_packages, extend_source_storage, lex_sources,
     load_package_generated_source, load_sources, parse_sources,
 };
-use crate::pipeline::source::{ImportQueue, SourceStorage};
-use crate::pipeline::stage::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
-use crate::pipeline::timing::CompileTimings;
+use crate::source::{ImportQueue, SourceStorage};
+use artifacts::compile_timings::CompileTimings;
+use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use diagnostics::Diagnostic;
+use package_compilation::PackageCompilationInputs;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 
+mod build_vocabulary;
 mod checkpoint;
-pub(in crate::pipeline) use checkpoint::ImmutableSourceParseCheckpoint;
+pub use checkpoint::{ExactTargetSourceAssembly, ImmutableSourceParseCheckpoint};
 
-pub(super) struct AssembledSyntax {
-    pub(super) syntax_trees: SyntaxTrees,
-    pub(super) sources: Arc<source::SourceMap>,
+pub struct AssembledSyntax {
+    pub syntax_trees: SyntaxTrees,
+    pub sources: Arc<source::SourceMap>,
     /// Exact companion `build.omg` selected during project discovery. Build
     /// authority is attached to this source, never reconstructed from a leaf
     /// filename after imports have expanded the source frontier.
-    pub(super) build_source_id: Option<source::SourceId>,
+    pub build_source_id: Option<source::SourceId>,
     /// The validated authored application declaration (name and artifact-only
     /// intent) when the selected build root declares `builder.application(...)`;
     /// `None` for package/workspace roles or a missing build root. Publication
     /// never re-derives it.
-    pub(super) application: Option<build_declarations::ApplicationDeclaration>,
-    pub(super) source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    pub(super) generated_source_custody:
-        Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
+    pub application: Option<build_declarations::ApplicationDeclaration>,
+    pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
 }
 
 /// Exact parsed extension produced by one admitted build activation.
@@ -38,7 +38,7 @@ pub(super) struct AssembledSyntax {
 /// input needed by the D18 continuation. Each unit remains separate so the
 /// ordinary pre-resolution evaluator cannot synthesize a generic instance
 /// across generated-source custody boundaries.
-pub(super) struct RetainedGeneratedSyntaxExtension {
+pub struct RetainedGeneratedSyntaxExtension {
     units: Vec<RetainedGeneratedSyntaxUnit>,
     sources: Arc<source::SourceMap>,
     generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
@@ -53,17 +53,17 @@ struct RetainedGeneratedSyntaxUnit {
 }
 
 impl RetainedGeneratedSyntaxExtension {
-    pub(super) fn source_count(&self) -> usize {
+    pub fn source_count(&self) -> usize {
         self.units.len()
     }
 
-    pub(super) fn generated_source_custody(
+    pub fn generated_source_custody(
         &self,
     ) -> &[(source::SourceId, build_output::PackageGeneratedSource)] {
         &self.generated_source_custody
     }
 
-    pub(super) fn into_pre_resolution_inputs(
+    pub fn into_pre_resolution_inputs(
         self,
         base_sources: &Arc<source::SourceMap>,
     ) -> Result<(Vec<SyntaxTrees>, Arc<source::SourceMap>), Vec<Diagnostic>> {
@@ -95,7 +95,7 @@ impl RetainedGeneratedSyntaxExtension {
     }
 }
 
-pub(super) fn retain_generated_syntax_extension(
+pub fn retain_generated_syntax_extension(
     base_sources: &Arc<source::SourceMap>,
     package_root: &Path,
     package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -167,7 +167,7 @@ pub(super) fn retain_generated_syntax_extension(
         }
 
         let source_id = source::SourceId(sources.len());
-        let tokens = crate::lexer::Lexer::new(source)
+        let tokens = source_files_to_tokens::Lexer::new(source)
             .tokenize()
             .map_err(|error| {
                 let position = source::SourcePosition::of(source, error.span.start);
@@ -179,8 +179,8 @@ pub(super) fn retain_generated_syntax_extension(
                     error.message
                 ))]
             })?;
-        let parsed =
-            crate::parser::parse_syntax_trees_with_id(source_id, &tokens).map_err(|error| {
+        let parsed = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+            .map_err(|error| {
                 let position = source::SourcePosition::of(source, error.source_span.span.start);
                 vec![Diagnostic::error(format!(
                     "{}:{}:{}: {}",
@@ -401,10 +401,10 @@ fn load_pending_imports(
 /// subtree. The bundled fallback owns an entire closed subtree so its
 /// transitive `use` closure keeps toolchain custody. A reconciled supplier's
 /// contract and ordinary imports retain that package's custody instead.
-pub(super) struct HostedEntryContractSeed {
-    pub(super) source: PathBuf,
-    pub(super) root: PathBuf,
-    pub(super) closed_subtree: bool,
+pub(crate) struct HostedEntryContractSeed {
+    pub(crate) source: PathBuf,
+    pub(crate) root: PathBuf,
+    pub(crate) closed_subtree: bool,
 }
 
 /// The selected profile's physical entry contract must join compilation even
@@ -440,7 +440,7 @@ fn hosted_entry_contract_seed(
     match package_inputs {
         // Standalone custody is the byte-exact bundled toolchain contract.
         None => {
-            let contract_root = crate::pipeline::frontend::bundled_omega_root().join("std");
+            let contract_root = crate::frontend::bundled_omega_root().join("std");
             Some(HostedEntryContractSeed {
                 source: contract_root.join(relative_source),
                 root: contract_root,
@@ -481,8 +481,7 @@ fn hosted_entry_contract_seed(
                 })
                 .or_else(|| {
                     (suppliers.is_empty() && accepted_package.is_none()).then(|| {
-                        let contract_root =
-                            crate::pipeline::frontend::bundled_omega_root().join("std");
+                        let contract_root = crate::frontend::bundled_omega_root().join("std");
                         HostedEntryContractSeed {
                             source: contract_root.join(relative_source),
                             root: contract_root,
@@ -499,7 +498,7 @@ fn validate_package_source_frontier(
     package_inputs: &PackageCompilationInputs,
     source_storage: &SourceStorage,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-    let toolchain_root = crate::pipeline::frontend::bundled_core_root();
+    let toolchain_root = crate::frontend::bundled_core_root();
     let mut validated = Vec::with_capacity(frontier.len());
     let mut diagnostics = Vec::new();
 
@@ -797,7 +796,7 @@ fn construct_build_prelude(base: &str, has_exact_target: bool) -> String {
             },
             1,
         );
-    super::optimization::build_vocabulary::install(&with_target)
+    build_vocabulary::install(&with_target)
 }
 
 fn inject_build_prelude(
@@ -842,11 +841,8 @@ fn inject_build_prelude(
 
     let first_source_id = source_storage.next_source_id();
     let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-        let sources = crate::pipeline::frontend::load_injected_source(
-            "<build-prelude>",
-            &prelude,
-            first_source_id,
-        );
+        let sources =
+            crate::frontend::load_injected_source("<build-prelude>", &prelude, first_source_id);
         lex_sources(sources)
     })?;
     let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
@@ -1267,11 +1263,11 @@ mod tests {
     #[test]
     fn retained_generated_syntax_extension_preserves_unit_custody_without_reparsing() {
         let base_text = "machine base() -> u64 { 1 }";
-        let base_tokens = crate::lexer::Lexer::new(base_text)
+        let base_tokens = source_files_to_tokens::Lexer::new(base_text)
             .tokenize()
             .expect("lex base source");
         let base_syntax =
-            crate::parser::parse_syntax_trees_with_id(source::SourceId(0), &base_tokens)
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &base_tokens)
                 .expect("parse base source");
         let mut base_sources = source::SourceMap::default();
         base_sources.add(PathBuf::from("src/main.omg"), base_text.to_owned());
@@ -1296,10 +1292,10 @@ mod tests {
         let mut combined_sources = (*base_sources).clone();
         for (offset, (path, text)) in extension_inputs.iter().enumerate() {
             let source_id = source::SourceId(offset + 1);
-            let tokens = crate::lexer::Lexer::new(text)
+            let tokens = source_files_to_tokens::Lexer::new(text)
                 .tokenize()
                 .expect("lex extension source");
-            let parsed = crate::parser::parse_syntax_trees_with_id(source_id, &tokens)
+            let parsed = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
                 .expect("parse extension source");
             extension_units.push(RetainedGeneratedSyntaxUnit {
                 source_id,
@@ -1356,11 +1352,11 @@ mod tests {
     #[test]
     fn generated_unit_pre_resolution_is_unit_local() {
         let base_text = "data Main { value: u8; }";
-        let base_tokens = crate::lexer::Lexer::new(base_text)
+        let base_tokens = source_files_to_tokens::Lexer::new(base_text)
             .tokenize()
             .expect("lex base source");
         let base_syntax =
-            crate::parser::parse_syntax_trees_with_id(source::SourceId(0), &base_tokens)
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &base_tokens)
                 .expect("parse base source");
         let mut base_sources = source::SourceMap::default();
         base_sources.add(PathBuf::from("main.omg"), base_text.to_owned());
@@ -1375,16 +1371,16 @@ mod tests {
         };
         let template_text = "data Split<T> { value: T; }";
         let wrapper_text = "data SplitUse { value: Split<u32>; }";
-        let template = crate::parser::parse_syntax_trees_with_id(
+        let template = tokens_to_syntax_trees::parse_syntax_trees_with_id(
             source::SourceId(1),
-            &crate::lexer::Lexer::new(template_text)
+            &source_files_to_tokens::Lexer::new(template_text)
                 .tokenize()
                 .expect("lex split template"),
         )
         .expect("parse split template");
-        let wrapper = crate::parser::parse_syntax_trees_with_id(
+        let wrapper = tokens_to_syntax_trees::parse_syntax_trees_with_id(
             source::SourceId(2),
-            &crate::lexer::Lexer::new(wrapper_text)
+            &source_files_to_tokens::Lexer::new(wrapper_text)
                 .tokenize()
                 .expect("lex split wrapper"),
         )

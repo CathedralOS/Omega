@@ -1,0 +1,32 @@
+[package]
+name = "source-assembly"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "source_assembly"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../../psi/foundation/arena" }
+artifacts = { path = "../../tooling/artifacts" }
+build-declarations = { path = "../../build/build-declarations" }
+build-evaluation = { path = "../../build/build-evaluation" }
+build-output = { path = "../../build/build-output" }
+build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+optimization-core = { path = "../../representations/optimization-core" }
+package-compilation = { path = "../../build/package-compilation" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+source = { path = "../../../psi/foundation/source" }
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+symbols = { path = "../../../psi/foundation/symbols" }
+syntax-trees = { path = "../../../psi/representations/syntax-trees" }
+target = { path = "../../representations/target" }
+tokens = { path = "../../../psi/representations/tokens" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+
+[dev-dependencies]
+package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }

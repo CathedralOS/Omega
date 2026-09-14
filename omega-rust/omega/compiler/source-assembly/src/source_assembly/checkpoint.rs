@@ -3,23 +3,23 @@ use super::{
     inject_build_prelude, load_pending_imports, validate_package_source_frontier,
     validate_selected_build_role,
 };
-use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::frontend::{
+use crate::frontend::{
     PackageImportPhase, PendingPackageImport, discover_imports, discover_package_imports,
     extend_source_storage, lex_sources, load_sources, parse_sources,
 };
-use crate::pipeline::project::project_roots;
-use crate::pipeline::source::{ImportQueue, SourceStorage};
-use crate::pipeline::stage::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
-use crate::pipeline::timing::CompileTimings;
+use crate::source::project::project_roots;
+use crate::source::{ImportQueue, SourceStorage};
+use artifacts::compile_timings::CompileTimings;
+use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use diagnostics::Diagnostic;
+use package_compilation::PackageCompilationInputs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Immutable physical source and parse frontier formed before exact target
 /// generated sources or target-scoped imports join compilation.
 #[derive(Clone)]
-pub(in crate::pipeline) struct ImmutableSourceParseCheckpoint {
+pub struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
     build_source_id: Option<source::SourceId>,
@@ -34,14 +34,14 @@ pub(in crate::pipeline) struct ImmutableSourceParseCheckpoint {
 
 /// One exact-target child consuming its checkpoint reference. Cloned checkpoints
 /// share immutable storage until assembly needs an independently owned child.
-pub(in crate::pipeline) struct ExactTargetSourceAssembly<'a> {
+pub struct ExactTargetSourceAssembly<'a> {
     checkpoint: ImmutableSourceParseCheckpoint,
     target_name: &'a str,
     package_inputs: Option<&'a PackageCompilationInputs>,
 }
 
 impl ImmutableSourceParseCheckpoint {
-    pub(in crate::pipeline) fn prepare(
+    pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
@@ -103,7 +103,7 @@ impl ImmutableSourceParseCheckpoint {
         })
     }
 
-    pub(in crate::pipeline) fn for_exact_target<'a>(
+    pub fn for_exact_target<'a>(
         self,
         target_name: &'a str,
         package_inputs: Option<&'a PackageCompilationInputs>,
@@ -116,7 +116,7 @@ impl ImmutableSourceParseCheckpoint {
         })
     }
 
-    pub(in crate::pipeline) fn assemble_targetless(
+    pub fn assemble_targetless(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
@@ -139,10 +139,8 @@ impl ImmutableSourceParseCheckpoint {
             )]);
         }
         if let Some(package_inputs) = package_inputs {
-            package_inputs.validate_for_compilation(
-                &self.root_path,
-                &crate::pipeline::frontend::bundled_core_root(),
-            )?;
+            package_inputs
+                .validate_for_compilation(&self.root_path, &crate::frontend::bundled_core_root())?;
         }
         Ok(())
     }
@@ -208,9 +206,9 @@ impl ImmutableSourceParseCheckpoint {
             target_name.is_some(),
             timings,
         )?;
-        source_scoped_top_level_bindings.extend(
-            crate::pipeline::frontend::retain_module_import_bindings(&source_storage)?,
-        );
+        source_scoped_top_level_bindings.extend(crate::frontend::retain_module_import_bindings(
+            &source_storage,
+        )?);
         let source_file_count = source_storage.file_count();
         let syntax = assemble_syntax(
             source_storage,
@@ -224,7 +222,7 @@ impl ImmutableSourceParseCheckpoint {
 }
 
 impl ExactTargetSourceAssembly<'_> {
-    pub(in crate::pipeline) fn assemble(
+    pub fn assemble(
         self,
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -239,10 +237,8 @@ fn initialize_source_storage(
 ) -> Result<SourceStorage, Vec<Diagnostic>> {
     match package_inputs {
         Some(package_inputs) => {
-            package_inputs.validate_for_compilation(
-                root_path,
-                &crate::pipeline::frontend::bundled_core_root(),
-            )?;
+            package_inputs
+                .validate_for_compilation(root_path, &crate::frontend::bundled_core_root())?;
             let root_package = package_inputs
                 .package_root(package_inputs.root())
                 .expect("validated package inputs retain their root")
@@ -250,7 +246,7 @@ fn initialize_source_storage(
             let mut storage = SourceStorage::for_package_compilation(
                 root_package,
                 package_inputs.root(),
-                crate::pipeline::frontend::bundled_core_root(),
+                crate::frontend::bundled_core_root(),
             );
             for (identity, source_root) in package_inputs.packages() {
                 storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
@@ -264,7 +260,7 @@ fn initialize_source_storage(
                 .unwrap_or_else(|| PathBuf::from("."));
             Ok(SourceStorage::for_compilation(
                 root_package,
-                crate::pipeline::frontend::bundled_omega_root(),
+                crate::frontend::bundled_omega_root(),
             ))
         }
     }

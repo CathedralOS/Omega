@@ -28,7 +28,7 @@ pub(in crate::pipeline) fn validate_authored_declaration_selections_before_build
     typed: &typed_trees::TypedTrees,
     packages: &PackageCompilationInputs,
     generated_source_custody: &[(source::SourceId, build_output::PackageGeneratedSource)],
-    timings: &mut crate::pipeline::timing::CompileTimings,
+    timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<AuthoredDeclarationAuthorityVerdict, Vec<Diagnostic>> {
     // Package build execution can carry filesystem and other boundary
     // authority. Check the frozen ordinary source graph first; the ordinary

@@ -6,7 +6,7 @@ use crate::pipeline::phase_transitions::{
     resolve_seeded_syntax_extension, symbol_resolved_trees_to_seeded_base,
     syntax_trees_to_symbol_resolved_trees, type_seeded_extension,
 };
-use crate::pipeline::timing::CompileTimings;
+use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use std::path::Path;
 use std::sync::Arc;
@@ -40,7 +40,7 @@ pub(super) fn evaluate_build_and_continue(
     root_path: &Path,
     child: CheckedChildExecution<'_>,
     mut source_file_count: usize,
-    syntax: crate::pipeline::source_assembly::AssembledSyntax,
+    syntax: source_assembly::AssembledSyntax,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltCheckedProgram, BuildSourceCustody), Vec<Diagnostic>> {
     let CheckedChildExecution {
@@ -112,7 +112,7 @@ pub(super) fn evaluate_build_and_continue(
         let package_root = package_inputs
             .package_root(package_inputs.root())
             .expect("validated package inputs retain their root package");
-        let extension = crate::pipeline::source_assembly::retain_generated_syntax_extension(
+        let extension = source_assembly::retain_generated_syntax_extension(
             &base_sources,
             package_root,
             Some(package_inputs.root()),
@@ -282,7 +282,7 @@ impl AdmittedBuildCheckpoint {
 }
 
 fn lower_checked_frontend(
-    mut syntax: crate::pipeline::source_assembly::AssembledSyntax,
+    mut syntax: source_assembly::AssembledSyntax,
     target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
@@ -331,7 +331,7 @@ fn lower_checked_frontend(
 fn try_seeded_extension(
     base: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     base_sources: &Arc<source::SourceMap>,
-    extension: crate::pipeline::source_assembly::RetainedGeneratedSyntaxExtension,
+    extension: source_assembly::RetainedGeneratedSyntaxExtension,
     selected_target_machine_declarations:
         crate::pipeline::provider::target_machines::SelectedTargetMachineDeclarations,
     target_name: Option<&str>,

@@ -8,7 +8,7 @@ use crate::pipeline::phase_transitions::{
     SelectedExecutionSettlementInput, SelectedExecutionSettlementSurface,
     TypedToCheckedSettlementInput, settle_selected_execution, typed_trees_to_checked_trees,
 };
-use crate::pipeline::timing::CompileTimings;
+use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
