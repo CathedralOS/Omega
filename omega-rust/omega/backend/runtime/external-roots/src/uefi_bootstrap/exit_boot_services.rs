@@ -72,8 +72,8 @@ fn exit_boot_services_signature() -> CallSignature {
     }
 }
 
-fn evaluate_exit_boot_services_plan() -> Result<ValidatedBoundaryEntryPlan, ExternalRootDiagnostic>
-{
+pub(super) fn evaluate_exit_boot_services_plan()
+-> Result<ValidatedBoundaryEntryPlan, ExternalRootDiagnostic> {
     evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::MicrosoftX64,
         &exit_boot_services_signature(),
@@ -89,7 +89,9 @@ fn matches_exact_uefi_x64_call_plan(plan: &ValidatedBoundaryEntryPlan) -> bool {
     evaluate_exit_boot_services_plan().is_ok_and(|expected| expected.plan() == plan.plan())
 }
 
-fn validate_exact_call_shape(plan: &BoundaryEntryPlan) -> Result<(), ExternalRootDiagnostic> {
+pub(super) fn validate_exact_call_shape(
+    plan: &BoundaryEntryPlan,
+) -> Result<(), ExternalRootDiagnostic> {
     let call = &plan.call;
     if !(call.policy == CallingPolicy::MicrosoftX64
         && call.parameters.len() == 2
@@ -132,9 +134,9 @@ fn validate_exact_call_shape(plan: &BoundaryEntryPlan) -> Result<(), ExternalRoo
 /// report coordinates only; the service function address remains private.
 #[must_use = "UEFI ExitBootServices provider retains physical-arrival and phase custody"]
 pub struct LifecycleScopedUefiExitBootServicesProvider<'system_table, 'boot_services> {
-    projection: LifecycleScopedUefiBootServicesProjection<'system_table>,
-    integrity: ValidatedUefiBootServicesHeaderIntegrity<'boot_services>,
-    occurrence: UefiBootServicesTableOccurrenceId,
+    pub(super) projection: LifecycleScopedUefiBootServicesProjection<'system_table>,
+    pub(super) integrity: ValidatedUefiBootServicesHeaderIntegrity<'boot_services>,
+    pub(super) occurrence: UefiBootServicesTableOccurrenceId,
     _table_address: NonZeroU64,
     field: UefiBootServicesNativeFieldLayout,
     exit_boot_services: NonZeroU64,
@@ -351,7 +353,7 @@ fn reject_join<'system_table, 'boot_services>(
 /// without performing the firmware call.
 #[must_use = "planned UEFI ExitBootServices invocation retains provider and physical custody"]
 pub struct PlannedUefiExitBootServicesInvocation<'system_table, 'boot_services> {
-    provider: LifecycleScopedUefiExitBootServicesProvider<'system_table, 'boot_services>,
+    pub(super) provider: LifecycleScopedUefiExitBootServicesProvider<'system_table, 'boot_services>,
     plan: ValidatedBoundaryEntryPlan,
 }
 
@@ -996,11 +998,11 @@ mod tests {
     use super::*;
     use crate::{
         UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId, UefiErrorStatus,
-        UefiFirmwareSessionId, UefiMemoryMapSnapshotId, UefiOsHandoffAllocationRosterId,
-        UefiOsHandoffBootServicesId, UefiOsHandoffId, UefiOsHandoffLedger,
-        UefiOsHandoffMapRequired, UefiOsHandoffProgress, UefiOsHandoffStackEvidenceId,
-        UefiSystemTableOccurrenceId, join_lifecycle_scoped_uefi_system_table,
-        join_uefi_application_physical_arrival,
+        UefiFirmwareSessionId, UefiMemoryMapAcquisition, UefiMemoryMapSnapshotId,
+        UefiOsHandoffAllocationRosterId, UefiOsHandoffBootServicesId, UefiOsHandoffId,
+        UefiOsHandoffLedger, UefiOsHandoffMapRequired, UefiOsHandoffProgress,
+        UefiOsHandoffStackEvidenceId, UefiSystemTableOccurrenceId,
+        join_lifecycle_scoped_uefi_system_table, join_uefi_application_physical_arrival,
         prepare_uefi_application_bootstrap_adapter_invocation,
         project_uefi_application_boot_services,
     };
@@ -1227,13 +1229,16 @@ mod tests {
         arrival: UefiOsHandoffMapRequired,
         base: u64,
     ) -> UefiOsHandoffMapAcquired {
-        ledger
-            .acquire_memory_map(
-                arrival,
-                id(base, UefiMemoryMapSnapshotId::from_normalized_identity),
-                id(base + 1, UefiMemoryMapKeyId::from_normalized_identity),
-            )
-            .unwrap()
+        let acquisition = UefiMemoryMapAcquisition::for_test(
+            ledger.firmware_session(),
+            ledger.physical_invocation(),
+            id(base, UefiMemoryMapSnapshotId::from_normalized_identity),
+            id(base + 1, UefiMemoryMapKeyId::from_normalized_identity),
+            96,
+            48,
+            1,
+        );
+        ledger.acquire_memory_map(arrival, acquisition).unwrap()
     }
 
     #[test]
@@ -1582,6 +1587,7 @@ mod tests {
         for source in [
             include_str!("os_handoff.rs"),
             include_str!("exit_boot_services.rs"),
+            include_str!("get_memory_map.rs"),
         ] {
             let production = source
                 .split("#[cfg(test)]")
@@ -1596,8 +1602,12 @@ mod tests {
                 "pubfnsucceeded",
                 "pub(crate)fnstale_map_key",
                 "pub(crate)fnsucceeded",
+                "pubfnfor_test",
+                "pub(crate)fnfor_test",
                 "implCloneforUefiOsHandoff",
                 "implCloneforUefiExitBootServices",
+                "implCloneforUefiMemoryMap",
+                "implCloneforUefiGetMemoryMap",
             ] {
                 assert!(
                     !compact.contains(forbidden),
