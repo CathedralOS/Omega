@@ -296,6 +296,39 @@ impl InstallationRecord {
         &mut self.dynamic_parameter_calls
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn stored_dynamic_calls_mut_for_test(&mut self) -> &mut Vec<InstalledStoredDynamicCall> {
+        &mut self.stored_dynamic_calls
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn forwarded_dynamic_descriptor_adapters_mut_for_test(
+        &mut self,
+    ) -> &mut Vec<InstalledForwardedDynamicDescriptorAdapter> {
+        &mut self.forwarded_dynamic_descriptor_adapters
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn forwarded_dynamic_descriptor_tables_mut_for_test(
+        &mut self,
+    ) -> &mut Vec<InstalledForwardedDynamicDescriptorTable> {
+        &mut self.forwarded_dynamic_descriptor_tables
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn forwarded_dynamic_descriptor_calls_mut_for_test(
+        &mut self,
+    ) -> &mut Vec<InstalledForwardedDynamicDescriptorCall> {
+        &mut self.forwarded_dynamic_descriptor_calls
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn forwarded_dynamic_parameter_calls_mut_for_test(
+        &mut self,
+    ) -> &mut Vec<InstalledForwardedDynamicParameterCall> {
+        &mut self.forwarded_dynamic_parameter_calls
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
