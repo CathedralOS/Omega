@@ -1099,17 +1099,25 @@ Owners include
   writes and mutating calls through `terminal-verifier/src/verification/field_snapshots.rs`:
   live exact field-to-SSA equalities capture affected facts before invalidation,
   without retaining stale field observations or multiplying fact variants.
-  Resume at the field-bound invariant producer and its checked update proofs,
-  not snapshot reconstruction. At `8ace0796d0`, macOS arm64,
-  `RUST_MIN_STACK=67108864 cargo nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast -E 'test(nonzero_divisor_certificate) | test(cyclic_byte_literal_calls)'`
-  passes: `incompatible_integer_guards_keep_the_dead_operation_checked`
-  retains division in the published artifact, reload-verifies and interprets
-  the unreachable case, and rejects its reachable zero-divisor twin.
-  `saved_field_value_keeps_its_proof_after_overwriting_the_field` publishes,
-  reload-verifies and interprets division by the saved value after direct
-  mutation or a mutable helper call. Moving the read after mutation keeps
-  structural validation valid but rejects the old proof. These are dependency
-  checks; the unchanged decimal loop and native customer remain open.
+  Resume at stronger field-bound candidates and checked wrapping-update proofs,
+  not snapshot reconstruction or implication plumbing. `field_bounds` now
+  carries scoped field comparisons as candidate premises; `integer_selection/implications`
+  makes proved consequences available to ordinary arithmetic through existing
+  implication introduction/elimination, without a new trusted rule. At
+  `00ed8d4fc9`, macOS arm64, run
+  `RUST_MIN_STACK=67108864 cargo nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast -E 'test(nonzero_divisor_certificate) | test(cyclic_byte_literal_calls) | test(scalar_block_invariant) | test(structural_scalar_store)'`.
+  `guarded_field_divisor_remains_valid_until_loop_exit` publishes, reload-verifies
+  and interprets three iterations plus exit despite clearing the divisor on the
+  exit backedge; leaving its guard live rejects both fresh production and old
+  proof replay. This is dependency progress, not decimal/native acceptance.
+  A local SSA feasibility probe established the three candidate clauses
+  `(p < 3 -> place >= 1)`, `(p < 2 -> place >= 10)`,
+  `(p < 1 -> place >= 100)` initially and derived division safety, but could
+  not prove any of their three preservation obligations from actual wrapping
+  add/divide equations. Coordinate the missing checked arithmetic bridge with
+  **PROOF-KERNEL-CORE** before synthesizing that strengthening; do not substitute
+  exact arithmetic or enumerate loop states. The unchanged decimal loop remains
+  the next source acceptance, followed by the native customer.
   Indexed byte-field writes still need composed-Unit closure coverage.
 
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
