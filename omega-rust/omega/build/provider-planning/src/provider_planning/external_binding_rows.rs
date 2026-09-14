@@ -159,10 +159,11 @@ fn extract_external_binding_rows_for_scope(
             // because their selected realization is compiler-owned.
             if matches!(&binding, ExternalBindingKind::CompilerIntrinsic { .. })
                 && typed.operators().iter().any(|operator| {
-                    operator.is_boundary
-                        && typed_trees::operator::boundary_operator_requirement_identity(
-                            typed, operator,
-                        ) == plan.schema.trait_name
+                    crate::service_schema::schema_binds_exact_boundary_operator(
+                        typed,
+                        &plan.schema,
+                        operator,
+                    )
                 })
             {
                 continue;
@@ -189,6 +190,7 @@ fn extract_external_binding_rows_for_scope(
                         typed,
                         native_target,
                         &plan.schema.trait_name,
+                        plan.schema.trait_package_identity,
                         &row.method,
                         &row.requirement_identity,
                         policy,
@@ -281,9 +283,11 @@ fn selected_source_boundary_entry_plan(
         .operators()
         .iter()
         .filter(|operator| {
-            operator.is_boundary
-                && typed_trees::operator::boundary_operator_requirement_identity(typed, operator)
-                    == plan.schema.trait_name
+            crate::service_schema::schema_binds_exact_boundary_operator(
+                typed,
+                &plan.schema,
+                operator,
+            )
         })
         .collect::<Vec<_>>();
     if !schema_operators.is_empty() {
@@ -372,7 +376,11 @@ fn selected_source_boundary_entry_plan(
         .traits()
         .iter()
         .filter(|definition| {
-            definition.is_boundary && definition.name.as_str() == plan.schema.trait_name
+            crate::service_schema::schema_binds_exact_boundary_trait(
+                typed,
+                &plan.schema,
+                definition,
+            )
         })
         .collect::<Vec<_>>();
     let [schema_owner] = schema_owners.as_slice() else {
@@ -386,7 +394,11 @@ fn selected_source_boundary_entry_plan(
     let requirement_owners = typed
         .traits()
         .iter()
-        .filter(|definition| definition.name.as_str() == method.requirement_owner)
+        .filter(|definition| {
+            definition.name.as_str() == method.requirement_owner
+                && typed.symbols.symbol_package_identity(definition.symbol)
+                    == method.requirement_owner_package_identity
+        })
         .collect::<Vec<_>>();
     let [requirement_owner] = requirement_owners.as_slice() else {
         return Err(Diagnostic::error(format!(

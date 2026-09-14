@@ -432,9 +432,15 @@ fn resolve_float_intrinsic_call(
             plan.name,
         )));
     };
+    let operator_package = checked
+        .typed
+        .symbols
+        .symbol_package_identity(operator.symbol);
     if plan.schema.trait_name != overload_identity
+        || plan.schema.trait_package_identity != operator_package
         || method.name != "realize"
         || method.requirement_owner != overload_identity
+        || method.requirement_owner_package_identity != operator_package
         || method.requirement_identity != overload_identity
         || !plan.schema.row_binds_method(row, method)
     {
@@ -674,9 +680,12 @@ fn selected_compiler_intrinsic_realization(
             plan.name,
         )));
     };
+    let operator_package = typed.symbols.symbol_package_identity(operator.symbol);
     if plan.schema.trait_name != overload_identity
+        || plan.schema.trait_package_identity != operator_package
         || method.name != "realize"
         || method.requirement_owner != overload_identity
+        || method.requirement_owner_package_identity != operator_package
         || method.requirement_identity != overload_identity
         || row.requirement_identity != overload_identity
         || !plan.schema.row_binds_method(row, method)

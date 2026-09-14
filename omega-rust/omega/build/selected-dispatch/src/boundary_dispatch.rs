@@ -821,9 +821,11 @@ fn resolve_selected_adapter_row(
         return Ok(Vec::new());
     };
     if typed.operators().iter().any(|operator| {
-        operator.is_boundary
-            && typed_trees::operator::boundary_operator_requirement_identity(typed, operator)
-                == plan.schema.trait_name
+        provider_planning::service_schema::schema_binds_exact_boundary_operator(
+            typed,
+            &plan.schema,
+            operator,
+        )
     }) {
         return Ok(Vec::new());
     }
@@ -849,9 +851,18 @@ fn resolve_selected_adapter_row(
         )));
     };
 
-    let receiver_trait = exact_boundary_trait(typed, &plan.schema.trait_name, "selected schema")?;
-    let requirement_owner =
-        exact_boundary_trait(typed, &method.requirement_owner, "requirement owner")?;
+    let receiver_trait = exact_boundary_trait(
+        typed,
+        &plan.schema.trait_name,
+        plan.schema.trait_package_identity,
+        "selected schema",
+    )?;
+    let requirement_owner = exact_boundary_trait(
+        typed,
+        &method.requirement_owner,
+        method.requirement_owner_package_identity,
+        "requirement owner",
+    )?;
     let signatures = typed
         .trait_machine_signatures(requirement_owner)
         .iter()
@@ -1246,6 +1257,7 @@ fn exact_conformance_requirement_identity(
 fn exact_boundary_trait<'typed>(
     typed: &'typed TypedTrees,
     name: &str,
+    package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     role: &str,
 ) -> Result<&'typed typed_trees::trait_definition::TraitDefinition, Diagnostic> {
     if name.is_empty() {
@@ -1253,10 +1265,16 @@ fn exact_boundary_trait<'typed>(
             "selected checked-adapter {role} has no canonical identity",
         )));
     }
+    // Trait names are package-blind; the retained package identity is the
+    // only exact join against same-spelled declarations in other packages.
     let definitions = typed
         .traits()
         .iter()
-        .filter(|definition| definition.is_boundary && definition.name.as_str() == name)
+        .filter(|definition| {
+            definition.is_boundary
+                && definition.name.as_str() == name
+                && typed.symbols.symbol_package_identity(definition.symbol) == package_identity
+        })
         .collect::<Vec<_>>();
     let [definition] = definitions.as_slice() else {
         return Err(Diagnostic::error(format!(

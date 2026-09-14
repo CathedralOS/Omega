@@ -278,7 +278,7 @@ pub fn named_statement_call_candidates<'program>(
 /// requirement such as the f32 or f64 overload of `Float::add`.
 pub fn resolve_satisfied_boundary_operator<'program>(
     program: &'program TypedTrees,
-    machine: &crate::machine::Machine,
+    machine: &'program crate::machine::Machine,
     namespace: &str,
     requirement: &str,
 ) -> Option<&'program OperatorDefinition> {
@@ -290,11 +290,77 @@ pub fn resolve_satisfied_boundary_operator<'program>(
 /// identical, while `boundary_only` is deliberately false.
 pub fn resolve_satisfied_checked_operator<'program>(
     program: &'program TypedTrees,
-    machine: &crate::machine::Machine,
+    machine: &'program crate::machine::Machine,
     namespace: &str,
     requirement: &str,
 ) -> Option<&'program OperatorDefinition> {
     resolve_satisfied_operator(program, machine, namespace, requirement, false)
+}
+
+/// Conformance-aware counterpart to [`resolve_satisfied_boundary_operator`].
+///
+/// Path plus signature are not package-qualified: two packages may each
+/// declare an identically spelled and signed boundary operator, and their
+/// requirement identities are then equal too. The clause itself carries the
+/// exact joins -- `requirement_symbol` is the settled declaration selection
+/// once checking has run, and the satisfied owner declaration's package still
+/// disqualifies same-spelled foreign overloads before settlement.
+pub fn resolve_satisfied_boundary_operator_for_conformance<'program>(
+    program: &'program TypedTrees,
+    machine: &'program crate::machine::Machine,
+    conformance: &'program crate::machine::TraitConformance,
+) -> Option<&'program OperatorDefinition> {
+    resolve_satisfied_operator_for_conformance(program, machine, conformance, true)
+}
+
+/// Conformance-aware counterpart to [`resolve_satisfied_checked_operator`].
+/// See [`resolve_satisfied_boundary_operator_for_conformance`] for the exact
+/// join contract.
+pub fn resolve_satisfied_checked_operator_for_conformance<'program>(
+    program: &'program TypedTrees,
+    machine: &'program crate::machine::Machine,
+    conformance: &'program crate::machine::TraitConformance,
+) -> Option<&'program OperatorDefinition> {
+    resolve_satisfied_operator_for_conformance(program, machine, conformance, false)
+}
+
+fn resolve_satisfied_operator_for_conformance<'program>(
+    program: &'program TypedTrees,
+    machine: &'program crate::machine::Machine,
+    conformance: &'program crate::machine::TraitConformance,
+    boundary_only: bool,
+) -> Option<&'program OperatorDefinition> {
+    let requirement = conformance.requirement.as_ref()?;
+    let candidates = satisfied_operator_candidates(
+        program,
+        machine,
+        conformance.name.as_str(),
+        requirement.as_str(),
+        boundary_only,
+    )
+    .collect::<Vec<_>>();
+    // The settled requirement symbol is the exact checked selection. Replaying
+    // it through the signature predicate keeps drift fail-closed while never
+    // substituting a same-spelled declaration owned by another package.
+    if conformance.requirement_symbol.is_valid() {
+        return candidates
+            .into_iter()
+            .find(|operator| operator.symbol == conformance.requirement_symbol);
+    }
+    match candidates.as_slice() {
+        [only] => Some(*only),
+        _ => {
+            let owner_package = conformance
+                .symbol
+                .is_valid()
+                .then(|| program.symbols.symbol_package_identity(conformance.symbol))?;
+            let mut owned = candidates.into_iter().filter(|operator| {
+                program.symbols.symbol_package_identity(operator.symbol) == owner_package
+            });
+            let first = owned.next()?;
+            owned.next().is_none().then_some(first)
+        }
+    }
 }
 
 /// Resolve a concrete generic checked-body specialization through the exact
@@ -341,14 +407,35 @@ pub fn resolve_specialized_checked_operator_application<'program>(
 
 fn resolve_satisfied_operator<'program>(
     program: &'program TypedTrees,
-    machine: &crate::machine::Machine,
+    machine: &'program crate::machine::Machine,
     namespace: &str,
     requirement: &str,
     boundary_only: bool,
 ) -> Option<&'program OperatorDefinition> {
-    let state = program.machine_states(machine).first()?;
-    let actual_parameters = program.state_parameters(state);
-    let mut candidates = program.operators().iter().filter(|operator| {
+    let mut candidates =
+        satisfied_operator_candidates(program, machine, namespace, requirement, boundary_only);
+    let selected = candidates.next()?;
+    candidates.next().is_none().then_some(selected)
+}
+
+/// Every operator declaration whose path and alpha-renamed signature the
+/// machine's entry state could satisfy. The result is deliberately not
+/// package-disambiguated; callers holding a conformance clause must use
+/// [`resolve_satisfied_operator_for_conformance`] so the settled requirement
+/// symbol (or the satisfied owner package) joins the answer.
+fn satisfied_operator_candidates<'program>(
+    program: &'program TypedTrees,
+    machine: &'program crate::machine::Machine,
+    namespace: &str,
+    requirement: &str,
+    boundary_only: bool,
+) -> impl Iterator<Item = &'program OperatorDefinition> {
+    let state = program.machine_states(machine).first();
+    let actual_parameters = state.map(|state| program.state_parameters(state));
+    program.operators().iter().filter(move |operator| {
+        let (Some(state), Some(actual_parameters)) = (state, actual_parameters) else {
+            return false;
+        };
         if (boundary_only && !operator.is_boundary)
             || !operator_path_matches(operator, program, namespace, requirement)
         {
@@ -384,9 +471,7 @@ fn resolve_satisfied_operator<'program>(
                         operator.return_type,
                         &operator_binders,
                     ))
-    });
-    let selected = candidates.next()?;
-    candidates.next().is_none().then_some(selected)
+    })
 }
 
 /// Build one alpha-normalized relation between a realizing machine's static

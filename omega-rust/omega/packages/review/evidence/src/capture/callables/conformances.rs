@@ -207,18 +207,16 @@ pub(super) fn project_callable_conformances(
             }
             let external_operator = expected_external.is_some();
             let operator = if external_operator {
-                typed_trees::operator::resolve_satisfied_boundary_operator(
+                typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                     &compilation.typed,
                     machine,
-                    conformance.name.as_str(),
-                    requirement_name.as_str(),
+                    conformance,
                 )
             } else {
-                typed_trees::operator::resolve_satisfied_checked_operator(
+                typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                     &compilation.typed,
                     machine,
-                    conformance.name.as_str(),
-                    requirement_name.as_str(),
+                    conformance,
                 )
                 .or_else(|| {
                     typed_trees::operator::resolve_specialized_checked_operator_application(

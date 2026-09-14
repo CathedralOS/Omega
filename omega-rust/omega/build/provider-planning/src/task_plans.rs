@@ -584,13 +584,19 @@ fn selected_task_runtime_provider(
 ) -> Result<SelectedTaskRuntimeProviderFact, Vec<Diagnostic>> {
     let (requirement_owner, _, authored_requirement_identity) =
         exact_task_runtime_requirement(program, selection)?;
+    let requirement_owner_package = program
+        .typed
+        .symbols
+        .symbol_package_identity(requirement_owner.symbol);
     let matches = selected_provider_plans
         .plans()
         .iter()
         .filter(|plan| {
             plan.schema.trait_name == requirement_owner.name.as_str()
+                && plan.schema.trait_package_identity == requirement_owner_package
                 && plan.schema.methods.iter().any(|method| {
                     method.requirement_owner == requirement_owner.name.as_str()
+                        && method.requirement_owner_package_identity == requirement_owner_package
                         && method.requirement_identity == authored_requirement_identity
                 })
         })
@@ -613,6 +619,7 @@ fn selected_task_runtime_provider(
         .iter()
         .filter(|method| {
             method.requirement_owner == requirement_owner.name.as_str()
+                && method.requirement_owner_package_identity == requirement_owner_package
                 && method.requirement_identity == authored_requirement_identity
         })
         .collect::<Vec<_>>();

@@ -3470,3 +3470,63 @@ fn canonical_schema_rejects_duplicate_exact_carrier_arguments() {
             .contains("resolves to 2 exact carrier argument rows")
     );
 }
+
+#[test]
+fn canonical_schema_rejects_same_spelled_declarations_from_a_foreign_package() {
+    // Boundary-trait and boundary-operator canonical identities are both
+    // package-blind. A schema row carrying another package's identity must not
+    // rejoin to the same-spelled declaration retained by this package.
+    let foreign_package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x99; 32])
+        .expect("nonzero package identity");
+
+    let trait_source = r#"
+        boundary trait Readable {
+            machine read();
+        }
+
+        data Provider {}
+
+        machine Provider::read()
+        satisfies Readable::read {}
+    "#;
+    let (typed, plan) = derive_provider_fixture(trait_source);
+    let mut drifted = plan.clone();
+    drifted.schema.trait_package_identity = Some(foreign_package);
+    let diagnostic = exact_canonical_provider_schema(&typed, &drifted)
+        .expect_err("a same-spelled trait schema from another package must reject");
+    assert!(
+        diagnostic.message.contains("resolves to 0 canonical typed"),
+        "expected a zero-match canonical diagnostic, got {diagnostic:?}"
+    );
+    let diagnostics = validate_provider_plan_candidates(&typed, &[drifted]);
+    assert!(
+        !diagnostics.is_empty(),
+        "candidate validation must not replay a foreign-package schema"
+    );
+
+    let operator_source = r#"
+        data CheckedMath {}
+        boundary operator CheckedMath::offset_zero(value: i32) -> i32;
+
+        data CheckedMathProvider {}
+        machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+        satisfies CheckedMath::offset_zero
+        {
+            transition { _ -> (input) }
+        }
+    "#;
+    let (typed, plan) = derive_provider_fixture(operator_source);
+    let mut drifted = plan.clone();
+    drifted.schema.trait_package_identity = Some(foreign_package);
+    let diagnostic = exact_canonical_provider_schema(&typed, &drifted)
+        .expect_err("a same-spelled operator schema from another package must reject");
+    assert!(
+        diagnostic.message.contains("resolves to 0 canonical typed"),
+        "expected a zero-match canonical diagnostic, got {diagnostic:?}"
+    );
+    let diagnostics = validate_provider_plan_candidates(&typed, &[drifted]);
+    assert!(
+        !diagnostics.is_empty(),
+        "candidate validation must not replay a foreign-package operator schema"
+    );
+}

@@ -117,15 +117,12 @@ fn derive_satisfies_plans_with_optional_evaluated_bindings(
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
         let provider_type_symbol = provider_type_symbol(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
-            if clause.requirement.as_ref().is_some_and(|requirement| {
-                typed_trees::operator::resolve_satisfied_boundary_operator(
-                    typed,
-                    machine,
-                    clause.name.as_str(),
-                    requirement.as_str(),
+            if clause.requirement.is_some()
+                && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                    typed, machine, clause,
                 )
                 .is_some()
-            }) {
+            {
                 // Exact boundary-operator requirements use one overloaded
                 // signature per provider slot; derive them below rather than
                 // manufacturing an empty boundary-trait schema here.
@@ -588,12 +585,11 @@ fn derive_boundary_operator_plans_with_provenance(
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
-            let Some(operator) = typed_trees::operator::resolve_satisfied_boundary_operator(
-                typed,
-                machine,
-                clause.name.as_str(),
-                requirement.as_str(),
-            ) else {
+            let Some(operator) =
+                typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                    typed, machine, clause,
+                )
+            else {
                 continue;
             };
             let binding = match (machine.supply_mode, clause.external_binding) {
@@ -1127,16 +1123,11 @@ fn checked_adapter_has_exact_conformance(
     }
 
     let operator = typed.operators().iter().find(|operator| {
-        operator.is_boundary
-            && typed_trees::operator::boundary_operator_requirement_identity(typed, operator)
-                == plan.schema.trait_name
+        crate::service_schema::schema_binds_exact_boundary_operator(typed, &plan.schema, operator)
     });
     if let Some(operator) = operator {
         let identity =
             typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
-        let [namespace, requirement] = typed.operator_path_members(operator.name) else {
-            return false;
-        };
         return row.method == "realize"
             && row.requirement_identity == identity
             && typed
@@ -1144,14 +1135,10 @@ fn checked_adapter_has_exact_conformance(
                 .iter()
                 .any(|conformance| {
                     conformance.external_binding.is_none()
-                        && conformance.name.as_str() == namespace.as_str()
-                        && conformance.requirement.as_ref().map(|name| name.as_str())
-                            == Some(requirement.as_str())
-                        && typed_trees::operator::resolve_satisfied_checked_operator(
+                        && typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                             typed,
                             adapter,
-                            namespace.as_str(),
-                            requirement.as_str(),
+                            conformance,
                         )
                         .is_some_and(|resolved| resolved.symbol == operator.symbol)
                 });
@@ -1216,29 +1203,40 @@ pub(super) fn exact_canonical_provider_schema(
         )));
     }
 
+    // Every schema kind rejoins on the exact retained package identity: the
+    // readable schema name is deliberately package-blind, so same-spelled
+    // declarations in another package must not widen or satisfy the match.
     let trait_matches = typed
         .traits()
         .iter()
         .filter(|definition| {
-            definition.is_boundary && definition.name.as_str() == plan.schema.trait_name
+            crate::service_schema::schema_binds_exact_boundary_trait(
+                typed,
+                &plan.schema,
+                definition,
+            )
         })
         .collect::<Vec<_>>();
     let operator_matches = typed
         .operators()
         .iter()
         .filter(|operator| {
-            operator.is_boundary
-                && typed_trees::operator::boundary_operator_requirement_identity(typed, operator)
-                    == plan.schema.trait_name
+            crate::service_schema::schema_binds_exact_boundary_operator(
+                typed,
+                &plan.schema,
+                operator,
+            )
         })
         .collect::<Vec<_>>();
     let requirement_matches = typed
         .machines()
         .iter()
         .filter(|requirement| {
-            requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && crate::service_schema::from_typed_boundary_requirement(typed, requirement)
-                    .is_some_and(|schema| schema.trait_name == plan.schema.trait_name)
+            crate::service_schema::schema_binds_exact_boundary_requirement(
+                typed,
+                &plan.schema,
+                requirement,
+            )
         })
         .collect::<Vec<_>>();
 
@@ -1715,12 +1713,17 @@ pub(super) fn exact_checked_adapter_invocations(
             && typed
                 .normalized_machine_overload_identity(requirement)
                 .is_some_and(|identity| identity.identity() == method.requirement_identity)
+            && typed.symbols.symbol_package_identity(requirement.symbol)
+                == method.requirement_owner_package_identity
     });
     let boundaries = typed
         .traits()
         .iter()
         .filter(|definition| {
-            definition.is_boundary && definition.name.as_str() == method.requirement_owner
+            definition.is_boundary
+                && definition.name.as_str() == method.requirement_owner
+                && typed.symbols.symbol_package_identity(definition.symbol)
+                    == method.requirement_owner_package_identity
         })
         .collect::<Vec<_>>();
     let boundary = match (top_level_requirement, boundaries.as_slice()) {
@@ -1735,6 +1738,8 @@ pub(super) fn exact_checked_adapter_invocations(
                         && typed_trees::operator::boundary_operator_requirement_identity(
                             typed, operator,
                         ) == method.requirement_owner
+                        && typed.symbols.symbol_package_identity(operator.symbol)
+                            == method.requirement_owner_package_identity
                 })
                 .count();
             if operators == 1 {
@@ -2074,18 +2079,14 @@ fn exact_provider_row_conformance<'typed>(
                     ),
                 ) if requirement.symbol == requirement_symbol
             ),
-            ExactProviderRequirementKind::Operator => conformance
-                .requirement
-                .as_ref()
-                .and_then(|requirement| {
-                    typed_trees::operator::resolve_satisfied_boundary_operator(
-                        typed,
-                        realization,
-                        conformance.name.as_str(),
-                        requirement.as_str(),
-                    )
-                })
-                .is_some_and(|operator| operator.symbol == requirement_symbol),
+            ExactProviderRequirementKind::Operator => {
+                typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                    typed,
+                    realization,
+                    conformance,
+                )
+                .is_some_and(|operator| operator.symbol == requirement_symbol)
+            }
         })
         .collect::<Vec<_>>();
     let [conformance] = conformances.as_slice() else {
