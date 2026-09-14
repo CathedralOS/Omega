@@ -339,8 +339,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   no reload interval or stack slot, independently replayed through the
   post-allocation manifest ledger (codec 9) on all four targets
   (`runtime_rematerialization_pressure::loop_carried_rematerialization_replays_through_callable_publication`).
-  Remaining: coalescing, live-range splitting, and fixed/precolored
-  intervals.
+  Landed: home-assignment coalescing ranks legal candidates by the guaranteed
+  coalesces a still-unassigned constrained neighbor would lose, after
+  assigned-partner edges and partner votes, mirrored in independent replay and
+  the scan reference
+  (`copy_affinity_avoids_stealing_a_constrained_neighbors_guaranteed_home`).
+  Remaining: coalescing across split points, live-range splitting, and
+  fixed/precolored intervals on the default recovery path.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
   CFG families: red-zone policy, probing, unwind
