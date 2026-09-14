@@ -8,7 +8,7 @@ use semantic_vocabulary::{IntegerValue, ObligationId};
 use target::NativeTarget;
 
 use super::{
-    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, PairResultDisposition,
+    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, PairResultDisposition, PairUnitEffects,
     SELECTED_LOWERING_RULE_CATALOG, SelectedInstructionPairRule, enabled_pair_rules,
     resolve_selected_lowering_rules,
 };
@@ -113,6 +113,16 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         })
     );
 
+    // Every landed rule's rewrite is unit-effect isolated: no implicit unit
+    // uses or clobbers and no operand unit bindings beyond the declared
+    // result channel.
+    for entry in [add, subtract, compare] {
+        assert_eq!(
+            entry.payload().pair().unit_effects(),
+            PairUnitEffects::Isolated
+        );
+    }
+
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::EXACT_ADD_V1).collect::<Vec<_>>(),
         vec![SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12]
@@ -173,4 +183,46 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         compare_rule.immediate_constraint_key(&keys),
         Some(keys.compare_i64_immediate)
     );
+}
+
+#[test]
+fn declared_unit_effects_admit_the_real_immediate_rows() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        // A real physical unit from the target's condition-state view.
+        let unit = environment
+            .constraint(keys.compare_i64_immediate)
+            .unwrap()
+            .implicit_defs[0];
+
+        for rule in [
+            SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
+            SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
+            SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
+        ] {
+            let row = environment
+                .constraint(rule.immediate_constraint_key(&keys).unwrap())
+                .unwrap();
+            assert!(rule.unit_effects().admits_row_units(row));
+            assert!(
+                row.operands
+                    .iter()
+                    .all(|operand| rule.unit_effects().admits_operand(operand))
+            );
+
+            // Unit traffic beyond the declared result channel fails the
+            // declared contract: implicit uses, clobbers, and operand unit
+            // bindings each reject.
+            let mut with_use = row.clone();
+            with_use.implicit_uses.push(unit);
+            assert!(!rule.unit_effects().admits_row_units(&with_use));
+            let mut with_clobber = row.clone();
+            with_clobber.clobbers.push(unit);
+            assert!(!rule.unit_effects().admits_row_units(&with_clobber));
+            let mut decorated = row.clone();
+            decorated.operands[0].early_clobber = true;
+            assert!(!rule.unit_effects().admits_operand(&decorated.operands[0]));
+        }
+    }
 }

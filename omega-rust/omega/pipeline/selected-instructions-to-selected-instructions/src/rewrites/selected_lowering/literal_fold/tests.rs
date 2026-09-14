@@ -823,3 +823,68 @@ fn scalar_result_shape_on_a_flag_defining_consumer_is_rejected() {
         Err(LiteralFoldError::ConsumerMismatch { function: 0 })
     );
 }
+
+#[test]
+fn compare_fold_rejects_consumer_operands_carrying_unit_bindings() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.allocation_constraint_keys();
+
+    // The rewrite rebuilds the consumer's operands wholesale from the
+    // rewritten constraint row. An operand carrying a unit binding — a
+    // fixed view, an allocation tie, or an early clobber — would have that
+    // binding silently dropped, so the pair's declared unit-effect surface
+    // admits only undecorated consumer operands in the producer and the
+    // independent replay.
+    for mutation in 0..3 {
+        let inputs = staged_inputs(target);
+        let mut plan = inputs.selected.transformed().clone();
+        let operand = &mut plan.functions[0].blocks[0].instructions[1].operands[0];
+        match mutation {
+            0 => operand.fixed_view = Some(register_model::RegisterViewId(0)),
+            1 => operand.tied_to = Some(0),
+            2 => operand.early_clobber = true,
+            _ => unreachable!(),
+        }
+        let mut selected = inputs.selected.clone();
+        selected.transformed = Arc::new(plan);
+
+        assert_eq!(
+            fold_selected_incoming_literal(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                LiteralFoldPolicy::COMPARE_V1,
+                budget(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "mutation {mutation}"
+        );
+        assert_eq!(
+            validate_literal_fold(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                inputs.selected.plan().clone(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "mutation {mutation}"
+        );
+    }
+}

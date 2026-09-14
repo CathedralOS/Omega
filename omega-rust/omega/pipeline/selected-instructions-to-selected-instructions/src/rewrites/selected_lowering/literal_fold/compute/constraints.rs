@@ -55,16 +55,19 @@ pub(super) fn select_admitted_pairs<'a>(
 }
 
 /// Admit the rewritten row whose operand shape matches the rule's declared
-/// result channel: a scalar `Def` operand or implicit physical-unit defs.
+/// result channel and whose unit traffic satisfies the rule's declared
+/// unit-effect surface: a scalar `Def` operand or implicit physical-unit
+/// defs, with no implicit uses, clobbers, or operand unit bindings beyond it.
 fn validate_immediate_row(
     rule: SelectedInstructionPairRule,
     row: &RegisterInstructionConstraint,
 ) -> Result<(), LiteralFoldError> {
+    let unit_effects = rule.unit_effects();
     let clean = |operands: &[&register_model::RegisterOperandConstraint]| {
-        operands.iter().all(|operand| {
-            operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
-        }) && row.implicit_uses.is_empty()
-            && row.clobbers.is_empty()
+        operands
+            .iter()
+            .all(|operand| unit_effects.admits_operand(operand))
+            && unit_effects.admits_row_units(row)
     };
     match (rule.result(), row.operands.as_slice()) {
         // Scalar-result form: `result = left <op> immediate`.

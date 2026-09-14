@@ -133,6 +133,15 @@ pub(super) fn derive_action(
             });
         }
     };
+    // The rewrite rebuilds the consumer's operands from the rewritten
+    // constraint row; an operand carrying a unit binding would silently
+    // lose it, so the declared unit-effect surface admits only undecorated
+    // consumer operands.
+    if !pair.rule.unit_effects().admits_consumer(consumer) {
+        return Err(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        });
+    }
     let left = consumer.operands[0].virtual_register;
 
     Ok(LiteralFoldAction {
