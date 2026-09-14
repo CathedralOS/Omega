@@ -638,8 +638,8 @@ rows! {
     FORM_MATHEMATICAL_CORE => (
         "formation:mathematical-core",
         SharedFormation,
-        "the mathematical-integer term language: terms, typing, substitution, conversion, certificates, and inductive W-type formation with dependent elimination",
-        "mathematical terms are well-typed, bounded, and canonically formed before any judgment or normalization evaluates them",
+        "the mathematical-integer term language: universe-level expressions over the judgment's level parameters, terms, typing, substitution, conversion, universe-polymorphic certificates, and inductive W-type formation with dependent elimination",
+        "mathematical terms are well-typed, bounded, level-scope-checked, and canonically formed before any judgment or normalization evaluates them",
         &["formation:proposition-context"],
         &[pa!( "mathematical_core.rs"), pa!( "mathematical_core/term.rs"), pa!( "mathematical_core/typing.rs"), pa!( "mathematical_core/substitution.rs"), pa!( "mathematical_core/conversion.rs"), pa!( "mathematical_core/certificate.rs")]
     );
