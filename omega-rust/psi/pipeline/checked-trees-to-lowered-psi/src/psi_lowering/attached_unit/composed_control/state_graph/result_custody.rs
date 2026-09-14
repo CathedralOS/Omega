@@ -37,6 +37,51 @@ pub(super) fn result(
     }
 }
 
+/// Which role an authored local plays in an owned-selection receipt, if any.
+/// The destination's establishment and every source's residual death share the
+/// receipt's StateExit authority rather than ordinary Establish rows; locals
+/// outside any receipt keep their exact statement evidence.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum SelectionRole {
+    Destination,
+    Source,
+}
+
+pub(super) fn selection_role(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    local: symbols::SymbolHandle,
+    statement: u32,
+) -> Option<SelectionRole> {
+    checked
+        .facts
+        .flow
+        .ownership
+        .owned_selections
+        .iter()
+        .find_map(|(_, receipt)| {
+            if receipt.machine != machine
+                || receipt.state != state
+                || receipt.death != PermissionEventSource::StateExit
+            {
+                return None;
+            }
+            if receipt.destination == local && receipt.statement_ordinal == statement {
+                return Some(SelectionRole::Destination);
+            }
+            checked
+                .facts
+                .flow
+                .ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .iter()
+                .any(|source| source.symbol == local && source.statement_ordinal == statement)
+                .then_some(SelectionRole::Source)
+        })
+}
+
 /// Validate the complete roster, not a requirement to transfer on every branch.
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -77,19 +122,37 @@ pub(super) fn validate(
             unsupported("Unit graph copy local acquired ownership debt")
         };
     }
-    let mut expected = vec![(
-        PermissionEventKind::Establish,
-        PermissionEventSource::Statement {
-            statement_index: result.statement_index as usize,
-        },
-    )];
-    if result.multiplicity == Multiplicity::Affine {
+    let role = selection_role(
+        checked,
+        machine,
+        source.symbol,
+        local.symbol,
+        result.statement_index,
+    );
+    let mut expected = Vec::new();
+    if role != Some(SelectionRole::Destination) {
         expected.push((
+            PermissionEventKind::Establish,
+            PermissionEventSource::Statement {
+                statement_index: result.statement_index as usize,
+            },
+        ));
+    }
+    match role {
+        // The receipt's arm transfers establish the destination; its residual
+        // parameters, not the dead source place, carry each source's death.
+        Some(SelectionRole::Destination) => expected.push((
             PermissionEventKind::AffineDrop,
             PermissionEventSource::StateExit,
-        ));
-    } else {
-        return unsupported("Unit graph local requires an explicit linear disposition");
+        )),
+        Some(SelectionRole::Source) => {}
+        None if result.multiplicity == Multiplicity::Affine => expected.push((
+            PermissionEventKind::AffineDrop,
+            PermissionEventSource::StateExit,
+        )),
+        None => {
+            return unsupported("Unit graph local requires an explicit linear disposition");
+        }
     }
     for (statement_index, statement) in statements.iter().enumerate() {
         let StatementNode::Transition(transition) = statement else {
@@ -117,11 +180,16 @@ pub(super) fn validate(
             }
         }
     }
-    let provenance = PermissionProvenance::Established {
-        machine_symbol: machine,
-        state_symbol: source.symbol,
-        source: PermissionEventSource::Statement {
-            statement_index: result.statement_index as usize,
+    let provenance = match role {
+        // The destination keeps its receipt's Unknown provenance; its sources
+        // keep the ordinary establishment provenance of their own statements.
+        Some(SelectionRole::Destination) => PermissionProvenance::Unknown,
+        _ => PermissionProvenance::Established {
+            machine_symbol: machine,
+            state_symbol: source.symbol,
+            source: PermissionEventSource::Statement {
+                statement_index: result.statement_index as usize,
+            },
         },
     };
     if events().count() != expected.len() {
@@ -190,6 +258,18 @@ pub(super) fn local_discards(
             return unsupported("Unit graph edge precedes local establishment");
         }
         validate(checked, machine, source, local, result)?;
+        if selection_role(
+            checked,
+            machine,
+            source.symbol,
+            local.symbol,
+            result.statement_index,
+        ) == Some(SelectionRole::Source)
+        {
+            // The source's own place already died at the selection join; its
+            // residual parameter is disposed by the caller's splice roster.
+            continue;
+        }
         let transferred = edge.into_iter().flat_map(|edge| &edge.transfers).filter(|transfer| matches!(transfer.source,
             checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
                 if binding_ordinal == result.binding_ordinal)).count();
@@ -201,4 +281,83 @@ pub(super) fn local_discards(
         }
     }
     Ok(discards)
+}
+
+/// Rejoin the owned-selection frontier to one ordinary successor's cleanup
+/// edge. The roster keeps the same reverse-establishment order as the return
+/// splice: source rows stay unflagged so `selection_return_discards` can
+/// substitute each residual parameter at its own positional slot, and every
+/// other live result flags whether this edge still owns it.
+pub(super) fn selection_edge_discards(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    edge: &CheckedStructuralControlSuccessorPlan,
+    operations: &OperationBuffer,
+    evaluation: &crate::psi_lowering::attached_unit::argument_evaluation::Evaluation,
+) -> Result<Vec<PlaceId>, LoweringError> {
+    let statements = checked.statement_table.statements(source.statement_nodes);
+    // A discarded structural result pairs with its call's cleanup continuation
+    // rather than an authored local; that continuation already proves disposal.
+    let cleanup_discards =
+        state
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                    affine_discards, ..
+                } => {
+                    Some(affine_discards.iter().filter_map(|discard| {
+                        match discard.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => Some(binding_ordinal),
+                    _ => None,
+                }
+                    }))
+                }
+                _ => None,
+            })
+            .flatten()
+            .collect::<Vec<u32>>();
+    let mut roots = Vec::new();
+    for result in state.operations.iter().rev().filter_map(result) {
+        if cleanup_discards.contains(&result.binding_ordinal) {
+            continue;
+        }
+        let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
+        else {
+            return unsupported("Unit graph edge result has no authored local");
+        };
+        if result.statement_index >= edge.statement_ordinal {
+            return unsupported("Unit graph edge precedes local establishment");
+        }
+        let place = case_emission::result(state, result.binding_ordinal, operations)?.place;
+        let role = selection_role(
+            checked,
+            machine,
+            source.symbol,
+            local.symbol,
+            result.statement_index,
+        );
+        validate(checked, machine, source, local, result)?;
+        let transferred = edge
+            .transfers
+            .iter()
+            .filter(|transfer| {
+                matches!(transfer.source,
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
+                        if binding_ordinal == result.binding_ordinal)
+            })
+            .count();
+        if transferred > 1 || (role == Some(SelectionRole::Source) && transferred != 0) {
+            return unsupported("Unit graph edge duplicates local ownership");
+        }
+        let dies = role != Some(SelectionRole::Source)
+            && result.multiplicity == Multiplicity::Affine
+            && transferred == 0;
+        roots.push((place, dies));
+    }
+    evaluation.selection_return_discards(roots)
 }

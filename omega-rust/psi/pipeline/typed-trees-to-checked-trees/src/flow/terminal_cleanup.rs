@@ -453,17 +453,39 @@ pub(super) fn state_exit_result_locals(
         {
             continue;
         }
-        let PermissionProvenance::Established {
-            machine_symbol,
-            state_symbol,
-            source: PermissionEventSource::Statement { statement_index },
-        } = drop.provenance
-        else {
-            return None;
+        // An owned selection destination is established by its receipt's arm
+        // transfers, not an ordinary Establish row; the drop keeps that
+        // receipt's Unknown provenance. Other locals keep their exact
+        // statement establishment.
+        let (statement_index, selection_destination) = match drop.provenance {
+            PermissionProvenance::Established {
+                machine_symbol,
+                state_symbol,
+                source: PermissionEventSource::Statement { statement_index },
+            } => {
+                if machine_symbol != machine.symbol || state_symbol != state.symbol {
+                    return None;
+                }
+                (statement_index, false)
+            }
+            PermissionProvenance::Unknown => {
+                let receipt = facts
+                    .flow
+                    .ownership
+                    .owned_selections
+                    .iter()
+                    .map(|(_, receipt)| receipt)
+                    .find(|receipt| {
+                        receipt.machine == machine.symbol
+                            && receipt.state == state.symbol
+                            && receipt.destination == symbol
+                            && receipt.death == PermissionEventSource::StateExit
+                    })?;
+                (receipt.statement_ordinal as usize, true)
+            }
+            _ => return None,
         };
-        if machine_symbol != machine.symbol
-            || state_symbol != state.symbol
-            || drop.multiplicity != Multiplicity::Affine
+        if drop.multiplicity != Multiplicity::Affine
             || drop.access != PermissionAccess::Owned
             || drop.claim_identity != PermissionClaimIdentity::Unknown
             || drop.obligation_live
@@ -502,18 +524,20 @@ pub(super) fn state_exit_result_locals(
                 && !event.obligation_live
                 && event.segments.is_empty()
         };
-        let mut establishments = permissions.permissions.iter().filter(|(_, event)| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.root == drop.root
-                && event.kind == PermissionEventKind::Establish
-        });
-        let (_, establish) = establishments.next()?;
-        if establishments.next().is_some()
-            || !exact(establish)
-            || establish.source != (PermissionEventSource::Statement { statement_index })
-        {
-            return None;
+        if !selection_destination {
+            let mut establishments = permissions.permissions.iter().filter(|(_, event)| {
+                event.machine_symbol == machine.symbol
+                    && event.state_symbol == state.symbol
+                    && event.root == drop.root
+                    && event.kind == PermissionEventKind::Establish
+            });
+            let (_, establish) = establishments.next()?;
+            if establishments.next().is_some()
+                || !exact(establish)
+                || establish.source != (PermissionEventSource::Statement { statement_index })
+            {
+                return None;
+            }
         }
         if statements[..=statement_index]
             .iter()

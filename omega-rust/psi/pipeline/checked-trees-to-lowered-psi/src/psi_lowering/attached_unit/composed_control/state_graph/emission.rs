@@ -334,7 +334,7 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
             // retain their exact local remainder until selected operands finish.
             let trivial_affine_discards = if case_edge {
                 Vec::new()
-            } else {
+            } else if evaluation.selection_cleanups.is_empty() {
                 result_custody::local_discards(
                     checked,
                     plan.machine,
@@ -348,6 +348,19 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
                     Ok(evaluation.current_structural_place(result.place))
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?
+            } else {
+                // An owned selection's residual and transported parameters die
+                // or transfer per edge; the receipt's cleanup correspondence
+                // substitutes each source's positional row exactly.
+                result_custody::selection_edge_discards(
+                    checked,
+                    plan.machine,
+                    &admitted.source_states[position],
+                    state,
+                    edge,
+                    &operations,
+                    &evaluation,
+                )?
             };
             operations.byte_lengths = inherited_lengths.clone();
             let target = plan
@@ -401,11 +414,11 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
                         continue;
                     }
                     let place = match transfer.source {
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => case_emission::result(state, binding_ordinal, &operations)?.place,
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => evaluation.current_structural_place(case_emission::result(state, binding_ordinal, &operations)?.place),
                             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
-                                state_parameters.get(index as usize).ok_or(
+                                evaluation.current_structural_place(state_parameters.get(index as usize).ok_or(
                                     LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
-                                )?.place
+                                )?.place)
                             }
                             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { parameter_index, expression } => {
                                 let destination = place_id(allocate_dense(&mut catalogs.next_place)?);
@@ -746,7 +759,7 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
             }
         }
         if !is_guarded_return && !evaluation.selection_cleanups.is_empty() {
-            let discards = match &mut terminator {
+            match &mut terminator {
                 Terminator::ReturnStructural {
                     trivial_affine_discards,
                     ..
@@ -754,39 +767,45 @@ pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
                 | Terminator::ReturnUnit {
                     trivial_affine_discards,
                     ..
-                } => trivial_affine_discards,
+                } => {
+                    let discards = trivial_affine_discards;
+                    let mut local_discards = Vec::new();
+                    for operation in state.operations.iter().rev() {
+                        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                            result,
+                            discard_result_on_return,
+                            ..
+                        }
+                        | CheckedUnitEffectOperationPlan::StructuralCall {
+                            result,
+                            discard_result_on_return,
+                            ..
+                        }
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                            result,
+                            discard_result_on_return,
+                            ..
+                        } = operation
+                        {
+                            local_discards.push((
+                                case_emission::result(state, result.binding_ordinal, &operations)?
+                                    .place,
+                                *discard_result_on_return,
+                            ));
+                        }
+                    }
+                    local_discards.extend(discards.iter().map(|place| (*place, true)));
+                    *discards = evaluation.selection_return_discards(local_discards)?;
+                }
+                // Ordinary successors already partitioned each edge's residual
+                // custody inside `successor`; no global return splice applies.
+                Terminator::Jump { .. } | Terminator::Conditional { .. } => {}
                 _ => {
                     return unsupported(
                         "owned selection residuals crossing authored states require retained cleanup transfer correspondence",
                     );
                 }
-            };
-            let mut local_discards = Vec::new();
-            for operation in state.operations.iter().rev() {
-                if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result,
-                    discard_result_on_return,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::StructuralCall {
-                    result,
-                    discard_result_on_return,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    result,
-                    discard_result_on_return,
-                    ..
-                } = operation
-                {
-                    local_discards.push((
-                        case_emission::result(state, result.binding_ordinal, &operations)?.place,
-                        *discard_result_on_return,
-                    ));
-                }
             }
-            local_discards.extend(discards.iter().map(|place| (*place, true)));
-            *discards = evaluation.selection_return_discards(local_discards)?;
         }
         if let Some(rank) = current_rank {
             if matches!(

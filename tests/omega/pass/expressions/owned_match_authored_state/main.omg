@@ -1,0 +1,38 @@
+// PASS canary: owned match sources inside an authored state edge. The match
+// selects one live owner while an interleaved owner stays live; the selected
+// result and the interleaved owner cross the transition into the successor's
+// owned parameters, and the displaced source dies on the selected edge.
+
+boundary trait Sink { machine record(value: u64); }
+
+data Choice {
+    case Empty;
+    case Some(value: u32);
+}
+
+data Marker { tag: u64; }
+
+data Main {}
+
+machine Main::main(selected: bool, tag: u64) reaches Sink {
+    let left: Choice = Choice::Some { value: 37 };
+    let marker: Marker = Marker { tag: tag };
+    let right: Choice = Choice::Empty;
+    let result: Choice = match selected {
+        true -> left,
+        false -> right
+    };
+    let observed: bool = result in Choice::Some;
+    transition observed {
+        true -> kept(result, marker)
+        false -> kept(result, marker)
+    }
+    state kept(result: Choice, marker: Marker) {
+        let bonus: u64 = match result in Choice::Some {
+            true -> 1u64,
+            false -> 2u64
+        };
+        Sink::record(marker.tag);
+        Sink::record(bonus);
+    }
+}
