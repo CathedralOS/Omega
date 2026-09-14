@@ -45,9 +45,10 @@ pub(super) fn validate(
                             parameter_index: 0,
                         },
                     value,
+                    path,
                 },
             ],
-        ) => (returned, Some(value)),
+        ) if path.is_empty() => (returned, Some(value)),
         _ => {
             return unsupported(
                 "scalar return effect roster omits or duplicates its authored primitive store",
@@ -275,6 +276,7 @@ pub(super) fn validate(
             plan.state,
             0,
             destination,
+            &[],
             value,
         )?;
     }

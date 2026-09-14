@@ -42,6 +42,8 @@ const VAL_CASE_MEMBERSHIP: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case_membership.rs";
 const VAL_PRIMITIVE_STORAGE: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/primitive_storage.rs";
+const TS_PRIMITIVE_PLACE: &str =
+    "omega-rust/psi/semantics/terminal-semantics/src/primitive_place.rs";
 const VAL_REFERENCES: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/references.rs";
 const VAL_STRUCTURAL_OPS: &str =
@@ -171,7 +173,7 @@ static OP_ESTABLISH_PRIMITIVE_LOCAL: TrustedSurfaceEntry = entry(
 );
 static OP_PRIMITIVE_SCALAR_READ: TrustedSurfaceEntry = entry(
     "operation:primitive-scalar-read",
-    "a validated scalar read of an initialized primitive place",
+    "a readable live root and exact canonical relevant-field/fixed-index path to initialized primitive storage",
     "the read observation's local equation where the schema declares one",
     EFFECT_DEPS,
     &[
@@ -181,6 +183,7 @@ static OP_PRIMITIVE_SCALAR_READ: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_PRIMITIVE_STORAGE,
+        TS_PRIMITIVE_PLACE,
     ],
 );
 static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
@@ -192,7 +195,7 @@ static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
 );
 static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     "operation:write-only-primitive-store",
-    "a validated primitive store of a value into a destination place",
+    "a writable live root, canonical relevant-field/fixed-index primitive path, and exactly typed dominating scalar value",
     "the store observation; every proposition observing the destination is invalidated",
     &[
         "fact:structural-effect-observation",
@@ -206,6 +209,7 @@ static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_PRIMITIVE_STORAGE,
+        TS_PRIMITIVE_PLACE,
     ],
 );
 static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(

@@ -125,7 +125,12 @@ pub(super) fn store_type(
     machine: &TerminalMachine,
     operation: OperationId,
     place: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
 ) -> Result<ScalarType, ModuleError> {
+    if !path.is_empty() {
+        return projected_type(module, machine, place, path, true)
+            .ok_or(ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch { operation, place });
+    }
     let structural_type = parameter_type(machine, place, true)
         .or_else(|| local_result(machine, place).map(|result| result.structural_type))
         .ok_or(ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch { operation, place })?;
@@ -142,12 +147,92 @@ pub(super) fn read_type(
     machine: &TerminalMachine,
     operation: OperationId,
     place: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
 ) -> Result<ScalarType, ModuleError> {
     let invalid = || ModuleError::InvalidPrimitiveScalarRead { operation, place };
+    if !path.is_empty() {
+        return projected_type(module, machine, place, path, false).ok_or_else(invalid);
+    }
     let structural_type = parameter_type(machine, place, false)
         .or_else(|| local_result(machine, place).map(|result| result.structural_type))
         .ok_or_else(invalid)?;
     scalar_type(module, structural_type).ok_or_else(invalid)
+}
+
+fn projected_type(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    writing: bool,
+) -> Option<ScalarType> {
+    let signature = super::structural_result_contracts::source_signature(machine, place)?;
+    if !matches!(
+        signature.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !signature.qualifications.is_empty()
+        || !signature.projected_qualifications.is_empty()
+        || machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == place)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
+    {
+        return None;
+    }
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == place)
+    {
+        let allowed = if writing {
+            matches!(
+                parameter.access,
+                StructuralAccess::Owned
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            )
+        } else {
+            matches!(
+                parameter.access,
+                StructuralAccess::Owned
+                    | StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+            )
+        };
+        if !allowed {
+            return None;
+        }
+    } else {
+        let result = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == place)?;
+        if !result.claims.is_empty() {
+            return None;
+        }
+        if super::record::completed_source(module, machine, place).is_none()
+            && !super::scalar_array::plain_return_source(module, machine, place)
+        {
+            return None;
+        }
+    }
+    terminal_semantics::primitive_place_type(
+        module.structural_types.iter(),
+        signature.structural_type,
+        path,
+    )
 }
 
 pub(super) fn validate_uses(
@@ -166,7 +251,7 @@ pub(super) fn validate_uses(
         }
     };
     match &operation.kind {
-        OperationKind::PrimitiveScalarRead { source } => require_available(*source)?,
+        OperationKind::PrimitiveScalarRead { source, .. } => require_available(*source)?,
         OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
             require_available(*destination)?
         }

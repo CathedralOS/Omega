@@ -33,6 +33,7 @@ fn fixture(runtime: bool) -> AbstractOperationPlan {
     }
     operations.extend([
         AbstractOperation::WriteOnlyPrimitiveStore {
+            path: Vec::new(),
             psi_operation: OperationId::new(2).unwrap(),
             destination: destination.clone(),
             value: AbstractResult {

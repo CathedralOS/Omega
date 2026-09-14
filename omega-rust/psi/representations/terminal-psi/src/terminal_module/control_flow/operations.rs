@@ -156,10 +156,12 @@ pub enum OperationKind {
     EstablishPrimitiveLocal {
         value: ValueId,
     },
-    /// Observe one initialized primitive referent through owned or readable
-    /// access. Write-only custody cannot authorize this observation.
+    /// Observe an initialized primitive leaf through an exact static field/index
+    /// path. An empty path observes the whole primitive root. Root authority is
+    /// retained; write-only custody cannot authorize this observation.
     PrimitiveScalarRead {
         source: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
     },
     /// Observe current live byte length, not capacity or stored byte content.
     StructuralByteSequenceFieldLength {
@@ -178,13 +180,13 @@ pub enum OperationKind {
         length: ValueId,
         obligation: ObligationId,
     },
-    /// Store one already-defined scalar value through one exact whole-root
-    /// mutable/write-only structural parameter or initialized primitive local.
-    /// The operation does not
-    /// observe the previous referent value, and structural custody is
-    /// preserved.
+    /// Replace one primitive leaf selected by a canonical static field/index
+    /// path without observing old contents. Empty paths retain whole primitive
+    /// parameter/local behavior; nonempty paths retain the original root's
+    /// writable access, whole-value custody and initialization obligations.
     WriteOnlyPrimitiveStore {
         destination: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
         value: ValueId,
     },
     /// Replace a bounded byte field's live prefix and live length from an

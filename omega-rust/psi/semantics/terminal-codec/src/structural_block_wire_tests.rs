@@ -156,7 +156,10 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
                     id: id(47),
                     scalar_type,
                 }),
-                kind: OperationKind::PrimitiveScalarRead { source: id(23) },
+                kind: OperationKind::PrimitiveScalarRead {
+                    path: Vec::new(),
+                    source: id(23),
+                },
             },
         ];
         machine.blocks[0].terminator = Terminator::Return {

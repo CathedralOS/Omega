@@ -578,6 +578,14 @@ The [access contract](../../../../wiki/spec/terminal-psi/structural_access.md)
 owns reference identity and non-observing writes. Current source support is
 bounded: claim-free unrestricted field-path subloans, literal-indexed material
 record receivers, and plain-record or whole-primitive scalar replacement.
+Literal-indexed primitive array leaves use the existing primitive read/store
+operations with canonical field/index paths. Nested fixed arrays below borrowed
+parameters or receivers retain each bound and their original backing. Checked
+source replay validates the exact authored path and ordinary scalar operands;
+it does not manufacture a final field identity for an array element. Field-only
+reads and stores keep their existing operation and bounded-field contracts.
+Runtime indices, policy-qualified element replacement, and indexed owned-local
+source/native closure remain separate dependencies.
 Mutable-to-write-only attenuation preserves root access and independently
 records the callee's weaker access. Shared projections preserve unrestricted
 multiplicity and cannot originate from write-only roots.

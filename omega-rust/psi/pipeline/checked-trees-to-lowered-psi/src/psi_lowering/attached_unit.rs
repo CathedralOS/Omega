@@ -3339,50 +3339,44 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index,
                     destination,
+                    path,
                     value,
                 } => {
-                    let (destination, destination_type) = match destination {
+                    let destination = match destination {
                         checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                             parameter_index,
                         } => {
                             let parameter = parameters.get(*parameter_index as usize).ok_or(
                                 LoweringError::Unsupported("primitive store parameter is absent"),
                             )?;
-                            if !matches!(
-                                parameter.access,
-                                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                            ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                                || !parameter.qualifications.is_empty()
-                            {
-                                return unsupported(
-                                    "primitive store parameter lost its exclusive custody",
-                                );
-                            }
-                            let declaration = structural_types
-                                .iter()
-                                .find(|declaration| declaration.id == parameter.structural_type)
-                                .ok_or(LoweringError::Unsupported(
-                                    "primitive store type is absent",
-                                ))?;
-                            let StructuralTypeShape::PrimitiveScalar(scalar_type) =
-                                declaration.shape
-                            else {
-                                return unsupported("primitive store destination is not primitive");
-                            };
-                            (parameter.place, scalar_type)
+                            crate::psi_lowering::primitive_store::parameter_destination(
+                                parameter,
+                                path,
+                                &structural_types,
+                            )?
                         }
                         checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } => {
+                            if !path.is_empty() {
+                                return unsupported(
+                                    "primitive local store has a projected destination",
+                                );
+                            }
                             let local = primitive_locals::find(&primitive_local_places, *symbol)?;
-                            (local.declaration.id, local.scalar_type)
+                            crate::psi_lowering::primitive_store::Destination {
+                                place: local.declaration.id,
+                                path: Vec::new(),
+                                scalar_type: local.scalar_type,
+                            }
                         }
                     };
-                    let value = evaluation.source_value(
+                    let kind = crate::psi_lowering::primitive_store::emit_assignment(
                         checked,
                         plan.machine,
                         plan.state,
                         *statement_index,
-                        CheckedScalarExpressionRole::AssignmentValue,
+                        destination,
                         value,
+                        &mut evaluation,
                         source_value_count,
                         &mut scalar_result_values,
                         &mut next_value_identity,
@@ -3391,16 +3385,8 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                         &mut operations,
                         &mut scalar_calls,
                     )?;
-                    if value.scalar_type != destination_type || !value.qualifications.is_empty() {
-                        return unsupported(
-                            "primitive store RHS differs from its destination carrier",
-                        );
-                    }
                     next_call_obligation = scalar_calls.next_obligation_identity;
-                    OperationKind::WriteOnlyPrimitiveStore {
-                        destination,
-                        value: value.id,
-                    }
+                    kind
                 }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
                     crate::psi_lowering::structural_byte_sequence_store::emit(

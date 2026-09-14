@@ -150,6 +150,7 @@ pub enum LegalizedScalarInstructionKind {
     },
     PrimitiveScalarRead {
         source: semantic_vocabulary::PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     },
     StructuralScalarFieldRead {
         source: terminal_psi::StructuralArgument,
@@ -168,10 +169,12 @@ pub enum LegalizedScalarInstructionKind {
         result: terminal_psi::StructuralOperationResult,
         layout: calling_conventions::ConventionalSumLayout,
     },
-    /// Non-observing replacement of the primitive root, without a fabricated field.
+    /// Non-observing primitive replacement with a reconstructed root-relative offset.
     WriteOnlyPrimitiveStore {
         destination: terminal_psi::StructuralParameterDeclaration,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         value: abstract_operations::AbstractResult,
+        byte_offset: u32,
         byte_size: u8,
     },
     /// Exact admitted hosted byte-output boundary, with its original i32 SSA input.

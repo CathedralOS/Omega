@@ -227,7 +227,7 @@ fn array_input_rejects_wrong_access_path_and_element_type() {
                     .get_mut(&execution.current_machine)
                     .unwrap()
                     .structural_parameters[0]
-                    .multiplicity = StructuralMultiplicity::Affine
+                    .multiplicity = StructuralMultiplicity::Linear
             }
             _ => unreachable!(),
         }

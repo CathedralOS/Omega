@@ -43,6 +43,7 @@ mod dynamic_composed_unit;
 mod fixed_array_boundary_providers;
 mod fixed_byte_array_views;
 mod guarded_scalar_returns;
+mod indexed_primitive_storage;
 mod literal_byte_extent;
 mod local_record_reads;
 mod preterminal_optimization;
@@ -2154,7 +2155,7 @@ fn direct_write_only_primitive_store_crosses_source_codec_and_verification() {
     ));
     assert!(matches!(
         store.kind,
-        OperationKind::WriteOnlyPrimitiveStore { destination, value }
+        OperationKind::WriteOnlyPrimitiveStore { destination, value, .. }
             if destination == callee_parameter.place && value == stored_value
     ));
     assert_eq!(store.result, OperationResult::Unit);
@@ -2221,7 +2222,7 @@ fn direct_write_only_boolean_store_crosses_source_codec_and_verification() {
     ));
     assert!(matches!(
         store.kind,
-        OperationKind::WriteOnlyPrimitiveStore { destination, value }
+        OperationKind::WriteOnlyPrimitiveStore { destination, value, .. }
             if destination == callee_parameter.place && value == stored_value
     ));
 
@@ -2273,7 +2274,7 @@ fn primitive_literal_store_retains_unused_scalar_parameters_and_signed_literal()
             ));
         }
         assert!(
-            matches!(store.kind, OperationKind::WriteOnlyPrimitiveStore { destination, value }
+            matches!(store.kind, OperationKind::WriteOnlyPrimitiveStore { destination, value, .. }
             if destination == machine.structural_parameters[0].place
                 && value == constant.result.expect_scalar().id)
         );
@@ -2331,7 +2332,7 @@ fn direct_write_only_ieee_float_store_crosses_source_codec_and_verification() {
     ));
     assert!(matches!(
         store.kind,
-        OperationKind::WriteOnlyPrimitiveStore { destination, value }
+        OperationKind::WriteOnlyPrimitiveStore { destination, value, .. }
             if destination == callee_parameter.place && value == stored_value
     ));
 
@@ -2369,7 +2370,7 @@ fn direct_write_only_fixed_integer_parameter_store_crosses_source_codec_and_veri
     };
     assert!(matches!(
         store.kind,
-        OperationKind::WriteOnlyPrimitiveStore { destination, value }
+        OperationKind::WriteOnlyPrimitiveStore { destination, value, .. }
             if destination == callee.structural_parameters[0].place
                 && value == replacement.id
     ));

@@ -36,10 +36,11 @@ fn primitive_store_scalar_return_retains_source_effect_and_borrow() {
         assert!(matches!(
             plan.effects.as_slice(),
             [CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                path: store_path,
                 statement_index: 0,
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 value: checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal }),
-            }] if literal.value_i64() == Some(0)
+            }] if store_path.is_empty() && literal.value_i64() == Some(0)
         ));
         // Scalar completion shares the ordinary operation owner. Its source
         // effect must remain before the separately established return value.

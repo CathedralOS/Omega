@@ -252,6 +252,7 @@ enum ReadKind {
     Local,
     Result,
     OwnedField(Vec<checked_trees::CheckedStructuralPredicatePathSegment>),
+    IndexedPrimitive(Vec<checked_trees::CheckedStructuralPredicatePathSegment>),
     CaseMembership {
         path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
         case: String,
@@ -432,6 +433,24 @@ fn collect_owned_field(
     path: &[usize],
     reads: &mut Vec<StorageReadOccurrence>,
 ) {
+    if field_path.iter().any(|segment| {
+        matches!(
+            segment,
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
+        )
+    }) {
+        reads.push((
+            path.to_vec(),
+            namespace
+                .structural
+                .get(parameter_position as usize)
+                .map(|parameter| parameter.symbol)
+                .unwrap_or_default(),
+            primitive,
+            ReadKind::IndexedPrimitive(field_path.to_vec()),
+        ));
+        return;
+    }
     // Nested, indexed, receiver and borrowed projections retain their existing owners.
     if !supported_mutable_parameter(primitive)
         || !matches!(field_path, [checked_trees::CheckedStructuralPredicatePathSegment::Field(_)])
@@ -698,6 +717,61 @@ fn collect_authored_storage_reads(
             )?;
         }
         ExpressionNode::Indexed(indexed) => {
+            let (machine, _) = authored_state(checked, state.symbol)?;
+            if let Some(primitive) = validation::declared_place_type_raw(
+                &checked.typed,
+                machine,
+                Some(state),
+                expression,
+            )
+            .and_then(|reference| {
+                let checked_trees::types::TypeReferenceNode::Named { symbol, name } =
+                    checked.type_reference_table.type_reference(reference)
+                else {
+                    return None;
+                };
+                (checked.symbols.builtin_type_atom(*symbol)?.symbol_name() == name.as_str())
+                    .then(|| checked.primitive_type_reference(reference))
+                    .flatten()
+            })
+            .filter(|primitive| supported_mutable_parameter(*primitive))
+                && let Ok(source) =
+                    crate::psi_lowering::call_source_custody::projected_receivers::store_destination(
+                        checked,
+                        machine.symbol,
+                        state.symbol,
+                        Some(scope.preceding_statements() as usize),
+                        expression,
+                    )
+            {
+                let field_path = source
+                    .path
+                    .iter()
+                    .map(|segment| match segment {
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+                            Ok(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                                identity.clone(),
+                            ))
+                        }
+                        checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Ok(
+                            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
+                                *index,
+                            ),
+                        ),
+                        _ => {
+                            unsupported("indexed primitive read has an unsupported case projection")
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                reads.push((
+                    path.clone(),
+                    source.root,
+                    primitive,
+                    ReadKind::IndexedPrimitive(field_path),
+                ));
+                active.pop();
+                return Ok(());
+            }
             path.push(0);
             collect_authored_storage_reads(
                 checked,

@@ -112,6 +112,7 @@ fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
             psi_operation,
             destination,
             value,
+            ..
         } = store
         else {
             panic!("store")
@@ -531,6 +532,7 @@ fn scalar_primitive_store_legalized_replay_rejects_effect_and_result_drift() {
                 destination,
                 value,
                 byte_size,
+                ..
             } = &mut row.kind
             else {
                 panic!("store")

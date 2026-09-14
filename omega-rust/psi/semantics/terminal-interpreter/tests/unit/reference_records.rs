@@ -97,6 +97,7 @@ fn record_reference_module() -> TerminalModule {
                 qualifications: Default::default(),
             }),
             kind: OperationKind::PrimitiveScalarRead {
+                path: Vec::new(),
                 source: place_id(91),
             },
         }],

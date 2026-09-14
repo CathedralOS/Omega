@@ -1230,11 +1230,74 @@ fn validate_operation_foundation(
             // The independent module verifier checks exact source custody and
             // literal establishment before encode or after decode.
         }
-        OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
+        OperationKind::WriteOnlyPrimitiveStore {
+            destination,
+            value,
+            path,
+        } => {
             if operation.result != OperationResult::Unit {
                 return malformed("write-only primitive store declares a non-Unit result");
             }
-            let destination_type = if let Some(parameter) = machine
+            let destination_type = if !path.is_empty() {
+                if let Some(parameter) = machine
+                    .structural_parameters
+                    .iter()
+                    .chain(
+                        machine
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.structural_parameters),
+                    )
+                    .find(|parameter| parameter.place == *destination)
+                {
+                    if !matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::Owned
+                            | terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    ) || !matches!(
+                        parameter.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    ) || !parameter.qualifications.is_empty()
+                        || !parameter.projected_qualifications.is_empty()
+                        || machine
+                            .entry_claims
+                            .iter()
+                            .any(|claim| claim.input == *destination)
+                        || machine
+                            .content_entry_claims
+                            .iter()
+                            .any(|claim| claim.input.root == *destination)
+                    {
+                        return malformed(
+                            "projected primitive store has invalid destination custody",
+                        );
+                    }
+                    parameter.structural_type
+                } else {
+                    let Some(result) = machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .filter_map(|producer| producer.result.structural())
+                        .find(|result| {
+                            result.place == *destination
+                                && result.claims.is_empty()
+                                && result.qualifications.is_empty()
+                                && result.projected_qualifications.is_empty()
+                                && matches!(
+                                    result.multiplicity,
+                                    StructuralMultiplicity::Unrestricted
+                                        | StructuralMultiplicity::Affine
+                                )
+                        })
+                    else {
+                        return malformed("projected primitive store has no owned root");
+                    };
+                    // Exact producer, liveness and reference custody belong to independent verification.
+                    result.structural_type
+                }
+            } else if let Some(parameter) = machine
                 .structural_parameters
                 .iter()
                 .find(|parameter| parameter.place == *destination)
@@ -1294,15 +1357,11 @@ fn validate_operation_foundation(
                 }
                 result.structural_type
             };
-            let Some(expected) = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == destination_type)
-                .and_then(|declaration| match declaration.shape {
-                    StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),
-                    _ => None,
-                })
-            else {
+            let Some(expected) = terminal_semantics::primitive_place_type(
+                module.structural_types.iter(),
+                destination_type,
+                path,
+            ) else {
                 return malformed("write-only primitive store requires a primitive-scalar root");
             };
             let actual = machine

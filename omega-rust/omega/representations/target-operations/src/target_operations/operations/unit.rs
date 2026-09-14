@@ -60,6 +60,7 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     },
     StructuralCaseMembership {
         psi_operation: OperationId,
@@ -115,11 +116,12 @@ pub enum TargetUnitOperation {
         result: ValueId,
         value: bool,
     },
-    /// One verifier-approved non-observing immediate replacement through an
-    /// exact whole-root mutable or write-only primitive parameter.
+    /// Non-observing primitive replacement through an exact mutable or write-only
+    /// root and declaration-identified static projection.
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,
         destination: StructuralParameterDeclaration,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         destination_type: StructuralTypeDeclaration,
         destination_placement: ValuePlacement,
         source: TargetUnitWriteOnlyPrimitiveStoreSource,

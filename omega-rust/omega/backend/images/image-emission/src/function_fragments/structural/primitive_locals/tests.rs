@@ -302,6 +302,7 @@ fn primitive_observation_requires_a_fresh_load_result() {
         scalar_type: selected.virtual_registers[0].scalar_type,
     };
     let read = AbstractOperation::PrimitiveScalarRead {
+        path: Vec::new(),
         psi_operation: operation,
         result,
         source: PlaceId::new(1).unwrap(),

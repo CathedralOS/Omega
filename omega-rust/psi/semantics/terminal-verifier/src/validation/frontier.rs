@@ -1225,6 +1225,12 @@ fn validate_owned_reads(
         _ => &[],
     };
     let observation = match operation.kind {
+        OperationKind::PrimitiveScalarRead { source, ref path } if !path.is_empty() => Some(source),
+        OperationKind::WriteOnlyPrimitiveStore {
+            destination,
+            ref path,
+            ..
+        } if !path.is_empty() => Some(destination),
         OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. } => Some(source),
         OperationKind::StructuralScalarFieldStore { destination, .. } => Some(destination),
@@ -1263,6 +1269,9 @@ fn validate_owned_reads(
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
             })
+            && !(super::scalar_array::plain_return_source(module, machine, *place)
+                && super::structural_result_contracts::source_signature(machine, *place)
+                    .is_some_and(|source| source.multiplicity == StructuralMultiplicity::Unrestricted))
             && (machine.structural_places.iter().any(|declaration| {
                 declaration.id == *place
                     && matches!(

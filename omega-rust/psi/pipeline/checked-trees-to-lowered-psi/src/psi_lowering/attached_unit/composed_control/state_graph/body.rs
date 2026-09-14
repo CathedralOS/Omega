@@ -276,6 +276,40 @@ pub(super) fn validate(
                 )?;
             }
             (
+                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    statement_index,
+                    destination,
+                    path,
+                    value,
+                },
+                StatementNode::Assignment(_),
+            ) => {
+                if *statement_index as usize != ordinal {
+                    return unsupported("Unit graph reordered a primitive store");
+                }
+                let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
+                    destination
+                else {
+                    return unsupported(
+                        "Unit graph primitive store has no retained parameter destination",
+                    );
+                };
+                let destination = state
+                    .structural_parameters
+                    .get(*parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph primitive store parameter is absent",
+                    ))?;
+                crate::psi_lowering::primitive_store::validate_assignment(
+                    checked,
+                    state.state,
+                    *statement_index,
+                    destination,
+                    path,
+                    value,
+                )?;
+            }
+            (
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
                 StatementNode::Assignment(assignment),
             ) => {

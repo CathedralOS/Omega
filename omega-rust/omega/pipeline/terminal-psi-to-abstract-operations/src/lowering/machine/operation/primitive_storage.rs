@@ -88,7 +88,7 @@ pub(super) fn lower(
                 value: AbstractResult { value, scalar_type },
             })
         }
-        OperationKind::PrimitiveScalarRead { source } => {
+        OperationKind::PrimitiveScalarRead { source, ref path } => {
             let invalid = || LoweringError::InvalidPrimitiveScalarRead(operation.id);
             let result = operation.result.scalar().ok_or_else(invalid)?;
             let identity = local(machine, source)
@@ -104,19 +104,25 @@ pub(super) fn lower(
                                     StructuralAccess::SharedBorrow
                                         | StructuralAccess::MutableBorrow
                                 )
-                                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                    || (!path.is_empty()
+                                        && parameter.multiplicity
+                                            == StructuralMultiplicity::Affine))
                                 && parameter.qualifications.is_empty()
                                 && parameter.projected_qualifications.is_empty()
                         })
                         .map(|parameter| parameter.structural_type)
                 })
                 .ok_or_else(invalid)?;
-            if scalar_type(types, identity) != Some(result.scalar_type) {
+            if terminal_semantics::primitive_place_type(types.iter(), identity, path)
+                != Some(result.scalar_type)
+            {
                 return Err(invalid());
             }
             Ok(AbstractOperation::PrimitiveScalarRead {
                 psi_operation: operation.id,
                 source,
+                path: path.clone(),
                 result: AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,

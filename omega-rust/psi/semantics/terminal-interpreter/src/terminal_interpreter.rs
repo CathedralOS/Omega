@@ -1222,8 +1222,8 @@ impl TerminalExecution {
                     OperationKind::EstablishPrimitiveLocal { value } => {
                         self.execute_primitive_establishment(operation, value)?;
                     }
-                    OperationKind::PrimitiveScalarRead { source } => {
-                        self.execute_primitive_read(operation, source)?;
+                    OperationKind::PrimitiveScalarRead { source, ref path } => {
+                        self.execute_primitive_read(operation, source, path)?;
                     }
                     OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
                         if operation.result != terminal_psi::OperationResult::Unit
@@ -1886,8 +1886,12 @@ impl TerminalExecution {
                         self.next_operation = 0;
                         continue;
                     }
-                    OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
-                        self.execute_primitive_store(operation, destination, value)?;
+                    OperationKind::WriteOnlyPrimitiveStore {
+                        destination,
+                        value,
+                        ref path,
+                    } => {
+                        self.execute_primitive_store(operation, destination, value, path)?;
                     }
                     OperationKind::StructuralScalarFieldStore {
                         destination,

@@ -32,6 +32,7 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
         },
         AbstractOperation::WriteOnlyPrimitiveStore {
             psi_operation: operation,
+            path: Vec::new(),
             destination: StructuralParameterDeclaration {
                 place: result.place,
                 position: 0,
@@ -60,6 +61,7 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
         },
         AbstractOperation::PrimitiveScalarRead {
             psi_operation: operation,
+            path: Vec::new(),
             result: scalar,
             source: result.place,
         },

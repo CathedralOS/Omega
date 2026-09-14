@@ -23,6 +23,7 @@ fn local_plan(reentry: bool) -> AbstractOperationPlan {
             scalar_type,
         },
         source: place,
+        path: Vec::new(),
     };
     let mut operations = vec![
         O::IntegerConstant {
@@ -320,6 +321,7 @@ fn calls_and_reentry_do_not_turn_local_reads_into_scalar_constants() {
             O::WriteOnlyPrimitiveStore {
                 psi_operation: id(35, OperationId::new),
                 destination: parameter,
+                path: Vec::new(),
                 value: AbstractResult {
                     value: id(34, ValueId::new),
                     scalar_type,

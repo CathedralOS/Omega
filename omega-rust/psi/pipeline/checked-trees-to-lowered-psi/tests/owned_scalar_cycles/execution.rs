@@ -88,9 +88,15 @@ fn execute(
     let store = support::operation(reset, |kind| {
         matches!(kind, OperationKind::WriteOnlyPrimitiveStore { .. })
     });
-    let OperationKind::WriteOnlyPrimitiveStore { destination, value } = store.kind else {
+    let OperationKind::WriteOnlyPrimitiveStore {
+        destination,
+        value,
+        ref path,
+    } = store.kind
+    else {
         unreachable!();
     };
+    assert!(path.is_empty());
     assert_eq!(destination, reset.structural_parameters[0].place);
     support::assert_constant(reset, value, 0);
     let returns = reset

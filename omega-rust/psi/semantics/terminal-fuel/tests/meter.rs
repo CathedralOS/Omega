@@ -82,6 +82,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
     for kind in [
         OperationKind::WriteOnlyPrimitiveStore {
             destination: place_id(1),
+            path: Vec::new(),
             value: value_id(1),
         },
         OperationKind::CallUnit {
@@ -256,6 +257,7 @@ fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
         }),
         kind: OperationKind::PrimitiveScalarRead {
             source: place_id(23),
+            path: Vec::new(),
         },
     };
     let mut meter = TerminalFuelMeter::with_allowance(0);

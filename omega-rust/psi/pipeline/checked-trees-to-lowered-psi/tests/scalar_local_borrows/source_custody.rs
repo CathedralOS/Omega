@@ -315,7 +315,10 @@ fn independent_verifier_rejects_local_place_tampering_after_valid_publication() 
             }
             for operation in &mut block.operations {
                 match &mut operation.kind {
-                    OperationKind::PrimitiveScalarRead { source } if mutation == "read source" => {
+                    OperationKind::PrimitiveScalarRead { source, path }
+                        if mutation == "read source" =>
+                    {
+                        assert!(path.is_empty());
                         assert_ne!(*source, foreign_place);
                         *source = foreign_place;
                         mutations += 1;

@@ -382,6 +382,7 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
             ..
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            path: store_path,
             statement_index: 1,
             destination:
                 checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
@@ -396,6 +397,7 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
     else {
         panic!("the caller stores the completed result, not its scalar input");
     };
+    assert!(store_path.is_empty());
     assert_eq!(plan.scalar_parameters[0].source_position, 1);
     assert_eq!(result.binding_ordinal, 0);
     assert!(claim_transfers.is_empty());

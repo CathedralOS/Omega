@@ -16,6 +16,76 @@ use terminal_psi::{
     StructuralPathSegment,
 };
 
+#[test]
+fn projected_primitive_publication_retains_path_and_requires_native_replay() {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let (mut function, mut target) = field_fixture(scalar);
+    let parameter = &function.structural_parameters[0];
+    let identity = OperationId::new(1).unwrap();
+    let result = AbstractResult {
+        value: ValueId::new(1).unwrap(),
+        scalar_type: scalar,
+    };
+    let path = vec![Segment::FixedIndex(1)];
+    function.operations[0] = AbstractOperation::PrimitiveScalarRead {
+        psi_operation: identity,
+        result,
+        source: parameter.place,
+        path: path.clone(),
+    };
+    target.graph.blocks[0].operations[0] = TargetUnitOperation::PrimitiveScalarRead {
+        psi_operation: identity,
+        result,
+        source: parameter.place,
+        path,
+    };
+    let element = StructuralTypeId::new(2).unwrap();
+    target.graph.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: parameter.structural_type,
+            identity: "test::Bytes".into(),
+            shape: StructuralTypeShape::FixedArray { element, length: 2 },
+        },
+        StructuralTypeDeclaration {
+            id: element,
+            identity: "test::Byte".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar),
+        },
+    ]
+    .into();
+    assert!(retained(&function, &function.operations[0], &target));
+    assert!(super::super::requires_graph_storage_replay(
+        &function.operations
+    ));
+    for replacement in [0, 2, u64::MAX] {
+        let mut changed = target.clone();
+        let TargetUnitOperation::PrimitiveScalarRead { path, .. } =
+            &mut changed.graph.blocks[0].operations[0]
+        else {
+            panic!("read");
+        };
+        *path = vec![Segment::FixedIndex(replacement)];
+        assert!(!retained(&function, &function.operations[0], &changed));
+    }
+    let mut invalid = function.clone();
+    let AbstractOperation::PrimitiveScalarRead { path, .. } = &mut invalid.operations[0] else {
+        panic!("read");
+    };
+    *path = vec![Segment::FixedIndex(2)];
+    let TargetUnitOperation::PrimitiveScalarRead { path, .. } =
+        &mut target.graph.blocks[0].operations[0]
+    else {
+        panic!("read");
+    };
+    *path = vec![Segment::FixedIndex(2)];
+    assert!(
+        !retained(&invalid, &invalid.operations[0], &target),
+        "matching invalid indices do not establish a valid primitive subject"
+    );
+}
+
 fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) {
     // These fixtures isolate source membership, not object/load replay certificates.
     let machine = MachineId::new(1).unwrap();

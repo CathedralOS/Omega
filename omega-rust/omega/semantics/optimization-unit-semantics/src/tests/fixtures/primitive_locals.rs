@@ -23,6 +23,7 @@ pub(crate) fn primitive_local_plan() -> AbstractOperationPlan {
         value,
     };
     let read = |operation, value_id| AbstractOperation::PrimitiveScalarRead {
+        path: Vec::new(),
         psi_operation: id(operation, OperationId::new),
         result: AbstractResult {
             value: id(value_id, ValueId::new),
@@ -76,6 +77,7 @@ pub(crate) fn primitive_local_call_plan() -> AbstractOperationPlan {
             value: IntegerValue::Signed(0),
         },
         AbstractOperation::WriteOnlyPrimitiveStore {
+            path: Vec::new(),
             psi_operation: id(75, OperationId::new),
             destination: parameter.clone(),
             value,

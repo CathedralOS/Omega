@@ -171,6 +171,7 @@ pub(super) fn build_write_only_primitive_store(
     }
     Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         statement_index,
+        path: Vec::new(),
         destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
             parameter_index: 0,
         },
@@ -234,15 +235,16 @@ pub(super) fn build_primitive_store_at(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    if !place.segments.is_empty() {
-        return None;
-    }
+    let path = primitive_projection(program, machine, state, assignment.target, &place.segments)?;
     let (destination, primitive_type) = if let Some(local) = primitive_local_before(
         program,
         state,
         usize::try_from(statement_index).ok()?,
         symbol,
     ) {
+        if !path.is_empty() {
+            return None;
+        }
         (
             checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
             program.primitive_type_reference(local.type_reference)?,
@@ -258,8 +260,9 @@ pub(super) fn build_primitive_store_at(
                         .get(destination.position as usize)
                         .is_some_and(|parameter| parameter.symbol == symbol)
                 })?;
-        if destination.is_self
-            || destination.multiplicity != Multiplicity::Unrestricted
+        if (path.is_empty()
+            && (destination.is_self || destination.multiplicity != Multiplicity::Unrestricted))
+            || destination.multiplicity == Multiplicity::Linear
             || !destination.qualifications.is_empty()
             || !matches!(
                 destination.access,
@@ -271,7 +274,7 @@ pub(super) fn build_primitive_store_at(
         let parameter = program
             .state_parameters(state)
             .get(destination.position as usize)?;
-        if parameter.is_const || !parameter.is_mutable {
+        if parameter.is_self != destination.is_self || parameter.is_const || !parameter.is_mutable {
             return None;
         }
         let TypeReferenceNode::Reference {
@@ -290,10 +293,11 @@ pub(super) fn build_primitive_store_at(
             language_semantics::ReferenceAccess::Shared => return None,
         };
         if destination.access != expected_access
-            || !matches!(
-                program.type_reference_table.type_reference(*referee),
-                TypeReferenceNode::Named { .. }
-            )
+            || (path.is_empty()
+                && !matches!(
+                    program.type_reference_table.type_reference(*referee),
+                    TypeReferenceNode::Named { .. }
+                ))
         {
             return None;
         }
@@ -301,7 +305,16 @@ pub(super) fn build_primitive_store_at(
             checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
-            program.primitive_type_reference(*referee)?,
+            program.primitive_type_reference(if path.is_empty() {
+                *referee
+            } else {
+                validation::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    assignment.target,
+                )?
+            })?,
         )
     };
     // Computed RHS values share the ordinary scalar evaluator. Keep the
@@ -337,6 +350,7 @@ pub(super) fn build_primitive_store_at(
         return Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index,
             destination,
+            path,
             value: checked_trees::CheckedCallScalarArgument::Computation(root.root),
         });
     }
@@ -346,7 +360,12 @@ pub(super) fn build_primitive_store_at(
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
     if binding.expression != assignment.value
-        || binding.destination != symbol
+        || binding.destination
+            != if path.is_empty() {
+                symbol
+            } else {
+                SymbolHandle::invalid()
+            }
         || crate::values::scalar_expression_type(value) != Some(primitive_type)
         || !scalar_custody_is_exact(program, facts, state, binding, value, primitive_type)
     {
@@ -355,8 +374,114 @@ pub(super) fn build_primitive_store_at(
     Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         statement_index,
         destination,
+        path,
         value: checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
     })
+}
+
+/// Whole primitive storage and indexed primitive leaves use one operation.
+/// Field-only destinations retain their existing bounded-field write owner;
+/// an indexed leaf carries its real path, never an invented terminal field.
+fn primitive_projection(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+    if segments.is_empty() {
+        return Some(Vec::new());
+    }
+    if !matches!(
+        segments.last(),
+        Some(facts::PlaceSegment::FixedIndex { .. })
+    ) || !validation::place_has_builtin_coordinates(program, machine, Some(state), expression)
+    {
+        return None;
+    }
+    let mut cursor = expression;
+    loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Indexed(indexed) => {
+                let ExpressionNode::Integer(index) =
+                    program.expression_table.expression(indexed.index)
+                else {
+                    return None;
+                };
+                let index = index.value_bignum()?.to_u64()?;
+                let collection = validation::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    indexed.collection,
+                )?;
+                let collection = validation::unwrapped_type_reference(program, collection)?;
+                let TypeReferenceNode::FixedArray {
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                    ..
+                } = program.type_reference_table.type_reference(collection)
+                else {
+                    return None;
+                };
+                if usize::try_from(index).ok()? >= *length {
+                    return None;
+                }
+                cursor = indexed.collection;
+            }
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            ExpressionNode::Name(_) => break,
+            _ => return None,
+        }
+    }
+    let leaf = validation::declared_place_type_raw(program, machine, Some(state), expression)?;
+    // Constraints and quotient policies require their own write obligations.
+    // This operation replaces only an ordinary, unqualified primitive leaf.
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(leaf)
+    else {
+        return None;
+    };
+    let atom = program.symbols.builtin_type_atom(*symbol)?;
+    if name.as_str() != atom.symbol_name() {
+        return None;
+    }
+    program.primitive_type_reference(leaf)?;
+    segments
+        .iter()
+        .map(|segment| match segment {
+            facts::PlaceSegment::FixedIndex { index } => Some(
+                CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
+            ),
+            facts::PlaceSegment::Field { symbol } => {
+                let mut fields = program
+                    .data_definitions()
+                    .iter()
+                    .flat_map(|owner| program.data_members(owner))
+                    .filter_map(|member| match member {
+                        DataMember::Field(field) if field.symbol == *symbol => Some(field),
+                        _ => None,
+                    });
+                let field = fields.next()?;
+                if fields.next().is_some()
+                    || field.relevance.is_erased()
+                    || !crate::field_domain::domain_constraint_symbols(
+                        program,
+                        field.type_reference,
+                    )
+                    .is_empty()
+                {
+                    return None;
+                }
+                Some(CheckedUnitStructuralPathSegment::Field(
+                    field
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                ))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 pub(super) fn scalar_custody_is_exact(

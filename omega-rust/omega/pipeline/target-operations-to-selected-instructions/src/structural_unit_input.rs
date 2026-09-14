@@ -146,7 +146,12 @@ pub(crate) fn accepts_borrowed_parameters(
                 semantic.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) || semantic.access == StructuralAccess::SharedBorrow && (primitive || record))
-            || semantic.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || (semantic.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                && !matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+                ))
             || !semantic.qualifications.is_empty()
             || !semantic.projected_qualifications.is_empty()
             || parameter.target.place != semantic.place

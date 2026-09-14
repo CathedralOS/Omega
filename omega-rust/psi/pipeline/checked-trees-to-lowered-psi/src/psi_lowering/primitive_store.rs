@@ -2,11 +2,85 @@
 
 use super::*;
 
+/// The resolved primitive endpoint is shared by ordinary and composed bodies.
+/// Their namespaces choose a parameter or live local; this owner validates the
+/// exclusive parameter projection and evaluates exactly one authored RHS.
+pub(super) struct Destination {
+    pub(super) place: PlaceId,
+    pub(super) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    pub(super) scalar_type: ScalarType,
+}
+
+pub(super) fn parameter_destination(
+    parameter: &StructuralParameterDeclaration,
+    path: &[CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<Destination, LoweringError> {
+    if !matches!(
+        parameter.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) || parameter.multiplicity == StructuralMultiplicity::Linear
+        || (path.is_empty() && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+        || !parameter.qualifications.is_empty()
+    {
+        return unsupported("primitive store parameter lost its exclusive custody");
+    }
+    let (path, scalar_type) = lower_path(parameter.structural_type, path, types)?;
+    Ok(Destination {
+        place: parameter.place,
+        path,
+        scalar_type,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_assignment(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+    destination: Destination,
+    value: &checked_trees::CheckedCallScalarArgument,
+    evaluation: &mut crate::psi_lowering::attached_unit::argument_evaluation::Evaluation,
+    source_value_count: usize,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+    calls: &mut CallEmissionContext<'_>,
+) -> Result<OperationKind, LoweringError> {
+    let value = evaluation.source_value(
+        checked,
+        machine,
+        state,
+        statement_index,
+        CheckedScalarExpressionRole::AssignmentValue,
+        value,
+        source_value_count,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
+        calls,
+    )?;
+    if value.scalar_type != destination.scalar_type || !value.qualifications.is_empty() {
+        return unsupported("primitive store RHS differs from its destination carrier");
+    }
+    Ok(OperationKind::WriteOnlyPrimitiveStore {
+        destination: destination.place,
+        path: destination.path,
+        value: value.id,
+    })
+}
+
 pub(super) fn validate_assignment(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
     destination: &CheckedUnitStructuralParameterPlan,
+    path: &[CheckedUnitStructuralPathSegment],
     value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     let (_, state) =
@@ -22,6 +96,7 @@ pub(super) fn validate_assignment(
         state_symbol,
         statement_index,
         parameter.symbol,
+        path,
         value,
     )
 }
@@ -31,6 +106,7 @@ pub(super) fn validate_symbol_assignment(
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
     destination: symbols::SymbolHandle,
+    path: &[CheckedUnitStructuralPathSegment],
     value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     use checked_trees::{expression::ExpressionNode, statement::StatementNode};
@@ -43,21 +119,20 @@ pub(super) fn validate_symbol_assignment(
     else {
         return unsupported("primitive store has no authored assignment");
     };
-    let ExpressionNode::Name(target) = checked.expression_table.expression(assignment.target)
-    else {
-        return unsupported("primitive store destination is not a direct parameter");
-    };
-    if !destination.is_valid()
-        || target.symbol != destination
-        || target.head_symbol != destination
-        || checked
-            .expression_table
-            .name_path_members(target.members)
-            .len()
-            != 1
-    {
+    let target = crate::psi_lowering::call_source_custody::projected_receivers::store_destination(
+        checked,
+        machine.symbol,
+        state_symbol,
+        Some(statement_index as usize),
+        assignment.target,
+    )?;
+    if !destination.is_valid() || target.root != destination || target.path != path {
         return unsupported("primitive store destination differs from its authored parameter");
     }
+    let binding_destination = match checked.expression_table.expression(assignment.target) {
+        ExpressionNode::Name(name) => name.symbol,
+        _ => symbols::SymbolHandle::invalid(),
+    };
     let role = CheckedScalarExpressionRole::AssignmentValue;
     let computations = &checked.facts.values.scalar_computations;
     let mut roots = computations
@@ -92,7 +167,7 @@ pub(super) fn validate_symbol_assignment(
             )?;
             let node = computations.nodes.get(*handle);
             if source.machine != machine.symbol
-                || source.destination != destination
+                || source.destination != binding_destination
                 || source.expression != assignment.value
                 || node.authored_root != assignment.value
                 || node.primitive_type != source.primitive_type
@@ -160,7 +235,7 @@ pub(super) fn validate_symbol_assignment(
             "primitive store lost its unique RHS binding",
         ))?;
     if binding.expression != assignment.value
-        || binding.destination != destination
+        || binding.destination != binding_destination
         || expression != value
     {
         return unsupported("primitive store RHS differs from its authored assignment");
@@ -279,5 +354,95 @@ pub(super) fn emit_value(
         .collect::<Vec<_>>();
     validate_direct_parameter_types(value, &source_types)?;
     let value = emit_direct_expression(value, scalar_values, next_value, operations);
-    Ok(OperationKind::WriteOnlyPrimitiveStore { destination, value })
+    Ok(OperationKind::WriteOnlyPrimitiveStore {
+        destination,
+        path: Vec::new(),
+        value,
+    })
+}
+
+/// Resolve the complete storage projection against the emitted declarations.
+/// Unlike a scalar-field operation this endpoint is the primitive itself, so
+/// an array element needs no synthetic field identity.
+pub(super) fn lower_path(
+    mut structural_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<
+    (
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        ScalarType,
+    ),
+    LoweringError,
+> {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    let mut result = Vec::with_capacity(path.len());
+    let mut visited = Vec::new();
+    for segment in path {
+        if visited.contains(&structural_type) {
+            return unsupported("primitive projection has a cyclic carrier");
+        }
+        visited.push(structural_type);
+        let declaration = unique_type(types, structural_type)?;
+        structural_type = match (segment, &declaration.shape) {
+            (
+                CheckedUnitStructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields },
+            ) => {
+                let mut matching = fields.iter().filter(|field| field.identity == *identity);
+                let field = matching.next().ok_or(LoweringError::Unsupported(
+                    "primitive projection field is absent",
+                ))?;
+                if matching.next().is_some()
+                    || field.relevance.is_erased()
+                    || fields
+                        .iter()
+                        .filter(|candidate| candidate.id == field.id)
+                        .count()
+                        != 1
+                {
+                    return unsupported("primitive projection field is erased or ambiguous");
+                }
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return unsupported("primitive projection requires a structural carrier field");
+                };
+                result.push(Segment::Field(field.id));
+                child
+            }
+            (
+                CheckedUnitStructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => {
+                result.push(Segment::FixedIndex(*index));
+                *element
+            }
+            _ => {
+                return unsupported(
+                    "primitive projection has an incompatible or out-of-bounds path",
+                );
+            }
+        };
+    }
+    let StructuralTypeShape::PrimitiveScalar(scalar_type) =
+        unique_type(types, structural_type)?.shape
+    else {
+        return unsupported("primitive projection does not end at a primitive scalar");
+    };
+    Ok((result, scalar_type))
+}
+
+fn unique_type(
+    types: &[StructuralTypeDeclaration],
+    identity: StructuralTypeId,
+) -> Result<&StructuralTypeDeclaration, LoweringError> {
+    let mut matching = types
+        .iter()
+        .filter(|declaration| declaration.id == identity);
+    let declaration = matching.next().ok_or(LoweringError::Unsupported(
+        "primitive projection type is absent",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("primitive projection type is ambiguous");
+    }
+    Ok(declaration)
 }

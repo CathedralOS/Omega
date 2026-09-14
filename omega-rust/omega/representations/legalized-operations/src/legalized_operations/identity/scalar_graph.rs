@@ -175,9 +175,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&case_tag.to_le_bytes());
                     bytes.extend_from_slice(&tag_byte_offset.to_le_bytes());
                 }
-                LegalizedScalarInstructionKind::PrimitiveScalarRead { source } => {
+                LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path } => {
                     bytes.push(18);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
+                    super::structural_types::encode_canonical_path(bytes, path);
                 }
                 LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field } => {
                     bytes.push(25);
@@ -194,11 +195,15 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 }
                 LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                     destination,
+                    path,
                     value,
+                    byte_offset,
                     byte_size,
                 } => {
                     bytes.push(13);
                     super::structural_types::encode_structural_parameter(bytes, destination);
+                    super::structural_types::encode_canonical_path(bytes, path);
+                    bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     bytes.extend_from_slice(&value.value.get().to_le_bytes());
                     encode_scalar_type(bytes, value.scalar_type);
                     bytes.push(*byte_size);

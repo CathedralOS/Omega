@@ -159,10 +159,24 @@ fresh scalar observation of an established local or readable primitive borrow.
 Establishment must dominate every local use. A read is not equality with the
 initializer or a previous read: intervening stores and calls can change storage.
 
+Primitive reads and stores also retain an optional canonical field/index path
+from the original root to a primitive structural leaf. Empty paths keep the
+whole-primitive contract. Nonempty paths select relevant structural record fields
+and fixed-array indices; each index must be below its declared extent, including
+every dimension of a nested array. Cases, reference crossings and nonprimitive
+leaves reject. This is direct storage access, not a synthetic record field or an
+introduced reference lifetime. Root access, whole-value availability, claims,
+qualifications and conflicting loans remain independently checked. An affine
+root stays affine; observing or replacing an unrestricted leaf does not consume
+the root or weaken its cleanup obligations.
+
 An exact reaching-store check may equate the copied SSA result with a stored SSA
 value only when every actual arrival reaches that same stored SSA value and the
 definition-to-read interval excludes potentially aliasing writes. An unknown
 arrival, intervening effect, or unproved cyclic arrival supplies no equality.
+The reaching store must name the identical root and complete path: a store to a
+sibling element cannot supply a read's value. Statically disjoint sibling writes
+may preserve that exact reaching definition.
 This is storage-version availability, not evaluation of a symbolic expression.
 The resulting equality relates immutable values; writes after the capture do
 not invalidate it. Floating-point copies do not license mathematical reflexive
@@ -178,7 +192,7 @@ unit, charged before execution.
 
 | Operation | Retained subject |
 | --- | --- |
-| `WriteOnlyPrimitiveStore` | Destination primitive parameter or established primitive local and already-defined, exactly typed SSA value. The referent is not represented as a synthetic record. |
+| `WriteOnlyPrimitiveStore` | Original destination root, canonical path to a primitive structural leaf (empty for a whole primitive), and already-defined, exactly typed SSA value. The referent is not represented as a synthetic record. |
 | `StructuralScalarFieldStore` | Destination structural home, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. A whole, unqualified, claim-free owned record home (entry, block parameter, or completed establishment/call result) supplies write authority directly; mutable and write-only borrowed parameters retain their existing authority. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source view, exact dominating source-length observation, and capacity obligation. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
@@ -186,8 +200,11 @@ unit, charged before execution.
 
 These are non-observing Unit operations. Their names describe effects: a mutable
 borrow may perform a non-observing store without first discarding read authority.
-The admitted primitive-store form has an unrestricted, unqualified, claim-free
+The admitted whole-primitive store has an unrestricted, unqualified, claim-free
 mutable or write-only parameter, or an established owned primitive local.
+A projected primitive store retains the corresponding mutable/write-only borrow
+or whole established owned root; unrestricted and affine roots are admitted,
+while linear, qualified and claim-bearing roots require further support.
 Field-store admission independently checks the
 complete home declaration, path, field, access, qualifications/claims,
 scalar type, and dominating definition. Owned destinations must be established

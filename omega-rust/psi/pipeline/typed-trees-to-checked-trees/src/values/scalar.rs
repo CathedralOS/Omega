@@ -2787,6 +2787,28 @@ fn lower_scalar_expression(
         return Some((length, ArithmeticDomain::Exact));
     }
     if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
+        // Literal fixed-array leaves use the same checked projection as record
+        // fields. Runtime byte indexing below keeps its separate bound proof.
+        if let Some(field) = structural_fields::lower_structural_parameter_field(
+            program,
+            authored_parameters,
+            expression,
+        ) {
+            let (_, _, collection_type) = structural_fields::structural_parameter_place(
+                program,
+                authored_parameters,
+                indexed.collection,
+            )?;
+            return structural_fields::indexed_read_is_builtin(
+                program,
+                operators,
+                authored_parameters,
+                expression,
+                collection_type,
+                indexed.index,
+            )
+            .then_some(field);
+        }
         let (parameter_position, path, mut collection_type) =
             structural_fields::structural_parameter_place(
                 program,
@@ -3421,7 +3443,7 @@ fn lower_boolean_expression(
     }
     if matches!(
         program.expression_table.expression(expression),
-        ExpressionNode::Name(_) | ExpressionNode::Member(_)
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
     ) && let Some((CheckedScalarExpression::Boolean(field), _)) =
         structural_fields::lower_structural_parameter_field(
             program,

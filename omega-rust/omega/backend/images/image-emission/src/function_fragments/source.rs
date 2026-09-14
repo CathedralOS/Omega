@@ -16,6 +16,9 @@ mod tests;
 
 pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) -> bool {
     operations.iter().any(|operation| {
+        if matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { path, .. } if !path.is_empty()) {
+            return true;
+        }
         if let AbstractOperation::CallStructuralScalar {
             structural_arguments,
             ..
@@ -217,6 +220,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for operation in &abstracted.operations {
             let admitted = match operation {
+                AbstractOperation::PrimitiveScalarRead { path, .. } if !path.is_empty() => {
+                    structural_fields::retained(abstracted, operation, targeted)
+                }
                 AbstractOperation::IntegerStructuralField { .. }
                 | AbstractOperation::BooleanStructuralField { .. } => {
                     structural_fields::retained(abstracted, operation, targeted)

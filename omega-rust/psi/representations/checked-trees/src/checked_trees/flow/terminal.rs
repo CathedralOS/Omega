@@ -1906,12 +1906,15 @@ pub enum CheckedUnitEffectOperationPlan {
         value: u8,
         service_reach: ServiceReachSummary,
     },
-    /// Replace one whole unrestricted primitive through an exclusive borrowed
-    /// parameter or initialized mutable local. Evaluate the retained scalar
-    /// expression or computation against current storage before committing the write.
+    /// Replace one unrestricted primitive through an exclusive borrowed
+    /// parameter or initialized mutable local. A nonempty declared path selects
+    /// a fixed-array primitive leaf without inventing a scalar field identity.
+    /// Evaluate the retained scalar expression or computation against current
+    /// storage before committing the write.
     WriteOnlyPrimitiveStore {
         statement_index: u32,
         destination: CheckedPrimitiveStoreDestination,
+        path: Vec<CheckedUnitStructuralPathSegment>,
         value: crate::CheckedCallScalarArgument,
     },
     /// Replace one relevant primitive field through an exact common-field

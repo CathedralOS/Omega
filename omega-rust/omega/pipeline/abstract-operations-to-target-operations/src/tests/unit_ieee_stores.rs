@@ -91,6 +91,7 @@ fn plan(format: IeeeFloatFormat, field_store: bool) -> AbstractOperationPlan {
         }
     } else {
         AbstractOperation::WriteOnlyPrimitiveStore {
+            path: Vec::new(),
             psi_operation: operation,
             destination: destination.clone(),
             value: result,

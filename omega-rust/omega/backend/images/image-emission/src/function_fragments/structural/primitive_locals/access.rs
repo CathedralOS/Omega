@@ -44,8 +44,9 @@ pub(in crate::function_fragments) fn operation_retained(
             psi_operation,
             result,
             source,
+            path,
         } => {
-            if !readable(function, selected, *source, result.scalar_type) {
+            if !path.is_empty() || !readable(function, selected, *source, result.scalar_type) {
                 return false;
             }
             (

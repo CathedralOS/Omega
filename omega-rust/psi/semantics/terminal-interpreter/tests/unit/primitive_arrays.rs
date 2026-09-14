@@ -2,6 +2,210 @@
 
 use super::*;
 use terminal_interpreter::TerminalStructuralByteArrayValue;
+use terminal_verifier::validate_module;
+
+fn direct_array_module(nested: bool) -> (TerminalModule, Vec<StructuralPathSegment>) {
+    let (mut module, array_path) = array_module(nested);
+    let initializer = module.machines[1].blocks[0].operations[0].clone();
+    let mut path = Vec::new();
+    if nested {
+        path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+            structural_field_id(1),
+        ));
+    }
+    path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1));
+    let mut read = module.machines[0].blocks[0].operations[1].clone();
+    read.kind = OperationKind::PrimitiveScalarRead {
+        source: place_id(91),
+        path: path.clone(),
+    };
+    module.machines[0].blocks[0].operations = vec![
+        initializer,
+        Operation {
+            static_reach_binding: None,
+            id: operation_id(93),
+            result: OperationResult::Unit,
+            kind: OperationKind::WriteOnlyPrimitiveStore {
+                destination: place_id(91),
+                path,
+                value: value_id(92),
+            },
+        },
+        read,
+    ];
+    module.machines.truncate(1);
+    (module, array_path)
+}
+
+#[test]
+fn direct_primitive_array_paths_round_trip_and_mutate_original_backing() {
+    for nested in [false, true] {
+        let (module, array_path) = direct_array_module(nested);
+        let mut execution = start(&module, &array_path);
+        let mut meter = TerminalFuelMeter::with_allowance(2);
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(_)
+        ));
+        assert_eq!(
+            execution.structural_byte_array(700, &array_path).unwrap(),
+            &[11, 7, 255]
+        );
+        meter = TerminalFuelMeter::with_allowance(20);
+        assert_eq!(execution.resume(&mut meter).unwrap(), expected(7));
+        assert_eq!(
+            execution.structural_byte_array(700, &array_path).unwrap(),
+            &[11, 7, 255]
+        );
+    }
+}
+
+#[test]
+fn direct_primitive_array_paths_retain_affine_borrow_and_owned_root_authority() {
+    for (access, multiplicity) in [
+        (
+            StructuralAccess::MutableBorrow,
+            StructuralMultiplicity::Affine,
+        ),
+        (
+            StructuralAccess::Owned,
+            StructuralMultiplicity::Unrestricted,
+        ),
+    ] {
+        let (mut module, array_path) = direct_array_module(true);
+        module.machines[0].structural_parameters[0].access = access;
+        module.machines[0].structural_parameters[0].multiplicity = multiplicity;
+        if access != StructuralAccess::Owned {
+            let machine = &mut module.machines[0];
+            machine.attachment = Some(machine.structural_parameters[0].structural_type);
+            machine.structural_parameters[0].is_self = true;
+            machine.structural_places[0].kind =
+                semantic_vocabulary::StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: true,
+                };
+        }
+        let mut execution = start(&module, &array_path);
+        assert_eq!(
+            execution
+                .resume(&mut TerminalFuelMeter::unbounded())
+                .unwrap(),
+            expected(7)
+        );
+        assert_eq!(
+            execution.structural_byte_array(700, &array_path).unwrap(),
+            &[11, 7, 255]
+        );
+    }
+}
+
+#[test]
+fn direct_primitive_array_paths_update_constructed_scalar_payload_without_shadow_storage() {
+    for selected in [0, 1] {
+        let (mut module, _) = direct_array_module(false);
+        let caller = &mut module.machines[0];
+        caller.structural_parameters.clear();
+        caller.structural_places = vec![StructuralPlaceDeclaration {
+            id: place_id(91),
+            kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                producer: operation_id(94),
+                structural_type: structural_type_id(93),
+            },
+        }];
+        let mut eleven = caller.blocks[0].operations[0].clone();
+        eleven.id = operation_id(95);
+        let OperationResult::Scalar(value) = &mut eleven.result else {
+            panic!("scalar");
+        };
+        value.id = value_id(95);
+        eleven.kind = OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(11),
+        };
+        caller.blocks[0].operations.insert(1, eleven);
+        caller.blocks[0].operations.insert(
+            2,
+            Operation {
+                static_reach_binding: None,
+                id: operation_id(94),
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: place_id(91),
+                    structural_type: structural_type_id(93),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::EstablishScalarArray {
+                    elements: vec![value_id(95); 3],
+                },
+            },
+        );
+        let OperationKind::PrimitiveScalarRead { path, .. } =
+            &mut caller.blocks[0].operations[4].kind
+        else {
+            panic!("read");
+        };
+        *path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(selected)];
+        let bytes = encode_module(&module).unwrap();
+        assert_eq!(decode_module(&bytes).unwrap(), module);
+        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            &bytes,
+            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &AdmissionProfile::default(),
+            &[],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            execution
+                .resume(&mut TerminalFuelMeter::unbounded())
+                .unwrap(),
+            expected(if selected == 0 { 11 } else { 7 })
+        );
+        let mut unavailable = module.clone();
+        unavailable.machines[0].blocks[0].operations.swap(2, 3);
+        assert!(
+            validate_module(&unavailable).is_err(),
+            "store before complete establishment"
+        );
+    }
+}
+
+#[test]
+fn direct_primitive_array_paths_reject_wrong_bounds_access_and_leaf() {
+    let (module, _) = direct_array_module(true);
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        let mut changed = module.clone();
+        changed.machines[0].structural_parameters[0].access = access;
+        assert!(validate_module(&changed).is_err());
+    }
+    for wrong in [
+        vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1)],
+        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+            structural_field_id(1),
+        )],
+        vec![
+            semantic_vocabulary::CanonicalStructuralPathSegment::Field(structural_field_id(1)),
+            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(3),
+        ],
+        vec![
+            semantic_vocabulary::CanonicalStructuralPathSegment::Field(structural_field_id(99)),
+            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1),
+        ],
+    ] {
+        let mut changed = module.clone();
+        let OperationKind::PrimitiveScalarRead { path, .. } =
+            &mut changed.machines[0].blocks[0].operations[2].kind
+        else {
+            panic!("read");
+        };
+        *path = wrong;
+        assert!(validate_module(&changed).is_err());
+    }
+}
 
 fn array_module(nested: bool) -> (TerminalModule, Vec<StructuralPathSegment>) {
     let mut module = write_only_primitive_call_module();
@@ -97,6 +301,7 @@ fn array_module(nested: bool) -> (TerminalModule, Vec<StructuralPathSegment>) {
         id: operation_id(102),
         result: OperationResult::Scalar(scalar),
         kind: OperationKind::PrimitiveScalarRead {
+            path: Vec::new(),
             source: place_id(102),
         },
     }];

@@ -1544,6 +1544,7 @@ mod tests {
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { result, .. },
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: 1,
+                    path,
                     destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                     value: checked_trees::CheckedCallScalarArgument::Pure(checked_trees::CheckedScalarExpression::Local {
                         position: 0,
@@ -1551,7 +1552,7 @@ mod tests {
                     }),
                 },
                 CheckedUnitEffectOperationPlan::Complete { statement_index: 2, .. },
-            ] if result.statement_index == 0 && result.binding_ordinal == 0
+            ] if path.is_empty() && result.statement_index == 0 && result.binding_ordinal == 0
         ));
         validate_selected_operator_terminal_custody(&settled, &selected)
             .expect("selected result store retains exact ProviderPlan custody");

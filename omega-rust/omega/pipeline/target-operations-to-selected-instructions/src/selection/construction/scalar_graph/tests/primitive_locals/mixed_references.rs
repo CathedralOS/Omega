@@ -74,6 +74,8 @@ fn mixed_incoming_primitive_references_and_local_reject_swapped_output_pointers(
                 &mut source,
                 5 + position as u64,
                 LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                    path: Vec::new(),
+                    byte_offset: 0,
                     destination: declaration,
                     value: abstract_operations::AbstractResult {
                         value: ValueId::new(if position == 0 { 4 } else { 3 }).unwrap(),

@@ -15,6 +15,7 @@ fn module() -> TerminalModule {
     callee.blocks[0].operations[1].id = operation_id(12);
     for operation in &mut callee.blocks[0].operations {
         operation.kind = OperationKind::WriteOnlyPrimitiveStore {
+            path: Vec::new(),
             destination: place_id(20),
             value: value_id(11),
         };

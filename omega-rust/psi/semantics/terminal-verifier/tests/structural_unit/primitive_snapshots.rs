@@ -11,6 +11,7 @@ fn store(raw: u64, value: u64) -> Operation {
         id: operation_id(raw),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
+            path: Vec::new(),
             destination: place_id(1),
             value: value_id(value),
         },
@@ -42,6 +43,7 @@ fn snapshot_module() -> TerminalModule {
                 scalar_type: signed_i8(),
             }),
             kind: OperationKind::PrimitiveScalarRead {
+                path: Vec::new(),
                 source: place_id(1),
             },
         },
@@ -102,6 +104,57 @@ fn has_snapshot(module: &TerminalModule) -> bool {
         .obligations()[0]
         .semantic_axioms
         .contains(&Proposition::Equal(term(3), term(1)))
+}
+
+#[test]
+fn projected_primitive_snapshots_require_the_exact_array_element() {
+    use semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex;
+    let mut module = snapshot_module();
+    let primitive = module.machines[0].structural_parameters[0].structural_type;
+    let array = structural_type_id(80);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: array,
+        identity: "ThreeIntegers".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: primitive,
+            length: 3,
+        },
+    });
+    module.machines[0].structural_parameters[0].structural_type = array;
+    for operation in &mut module.machines[0].blocks[0].operations {
+        match &mut operation.kind {
+            OperationKind::PrimitiveScalarRead { path, .. }
+            | OperationKind::WriteOnlyPrimitiveStore { path, .. } => *path = vec![FixedIndex(1)],
+            _ => {}
+        }
+    }
+    let bundle = snapshot_bundle(&module);
+    verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
+    let mut sibling = module.clone();
+    let OperationKind::PrimitiveScalarRead { path, .. } =
+        &mut sibling.machines[0].blocks[0].operations[1].kind
+    else {
+        panic!("read");
+    };
+    *path = vec![FixedIndex(2)];
+    assert!(!has_snapshot(&sibling));
+    assert!(verify_module(&sibling, &bundle, &AdmissionProfile::default()).is_err());
+    let mut sibling_write = module.clone();
+    let mut write = store(80, 2);
+    let OperationKind::WriteOnlyPrimitiveStore { path, .. } = &mut write.kind else {
+        panic!("store");
+    };
+    *path = vec![FixedIndex(2)];
+    sibling_write.machines[0].blocks[0]
+        .operations
+        .insert(1, write.clone());
+    assert!(has_snapshot(&sibling_write));
+    let OperationKind::WriteOnlyPrimitiveStore { path, .. } = &mut write.kind else {
+        panic!("store");
+    };
+    *path = vec![FixedIndex(1)];
+    sibling_write.machines[0].blocks[0].operations[1] = write;
+    assert!(!has_snapshot(&sibling_write));
 }
 
 #[test]
@@ -170,6 +223,7 @@ fn owned_reference_call_forgets_storage_observations_but_keeps_scalar_snapshots(
                         qualifications: Default::default(),
                     }),
                     kind: OperationKind::PrimitiveScalarRead {
+                        path: Vec::new(),
                         source: place_id(1),
                     },
                 },
@@ -226,6 +280,7 @@ fn primitive_snapshot_survives_later_overwrite_and_stale_proof_rejects_mutations
         },
     });
     machine.blocks[0].operations[1].kind = OperationKind::PrimitiveScalarRead {
+        path: Vec::new(),
         source: place_id(2),
     };
     assert!(!has_snapshot(&wrong_place));
@@ -324,6 +379,7 @@ fn primitive_snapshot_mutable_call_invalidates_reaching_store_not_captured_value
         id: operation_id(10),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
+            path: Vec::new(),
             destination: place_id(10),
             value: value_id(10),
         },

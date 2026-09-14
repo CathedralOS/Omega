@@ -93,7 +93,7 @@ impl<'a> PrimitiveSnapshots<'a> {
         value_types: &BTreeMap<ValueId, ScalarType>,
         axioms: &mut Vec<Proposition>,
     ) -> Result<(), ModuleError> {
-        let OperationKind::PrimitiveScalarRead { source } = operation.kind else {
+        let OperationKind::PrimitiveScalarRead { source, ref path } = operation.kind else {
             return Ok(());
         };
         let Some(result) = operation.result.scalar_ref() else {
@@ -102,7 +102,7 @@ impl<'a> PrimitiveSnapshots<'a> {
         if matches!(result.scalar_type, ScalarType::IeeeFloat(_)) {
             return Ok(());
         }
-        let Some(value) = self.reaching_value(block, position, source)? else {
+        let Some(value) = self.reaching_value(block, position, source, path)? else {
             return Ok(());
         };
         if value_types.get(&value) == Some(&result.scalar_type) {
@@ -121,6 +121,7 @@ impl<'a> PrimitiveSnapshots<'a> {
         block: BlockId,
         position: usize,
         source: PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     ) -> Result<Option<ValueId>, ModuleError> {
         let mut pending = vec![(block, position)];
         let mut visited = BTreeSet::new();
@@ -134,7 +135,7 @@ impl<'a> PrimitiveSnapshots<'a> {
             let mut definition = None;
             for operation in selected.operations[..before].iter().rev() {
                 charge_work(&mut self.remaining_work, self.machine.id)?;
-                match self.operation_effect(operation, source)? {
+                match self.operation_effect(operation, source, path)? {
                     ReachingEffect::Store(value) => {
                         definition = Some(value);
                         break;
@@ -184,21 +185,28 @@ impl<'a> PrimitiveSnapshots<'a> {
         &mut self,
         operation: &Operation,
         source: PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     ) -> Result<ReachingEffect, ModuleError> {
         let stored = match operation.kind {
             OperationKind::EstablishPrimitiveLocal { value } => operation
                 .result
                 .structural()
-                .map(|result| (result.place, value)),
-            OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
-                Some((destination, value))
-            }
+                .map(|result| (result.place, &[][..], value)),
+            OperationKind::WriteOnlyPrimitiveStore {
+                destination,
+                value,
+                ref path,
+            } => Some((destination, path.as_slice(), value)),
             _ => None,
         };
-        if let Some((destination, value)) = stored {
-            return Ok(if destination == source {
+        if let Some((destination, written, value)) = stored {
+            return Ok(if destination == source && written == path {
                 ReachingEffect::Store(value)
-            } else if self.distinct_local_roots(source, destination) {
+            } else if (destination == source
+                && !written.starts_with(path)
+                && !path.starts_with(written))
+                || self.distinct_local_roots(source, destination)
+            {
                 ReachingEffect::Preserve
             } else {
                 ReachingEffect::Unknown

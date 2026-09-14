@@ -248,8 +248,12 @@ pub(super) fn lower(
             psi_operation,
             result,
             source,
+            path,
         } => {
             let identity = if let Some(home) = live.structural_homes.get(source) {
+                if !path.is_empty() {
+                    return Err(invalid());
+                }
                 home.structural_type()
             } else {
                 prepared
@@ -257,6 +261,10 @@ pub(super) fn lower(
                     .iter()
                     .find(|parameter| {
                         parameter.place == *source
+                            && parameter.multiplicity != StructuralMultiplicity::Linear
+                            && (!path.is_empty()
+                                || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
+                            && parameter.projected_qualifications.is_empty()
                             && matches!(
                                 parameter.access,
                                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -265,7 +273,9 @@ pub(super) fn lower(
                     .ok_or_else(invalid)?
                     .structural_type
             };
-            if !scalar_matches(identity, result.scalar_type) {
+            if crate::lowering::structural_layout::primitive_projection_type(identity, path, types)
+                != Some(result.scalar_type)
+            {
                 return Err(invalid());
             }
             retain_result(*psi_operation, *result, live)?;
@@ -275,6 +285,7 @@ pub(super) fn lower(
                     psi_operation: *psi_operation,
                     result: *result,
                     source: *source,
+                    path: path.clone(),
                 },
             )
         }

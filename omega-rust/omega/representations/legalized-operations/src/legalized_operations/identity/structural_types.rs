@@ -123,6 +123,30 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
     }
 }
 
+pub(super) fn encode_canonical_path(
+    bytes: &mut Vec<u8>,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+) {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    encode_len(bytes, path.len());
+    for segment in path {
+        match segment {
+            Segment::Field(field) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&field.get().to_le_bytes());
+            }
+            Segment::FixedIndex(position) => {
+                bytes.push(2);
+                bytes.extend_from_slice(&position.to_le_bytes());
+            }
+            Segment::Case(case) => {
+                bytes.push(3);
+                bytes.extend_from_slice(&case.get().to_le_bytes());
+            }
+        }
+    }
+}
+
 pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
     bytes.extend_from_slice(&place.id.get().to_le_bytes());
     match place.kind {

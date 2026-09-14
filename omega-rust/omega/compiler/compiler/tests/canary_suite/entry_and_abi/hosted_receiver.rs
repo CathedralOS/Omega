@@ -24,6 +24,7 @@ enum ReceiverObservation {
     BorrowedResultSnapshot,
     LocalBorrowedResultSnapshot,
     SignedWrappingRemainder,
+    IndexedPrimitiveArray,
 }
 
 fn compile_and_run_hosted_receiver(
@@ -61,8 +62,24 @@ fn compile_and_run_hosted_receiver(
     } else {
         "Console"
     };
+    let observed_value = match observation {
+        ReceiverObservation::IndexedPrimitiveArray => "self.bytes[255] as i32",
+        _ => "self.value",
+    };
+    let extra_machines = match observation {
+        ReceiverObservation::IndexedPrimitiveArray => {
+            "machine set_array_byte(bytes: &mut [u8; 256]) { bytes[255] = 65; }"
+        }
+        _ => "",
+    };
     let (extra_fields, initialization, observation_condition, receiver_bytes) = match observation {
         ReceiverObservation::ScalarMutation => ("", "self.value = 65;", "self.value == 65", 260),
+        ReceiverObservation::IndexedPrimitiveArray => (
+            "",
+            "self.bytes[255] = 64; let saved: u8 = self.bytes[255]; set_array_byte(&mut self.bytes);",
+            "saved == 64 && self.bytes[255] == 65 && self.bytes[254] == 0",
+            260,
+        ),
         ReceiverObservation::BorrowedRecordCopy => (
             "source: Counter; destination: Counter;",
             "self.source.value = 65; copy_counter(&self.source, &mut self.destination); self.value = self.destination.value;",
@@ -120,6 +137,7 @@ machine copy_counter(source: &Counter, destination: &mut Counter) {{
 machine Counter::read(&self) -> i32 {{ self.value }}
 machine Counter::write(&mut self, value: i32) {{ self.value = value; }}
 machine Counter::new(value: i32) -> Counter {{ Counter {{ value: value }} }}
+{extra_machines}
 
 data Main {{
     value: i32;
@@ -141,7 +159,7 @@ machine Main::main(&mut self) reaches Console {{
         }}
     }}
     state observed(&mut self) {{
-        self.console.write_byte(self.value);
+        self.console.write_byte({observed_value});
         {completion}
     }}
     state failed(&mut self) {{
@@ -303,6 +321,11 @@ fn hosted_receiver_keeps_local_scalar_call_results_across_later_mutation() {
 #[test]
 fn hosted_receiver_signed_wrapping_remainder_preserves_sign_and_overflow_policy() {
     compile_and_run_hosted_receiver(false, true, ReceiverObservation::SignedWrappingRemainder);
+}
+
+#[test]
+fn hosted_receiver_indexed_primitive_storage_survives_state_transition() {
+    compile_and_run_hosted_receiver(false, true, ReceiverObservation::IndexedPrimitiveArray);
 }
 
 #[test]

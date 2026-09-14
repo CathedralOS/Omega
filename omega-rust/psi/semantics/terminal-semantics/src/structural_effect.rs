@@ -544,6 +544,7 @@ pub enum StructuralEffectObservation {
     },
     PrimitiveRead {
         source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         result: ValueId,
     },
     /// Captures one tag observation without a reusable current-storage fact.
@@ -578,6 +579,7 @@ pub enum StructuralEffectObservation {
     },
     PrimitiveStored {
         destination: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         value: semantic_vocabulary::ValueId,
     },
     /// Store one defined scalar into one exact relevant field. The verifier
@@ -1024,12 +1026,16 @@ pub fn structural_effect_leaf_observation_in(
                 value: *value,
             }
         }
-        (StructuralEffectAction::ReadPrimitive, OperationKind::PrimitiveScalarRead { source }) => {
+        (
+            StructuralEffectAction::ReadPrimitive,
+            OperationKind::PrimitiveScalarRead { source, path },
+        ) => {
             let result = operation.result.scalar().ok_or(
                 OperationSemanticError::StructuralEffectResultShapeMismatch(tag),
             )?;
             StructuralEffectObservation::PrimitiveRead {
                 source: *source,
+                path: path.clone(),
                 result: result.id,
             }
         }
@@ -1136,9 +1142,14 @@ pub fn structural_effect_leaf_observation_in(
         },
         (
             StructuralEffectAction::StorePrimitive,
-            OperationKind::WriteOnlyPrimitiveStore { destination, value },
+            OperationKind::WriteOnlyPrimitiveStore {
+                destination,
+                value,
+                path,
+            },
         ) => StructuralEffectObservation::PrimitiveStored {
             destination: *destination,
+            path: path.clone(),
             value: *value,
         },
         (
@@ -1558,11 +1569,13 @@ mod tests {
                     id: OperationId::new(32).unwrap(),
                     result: scalar,
                     kind: OperationKind::PrimitiveScalarRead {
+                        path: Vec::new(),
                         source: PlaceId::new(23).unwrap(),
                     },
                 },
                 StructuralEffectObservation::PrimitiveRead {
                     source: PlaceId::new(23).unwrap(),
+                    path: Vec::new(),
                     result: ValueId::new(47).unwrap(),
                 },
                 StructuralEffectResultShape::Scalar,
@@ -1780,6 +1793,7 @@ mod tests {
         );
 
         let store = structural_effect_semantic_row(&OperationKind::WriteOnlyPrimitiveStore {
+            path: Vec::new(),
             destination: PlaceId::new(2).unwrap(),
             value: ValueId::new(3).unwrap(),
         })
@@ -1921,6 +1935,7 @@ mod tests {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
+                path: Vec::new(),
                 destination: PlaceId::new(2).unwrap(),
                 value: ValueId::new(3).unwrap(),
             },
@@ -1932,6 +1947,7 @@ mod tests {
             observation,
             StructuralEffectObservation::PrimitiveStored {
                 destination: PlaceId::new(2).unwrap(),
+                path: Vec::new(),
                 value: ValueId::new(3).unwrap(),
             },
         );

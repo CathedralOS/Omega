@@ -108,7 +108,10 @@ pub(crate) fn validate_structural_root_operations(
                     )?;
                 }
                 O::WriteOnlyPrimitiveStore {
-                    destination, value, ..
+                    destination,
+                    path,
+                    value,
+                    ..
                 } => {
                     let valid = function
                         .structural_parameters
@@ -120,25 +123,32 @@ pub(crate) fn validate_structural_root_operations(
                             terminal_psi::StructuralAccess::MutableBorrow
                                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
                         )
-                        && destination.multiplicity
+                        && (destination.multiplicity
                             == terminal_psi::StructuralMultiplicity::Unrestricted
+                            || (!path.is_empty()
+                                && destination.multiplicity
+                                    == terminal_psi::StructuralMultiplicity::Affine))
                         && destination.qualifications.is_empty()
+                        && destination.projected_qualifications.is_empty()
+                        && function
+                            .entry_claim_declarations
+                            .iter()
+                            .all(|claim| claim.input != destination.place)
+                        && function
+                            .content_entry_claims
+                            .iter()
+                            .all(|claim| claim.input.root != destination.place)
                         && matches!(
                             place_kinds.get(&destination.place),
                             Some(StructuralPlaceKind::Parameter { position, is_self })
                                 if *position == destination.position
                                     && *is_self == destination.is_self
                         )
-                        && structural_types
-                            .get(&destination.structural_type)
-                            .is_some_and(|declaration| {
-                                matches!(
-                                    declaration.shape,
-                                    terminal_psi::StructuralTypeShape::PrimitiveScalar(
-                                        scalar_type
-                                    ) if scalar_type == value.scalar_type
-                                )
-                            });
+                        && terminal_semantics::primitive_place_type(
+                            structural_types.values().copied(),
+                            destination.structural_type,
+                            path,
+                        ) == Some(value.scalar_type);
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidWriteOnlyPrimitiveStore {

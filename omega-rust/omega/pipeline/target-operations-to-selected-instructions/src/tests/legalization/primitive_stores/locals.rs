@@ -46,6 +46,7 @@ fn fixture(scalar: ScalarType) -> AbstractOperationPlan {
             },
         },
         AbstractOperation::PrimitiveScalarRead {
+            path: Vec::new(),
             psi_operation: OperationId::new(3).unwrap(),
             source: place,
             result: AbstractResult {

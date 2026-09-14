@@ -296,6 +296,10 @@ pub(super) fn build(
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                // The ordinary sequencer has already rejoined the primitive
+                // destination, RHS, and complete write frame. Crossing a state
+                // edge does not turn that non-observing write into a new family.
+                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
                 // A call result may die immediately after its producing call.
                 // The cleanup shares the call coordinate rather than consuming

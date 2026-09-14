@@ -1110,6 +1110,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             )?;
             Ok(LoweredDirectExpression::PrimitiveRead {
                 source,
+                path: Vec::new(),
                 scalar_type,
             })
         }
@@ -1135,6 +1136,25 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             let scalar_type = terminal_scalar_type(*primitive_type)?;
             if !matches!(scalar_type, ScalarType::Integer(_)) {
                 return unsupported("runtime scalar field observation requires an integer field");
+            }
+            if path.iter().any(|segment| {
+                matches!(
+                    segment,
+                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
+                )
+            }) {
+                let (source, path) =
+                    crate::psi_lowering::scalar_bindings::structural_fields::resolve_primitive(
+                        structural_fields,
+                        *parameter_position,
+                        path,
+                        scalar_type,
+                    )?;
+                return Ok(LoweredDirectExpression::PrimitiveRead {
+                    source,
+                    path,
+                    scalar_type,
+                });
             }
             let (source, path, field) =
                 crate::psi_lowering::scalar_bindings::structural_fields::resolve(
@@ -1398,7 +1418,10 @@ fn lower_checked_boolean_expression_with_parameters(
                 *symbol,
                 ScalarType::Boolean,
             )?;
-            LoweredBooleanReturnExpression::PrimitiveRead { source }
+            LoweredBooleanReturnExpression::PrimitiveRead {
+                source,
+                path: Vec::new(),
+            }
         }
         CheckedBooleanExpression::Local { position } => LoweredBooleanReturnExpression::Local {
             position: *position,
@@ -1408,6 +1431,21 @@ fn lower_checked_boolean_expression_with_parameters(
             path,
         } => {
             if !structural_fields.is_empty() {
+                if path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
+                    )
+                }) {
+                    let (source, path) =
+                        crate::psi_lowering::scalar_bindings::structural_fields::resolve_primitive(
+                            structural_fields,
+                            *parameter_position,
+                            path,
+                            ScalarType::Boolean,
+                        )?;
+                    return Ok(LoweredBooleanReturnExpression::PrimitiveRead { source, path });
+                }
                 let (source, path, field) =
                     crate::psi_lowering::scalar_bindings::structural_fields::resolve(
                         structural_fields,
@@ -2300,6 +2338,7 @@ mod primitive_read_tests {
         let scalar_type = terminal_scalar_type(PrimitiveType::U64).unwrap();
         let integer_read = LoweredDirectExpression::PrimitiveRead {
             source,
+            path: Vec::new(),
             scalar_type,
         };
         assert_eq!(
@@ -2309,7 +2348,10 @@ mod primitive_read_tests {
             ),
             None,
         );
-        let boolean_read = LoweredBooleanReturnExpression::PrimitiveRead { source };
+        let boolean_read = LoweredBooleanReturnExpression::PrimitiveRead {
+            source,
+            path: Vec::new(),
+        };
         assert_eq!(
             evaluate_compile_known_boolean_expression(
                 &boolean_read,
