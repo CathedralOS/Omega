@@ -31,7 +31,7 @@ use executable_installation::{
     validate_final_placement,
 };
 use extents::{
-    AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
+    AddressSpaceId, Extent, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
     ExtentRights, ExtentRootGrant, MappingEraId,
 };
 use installation_evidence::{ObjectEvidence, StackDemandEvidence};
@@ -144,12 +144,41 @@ fn installed_code_with_bytes_and_installation_identity(
     bytes: Vec<u8>,
     installed_code_identity: u64,
 ) -> InstalledCode {
-    let artifact_constraints = constraints();
+    installed_code_in_placement(
+        artifact_identity,
+        entry,
+        bytes,
+        installed_code_identity,
+        target::Architecture::X86_64,
+        constraints(),
+        0x1000,
+        4096,
+    )
+}
+
+/// Installed-code fixture with explicit retained placement constraints and a
+/// chosen realized extent. The default helper above pins the shared
+/// unconstrained-regime site; secondary-processor startup tests need a
+/// declared machine regime and a low-memory window instead. The fixture's
+/// placement authority still cites installation scope 61, so a constrained
+/// `installation_scope` must normalize to that identity.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn installed_code_in_placement(
+    artifact_identity: u64,
+    entry: EntryStubId,
+    bytes: Vec<u8>,
+    installed_code_identity: u64,
+    architecture: target::Architecture,
+    placement_constraints: PlacementConstraints,
+    extent_base: u64,
+    extent_length: u64,
+) -> InstalledCode {
+    let artifact_constraints = placement_constraints;
     let contracts = install_id(30, MachineContractSetId::from_normalized_identity);
     let footprint = install_id(31, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
         install_id(artifact_identity, ArtifactId::from_normalized_identity),
-        target::Architecture::X86_64,
+        architecture,
         bytes,
         contracts,
         footprint,
@@ -164,7 +193,9 @@ fn installed_code_with_bytes_and_installation_identity(
             b"test-machine-contracts-v1",
             footprint,
             b"test-machine-footprint-v1",
-            None,
+            artifact_constraints
+                .machine_regime()
+                .map(|regime| (regime, b"test-machine-regime-v1".as_slice())),
             artifact_constraints
                 .installation_scope()
                 .map(|scope| (scope, b"test-installation-scope-v1".as_slice())),
@@ -193,7 +224,7 @@ fn installed_code_with_bytes_and_installation_identity(
         extent_id(52, ExtentProvenanceId::from_normalized_identity),
         extent_id(53, MappingEraId::from_normalized_identity),
     )
-    .mint(0x1000, 4096)
+    .mint(extent_base, extent_length)
     .expect("placement extent");
     let placement = CodePlacementAuthority::from_admitted_provider(
         install_id(100, CodePlacementId::from_normalized_identity),
@@ -201,15 +232,12 @@ fn installed_code_with_bytes_and_installation_identity(
         InstallationAudience::FutureFetcher,
         &extent,
         rights,
-        constraints(),
+        placement_constraints,
         PlacementSite {
-            base_address: 0x1000,
-            phase: PlacementPhase::PostHandoff,
-            machine_regime: None,
-            installation_scope: Some(
-                ArtifactInstallationScopeId::from_normalized_identity(61)
-                    .expect("installation scope"),
-            ),
+            base_address: extent_base,
+            phase: placement_constraints.phase(),
+            machine_regime: placement_constraints.machine_regime(),
+            installation_scope: placement_constraints.installation_scope(),
         },
     )
     .claim(extent)
@@ -244,6 +272,56 @@ fn installed_code_with_bytes_and_installation_identity(
         WxEnforcement::HardwareEnforced,
     );
     install_validated(validated, install_authority, installation_receipt).expect("installed code")
+}
+
+/// Separately provisioned per-processor state extent for the
+/// secondary-processor startup tests: each mint stays in the shared fixture
+/// address space (50) under a distinct lineage so overlap checks compare real
+/// custody geometry.
+pub(crate) fn minted_secondary_processor_state(
+    identity_seed: u64,
+    base: u64,
+    length: u64,
+) -> Extent {
+    ExtentRootGrant::from_admitted_provider(
+        extent_provider_issuance(identity_seed),
+        extent_id(
+            identity_seed + 1000,
+            ExtentLineageId::from_normalized_identity,
+        ),
+        extent_id(50, AddressSpaceId::from_normalized_identity),
+        ExtentRights::from_normalized_identities([extent_id(
+            51,
+            ExtentRightId::from_normalized_identity,
+        )]),
+        extent_id(
+            identity_seed + 2000,
+            ExtentProvenanceId::from_normalized_identity,
+        ),
+        extent_id(identity_seed + 3000, MappingEraId::from_normalized_identity),
+    )
+    .mint(base, length)
+    .expect("minted secondary-processor state extent")
+}
+
+/// AP entry boundary fixture: begins in `initial_regime` under `policy` and
+/// arrives on `stack`, matching the secondary-processor startup ledger's
+/// admission contract.
+pub(crate) fn secondary_processor_boundary(
+    policy: CallingPolicy,
+    initial_regime: MachineRegime,
+    stack: EntryStack,
+) -> ValidatedBoundaryEntryPlan {
+    let signature = CallSignature {
+        parameters: vec![ValueShape::integer(8, 8)],
+        result: None,
+    };
+    let ordinary =
+        evaluate_ordinary_boundary_entry_plan(policy, &signature).expect("ordinary boundary plan");
+    let mut plan = ordinary.plan().clone();
+    plan.state.initial_regime = initial_regime;
+    plan.state.stack = stack;
+    validate_boundary_entry_plan(plan, &signature).expect("secondary-processor entry boundary")
 }
 
 fn installed_program_storage_wrapper(

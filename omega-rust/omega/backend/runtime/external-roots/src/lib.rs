@@ -174,6 +174,22 @@ normalized_id!(
     UefiExitBootServicesReceiptId,
     "UEFI ExitBootServices success receipt"
 );
+normalized_id!(
+    SecondaryProcessorOccurrenceId,
+    "secondary-processor occurrence"
+);
+normalized_id!(
+    SecondaryProcessorStartupProfileId,
+    "secondary-processor startup profile"
+);
+normalized_id!(
+    SecondaryProcessorStartupInvocationId,
+    "secondary-processor startup invocation"
+);
+normalized_id!(
+    SecondaryProcessorStartupReceiptId,
+    "secondary-processor startup receipt"
+);
 
 mod fixed_fuel;
 pub use fixed_fuel::*;
@@ -193,6 +209,8 @@ mod required_root_slots;
 pub use required_root_slots::*;
 mod root_validation;
 pub use root_validation::*;
+mod secondary_processor;
+pub use secondary_processor::*;
 mod stack_demand;
 pub use stack_demand::*;
 mod uefi_bootstrap;
