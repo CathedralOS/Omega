@@ -139,49 +139,70 @@ pub fn validate_x86_64_machine_effect_catalog(
     Ok(validated)
 }
 
+/// The x86-64 encoding matrix declares one call/return ABI family per
+/// supported (architecture, object-format) pair: Linux System-V under ELF
+/// and Microsoft x64 under COFF. Windows and UEFI share the COFF row because
+/// their `NativeTarget` contracts are indistinguishable at this layer. An
+/// undeclared format fails closed rather than silently inheriting one
+/// family's rows; adding a supported x86-64 format extends this matrix
+/// deliberately.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum X86_64SelectedAbi {
+    SystemV,
+    Microsoft,
+}
+
 fn selected_keys(
     target: NativeTarget,
 ) -> Result<SelectedConstraintKeys, X86_64MachineEffectCatalogValidationError> {
-    let return_i64 = match target.object_format {
-        ObjectFormat::Elf => X86_64_SYSTEM_V_RETURN,
-        ObjectFormat::Coff => X86_64_MICROSOFT_RETURN,
+    let abi = match target.object_format {
+        ObjectFormat::Elf => X86_64SelectedAbi::SystemV,
+        ObjectFormat::Coff => X86_64SelectedAbi::Microsoft,
         ObjectFormat::MachO => {
             return Err(X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi);
         }
     };
-    let return_unit = match target.object_format {
-        ObjectFormat::Elf => X86_64_SYSTEM_V_RETURN_UNIT,
-        ObjectFormat::Coff => X86_64_MICROSOFT_RETURN_UNIT,
-        ObjectFormat::MachO => {
-            return Err(X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi);
-        }
+    let microsoft = abi == X86_64SelectedAbi::Microsoft;
+    let return_i64 = match abi {
+        X86_64SelectedAbi::SystemV => X86_64_SYSTEM_V_RETURN,
+        X86_64SelectedAbi::Microsoft => X86_64_MICROSOFT_RETURN,
+    };
+    let return_unit = match abi {
+        X86_64SelectedAbi::SystemV => X86_64_SYSTEM_V_RETURN_UNIT,
+        X86_64SelectedAbi::Microsoft => X86_64_MICROSOFT_RETURN_UNIT,
     };
     Ok(SelectedConstraintKeys {
         load_packed: Some(crate::X86_64_LOAD_PACKED),
         store_packed: Some(crate::X86_64_STORE_PACKED),
-        call_aggregate: if target.object_format == ObjectFormat::Elf {
-            crate::register_model::x86_64_system_v_aggregate_call_keys()
-                .into_iter()
-                .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
-                .chain(crate::x86_64_indirect_aggregate_call_keys(false))
-                .collect()
-        } else {
-            crate::register_model::x86_64_microsoft_aggregate_call_keys()
-                .into_iter()
-                .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
-                .chain(crate::x86_64_indirect_aggregate_call_keys(true))
-                .collect()
+        call_aggregate: match abi {
+            X86_64SelectedAbi::SystemV => {
+                crate::register_model::x86_64_system_v_aggregate_call_keys()
+                    .into_iter()
+                    .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
+                    .chain(crate::x86_64_indirect_aggregate_call_keys(false))
+                    .collect()
+            }
+            X86_64SelectedAbi::Microsoft => {
+                crate::register_model::x86_64_microsoft_aggregate_call_keys()
+                    .into_iter()
+                    .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
+                    .chain(crate::x86_64_indirect_aggregate_call_keys(true))
+                    .collect()
+            }
         },
-        return_aggregate: if target.object_format == ObjectFormat::Elf {
-            crate::register_model::x86_64_system_v_aggregate_return_keys()
-        } else {
-            crate::register_model::x86_64_microsoft_aggregate_return_keys()
+        return_aggregate: match abi {
+            X86_64SelectedAbi::SystemV => {
+                crate::register_model::x86_64_system_v_aggregate_return_keys()
+            }
+            X86_64SelectedAbi::Microsoft => {
+                crate::register_model::x86_64_microsoft_aggregate_return_keys()
+            }
         },
         hosted_read_byte: (target == NativeTarget::linux_x64())
             .then_some(crate::X86_64_HOSTED_READ_BYTE),
         hosted_exit_process_i32: (target == NativeTarget::linux_x64())
             .then_some(crate::X86_64_HOSTED_EXIT_PROCESS_I32),
-        hosted_write_byte_i32: (target.object_format == ObjectFormat::Elf)
+        hosted_write_byte_i32: (target == NativeTarget::linux_x64())
             .then_some(crate::X86_64_HOSTED_WRITE_BYTE_I32),
         load64: Some(crate::X86_64_LOAD64),
         load8: Some(crate::X86_64_LOAD8),
@@ -193,25 +214,20 @@ fn selected_keys(
         address_offset: Some(crate::X86_64_ADDRESS_OFFSET),
         store64: Some(crate::X86_64_STORE64),
         frame_address: Some(crate::X86_64_FRAME_ADDRESS),
-        call_unit_mixed: if target.object_format == ObjectFormat::Elf {
-            crate::x86_64_system_v_mixed_unit_call_keys()
-        } else {
-            crate::x86_64_microsoft_mixed_unit_call_keys()
+        call_unit_mixed: match abi {
+            X86_64SelectedAbi::SystemV => crate::x86_64_system_v_mixed_unit_call_keys(),
+            X86_64SelectedAbi::Microsoft => crate::x86_64_microsoft_mixed_unit_call_keys(),
         },
-        call_unit: if target.object_format == ObjectFormat::Elf {
-            crate::x86_64_system_v_register_unit_call_keys()
-        } else {
-            crate::x86_64_microsoft_register_unit_call_keys()
+        call_unit: match abi {
+            X86_64SelectedAbi::SystemV => crate::x86_64_system_v_register_unit_call_keys(),
+            X86_64SelectedAbi::Microsoft => crate::x86_64_microsoft_register_unit_call_keys(),
         },
-        call_scalar: (if matches!(target.object_format, ObjectFormat::Elf) {
-            x86_64_system_v_register_call_keys()
-        } else {
-            crate::x86_64_microsoft_register_call_keys()
+        call_scalar: (match abi {
+            X86_64SelectedAbi::SystemV => x86_64_system_v_register_call_keys(),
+            X86_64SelectedAbi::Microsoft => crate::x86_64_microsoft_register_call_keys(),
         })
         .into_iter()
-        .chain(crate::x86_64_float_scalar_call_keys(
-            target.object_format == ObjectFormat::Coff,
-        ))
+        .chain(crate::x86_64_float_scalar_call_keys(microsoft))
         .collect(),
         materialize_i64: X86_64_MATERIALIZE_I64,
         materialize_boolean: crate::X86_64_MATERIALIZE_BOOLEAN,
@@ -233,9 +249,7 @@ fn selected_keys(
         compare_i64_immediate: X86_64_COMPARE_I64_IMMEDIATE,
         conditional_branch: X86_64_CONDITIONAL_BRANCH,
         jump: crate::X86_64_JUMP,
-        return_float: crate::x86_64_float_scalar_return_keys(
-            target.object_format == ObjectFormat::Coff,
-        ),
+        return_float: crate::x86_64_float_scalar_return_keys(microsoft),
         return_i64,
         return_unit,
     })
@@ -1067,5 +1081,81 @@ mod tests {
         assert!(
             validate_x86_64_machine_effect_catalog(target, &constraints, wrong_memory).is_err()
         );
+    }
+
+    #[test]
+    fn selected_keys_declare_the_supported_x86_64_pairs() {
+        let constraints = constraints();
+        let sysv_call = x86_64_system_v_register_call_keys()[0];
+        let microsoft_call = crate::x86_64_microsoft_register_call_keys()[0];
+        for (target, return_i64, return_unit, call) in [
+            (
+                NativeTarget::linux_x64(),
+                X86_64_SYSTEM_V_RETURN,
+                X86_64_SYSTEM_V_RETURN_UNIT,
+                sysv_call,
+            ),
+            (
+                NativeTarget::windows_x64(),
+                X86_64_MICROSOFT_RETURN,
+                X86_64_MICROSOFT_RETURN_UNIT,
+                microsoft_call,
+            ),
+            (
+                NativeTarget::uefi_x64(),
+                X86_64_MICROSOFT_RETURN,
+                X86_64_MICROSOFT_RETURN_UNIT,
+                microsoft_call,
+            ),
+        ] {
+            let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            let keys = &catalog.selected_keys;
+            assert_eq!(keys.return_i64, return_i64);
+            assert_eq!(keys.return_unit, return_unit);
+            assert!(keys.call_scalar.contains(&call));
+            assert_eq!(keys.call_scalar[0], call);
+            let linux = target == NativeTarget::linux_x64();
+            assert_eq!(
+                keys.hosted_write_byte_i32.is_some(),
+                linux,
+                "hosted write byte is declared only for the exact Linux x86-64 target"
+            );
+            assert_eq!(keys.hosted_read_byte.is_some(), linux);
+            assert_eq!(keys.hosted_exit_process_i32.is_some(), linux);
+        }
+    }
+
+    #[test]
+    fn selected_keys_fail_closed_on_undeclared_pairs() {
+        let constraints = constraints();
+        let macho = NativeTarget {
+            architecture: Architecture::X86_64,
+            object_format: ObjectFormat::MachO,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        };
+        assert_eq!(
+            x86_64_machine_effect_catalog(macho, &constraints),
+            Err(X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi)
+        );
+    }
+
+    #[test]
+    fn hosted_rows_follow_the_declared_target_not_the_format_shape() {
+        let constraints = constraints();
+        // A same-format x86-64 target that is not the declared Linux target
+        // claims no Linux syscall rows.
+        let undeclared_elf = NativeTarget {
+            pointer_size: 4,
+            pointer_alignment: 4,
+            ..NativeTarget::linux_x64()
+        };
+        let keys = x86_64_machine_effect_catalog(undeclared_elf, &constraints)
+            .unwrap()
+            .selected_keys;
+        assert_eq!(keys.return_i64, X86_64_SYSTEM_V_RETURN);
+        assert!(keys.hosted_write_byte_i32.is_none());
+        assert!(keys.hosted_read_byte.is_none());
+        assert!(keys.hosted_exit_process_i32.is_none());
     }
 }
