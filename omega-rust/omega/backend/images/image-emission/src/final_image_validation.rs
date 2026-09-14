@@ -10,7 +10,8 @@ use image::{
     validate_final_text_relocation_envelope,
 };
 
-use super::{LINUX_X86_SCALAR_EXIT_SHIM_BYTES, LinuxX86ScalarExitShim, ObjectArtifact};
+use super::{LinuxX86ScalarExitShim, ObjectArtifact};
+use crate::hosted_unit_entry::LINUX_X86_SCALAR_EXIT_SHIM_BYTES;
 
 pub(super) fn validate_terminal_image(
     artifact: &ObjectArtifact,
@@ -489,7 +490,7 @@ fn validate_dynamic_conformance_tables(
                 .dynamic_conformance_tables()
                 .iter()
                 .find(|table| {
-                    super::same_dynamic_table_application(
+                    crate::object_artifact::same_dynamic_table_application(
                         &table.application,
                         &call.dynamic_dispatch.application,
                     )
@@ -554,7 +555,7 @@ fn validate_dynamic_conformance_tables(
                 .dynamic_conformance_tables()
                 .iter()
                 .find(|table| {
-                    super::same_dynamic_table_application(
+                    crate::object_artifact::same_dynamic_table_application(
                         &table.application,
                         &establishment.stored.application,
                     )
@@ -632,7 +633,10 @@ fn validate_dynamic_conformance_tables(
                     .forwarded_dynamic_descriptor_tables()
                     .iter()
                     .find(|table| {
-                        super::same_dynamic_table_application(&table.application, application)
+                        crate::object_artifact::same_dynamic_table_application(
+                            &table.application,
+                            application,
+                        )
                     })
                     .ok_or_else(invalid)?;
                 let origin = object_file::RelocationOrigin::SemanticOperation {

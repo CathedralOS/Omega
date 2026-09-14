@@ -84,7 +84,7 @@ pub(in crate::function_fragments) fn cleanup_actions_match(
             let mut types = contract.structural_types.iter().filter(|declaration| declaration.id == result.structural_type);
             let Some(declaration) = types.next() else { return false; };
             if types.next().is_some() { return false; }
-            crate::boundary_results::hosted_read_byte_declaration_is_valid(declaration)
+            crate::object_artifact::replay::boundary::result_placement::hosted_read_byte_declaration_is_valid(declaration)
         })
 }
 
@@ -310,7 +310,7 @@ fn result_declaration(
         .filter(|row| row.id == structural_type);
     let declaration = matching.next().ok_or_else(invalid)?;
     if matching.next().is_some()
-        || !crate::boundary_results::hosted_read_byte_declaration_is_valid(declaration)
+        || !crate::object_artifact::replay::boundary::result_placement::hosted_read_byte_declaration_is_valid(declaration)
     {
         return Err(invalid());
     }

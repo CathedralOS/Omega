@@ -4782,7 +4782,7 @@ fn native_provider_execution_compact_coordinates_are_report_only() {
     );
 
     let installation_path =
-        root.join("omega-rust/omega/backend/images/image-emission/src/installation.rs");
+        root.join("omega-rust/omega/backend/images/image-emission/src/installation_record.rs");
     let installation = std::fs::read_to_string(&installation_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
     assert!(
