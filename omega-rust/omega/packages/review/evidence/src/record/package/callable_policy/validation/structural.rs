@@ -124,9 +124,10 @@ fn field(
 ) -> Result<(), &'static str> {
     parameter(position as usize, count)?;
     for segment in path {
-        let (PackageReviewStructuralPredicatePathSegment::Field(name)
-        | PackageReviewStructuralPredicatePathSegment::Case(name)) = segment;
-        if name.is_empty() {
+        if matches!(segment,
+            PackageReviewStructuralPredicatePathSegment::Field(name)
+            | PackageReviewStructuralPredicatePathSegment::Case(name) if name.is_empty()
+        ) {
             return Err("structural requirement has an empty path segment");
         }
     }
@@ -138,4 +139,20 @@ fn bounded(depth: usize) -> Result<(), &'static str> {
         return Err("structural requirement exceeds the policy nesting ceiling");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fixed_index_is_numeric_while_named_segments_and_parameter_scope_remain_checked() {
+        use PackageReviewStructuralPredicatePathSegment as Segment;
+        assert!(field(0, &[Segment::FixedIndex(0)], 1).is_ok());
+        assert!(field(0, &[Segment::FixedIndex(u64::MAX)], 1).is_ok());
+        assert!(field(1, &[Segment::FixedIndex(0)], 1).is_err());
+        for empty in [Segment::Field(String::new()), Segment::Case(String::new())] {
+            assert!(field(0, &[Segment::FixedIndex(0), empty], 1).is_err());
+        }
+    }
 }

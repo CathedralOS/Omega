@@ -99,7 +99,11 @@ fn constructor_observations(
                 static_reach_binding: None,
                 id: OperationId::new(next_operation).unwrap(),
                 result: OperationResult::Scalar(boolean(next_value)),
-                kind: OperationKind::StructuralCaseMembership { source, case },
+                kind: OperationKind::StructuralCaseMembership {
+                    source,
+                    path: Vec::new(),
+                    case,
+                },
             });
             next_operation += 1;
             next_value += 1;
@@ -178,7 +182,11 @@ fn parameter_observations(access: StructuralAccess) -> CanonicalTerminalArtifact
             static_reach_binding: None,
             id: OperationId::new(identity).unwrap(),
             result: OperationResult::Scalar(boolean(identity)),
-            kind: OperationKind::StructuralCaseMembership { source, case },
+            kind: OperationKind::StructuralCaseMembership {
+                source,
+                path: Vec::new(),
+                case,
+            },
         })
         .collect();
     block.terminator = Terminator::Return {
@@ -400,6 +408,7 @@ fn native_case_membership_replay_rejects_source_case_result_and_access_substitut
             source,
             case,
             case_tag,
+            ..
         } = &mut row.kind
         else {
             unreachable!()

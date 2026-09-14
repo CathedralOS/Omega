@@ -217,11 +217,13 @@ pub enum OperationKind {
         result_case: StructuralCaseId,
         fields: Vec<crate::ScalarCaseField>,
     },
-    /// Observe a whole sum's active case without moving or refining its payload.
+    /// Observe a selected sum's active case without moving or refining its payload.
     /// The Boolean result is an observation, not a transfer or a reusable proof
     /// that the case remains unchanged after a later mutation.
     StructuralCaseMembership {
         source: PlaceId,
+        /// Ordered structural projection from the live whole root to the sum.
+        path: Vec<StructuralPathSegment>,
         case: StructuralCaseId,
     },
     /// Establish one immutable borrowed byte-sequence literal in a declared

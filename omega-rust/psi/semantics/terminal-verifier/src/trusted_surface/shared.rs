@@ -582,8 +582,8 @@ rows! {
     FORM_CASE_MEMBERSHIP => (
         "formation:structural-case-membership",
         SharedFormation,
-        "a structural case membership test over a declared sum type",
-        "membership tests validate before membership facts are reconstructed",
+        "a structural case membership test with an exact root/path and declared sum case",
+        "readable access, projection identity, dominating establishment and whole live ownership validate before a Boolean observation; no storage refinement is reconstructed",
         &["formation:operation-validation"],
         &[tv!( "validation/structural_case_membership.rs")]
     );

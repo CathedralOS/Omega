@@ -77,6 +77,17 @@ pub(super) fn indexed_read_is_builtin(
     {
         return false;
     }
+    indexed_read_has_builtin_meaning(program, parameters, expression, collection_type, index)
+}
+
+fn indexed_read_has_builtin_meaning(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+    collection_type: TypeReferenceHandle,
+    index: ExpressionHandle,
+) -> bool {
+    use language_core::OperatorSpelling;
     let Some((machine, state)) = program.machines().iter().find_map(|machine| {
         program.machine_states(machine).iter().find_map(|state| {
             let authored = program.state_parameters(state);
@@ -116,6 +127,32 @@ pub(super) fn structural_parameter_field_path(
     fields: &mut Vec<CheckedStructuralPredicatePathSegment>,
 ) -> Option<u32> {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Indexed(indexed) => {
+            let position =
+                structural_parameter_field_path(program, parameters, indexed.collection, fields)?;
+            let (_, _, collection_type) =
+                resolve_structural_parameter_path(program, parameters, position, fields)?;
+            if !indexed_read_has_builtin_meaning(
+                program,
+                parameters,
+                expression,
+                collection_type,
+                indexed.index,
+            ) {
+                return None;
+            }
+            let element_index = u64::try_from(
+                program
+                    .expression_table
+                    .constant_integer_value(indexed.index)?,
+            )
+            .ok()?;
+            fixed_index_element_type(program, collection_type, element_index)?;
+            fields.push(CheckedStructuralPredicatePathSegment::FixedIndex(
+                element_index,
+            ));
+            Some(position)
+        }
         ExpressionNode::Name(name) => {
             if program.symbols.get(name.symbol).kind == symbols::SymbolKind::Machine
                 || matches!(program.expression_table.name_path_members(name.members),
@@ -342,6 +379,15 @@ pub(crate) fn resolve_structural_parameter_path(
     let mut selected_case = None;
     for segment in path {
         match segment {
+            CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
+                if selected_case.is_some() {
+                    return None;
+                }
+                receiver = fixed_index_element_type(program, receiver, *element_index)?;
+                segments.push(facts::PlaceSegment::FixedIndex {
+                    index: usize::try_from(*element_index).ok()?,
+                });
+            }
             CheckedStructuralPredicatePathSegment::Case(identity) => {
                 if selected_case.is_some() {
                     return None;
@@ -401,6 +447,31 @@ pub(crate) fn resolve_structural_parameter_path(
     selected_case
         .is_none()
         .then_some((parameter.symbol, segments, receiver))
+}
+
+pub(super) fn fixed_index_element_type(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+    element_index: u64,
+) -> Option<TypeReferenceHandle> {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. }
+            | TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => reference = *referee,
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                    return None;
+                };
+                return (element_index < u64::try_from(*length).ok()?).then_some(*element_type);
+            }
+            _ => return None,
+        }
+    }
 }
 
 pub(super) fn structural_data(

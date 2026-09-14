@@ -607,9 +607,10 @@ compact type-DAG expansion. Borrowed aggregate parameters, projected owned leaf
 extraction with residual disposal, nested result operands, and native reference
 storage remain separate dependencies.
 
-Whole borrowed sum parameters support runtime `in` observations through ordinary
+Whole sums and sums below relevant record fields and constant fixed-array indices
+support runtime `in` observations through ordinary
 scalar completion, including Boolean locals and Boolean composition. Checked
-source replay retains the authored subject and case; Terminal records a
+source replay retains the authored root, exact projection and case; Terminal records a
 non-consuming `StructuralCaseMembership` operation. It does not grant a durable
 fact about later mutable contents. Canonical interpretation also observes
 established scalar-case values without consuming their payload or owner. Native
@@ -617,6 +618,12 @@ realization currently follows the existing scalar-field sum layout; mixed
 common-field sums remain outside that native layout route. Direct constructions
 and immutable locals use the ordinary structural-value sequence described above,
 with scalar operands evaluated once and membership observing the completed owner.
+Projected native reads use original borrowed storage or the existing owned-value
+home, retaining the logical path alongside its independently reconstructed tag
+offset. Runtime-valued indices remain a separate producer dependency. Interpreter
+host inputs can supply exact nominal payloadless case contents for membership,
+including through projected calls; that input form does not yet implement sum
+dispatch or payload-bearing host contents.
 
 Ordinary scalar completion retains ordered guarded returns, including an explicit
 fallback or exhaustive observations of one closed sum. Source replay checks the

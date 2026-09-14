@@ -30,7 +30,7 @@ pub(super) fn lower(
         OperationKind::EstablishReference { .. } | OperationKind::ReleaseReference { .. } => {
             Err(LoweringError::UnsupportedReferenceCustody(operation.id))
         }
-        OperationKind::StructuralCaseMembership { source, case } => {
+        OperationKind::StructuralCaseMembership { source, path, case } => {
             let result = operation
                 .result
                 .scalar()
@@ -43,6 +43,7 @@ pub(super) fn lower(
                     scalar_type: result.scalar_type,
                 },
                 source: *source,
+                path: path.clone(),
                 case: *case,
             })
         }

@@ -3,6 +3,107 @@
 use super::super::*;
 
 #[test]
+fn projected_case_membership_replays_exact_path_case_access_and_identity() {
+    use terminal_psi::{StructuralPathSegment as Path, StructuralTypeShape as Shape};
+    let mut baseline = direct_realization_boolean_structural_field_unit();
+    let array = id(4_800, StructuralTypeId::new);
+    let sum = id(4_801, StructuralTypeId::new);
+    let case = id(4_802, semantic_vocabulary::StructuralCaseId::new);
+    let Shape::Record { fields } = &mut baseline.structural_types.make_mut()[0].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = terminal_psi::StructuralFieldType::Structural(array);
+    baseline.structural_types.make_mut().extend([
+        terminal_psi::StructuralTypeDeclaration {
+            id: array,
+            identity: "validation::colors".into(),
+            shape: Shape::FixedArray {
+                element: sum,
+                length: 2,
+            },
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: sum,
+            identity: "validation::Color".into(),
+            shape: Shape::Sum {
+                cases: vec![terminal_psi::StructuralCaseDeclaration {
+                    id: case,
+                    identity: "validation::Color::Blue".into(),
+                    fields: Vec::new(),
+                }],
+            },
+        },
+    ]);
+    let O::BooleanStructuralField {
+        psi_operation,
+        result,
+        source,
+        ..
+    } = baseline.functions[0].blocks[0].nodes[0].operation.clone()
+    else {
+        unreachable!()
+    };
+    baseline.functions[0].blocks[0].nodes[0].operation = O::StructuralCaseMembership {
+        psi_operation,
+        result: abstract_operations::AbstractResult {
+            value: result,
+            scalar_type: ScalarType::Boolean,
+        },
+        source,
+        path: vec![Path::Field("ready".into()), Path::FixedIndex(1)],
+        case,
+    };
+    refresh_function_derivatives(&mut baseline, 0);
+    validate_psi_optimization_unit(&baseline)
+        .expect("nested fixed-array case observation validates");
+
+    let mut other_element = baseline.clone();
+    let O::StructuralCaseMembership { path, .. } =
+        &mut other_element.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    path[1] = Path::FixedIndex(0);
+    refresh_function_derivatives(&mut other_element, 0);
+    validate_psi_optimization_unit(&other_element)
+        .expect("the other in-bounds element also validates");
+    assert_ne!(
+        baseline.identity, other_element.identity,
+        "projection participates in identity"
+    );
+
+    for corruption in 0..5 {
+        let mut candidate = baseline.clone();
+        let O::StructuralCaseMembership {
+            path,
+            case: selected_case,
+            ..
+        } = &mut candidate.functions[0].blocks[0].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        match corruption {
+            0 => path[1] = Path::FixedIndex(2),
+            1 => path[0] = Path::Field("missing".into()),
+            2 => *selected_case = id(4_803, semantic_vocabulary::StructuralCaseId::new),
+            3 => {
+                path.pop();
+            }
+            4 => {
+                candidate.functions[0].structural_parameters[0].access =
+                    terminal_psi::StructuralAccess::WriteOnlyBorrow
+            }
+            _ => unreachable!(),
+        }
+        refresh_function_derivatives(&mut candidate, 0);
+        assert!(
+            validate_psi_optimization_unit(&candidate).is_err(),
+            "corruption {corruption}"
+        );
+    }
+}
+
+#[test]
 fn logical_structural_roots_are_unique_beyond_place_identity() {
     let mut duplicate = structural_result_call_unit();
     let first_call = duplicate.functions[0].blocks[0].nodes[0].clone();

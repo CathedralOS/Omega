@@ -1274,6 +1274,16 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             let mut selected_case = None;
             for segment in path {
                 match segment {
+                    CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
+                        if selected_case.is_some() {
+                            return None;
+                        }
+                        receiver = structural_fields::fixed_index_element_type(
+                            program,
+                            receiver,
+                            *element_index,
+                        )?;
+                    }
                     CheckedStructuralPredicatePathSegment::Case(case) => {
                         if selected_case.is_some() {
                             return None;

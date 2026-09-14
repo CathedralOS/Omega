@@ -128,7 +128,7 @@ fn borrowed_sum_guarded_returns_preserve_declared_result_range() {
         .iter()
         .flat_map(|block| &block.operations)
         .filter_map(|operation| match operation.kind {
-            terminal_psi::OperationKind::StructuralCaseMembership { source, case } => {
+            terminal_psi::OperationKind::StructuralCaseMembership { source, case, .. } => {
                 Some((source, case))
             }
             _ => None,

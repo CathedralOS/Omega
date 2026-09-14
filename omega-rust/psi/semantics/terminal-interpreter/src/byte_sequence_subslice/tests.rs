@@ -114,6 +114,7 @@ fn execution() -> (TerminalExecution, Operation) {
         blocks: blocks.clone(),
     };
     let execution = TerminalExecution {
+        structural_cases: BTreeMap::new(),
         structural_types: BTreeMap::from([(
             structural_type,
             StructuralTypeDeclaration {

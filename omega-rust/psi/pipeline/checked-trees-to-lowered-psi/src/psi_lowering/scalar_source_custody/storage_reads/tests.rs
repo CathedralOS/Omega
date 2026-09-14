@@ -344,6 +344,42 @@ fn owned_integer_field_rejects_same_typed_field_parameter_and_erasure() {
 }
 
 #[test]
+fn projected_case_membership_replays_exact_root_field_index_and_case() {
+    let checked = checked_source(
+        "data Color [copy] { case Red; case Blue; }
+         data Palette { colors: [Color; 3]; spare: [Color; 3]; }
+         machine read(palette: &Palette, alternate: &Palette) -> bool {
+             palette.colors[1] in Color::Blue
+         }",
+    );
+    let membership = |parameter_position, field: &str, element_index, case: &str| {
+        CheckedScalarExpression::Boolean(Box::new(
+            CheckedBooleanExpression::StructuralCaseMembership {
+                subject: checked_trees::CheckedStructuralParameterField {
+                    parameter_position,
+                    path: vec![
+                        CheckedStructuralPredicatePathSegment::Field(field.into()),
+                        CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
+                    ],
+                },
+                case: case.into(),
+            },
+        ))
+    };
+    assert!(validate_return(&checked, &membership(0, "colors", 1, "Blue")).is_ok());
+    for forged in [
+        membership(1, "colors", 1, "Blue"),
+        membership(0, "spare", 1, "Blue"),
+        membership(0, "colors", 0, "Blue"),
+        membership(0, "colors", 3, "Blue"),
+        membership(0, "colors", 1, "Red"),
+        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Constant(true))),
+    ] {
+        assert!(validate_return(&checked, &forged).is_err(), "{forged:?}");
+    }
+}
+
+#[test]
 fn case_membership_receiver_rejoins_only_its_declaring_machine() {
     let checked = checked_source(
         "data Choice [copy] { case Empty; case Full; }

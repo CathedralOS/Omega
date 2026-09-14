@@ -94,6 +94,7 @@ fn structural_path(
         Ok(match reader.byte()? {
             0 => PackageReviewStructuralPredicatePathSegment::Field(reader.string()?),
             1 => PackageReviewStructuralPredicatePathSegment::Case(reader.string()?),
+            2 => PackageReviewStructuralPredicatePathSegment::FixedIndex(reader.u64()?),
             _ => return Err(Error::InvalidTag),
         })
     })

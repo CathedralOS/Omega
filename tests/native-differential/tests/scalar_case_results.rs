@@ -17,6 +17,9 @@ mod owned_state;
 #[path = "scalar_case_results/membership.rs"]
 mod membership;
 
+#[path = "scalar_case_results/projected_membership.rs"]
+mod projected_membership;
+
 #[path = "scalar_case_results/package_membership.rs"]
 mod package_membership;
 

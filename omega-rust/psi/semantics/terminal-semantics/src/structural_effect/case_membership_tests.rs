@@ -12,6 +12,7 @@ fn operation() -> Operation {
             qualifications: Default::default(),
         }),
         kind: OperationKind::StructuralCaseMembership {
+            path: Vec::new(),
             source: PlaceId::new(3).unwrap(),
             case: StructuralCaseId::new(4).unwrap(),
         },
@@ -29,7 +30,7 @@ fn case_membership_retains_exact_observation_without_current_storage_equation() 
     assert_eq!(schema.result(), StructuralEffectResultShape::Boolean);
     assert_eq!(
         schema.custody(),
-        StructuralEffectCustody::ExactReadableSumRoot
+        StructuralEffectCustody::ExactReadableSumProjection
     );
     assert_eq!(
         schema.action(),
@@ -51,7 +52,12 @@ fn case_membership_retains_exact_observation_without_current_storage_equation() 
         let source = PlaceId::new(source).unwrap();
         let case = StructuralCaseId::new(case).unwrap();
         let result = ValueId::new(result).unwrap();
-        operation.kind = OperationKind::StructuralCaseMembership { source, case };
+        let path = vec![terminal_psi::StructuralPathSegment::FixedIndex(1)];
+        operation.kind = OperationKind::StructuralCaseMembership {
+            source,
+            path: path.clone(),
+            case,
+        };
         operation.result.scalar_mut().unwrap().id = result;
         let observation = structural_effect_leaf_observation(&operation)
             .unwrap()
@@ -60,6 +66,7 @@ fn case_membership_retains_exact_observation_without_current_storage_equation() 
             observation,
             StructuralEffectObservation::CaseMembershipObserved {
                 source,
+                path,
                 case,
                 result
             }

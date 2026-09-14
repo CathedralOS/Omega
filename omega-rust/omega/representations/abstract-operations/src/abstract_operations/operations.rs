@@ -51,6 +51,7 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         case: StructuralCaseId,
     },
     /// Establish an immutable view with the exact source, endpoints and two-leg bounds proof.

@@ -155,8 +155,10 @@ pub enum LegalizedScalarInstructionKind {
     },
     StructuralCaseMembership {
         source: semantic_vocabulary::PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         case: semantic_vocabulary::StructuralCaseId,
         case_tag: u32,
+        tag_byte_offset: u32,
     },
     /// Exact admitted byte-input boundary and its owned structural result home.
     HostedReadByte {

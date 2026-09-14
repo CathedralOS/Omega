@@ -9,6 +9,7 @@ pub(super) fn validate(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     source: PlaceId,
+    path: &[StructuralPathSegment],
     case: semantic_vocabulary::StructuralCaseId,
 ) -> Result<(), ModuleError> {
     let invalid = || ModuleError::InvalidStructuralCaseObservation {
@@ -34,10 +35,12 @@ pub(super) fn validate(
     }
     let signature = super::structural_result_contracts::source_signature(machine, source)
         .ok_or_else(invalid)?;
+    let selected_type =
+        resolve_structural_path(module, signature.structural_type, path).ok_or_else(invalid)?;
     let declaration = module
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == signature.structural_type)
+        .find(|declaration| declaration.id == selected_type)
         .ok_or_else(invalid)?;
     let cases = match &declaration.shape {
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
@@ -54,7 +57,7 @@ pub(super) fn validate_available(
     operation: &terminal_psi::Operation,
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
-    let OperationKind::StructuralCaseMembership { source, case } = operation.kind else {
+    let OperationKind::StructuralCaseMembership { source, case, .. } = operation.kind else {
         return Ok(());
     };
     // Entry parameters already exist. Block parameters, including exclusive

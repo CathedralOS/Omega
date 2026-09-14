@@ -8,20 +8,23 @@ pub(in crate::selection) fn observe(
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let LegalizedScalarInstructionKind::StructuralCaseMembership {
         source: place,
+        path,
         case,
         case_tag,
-    } = row.kind
+        tag_byte_offset,
+    } = &row.kind
     else {
         return Err(replay.invalid());
     };
     let result = row.result.ok_or_else(|| replay.invalid())?;
     if result.scalar_type != ScalarType::Boolean
-        || crate::selection::aggregate_result_input::membership_tag(source, place, case)
-            != Some(case_tag)
+        || crate::selection::aggregate_result_input::membership_layout(source, *place, path, *case)
+            != Some((*case_tag, *tag_byte_offset))
     {
         return Err(replay.invalid());
     }
-    let tag = super::result(replay, place, 0)?;
+    let place = *place;
+    let tag = super::result(replay, place, *tag_byte_offset)?;
     let provenance = SelectedInstructionProvenance {
         operations: vec![row.operation],
         values: vec![result.value],
@@ -39,12 +42,14 @@ pub(in crate::selection) fn observe(
             replay,
             row,
             place,
-            0,
+            *tag_byte_offset,
             4,
             SelectedMemoryAccessRole::ReadPlace,
         )?;
         replay.check_instruction(
-            SelectedInstructionKind::Load32 { byte_offset: 0 },
+            SelectedInstructionKind::Load32 {
+                byte_offset: *tag_byte_offset,
+            },
             replay
                 .constraints
                 .keys
@@ -54,6 +59,9 @@ pub(in crate::selection) fn observe(
             &provenance,
         )?;
     } else {
+        if !path.is_empty() || *tag_byte_offset != 0 {
+            return Err(replay.invalid());
+        }
         // Owned ABI fragments contain value bytes. Narrow the tag before
         // comparing so adjacent payload bits cannot affect membership.
         let fragment = replay
@@ -73,7 +81,7 @@ pub(in crate::selection) fn observe(
     let expected = super::result(replay, place, 0)?;
     replay.check_instruction(
         SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(case_tag)),
+            value: IntegerValue::Unsigned(u128::from(*case_tag)),
         },
         replay.constraints.keys.materialize_i64,
         &[expected],

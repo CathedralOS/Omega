@@ -28,7 +28,51 @@ fn field() -> PackageReviewStructuralParameterField {
         path: vec![
             PackageReviewStructuralPredicatePathSegment::Case("Some".into()),
             PackageReviewStructuralPredicatePathSegment::Field("value".into()),
+            PackageReviewStructuralPredicatePathSegment::FixedIndex(7),
         ],
+    }
+}
+
+#[test]
+fn fixed_index_paths_retain_numeric_identity_and_reject_malformed_payloads() {
+    use PackageReviewStructuralPredicatePathSegment as Segment;
+    let indexed = |element_index| Boolean::StructuralParameterField {
+        parameter_position: 0,
+        path: vec![Segment::FixedIndex(element_index)],
+    };
+    for element_index in [0, 1, u64::from(u32::MAX) + 1, u64::MAX] {
+        let value = indexed(element_index);
+        let bytes = boolean_bytes(&value);
+        let mut expected = vec![3];
+        expected.extend_from_slice(&0_u32.to_le_bytes());
+        expected.extend_from_slice(&1_u64.to_le_bytes());
+        expected.push(2);
+        expected.extend_from_slice(&element_index.to_le_bytes());
+        assert_eq!(bytes, expected, "fixed-width numeric path encoding");
+        boolean_roundtrip(value);
+    }
+    let first = boolean_bytes(&indexed(0));
+    let second = boolean_bytes(&indexed(1));
+    assert_ne!(first, second);
+    let named = boolean_bytes(&Boolean::StructuralParameterField {
+        parameter_position: 0,
+        path: vec![Segment::Field("1".into())],
+    });
+    assert_ne!(second, named, "an index is not a field spelling");
+    let mut unknown = second.clone();
+    unknown[13] = 3;
+    assert_eq!(
+        recover_boolean(&unknown, PackagePolicyRecoveryLimits::default()),
+        Err(Error::InvalidTag)
+    );
+    for retained_bytes in 0..8 {
+        assert!(
+            recover_boolean(
+                &second[..14 + retained_bytes],
+                PackagePolicyRecoveryLimits::default()
+            )
+            .is_err()
+        );
     }
 }
 fn literal() -> Scalar {
@@ -301,7 +345,7 @@ fn closed_tags_reject_unknown_nodes_kinds_paths_primitive_names_and_domains() {
         parameter_position: 0,
         path: field().path,
     });
-    path[1 + 4 + 8] = 2;
+    path[1 + 4 + 8] = 3;
     assert_eq!(
         recover_boolean(&path, PackagePolicyRecoveryLimits::default()),
         Err(Error::InvalidTag)

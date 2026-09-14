@@ -107,11 +107,17 @@ and receipt, unless installation supplies physical isolation evidence.
 
 ## Case observation
 
-`StructuralCaseMembership` reads a whole sum's current discriminator and produces
-an unqualified Boolean. Its case identity must belong to the exact source type;
+`StructuralCaseMembership` retains an established root and a canonical path to
+the sum whose current discriminator it reads, producing an unqualified Boolean.
+An empty path observes the whole root. Relevant record fields and in-range fixed
+array indices select the original backing without copying or borrowing a child.
+Its case identity must belong to the exact selected sum type;
 matching case spellings in another type supply no authority. The source must be
 readable and established on every incoming path. An affine source must also be
 live and whole at the observation, not merely present in the declaration table.
+Receiving checks reconstruct the selected type and native tag offset from every
+retained path segment; another element, a same-spelled case in another nominal
+type, or an asserted byte offset cannot replace that evidence.
 
 The operation neither consumes the owner nor projects its payload. Its result
 captures that occurrence's observation; it grants no reusable equality with

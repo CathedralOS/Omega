@@ -425,10 +425,12 @@ fn unknown_envelope_versions_and_dependency_vocabulary_reject() {
     let mut changed = bytes.clone();
     changed[0] ^= 1;
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
-    let mut previous = bytes.clone();
-    previous[PACKAGE_POLICY_BASELINE_MAGIC.len()..PACKAGE_POLICY_BASELINE_MAGIC.len() + 2]
-        .copy_from_slice(&2_u16.to_le_bytes());
-    assert_eq!(recover(&previous), Err(Error::UnsupportedVersion));
+    for version in [2_u16, 3] {
+        let mut previous = bytes.clone();
+        previous[PACKAGE_POLICY_BASELINE_MAGIC.len()..PACKAGE_POLICY_BASELINE_MAGIC.len() + 2]
+            .copy_from_slice(&version.to_le_bytes());
+        assert_eq!(recover(&previous), Err(Error::UnsupportedVersion));
+    }
     changed = bytes;
     changed[PACKAGE_POLICY_BASELINE_MAGIC.len()] = 255;
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));

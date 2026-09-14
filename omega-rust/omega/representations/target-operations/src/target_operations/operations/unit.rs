@@ -65,6 +65,8 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        tag_byte_offset: u32,
         case: semantic_vocabulary::StructuralCaseId,
         case_tag: u32,
     },

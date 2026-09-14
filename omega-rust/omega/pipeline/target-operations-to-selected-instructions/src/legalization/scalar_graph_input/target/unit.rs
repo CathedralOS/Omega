@@ -63,24 +63,29 @@ pub(super) fn validate_operation(
                 psi_operation,
                 result,
                 source,
+                path,
                 case,
                 case_tag,
+                tag_byte_offset,
             },
             AbstractOperation::StructuralCaseMembership {
                 psi_operation: expected_operation,
                 result: expected_result,
                 source: expected_source,
+                path: expected_path,
                 case: expected_case,
             },
         ) if psi_operation == expected_operation
             && result == expected_result
             && source == expected_source
+            && path == expected_path
             && case == expected_case
             && result.scalar_type == ScalarType::Boolean
-            && *case_tag
-                == super::super::structural_case::membership_tag(
+            && (*case_tag, *tag_byte_offset)
+                == super::super::structural_case::membership_layout(
                     optimized,
                     *expected_source,
+                    expected_path,
                     *expected_case,
                     plan,
                 )? =>

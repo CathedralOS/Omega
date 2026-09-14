@@ -70,9 +70,9 @@ impl LocalCaseBinding {
 #[derive(Clone)]
 pub(crate) struct StructuralCaseBinding {
     source_position: u32,
-    identity: String,
     source: PlaceId,
-    case: semantic_vocabulary::StructuralCaseId,
+    structural_type: StructuralTypeId,
+    declarations: std::sync::Arc<[StructuralTypeDeclaration]>,
 }
 
 impl StructuralCaseBinding {
@@ -80,29 +80,18 @@ impl StructuralCaseBinding {
         parameters: &[(u32, StructuralParameterDeclaration)],
         types: &[StructuralTypeDeclaration],
     ) -> Vec<Self> {
+        let declarations: std::sync::Arc<[StructuralTypeDeclaration]> = types.into();
         let mut bindings = Vec::new();
         for (position, parameter) in parameters {
             if parameter.access == StructuralAccess::WriteOnlyBorrow {
                 continue;
             }
-            let Some(declaration) = types
-                .iter()
-                .find(|declaration| declaration.id == parameter.structural_type)
-            else {
-                continue;
-            };
-            let cases = match &declaration.shape {
-                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-                    cases
-                }
-                _ => continue,
-            };
-            bindings.extend(cases.iter().map(|case| Self {
+            bindings.push(Self {
                 source_position: *position,
-                identity: case.identity.clone(),
                 source: parameter.place,
-                case: case.id,
-            }));
+                structural_type: parameter.structural_type,
+                declarations: std::sync::Arc::clone(&declarations),
+            });
         }
         bindings
     }
@@ -112,18 +101,90 @@ pub(crate) fn resolve(
     bindings: &[StructuralCaseBinding],
     subject: &checked_trees::CheckedStructuralParameterField,
     identity: &str,
-) -> Result<(PlaceId, semantic_vocabulary::StructuralCaseId), LoweringError> {
-    if !subject.path.is_empty() {
-        return unsupported("case observation requires an established whole sum referent");
-    }
-    let mut matching = bindings.iter().filter(|binding| {
-        binding.source_position == subject.parameter_position && binding.identity == identity
-    });
+) -> Result<
+    (
+        PlaceId,
+        Vec<terminal_psi::StructuralPathSegment>,
+        semantic_vocabulary::StructuralCaseId,
+    ),
+    LoweringError,
+> {
+    let mut matching = bindings
+        .iter()
+        .filter(|binding| binding.source_position == subject.parameter_position);
     let binding = matching.next().ok_or(LoweringError::Unsupported(
         "case observation has no exact readable source and case binding",
     ))?;
     if matching.next().is_some() {
         return unsupported("case observation has ambiguous source bindings");
     }
-    Ok((binding.source, binding.case))
+    let declaration = |structural_type| {
+        let mut declarations = binding
+            .declarations
+            .iter()
+            .filter(|declaration| declaration.id == structural_type);
+        let selected = declarations.next()?;
+        declarations.next().is_none().then_some(selected)
+    };
+    let mut structural_type = binding.structural_type;
+    let mut path = Vec::with_capacity(subject.path.len());
+    for segment in &subject.path {
+        let shape = &declaration(structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "case observation lost its exact carrier type",
+            ))?
+            .shape;
+        match (segment, shape) {
+            (
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity),
+                StructuralTypeShape::Record { fields },
+            ) => {
+                let mut selected = fields.iter().filter(|field| field.identity == *identity);
+                let field = selected.next().ok_or(LoweringError::Unsupported(
+                    "case observation lost its carrier field",
+                ))?;
+                if selected.next().is_some() || field.relevance.is_erased() {
+                    return unsupported(
+                        "case observation has an erased or ambiguous carrier field",
+                    );
+                }
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return unsupported("case observation requires a structural carrier field");
+                };
+                structural_type = child;
+                path.push(terminal_psi::StructuralPathSegment::Field(identity.clone()));
+            }
+            (
+                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if element_index < length => {
+                structural_type = *element;
+                path.push(terminal_psi::StructuralPathSegment::FixedIndex(
+                    *element_index,
+                ));
+            }
+            _ => {
+                return unsupported(
+                    "case observation requires relevant record fields and in-range fixed indices",
+                );
+            }
+        }
+    }
+    let shape = &declaration(structural_type)
+        .ok_or(LoweringError::Unsupported(
+            "case observation lost its selected sum",
+        ))?
+        .shape;
+    let cases = match shape {
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
+        _ => return unsupported("case observation requires an exact selected sum"),
+    };
+    let mut selected = cases.iter().filter(|case| case.identity == identity);
+    let case = selected.next().ok_or(LoweringError::Unsupported(
+        "case observation lost its exact selected case",
+    ))?;
+    if selected.next().is_some() {
+        return unsupported("case observation has ambiguous selected cases");
+    }
+    Ok((binding.source, path, case.id))
 }

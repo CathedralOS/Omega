@@ -319,6 +319,7 @@ impl Expansion<'_> {
                         expression: Box::new(
                             LoweredBooleanReturnExpression::StructuralCaseMembership {
                                 source: place,
+                                path: Vec::new(),
                                 case,
                             },
                         ),
@@ -376,6 +377,7 @@ impl Expansion<'_> {
                     expression: Box::new(
                         LoweredBooleanReturnExpression::StructuralCaseMembership {
                             source: slot.place,
+                            path: Vec::new(),
                             case,
                         },
                     ),
