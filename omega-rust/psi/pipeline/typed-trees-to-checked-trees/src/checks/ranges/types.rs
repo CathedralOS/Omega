@@ -387,6 +387,24 @@ fn type_reference_for_symbol(
                 .map(|owned| owned.type_reference)
         })
         .or_else(|| {
+            // A const/value binder denotes a symbolic value of its declared
+            // carrier while the template is checked, so `values[Count]`
+            // proves its lower bound from `u32` like any other unsigned
+            // subject. Specialization replaces the binder before runtime.
+            program
+                .machine_type_parameters(machine)
+                .iter()
+                .find_map(|parameter| match &parameter.kind {
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference }
+                        if parameter.symbol == symbol =>
+                    {
+                        Some(*type_reference)
+                    }
+                    _ => None,
+                })
+        })
+        .or_else(|| {
             // State bindings are WHOLE-MACHINE scope: a param declared on the
             // machine's entry state is readable from every sub-state, so its
             // declared range must feed the prover there too (`pick(k: usize
@@ -431,6 +449,22 @@ fn type_reference_for_name(
                 .iter()
                 .find(|owned| owned.name == *name)
                 .map(|owned| owned.type_reference)
+        })
+        .or_else(|| {
+            // The const/value binder carrier, as in the symbol twin above.
+            // A local or parameter of the same name wins earlier.
+            program
+                .machine_type_parameters(machine)
+                .iter()
+                .find_map(|parameter| match &parameter.kind {
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference }
+                        if parameter.name == *name =>
+                    {
+                        Some(*type_reference)
+                    }
+                    _ => None,
+                })
         })
         .or_else(|| {
             // Whole-machine param scope (see the symbol twin above). A NAME

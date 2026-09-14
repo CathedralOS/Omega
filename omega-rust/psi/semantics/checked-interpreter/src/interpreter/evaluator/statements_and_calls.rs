@@ -481,9 +481,12 @@ impl<'program> Evaluator<'program> {
         let target = call.target.as_str();
         let (machine, state, instance) = if call.receiver.is_empty() {
             self.resolve_entry_state_symbol(call.target_symbol, frame)
-                .map_or_else(|| self.resolve_state_call(call.receiver, target, frame), Ok)?
+                .map_or_else(
+                    || self.resolve_state_call(call.receiver, target, call.target_symbol, frame),
+                    Ok,
+                )?
         } else {
-            self.resolve_state_call(call.receiver, target, frame)?
+            self.resolve_state_call(call.receiver, target, call.target_symbol, frame)?
         };
 
         let args = self.eval_state_arguments(
@@ -523,6 +526,8 @@ impl<'program> Evaluator<'program> {
     /// (machine, state, instance) it runs against. Priority:
     /// 1. An explicit receiver path naming a CONTAINED sub-machine instance field whose
     ///    type defines the target state (`self.dungeon.foo()`): run on that sub-instance.
+    ///    A resolved `target_symbol` (specialization rewrite or checked selection) picks
+    ///    the exact entry state on that instance before any name matching.
     /// 2. A SIBLING state of the current machine (`self.foo()` where `foo` is a state of
     ///    the machine currently executing): run that state on the same `self`.
     /// 3. A free helper machine named `<group>::<target>` or any machine with that state:
@@ -531,10 +536,13 @@ impl<'program> Evaluator<'program> {
         &self,
         receiver: arena::HandleSpan<typed_trees::name::Identifier>,
         target: &str,
+        target_symbol: SymbolHandle,
         frame: &Frame,
     ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
         // (1) Explicit receiver path to a contained sub-machine instance.
-        if let Some(resolved) = self.resolve_receiver_state_call(receiver, target, frame)? {
+        if let Some(resolved) =
+            self.resolve_receiver_state_call(receiver, target, target_symbol, frame)?
+        {
             return Ok(resolved);
         }
 
@@ -562,6 +570,7 @@ impl<'program> Evaluator<'program> {
         &self,
         receiver: arena::HandleSpan<typed_trees::name::Identifier>,
         target: &str,
+        target_symbol: SymbolHandle,
         frame: &Frame,
     ) -> EvalResult<Option<(&'program Machine, &'program State, Cell)>> {
         let members: Vec<String> = self
@@ -593,6 +602,16 @@ impl<'program> Evaluator<'program> {
             }
         }
         cell = self.deref_cell(cell);
+
+        // A resolved target symbol (checked selection or a specialization
+        // rewrite such as `self.put<n>(v)` targeting the `put$specialized`
+        // entry) selects the exact state; the receiver cell supplies the
+        // instance. Mirrors the expression-call path in
+        // `resolve_value_call_target`, which prefers the symbol over name
+        // matching for any resolvable receiver including bare `self`.
+        if let Some((machine, state, _)) = self.resolve_entry_state_symbol(target_symbol, frame) {
+            return Ok(Some((machine, state, cell)));
+        }
 
         // Only treat this as a sub-machine call if the receiver is NOT just `self` (a bare
         // self receiver is handled by the sibling-state path).

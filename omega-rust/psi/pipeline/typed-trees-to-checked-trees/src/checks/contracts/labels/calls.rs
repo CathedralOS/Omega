@@ -400,6 +400,29 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 }
             }
 
+            // A `const`/`Value` binder of the target names the machine argument
+            // this call supplies for it, positionally (`bounded<K>` turns the
+            // callee's `Count <= 10` into the caller's `K <= 10`). A generic
+            // caller forwarding its own binder still owes that fact, which its
+            // own requires contract establishes.
+            let machine_arguments = call_site_machine_arguments(call_site);
+            if members.len() == 1 && !machine_arguments.is_empty() {
+                let type_parameters =
+                    crate::call_target_type_parameters(program, call_site_target_symbol(call_site));
+                for (position, parameter) in type_parameters.iter().enumerate() {
+                    let binder_matches = matches!(
+                        &parameter.kind,
+                        typed_trees::data::TypeParameterKind::Const { .. }
+                            | typed_trees::data::TypeParameterKind::Value { .. }
+                    ) && (path.head_symbol == parameter.symbol
+                        || path.symbol == parameter.symbol
+                        || first_member == Some(parameter.name.as_str()));
+                    if binder_matches && let Some(argument) = machine_arguments.get(position) {
+                        return argument.display_name();
+                    }
+                }
+            }
+
             program.render_proof_expression_with_symbols(expression, &[])
         }
         typed_trees::expression::ExpressionNode::StructLiteral(literal) => program
@@ -418,5 +441,27 @@ pub(crate) fn instantiate_call_contract_expression_label(
             "zero_value<{}>()",
             program.display_type_reference(*type_reference)
         ),
+    }
+}
+
+/// The static generic arguments authored on the call (`bounded<K>`), empty
+/// for a named transition which carries none.
+fn call_site_machine_arguments<'program>(
+    call_site: &'program crate::CallSite<'program>,
+) -> &'program [typed_trees::expression::StaticMachineArgument] {
+    match call_site {
+        crate::CallSite::Statement(call) => &call.machine_arguments,
+        crate::CallSite::Expression { call, .. } => &call.machine_arguments,
+        crate::CallSite::TransitionNamed { .. } => &[],
+    }
+}
+
+/// The state symbol the call targets, used to reach the callee's declared
+/// generic telescope for binder instantiation.
+fn call_site_target_symbol(call_site: &crate::CallSite<'_>) -> SymbolHandle {
+    match call_site {
+        crate::CallSite::Statement(call) => call.target_symbol,
+        crate::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::CallSite::TransitionNamed { path, .. } => path.symbol,
     }
 }

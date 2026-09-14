@@ -40,12 +40,7 @@ impl<'program> MachineSymbols<'program> {
         machine: &'program Machine,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Self {
-        let machine_symbol = retained_child_symbol(
-            program,
-            program.symbols.root(),
-            machine.symbol,
-            machine.name.as_str(),
-        );
+        let machine_symbol = retained_machine_symbol(program, machine);
         let mut symbols = Self {
             callable_fields: Vec::new(),
             member_symbols: Vec::with_capacity(program.machine_owned_data(machine).len()),
@@ -189,6 +184,33 @@ impl<'program> MachineSymbols<'program> {
             .find(|symbol| symbol.name == name)
             .map(|symbol| symbol.symbol)
             .unwrap_or_else(SymbolHandle::invalid)
+    }
+}
+
+/// The machine's own retained declaration symbol. Authored machines are
+/// top-level children of root; compiler-generated specializations are
+/// generated roots whose parent is invalid and whose `generated_from` carries
+/// the authored derivation. Their generated field, owned-data, and state
+/// children still resolve under the machine symbol itself.
+fn retained_machine_symbol(program: &TypedTrees, machine: &Machine) -> SymbolHandle {
+    let authored = retained_child_symbol(
+        program,
+        program.symbols.root(),
+        machine.symbol,
+        machine.name.as_str(),
+    );
+    if authored.is_valid() {
+        return authored;
+    }
+    let symbol = machine.symbol;
+    if symbol.is_valid()
+        && program.symbols.get(symbol).kind == symbols::SymbolKind::Machine
+        && program.symbols.get(symbol).generated_from.is_valid()
+        && program.symbols.name(symbol) == machine.name.as_str()
+    {
+        symbol
+    } else {
+        SymbolHandle::invalid()
     }
 }
 
