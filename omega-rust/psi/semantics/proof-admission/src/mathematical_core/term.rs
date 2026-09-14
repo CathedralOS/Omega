@@ -1,43 +1,172 @@
-//! Term model for the common mathematical core: closed universe levels,
-//! relevant and strict sorts, arena-held de Bruijn terms, and the selected
-//! inductive profile's two-element type, relevant identity type, and
-//! W-type of well-founded trees.
+//! Term model for the common mathematical core: universe level expressions
+//! over the judgment's level parameters, relevant and strict sorts,
+//! arena-held de Bruijn terms, and the selected inductive profile's
+//! two-element type, relevant identity type, and W-type of well-founded
+//! trees.
+
+use std::collections::BTreeMap;
 
 use arena::Arena;
 
-/// A closed universe level. Level variables are not part of this slice.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Level(pub u32);
+/// A universe level expression.
+///
+/// `Constant` is a closed natural; `Parameter(i)` names the `i`-th universe
+/// parameter of the enclosing judgment — the level arity is fixed for the
+/// whole judgment, so parameters are positional indices, never bound or
+/// shifted by term binders. `Successor` and `Maximum` are the two
+/// constructors the formation rules need: `Type u : Type (u+1)` and
+/// Π/Σ/`W` formation at `max(u, v)`. There is no `imax`: the selected core
+/// is predicative without cumulativity, so no rule needs a level that
+/// depends on which side is strict.
+///
+/// `Level` is syntax, not a normal form: `Maximum(v, u)` and `Maximum(u, v)`
+/// are different levels that convert. Semantic equality is decided by
+/// [`levels_equal`] through the `max`-normal form, never by `==`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Level {
+    /// A closed natural level `k`.
+    Constant(u32),
+    /// Universe parameter `i` of the enclosing judgment's level arity.
+    Parameter(u32),
+    /// `u + 1`.
+    Successor(Box<Level>),
+    /// `max(u, v)`.
+    Maximum(Box<Level>, Box<Level>),
+}
 
 impl Level {
-    /// The next universe level, or `None` when the level overflows. Typing
-    /// maps `None` to `CoreError::LevelOverflow`.
+    /// `u + 1`, or `None` when `u` is the largest representable constant —
+    /// typing maps `None` to `CoreError::LevelOverflow`. Constants fold at
+    /// construction so closed levels keep their collapsed syntax.
     pub fn successor(self) -> Option<Level> {
-        self.0.checked_add(1).map(Level)
+        match self {
+            Level::Constant(value) => value.checked_add(1).map(Level::Constant),
+            _ => Some(Level::Successor(Box::new(self))),
+        }
     }
 
-    /// The larger of the two levels, used by dependent function formation.
-    pub fn max(self, other: Level) -> Level {
-        Level(self.0.max(other.0))
+    /// `max(u, v)`. Constants fold at construction so closed levels keep
+    /// their collapsed syntax; anything involving a parameter stays
+    /// `Maximum` syntax and is normalized only for comparison.
+    pub fn maximum(self, other: Level) -> Level {
+        match (self, other) {
+            (Level::Constant(left), Level::Constant(right)) => Level::Constant(left.max(right)),
+            (left, right) => Level::Maximum(Box::new(left), Box::new(right)),
+        }
+    }
+}
+
+/// The `max`-normal form of a level: `max(k, p₀+o₀, p₁+o₁, …)` kept as a
+/// constant floor plus the maximum successor offset per parameter. This is
+/// the free algebra of `max` (associative, commutative, idempotent) with
+/// `succ` distributing over `max`, plus the one absorption the semantics
+/// forces: a constant floor never exceeds some variable's offset is
+/// redundant, since `max(k, p+o) = p+o` for all `p` whenever `o >= k`.
+/// Equality of normal forms is then exactly equality of the induced
+/// functions over the naturals, so conversion is decidable and complete —
+/// no level solving: distinct parameters never convert.
+#[derive(Debug, PartialEq, Eq)]
+struct NormalLevel {
+    constant: u64,
+    offsets: BTreeMap<u32, u64>,
+}
+
+impl NormalLevel {
+    /// Absorb the constant floor when a variable offset already reaches it:
+    /// at the all-zero instantiation `max(k, pᵢ+oᵢ)` contributes `oᵢ >= k`
+    /// anyway, so `k` can never decide the value.
+    fn absorb_constant(&mut self) {
+        if self
+            .offsets
+            .values()
+            .max()
+            .is_some_and(|offset| *offset >= self.constant)
+        {
+            self.constant = 0;
+        }
+    }
+}
+
+fn normal_form(level: &Level) -> NormalLevel {
+    let mut form = raw_normal_form(level);
+    form.absorb_constant();
+    form
+}
+
+fn raw_normal_form(level: &Level) -> NormalLevel {
+    match level {
+        Level::Constant(value) => NormalLevel {
+            constant: u64::from(*value),
+            offsets: BTreeMap::new(),
+        },
+        Level::Parameter(index) => {
+            let mut offsets = BTreeMap::new();
+            offsets.insert(*index, 0);
+            NormalLevel {
+                constant: 0,
+                offsets,
+            }
+        }
+        Level::Successor(inner) => {
+            let mut form = raw_normal_form(inner);
+            form.constant += 1;
+            for offset in form.offsets.values_mut() {
+                *offset += 1;
+            }
+            form
+        }
+        Level::Maximum(left, right) => {
+            let mut form = raw_normal_form(left);
+            let other = raw_normal_form(right);
+            form.constant = form.constant.max(other.constant);
+            for (parameter, offset) in other.offsets {
+                form.offsets
+                    .entry(parameter)
+                    .and_modify(|existing| *existing = (*existing).max(offset))
+                    .or_insert(offset);
+            }
+            form
+        }
+    }
+}
+
+/// Semantic level equality: the `max`-normal forms agree. `==` on `Level`
+/// is syntactic and only answers whether the two expressions are the same
+/// syntax; conversion must use this instead so `max(u, v)` converts with
+/// `max(v, u)` and `succ` distributes over `max`.
+pub(crate) fn levels_equal(left: &Level, right: &Level) -> bool {
+    normal_form(left) == normal_form(right)
+}
+
+/// Semantic sort equality: the layers agree (`Type` never converts to
+/// `Strict` — there is no cumulativity and no layer collapse) and the
+/// levels convert.
+pub(crate) fn sorts_equal(left: &Sort, right: &Sort) -> bool {
+    match (left, right) {
+        (Sort::Type(left), Sort::Type(right)) | (Sort::Strict(left), Sort::Strict(right)) => {
+            levels_equal(left, right)
+        }
+        _ => false,
     }
 }
 
 /// A mathematical universe sort: `Type u` is relevant, `Strict v` is the
-/// definitionally irrelevant logical layer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// definitionally irrelevant logical layer. Derived `PartialEq` is
+/// syntactic on the level syntax; conversion uses [`sorts_equal`].
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Sort {
     Type(Level),
     Strict(Level),
 }
 
 impl Sort {
-    pub fn level(self) -> Level {
+    pub fn level(&self) -> Level {
         match self {
-            Sort::Type(level) | Sort::Strict(level) => level,
+            Sort::Type(level) | Sort::Strict(level) => level.clone(),
         }
     }
 
-    pub fn is_strict(self) -> bool {
+    pub fn is_strict(&self) -> bool {
         matches!(self, Sort::Strict(_))
     }
 }
@@ -47,7 +176,9 @@ pub type TermHandle = arena::Handle<Term>;
 
 /// One term node. Children and binders are handles into the same arena.
 /// `Variable` indices are de Bruijn indices; 0 names the innermost binder.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+/// `Sort` payloads clone their level expressions out of the arena — terms
+/// are `Clone`, not `Copy`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub enum Term {
     /// ZII arena dummy; never well-typed. Typing rejects it with
     /// `CoreError::DummyTerm`.
@@ -178,7 +309,7 @@ impl TermArena {
     }
 
     pub fn get(&self, handle: TermHandle) -> Term {
-        *self.terms.get(handle)
+        self.terms.get(handle).clone()
     }
 
     pub fn len(&self) -> usize {

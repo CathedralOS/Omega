@@ -19,10 +19,21 @@
 //! judgments; a separate crate is deferred until the module boundary stops
 //! moving, per the crate-placement rule.
 //!
-//! In this slice universe levels are closed constants; level variables and
-//! universe-polymorphic declarations are the named next step. Conversion is
-//! typed: strict irrelevance collapses two sides only when the shared type's
-//! sort is `Strict`, never on the terms' own shapes. Terms use de Bruijn
+//! Universe levels are expressions over the judgment's level parameters:
+//! constants, positional `Parameter(i)` indices, `u+1` and `max(u, v)`.
+//! Every judgment carries a level arity — the `Δ` of `Δ; Γ ⊢ t : T` — and
+//! each `Sort` node's level is scope-checked against it, so a certificate
+//! is checked parametrically for all instantiations and an out-of-scope
+//! parameter is a malformed universe, not a judgment failure. Level
+//! conversion is decided by the `max`-normal form (`max` is associative,
+//! commutative, idempotent; `succ` distributes; a constant floor covered
+//! by a variable offset absorbs), which is decidable and complete for this
+//! algebra — no unification or level solving, and distinct parameters
+//! never convert. Named universe-polymorphic declarations with level
+//! instantiation are the named next step; this slice supplies the level
+//! syntax and scope rules they check under. Conversion is typed: strict
+//! irrelevance collapses two sides only when the shared type's sort is
+//! `Strict`, never on the terms' own shapes. Terms use de Bruijn
 //! indices, so substitution is capture-avoiding by construction and the tests
 //! witness the required shift. A step ceiling bounds normalization so resource
 //! refusal is a typed error, never a false judgment.
@@ -77,8 +88,9 @@
 //! stuck eliminations compare componentwise at the left elimination's
 //! inferred types, and there is no identity eta or K/UIP: two distinct
 //! proofs of the same identity never collapse, and `refl` never converts
-//! to a neutral proof. Level variables and universe-polymorphic
-//! declarations remain separate steps.
+//! to a neutral proof. Universe-polymorphic declarations — named constants
+//! instantiated at level arguments — remain a separate step on top of the
+//! landed level-parameter scope.
 //!
 //! `W` is the profile's primitive well-founded tree: `W A B : Type
 //! max(u, v)` for `A : Type u` and `B : A → Type v`, where a node pairs

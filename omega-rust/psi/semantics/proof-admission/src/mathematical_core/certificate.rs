@@ -23,11 +23,18 @@ use super::typing::{Context, CoreError, check_type, infer_sort};
 /// One complete mathematical judgment supplied as producer evidence.
 ///
 /// All handles resolve in a single [`TermArena`]; the wire form in
-/// `terminal-codec` is the canonical portable shape. `context` holds binder
-/// types ordered outermost-first — the order [`Context::extend`] consumes —
-/// so `context.last()` is the innermost binding that de Bruijn index 0 names.
+/// `terminal-codec` is the canonical portable shape. `level_arity` is the
+/// judgment's universe scope: the claim is parametric over that many level
+/// parameters, so `Level::Parameter(i)` is in scope exactly when
+/// `i < level_arity`. `context` holds binder types ordered outermost-first
+/// — the order [`Context::extend`] consumes — so `context.last()` is the
+/// innermost binding that de Bruijn index 0 names.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MathematicalCertificate {
+    /// The number of universe parameters the judgment is polymorphic over.
+    /// `0` is a closed judgment; the kernel checks the judgment for all
+    /// instantiations of the parameters, never for a guessed one.
+    pub level_arity: u32,
     pub context: Vec<TermHandle>,
     /// The elaborated evidence term: fully annotated, so checking never
     /// searches.
@@ -50,7 +57,7 @@ pub fn verify_mathematical_certificate(
     certificate: &MathematicalCertificate,
     budget: &mut Budget,
 ) -> Result<(), CoreError> {
-    let mut context = Context::empty();
+    let mut context = Context::with_level_arity(certificate.level_arity);
     for &binding in &certificate.context {
         infer_sort(arena, &context, binding, budget)?;
         context = context.extend(binding);
@@ -74,11 +81,11 @@ mod tests {
     }
 
     fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-        arena.insert(Term::Sort(Sort::Type(Level(level))))
+        arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
     }
 
     fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-        arena.insert(Term::Sort(Sort::Strict(Level(level))))
+        arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
     }
 
     fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
@@ -111,6 +118,7 @@ mod tests {
         let mut arena = TermArena::new();
         let (identity, expected) = polymorphic_identity(&mut arena);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: Vec::new(),
             term: identity,
             expected,
@@ -124,6 +132,7 @@ mod tests {
         let type_zero = type_sort(&mut arena, 0);
         let bound = variable(&mut arena, 0);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![type_zero],
             term: bound,
             expected: type_zero,
@@ -136,6 +145,7 @@ mod tests {
         let type_zero = type_sort(&mut arena, 0);
         let bound = variable(&mut arena, 0);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: Vec::new(),
             term: bound,
             expected: type_zero,
@@ -157,6 +167,7 @@ mod tests {
         let bound = variable(&mut arena, 0);
         let shifted = variable(&mut arena, 1);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![type_zero, bound],
             term: bound,
             expected: shifted,
@@ -170,6 +181,7 @@ mod tests {
         let bound = variable(&mut arena, 0);
         let not_a_type = lambda(&mut arena, type_zero, bound);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![not_a_type],
             term: bound,
             expected: type_zero,
@@ -192,6 +204,7 @@ mod tests {
         let wrong_inner = pi(&mut arena, bound, type_zero);
         let wrong_expected = pi(&mut arena, type_zero, wrong_inner);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: Vec::new(),
             term: identity,
             expected: wrong_expected,
@@ -205,6 +218,7 @@ mod tests {
         // variable is unbound in the empty context.
         let free_variable = variable(&mut arena, 0);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: Vec::new(),
             term: free_variable,
             expected,
@@ -262,6 +276,7 @@ mod tests {
             argument: scrutinee,
         });
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![type_zero, type_zero, a_binding, b_binding, two_binding],
             term,
             expected,
@@ -277,6 +292,7 @@ mod tests {
             argument: zero,
         });
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![type_zero, type_zero, a_binding, b_binding, two_binding],
             term,
             expected: wrong_expected,
@@ -396,6 +412,7 @@ mod tests {
             })
         };
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![
                 type_zero,
                 x_binding,
@@ -421,6 +438,7 @@ mod tests {
             })
         };
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![
                 type_zero,
                 x_binding,
@@ -563,6 +581,7 @@ mod tests {
             })
         };
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![
                 type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
             ],
@@ -583,6 +602,7 @@ mod tests {
             })
         };
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![
                 type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
             ],
@@ -605,6 +625,7 @@ mod tests {
         let bound = variable(&mut arena, 0);
         let shifted = variable(&mut arena, 1);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: vec![strict_zero, bound],
             term: bound,
             expected: shifted,
@@ -618,6 +639,7 @@ mod tests {
         let bound = variable(&mut arena, 0);
         let identity_body = lambda(&mut arena, type_zero, bound);
         let certificate = MathematicalCertificate {
+            level_arity: 0,
             context: Vec::new(),
             term: bound,
             expected: identity_body,
@@ -626,5 +648,58 @@ mod tests {
             verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
             Err(CoreError::NotASort { .. })
         ));
+    }
+
+    #[test]
+    fn a_certificate_is_parametric_over_its_level_arity() {
+        let mut arena = TermArena::new();
+        // Under one universe parameter `λ(A : Type u). λ(x : A). x` proves
+        // `Π(A : Type u). Π(x : A). A`: the certificate quantifies the
+        // judgment over every instantiation of `u`.
+        let type_u = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+        let bound = variable(&mut arena, 0);
+        let inner = lambda(&mut arena, bound, bound);
+        let identity = lambda(&mut arena, type_u, inner);
+        let codomain_domain = variable(&mut arena, 0);
+        let codomain_body = variable(&mut arena, 1);
+        let codomain = pi(&mut arena, codomain_domain, codomain_body);
+        let expected = pi(&mut arena, type_u, codomain);
+        let certificate = MathematicalCertificate {
+            level_arity: 1,
+            context: Vec::new(),
+            term: identity,
+            expected,
+        };
+        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+
+        // The same bytes under a closed judgment are a malformed
+        // universe: `u` names nothing without the arity to bind it.
+        let certificate = MathematicalCertificate {
+            level_arity: 0,
+            context: Vec::new(),
+            term: identity,
+            expected,
+        };
+        assert_eq!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::UnboundLevelParameter { index: 0, arity: 0 })
+        );
+
+        // A binding whose type references a parameter outside the arity
+        // rejects at context formation — a certificate cannot widen its
+        // level scope by declaring a binding inside it.
+        let mut arena = TermArena::new();
+        let type_v = arena.insert(Term::Sort(Sort::Type(Level::Parameter(1))));
+        let bound = variable(&mut arena, 0);
+        let certificate = MathematicalCertificate {
+            level_arity: 1,
+            context: vec![type_v],
+            term: bound,
+            expected: type_v,
+        };
+        assert_eq!(
+            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            Err(CoreError::UnboundLevelParameter { index: 1, arity: 1 })
+        );
     }
 }

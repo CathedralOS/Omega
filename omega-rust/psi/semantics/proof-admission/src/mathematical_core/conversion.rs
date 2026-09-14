@@ -13,7 +13,7 @@
 //! `x ↦ g x` and `f` convert only when `g` and `f` already do.
 
 use super::substitution::{shift, substitute};
-use super::term::{Level, Sort, Term, TermArena, TermHandle};
+use super::term::{Level, Sort, Term, TermArena, TermHandle, levels_equal, sorts_equal};
 use super::typing::{Context, CoreError, infer_sort, infer_type, w_step_type};
 
 /// The default number of β steps a conversion attempt may take.
@@ -267,7 +267,13 @@ pub fn convertible(
     let right = weak_head_normalize(arena, right, budget)?;
 
     match (arena.get(left), arena.get(right)) {
-        (Term::Sort(left_sort), Term::Sort(right_sort)) => Ok(left_sort == right_sort),
+        (Term::Sort(left_sort), Term::Sort(right_sort)) => {
+            // Universes convert when their levels convert semantically —
+            // `Type max(u, v)` and `Type max(v, u)` are different syntax
+            // for the same universe. The layers never mix: no
+            // cumulativity, no `Type`-versus-`Strict` collapse.
+            Ok(sorts_equal(&left_sort, &right_sort))
+        }
         (Term::Two, Term::Two) | (Term::TwoZero, Term::TwoZero) | (Term::TwoOne, Term::TwoOne) => {
             Ok(true)
         }
@@ -619,7 +625,7 @@ pub fn convertible(
             // two sides share no type to be compared at.
             let left_sort = infer_sort(arena, context, left_carrier, budget)?;
             let right_sort = infer_sort(arena, context, right_carrier, budget)?;
-            if left_sort != right_sort {
+            if !sorts_equal(&left_sort, &right_sort) {
                 return Ok(false);
             }
             let shared_carrier = arena.insert(Term::Sort(left_sort));
@@ -638,7 +644,7 @@ pub fn convertible(
             let (Some(level), Some(other)) = (left_level, right_level) else {
                 return Ok(false);
             };
-            if level != other {
+            if !levels_equal(&level, &other) {
                 return Ok(false);
             }
             let codomain = arena.insert(Term::Sort(Sort::Type(level)));

@@ -8,25 +8,52 @@ use super::conversion::{Budget, convertible, weak_head_normalize};
 use super::substitution::{shift, substitute};
 use super::term::{Level, Sort, Term, TermArena, TermHandle};
 
-/// Types of the bound variables, innermost last. Each stored type is
-/// well-scoped for its own prefix; `lookup` shifts it into the full context.
+/// Types of the bound variables, innermost last, plus the judgment's level
+/// arity — the count of universe parameters every `Level::Parameter` must
+/// stay under. Each stored type is well-scoped for its own prefix;
+/// `lookup` shifts it into the full context.
 #[derive(Clone, Debug, Default)]
 pub struct Context {
     bindings: Vec<TermHandle>,
+    level_arity: u32,
 }
 
 impl Context {
+    /// The closed context: no term bindings and no universe parameters, so
+    /// every level must be a closed constant.
     pub fn empty() -> Self {
         Self {
             bindings: Vec::new(),
+            level_arity: 0,
         }
     }
 
+    /// The context of a judgment parametric over `level_arity` universe
+    /// parameters: `Level::Parameter(i)` is in scope exactly when
+    /// `i < level_arity`. This is the substrate of a universe-polymorphic
+    /// declaration — the judgment holds for every level instantiation.
+    pub fn with_level_arity(level_arity: u32) -> Self {
+        Self {
+            bindings: Vec::new(),
+            level_arity,
+        }
+    }
+
+    /// The number of universe parameters in scope for this judgment.
+    pub fn level_arity(&self) -> u32 {
+        self.level_arity
+    }
+
     /// A new context with one more innermost binding of type `domain`.
+    /// Term binders never touch the level arity: level parameters are not
+    /// de Bruijn-bound and do not shift under binders.
     pub fn extend(&self, domain: TermHandle) -> Context {
         let mut bindings = self.bindings.clone();
         bindings.push(domain);
-        Context { bindings }
+        Context {
+            bindings,
+            level_arity: self.level_arity,
+        }
     }
 
     /// The type of the variable at de Bruijn `index`, shifted by `index + 1`
@@ -58,7 +85,17 @@ pub enum CoreError {
         index: u32,
         context_depth: usize,
     },
+    /// The largest representable constant level cannot be succeeded — a
+    /// malformed universe, not a judgment failure.
     LevelOverflow,
+    /// `Level::Parameter(index)` must name one of the judgment's
+    /// `level_arity` universe parameters. An out-of-scope parameter is a
+    /// malformed universe: the certificate claims a judgment under a level
+    /// scope the level never references.
+    UnboundLevelParameter {
+        index: u32,
+        arity: u32,
+    },
     NotASort {
         term: TermHandle,
         actual_type: TermHandle,
@@ -194,7 +231,12 @@ pub fn infer_type(
                 context_depth: context.len(),
             }),
         Term::Sort(sort) => {
-            // `Type u : Type (u+1)` and `Strict v : Type (v+1)`.
+            // `Type u : Type (u+1)` and `Strict v : Type (v+1)`. The sort's
+            // level must be well-formed under the judgment's level arity —
+            // every `Sort` node reachable from a checked judgment passes
+            // through this rule, so an out-of-scope parameter anywhere in
+            // the term, the claimed type or a context binding rejects.
+            check_level(context.level_arity(), &sort.level())?;
             let level = sort.level().successor().ok_or(CoreError::LevelOverflow)?;
             Ok(arena.insert(Term::Sort(Sort::Type(level))))
         }
@@ -202,7 +244,7 @@ pub fn infer_type(
             let domain_sort = infer_sort(arena, context, domain, budget)?;
             let extended = context.extend(domain);
             let codomain_sort = infer_sort(arena, &extended, codomain, budget)?;
-            let level = domain_sort.level().max(codomain_sort.level());
+            let level = domain_sort.level().maximum(codomain_sort.level());
             // The codomain's sort selects the layer; the level is the maximum.
             let result_sort = match codomain_sort {
                 Sort::Strict(_) => Sort::Strict(level),
@@ -253,7 +295,7 @@ pub fn infer_type(
             let domain_sort = infer_sort(arena, context, domain, budget)?;
             let extended = context.extend(domain);
             let codomain_sort = infer_sort(arena, &extended, codomain, budget)?;
-            let level = domain_sort.level().max(codomain_sort.level());
+            let level = domain_sort.level().maximum(codomain_sort.level());
             // A pair type is a strict proposition only when both components
             // are; any relevant component carries data and keeps the whole
             // type relevant.
@@ -302,7 +344,7 @@ pub fn infer_type(
                 }),
             }
         }
-        Term::Two => Ok(arena.insert(Term::Sort(Sort::Type(Level(0))))),
+        Term::Two => Ok(arena.insert(Term::Sort(Sort::Type(Level::Constant(0))))),
         Term::TwoZero | Term::TwoOne => Ok(arena.insert(Term::Two)),
         Term::CaseTwo {
             motive,
@@ -614,6 +656,32 @@ pub fn infer_type(
     }
 }
 
+/// The closed-level scope rule: a level is well-formed under `arity` when
+/// every `Parameter(i)` names one of the judgment's `arity` universe
+/// parameters. Constant, successor and maximum levels introduce no scope
+/// of their own, so the check is a structural walk; out-of-scope
+/// parameters are malformed universes, never valid judgments.
+fn check_level(arity: u32, level: &Level) -> Result<(), CoreError> {
+    match level {
+        Level::Constant(_) => Ok(()),
+        Level::Parameter(index) => {
+            if *index < arity {
+                Ok(())
+            } else {
+                Err(CoreError::UnboundLevelParameter {
+                    index: *index,
+                    arity,
+                })
+            }
+        }
+        Level::Successor(inner) => check_level(arity, inner),
+        Level::Maximum(left, right) => {
+            check_level(arity, left)?;
+            check_level(arity, right)
+        }
+    }
+}
+
 /// The `max(u, v)` level of a checked `W carrier children` formation:
 /// `carrier : Type u` relevant and `children` a `Π(_ : carrier). Type v`
 /// family into a relevant universe. `sup` annotations run through this
@@ -659,7 +727,7 @@ fn check_w_formation(
             return Err(CoreError::WChildrenCodomainNotAUniverse { codomain });
         }
     };
-    Ok(carrier_level.max(children_level))
+    Ok(carrier_level.maximum(children_level))
 }
 
 /// The checked type of an `indW` induction step:

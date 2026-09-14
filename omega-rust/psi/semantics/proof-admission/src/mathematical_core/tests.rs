@@ -1,14 +1,15 @@
 //! Behavioral tests for the mathematical core. Each test names the judgment
 //! or control it pins down, per the board's discriminating-control contract.
 
+use super::term::sorts_equal;
 use super::*;
 
 fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Type(Level(level))))
+    arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
 }
 
 fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Strict(Level(level))))
+    arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
 }
 
 fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
@@ -881,7 +882,7 @@ fn function_eta_applies_across_admitted_sort_combinations() {
     let shared_codomain = variable(&mut arena, 2);
     let shared_type = pi(&mut arena, shared_domain, shared_codomain);
     let sort = infer_sort(&mut arena, &context, shared_type, &mut budget).unwrap();
-    assert_eq!(sort, Sort::Type(Level(0)));
+    assert_eq!(sort, Sort::Type(Level::Constant(0)));
 
     // λ(p : P). f p — under the binder f is index 1 and p is index 0.
     let lambda_domain = variable(&mut arena, 2);
@@ -918,7 +919,7 @@ fn function_eta_applies_across_admitted_sort_combinations() {
     let qy_shared = apply(&mut arena, q_shared, y_shared);
     let shared_type = pi(&mut arena, shared_domain, qy_shared);
     let sort = infer_sort(&mut arena, &context, shared_type, &mut budget).unwrap();
-    assert_eq!(sort, Sort::Type(Level(0)));
+    assert_eq!(sort, Sort::Type(Level::Constant(0)));
 
     // λ(y : B). h y ≡ h at the dependent Π.
     let lambda_domain = variable(&mut arena, 2);
@@ -2550,4 +2551,253 @@ fn w_types_convert_componentwise_and_sup_has_no_eta() {
     let t = variable(&mut arena, 1);
     assert!(!convertible(&mut arena, &context, node, t, w, &mut budget).unwrap());
     assert!(!convertible(&mut arena, &context, t, node, w, &mut budget).unwrap());
+}
+
+/// `Type` sorts holding arbitrary level expressions, for the
+/// level-parameter tests below.
+fn sort_level(arena: &mut TermArena, level: Level) -> TermHandle {
+    arena.insert(Term::Sort(Sort::Type(level)))
+}
+
+/// `level + count` written with the successor constructor.
+fn offset(mut level: Level, count: u32) -> Level {
+    for _ in 0..count {
+        level = level.successor().unwrap();
+    }
+    level
+}
+
+#[test]
+fn level_parameters_must_stay_inside_the_judgment_arity() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+
+    // `Type u` under one universe parameter inhabits `Type (u+1)`; the
+    // parameter is a positional index into the judgment's level scope.
+    let context = Context::with_level_arity(1);
+    let type_u = sort_level(&mut arena, Level::Parameter(0));
+    let inferred = infer_type(&mut arena, &context, type_u, &mut budget).unwrap();
+    let expected = sort_level(&mut arena, Level::Parameter(0).successor().unwrap());
+    assert!(arena.structurally_equal(inferred, expected));
+
+    // Under no parameters `u` is a malformed universe, and a parameter
+    // one past the arity end is equally malformed.
+    let closed = Context::empty();
+    let error = infer_type(&mut arena, &closed, type_u, &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::UnboundLevelParameter { index: 0, arity: 0 }
+    );
+    let out_of_scope = sort_level(&mut arena, Level::Parameter(1));
+    let error = infer_type(&mut arena, &context, out_of_scope, &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::UnboundLevelParameter { index: 1, arity: 1 }
+    );
+
+    // A malformed level nested inside a larger type still rejects — the
+    // scope rule is structural, not a top-level formality.
+    let domain = sort_level(&mut arena, Level::Constant(0).maximum(Level::Parameter(3)));
+    let bound = variable(&mut arena, 0);
+    let nested = pi(&mut arena, domain, bound);
+    let error = infer_type(&mut arena, &context, nested, &mut budget).unwrap_err();
+    assert_eq!(
+        error,
+        CoreError::UnboundLevelParameter { index: 3, arity: 1 }
+    );
+}
+
+#[test]
+fn a_universe_polymorphic_identity_checks_parametrically() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    // `λ(A : Type u). λ(x : A). x : Π(A : Type u). Π(x : A). A` under one
+    // universe parameter — the universe-polymorphic dependent function the
+    // board names, decided for every instantiation of `u` at once.
+    let context = Context::with_level_arity(1);
+    let type_u = sort_level(&mut arena, Level::Parameter(0));
+    let bound = variable(&mut arena, 0);
+    let inner = lambda(&mut arena, bound, bound);
+    let identity = lambda(&mut arena, type_u, inner);
+    let codomain_domain = variable(&mut arena, 0);
+    let codomain_body = variable(&mut arena, 1);
+    let codomain = pi(&mut arena, codomain_domain, codomain_body);
+    let expected = pi(&mut arena, type_u, codomain);
+    check_type(&mut arena, &context, identity, expected, &mut budget).unwrap();
+
+    // Formation computed `max(u+1, u)` for the Π's sort; the level
+    // algebra — not syntactic luck — collapses that to `u+1`.
+    let inferred = infer_type(&mut arena, &context, expected, &mut budget).unwrap();
+    let claimed_sort = sort_level(&mut arena, Level::Parameter(0).successor().unwrap());
+    let relevant = type_sort(&mut arena, 0);
+    assert!(
+        convertible(
+            &mut arena,
+            &context,
+            inferred,
+            claimed_sort,
+            relevant,
+            &mut budget
+        )
+        .unwrap()
+    );
+}
+
+#[test]
+fn a_universe_polymorphic_dependent_pair_checks_componentwise() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    // `λ(A : Type u). λ(B : Type v). λ(a : A). λ(b : B). (a, b)` at
+    // `Π(A : Type u). Π(B : Type v). Π(a : A). Π(b : B). Σ(_ : A). B`
+    // under two parameters: the second component is checked at the
+    // codomain instantiated by the first, so the pair's dependent
+    // structure survives polymorphic levels.
+    let context = Context::with_level_arity(2);
+    let type_u = sort_level(&mut arena, Level::Parameter(0));
+    let type_v = sort_level(&mut arena, Level::Parameter(1));
+    // The pair body at depth 4: a is index 1, b is index 0.
+    let a = variable(&mut arena, 1);
+    let b = variable(&mut arena, 0);
+    let body = pair(&mut arena, a, b);
+    // λ(b : B) at depth 3: B is index 1 (a is 0, B is 1, A is 2).
+    let b_domain = variable(&mut arena, 1);
+    let inner = lambda(&mut arena, b_domain, body);
+    // λ(a : A) at depth 2: A is index 1.
+    let a_domain = variable(&mut arena, 1);
+    let inner = lambda(&mut arena, a_domain, inner);
+    let inner = lambda(&mut arena, type_v, inner);
+    let witness = lambda(&mut arena, type_u, inner);
+    // Σ(_ : A). B: domain A at depth 4 is index 3; codomain B under the
+    // Σ binder at depth 5 is index 3.
+    let sigma_domain = variable(&mut arena, 3);
+    let sigma_codomain = variable(&mut arena, 3);
+    let sigma = sigma(&mut arena, sigma_domain, sigma_codomain);
+    // Π(b : B) at depth 3: B is index 1.
+    let b_domain = variable(&mut arena, 1);
+    let over_b = pi(&mut arena, b_domain, sigma);
+    let a_domain = variable(&mut arena, 1);
+    let over_a = pi(&mut arena, a_domain, over_b);
+    let over_v = pi(&mut arena, type_v, over_a);
+    let expected = pi(&mut arena, type_u, over_v);
+    check_type(&mut arena, &context, witness, expected, &mut budget).unwrap();
+}
+
+#[test]
+fn the_level_algebra_decides_sort_conversion() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = Context::with_level_arity(2);
+    // Comparing two sorts as terms asks only for a relevant shared type —
+    // the (Sort, Sort) arm never inspects it further.
+    let relevant = type_sort(&mut arena, 0);
+    let u = Level::Parameter(0);
+    let v = Level::Parameter(1);
+    for (left, right) in [
+        // `max` commutes and is associative and idempotent.
+        (u.clone().maximum(v.clone()), v.clone().maximum(u.clone())),
+        (u.clone().maximum(u.clone()), u.clone()),
+        (
+            u.clone().maximum(v.clone().maximum(Level::Constant(2))),
+            Level::Constant(2).maximum(v.clone().maximum(u.clone())),
+        ),
+        // `max(u+1, u)` is `u+1`: the smaller same-parameter offset absorbs.
+        (
+            u.clone().successor().unwrap().maximum(u.clone()),
+            u.clone().successor().unwrap(),
+        ),
+        // `succ` distributes over `max`.
+        (
+            u.clone().maximum(v.clone()).successor().unwrap(),
+            u.clone()
+                .successor()
+                .unwrap()
+                .maximum(v.clone().successor().unwrap()),
+        ),
+        // A constant floor covered by a variable offset is redundant:
+        // `max(3, u+5)` is `u+5` at every instantiation, and `max(0, u)`
+        // is `u` because 0 is the bottom level.
+        (
+            Level::Constant(3).maximum(offset(u.clone(), 5)),
+            offset(u.clone(), 5),
+        ),
+        (Level::Constant(0).maximum(u.clone()), u.clone()),
+    ] {
+        let left = sort_level(&mut arena, left);
+        let right = sort_level(&mut arena, right);
+        assert!(
+            convertible(&mut arena, &context, left, right, relevant, &mut budget).unwrap(),
+            "levels must convert"
+        );
+    }
+
+    // Distinct parameters never convert — the kernel decides equality, it
+    // never solves for a unifier — and neither do `u`/`u+1`, a `max` and
+    // one of its sides, or a constant and a parameter.
+    for (left, right) in [
+        (u.clone(), v.clone()),
+        (u.clone(), u.clone().successor().unwrap()),
+        (u.clone().maximum(v.clone()), u.clone()),
+        (Level::Constant(3), u.clone()),
+    ] {
+        let left = sort_level(&mut arena, left);
+        let right = sort_level(&mut arena, right);
+        assert!(
+            !convertible(&mut arena, &context, left, right, relevant, &mut budget).unwrap(),
+            "levels must not convert"
+        );
+    }
+}
+
+#[test]
+fn strict_universes_carry_parameters_without_layer_mixing() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let context = Context::with_level_arity(1);
+    let u = Level::Parameter(0);
+
+    // `Strict u : Type (u+1)` — a strict sort inhabits the relevant
+    // universe one level up, and the parameter stays in scope.
+    let strict_u = arena.insert(Term::Sort(Sort::Strict(u.clone())));
+    let inferred = infer_type(&mut arena, &context, strict_u, &mut budget).unwrap();
+    let expected = sort_level(&mut arena, u.clone().successor().unwrap());
+    assert!(arena.structurally_equal(inferred, expected));
+
+    // `Π(A : Strict u). A : Strict (u+1)`: formation computes
+    // `max(u+1, u)` at the codomain's layer, and the level algebra
+    // collapses it to `u+1`.
+    let bound = variable(&mut arena, 0);
+    let strict_pi = pi(&mut arena, strict_u, bound);
+    let sort = infer_sort(&mut arena, &context, strict_pi, &mut budget).unwrap();
+    assert!(sorts_equal(
+        &sort,
+        &Sort::Strict(u.clone().successor().unwrap())
+    ));
+
+    // The layers never identify: `Type u` never converts to `Strict u`,
+    // at the same level or any other.
+    let relevant = type_sort(&mut arena, 0);
+    let type_u = sort_level(&mut arena, u.clone());
+    assert!(
+        !convertible(
+            &mut arena,
+            &context,
+            type_u,
+            strict_u,
+            relevant,
+            &mut budget
+        )
+        .unwrap()
+    );
+}
+
+#[test]
+fn level_parameters_ignore_term_binders() {
+    let mut arena = TermArena::new();
+    // Levels live in the judgment's level scope, not the term's de Bruijn
+    // spine: shifting and substituting never touch a `Parameter`, so a
+    // universe-polymorphic type travels under binders unchanged.
+    let type_u = sort_level(&mut arena, Level::Parameter(0));
+    assert_eq!(shift(&mut arena, type_u, 0, 4), type_u);
+    let argument = variable(&mut arena, 0);
+    assert_eq!(substitute(&mut arena, type_u, argument), type_u);
 }
