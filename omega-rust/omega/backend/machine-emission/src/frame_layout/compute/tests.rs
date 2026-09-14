@@ -228,6 +228,89 @@ fn outgoing_pointer_slots_reserve_storage_on_every_host_abi() {
 }
 
 #[test]
+fn large_frames_commit_through_an_exact_probe_roster() {
+    let local = selected_instructions::SelectedLocalStorageSlot {
+        id: selected_instructions::LocalStorageSlotId::Structural {
+            operation: semantic_vocabulary::OperationId::new(7).unwrap(),
+            place: semantic_vocabulary::PlaceId::new(11).unwrap(),
+        },
+        byte_size: 5_000,
+        alignment: 8,
+    };
+    for (target, abi, interval, touches) in [
+        (
+            target::NativeTarget::linux_x64(),
+            FrameAbiPreservationConvention::SystemVAMD64,
+            4_096_u64,
+            2_u32,
+        ),
+        (
+            target::NativeTarget::windows_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+            4_096,
+            2,
+        ),
+        (
+            target::NativeTarget::uefi_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+            4_096,
+            2,
+        ),
+        (
+            target::NativeTarget::linux_arm64(),
+            FrameAbiPreservationConvention::Aapcs64,
+            4_096,
+            2,
+        ),
+        (
+            target::NativeTarget::macos_arm64(),
+            FrameAbiPreservationConvention::DarwinAapcs64,
+            16_384,
+            0,
+        ),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let layout = function_layout(
+            &environment,
+            abi,
+            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+            semantic_vocabulary::MachineId::new(1).unwrap(),
+            false,
+            &[],
+            std::slice::from_ref(&local),
+            0,
+            Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(layout.stack_probe.interval_bytes, interval, "{target:?}");
+        assert_eq!(layout.stack_probe.touches, touches, "{target:?}");
+        // A frame inside one granule commits without probing.
+        let small = selected_instructions::SelectedLocalStorageSlot {
+            byte_size: 24,
+            ..local.clone()
+        };
+        let small_layout = function_layout(
+            &environment,
+            abi,
+            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+            semantic_vocabulary::MachineId::new(1).unwrap(),
+            false,
+            &[],
+            std::slice::from_ref(&small),
+            0,
+            Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(
+            small_layout.stack_probe.interval_bytes, interval,
+            "{target:?}"
+        );
+        assert_eq!(small_layout.stack_probe.touches, 0, "{target:?}");
+    }
+}
+
+#[test]
 fn windows_frames_separate_shadow_space_from_preservation_storage() {
     let environment = register_environment::baseline_target_register_environment(
         target::NativeTarget::windows_x64(),

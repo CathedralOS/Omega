@@ -9,6 +9,7 @@ mod conditional;
 mod conditional_fixture;
 mod ordered_calls;
 mod runtime_spill_pressure;
+mod stack_probe_commit;
 
 #[test]
 fn physical_and_object_publication_retain_the_original_abstract_allocation() {

@@ -63,6 +63,22 @@ pub struct LocalStorageFrameSlot {
     pub alignment_bytes: u16,
 }
 
+/// Ordered stack-commit touches the prologue performs while growing the
+/// frame. A stack whose backing is established lazily (guard-page growth)
+/// cannot let one stack-pointer move skip a whole commit granule: each newly
+/// entered granule is touched in descending address order before any frame
+/// content is stored. `touches == 0` records that the frame fits inside one
+/// granule and commits without probing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StackProbePlan {
+    /// Stack-commit granule the target guarantees, in bytes. Probing commits
+    /// a frame one granule at a time; a finer granule is always safe.
+    pub interval_bytes: u64,
+    /// Granule touches the prologue performs, one per committed chunk, each
+    /// at the new stack-pointer position after that chunk is moved.
+    pub touches: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionTargetFrameLayout {
     pub machine: MachineId,
@@ -75,6 +91,7 @@ pub struct FunctionTargetFrameLayout {
     pub local_storage_slots: Vec<LocalStorageFrameSlot>,
     pub callee_save_slots: Vec<CalleeSaveFrameSlot>,
     pub return_address: ReturnAddressFrameCustody,
+    pub stack_probe: StackProbePlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

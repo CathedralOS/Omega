@@ -152,6 +152,29 @@ pub(super) fn validate_layout(
             .abstract_area_bytes
             .checked_add(preservation_offset)
             .ok_or(Error::GeometryOverflow)?;
+        // The probe roster is checked as a coverage bound over the submitted
+        // frame extent, not by invoking the producer's plan computation.
+        let probe_interval = match (
+            environment.target().architecture,
+            environment.target().object_format,
+        ) {
+            (Architecture::Aarch64, target::ObjectFormat::MachO) => 16_384,
+            _ => 4_096,
+        };
+        let touches = u64::from(row.stack_probe.touches);
+        if row.stack_probe.interval_bytes != probe_interval
+            || (touches == 0) != (row.frame_size_bytes <= probe_interval)
+            || (touches != 0
+                && !(touches
+                    .checked_mul(probe_interval)
+                    .is_some_and(|covered| covered >= row.frame_size_bytes)
+                    && touches
+                        .checked_sub(1)
+                        .and_then(|earlier| earlier.checked_mul(probe_interval))
+                        .is_some_and(|uncovered| uncovered < row.frame_size_bytes)))
+        {
+            return Err(Error::NonCanonicalLayout);
+        }
         if row.machine != source.machine
             || row.contains_call != calls
             || row.pre_call_stack_alignment != 16

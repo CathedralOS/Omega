@@ -9,7 +9,7 @@ use crate::frame_layout::{
 pub use machine_code::TargetFrameLayoutIdentity;
 
 pub use machine_code::{
-    CalleeSaveFrameSlot, FunctionTargetFrameLayout, ReturnAddressFrameCustody,
+    CalleeSaveFrameSlot, FunctionTargetFrameLayout, ReturnAddressFrameCustody, StackProbePlan,
     TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
 
@@ -27,6 +27,7 @@ pub struct TargetFrameLayoutReceipt {
     calling_function_count: usize,
     callee_save_slot_count: usize,
     saved_link_count: usize,
+    probed_function_count: usize,
     max_frame_size_bytes: u64,
 }
 
@@ -66,6 +67,9 @@ impl TargetFrameLayoutReceipt {
     }
     pub const fn saved_link_count(self) -> usize {
         self.saved_link_count
+    }
+    pub const fn probed_function_count(self) -> usize {
+        self.probed_function_count
     }
     pub const fn max_frame_size_bytes(self) -> u64 {
         self.max_frame_size_bytes
@@ -124,6 +128,11 @@ pub(super) fn seal(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutReceipt {
                     ReturnAddressFrameCustody::SavedLinkRegister { .. }
                 )
             })
+            .count(),
+        probed_function_count: plan
+            .functions
+            .iter()
+            .filter(|row| row.stack_probe.touches != 0)
             .count(),
         max_frame_size_bytes: plan
             .functions
