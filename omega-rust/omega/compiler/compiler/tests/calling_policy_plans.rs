@@ -3515,3 +3515,135 @@ machine Main::main(&mut self) { }
     );
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
+
+const FOREIGN_OPAQUE_SOURCE: &str = r#"
+use omega::language::core::external_binding;
+use omega::language::core::representation;
+
+pub boundary data ForeignToken;
+
+data ForeignTokenCarrier {
+    low: u64;
+    high: u64;
+}
+
+ForeignTokenRepresentation:
+    ForeignTokenCarrier satisfies OpaqueRepresentation<ForeignToken>;
+
+boundary trait ForeignChannel {
+    machine deliver(token: ForeignToken);
+}
+
+windows_x86_64 machine deliver_binding() -> Binding<7, 7, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "foreign",
+            export: "deliver",
+        },
+    }
+}
+
+machine deliver_leaf(token: ForeignToken)
+    satisfies ForeignChannel::deliver
+    via deliver_binding();
+
+data Main { channel: ForeignChannel; }
+machine Main::main(&mut self) { }
+"#;
+
+const FOREIGN_OPAQUE_BUILD: &str = r#"
+machine build(builder: &mut Build) {
+    builder.application("foreign-channel");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.select_representation<ForeignToken, ForeignTokenRepresentation>();
+}
+"#;
+
+#[test]
+fn compatibility_boundary_materializes_the_selected_opaque_carrier() {
+    // A foreign import leaf has no authored `Calling<P>` policy, so its row's
+    // calling plan comes from the compatibility materialization. That path must
+    // see the authoritative build's `OpaqueRepresentation` selection: the
+    // opaque semantic type stays opaque in the source signature while the
+    // retained entry plan places the exact selected carrier bytes.
+    let main_path = write_project(
+        "foreign-opaque-selected",
+        FOREIGN_OPAQUE_SOURCE,
+        FOREIGN_OPAQUE_BUILD,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &main_path,
+        Some("windows_x86_64"),
+    ))
+    .expect("the selected representation must close the compatibility boundary demand");
+    let [selection] = checked.opaque_representation_selections() else {
+        panic!("one exact opaque-representation selection")
+    };
+    let carrier = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "ForeignTokenCarrier")
+        .expect("exact representation carrier");
+    assert_eq!(selection.carrier(), carrier.symbol);
+    let matching = checked
+        .external_binding_rows()
+        .iter()
+        .filter(|row| row.method == "deliver")
+        .collect::<Vec<_>>();
+    let [row] = matching.as_slice() else {
+        panic!("one foreign import binding row for `deliver`, found {matching:?}")
+    };
+    assert_eq!(row.trait_name, "ForeignChannel");
+    assert!(matches!(
+        row.binding,
+        calling_conventions::ExternalBindingKind::Import { .. }
+    ));
+    let plan = row
+        .boundary_entry_plan
+        .as_ref()
+        .expect("the compatibility row must retain its validated entry plan");
+    let [parameter] = plan.call.parameters.as_slice() else {
+        panic!("the opaque carrier crosses as one semantic parameter")
+    };
+    // `ForeignTokenCarrier` is `{low: u64, high: u64}`: the placement must
+    // cover the complete selected carrier, not a truncated descriptor word.
+    assert_eq!(parameter.shape.byte_size, 16);
+    assert_eq!(parameter.shape.alignment, 8);
+    assert!(
+        !parameter.locations.is_empty(),
+        "the carrier's bytes must land in declared ABI locations"
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
+fn compatibility_boundary_rejects_opaque_by_value_without_build_selection() {
+    // Without the authoritative build selection the same foreign leaf still
+    // fails closed: no carrier visibility exists, so no physical plan may be
+    // fabricated for the opaque semantic parameter.
+    let unselected = r#"
+machine build(builder: &mut Build) {
+    builder.application("foreign-channel");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+"#;
+    let main_path = write_project(
+        "foreign-opaque-unselected",
+        FOREIGN_OPAQUE_SOURCE,
+        unselected,
+    );
+    let rendered = compile_to_checked(CheckedCompileRequest::new(
+        &main_path,
+        Some("windows_x86_64"),
+    ))
+    .expect_err("an unselected opaque by-value foreign boundary must reject")
+    .iter()
+    .map(|diagnostic| diagnostic.message.as_str())
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        rendered.contains("crosses this boundary by value")
+            && rendered.contains("selects no exact `OpaqueRepresentation<ForeignToken>`"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}

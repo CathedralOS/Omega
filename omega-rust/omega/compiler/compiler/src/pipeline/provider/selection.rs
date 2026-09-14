@@ -29,6 +29,7 @@ pub(super) fn settle_checked_providers(
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
     boundary_calling_plan_realizations: &[BoundaryCallingPlanRealization],
+    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     let target_name = selected_target_profile.map(target::TargetProfile::target_name);
     let provider_selection_target = selected_target_profile
@@ -111,6 +112,7 @@ pub(super) fn settle_checked_providers(
         &selected_semantic_plans,
         boundary_calling_plan_realizations,
         typed,
+        opaque_representation_selections,
     )?;
     let (selected_provider_plan_facts, selected_provider_provenance) =
         crate::pipeline::provider_plans::selected_provider_plan_facts_with_provenance(

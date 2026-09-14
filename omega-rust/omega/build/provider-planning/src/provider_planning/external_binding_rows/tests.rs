@@ -212,6 +212,7 @@ fn checked_surface_settlement_retains_exact_rows_and_preserves_equal_arc_identit
         &fixture.plans,
         &fixture.realizations,
         &fixture.typed,
+        &[],
     )
     .expect("pre-settlement reference projection");
     let mut retained = Arc::from([]);
@@ -223,6 +224,7 @@ fn checked_surface_settlement_retains_exact_rows_and_preserves_equal_arc_identit
         target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
+        &[],
     )
     .expect("checked-retained typed projection");
     assert_eq!(retained.as_ref(), expected.as_slice());
@@ -235,6 +237,7 @@ fn checked_surface_settlement_retains_exact_rows_and_preserves_equal_arc_identit
         target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
+        &[],
     )
     .expect("identical settlement is a no-op");
     assert!(Arc::ptr_eq(&first, &retained));
@@ -253,6 +256,7 @@ fn empty_settlement_preserves_arc_identity() {
         target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
+        &[],
     )
     .expect("empty selected binding projection");
 
@@ -272,6 +276,7 @@ fn rejected_settlement_preserves_prior_arc_identity_and_contents() {
         target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
+        &[],
     )
     .expect("initial exact settlement");
     let accepted = Arc::clone(&retained);
@@ -286,6 +291,7 @@ fn rejected_settlement_preserves_prior_arc_identity_and_contents() {
         target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
+        &[],
     )
     .expect_err("duplicate exact schema method must reject before publication");
 
@@ -309,6 +315,7 @@ fn external_abi_rows_derive_from_the_selected_provider_plan() {
         &fixture.plans,
         &fixture.realizations,
         &fixture.typed,
+        &[],
     )
     .expect("selected provider binding should produce one ABI row");
     let [row] = rows.as_slice() else {
@@ -342,6 +349,7 @@ fn native_external_projection_retains_syscall_custody_without_unrelated_abi_plan
         &fixture.plans,
         &fixture.realizations,
         &fixture.typed,
+        &[],
     )
     .expect("reference syscall projection");
 
@@ -371,6 +379,7 @@ fn native_external_projection_retains_syscall_custody_without_unrelated_abi_plan
         &fixture.plans,
         &fixture.realizations,
         &fixture.typed,
+        &[],
     )
     .expect("native handoff retains only supported external mechanisms");
     assert_eq!(actual, expected);
@@ -419,6 +428,7 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
         std::slice::from_ref(plan),
         &[],
         &typed,
+        &[],
     )
     .expect("selected top-level external satisfier should enter ABI extraction");
     let [row] = rows.as_slice() else {
@@ -447,6 +457,7 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
             std::slice::from_ref(plan),
             &[],
             &typed,
+            &[],
         )
         .expect("native syscall handoff preserves the same top-level carrier ABI"),
         rows,
