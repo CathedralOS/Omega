@@ -2186,7 +2186,7 @@ fn validate_named_contract_lane(
 /// arguments of the child instance. The returned handles are existing nodes;
 /// exact forwarded parameters need no allocation and cover the canonical
 /// parent-binding form while preserving concrete/composite arguments as-is.
-pub(super) fn compose_forwarded_trait_arguments(
+pub fn compose_forwarded_trait_arguments(
     program: &TypedTrees,
     source_trait: &TraitDefinition,
     source_arguments: &[TypeReferenceHandle],

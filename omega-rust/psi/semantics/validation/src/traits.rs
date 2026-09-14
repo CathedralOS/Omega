@@ -4,6 +4,7 @@ mod dynamic;
 mod requirements;
 mod shared;
 
+pub use conformance::compose_forwarded_trait_arguments;
 pub use conformance::generic_bound_operator_requirement;
 pub use conformance::revalidate_top_level_requirement_realization;
 pub(crate) use conformance::{

@@ -44,6 +44,25 @@ ensures left == right
 {
 }
 
+// Renamed parameters bind the requirement telescope positionally: the
+// requirement names `left`/`right` while the satisfier names them
+// `right`/`left`, so the inherited law still lands on the correct slots.
+machine related_reflexive_named(item: Carrier)
+satisfies Reflexive<Carrier, related>::reflexive
+requires related(item, item)
+ensures related(item, item)
+{
+}
+
+machine related_symmetric_flipped(right: Carrier, left: Carrier)
+satisfies Symmetric<Carrier, related>::symmetric
+requires
+    related(right, left)
+    related(left, right)
+ensures related(left, right)
+{
+}
+
 data Index {
 }
 

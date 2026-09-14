@@ -62,6 +62,7 @@ fn append_contract_operator_use(
                 fact,
                 evidence_term: None,
                 qualification_authorization: None,
+                inherited_scope: None,
             });
             fact_refs.append_to_span(
                 target,

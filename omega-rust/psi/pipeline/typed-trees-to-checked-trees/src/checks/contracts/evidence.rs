@@ -670,6 +670,7 @@ mod tests {
                     fact: Handle::invalid(),
                     evidence_term: Some(parameter),
                     qualification_authorization: None,
+                    inherited_scope: None,
                 });
         }
 

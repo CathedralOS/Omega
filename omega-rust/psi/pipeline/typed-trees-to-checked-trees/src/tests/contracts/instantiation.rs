@@ -179,6 +179,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         fact: callee_fact,
         evidence_term: None,
         qualification_authorization: None,
+        inherited_scope: None,
     };
 
     let mut semantic = facts::FactPlan::default();
@@ -362,6 +363,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         fact: callee_fact,
         evidence_term: None,
         qualification_authorization: None,
+        inherited_scope: None,
     };
 
     let mut semantic = facts::FactPlan::default();
@@ -544,6 +546,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         fact: callee_fact,
         evidence_term: None,
         qualification_authorization: None,
+        inherited_scope: None,
     };
 
     let mut semantic = facts::FactPlan::default();

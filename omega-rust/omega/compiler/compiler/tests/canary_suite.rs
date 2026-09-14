@@ -4467,6 +4467,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/guard_call_vs_call_rejected",
     "calls/value_call_effectful_arm_rejected",
     "calls/value_call_param_effect_arm_rejected",
+    // Inherited trait laws must reject a satisfier whose concrete ensures
+    // proves a different proposition family than the edge selects.
+    "proofs/proposition_relation_inherited_law_rejected",
     // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
 ];

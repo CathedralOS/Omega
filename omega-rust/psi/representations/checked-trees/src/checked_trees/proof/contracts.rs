@@ -56,6 +56,30 @@ pub struct ContractProofFact {
     /// Present only for an exact `ensures result in Domain` fact published by
     /// a boundary requirement whose result carrier matches the domain target.
     pub qualification_authorization: Option<BoundaryQualificationAuthorization>,
+    /// Exact conformance edge this fact migrated through when a satisfying
+    /// machine inherited it from a trait requirement contract. The retained
+    /// `fact` handle keeps the requirement's authored row; the scope names the
+    /// trait arguments that instantiate the schema before semantic labels or
+    /// obligations are minted.
+    pub inherited_scope: Option<Handle<InheritedContractScope>>,
+}
+
+/// The exact conformance scope one contract fact migrated through when a
+/// satisfying machine inherited it from a trait requirement. Proposition
+/// families, carrier types, and requirement parameters are all schema-level in
+/// the authored row; the recorded trait arguments plus the satisfying state
+/// (the fact's owner) instantiate them without consulting display names.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct InheritedContractScope {
+    /// Machine bearing the `satisfies` edge the fact migrated through.
+    pub conformance_machine: SymbolHandle,
+    /// Declaring trait that owns the requirement contract.
+    pub declaring_trait: SymbolHandle,
+    /// Exact requirement signature whose contract authored the fact.
+    pub requirement: SymbolHandle,
+    /// Effective declaring-trait arguments at the conformance edge, already
+    /// composed through any parent trait requirements.
+    pub trait_arguments: Vec<typed_trees::types::TypeReferenceHandle>,
 }
 
 /// Producer-side carrier for one outcome-specific guarantee row. These rows

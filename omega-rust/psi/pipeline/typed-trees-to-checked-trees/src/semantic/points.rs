@@ -151,6 +151,7 @@ mod tests {
             fact: Handle::from_arena_index(2),
             evidence_term: None,
             qualification_authorization: None,
+            inherited_scope: None,
         };
 
         assert_eq!(

@@ -4,7 +4,8 @@ use crate::{
     CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
     ContractExpressionEvidenceCallFact, ContractExpressionStaticConformanceApplicationFact,
     ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
-    OutcomeSpecificArmFact, OutcomeSpecificGuaranteeFact, ProofObligationFact, ProofOutputCallFact,
+    InheritedContractScope, OutcomeSpecificArmFact, OutcomeSpecificGuaranteeFact,
+    ProofObligationFact, ProofOutputCallFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -16,6 +17,10 @@ pub struct ProofFacts {
         Vec<crate::CheckedContractEntailmentAssumptionDischarge>,
     pub obligations: Arena<ProofObligationFact>,
     pub contract_facts: Arena<ContractProofFact>,
+    /// Conformance-edge provenance for contract facts inherited from trait
+    /// requirements. Rows are referenced from `ContractProofFact::inherited_scope`
+    /// and carry the exact trait arguments used to instantiate the schema.
+    pub inherited_contract_scopes: Arena<InheritedContractScope>,
     pub outcome_specific_guarantees: Arena<OutcomeSpecificGuaranteeFact>,
     pub outcome_specific_arms: Arena<OutcomeSpecificArmFact>,
     pub evidence_terms: Arena<CheckedEvidenceTerm>,
@@ -79,6 +84,7 @@ impl ProofFacts {
     pub fn with_roots(
         obligations: Arena<ProofObligationFact>,
         contract_facts: Arena<ContractProofFact>,
+        inherited_contract_scopes: Arena<InheritedContractScope>,
         outcome_specific_guarantees: Arena<OutcomeSpecificGuaranteeFact>,
         outcome_specific_arms: Arena<OutcomeSpecificArmFact>,
         evidence_terms: Arena<CheckedEvidenceTerm>,
@@ -97,6 +103,7 @@ impl ProofFacts {
             contract_entailment_assumption_discharges: Vec::new(),
             obligations,
             contract_facts,
+            inherited_contract_scopes,
             outcome_specific_guarantees,
             outcome_specific_arms,
             evidence_terms,
@@ -122,8 +129,8 @@ mod tests {
     use crate::{
         CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
         ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
-        OutcomeSpecificArmFact, OutcomeSpecificGuaranteeFact, ProofFacts, ProofObligationFact,
-        ProofOutputCallFact,
+        InheritedContractScope, OutcomeSpecificArmFact, OutcomeSpecificGuaranteeFact, ProofFacts,
+        ProofObligationFact, ProofOutputCallFact,
     };
     use arena::Arena;
 
@@ -131,6 +138,7 @@ mod tests {
     fn proof_facts_constructor_keeps_proof_roots_explicit() {
         let obligations = Arena::<ProofObligationFact>::with_capacity(1);
         let contract_facts = Arena::<ContractProofFact>::with_capacity(2);
+        let inherited_contract_scopes = Arena::<InheritedContractScope>::with_capacity(2);
         let outcome_specific_guarantees = Arena::<OutcomeSpecificGuaranteeFact>::with_capacity(2);
         let outcome_specific_arms = Arena::<OutcomeSpecificArmFact>::with_capacity(2);
         let evidence_terms = Arena::<CheckedEvidenceTerm>::with_capacity(2);
@@ -148,6 +156,7 @@ mod tests {
         let facts = ProofFacts::with_roots(
             obligations.clone(),
             contract_facts.clone(),
+            inherited_contract_scopes.clone(),
             outcome_specific_guarantees.clone(),
             outcome_specific_arms.clone(),
             evidence_terms.clone(),
@@ -166,6 +175,7 @@ mod tests {
         assert_eq!(facts.obligations, obligations);
         assert!(facts.contract_entailment_assumption_discharges.is_empty());
         assert_eq!(facts.contract_facts, contract_facts);
+        assert_eq!(facts.inherited_contract_scopes, inherited_contract_scopes);
         assert_eq!(
             facts.outcome_specific_guarantees,
             outcome_specific_guarantees

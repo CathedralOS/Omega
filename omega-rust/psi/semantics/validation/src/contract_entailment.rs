@@ -106,6 +106,10 @@ pub(crate) use exit_coverage::entailment_covers_all_exits;
 pub use arithmetic_judgment::integer_embedding_sources_equal;
 use arithmetic_judgment::{Engine, Judgment, Polynomial};
 use inductive_judgment::inductive_transition_entailment;
+pub use law_conformance::{
+    InheritedRequirementApplication, inherited_requirement_proposition_application,
+    inherited_requirement_proposition_label, inherited_satisfier_parameters,
+};
 pub use law_conformance::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub(crate) use law_conformance::{
     check_law_conformance, check_operator_contract_conformance, checked_operator_contract_snapshot,

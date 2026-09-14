@@ -149,6 +149,7 @@ pub(crate) fn append_machine_contract_facts(
                 fact,
                 evidence_term,
                 qualification_authorization: None,
+                inherited_scope: None,
             });
         }
     }
@@ -173,6 +174,7 @@ pub(crate) fn append_operator_declaration_contract_facts(
                 fact,
                 evidence_term: None,
                 qualification_authorization: None,
+                inherited_scope: None,
             });
         }
     }
@@ -248,6 +250,7 @@ pub(crate) fn append_state_contract_facts(
                 fact,
                 evidence_term,
                 qualification_authorization: None,
+                inherited_scope: None,
             });
         }
     }
@@ -331,6 +334,7 @@ pub(crate) fn append_state_signature_contract_facts(
                     fact,
                     evidence_term,
                     qualification_authorization,
+                    inherited_scope: None,
                 });
             }
         }
