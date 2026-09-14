@@ -129,11 +129,10 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
         Some(&plan)
     );
-    crate::rebuild_checked_unit_effect_plans_with_selected_execution(&mut checked, &[], &[]);
-    assert_eq!(
-        checked.facts.flow.terminal_unit_effects.for_machine(caller),
-        Some(&plan)
-    );
+    let rebuilt = checked.clone();
+    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+        .expect("repeated full rebuild retains primitive local storage custody");
+    assert_eq!(checked, rebuilt, "full rebuild is idempotent");
 }
 
 #[test]

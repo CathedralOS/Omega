@@ -36,47 +36,6 @@ pub struct SelectedIeeeFloatFmaUnitApplication {
     pub operands: Vec<typed_trees::expression::ExpressionHandle>,
 }
 
-/// Rebuild the bounded Unit-effect roster with exact selected boundary-
-/// operator applications available during planning. This is a compiler-
-/// internal phase seam, not a public checked-IR contract.
-pub fn rebuild_checked_unit_effect_plans_with_selected_operators(
-    program: &mut CheckedTrees,
-    applications: &[SelectedOperatorApplication],
-) {
-    rebuild_checked_unit_effect_plans_with_selected_execution(program, applications, &[]);
-}
-
-/// Rebuild attached Unit plans once from the complete selected execution
-/// roster. Keeping adapter calls and compiler-intrinsic scalar operations in
-/// one transaction prevents either settlement pass from erasing the other.
-pub fn rebuild_checked_unit_effect_plans_with_selected_execution(
-    program: &mut CheckedTrees,
-    operator_applications: &[SelectedOperatorApplication],
-    ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
-) {
-    let boundary_returns =
-        flow::build_checked_boundary_scalar_return_plans(&program.typed, &program.facts);
-    let primitive_returns =
-        flow::build_checked_primitive_store_scalar_return_plans(&program.typed, &program.facts);
-    let structural_returns = flow::reconcile_primitive_store_scalar_returns(
-        &program.facts.flow.terminal_structural_scalar_returns,
-        primitive_returns,
-    );
-    let terminal_unit_effects = flow::build_checked_unit_effect_plans(
-        &program.typed,
-        &program.facts,
-        flow::ScalarCalleePlans {
-            boundary_returns: &boundary_returns,
-            structural_returns: &structural_returns,
-        },
-        operator_applications,
-        ieee_float_fma_applications,
-    );
-    program.facts.flow.terminal_boundary_scalar_returns = boundary_returns;
-    program.facts.flow.terminal_structural_scalar_returns = structural_returns;
-    program.facts.flow.terminal_unit_effects = terminal_unit_effects;
-}
-
 /// Rebuild every checked Terminal plan whose exact shape depends on selected
 /// operator execution. Unit-local scalar calls and direct structural-scalar
 /// returns are one transaction so neither selected family can erase the
