@@ -40,8 +40,9 @@ that row's prompt file contents as its task.
 
 Concurrency is bounded by the org-wide message budget shared with cloud waves
 and other machines, not by this host. A burst of ~20 died in minutes; 8 held
-while the budget was quiet. Start small, let claims register, then grow — and
-backfill each freed slot only while the user asked the wave to keep running.
+while the budget was quiet. When the user gives no count, default to 4
+concurrent and backfill freed slots toward the observed ceiling — and only
+while the user asked the wave to keep running.
 
 ## Monitor
 
