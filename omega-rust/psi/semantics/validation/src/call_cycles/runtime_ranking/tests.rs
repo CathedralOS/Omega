@@ -3,6 +3,7 @@ use source::SourceMap;
 use source_files_to_tokens::Lexer;
 
 mod clamped;
+mod distance;
 mod increasing;
 mod meaning;
 mod ranges;

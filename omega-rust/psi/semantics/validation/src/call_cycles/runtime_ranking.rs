@@ -94,6 +94,7 @@ pub(super) fn check_component(
                 RankingRangeCallMember {
                     machine,
                     subject: rank.subject,
+                    paired_subject: rank.paired_subject,
                     range: rank.range,
                 },
             ) {
@@ -209,18 +210,22 @@ pub(super) fn check_component(
                     };
                     if matches!(
                         ranks[position].order,
-                        projection::RankOrder::Natural(_) | projection::RankOrder::IncreasingTo(_)
+                        projection::RankOrder::Natural(_)
+                            | projection::RankOrder::IncreasingTo(_)
+                            | projection::RankOrder::BoundedDistance(_)
                     ) {
                         match prove_ranking_range_call(
                             program,
                             RankingRangeCallMember {
                                 machine,
                                 subject: ranks[position].subject,
+                                paired_subject: ranks[position].paired_subject,
                                 range: ranks[position].range,
                             },
                             RankingRangeCallMember {
                                 machine: callee_machine,
                                 subject: ranks[callee_position].subject,
+                                paired_subject: ranks[callee_position].paired_subject,
                                 range: ranks[callee_position].range,
                             },
                             &site_guards,
@@ -284,6 +289,7 @@ pub(super) fn check_component(
             .map(|(rank, index)| RankingRangeCallMember {
                 machine: &program.machines()[*index],
                 subject: rank.subject,
+                paired_subject: rank.paired_subject,
                 range: rank.range,
             })
             .collect::<Vec<_>>();

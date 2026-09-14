@@ -17,7 +17,7 @@ pub(super) fn preserves_rank(
 ) -> bool {
     if !matches!(
         rank.order,
-        RankOrder::Natural(_) | RankOrder::IncreasingTo(_)
+        RankOrder::Natural(_) | RankOrder::IncreasingTo(_) | RankOrder::BoundedDistance(_)
     ) {
         return false;
     }

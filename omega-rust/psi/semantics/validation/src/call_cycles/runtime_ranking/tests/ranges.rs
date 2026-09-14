@@ -65,11 +65,13 @@ pub(super) fn progress(
             RankingRangeCallMember {
                 machine: caller,
                 subject: source_rank.subject,
+                paired_subject: source_rank.paired_subject,
                 range: source_rank.range,
             },
             RankingRangeCallMember {
                 machine: callee,
                 subject: destination_rank.subject,
+                paired_subject: destination_rank.paired_subject,
                 range: destination_rank.range,
             },
             &guards,
@@ -253,11 +255,13 @@ fn call_range_query_rejects_foreign_subject_endpoint_and_actual_handles() {
             RankingRangeCallMember {
                 machine: caller,
                 subject,
+                paired_subject: ExpressionHandle::invalid(),
                 range: caller_range,
             },
             RankingRangeCallMember {
                 machine: callee,
                 subject: callee_rank.subject,
+                paired_subject: callee_rank.paired_subject,
                 range,
             },
             &guards,

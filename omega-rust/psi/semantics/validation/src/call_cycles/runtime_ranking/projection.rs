@@ -4,6 +4,8 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::signature::StateParameter;
+use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
 /// Transient declaration-local projection. A measure's current typed carrier
@@ -13,6 +15,9 @@ use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 pub(super) enum RankOrder {
     Natural(PrimitiveType),
     IncreasingTo(PrimitiveType),
+    /// `Nat::BoundedDistance`: the component's rank is the distance from the
+    /// ranked (lower) subject up to the paired upper subject.
+    BoundedDistance(PrimitiveType),
     Lexicographic {
         measure_index: usize,
         data: SymbolHandle,
@@ -25,6 +30,10 @@ pub(super) struct RankProjection {
     pub(super) parameter: SymbolHandle,
     pub(super) argument_position: usize,
     pub(super) subject: ExpressionHandle,
+    /// The upper subject of a two-subject view (`Nat::BoundedDistance` ranks
+    /// `(subject, paired_subject)` by `paired_subject - subject`). Invalid for
+    /// single-subject orders.
+    pub(super) paired_subject: ExpressionHandle,
     pub(super) range: ExpressionHandle,
 }
 
@@ -33,35 +42,43 @@ impl RankProjection {
         let witness = machine.termination_plan.implementation_witness.as_ref()?;
         // Never rediscover the subject by scanning rendered expressions.
         let custody = program.ranking_expression_custody_for(machine.symbol)?;
-        let [subject] = custody.subjects.as_slice() else {
-            return None;
-        };
-        if witness.subjects.len() != 1
+        if witness.subjects.len() != custody.subjects.len()
             || witness.rank_range.is_some() != custody.rank_range.is_some()
             || custody.rank_range.is_some_and(|range| !range.is_valid())
         {
             return None;
         }
-        let ExpressionNode::Name(path) = program
-            .expression_table
-            .expression(unwrapped(program, *subject))
-        else {
+        let entry = program.machine_states(machine).first()?;
+        if witness.ranking_view == RankingViewId::NAT_BOUNDED_DISTANCE
+            && Some(witness.view_path.as_str()) == witness.ranking_view.canonical_path()
+        {
+            let [lower, upper] = custody.subjects.as_slice() else {
+                return None;
+            };
+            if !witness.view_arguments.is_empty() || !custody.view_arguments.is_empty() {
+                return None;
+            }
+            let (argument_position, parameter) = entry_parameter(program, entry, *lower)?;
+            let (_, upper_parameter) = entry_parameter(program, entry, *upper)?;
+            // A shared unsigned carrier keeps `same_order` meaningful across
+            // members; a mixed-width distance is not a single order.
+            let primitive = unsigned_carrier(program, parameter)?;
+            if unsigned_carrier(program, upper_parameter)? != primitive {
+                return None;
+            }
+            return Some(Self {
+                order: RankOrder::BoundedDistance(primitive),
+                parameter: parameter.symbol,
+                argument_position,
+                subject: *lower,
+                paired_subject: *upper,
+                range: custody.rank_range.unwrap_or_default(),
+            });
+        }
+        let [subject] = custody.subjects.as_slice() else {
             return None;
         };
-        if !path.symbol.is_valid() {
-            return None;
-        }
-        let entry = program.machine_states(machine).first()?;
-        let mut parameters = program
-            .state_parameters(entry)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .enumerate()
-            .filter(|(_, parameter)| parameter.symbol == path.symbol);
-        let (argument_position, parameter) = parameters.next()?;
-        if parameters.next().is_some() {
-            return None;
-        }
+        let (argument_position, parameter) = entry_parameter(program, entry, *subject)?;
         if matches!(
             witness.ranking_view,
             RankingViewId::NAT_DESCENDING | RankingViewId::NAT_INCREASING_TO
@@ -78,19 +95,7 @@ impl RankProjection {
             } else if !witness.view_arguments.is_empty() || !custody.view_arguments.is_empty() {
                 return None;
             }
-            let mut reference = parameter.type_reference;
-            while let TypeReferenceNode::Constrained { base_type, .. } =
-                program.type_reference_table.type_reference(reference)
-            {
-                reference = *base_type;
-            }
-            let primitive = crate::recasts::exact_primitive_type(program, reference)?;
-            if !matches!(
-                primitive,
-                PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
-            ) {
-                return None;
-            }
+            let primitive = unsigned_carrier(program, parameter)?;
             return Some(Self {
                 order: if increasing {
                     RankOrder::IncreasingTo(primitive)
@@ -100,6 +105,7 @@ impl RankProjection {
                 parameter: parameter.symbol,
                 argument_position,
                 subject: *subject,
+                paired_subject: ExpressionHandle::invalid(),
                 range: custody.rank_range.unwrap_or_default(),
             });
         }
@@ -203,6 +209,7 @@ impl RankProjection {
             parameter: parameter.symbol,
             argument_position,
             subject: *subject,
+            paired_subject: ExpressionHandle::invalid(),
             range: ExpressionHandle::invalid(),
         })
     }
@@ -253,6 +260,53 @@ impl RankProjection {
         )
         .is_some_and(|selected| selected.symbol == field)
     }
+}
+
+/// Resolve a retained ranked-subject expression to its unique non-self entry
+/// parameter. An ambiguous or non-name arrival has no exact argument mapping.
+fn entry_parameter<'program>(
+    program: &'program TypedTrees,
+    entry: &'program State,
+    subject: ExpressionHandle,
+) -> Option<(usize, &'program StateParameter)> {
+    let ExpressionNode::Name(path) = program
+        .expression_table
+        .expression(unwrapped(program, subject))
+    else {
+        return None;
+    };
+    if !path.symbol.is_valid() {
+        return None;
+    }
+    let mut parameters = program
+        .state_parameters(entry)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+        .filter(|(_, parameter)| parameter.symbol == path.symbol);
+    let found = parameters.next()?;
+    if parameters.next().is_some() {
+        return None;
+    }
+    Some(found)
+}
+
+/// The unsigned primitive carrier under any constrained shells. A ranked
+/// subject or endpoint without an exact unsigned base cannot carry a
+/// natural-order projection.
+fn unsigned_carrier(program: &TypedTrees, parameter: &StateParameter) -> Option<PrimitiveType> {
+    let mut reference = parameter.type_reference;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    let primitive = crate::recasts::exact_primitive_type(program, reference)?;
+    matches!(
+        primitive,
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+    )
+    .then_some(primitive)
 }
 
 pub(super) fn unwrapped(
