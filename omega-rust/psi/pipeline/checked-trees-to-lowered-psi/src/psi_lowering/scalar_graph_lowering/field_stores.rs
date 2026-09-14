@@ -3,6 +3,11 @@
 //! resolved in the ordered namespace so copies and moved homes stay distinct.
 
 use super::*;
+use crate::psi_lowering::operation_emission::LoweredScalarBinding;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+};
 
 pub(super) struct Prepared {
     statement: u32,

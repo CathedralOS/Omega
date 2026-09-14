@@ -1,6 +1,11 @@
 //! Save one subject in the operand prefix across ordered pattern evaluations.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::integer::LoweredIntegerComparisonKind;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator,
+};
 use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
 
 impl Expansion<'_> {

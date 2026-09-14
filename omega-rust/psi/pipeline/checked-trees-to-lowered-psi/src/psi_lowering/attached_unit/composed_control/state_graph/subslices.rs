@@ -1,6 +1,8 @@
 //! Source-bound exclusive byte windows evaluated only on their selected edge.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn validate(

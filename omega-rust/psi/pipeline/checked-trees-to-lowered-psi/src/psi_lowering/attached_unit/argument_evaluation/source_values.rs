@@ -3,6 +3,10 @@
 //! joins; the fixed source prefix excludes private argument and leaf slots.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 
 impl Evaluation {
     /// A pure Boolean used only to choose an edge needs no joined value.

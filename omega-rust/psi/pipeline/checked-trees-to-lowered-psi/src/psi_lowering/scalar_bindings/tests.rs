@@ -1,4 +1,7 @@
 use super::*;
+use crate::psi_lowering::boolean_control::LoweredBooleanDecisionExit;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 use crate::psi_lowering::scalar_graph_lowering::lower_checked_boolean_expression;
 use checked_trees::CheckedScalarBindingDestination;
 

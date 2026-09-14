@@ -1,7 +1,52 @@
 //! Content conservation, identity reshuffle, and partition-composition lowering.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::SourceCallCoordinate;
 
+/// One checked content equation translated into terminal-Psi identities.
+/// Arena-local domain, projection-machine, and field symbols are deliberately
+/// absent; only normalized semantic identities and stable spellings survive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredContentConservation {
+    /// Non-authoritative compact coordinate beside the exact proposition.
+    pub source_report_fingerprint: u64,
+    pub structural_places: Vec<StructuralPlaceDeclaration>,
+    pub proposition: Proposition,
+}
+
+/// Canonical terminal-Psi carrier for checker-derived one-to-one claim
+/// reshuffles. Source claim identities are used only to group exact projection
+/// facts; the emitted IDs are dense and determined by the semantic rows, so no
+/// arena-local symbol identity crosses the terminal boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredContentIdentityReshuffles {
+    pub structural_places: Vec<StructuralPlaceDeclaration>,
+    pub entry_claims: Vec<ContentEntryClaim>,
+    pub reshuffles: Vec<ContentIdentityReshuffle>,
+    /// Source checked identities paired with their dense terminal IDs.
+    /// This map never enters terminal Psi; later derived rows consume it while
+    /// the producer still owns both representations.
+    pub source_claims: Vec<(PermissionClaimIdentity, ClaimId)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredContentPartitionCompositions {
+    pub structural_places: Vec<StructuralPlaceDeclaration>,
+    pub compositions: Vec<LoweredContentPartitionComposition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredContentPartitionComposition {
+    pub(in crate::psi_lowering) producer_coordinate: SourceCallCoordinate,
+    pub(in crate::psi_lowering) source_callable: symbols::SymbolHandle,
+    /// Non-authoritative compact coordinate beside the exact retained source.
+    pub(in crate::psi_lowering) source_report_fingerprint: u64,
+    pub(in crate::psi_lowering) source_structural_places: Vec<StructuralPlaceDeclaration>,
+    pub(in crate::psi_lowering) source: ContentConservation,
+    pub(in crate::psi_lowering) input_claims: Vec<ClaimId>,
+    pub(in crate::psi_lowering) substitutions: Vec<ContentPlaceSubstitution>,
+    pub(in crate::psi_lowering) derived: ContentConservation,
+}
 fn content_field_identity(checked: &CheckedTrees, symbol: symbols::SymbolHandle) -> Option<String> {
     checked.data_definitions().iter().find_map(|definition| {
         checked.data_members(definition).iter().find_map(|member| {

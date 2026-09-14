@@ -3,6 +3,15 @@
 //! actuals intact. CPS attaches this stream only to the selected expression path.
 
 use super::*;
+use crate::psi_lowering::operation_emission::LoweredScalarBinding;
+use crate::psi_lowering::operation_emission::calls::{
+    LoweredDirectCallBinding, ScalarCallCrashScope,
+};
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarArrayConstruction, LoweredScalarBranchState, LoweredScalarBranchTerminator,
+    LoweredScalarEffect,
+};
 use arena::HandleSpan;
 use checked_trees::CheckedScalarComputationStructuralArgument;
 

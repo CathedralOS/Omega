@@ -1,4 +1,7 @@
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
+use crate::psi_lowering::operation_emission::integer::LoweredIntegerComparisonKind;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
 pub(super) type StructuralCallEmitter<'a> = dyn FnMut(

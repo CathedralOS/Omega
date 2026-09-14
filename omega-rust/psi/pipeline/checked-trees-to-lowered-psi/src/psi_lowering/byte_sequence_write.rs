@@ -1,5 +1,7 @@
 //! Source-bound writes through exact whole mutable byte views.
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::{CheckedByteSequenceWritePlan, expression::ExpressionNode};
 
 pub(crate) fn validate_assignment(

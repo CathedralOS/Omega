@@ -1,5 +1,6 @@
 //! Complete fields in authored order before committing a declaration-ordered record.
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn record(

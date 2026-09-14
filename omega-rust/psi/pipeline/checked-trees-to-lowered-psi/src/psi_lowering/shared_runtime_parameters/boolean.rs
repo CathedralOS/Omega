@@ -1,6 +1,7 @@
 //! Boolean and relevant structural-field runtime-input custody.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
 
 pub(super) fn valid_shared_boolean_runtime_inputs(
     inputs: &BTreeSet<SharedBooleanRuntimeInput>,

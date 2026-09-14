@@ -1,6 +1,7 @@
 //! Exact three-state structural-result case dispatch.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 
 pub(super) fn lower(
     checked: &CheckedTrees,

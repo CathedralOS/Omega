@@ -1,6 +1,7 @@
 //! Ordinary structural graph results, with exact authored field custody.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 use checked_trees::{CheckedControlResultPlan, data::DataMember, expression::ExpressionNode};
 
 pub(super) fn signature_matches(

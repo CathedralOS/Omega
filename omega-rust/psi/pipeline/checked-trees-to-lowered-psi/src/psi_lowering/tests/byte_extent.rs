@@ -130,7 +130,7 @@ fn fixture() -> LoweredPsi {
 #[test]
 fn guarded_subslice_extent_proves_strict_length_descent_and_executes() {
     let mut lowered = fixture();
-    crate::psi_lowering::operation_emission::finalize_operation_proofs(&mut lowered)
+    crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered)
         .expect("a guarded tail's exact extent proves strict descent");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();

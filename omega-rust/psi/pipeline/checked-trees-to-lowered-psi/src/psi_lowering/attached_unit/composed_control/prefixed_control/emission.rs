@@ -1,6 +1,7 @@
 //! Terminal emission for the finite scalar-prefix acyclic family.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 pub(super) fn emit(
     checked: &CheckedTrees,

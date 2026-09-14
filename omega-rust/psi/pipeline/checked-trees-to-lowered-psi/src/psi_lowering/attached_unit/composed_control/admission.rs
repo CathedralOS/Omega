@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::psi_lowering::attached_unit::bodies::UnitBody;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 
 pub(in crate::psi_lowering::attached_unit) struct AdmittedComposedUnit<'a> {
     pub(in crate::psi_lowering::attached_unit) entry:

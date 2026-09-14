@@ -4,6 +4,7 @@
 //! array shape, storage and operand correspondence.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 use checked_trees::CheckedArrayConstructionSource;
 use checked_trees::CheckedUnitCallCoordinate;
 use checked_trees::statement::StatementNode;

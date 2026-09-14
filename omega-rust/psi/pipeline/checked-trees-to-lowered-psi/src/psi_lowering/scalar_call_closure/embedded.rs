@@ -1,6 +1,8 @@
 //! Scalar helper catalogs embedded beneath an existing source-owned root.
 
 use super::*;
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
 use checked_trees::CheckedScalarComputationKind;
 
 mod discovery;

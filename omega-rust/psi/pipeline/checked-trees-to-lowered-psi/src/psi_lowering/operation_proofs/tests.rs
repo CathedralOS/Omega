@@ -1,4 +1,5 @@
 use super::*;
+use crate::psi_lowering::block_id;
 
 fn fixture(obligation_count: usize) -> LoweredPsi {
     let mut lowered = lower_source("machine root(value: u64) -> u64 { value }");

@@ -1,6 +1,9 @@
 //! Emit every authored state using shared catalogs and simultaneous typed edges.
 
 use super::*;
+use crate::psi_lowering::boolean_control::LoweredBooleanDecision;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 pub(in crate::psi_lowering::attached_unit::composed_control) fn emit(
     checked: &CheckedTrees,

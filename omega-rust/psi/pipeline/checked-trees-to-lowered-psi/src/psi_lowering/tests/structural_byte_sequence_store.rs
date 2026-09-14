@@ -562,7 +562,7 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
     });
     let structural_type = machine.structural_parameters[0].structural_type;
     lowered.proof_bundle.evidence.clear();
-    crate::psi_lowering::operation_emission::finalize_operation_proofs(&mut lowered).unwrap();
+    crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered).unwrap();
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
     let mut execution =

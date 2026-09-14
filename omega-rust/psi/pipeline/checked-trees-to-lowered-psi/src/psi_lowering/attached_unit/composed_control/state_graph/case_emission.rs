@@ -1,6 +1,7 @@
 //! Selected payload bindings feed the ordinary successor argument path.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 pub(super) struct PreparedCase<'a> {
     pub successor: &'a CheckedStructuralControlSuccessorPlan,

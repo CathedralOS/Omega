@@ -1,6 +1,7 @@
 //! Resolve checked-local storage against its current SSA value or primitive place.
 
 use super::*;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 use crate::psi_lowering::scalar_source_custody as source_custody;
 
 pub(super) mod structural_cases;

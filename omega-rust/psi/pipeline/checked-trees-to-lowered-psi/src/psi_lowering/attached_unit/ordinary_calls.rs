@@ -1,5 +1,7 @@
 //! Shared ordinary call operands, requirements and crash substitution.
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
 use crate::psi_lowering::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
 pub(super) struct Target<'a> {

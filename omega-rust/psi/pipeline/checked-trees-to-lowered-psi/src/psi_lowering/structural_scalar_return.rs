@@ -5,6 +5,9 @@
 //! separate producer responsibilities in the crate root.
 
 use super::*;
+use crate::psi_lowering::boolean_control::LoweredBooleanDecisionExit;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 
 mod effects;
 mod expressions;

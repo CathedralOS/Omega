@@ -2,6 +2,9 @@
 
 use super::*;
 use crate::psi_lowering::attached_unit::bodies::UnitBody;
+use crate::psi_lowering::operation_emission::buffer::SourceCallCoordinate;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::LoweredUnitCall;
 use checked_trees::{CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan};
 
 pub(super) struct Prepared {

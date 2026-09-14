@@ -1,6 +1,7 @@
 //! Rejoin the complete authored body before emitting its ordered effects.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 use checked_trees::statement::StatementNode;
 
 pub(super) fn validate(

@@ -144,7 +144,7 @@ fn measured_literal_last_byte_proves_bounds_and_executes_without_guard() {
     // The second literal has three bytes but only two Unicode scalar values.
     for (literal, expected_byte) in [("XXX", 88), ("éZ", 90)] {
         let mut lowered = fixture(literal, 2);
-        crate::psi_lowering::operation_emission::finalize_operation_proofs(&mut lowered)
+        crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered)
             .expect("exact literal extent proves the last byte is in bounds");
         let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
         let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
@@ -190,7 +190,7 @@ fn measured_literal_extent_does_not_prove_one_past_end_or_empty_read() {
         terminal_verifier::validate_module(&lowered.semantic_module).unwrap();
         assert!(
             matches!(
-                crate::psi_lowering::operation_emission::finalize_operation_proofs(&mut lowered),
+                crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered),
                 Err(LoweringError::OperationProofUnavailable(_))
             ),
             "literal {literal:?}, byte index {byte_index} must remain out of bounds"

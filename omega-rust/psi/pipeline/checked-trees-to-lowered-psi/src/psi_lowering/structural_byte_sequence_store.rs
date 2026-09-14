@@ -1,6 +1,7 @@
 //! Source correspondence and ordered emission for bounded byte-field replacement.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
 

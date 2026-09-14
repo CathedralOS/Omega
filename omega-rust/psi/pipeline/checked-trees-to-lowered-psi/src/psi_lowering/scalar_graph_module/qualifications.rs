@@ -4,6 +4,8 @@
 //! tags; explicit source-cast replay owns permission for that change.
 
 use super::*;
+use crate::psi_lowering::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(

@@ -1,6 +1,7 @@
 //! One direct named-dynamic scalar result followed by checked Unit control.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 pub(super) fn lower(
     checked: &CheckedTrees,

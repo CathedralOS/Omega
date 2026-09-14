@@ -86,7 +86,7 @@ fn unchanged_view_has_no_strict_descent_and_positive_prefix_still_needs_bounds()
             slice_obligation
         };
         assert!(
-            matches!(crate::psi_lowering::operation_emission::finalize_operation_proofs(&mut lowered),
+            matches!(crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered),
                 Err(LoweringError::OperationProofUnavailable(obligation)) if obligation == expected
             ),
             "prefix {prefix} must fail its own obligation"
@@ -237,7 +237,7 @@ fn new_length_read_cannot_precede_its_producer_or_escape_to_a_sibling() {
 #[test]
 fn frozen_extent_proof_rejects_endpoint_and_measurement_source_drift() {
     let mut lowered = fixture();
-    crate::psi_lowering::operation_emission::finalize_operation_proofs(&mut lowered)
+    crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered)
         .expect("green strict descent fixture");
     let profile = proof_admission::AdmissionProfile::default();
     terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
@@ -301,7 +301,7 @@ fn frozen_extent_proof_rejects_endpoint_and_measurement_source_drift() {
             .proof_bundle
             .evidence
             .retain(|evidence| evidence.obligation != slice_obligation);
-        crate::psi_lowering::operation_emission::finalize_operation_proofs(&mut lowered)
+        crate::psi_lowering::operation_proofs::finalize_operation_proofs(&mut lowered)
             .expect("changed slice bounds remain provable");
         assert!(
             matches!(terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile),

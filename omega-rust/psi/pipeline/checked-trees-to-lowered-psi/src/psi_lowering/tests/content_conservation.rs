@@ -1,6 +1,7 @@
 //! Content conservation, identity reshuffle, and partition regressions.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::SourceCallCoordinate;
 
 fn source_plan_with_domain(semantic_domain: SemanticDomainId) -> ContentConservationPlan {
     let entry = source_projection(

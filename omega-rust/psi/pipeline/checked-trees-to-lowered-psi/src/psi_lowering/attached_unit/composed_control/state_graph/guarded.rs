@@ -3,6 +3,7 @@
 //! an exit. Dependency discovery visits every arm; execution never does so.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 use checked_trees::CheckedScalarBranchDestination;
 
 pub(super) fn validate(

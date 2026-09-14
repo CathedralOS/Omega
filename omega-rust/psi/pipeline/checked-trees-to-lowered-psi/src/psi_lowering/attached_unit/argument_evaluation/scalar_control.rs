@@ -3,6 +3,11 @@
 //! structural places keep their dominating producers across guarded arms.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
+use crate::psi_lowering::scalar_graph_lowering::prepared_graph::{
+    LoweredScalarBranchState, LoweredScalarBranchTerminator,
+};
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
 impl Evaluation {

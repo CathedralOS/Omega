@@ -1,6 +1,8 @@
 //! Exact source correspondence and ordered operands for indexed byte replacement.
 
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
+use crate::psi_lowering::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan;
 use checked_trees::expression::ExpressionNode;
 

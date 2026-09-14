@@ -1,4 +1,5 @@
 use super::*;
+use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 use checked_trees::CheckedStructuralPredicatePathSegment;
 use terminal_psi::BindingRelevance;
 
