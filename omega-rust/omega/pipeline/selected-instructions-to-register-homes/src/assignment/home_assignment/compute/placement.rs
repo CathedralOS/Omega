@@ -64,10 +64,11 @@ pub(crate) fn compute_function(
     while !unassigned.is_empty() {
         let position = select_domain(&unassigned, &viable, &degrees, &domains);
         let domain_index = unassigned.remove(position);
-        // Affinity only reorders among already-legal candidates: aliases,
-        // liveness, and interference facts are untouched, and domain selection
-        // order is unchanged.
+        // Affinity and neighbor feasibility only reorder among already-legal
+        // candidates: aliases, liveness, and interference facts are untouched,
+        // and domain selection order is unchanged.
         let view = preferred_view(
+            function,
             domain_index,
             &domains,
             &viable,
@@ -75,7 +76,8 @@ pub(crate) fn compute_function(
             &homes,
             &ranges.copy_affinities,
             &domain_of,
-        )
+            &conflicts,
+        )?
         .ok_or(RegisterHomeError::NoCompatibleHome {
             function,
             register: domains[domain_index].leader().0,
@@ -122,10 +124,19 @@ pub(crate) fn compute_function(
 }
 
 /// Choose a home among candidates that are already legal for this domain.
-/// An assigned copy partner's home wins first. When the partner is still
-/// unassigned, a view that partner can still take lets its own placement
-/// complete the coalesce; disjoint partners keep the plain first candidate.
+///
+/// Candidate order is canonical. Taking a view also removes every conflicting
+/// view from each still-unassigned constrained neighbor, so a view that would
+/// empty such a neighbor's viable set is considered only after every view
+/// that keeps all of them feasible: stranding a neighbor manufactures a
+/// `NoCompatibleHome` that the neighbor's own placement could still avoid,
+/// and no coalesce or lower view id outranks that feasibility. Among the
+/// feasible-keeping views an assigned copy partner's home wins first, then
+/// the view the most still-unassigned partners can still take — a partner
+/// constrained with this domain can never share its home, so its candidacy
+/// is not a coalescing vote — then the plain first candidate.
 fn preferred_view(
+    function: usize,
     domain_index: usize,
     domains: &[AllocationDomain<'_>],
     viable: &[Vec<RegisterViewId>],
@@ -133,10 +144,30 @@ fn preferred_view(
     homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
     domain_of: &BTreeMap<VirtualRegisterId, usize>,
-) -> Option<RegisterViewId> {
+    conflicts: &PreparedConflicts<'_>,
+) -> Result<Option<RegisterViewId>, RegisterHomeError> {
     let domain = &domains[domain_index];
-    let candidates = &viable[domain_index];
-    candidates
+    let candidates = viable[domain_index].as_slice();
+    let mut keeping = Vec::with_capacity(candidates.len());
+    for &view in candidates {
+        if !strands_neighbor(
+            function,
+            domain_index,
+            view,
+            domains,
+            viable,
+            unassigned,
+            conflicts,
+        )? {
+            keeping.push(view);
+        }
+    }
+    let pool: &[RegisterViewId] = if keeping.is_empty() {
+        candidates
+    } else {
+        &keeping
+    };
+    Ok(pool
         .iter()
         .copied()
         .find(|view| {
@@ -146,19 +177,70 @@ fn preferred_view(
             })
         })
         .or_else(|| {
-            candidates.iter().copied().find(|view| {
-                affinities.iter().any(|affinity| {
-                    affinity_partner(domain, *affinity).is_some_and(|partner| {
-                        domain_of.get(&partner).is_some_and(|&partner_domain| {
-                            partner_domain != domain_index
-                                && unassigned.contains(&partner_domain)
-                                && viable[partner_domain].binary_search(view).is_ok()
+            let mut leading = None::<(usize, RegisterViewId)>;
+            for &view in pool {
+                let votes = affinities
+                    .iter()
+                    .filter(|affinity| {
+                        affinity_partner(domain, **affinity).is_some_and(|partner| {
+                            domain_of.get(&partner).is_some_and(|&partner_domain| {
+                                partner_domain != domain_index
+                                    && unassigned.contains(&partner_domain)
+                                    && !conflicts.constrained(partner_domain, domain_index)
+                                    && viable[partner_domain].binary_search(&view).is_ok()
+                            })
                         })
                     })
-                })
-            })
+                    .count();
+                if votes > 0 && leading.is_none_or(|(most, _)| votes > most) {
+                    leading = Some((votes, view));
+                }
+            }
+            leading.map(|(_, view)| view)
         })
-        .or_else(|| candidates.first().copied())
+        .or_else(|| pool.first().copied()))
+}
+
+/// Assigning `view` to this domain removes every conflicting view from each
+/// still-unassigned constrained neighbor's viable set. Return true when that
+/// removal would leave such a neighbor with nothing: the choice stays legal
+/// for this domain but loses to any candidate that keeps every neighbor
+/// feasible. A neighbor whose viable set is already empty is doomed either
+/// way and does not count against the view.
+fn strands_neighbor(
+    function: usize,
+    domain_index: usize,
+    view: RegisterViewId,
+    domains: &[AllocationDomain<'_>],
+    viable: &[Vec<RegisterViewId>],
+    unassigned: &[usize],
+    conflicts: &PreparedConflicts<'_>,
+) -> Result<bool, RegisterHomeError> {
+    for &neighbor in unassigned {
+        if neighbor == domain_index
+            || viable[neighbor].is_empty()
+            || !conflicts.constrained(neighbor, domain_index)
+        {
+            continue;
+        }
+        let mut retains = false;
+        for &candidate in &viable[neighbor] {
+            if !conflicts.candidate_conflicts(
+                function,
+                neighbor,
+                candidate,
+                &[(domain_index, view)],
+                domains,
+            )? {
+                retains = true;
+                break;
+            }
+        }
+        if !retains {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn affinity_partner(

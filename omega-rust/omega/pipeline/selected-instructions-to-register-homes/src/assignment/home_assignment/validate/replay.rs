@@ -107,17 +107,20 @@ pub(crate) fn replay_function(
             .into_iter()
             .next()
             .expect("nonempty unassigned roster has a ranked domain");
-        // Affinity only reorders among already-legal candidates: aliases,
-        // liveness, and interference facts are untouched, and domain selection
-        // order is unchanged.
+        // Affinity and neighbor feasibility only reorder among already-legal
+        // candidates: aliases, liveness, and interference facts are untouched,
+        // and domain selection order is unchanged.
         let view = preferred_view(
+            function,
             selected_domain,
             &domains,
             &unassigned,
             &assigned,
             &ranges.copy_affinities,
             &domain_of,
-        )
+            ranges,
+            physical,
+        )?
         .ok_or(RegisterHomeError::NoCompatibleHome {
             function,
             register: domains[selected_domain].leader.0,
@@ -160,20 +163,45 @@ pub(crate) fn replay_function(
     })
 }
 
-/// Independently replay the producer's candidate preference: an assigned copy
-/// partner's home wins first, then a view an unassigned partner can still
-/// take, then the plain first candidate.
+/// Independently replay the producer's candidate preference: views that would
+/// empty a still-unassigned constrained neighbor's viable set are considered
+/// only after every view that keeps all of them feasible, an assigned copy
+/// partner's home wins first among them, then the view satisfying the most
+/// still-unassigned partners that remain unconstrained with this domain, then
+/// the plain first candidate.
 fn preferred_view(
+    function: usize,
     domain_index: usize,
     domains: &[domain::ReplayDomain],
     unassigned: &BTreeSet<usize>,
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
     domain_of: &BTreeMap<VirtualRegisterId, usize>,
-) -> Option<RegisterViewId> {
+    ranges: &crate::FunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<Option<RegisterViewId>, RegisterHomeError> {
     let domain = &domains[domain_index];
-    domain
-        .candidates
+    let candidates = domain.candidates.as_slice();
+    let mut keeping = Vec::with_capacity(candidates.len());
+    for &view in candidates {
+        if !strands_neighbor(
+            function,
+            domain_index,
+            view,
+            domains,
+            unassigned,
+            ranges,
+            physical,
+        )? {
+            keeping.push(view);
+        }
+    }
+    let pool: &[RegisterViewId] = if keeping.is_empty() {
+        candidates
+    } else {
+        &keeping
+    };
+    Ok(pool
         .iter()
         .copied()
         .find(|view| {
@@ -183,22 +211,76 @@ fn preferred_view(
             })
         })
         .or_else(|| {
-            domain.candidates.iter().copied().find(|view| {
-                affinities.iter().any(|affinity| {
-                    affinity_partner(domain, *affinity).is_some_and(|partner| {
-                        domain_of.get(&partner).is_some_and(|&partner_domain| {
-                            partner_domain != domain_index
-                                && unassigned.contains(&partner_domain)
-                                && domains[partner_domain]
-                                    .candidates
-                                    .binary_search(view)
-                                    .is_ok()
+            let mut leading = None::<(usize, RegisterViewId)>;
+            for &view in pool {
+                let votes = affinities
+                    .iter()
+                    .filter(|affinity| {
+                        affinity_partner(domain, **affinity).is_some_and(|partner| {
+                            domain_of.get(&partner).is_some_and(|&partner_domain| {
+                                partner_domain != domain_index
+                                    && unassigned.contains(&partner_domain)
+                                    && !conflicts::constrained(
+                                        domain,
+                                        &domains[partner_domain],
+                                        ranges,
+                                    )
+                                    && domains[partner_domain]
+                                        .candidates
+                                        .binary_search(&view)
+                                        .is_ok()
+                            })
                         })
                     })
-                })
-            })
+                    .count();
+                if votes > 0 && leading.is_none_or(|(most, _)| votes > most) {
+                    leading = Some((votes, view));
+                }
+            }
+            leading.map(|(_, view)| view)
         })
-        .or_else(|| domain.candidates.first().copied())
+        .or_else(|| pool.first().copied()))
+}
+
+/// Reproduce the producer's feasibility guard: assigning `view` to this domain
+/// would remove every conflicting view from a still-unassigned constrained
+/// neighbor's candidate list. Return true when that removal leaves such a
+/// neighbor with nothing. A neighbor whose list is already empty is doomed
+/// either way and does not count against the view.
+fn strands_neighbor(
+    function: usize,
+    domain_index: usize,
+    view: RegisterViewId,
+    domains: &[domain::ReplayDomain],
+    unassigned: &BTreeSet<usize>,
+    ranges: &crate::FunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<bool, RegisterHomeError> {
+    let domain = &domains[domain_index];
+    let mut newly_assigned = BTreeMap::new();
+    for register in &domain.registers {
+        newly_assigned.insert(*register, view);
+    }
+    for &neighbor in unassigned {
+        if neighbor == domain_index
+            || domains[neighbor].candidates.is_empty()
+            || !conflicts::constrained(domain, &domains[neighbor], ranges)
+        {
+            continue;
+        }
+        if conflicts::viable_candidates(
+            function,
+            &domains[neighbor],
+            &newly_assigned,
+            ranges,
+            physical,
+        )?
+        .is_empty()
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn affinity_partner(

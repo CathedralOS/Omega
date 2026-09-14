@@ -10,7 +10,7 @@ use super::{
     conflicts::{candidate_conflicts, domains_constrained},
     domain::{AllocationDomain, build_domains},
 };
-use crate::{FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
+use crate::{CopyAffinity, FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
 
 pub(in crate::assignment::home_assignment) fn compute_function(
     function: usize,
@@ -28,13 +28,20 @@ pub(in crate::assignment::home_assignment) fn compute_function(
         let (position, viable) =
             select_domain(function, &unassigned, &assigned, &domains, ranges, physical)?;
         let domain_index = unassigned.remove(position);
-        let view = viable
-            .first()
-            .copied()
-            .ok_or(RegisterHomeError::NoCompatibleHome {
-                function,
-                register: domains[domain_index].leader().0,
-            })?;
+        let view = preferred_view(
+            function,
+            domain_index,
+            &viable,
+            &unassigned,
+            &assigned,
+            &domains,
+            ranges,
+            physical,
+        )?
+        .ok_or(RegisterHomeError::NoCompatibleHome {
+            function,
+            register: domains[domain_index].leader().0,
+        })?;
         assigned.push((domain_index, view));
     }
     let mut homes = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
@@ -57,6 +64,137 @@ pub(in crate::assignment::home_assignment) fn compute_function(
     })
 }
 
+/// Rescan the produced preference without prepared state: a view that would
+/// empty a still-unassigned constrained neighbor's rescanned viable set is
+/// considered only after views that keep all of them feasible; then an
+/// assigned copy partner's home, then the view the most still-unassigned
+/// unconstrained partners can still take, then the plain first candidate.
+fn preferred_view(
+    function: usize,
+    domain_index: usize,
+    viable: &[RegisterViewId],
+    unassigned: &[usize],
+    assigned: &[(usize, RegisterViewId)],
+    domains: &[AllocationDomain<'_>],
+    ranges: &crate::FunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<Option<RegisterViewId>, RegisterHomeError> {
+    let domain = &domains[domain_index];
+    let mut neighbor_viable = BTreeMap::new();
+    for &neighbor in unassigned {
+        if neighbor == domain_index {
+            continue;
+        }
+        neighbor_viable.insert(
+            neighbor,
+            rescan_viable(
+                function,
+                &domains[neighbor],
+                assigned,
+                domains,
+                ranges,
+                physical,
+            )?,
+        );
+    }
+    let mut keeping = Vec::with_capacity(viable.len());
+    for &view in viable {
+        let mut strands = false;
+        for (&neighbor, candidates) in &neighbor_viable {
+            if candidates.is_empty() || !domains_constrained(domain, &domains[neighbor], ranges) {
+                continue;
+            }
+            let mut retains = false;
+            for &candidate in candidates {
+                if !candidate_conflicts(
+                    function,
+                    &domains[neighbor],
+                    candidate,
+                    &[(domain_index, view)],
+                    domains,
+                    ranges,
+                    physical,
+                )? {
+                    retains = true;
+                    break;
+                }
+            }
+            if !retains {
+                strands = true;
+                break;
+            }
+        }
+        if !strands {
+            keeping.push(view);
+        }
+    }
+    let pool: &[RegisterViewId] = if keeping.is_empty() { viable } else { &keeping };
+    let mut homes = BTreeMap::new();
+    for &(assigned_domain, view) in assigned {
+        for member in &domains[assigned_domain].members {
+            homes.insert(member.virtual_register, view);
+        }
+    }
+    let mut domain_of = BTreeMap::new();
+    for (index, domain) in domains.iter().enumerate() {
+        for member in &domain.members {
+            domain_of.insert(member.virtual_register, index);
+        }
+    }
+    Ok(pool
+        .iter()
+        .copied()
+        .find(|view| {
+            ranges.copy_affinities.iter().any(|affinity| {
+                affinity_partner(domain, *affinity)
+                    .is_some_and(|partner| homes.get(&partner) == Some(view))
+            })
+        })
+        .or_else(|| {
+            let mut leading = None::<(usize, RegisterViewId)>;
+            for &view in pool {
+                let votes = ranges
+                    .copy_affinities
+                    .iter()
+                    .filter(|affinity| {
+                        affinity_partner(domain, **affinity).is_some_and(|partner| {
+                            domain_of.get(&partner).is_some_and(|&partner_domain| {
+                                partner_domain != domain_index
+                                    && unassigned.contains(&partner_domain)
+                                    && !domains_constrained(
+                                        domain,
+                                        &domains[partner_domain],
+                                        ranges,
+                                    )
+                                    && neighbor_viable[&partner_domain]
+                                        .binary_search(&view)
+                                        .is_ok()
+                            })
+                        })
+                    })
+                    .count();
+                if votes > 0 && leading.is_none_or(|(most, _)| votes > most) {
+                    leading = Some((votes, view));
+                }
+            }
+            leading.map(|(_, view)| view)
+        })
+        .or_else(|| pool.first().copied()))
+}
+
+fn affinity_partner(
+    domain: &AllocationDomain<'_>,
+    affinity: CopyAffinity,
+) -> Option<VirtualRegisterId> {
+    if domain.contains(affinity.source) {
+        Some(affinity.destination)
+    } else if domain.contains(affinity.destination) {
+        Some(affinity.source)
+    } else {
+        None
+    }
+}
+
 type Selection = (usize, Vec<RegisterViewId>);
 
 fn select_domain(
@@ -70,20 +208,7 @@ fn select_domain(
     let mut selected = None::<(usize, Vec<RegisterViewId>, usize)>;
     for (position, &domain_index) in unassigned.iter().enumerate() {
         let domain = &domains[domain_index];
-        let viable = domain
-            .candidates
-            .iter()
-            .copied()
-            .filter_map(|candidate| {
-                match candidate_conflicts(
-                    function, domain, candidate, assigned, domains, ranges, physical,
-                ) {
-                    Ok(false) => Some(Ok(candidate)),
-                    Ok(true) => None,
-                    Err(error) => Some(Err(error)),
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let viable = rescan_viable(function, domain, assigned, domains, ranges, physical)?;
         let degree = unassigned
             .iter()
             .copied()
@@ -114,4 +239,28 @@ fn select_domain(
     }
     let (position, viable, _) = selected.expect("nonempty unassigned roster");
     Ok((position, viable))
+}
+
+fn rescan_viable(
+    function: usize,
+    domain: &AllocationDomain<'_>,
+    assigned: &[(usize, RegisterViewId)],
+    domains: &[AllocationDomain<'_>],
+    ranges: &crate::FunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<Vec<RegisterViewId>, RegisterHomeError> {
+    domain
+        .candidates
+        .iter()
+        .copied()
+        .filter_map(|candidate| {
+            match candidate_conflicts(
+                function, domain, candidate, assigned, domains, ranges, physical,
+            ) {
+                Ok(false) => Some(Ok(candidate)),
+                Ok(true) => None,
+                Err(error) => Some(Err(error)),
+            }
+        })
+        .collect()
 }

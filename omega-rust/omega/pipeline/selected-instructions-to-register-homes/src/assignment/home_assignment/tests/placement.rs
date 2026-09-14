@@ -166,6 +166,136 @@ fn copy_affinity_falls_back_when_no_unassigned_partner_view_is_shared() {
 }
 
 #[test]
+fn placement_keeps_a_constrained_unassigned_neighbor_feasible() {
+    let physical = aliased_physical();
+    // Views 0 and 1 alias the same unit, so register 1's whole viable set
+    // sits on unit 0. Register 0 interferes with it, so taking view 0 would
+    // empty that set and fail with NoCompatibleHome even though view 2 is
+    // legal for register 0. The feasibility guard prefers the view that
+    // leaves the constrained neighbor somewhere to go; the copy partners
+    // interfere and cannot coalesce either way.
+    let mut legality = legality(&[(0, 1), (1, 2)]);
+    set_candidates(&mut legality, 0, &[0, 2]);
+    set_candidates(&mut legality, 1, &[0, 1]);
+    let ranges = copy_ranges(&[(0, 1)]);
+
+    let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+    assert_eq!(
+        homes
+            .assignments
+            .iter()
+            .map(|assignment| assignment.view)
+            .collect::<Vec<_>>(),
+        vec![RegisterViewId(2), RegisterViewId(0)]
+    );
+    assert_eq!(
+        validate::replay_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+
+    let mut stranded = homes.clone();
+    stranded.assignments[0].view = RegisterViewId(0);
+    assert!(matches!(
+        validate::validate_function(0, &stranded, &legality, &ranges, &physical),
+        Err(RegisterHomeError::VirtualRegisterMismatch {
+            function: 0,
+            register: 0,
+        })
+    ));
+}
+
+#[test]
+fn copy_affinity_ignores_a_partner_that_can_never_share_this_home() {
+    let physical = aliased_physical();
+    // Register 0 carries two copy edges. Its edge to register 1 can never
+    // coalesce because the pair interferes: whatever home register 0 takes
+    // leaves register 1 unable to share it, so that edge is not a vote.
+    // Only register 2's edge votes — for view 2 — and the choice must not be
+    // stolen by register 1's unusable candidacy for view 0.
+    let mut legality = legality(&[(0, 1), (1, 2), (0, 1)]);
+    set_candidates(&mut legality, 0, &[0, 2]);
+    set_candidates(&mut legality, 1, &[0, 1, 2]);
+    set_candidates(&mut legality, 2, &[1, 2]);
+    let mut ranges = ranges(3, &[(0, 1)]);
+    for destination in [1, 2] {
+        ranges.copy_affinities.push(CopyAffinity {
+            block: SelectedBlockId(0),
+            instruction: SelectedInstructionId(0),
+            source: VirtualRegisterId(0),
+            destination: VirtualRegisterId(destination),
+        });
+    }
+
+    let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+    assert_eq!(
+        homes
+            .assignments
+            .iter()
+            .map(|assignment| assignment.view)
+            .collect::<Vec<_>>(),
+        vec![RegisterViewId(2), RegisterViewId(0), RegisterViewId(2)]
+    );
+    assert_eq!(
+        validate::replay_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+
+    let mut uncoalesced = homes.clone();
+    uncoalesced.assignments[2].view = RegisterViewId(1);
+    assert!(matches!(
+        validate::validate_function(0, &uncoalesced, &legality, &ranges, &physical),
+        Err(RegisterHomeError::VirtualRegisterMismatch {
+            function: 0,
+            register: 2,
+        })
+    ));
+}
+
+#[test]
+fn copy_affinity_prefers_the_view_satisfying_the_most_unassigned_partners() {
+    let physical = aliased_physical();
+    // Both unassigned partners can still take view 2 while only register 1
+    // can take view 0, so view 2 completes two coalesces instead of one.
+    let mut legality = legality(&[(0, 1), (2, 3), (2, 3)]);
+    set_candidates(&mut legality, 0, &[0, 2]);
+    set_candidates(&mut legality, 1, &[0, 2]);
+    set_candidates(&mut legality, 2, &[1, 2]);
+    let mut ranges = ranges(3, &[]);
+    for destination in [1, 2] {
+        ranges.copy_affinities.push(CopyAffinity {
+            block: SelectedBlockId(0),
+            instruction: SelectedInstructionId(0),
+            source: VirtualRegisterId(0),
+            destination: VirtualRegisterId(destination),
+        });
+    }
+
+    let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+    assert_eq!(
+        homes
+            .assignments
+            .iter()
+            .map(|assignment| assignment.view)
+            .collect::<Vec<_>>(),
+        vec![RegisterViewId(2), RegisterViewId(2), RegisterViewId(2)]
+    );
+    assert_eq!(
+        validate::replay_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+
+    let mut uncoalesced = homes.clone();
+    uncoalesced.assignments[0].view = RegisterViewId(0);
+    assert!(matches!(
+        validate::validate_function(0, &uncoalesced, &legality, &ranges, &physical),
+        Err(RegisterHomeError::VirtualRegisterMismatch {
+            function: 0,
+            register: 0,
+        })
+    ));
+}
+
+#[test]
 fn copy_affinity_never_overrides_interference() {
     let physical = physical();
     let mut legality = legality(&[(0, 2), (0, 2)]);
