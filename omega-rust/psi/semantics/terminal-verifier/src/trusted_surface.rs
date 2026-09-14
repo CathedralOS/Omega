@@ -17,10 +17,13 @@
 //!   content digest pins the implementing code. Changing an implementation
 //!   changes its digest and fails coverage until the entry's justification is
 //!   revalidated; a stable enum tag is not enough.
-//! - `soundness`: `Proved`, `ExplicitlyTrusted`, or `Unfinished`. Nothing in
-//!   the current Rust stack carries a checked meta-derivation, so `Proved`
-//!   binds no entries yet; `Unfinished` entries cannot establish an
-//!   independent claim merely because the implementation returns success.
+//! - `soundness`: `Proved`, `ExplicitlyTrusted`, or `Unfinished`. A `Proved`
+//!   entry names checked evidence and its assumptions — currently a total
+//!   certifying procedure whose every emitted fact the certificate checker
+//!   re-decides before it may join a roster — while its dependencies keep the
+//!   trusted checker rules it stands on explicit. `Unfinished` entries cannot
+//!   establish an independent claim merely because the implementation returns
+//!   success.
 //!
 //! ## Mechanical coverage
 //!

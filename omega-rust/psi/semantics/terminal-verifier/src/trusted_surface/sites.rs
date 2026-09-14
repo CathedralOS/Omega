@@ -711,7 +711,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/boolean_polarity.rs",
-        sha256: Some("e89eb8b661fae7efeb42b28827208921cd19d55f6bf624acd06454056ea33aa6"),
+        sha256: Some("5cbdf91d88cbaa8cb246d52f6319a406ad899e85cc4f6cfc16bc7a7abd5f08b5"),
         inventory_machinery: false,
     },
     ImplementationSite {
