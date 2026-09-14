@@ -65,6 +65,17 @@ Reflexive integer order can use reflexive equality and weakening. Closed strict
 comparisons use the closed-integer primitive; relating an evaluated operand
 identity requires explicit equality substitution, not trusted constant folding.
 
+Closed, same-carrier fixed-integer literal equality and order also have exact
+`Truth` or `Falsehood` predicate denotations. This conversion uses the primitive
+judgment's literal comparison, including signedness and full carrier width;
+it evaluates no open storage observation, arithmetic expression, or IEEE relation.
+For example, checked transitivity of `3 <= counter` and `counter < 3` yields
+`3 < 3`, whose `PredicateDenotation` is `Falsehood`. Existing conversion of
+`Falsehood` to `Falsehood AND goal`, followed by conjunction elimination,
+then closes an impossible arrival without pruning that arrival or adding an
+integer-contradiction rule. Both bound citations remain dependencies, and a
+conditional bound is available only within its checked implication/case scope.
+
 ## Ordered endpoint certificates
 
 ### IntegerAffineBound

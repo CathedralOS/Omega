@@ -221,7 +221,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         id: "rule:predicate-denotation",
         family: LedgerFamily::CheckerRule,
         binding: dispatch(CoveredSurface::ProofRules),
-        premises: "a premise proved under the unchanged original roster whose bounded Boolean-denotation normal form exists",
+        premises: "a premise proved under the unchanged original roster whose bounded Boolean and closed fixed-integer literal denotation normal form exists",
         conclusion: "one proposition convertible to the premise's denotation; the outer conclusion still must equal the exact reconstructed obligation",
         dependencies: &["rule:traversal", "conversion:predicate-denotation"],
         implementation: &[PROOF, PREDICATE_DENOTATION, NODES],

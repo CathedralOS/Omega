@@ -2,6 +2,9 @@
 //!
 //! Conversion changes no premise's authority. The original inputs remain
 //! borrowed, and only this owner can construct their equivalent proof views.
+//! Closed fixed-integer comparisons share the primitive judgment's literal
+//! order. This lets ordinary checked transitivity expose contradictory bounds
+//! without adding a second interval checker or treating a failed proof as false.
 
 use semantic_vocabulary::{
     Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
@@ -214,6 +217,9 @@ fn normalize(
     depth: usize,
 ) -> Result<Proposition, PredicateDenotationError> {
     budget.step(depth)?;
+    if let Some(denotation) = closed_integer_relation(proposition) {
+        return Ok(denotation);
+    }
     match proposition {
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => {
             boolean_equality(left, right, true, budget, depth + 1)
@@ -234,10 +240,46 @@ fn normalize(
             premise: Box::new(normalize(premise, budget, depth + 1)?),
             conclusion: Box::new(normalize(conclusion, budget, depth + 1)?),
         }),
-        // Integer arithmetic, IEEE comparisons, content and declared atoms
+        // Open integer relations, arithmetic, IEEE comparisons, content and declared atoms
         // remain exact observations; this conversion adds no laws for them.
         other => Ok(other.clone()),
     }
+}
+
+fn closed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
+    let (left, right) = match proposition {
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => (left, right),
+        _ => return None,
+    };
+    // integer_value(), used by the primitive comparator, can also evaluate
+    // closed arithmetic. This conversion intentionally admits literal pairs
+    // only; retain every arithmetic constructor for its existing proof route.
+    if !matches!(
+        (left, right),
+        (ScalarTerm::Integer { .. }, ScalarTerm::Integer { .. })
+    ) {
+        return None;
+    }
+    let ScalarType::Integer(integer) = left.scalar_type() else {
+        return None;
+    };
+    if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed {
+        return None;
+    }
+    let ordering = crate::kernel::compare_integer_literals(left, right)?;
+    let holds = match proposition {
+        Proposition::Equal(..) => ordering.is_eq(),
+        Proposition::LessThan(..) => ordering.is_lt(),
+        Proposition::LessOrEqual(..) => !ordering.is_gt(),
+        _ => return None,
+    };
+    Some(if holds {
+        Proposition::Truth
+    } else {
+        Proposition::Falsehood
+    })
 }
 
 fn boolean_equality(
@@ -313,27 +355,43 @@ fn boolean(
         }
         ScalarTerm::IntegerEqual { left, right, .. } => {
             if positive {
-                Ok(equality(*left.clone(), *right.clone()))
+                normalize(&equality(*left.clone(), *right.clone()), budget, depth + 1)
             } else {
                 Ok(connective(
                     vec![
-                        Proposition::LessThan(*left.clone(), *right.clone()),
-                        Proposition::LessThan(*right.clone(), *left.clone()),
+                        normalize(
+                            &Proposition::LessThan(*left.clone(), *right.clone()),
+                            budget,
+                            depth + 1,
+                        )?,
+                        normalize(
+                            &Proposition::LessThan(*right.clone(), *left.clone()),
+                            budget,
+                            depth + 1,
+                        )?,
                     ],
                     false,
                 ))
             }
         }
-        ScalarTerm::IntegerLessThan { left, right, .. } => Ok(if positive {
-            Proposition::LessThan(*left.clone(), *right.clone())
-        } else {
-            Proposition::LessOrEqual(*right.clone(), *left.clone())
-        }),
-        ScalarTerm::IntegerLessOrEqual { left, right, .. } => Ok(if positive {
-            Proposition::LessOrEqual(*left.clone(), *right.clone())
-        } else {
-            Proposition::LessThan(*right.clone(), *left.clone())
-        }),
+        ScalarTerm::IntegerLessThan { left, right, .. } => normalize(
+            &if positive {
+                Proposition::LessThan(*left.clone(), *right.clone())
+            } else {
+                Proposition::LessOrEqual(*right.clone(), *left.clone())
+            },
+            budget,
+            depth + 1,
+        ),
+        ScalarTerm::IntegerLessOrEqual { left, right, .. } => normalize(
+            &if positive {
+                Proposition::LessOrEqual(*left.clone(), *right.clone())
+            } else {
+                Proposition::LessThan(*right.clone(), *left.clone())
+            },
+            budget,
+            depth + 1,
+        ),
         _ => Ok(equality(term.clone(), ScalarTerm::Boolean(positive))),
     }
 }

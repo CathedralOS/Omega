@@ -99,7 +99,10 @@ fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
             }
 }
 
-fn compare_integer_literals(left: &ScalarTerm, right: &ScalarTerm) -> Option<std::cmp::Ordering> {
+pub(crate) fn compare_integer_literals(
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+) -> Option<std::cmp::Ordering> {
     let (left_type, left) = left.integer_value()?;
     let (right_type, right) = right.integer_value()?;
     if left_type != right_type {

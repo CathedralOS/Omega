@@ -35,6 +35,129 @@ fn citation(goal: &Proposition, semantic: bool) -> ProofNode {
 }
 
 #[test]
+fn closed_integer_predicates_preserve_order_width_sign_and_boolean_polarity() {
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        for width in [1, 8, 32, 64, 128] {
+            let integer = IntegerType::new(sign, width).unwrap();
+            let values = [integer.minimum_value(), integer.maximum_value()];
+            for left_value in values {
+                for right_value in values {
+                    let left = ScalarTerm::integer(integer, left_value).unwrap();
+                    let right = ScalarTerm::integer(integer, right_value).unwrap();
+                    let order = match (left_value, right_value) {
+                        (IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                            left.cmp(&right)
+                        }
+                        (IntegerValue::Unsigned(left), IntegerValue::Unsigned(right)) => {
+                            left.cmp(&right)
+                        }
+                        _ => panic!("one declared sign"),
+                    };
+                    for (predicate, boolean_term, expected) in [
+                        (
+                            Proposition::Equal(left.clone(), right.clone()),
+                            ScalarTerm::IntegerEqual {
+                                scalar_type: integer,
+                                left: Box::new(left.clone()),
+                                right: Box::new(right.clone()),
+                            },
+                            order.is_eq(),
+                        ),
+                        (
+                            Proposition::LessThan(left.clone(), right.clone()),
+                            ScalarTerm::IntegerLessThan {
+                                scalar_type: integer,
+                                left: Box::new(left.clone()),
+                                right: Box::new(right.clone()),
+                            },
+                            order.is_lt(),
+                        ),
+                        (
+                            Proposition::LessOrEqual(left.clone(), right.clone()),
+                            ScalarTerm::IntegerLessOrEqual {
+                                scalar_type: integer,
+                                left: Box::new(left.clone()),
+                                right: Box::new(right.clone()),
+                            },
+                            !order.is_gt(),
+                        ),
+                    ] {
+                        for (goal, holds) in [
+                            (predicate, expected),
+                            (observe(boolean_term.clone(), true), expected),
+                            (observe(boolean_term, false), !expected),
+                        ] {
+                            let context = PropositionContext::default();
+                            let converted =
+                                check_predicate_denotations(&context, &goal, &[], &[]).unwrap();
+                            assert_eq!(
+                                converted.goal(),
+                                if holds {
+                                    &Proposition::Truth
+                                } else {
+                                    &Proposition::Falsehood
+                                },
+                                "{goal:?}"
+                            );
+                            let proof = ProofNode {
+                                conclusion: Proposition::Truth,
+                                rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+                            };
+                            assert_eq!(
+                                converted.check_certificate(&context, &proof).is_ok(),
+                                holds
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn integer_denotation_does_not_invent_a_value_or_fold_malformed_relations() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let other_integer = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+    let value = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(integer));
+    let zero = ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap();
+    let context = PropositionContext::from_value_types([(
+        ValueId::new(1).unwrap(),
+        ScalarType::Integer(integer),
+    )])
+    .unwrap();
+    let one = ScalarTerm::integer(integer, IntegerValue::Unsigned(1)).unwrap();
+    let arithmetic = ScalarTerm::exact_integer_add(integer, zero.clone(), one.clone()).unwrap();
+    let closed_arithmetic = Proposition::LessOrEqual(arithmetic, one);
+    assert_eq!(
+        check_predicate_denotations(&context, &closed_arithmetic, &[], &[])
+            .unwrap()
+            .goal(),
+        &closed_arithmetic
+    );
+    for goal in [
+        Proposition::LessThan(value.clone(), value.clone()),
+        Proposition::LessOrEqual(zero.clone(), value.clone()),
+        Proposition::Equal(value, zero.clone()),
+    ] {
+        assert_eq!(
+            check_predicate_denotations(&context, &goal, &[], &[])
+                .unwrap()
+                .goal(),
+            &goal
+        );
+    }
+    let malformed = Proposition::LessThan(
+        zero,
+        ScalarTerm::integer(other_integer, IntegerValue::Unsigned(1)).unwrap(),
+    );
+    assert!(matches!(
+        check_predicate_denotations(&context, &malformed, &[], &[]),
+        Err(PredicateDenotationError::Malformed(_))
+    ));
+}
+
+#[test]
 fn negated_predicates_keep_exact_entry_and_site_premise_authority() {
     let context = boolean_context();
     let goal = observe(ScalarTerm::boolean_not(boolean(1)).unwrap(), true);
