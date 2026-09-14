@@ -390,8 +390,10 @@ fn field_endpoints_require_defined_intermediates_and_exact_owned_carriers() {
         "in 0..=countdown.limit;",
         "in 0..=((countdown.limit + 18446744073709551615u64) - 18446744073709551615u64);",
     ));
-    for parameter in ["bounds: &Countdown", "mut bounds: Countdown"] {
-        reject_range(&second_record().replace("bounds: Countdown", parameter));
-    }
+    // A mutable owned carrier still names its arrival field: the preserved
+    // prefix supplies the same endpoint evidence an immutable formal would.
+    // Borrowed carriers remain outside the coordinate entirely.
+    prove_termination(&second_record().replace("bounds: Countdown", "mut bounds: Countdown"));
+    reject_range(&second_record().replace("bounds: Countdown", "bounds: &Countdown"));
     reject_range(&COUNTDOWN.replace("limit: u64 [0..=5];", "limit: u64 [0..=5] in Wrapping;"));
 }

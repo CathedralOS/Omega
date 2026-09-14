@@ -105,6 +105,25 @@ fn source_selected_subslicing_cannot_supply_builtin_length_geometry() {
 }
 
 #[test]
+fn mutable_slice_parameter_proves_only_while_the_prefix_preserves_its_path() {
+    // A mutable slice parameter still denotes its arrival value while no
+    // earlier statement writes its path; each edge's evaluated prefix carries
+    // that write-frame evidence before this judgment reads the length.
+    let source = WALK.replace("entries: &[Entry]", "mut entries: &[Entry]");
+    prove(&source);
+    prove(&source.replace(
+        "    transition entries.len",
+        "    let mut scratch: u64 = 0;\n    scratch = 1; transition entries.len",
+    ));
+    for prefix in ["entries = entries[0..];", "entries = entries;"] {
+        reject(&source.replace(
+            "    transition entries.len",
+            &format!("    {prefix} transition entries.len"),
+        ));
+    }
+}
+
+#[test]
 fn named_slice_arrivals_and_entry_reentry_share_the_length_rank() {
     let source = WALK
         .replace(

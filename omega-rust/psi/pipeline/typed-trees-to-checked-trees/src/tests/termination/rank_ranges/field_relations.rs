@@ -188,9 +188,11 @@ fn field_relation_requires_exact_reconstruction_owner_and_carrier() {
         "data Other {{ remaining: u64 [0..=5]; }} {}",
         COUNTDOWN.replace("walk(Countdown {", "walk(Other {")
     ));
-    for parameter in ["mut countdown: Countdown", "countdown: &Countdown"] {
-        reject_termination(&COUNTDOWN.replace("countdown: Countdown,", &format!("{parameter},")));
-    }
+    // A mutable owned carrier names its arrival record under the same
+    // preserved-prefix evidence an immutable formal carries; only borrowed
+    // carriers stay outside the coordinate.
+    prove_termination(&COUNTDOWN.replace("countdown: Countdown,", "mut countdown: Countdown,"));
+    reject_termination(&COUNTDOWN.replace("countdown: Countdown,", "countdown: &Countdown,"));
     lower_typed_trees(typed(
         &COUNTDOWN.replace("amount: u64 [1..=2]", "amount: i32 [1..=2]"),
     ))
