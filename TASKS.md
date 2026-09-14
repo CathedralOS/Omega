@@ -2027,18 +2027,18 @@ Owners include
   authored endpoint landing, exact binder identity and proof-integer exclusive
   normalization; do not introduce another arithmetic evaluator or infer layout
   from flow bounds. The source
-  pipeline map records the maintained customer and remaining native boundary.
-  Its hosted `Main::main` now produces Terminal; native publication reaches the
-  retained receiver-provisioning rejection. Resume `ENTRY-CONTENT-ROOTS` for the
-  physical bridge, then require this unchanged program to exit 70. Native scalar
-  reads also need canonical carrier paths and bounded leaf types retained through
-  abstract operations, layout, instruction selection and independent replay;
-  `terminal-psi-to-abstract-operations` explicitly rejects nested paths today.
-  Resume evidence at `a637c1c86c`: `cargo nextest run -p compiler -p
-  checked-trees-to-lowered-psi --test canary_suite --test owned_scalar_graphs
-  -E 'test(declared_range_inference) | binary(owned_scalar_graphs)'
-  --no-fail-fast` exercises the reviewed fixture, local copy/move/store composition,
-  and this native boundary on macOS AArch64; it does not establish native execution.
+  pipeline map records the maintained scalar-inference customer and remaining
+  native record boundary. Native scalar field reads still need local record-root
+  custody and bounded leaf identity retained through abstract operations, layout,
+  instruction selection and independent replay. The primitive-read lowerer in
+  `terminal-psi-to-abstract-operations/src/lowering/machine/operation/primitive_storage.rs`
+  admits primitive locals or eligible structural parameters, not arbitrary local
+  record roots; projected parameter paths are no longer a blanket rejection.
+  Extend native coverage to the fixture's `generic_forwarded_bound` and
+  `field_bound` calls through its real hosted entry; the existing scalar-only
+  entry does not establish local record-field execution. Keep the local
+  copy/move/store and bounded-field controls in `owned_scalar_graphs` while
+  closing that path.
 
   Acceptance: TinyBytes' `Length == u64[0..=Capacity]` binds omitted Capacity from
   its supplied type before layout; inclusive/exclusive equivalent intervals

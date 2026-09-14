@@ -404,7 +404,7 @@ fn declared_range_inference_nested_results_keep_source_type_errors() {
 }
 
 #[test]
-fn declared_range_inference_hosted_entry_reaches_receiver_provisioning() {
+fn declared_range_inference_hosted_entry_runs_natively() {
     let canary = pass_canary("generics/declared_range_endpoint_inference");
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &canary.join("main.omg"),
@@ -415,18 +415,25 @@ fn declared_range_inference_hosted_entry_reaches_receiver_provisioning() {
         .produce_artifact()
         .expect("hosted caller retains its inferred call through Terminal production");
     let scratch = unique_no_output_build_dir();
-    let result = compile_rooted_canary_for_native_host(&canary, scratch.clone());
-    let _ = fs::remove_dir_all(&scratch);
-    // ENTRY-CONTENT-ROOTS must construct and lend the actual receiver before
-    // this can execute. Preserve that rejection, not a test-supplied self or
-    // an unprovisioned native entry. Once the bridge lands, require exit 70.
-    let diagnostics = result.expect_err("unprovisioned receiver cannot be published");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("native artifact ProgramEntry receiver provisioning failed")),
-        "{diagnostics:?}"
-    );
+    // Execute the authored entry with its real receiver and selected Console;
+    // observing N in the evaluator alone does not establish native inference.
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "hosted range inference must publish ({}): {diagnostics:?}",
+                scratch.display()
+            )
+        });
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("retain the published range-inference executable");
+    let output = Command::new(executable)
+        .output()
+        .expect("execute hosted range inference");
+    assert_eq!(output.status.code(), Some(70), "{output:?}");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    assert!(output.stderr.is_empty(), "{output:?}");
+    fs::remove_dir_all(&scratch).expect("remove successful native observations");
 }
 
 #[test]

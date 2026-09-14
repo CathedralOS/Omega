@@ -216,16 +216,19 @@ without an outer result-operation owner use the shared computation plan even
 when their arguments are pure; operand purity cannot exclude them from ordinary
 state-local sequencing.
 
-The same fixture has an authored hosted entry and `build.omg`. Its
-`generics_and_dependent_facts::declared_range_inference_hosted_entry_reaches_receiver_provisioning`
-canary produces Terminal for `Main::main`, then verifies that native publication
-retains the `ProgramEntry receiver provisioning failed` rejection. Native
-execution still depends on `ENTRY-CONTENT-ROOTS`: the real physical bridge must
-construct and lend the receiver, not receive a test-supplied `self`. Once that
-bridge exists, compile the unchanged fixture for the matching hosted target and
-require exit 70 (the branch confirming `inferred(0) == 256`), not exit 71. A raw
-CLI invocation also needs the ordinary local-package review; the canary uses
-the repository's reviewed-fixture harness, not a package-admission bypass.
+The same fixture has an authored hosted entry, a bound `Service<Console>` receiver
+field, and `build.omg`. Run `cargo nextest run -p compiler --test canary_suite
+--no-fail-fast -E 'test(declared_range_inference_hosted_entry_runs_natively)'` to
+produce Terminal for `Main::main`, publish for the current hosted target, and
+execute the real entry bridge. It requires exit 70 (confirming
+`inferred(0) == 256`), not exit 71; the test does not supply `self`. Static
+declaration endpoints also pass native package checking: explicit integer
+suffixes contribute their validated carrier to authored operator selection,
+while anonymous literals remain unknown and matching authored operators retain
+custody. A raw CLI invocation still needs the ordinary local-package review;
+the canary uses the repository's reviewed-fixture harness, not a package-admission
+bypass. This entry exercises scalar call inference, not the local record paths
+below.
 
 Its `RangeValue<T>` applications also exercise closed range identity through
 generic-data synthesis. Pre-resolution typed probes retain structured interval
@@ -241,9 +244,11 @@ bounds remain proof integers until intersected with the signed or unsigned carri
 Nested forwarding retains each declaration-local carrier field and the final
 scalar field through canonical bytes, proof equations and original record backing.
 The same route handles same-typed siblings, deeper integer/Boolean observations
-and affine moves. Native reads still need these paths and bounded leaf types
-carried through abstract operations, layout and independent replay; they reject
-explicitly at that boundary today. Fresh record locals also participate in the
+and affine moves. Native reads still need local record-root custody and bounded
+leaf identity carried through abstract operations, layout and independent replay.
+The primitive-read lowerer already retains projected parameter paths, but its
+local owner lookup only admits primitive establishment, not these record roots.
+Fresh record locals also participate in the
 scalar graph's ordered statement effects: their field computations finish in
 authored order, and nested guards/selected arguments observe the completed root
 before affine cleanup. Whole-place copies and moves join that sequence through
