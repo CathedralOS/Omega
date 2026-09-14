@@ -3910,25 +3910,27 @@ fn program_local_extent_registry_retains_exact_account_through_split_and_retirem
             program_local_extent_subject(&root, 980, 1080, 0x4000, 0x100),
         )
         .expect("exact interval subject establishes its root");
-    let plan = ProgramLocalExtentMaterializationPlan::new(
-        "Region",
-        "Region::Owned",
-        "Nat",
-        0x4000,
-        0x100,
-        extent_id(10, AddressSpaceId::from_normalized_identity),
-        ExtentRights::from_normalized_identities([
-            extent_id(100, ExtentRightId::from_normalized_identity),
-            extent_id(101, ExtentRightId::from_normalized_identity),
-        ]),
-        extent_id(20, ExtentProvenanceId::from_normalized_identity),
-        extent_id(30, MappingEraId::from_normalized_identity),
-    )
-    .expect("checked Extent materialization plan");
     let mut registry = ProgramLocalExtentRegistry::new();
     let extent = registry
-        .materialize(established, plan)
-        .expect("established interval materializes one Extent");
+        .materialize(
+            established,
+            installed_backing_extent(700, 0x4000, 0x100, 30),
+        )
+        .expect("established interval materializes over its installed backing");
+    assert_eq!(extent.base(), 0x4000);
+    assert_eq!(extent.length(), 0x100);
+    assert_eq!(
+        extent.address_space(),
+        extent_id(10, AddressSpaceId::from_normalized_identity)
+    );
+    assert_eq!(
+        extent.provenance(),
+        extent_id(20, ExtentProvenanceId::from_normalized_identity)
+    );
+    assert_eq!(
+        extent.era(),
+        extent_id(30, MappingEraId::from_normalized_identity)
+    );
     let origin = extent
         .program_local_origin()
         .expect("passive program-local origin");
@@ -3962,24 +3964,32 @@ fn program_local_extent_registry_retains_exact_account_through_split_and_retirem
     assert!(rejected.diagnostic().0.contains("lifecycle lease"));
     let extent = (*rejected).into_extent();
     assert_eq!(registry.held_accounts(), 1);
-    registry
+    let retired = registry
         .retire(extent, &mut installation, &mut lifecycle)
         .expect("exact recombined root releases its lifecycle account");
     assert_eq!(registry.held_accounts(), 0);
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+    let backing = retired.into_backing();
+    assert_eq!(backing.base(), 0x4000);
+    assert_eq!(backing.length(), 0x100);
+    assert_eq!(
+        backing.lineage_root(),
+        extent_id(710, ExtentLineageId::from_normalized_identity)
+    );
+    assert!(
+        backing
+            .provider_issuance()
+            .is_some_and(|issuance| issuance == extent_provider_issuance(700))
+    );
 }
 
-fn retained_foreign_argument_plan(
-    base: u64,
-    length: u64,
-    mapping_era: u64,
-) -> ProgramLocalExtentMaterializationPlan {
-    ProgramLocalExtentMaterializationPlan::new(
-        "Region",
-        "Region::Owned",
-        "Nat",
-        base,
-        length,
+/// One actual installed backing extent: provider-issued authority over the
+/// exact range a program-local root's interval capacity occupies. Materialize
+/// consumes it into the held account and retirement returns it.
+fn installed_backing_extent(seed: u64, base: u64, length: u64, mapping_era: u64) -> Extent {
+    ExtentRootGrant::from_admitted_provider(
+        extent_provider_issuance(seed),
+        extent_id(10 + seed, ExtentLineageId::from_normalized_identity),
         extent_id(10, AddressSpaceId::from_normalized_identity),
         ExtentRights::from_normalized_identities([
             extent_id(100, ExtentRightId::from_normalized_identity),
@@ -3988,7 +3998,8 @@ fn retained_foreign_argument_plan(
         extent_id(20, ExtentProvenanceId::from_normalized_identity),
         extent_id(mapping_era, MappingEraId::from_normalized_identity),
     )
-    .expect("checked retained foreign argument plan")
+    .mint(base, length)
+    .expect("actual installed backing extent")
 }
 
 #[test]
@@ -4039,9 +4050,9 @@ fn retained_foreign_argument_borrowed_pins_the_account_until_release() {
     let extent = registry
         .materialize(
             established,
-            retained_foreign_argument_plan(0x4000, 0x100, 30),
+            installed_backing_extent(700, 0x4000, 0x100, 30),
         )
-        .expect("established interval materializes one Extent");
+        .expect("established interval materializes over its installed backing");
     let exclusive = RetainedForeignArgumentRequest::new(
         0x10,
         0x20,
@@ -4180,9 +4191,9 @@ fn retained_foreign_argument_rejects_unknown_or_stale_backing() {
     let extent = registry
         .materialize(
             established,
-            retained_foreign_argument_plan(0x4000, 0x100, 30),
+            installed_backing_extent(700, 0x4000, 0x100, 30),
         )
-        .expect("established interval materializes one Extent");
+        .expect("established interval materializes over its installed backing");
     let request = RetainedForeignArgumentRequest::new(
         0,
         1,
@@ -4318,9 +4329,9 @@ fn retained_foreign_argument_moved_returns_exact_authority_on_release() {
     let extent = registry
         .materialize(
             established,
-            retained_foreign_argument_plan(0x4000, 0x100, 30),
+            installed_backing_extent(700, 0x4000, 0x100, 30),
         )
-        .expect("established interval materializes one Extent");
+        .expect("established interval materializes over its installed backing");
     let (lower, upper) = extent.split_at(0x40).expect("split program-local Extent");
     let retained = registry
         .retain_foreign_argument_moved(
@@ -4441,15 +4452,15 @@ fn retained_foreign_argument_snapshot_pins_only_private_backing() {
     let source = registry
         .materialize(
             first_established,
-            retained_foreign_argument_plan(0x4000, 0x100, 30),
+            installed_backing_extent(700, 0x4000, 0x100, 30),
         )
-        .expect("source interval materializes");
+        .expect("source interval materializes over its installed backing");
     let backing = registry
         .materialize(
             second_established,
-            retained_foreign_argument_plan(0x5000, 0x20, 20),
+            installed_backing_extent(701, 0x5000, 0x20, 20),
         )
-        .expect("snapshot backing materializes");
+        .expect("snapshot backing materializes over its installed backing");
     let backing_origin = backing.program_local_origin().unwrap();
     let request = RetainedForeignArgumentRequest::new(
         0x10,
@@ -4530,32 +4541,166 @@ fn counted_program_local_capacity_cannot_mint_an_extent() {
             program_local_subject(&root, 982, 1082, Some(8)),
         )
         .expect("counted root establishes");
-    let plan = ProgramLocalExtentMaterializationPlan::new(
-        "Region",
-        "Region::Owned",
-        "ByteUnit",
-        0x5000,
-        9,
-        extent_id(10, AddressSpaceId::from_normalized_identity),
-        ExtentRights::none(),
-        extent_id(20, ExtentProvenanceId::from_normalized_identity),
-        extent_id(30, MappingEraId::from_normalized_identity),
-    )
-    .expect("syntactically valid Extent plan");
     let mut registry = ProgramLocalExtentRegistry::new();
     let rejected = registry
-        .materialize(established, plan)
+        .materialize(established, installed_backing_extent(702, 0x5000, 9, 30))
         .expect_err("counted authority has no one-Extent interpretation");
     assert!(rejected.diagnostic().0.contains("counted"));
-    let [(established, _)]: [(EstablishedProgramLocalRoot<'_, '_>, _); 1] = (*rejected)
+    let [(established, _backing)]: [(EstablishedProgramLocalRoot<'_, '_>, Extent); 1] = (*rejected)
         .into_inputs()
         .try_into()
-        .expect("rejection returns the exact account and plan");
+        .expect("rejection returns the exact account and backing");
     assert_eq!(registry.held_accounts(), 0);
     installation
         .retire_established(established, &mut lifecycle)
         .expect("rejected materialization returns retireable account");
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn program_local_extent_materialization_requires_actual_installed_backing() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        783,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 883, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let mut registry = ProgramLocalExtentRegistry::new();
+
+    // A backing range that does not equal the evaluated interval capacity
+    // rejects transactionally and returns the complete account plus backing.
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_extent_subject(&root, 983, 1083, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let rejected = registry
+        .materialize(established, installed_backing_extent(703, 0x4000, 0x80, 30))
+        .expect_err("backing smaller than the established interval rejects");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("does not equal its established interval capacity")
+    );
+    let [(established, _backing)]: [(EstablishedProgramLocalRoot<'_, '_>, Extent); 1] = (*rejected)
+        .into_inputs()
+        .try_into()
+        .expect("rejection returns the exact account and backing");
+    assert_eq!(registry.held_accounts(), 0);
+
+    // Another program-local account's authority is not installed backing:
+    // consuming it would reticket that authority under a second occurrence
+    // while stranding the held account's lifecycle lease.
+    let program_local_backing = ExtentRootGrant::from_established_program_local(
+        extents::ExtentProgramLocalOrigin::from_normalized_identities([
+            11, 12, 13, 14, 15, 16, 17, 18,
+        ])
+        .expect("program-local origin identities"),
+        extent_id(30, ExtentLineageId::from_normalized_identity),
+        extent_id(10, AddressSpaceId::from_normalized_identity),
+        ExtentRights::from_normalized_identities([extent_id(
+            100,
+            ExtentRightId::from_normalized_identity,
+        )]),
+        extent_id(20, ExtentProvenanceId::from_normalized_identity),
+        extent_id(30, MappingEraId::from_normalized_identity),
+    )
+    .mint(0x4000, 0x100)
+    .expect("program-local authority extent");
+    let rejected = registry
+        .materialize(established, program_local_backing)
+        .expect_err("held program-local authority is not installed backing");
+    assert!(rejected.diagnostic().0.contains("actual installed backing"));
+    let [(established, _backing)]: [(EstablishedProgramLocalRoot<'_, '_>, Extent); 1] = (*rejected)
+        .into_inputs()
+        .try_into()
+        .expect("rejection returns the exact account and backing");
+    assert_eq!(registry.held_accounts(), 0);
+
+    // The minted Extent derives every runtime fact from the exact consumed
+    // backing; no ambient plan can substitute a different space, provenance,
+    // era, or rights set.
+    let extent = registry
+        .materialize(
+            established,
+            installed_backing_extent(704, 0x4000, 0x100, 30),
+        )
+        .expect("established interval materializes over its installed backing");
+    assert_eq!(extent.base(), 0x4000);
+    assert_eq!(extent.length(), 0x100);
+    assert_eq!(
+        extent.address_space(),
+        extent_id(10, AddressSpaceId::from_normalized_identity)
+    );
+    assert_eq!(
+        extent.provenance(),
+        extent_id(20, ExtentProvenanceId::from_normalized_identity)
+    );
+    assert_eq!(
+        extent.era(),
+        extent_id(30, MappingEraId::from_normalized_identity)
+    );
+    assert_eq!(
+        extent.rights().identities().collect::<Vec<_>>(),
+        vec![
+            extent_id(100, ExtentRightId::from_normalized_identity),
+            extent_id(101, ExtentRightId::from_normalized_identity),
+        ]
+    );
+
+    // Retirement completes the account's custody by returning the exact
+    // installed backing that was consumed at materialization.
+    let retired = registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("retirement returns the consumed installed backing");
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+    assert_eq!(
+        retired.occurrence().epoch_lease().normalized_identity(),
+        883
+    );
+    let backing = retired.into_backing();
+    assert_eq!(backing.base(), 0x4000);
+    assert_eq!(backing.length(), 0x100);
+    assert_eq!(
+        backing.lineage_root(),
+        extent_id(714, ExtentLineageId::from_normalized_identity)
+    );
+    assert_eq!(
+        backing.provider_issuance(),
+        Some(extent_provider_issuance(704))
+    );
 }
 
 #[test]

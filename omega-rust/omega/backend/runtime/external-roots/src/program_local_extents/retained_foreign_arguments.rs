@@ -449,9 +449,9 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                     .into(),
             ));
         }
-        if extent.address_space() != held.plan.address_space
-            || extent.provenance() != held.plan.provenance
-            || extent.era() != held.plan.mapping_era
+        if extent.address_space() != held.backing.address_space()
+            || extent.provenance() != held.backing.provenance()
+            || extent.era() != held.backing.era()
         {
             return Err(ExternalRootDiagnostic(
                 "retained foreign argument revision provenance does not match the installed occurrence (mapping era / provenance / address space)"

@@ -2,8 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use effects::ComponentEraEntryLedger;
 use extents::{
-    AddressSpaceId, Extent, ExtentLineageId, ExtentProgramLocalOrigin, ExtentProvenanceId,
-    ExtentRights, ExtentRootGrant, MappingEraId, ValidatedExtentGeometry,
+    Extent, ExtentLineageId, ExtentProgramLocalOrigin, ExtentRootGrant, ValidatedExtentGeometry,
 };
 use semantic_vocabulary::ContentAlgebraKind;
 
@@ -16,101 +15,6 @@ mod retained_foreign_arguments;
 
 pub use retained_foreign_arguments::*;
 
-/// Installation-checked runtime facts required to realize one interval account
-/// as one concrete Extent. These facts describe the runtime address-space
-/// occurrence; they are not authority and cannot replace the established root.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProgramLocalExtentMaterializationPlan {
-    carrier_identity: String,
-    qualification_identity: String,
-    algebra_parameter: String,
-    base: u64,
-    length: u64,
-    address_space: AddressSpaceId,
-    rights: ExtentRights,
-    provenance: ExtentProvenanceId,
-    mapping_era: MappingEraId,
-}
-
-impl ProgramLocalExtentMaterializationPlan {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        carrier_identity: impl Into<String>,
-        qualification_identity: impl Into<String>,
-        algebra_parameter: impl Into<String>,
-        base: u64,
-        length: u64,
-        address_space: AddressSpaceId,
-        rights: ExtentRights,
-        provenance: ExtentProvenanceId,
-        mapping_era: MappingEraId,
-    ) -> Result<Self, ExternalRootDiagnostic> {
-        let carrier_identity = carrier_identity.into();
-        let qualification_identity = qualification_identity.into();
-        let algebra_parameter = algebra_parameter.into();
-        if carrier_identity.is_empty()
-            || qualification_identity.is_empty()
-            || algebra_parameter.is_empty()
-        {
-            return Err(ExternalRootDiagnostic(
-                "program-local Extent materialization identities cannot be empty".into(),
-            ));
-        }
-        ValidatedExtentGeometry::check(base, length).map_err(|diagnostic| {
-            ExternalRootDiagnostic(format!(
-                "program-local Extent materialization geometry is invalid: {diagnostic}"
-            ))
-        })?;
-        Ok(Self {
-            carrier_identity,
-            qualification_identity,
-            algebra_parameter,
-            base,
-            length,
-            address_space,
-            rights,
-            provenance,
-            mapping_era,
-        })
-    }
-
-    pub fn carrier_identity(&self) -> &str {
-        &self.carrier_identity
-    }
-
-    pub fn qualification_identity(&self) -> &str {
-        &self.qualification_identity
-    }
-
-    pub fn algebra_parameter(&self) -> &str {
-        &self.algebra_parameter
-    }
-
-    pub const fn base(&self) -> u64 {
-        self.base
-    }
-
-    pub const fn length(&self) -> u64 {
-        self.length
-    }
-
-    pub const fn address_space(&self) -> AddressSpaceId {
-        self.address_space
-    }
-
-    pub const fn rights(&self) -> &ExtentRights {
-        &self.rights
-    }
-
-    pub const fn provenance(&self) -> ExtentProvenanceId {
-        self.provenance
-    }
-
-    pub const fn mapping_era(&self) -> MappingEraId {
-        self.mapping_era
-    }
-}
-
 #[derive(Debug)]
 struct LiveRetention {
     base: u64,
@@ -122,17 +26,31 @@ struct LiveRetention {
 struct HeldProgramLocalExtent<'root, 'code> {
     root: EstablishedProgramLocalRoot<'root, 'code>,
     lineage: ExtentLineageId,
-    plan: ProgramLocalExtentMaterializationPlan,
+    /// The actual installed backing consumed into this account for the
+    /// account's lifetime.
+    ///
+    /// The backing Extent is the real authority over the range the introduced
+    /// root occupies — for example the receiver partition carved out of the
+    /// installed writable image by `Extent::partition_owned`, or a
+    /// provider-issued extent. Every runtime fact on the minted program-local
+    /// Extent (geometry, address space, rights, provenance, and mapping era)
+    /// is derived from this backing rather than caller-asserted, so there is
+    /// no ambient provision. While the account is held the backing is inert
+    /// inside the registry and the program-local Extent is the only live
+    /// authority over its range; [`ProgramLocalExtentRegistry::retire`]
+    /// returns the exact backing so the caller can rejoin it into the
+    /// installed storage it was partitioned from.
+    backing: Extent,
     retained: BTreeMap<RetainedForeignArgumentId, LiveRetention>,
 }
 
 /// Epoch/installation owner for exact program-local Extent accounts.
 ///
 /// Extents carry only passive origin identity. This registry retains the
-/// actual installed occurrence and lifecycle lease while any split descendant
-/// may remain live. Dropping a registry does not retire its accounts; it drops
-/// the Rust carrier while the underlying lifecycle ledger remains held, which
-/// fails closed by preventing quiescence.
+/// actual installed occurrence, its actual installed backing, and lifecycle
+/// lease while any split descendant may remain live. Dropping a registry does
+/// not retire its accounts; it drops the Rust carrier while the underlying
+/// lifecycle ledger remains held, which fails closed by preventing quiescence.
 #[derive(Debug)]
 pub struct ProgramLocalExtentRegistry<'root, 'code> {
     held: BTreeMap<ExtentProgramLocalOrigin, HeldProgramLocalExtent<'root, 'code>>,
@@ -163,17 +81,19 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         self.held.values().map(|held| held.retained.len()).sum()
     }
 
-    /// Atomically materialize a batch. Every account and plan is validated
-    /// before any passive Extent grant is minted or any account is retained.
+    /// Atomically materialize a batch over actual installed backing. Every
+    /// account and backing Extent is validated before any passive Extent grant
+    /// is minted or any account is retained. Each backing Extent is consumed
+    /// into its held account for the account's lifetime: the minted
+    /// program-local Extent is the only live authority over its range, and
+    /// every runtime fact on it derives from that exact backing rather than a
+    /// caller roster of asserted facts.
     pub fn materialize_batch(
         &mut self,
-        inputs: Vec<(
-            EstablishedProgramLocalRoot<'root, 'code>,
-            ProgramLocalExtentMaterializationPlan,
-        )>,
+        inputs: Vec<(EstablishedProgramLocalRoot<'root, 'code>, Extent)>,
     ) -> Result<Vec<Extent>, Box<ProgramLocalExtentMaterializationError<'root, 'code>>> {
         let mut origins = BTreeSet::new();
-        for (root, plan) in &inputs {
+        for (root, backing) in &inputs {
             let origin = match exact_origin(root) {
                 Ok(origin) => origin,
                 Err(diagnostic) => {
@@ -191,7 +111,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                     ),
                 }));
             }
-            if let Err(diagnostic) = validate_materialization(root, plan) {
+            if let Err(diagnostic) = validate_materialization(root, backing) {
                 return Err(Box::new(ProgramLocalExtentMaterializationError {
                     inputs,
                     diagnostic,
@@ -223,22 +143,22 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         let first_lineage = self.next_lineage;
         self.next_lineage = next_lineage;
         let mut extents = Vec::with_capacity(inputs.len());
-        for (offset, (root, plan)) in inputs.into_iter().enumerate() {
+        for (offset, (root, backing)) in inputs.into_iter().enumerate() {
             let origin = exact_origin(&root)
                 .expect("validated established program-local origin remains exact");
             let lineage = ExtentLineageId::from_normalized_identity(
                 first_lineage + u64::try_from(offset).expect("batch offset fits u64"),
             )
             .expect("reserved program-local lineage identities are nonzero");
-            let geometry = ValidatedExtentGeometry::check(plan.base, plan.length)
-                .expect("validated program-local Extent geometry remains valid");
+            let geometry = ValidatedExtentGeometry::check(backing.base(), backing.length())
+                .expect("validated installed backing geometry remains valid");
             let extent = ExtentRootGrant::from_established_program_local(
                 origin,
                 lineage,
-                plan.address_space,
-                plan.rights.clone(),
-                plan.provenance,
-                plan.mapping_era,
+                backing.address_space(),
+                backing.rights().clone(),
+                backing.provenance(),
+                backing.era(),
             )
             .mint_validated(geometry);
             let previous = self.held.insert(
@@ -246,7 +166,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                 HeldProgramLocalExtent {
                     root,
                     lineage,
-                    plan,
+                    backing,
                     retained: BTreeMap::new(),
                 },
             );
@@ -256,13 +176,18 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         Ok(extents)
     }
 
+    /// Materialize one established root over its actual installed backing. The
+    /// backing Extent must cover exactly the root's evaluated interval
+    /// capacity in this installed occurrence's lifecycle epoch; its authority
+    /// is consumed into the held account and returned by
+    /// [`ProgramLocalExtentRegistry::retire`].
     pub fn materialize(
         &mut self,
         root: EstablishedProgramLocalRoot<'root, 'code>,
-        plan: ProgramLocalExtentMaterializationPlan,
+        backing: Extent,
     ) -> Result<Extent, Box<ProgramLocalExtentMaterializationError<'root, 'code>>> {
         let [extent]: [Extent; 1] = self
-            .materialize_batch(vec![(root, plan)])?
+            .materialize_batch(vec![(root, backing)])?
             .try_into()
             .expect("one program-local input materializes one Extent");
         Ok(extent)
@@ -270,13 +195,15 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
 
     /// Consume the exact recombined root Extent and release its retained
     /// installed occurrence. Split descendants and substituted runtime facts
-    /// reject without removing the held account.
+    /// reject without removing the held account. Success returns the exact
+    /// installed backing consumed at materialization, completing the
+    /// account's custody of that range.
     pub fn retire(
         &mut self,
         extent: Extent,
         installation: &mut ProgramLocalRootInstallationLedger,
         lifecycle: &mut ComponentEraEntryLedger,
-    ) -> Result<RetiredProgramLocalRootOccurrence, Box<ProgramLocalExtentRetirementError>> {
+    ) -> Result<RetiredProgramLocalExtent, Box<ProgramLocalExtentRetirementError>> {
         let Some(origin) = extent.program_local_origin() else {
             return Err(Box::new(ProgramLocalExtentRetirementError::new(
                 extent,
@@ -291,16 +218,16 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         };
         if !extent.is_lineage_root()
             || extent.lineage_root() != held.lineage
-            || extent.base() != held.plan.base
-            || extent.length() != held.plan.length
-            || extent.address_space() != held.plan.address_space
-            || extent.provenance() != held.plan.provenance
-            || extent.era() != held.plan.mapping_era
-            || !held.plan.rights.contains(extent.rights())
+            || extent.base() != held.backing.base()
+            || extent.length() != held.backing.length()
+            || extent.address_space() != held.backing.address_space()
+            || extent.provenance() != held.backing.provenance()
+            || extent.era() != held.backing.era()
+            || !held.backing.rights().contains(extent.rights())
         {
             return Err(Box::new(ProgramLocalExtentRetirementError::new(
                 extent,
-                "program-local Extent retirement requires the exact recombined root and compatible runtime facts",
+                "program-local Extent retirement requires the exact recombined root and the held installed backing's runtime facts",
             )));
         }
         if !held.retained.is_empty() {
@@ -313,21 +240,29 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
             )));
         }
 
-        let held = self
+        let HeldProgramLocalExtent {
+            root,
+            lineage,
+            backing,
+            retained,
+        } = self
             .held
             .remove(&origin)
             .expect("validated held program-local account remains present");
-        match installation.retire_established(held.root, lifecycle) {
-            Ok(retired) => Ok(retired),
+        match installation.retire_established(root, lifecycle) {
+            Ok(occurrence) => Ok(RetiredProgramLocalExtent {
+                occurrence,
+                backing,
+            }),
             Err(error) => {
                 let root = (*error).into_root();
                 let replaced = self.held.insert(
                     origin,
                     HeldProgramLocalExtent {
                         root,
-                        lineage: held.lineage,
-                        plan: held.plan,
-                        retained: held.retained,
+                        lineage,
+                        backing,
+                        retained,
                     },
                 );
                 debug_assert!(replaced.is_none());
@@ -340,12 +275,32 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
     }
 }
 
+/// Result of one program-local Extent account retirement: the released exact
+/// installed occurrence plus the actual installed backing consumed at
+/// materialization, returned to the caller's custody.
+#[derive(Debug)]
+pub struct RetiredProgramLocalExtent {
+    occurrence: RetiredProgramLocalRootOccurrence,
+    backing: Extent,
+}
+
+impl RetiredProgramLocalExtent {
+    pub const fn occurrence(&self) -> &RetiredProgramLocalRootOccurrence {
+        &self.occurrence
+    }
+
+    pub const fn backing(&self) -> &Extent {
+        &self.backing
+    }
+
+    pub fn into_backing(self) -> Extent {
+        self.backing
+    }
+}
+
 #[derive(Debug)]
 pub struct ProgramLocalExtentMaterializationError<'root, 'code> {
-    inputs: Vec<(
-        EstablishedProgramLocalRoot<'root, 'code>,
-        ProgramLocalExtentMaterializationPlan,
-    )>,
+    inputs: Vec<(EstablishedProgramLocalRoot<'root, 'code>, Extent)>,
     diagnostic: ExternalRootDiagnostic,
 }
 
@@ -354,12 +309,7 @@ impl<'root, 'code> ProgramLocalExtentMaterializationError<'root, 'code> {
         &self.diagnostic
     }
 
-    pub fn into_inputs(
-        self,
-    ) -> Vec<(
-        EstablishedProgramLocalRoot<'root, 'code>,
-        ProgramLocalExtentMaterializationPlan,
-    )> {
+    pub fn into_inputs(self) -> Vec<(EstablishedProgramLocalRoot<'root, 'code>, Extent)> {
         self.inputs
     }
 }
@@ -409,28 +359,28 @@ fn exact_origin(
     })
 }
 
+/// Check that one actual installed backing Extent is the exact range the
+/// established root's interval capacity evaluates to. The backing supplies
+/// every runtime fact; a program-local Extent already held by an account is
+/// not installed backing and cannot be reticketed under a second occurrence.
 fn validate_materialization(
     root: &EstablishedProgramLocalRoot<'_, '_>,
-    plan: &ProgramLocalExtentMaterializationPlan,
+    backing: &Extent,
 ) -> Result<(), ExternalRootDiagnostic> {
     let prebinding = root.prebinding();
-    if prebinding.carrier_identity() != plan.carrier_identity
-        || prebinding.qualification_identity() != plan.qualification_identity
-    {
-        return Err(ExternalRootDiagnostic(
-            "program-local Extent plan substituted the established carrier or qualification".into(),
-        ));
-    }
     let EstablishedProgramLocalRootCapacity::IntervalSet(capacity) = root.capacity() else {
         return Err(ExternalRootDiagnostic(
             "counted program-local capacity cannot materialize one Extent".into(),
         ));
     };
-    if prebinding.algebra().kind != ContentAlgebraKind::IntervalSet
-        || prebinding.algebra().parameter != plan.algebra_parameter
-    {
+    if prebinding.algebra().kind != ContentAlgebraKind::IntervalSet {
         return Err(ExternalRootDiagnostic(
             "program-local Extent requires the exact installed interval-set algebra".into(),
+        ));
+    }
+    if backing.program_local_origin().is_some() {
+        return Err(ExternalRootDiagnostic(
+            "program-local Extent materialization requires actual installed backing, not another held program-local account's authority".into(),
         ));
     }
     let [member] = capacity.members() else {
@@ -448,12 +398,9 @@ fn validate_materialization(
             "program-local Extent interval end does not fit the target address model".into(),
         ));
     };
-    let expected_end = plan.base.checked_add(plan.length).ok_or_else(|| {
-        ExternalRootDiagnostic("program-local Extent plan range overflows".into())
-    })?;
-    if start != plan.base || end != expected_end || start == end {
+    if start != backing.base() || end != backing.end() || start == end {
         return Err(ExternalRootDiagnostic(
-            "program-local Extent geometry does not equal its established interval capacity".into(),
+            "program-local Extent backing does not equal its established interval capacity".into(),
         ));
     }
     Ok(())
