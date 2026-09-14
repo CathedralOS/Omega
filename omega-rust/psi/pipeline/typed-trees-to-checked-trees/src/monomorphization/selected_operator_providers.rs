@@ -1,7 +1,35 @@
 use super::*;
 
+pub(crate) struct SelectedProviderTemplates {
+    authored: TypedTrees,
+    service_reaches: flow_effects::ServiceReachInferencePlan,
+}
+
+impl SelectedProviderTemplates {
+    pub(crate) fn prepare(
+        program: &TypedTrees,
+        selected: &[crate::SelectedGenericOperatorProviderSpecialization],
+    ) -> Option<Self> {
+        if selected.is_empty() {
+            return None;
+        }
+        #[cfg(test)]
+        tests::record_preparation();
+        // Infer against the complete authored graph before saved-call replay
+        // can redirect a call to an instance owned only by the live program.
+        let operational = validation::infer_operational_may(program);
+        let service_reaches = validation::infer_service_reaches(program, &operational);
+        let mut authored = program.clone();
+        materialize_static_argument_types(&mut authored);
+        Some(Self {
+            authored,
+            service_reaches,
+        })
+    }
+}
+
 pub(crate) fn specialize_selected_generic_operator_providers(
-    templates: &TypedTrees,
+    templates: &SelectedProviderTemplates,
     program: &mut TypedTrees,
     selected: &[crate::SelectedGenericOperatorProviderSpecialization],
 ) -> Result<usize, Vec<Diagnostic>> {
@@ -11,20 +39,11 @@ pub(crate) fn specialize_selected_generic_operator_providers(
     materialize_static_argument_types(program);
     let mut diagnostics = Vec::new();
     let mut materialized = 0_usize;
-    // saved_calls::replay can redirect the clone to instances owned only by
-    // the live program. Infer the original contract before those redirects,
-    // against the complete immutable authored graph shared by all requests.
-    let operational = validation::infer_operational_may(templates);
-    let service_reaches = validation::infer_service_reaches(templates, &operational);
+    let service_reaches = &templates.service_reaches;
+    let templates = &templates.authored;
 
     for request in selected {
-        // Clone the immutable authored graph per request so concrete type
-        // references discovered after ordinary specialization can be copied
-        // into the clone without mutating the template authority shared by
-        // another selected provider.
-        let mut source = templates.clone();
-        materialize_static_argument_types(&mut source);
-        let Some(machine_index) = source
+        let Some(machine_index) = templates
             .machines()
             .iter()
             .position(|machine| machine.symbol == request.realization_machine)
@@ -34,10 +53,9 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             ));
             continue;
         };
-        let template_machine = source.machines()[machine_index].clone();
-        saved_calls::replay(&mut source, program, &template_machine);
+        let template_machine = templates.machines()[machine_index].clone();
         let Some(operator) =
-            typed_trees::operator::declaration_by_symbol(&source, request.requirement_operator)
+            typed_trees::operator::declaration_by_symbol(templates, request.requirement_operator)
                 .cloned()
         else {
             diagnostics.push(Diagnostic::error(
@@ -45,14 +63,14 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             ));
             continue;
         };
-        let [namespace, requirement] = source.operator_path_members(operator.name) else {
+        let [namespace, requirement] = templates.operator_path_members(operator.name) else {
             diagnostics.push(Diagnostic::error(
                 "selected generic operator provider requirement has no exact two-part path",
             ));
             continue;
         };
         if typed_trees::operator::resolve_satisfied_checked_operator(
-            &source,
+            templates,
             &template_machine,
             namespace.as_str(),
             requirement.as_str(),
@@ -79,7 +97,28 @@ pub(crate) fn specialize_selected_generic_operator_providers(
         if applications.is_empty() {
             continue;
         }
-        let template = candidate::from_machine(&source, machine_index);
+        let template = candidate::from_machine(templates, machine_index);
+        // Closed application identities can be compared in the live graph.
+        // Unsupported telescope categories still reach candidate validation;
+        // only exact tuples with an existing receipt can avoid source copying.
+        if applications.iter().all(|application| {
+            materialized_application(
+                program,
+                templates,
+                &template_machine,
+                &template,
+                operator.symbol,
+                application,
+            )
+        }) {
+            continue;
+        }
+        // Replay and type imports mutate this request's graph. Keep that
+        // working copy separate from the immutable authority and other requests.
+        #[cfg(test)]
+        tests::record_working_copy();
+        let mut source = templates.clone();
+        saved_calls::replay(&mut source, program, &template_machine);
         let mut concrete = Vec::<(SpecializationKey, Candidate)>::new();
         for application in applications {
             let application = copy_application_types(program, &mut source, &application);
@@ -159,7 +198,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
         }
 
         let canonical_template_contract_bytes =
-            canonical_template_contract_bytes(&source, machine_index, &service_reaches)
+            canonical_template_contract_bytes(&source, machine_index, service_reaches)
                 .map_err(|diagnostic| vec![diagnostic])?;
         let template_contract_report_fingerprint =
             fnv1a_report_fingerprint(&canonical_template_contract_bytes);
@@ -207,6 +246,57 @@ pub(crate) fn specialize_selected_generic_operator_providers(
         Err(diagnostics)
     }
 }
+
+fn materialized_application(
+    program: &TypedTrees,
+    templates: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    template: &Candidate,
+    requirement: SymbolHandle,
+    application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
+) -> bool {
+    use typed_trees::operator::ClosedOperatorApplicationArgument;
+    let parameters = templates.machine_type_parameters(machine);
+    if parameters.len() != application.len()
+        || !template.machine_parameters.is_empty()
+        || !template.evidence_parameters.is_empty()
+    {
+        return false;
+    }
+    let mut key = SpecializationKey {
+        type_arguments: Vec::new(),
+        const_arguments: Vec::new(),
+        machine_arguments: Vec::new(),
+        evidence_arguments: Vec::new(),
+    };
+    for (parameter, argument) in parameters.iter().zip(application) {
+        match (&parameter.kind, argument) {
+            (
+                TypeParameterKind::Type,
+                ClosedOperatorApplicationArgument::Type { type_reference, .. },
+            ) => key.type_arguments.push(
+                program
+                    .normalized_type_identity(*type_reference)
+                    .into_string(),
+            ),
+            (
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                ClosedOperatorApplicationArgument::Const { value, .. },
+            ) => {
+                let Some(reference) = const_identity_type_reference(program, value) else {
+                    return false;
+                };
+                key.const_arguments
+                    .push(program.normalized_type_identity(reference).into_string());
+            }
+            _ => return false,
+        }
+    }
+    has_materialized_specialization(program, machine.symbol, requirement, &key)
+}
+
+#[cfg(test)]
+mod tests;
 
 fn copy_application_types(
     program: &TypedTrees,

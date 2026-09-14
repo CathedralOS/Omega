@@ -74,6 +74,12 @@ finish, including sites owned by the template. Receipt order remains first
 tuple followed by additional instances. Separate saved operator-provider
 templates retain their existing distinct-source path.
 
+Selected-provider checking prepares its immutable authored snapshot and reach
+summary once per invocation, only when providers are selected. Fixed-point rounds
+avoid a working graph copy when all demanded tuples already have exact receipts.
+A provider with new tuples still gets isolated replay/type-import storage;
+that copy is not shared mutable template authority.
+
 This removes the per-template whole-program snapshot, not all copying or
 whole-program scans. Selected graphs are copied through staging and then into
 their destination; generated names and evidence still allocate. Shared source

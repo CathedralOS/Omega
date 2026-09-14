@@ -50,13 +50,16 @@ fn check_program(
     // selected generic application. Alternate the two existing elaborators to
     // a fixed point; neither open applications nor template mutation may be
     // mistaken for final D29 coverage.
-    let selected_provider_templates = program.clone();
+    let selected_provider_templates = crate::monomorphization::SelectedProviderTemplates::prepare(
+        &program,
+        selected_generic_operator_providers,
+    );
     let mut nominal_machine_uses =
         crate::specialize_static_machine_calls_with_nominal_uses(&mut program)?;
     crate::normalize_open_index_identities(&mut program)?;
-    loop {
+    while let Some(templates) = &selected_provider_templates {
         let materialized = crate::monomorphization::specialize_selected_generic_operator_providers(
-            &selected_provider_templates,
+            templates,
             &mut program,
             selected_generic_operator_providers,
         )?;
