@@ -190,6 +190,20 @@ normalized_id!(
     SecondaryProcessorStartupReceiptId,
     "secondary-processor startup receipt"
 );
+normalized_id!(InterruptTableProfileId, "interrupt-table profile");
+normalized_id!(
+    InterruptTableEstablishmentId,
+    "interrupt-table establishment"
+);
+normalized_id!(
+    InterruptTablePublicationAuthorityId,
+    "interrupt-table publication authority"
+);
+normalized_id!(InterruptTablePublicationId, "interrupt-table publication");
+normalized_id!(
+    InterruptTablePublicationReceiptId,
+    "interrupt-table publication receipt"
+);
 
 mod fixed_fuel;
 pub use fixed_fuel::*;
@@ -201,6 +215,8 @@ mod provider_execution;
 pub use provider_execution::*;
 mod progress_profile_installation;
 pub use progress_profile_installation::*;
+mod interrupt_table;
+pub use interrupt_table::*;
 mod program_local_roots;
 pub use program_local_roots::*;
 mod program_local_extents;

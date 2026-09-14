@@ -56,7 +56,10 @@ use terminal_psi::{
     program_local_root_introduction_compatibility_report_identity,
 };
 
-fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
+pub(crate) fn root_id<T>(
+    identity: u64,
+    constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>,
+) -> T {
     constructor(identity).expect("normalized external-root identity")
 }
 
@@ -112,7 +115,7 @@ fn constraints() -> PlacementConstraints {
     .expect("placement constraints")
 }
 
-fn installed_code(artifact_identity: u64, entry: EntryStubId) -> InstalledCode {
+pub(crate) fn installed_code(artifact_identity: u64, entry: EntryStubId) -> InstalledCode {
     installed_code_with_fill(artifact_identity, entry, 0)
 }
 
@@ -173,6 +176,31 @@ pub(crate) fn installed_code_in_placement(
     extent_base: u64,
     extent_length: u64,
 ) -> InstalledCode {
+    installed_code_in_placement_with_entries(
+        artifact_identity,
+        bytes,
+        installed_code_identity,
+        architecture,
+        placement_constraints,
+        extent_base,
+        extent_length,
+        vec![ArtifactEntry::from_canonical_decode(entry, 16)],
+    )
+}
+
+/// Installed-code fixture whose artifact admits several entries — an
+/// interrupt table's members each occupy their own entry offset.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn installed_code_in_placement_with_entries(
+    artifact_identity: u64,
+    bytes: Vec<u8>,
+    installed_code_identity: u64,
+    architecture: target::Architecture,
+    placement_constraints: PlacementConstraints,
+    extent_base: u64,
+    extent_length: u64,
+    entries: Vec<ArtifactEntry>,
+) -> InstalledCode {
     let artifact_constraints = placement_constraints;
     let contracts = install_id(30, MachineContractSetId::from_normalized_identity);
     let footprint = install_id(31, MachineFootprintId::from_normalized_identity);
@@ -185,7 +213,7 @@ pub(crate) fn installed_code_in_placement(
         install_id(32, PlacementPlanId::from_normalized_identity),
         artifact_constraints,
         install_id(33, EntrySetId::from_normalized_identity),
-        vec![ArtifactEntry::from_canonical_decode(entry, 16)],
+        entries,
         install_id(34, RelocationSetId::from_normalized_identity),
         Vec::new(),
         executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
@@ -594,16 +622,19 @@ pub(crate) fn fixed_fuel() -> ComposedFuelDemand {
     compose_fixed_fuel(root.identity, [&root, &leaf]).expect("fixed-fuel composition")
 }
 
-fn stack_demand(
+/// One member's bound epoch input. Interrupt-table tests compose several of
+/// these into the single artifact-wide composition every installed root of
+/// one artifact must carry.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stack_demand_input(
     root: ExternalRootId,
     provider: RootProviderId,
-    relation: NestingRelationId,
     boundary: &ValidatedBoundaryEntryPlan,
     code: &InstalledCode,
     entry: EntryStubId,
     resolved_stack: EntryStack,
     local_wcsu_bytes: u64,
-) -> BoundEpochStackComposition {
+) -> BoundEpochStackCompositionInput {
     let active_domain = StackDomainRef::from(resolved_stack);
     let realization = validate_entry_stack_realization(EntryStackRealization {
         contexts: vec![ArrivalContextRealization {
@@ -633,15 +664,30 @@ fn stack_demand(
         &[1],
         root_id(48, StackValidationReceiptId::from_normalized_identity),
     );
-    let bound = bind_opaque_adapter_stack_realization(
-        &summary,
+    bind_opaque_adapter_stack_realization(&summary, boundary, code, entry, realization, contexts)
+        .expect("test epoch evidence binding")
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stack_demand(
+    root: ExternalRootId,
+    provider: RootProviderId,
+    relation: NestingRelationId,
+    boundary: &ValidatedBoundaryEntryPlan,
+    code: &InstalledCode,
+    entry: EntryStubId,
+    resolved_stack: EntryStack,
+    local_wcsu_bytes: u64,
+) -> BoundEpochStackComposition {
+    let bound = stack_demand_input(
+        root,
+        provider,
         boundary,
         code,
         entry,
-        realization,
-        contexts,
-    )
-    .expect("test epoch evidence binding");
+        resolved_stack,
+        local_wcsu_bytes,
+    );
     compose_bound_entry_stack_epochs(
         &StackNestingRelation {
             identity: relation,
@@ -2299,8 +2345,18 @@ fn slot() -> RootSlotAuthority {
 }
 
 pub(crate) fn provider_execution(root: &ValidatedExternalRoot) -> ProviderExecution {
+    provider_execution_for(root, 54)
+}
+
+/// Provider execution fixture with a caller-chosen identity so one ledger can
+/// hold several roots whose executions stay distinct under the
+/// invocation/acknowledgement replay keys.
+pub(crate) fn provider_execution_for(
+    root: &ValidatedExternalRoot,
+    identity: u64,
+) -> ProviderExecution {
     ProviderExecution::from_admitted_provider(
-        root_id(54, ProviderExecutionId::from_normalized_identity),
+        root_id(identity, ProviderExecutionId::from_normalized_identity),
         root,
         Some(OpaqueProviderExitAssurance::AcceptedClaim {
             realization: ProviderExitRealization {
@@ -4607,6 +4663,12 @@ fn program_local_root_failed_retirement_returns_the_complete_occurrence() {
 }
 
 fn interrupt_boundary() -> ValidatedBoundaryEntryPlan {
+    interrupt_boundary_on(EntryStack::Dedicated { class: 1 })
+}
+
+/// Interrupt-return boundary fixture arriving on `stack`. Table members use
+/// distinct dedicated classes; the ordinary interrupt tests keep class 1.
+pub(crate) fn interrupt_boundary_on(stack: EntryStack) -> ValidatedBoundaryEntryPlan {
     let signature = CallSignature {
         parameters: vec![ValueShape::integer(8, 8)],
         result: None,
@@ -4651,7 +4713,7 @@ fn interrupt_boundary() -> ValidatedBoundaryEntryPlan {
                     MachineState::GeneralRegisters,
                     MachineState::Flags,
                 ]),
-                stack: EntryStack::Dedicated { class: 1 },
+                stack,
                 preemption: Preemption::Masked,
             },
         },
@@ -4709,7 +4771,117 @@ fn interrupt_candidate_for_code_with_completion(
     candidate
 }
 
-fn interrupt_entry_receipt(
+/// Interrupt-root candidate shaped for one interrupt-table member: `stack` is
+/// the declared arrival disposition and `acknowledged` selects whether the
+/// root mints a settle-able `Pending` acknowledgement. The stack-realization
+/// column is assigned by the caller so several members can share the one
+/// artifact-wide composition the ledger requires.
+pub(crate) fn interrupt_candidate_shaped(
+    entry: EntryStubId,
+    code: &InstalledCode,
+    root_identity: u64,
+    acknowledged: bool,
+) -> ExternalRootCandidate {
+    let mut candidate = candidate_for_code_with_root(entry, code, root_identity);
+    candidate.requirement_identity = if acknowledged {
+        "TimerRoot::tick".into()
+    } else {
+        "FatalExceptionRoot::enter".into()
+    };
+    candidate.entry_claims = if acknowledged {
+        vec![ExternalRootEntryClaim {
+            parameter_index: 0,
+            domain: "InterruptAcknowledgement::Pending".into(),
+            effective_carry: language_semantics::CarryPolicy::STRICT,
+        }]
+    } else {
+        Vec::new()
+    };
+    candidate.acknowledgement_parameter_index = acknowledged.then_some(0);
+    candidate.acknowledgement_policy =
+        acknowledged.then(|| root_id(7, AcknowledgementPolicyId::from_normalized_identity));
+    candidate.interrupt_mask_guard_claim = Some(ExternalRootResultClaim {
+        provider_plan: root_id(56, ProviderPlanId::from_normalized_identity),
+        provider_plan_digest: ProviderPlan::default().identity_digest(),
+        requirement_identity: "InterruptMaskControl::save_and_mask".into(),
+        domain: "InterruptMaskGuard::Active".into(),
+        effective_carry: language_semantics::CarryPolicy::STRICT,
+    });
+    candidate.service_reach = ResolvedRootServiceReach::from_selected_provider_closure(
+        Vec::new(),
+        vec!["InterruptCompletion::complete".into()],
+        &selected_interrupt_completion(),
+    )
+    .expect("selected completion closes the installed interrupt reach");
+    candidate
+}
+
+/// One declared interrupt-table member fixture: its root identity seed,
+/// selected entry, declared dedicated stack class, and acknowledgement
+/// obligation.
+pub(crate) struct InterruptTableMemberFixture {
+    pub root_identity: u64,
+    pub entry: EntryStubId,
+    pub stack_class: u16,
+    pub acknowledged: bool,
+}
+
+/// Build validated interrupt roots sharing the one artifact-wide stack
+/// composition `InstalledRootLedger::install` requires. Each member's own
+/// bound input enters the single composition; assigning any per-member
+/// realization would be rejected as a foreign nesting aggregate.
+pub(crate) fn interrupt_table_candidates(
+    code: &InstalledCode,
+    members: &[InterruptTableMemberFixture],
+) -> Vec<(ValidatedExternalRoot, ValidatedBoundaryEntryPlan)> {
+    let mut inputs = Vec::with_capacity(members.len());
+    let mut shaped = Vec::with_capacity(members.len());
+    for member in members {
+        let stack = EntryStack::Dedicated {
+            class: member.stack_class,
+        };
+        let boundary = interrupt_boundary_on(stack);
+        let candidate = interrupt_candidate_shaped(
+            member.entry,
+            code,
+            member.root_identity,
+            member.acknowledged,
+        );
+        let input = stack_demand_input(
+            candidate.identity,
+            candidate.provider,
+            &boundary,
+            code,
+            member.entry,
+            stack,
+            2048,
+        );
+        inputs.push(input);
+        shaped.push((candidate, boundary));
+    }
+    let relation = StackNestingRelation {
+        identity: shaped
+            .first()
+            .expect("at least one table member")
+            .0
+            .nesting_relation,
+        edges: BTreeSet::new(),
+    };
+    let composition =
+        compose_bound_entry_stack_epochs(&relation, inputs.iter()).expect("shared composition");
+    shaped
+        .into_iter()
+        .map(|(mut candidate, boundary)| {
+            candidate.stack.realization = composition.clone();
+            (
+                validate_external_root(candidate, &boundary).expect("table member root plan"),
+                boundary,
+            )
+        })
+        .collect()
+}
+
+pub(crate) fn interrupt_entry_receipt(
     root: &InstalledExternalRoot<'_>,
     invocation: u64,
     acknowledgement_policy: Option<u64>,
