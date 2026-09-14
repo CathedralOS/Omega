@@ -1,4 +1,4 @@
-use super::RegisterAllocationError;
+use crate::RegisterAllocationError;
 use crate::{
     FixedViewCopyPolicy, PressureRematerializationPolicy, RecoveryClassificationPolicy,
     SpillChoicePolicy,

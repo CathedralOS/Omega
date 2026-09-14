@@ -2,8 +2,9 @@
 
 This stage consumes the current selected program and its validated analysis
 evidence, assigns physical homes, and performs admitted pressure recovery.
-Start at [lib.rs](src/lib.rs) and
-[stage_register_allocation](src/assignment/current.rs). The preceding selected
+Start at [stage_register_allocation](src/register_allocation.rs), which
+sequences the route; [lib.rs](src/lib.rs) maps every module and re-exports
+each owner's names explicitly. The preceding selected
 X-to-X stage owns selected rewrites and reusable selected-CFG analyses; allocation
 does not rerun that phase. The [optimization overview](../../../optimization.md)
 identifies the compiler sequence.
@@ -132,9 +133,13 @@ identities and realized selected storage, not final frame authority.
 These private eight-byte slots preserve full GPR payloads. They do not widen
 source referent reads, change scalar signedness, or normalize floating bits.
 
-The [assignment group](src/assignment/mod.rs) also exposes compiler-private
-logical spill, slot-coloring, recursive-recovery, pseudo, and access-constraint
-boundaries. These are not additional user-selectable optimizations. Each
+The [assignment group](src/assignment/mod.rs) holds only the stages that
+route sequences. The compiler-private logical spill, slot-coloring,
+recursive-recovery, pseudo, and access-constraint boundaries live under
+[unsequenced spill stages](src/unsequenced_spill_stages/mod.rs):
+`stage_register_allocation` does not call them yet, and the native-differential
+`register_allocation` tests and the architecture ladders validate them. These
+are not additional user-selectable optimizations. Each
 boundary binds its input roots, closed policy, exact work and budget, and
 independently reconstructed output. Typed original-value and reload-action
 lineage must survive recursive store/reload/rewrite schedules. A reload identity

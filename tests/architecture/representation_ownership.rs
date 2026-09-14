@@ -1476,7 +1476,12 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
         );
     }
     let allocation = pipeline.join("selected-instructions-to-register-homes/src");
-    for area in ["rewrites", "assignment", "output"] {
+    for area in [
+        "rewrites",
+        "assignment",
+        "output",
+        "unsequenced_spill_stages",
+    ] {
         assert!(
             allocation.join(area).join("mod.rs").is_file(),
             "missing allocation owner: {area}"
@@ -1488,7 +1493,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
         assert!(selected.join(area).join("mod.rs").is_file());
     }
     let allocator_entry =
-        std::fs::read_to_string(allocation.join("assignment/current.rs")).unwrap();
+        std::fs::read_to_string(allocation.join("register_allocation.rs")).unwrap();
     assert!(allocator_entry.contains("SelectedInstructionOptimizationOutput"));
     assert!(!allocator_entry.contains("run_selected_lowering_optimizations("));
     let output = rust_source(&allocation.join("output"));

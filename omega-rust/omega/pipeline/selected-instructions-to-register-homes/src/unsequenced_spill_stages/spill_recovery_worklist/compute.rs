@@ -31,7 +31,7 @@ pub(super) fn compute(
     budget: OptimizationWorkBudget,
 ) -> Result<SpillRecoveryWorklistPlan, SpillRecoveryWorklistError> {
     admit_producer_policy(reload_home_policy, policy)?;
-    let trigger = match crate::assignment::reload_value_homes::compute::compute(
+    let trigger = match crate::unsequenced_spill_stages::reload_value_homes::compute::compute(
         insertion,
         logical,
         legality,

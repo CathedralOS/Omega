@@ -1,11 +1,21 @@
-use super::{stage_active_resident_register_allocation, stage_fixed_view_register_allocation};
+//! Optimizer module role: executable entrance. Selected instructions to register homes.
+//!
+//! The route, in order: replay the selected X-to-X evidence; a completed
+//! selected-lowering run takes `assignment::transformed` homes; otherwise an
+//! admitted recovery rule takes `assignment::recovery`; otherwise legality is
+//! staged and the direct assignment either succeeds into `assignment::baseline`
+//! homes or, on `NoCompatibleHome` pressure, enters `assignment::runtime_spill`.
+//! Every branch publishes one `RetainedAllocation`.
+
+use crate::assignment::recovery::{
+    stage_active_resident_register_allocation, stage_fixed_view_register_allocation,
+};
 use optimization_core::{Optimization, OptimizationExecutionPhase};
 
 use crate::{
     AllocationReplayError, OptimizedAllocationLegalityCustodyError,
     OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
     RetainedAllocation, stage_optimized_allocation_legality,
-    stage_optimized_register_homes_after_selected_lowering,
 };
 
 /// Execute the exact selected allocation rules and publish one current result.
@@ -20,7 +30,8 @@ pub fn stage_register_allocation(
     {
         crate::SelectedInstructionOptimizationEvidence::Identity(ranges) => ranges,
         crate::SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
-            let homes = stage_optimized_register_homes_after_selected_lowering(run)
+            let homes =
+                crate::assignment::transformed::stage_optimized_register_homes_after_selected_lowering(run)
                 .map_err(RegisterAllocationError::TransformedHomes)?;
             return RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay);
         }
@@ -50,10 +61,10 @@ pub fn stage_register_allocation(
     }
     let legality =
         stage_optimized_allocation_legality(ranges).map_err(RegisterAllocationError::Legality)?;
-    let assignment = match super::runtime_spill::assign_source(&legality) {
+    let assignment = match crate::assignment::runtime_spill::assign_source(&legality) {
         Ok(homes) => homes,
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {
-            let recovered = super::runtime_spill::recover(legality)
+            let recovered = crate::assignment::runtime_spill::recover(legality)
                 .map_err(RegisterAllocationError::RuntimeSpill)?;
             return RetainedAllocation::try_from(recovered)
                 .map_err(RegisterAllocationError::Replay);
@@ -64,8 +75,9 @@ pub fn stage_register_allocation(
             ));
         }
     };
-    let homes = super::baseline::stage_register_homes_with_assignment(legality, assignment)
-        .map_err(RegisterAllocationError::Homes)?;
+    let homes =
+        crate::assignment::baseline::stage_register_homes_with_assignment(legality, assignment)
+            .map_err(RegisterAllocationError::Homes)?;
     RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay)
 }
 

@@ -26,7 +26,7 @@ struct ActiveHome {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::assignment) fn compute(
+pub(in crate::unsequenced_spill_stages) fn compute(
     insertion: &ValidatedAbstractSpillInsertion,
     logical: &ValidatedLogicalSpillOperations,
     legality: &ValidatedAllocationLegality,
