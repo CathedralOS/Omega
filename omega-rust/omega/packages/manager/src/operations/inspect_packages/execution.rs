@@ -10,8 +10,9 @@ use crate::resolution::graph::{
 };
 use crate::review::SemanticBindingReview;
 use crate::review::{
-    CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits, PackagePolicyChangeSet,
-    compare_package_policy_changes, compile_resolved_package_reviews,
+    CandidateSourcePreparation, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
+    PackagePolicyChangeSet, compare_package_policy_changes,
+    compile_resolved_package_reviews_reusing,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
@@ -41,6 +42,9 @@ pub(super) fn inspect<Storage: Borrow<SourceResolverStorage>>(
         .transpose()?;
     let targets = select_targets(requested_targets, accepted.as_ref())?;
     let storage = open_storage(transaction.project_root());
+    // One locked closure serves every requested target; binding-independent
+    // source preparation happens once and each target still checks fresh.
+    let mut preparation = CandidateSourcePreparation::new();
     let mut outcome = PackageInspectionOutcome {
         report: String::new(),
         complete: true,
@@ -55,6 +59,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolverStorage>>(
                 baseline,
                 storage.borrow(),
                 offline,
+                &mut preparation,
             ),
             Err(error) => Err(failure(error)),
         };
@@ -128,6 +133,7 @@ fn check(
     accepted: Option<&PackageLockTarget>,
     storage: &SourceResolverStorage,
     offline: bool,
+    preparation: &mut CandidateSourcePreparation,
 ) -> Result<
     (
         CanonicalSourceClosureSubject,
@@ -170,12 +176,13 @@ fn check(
         .map_err(failure)?
     };
     let exact = closure.for_exact_target(target);
-    let reviews = compile_resolved_package_reviews(
+    let reviews = compile_resolved_package_reviews_reusing(
         &exact,
         &project_root
             .join("build/package-manager")
             .join(format!("audit-{}", target.target_name())),
         SemanticBindingReview::Discover,
+        preparation,
     )
     .map_err(failure)?;
     let changes = compare_package_policy_changes(

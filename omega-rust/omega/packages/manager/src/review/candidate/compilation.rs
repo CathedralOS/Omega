@@ -16,10 +16,76 @@ use super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet,
     ConsumerScopedSemanticBindingReviewInput, ReviewedPackageProductionCandidate,
 };
-use crate::resolution::graph::ExactTargetPackageSourceClosure;
-use package_pass::{CompiledPackageReviews, PackageSourcePreparation, TargetEntryDiscovery};
+use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
+use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
 use session::ReviewBuildSession;
 use std::path::Path;
+
+/// Target-independent prepared package sources retained across candidate
+/// reviews of one resolved source closure.
+///
+/// Slots follow the resolver's package positions, each keyed by the entry
+/// root it was prepared for. A populated slot supplies only that package's
+/// binding-independent parse frontier to a later pass or candidate: custody
+/// verification, build execution, and checking always run again, and each
+/// child's own root-path and source-input validation rejects a checkpoint
+/// that no longer names its package's prepared sources. The store holds no
+/// checked result, binding decision, review row, or build output, so nothing
+/// verified can be replayed merely because source bytes match.
+///
+/// One store belongs to one resolved closure. Callers reviewing several exact
+/// targets of the same closure share it; a differently shaped closure drops
+/// stale slots rather than risk a misplaced checkpoint, and a slot whose
+/// recorded entry root differs from the request's is prepared fresh.
+#[derive(Default)]
+pub struct CandidateSourcePreparation {
+    slots: Vec<Option<PreparedPackageSource>>,
+    /// Fresh preparations performed through this store; witnesses that a
+    /// repeated or cross-target candidate prepared each package once.
+    fresh_preparations: usize,
+}
+
+/// One package's retained parse frontier and the entry root it belongs to.
+/// The root is the exact identity the child request validates, so a same
+/// count but differently resolved closure cannot consume a misplaced slot.
+struct PreparedPackageSource {
+    entry_root: std::path::PathBuf,
+    prepared: compiler::PreparedCheckedSource,
+}
+
+impl CandidateSourcePreparation {
+    /// An empty store; the first candidate sizes it to that closure's graph.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Slots pre-sized for this closure's package graph.
+    pub fn for_closure(closure: &ResolvedPackageSourceClosure) -> Self {
+        Self {
+            slots: empty_slots(closure.graph().packages().len()),
+            fresh_preparations: 0,
+        }
+    }
+
+    /// Size slots to this closure's package positions. A differently shaped
+    /// closure starts over empty rather than risk a misplaced checkpoint.
+    fn size_for(&mut self, closure: &ResolvedPackageSourceClosure) {
+        let package_count = closure.graph().packages().len();
+        if self.slots.len() != package_count {
+            self.slots = empty_slots(package_count);
+        }
+    }
+
+    /// Fresh source preparations performed through this store.
+    #[cfg(test)]
+    fn fresh_preparation_count(&self) -> usize {
+        self.fresh_preparations
+    }
+}
+
+fn empty_slots(count: usize) -> Vec<Option<PreparedPackageSource>> {
+    std::iter::repeat_with(|| None).take(count).collect()
+}
 
 /// How this invocation obtains consumer-scoped semantic bindings.
 /// Explicit input is checked as supplied; it does not trigger discovery or admission.
@@ -38,7 +104,26 @@ pub fn compile_resolved_package_reviews(
     build_root: &Path,
     bindings: SemanticBindingReview<'_>,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    compile_candidate(target_closure, build_root, bindings, None).map(|compiled| compiled.reviews)
+    compile_resolved_package_reviews_reusing(
+        target_closure,
+        build_root,
+        bindings,
+        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
+    )
+}
+
+/// The same candidate review, retaining binding-independent source preparation
+/// in the caller's store. A command reviewing several targets of one resolved
+/// closure prepares each package once; changed sources and selections still
+/// reject through the ordinary custody and checkpoint checks.
+pub fn compile_resolved_package_reviews_reusing(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    bindings: SemanticBindingReview<'_>,
+    preparation: &mut CandidateSourcePreparation,
+) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    compile_candidate(target_closure, build_root, bindings, None, preparation)
+        .map(|compiled| compiled.reviews)
 }
 
 /// Retain the application root from the same final pass that produced its reviews.
@@ -62,7 +147,13 @@ pub fn compile_resolved_package_candidate_for_production(
         .source_root(&root)
         .expect("validated source closure retains its root custody")
         .join("main.omg");
-    let compiled = compile_candidate(target_closure, build_root, bindings, Some(&root_path))?;
+    let compiled = compile_candidate(
+        target_closure,
+        build_root,
+        bindings,
+        Some(&root_path),
+        &mut CandidateSourcePreparation::for_closure(closure),
+    )?;
     let checked_root = compiled.checked_root.ok_or_else(|| {
         CompileResolvedPackageReviewsError::IdentityMismatch {
             package: root.clone(),
@@ -90,6 +181,7 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
         build_root,
         SemanticBindingReview::Discover,
         Some(entry_path),
+        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
     )?;
     compiled
         .checked_root
@@ -104,7 +196,9 @@ fn compile_candidate(
     build_root: &Path,
     bindings: SemanticBindingReview<'_>,
     retained_root_entry: Option<&Path>,
+    preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    preparation.size_for(target_closure.source_closure());
     if let SemanticBindingReview::Explicit(inputs) = bindings {
         return compile_pass(
             target_closure,
@@ -112,17 +206,16 @@ fn compile_candidate(
             inputs,
             retained_root_entry,
             TargetEntryDiscovery::Disabled,
-            PackageSourcePreparation::Independent,
+            preparation,
         );
     }
-    let mut prepared_sources = vec![None; target_closure.source_closure().graph().packages().len()];
     let preliminary = compile_pass(
         target_closure,
         build_root,
         &[],
         retained_root_entry,
         TargetEntryDiscovery::Dependencies,
-        PackageSourcePreparation::Retain(&mut prepared_sources),
+        preparation,
     )?;
     let discovered = candidate_semantic_binding_inputs(&preliminary.reviews)?;
     if discovered.is_empty() {
@@ -137,7 +230,7 @@ fn compile_candidate(
         &discovered,
         retained_root_entry,
         TargetEntryDiscovery::Disabled,
-        PackageSourcePreparation::Consume(&mut prepared_sources),
+        preparation,
     )
 }
 
@@ -147,7 +240,7 @@ fn compile_pass(
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
     retained_root_entry: Option<&Path>,
     discovery: TargetEntryDiscovery,
-    source_preparation: PackageSourcePreparation<'_>,
+    preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let bindings = semantic_bindings_by_consumer(closure, bindings)?;
@@ -160,7 +253,7 @@ fn compile_pass(
         &bindings,
         retained_root_entry,
         discovery,
-        source_preparation,
+        preparation,
     );
     let compiled = session.dispose(result)?;
     if retained_root_entry.is_some() {

@@ -15,13 +15,14 @@ use crate::declarations::BuildFileReplacement;
 use crate::lock::{PackageLock, PackageLockRecoveryLimits};
 use crate::operations::{
     PackageFileTransaction, PackagePublicationLimits, publish_reviewed_package_change,
-    review_package_change, stage_build_dependency_edit,
+    review_package_change_reusing, stage_build_dependency_edit,
 };
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
     GitResolutionOptions, PackageSourceClosureLimits,
     resolve_staged_external_local_project_closure_with_options,
 };
+use crate::review::CandidateSourcePreparation;
 use model::failure;
 pub use model::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
@@ -198,6 +199,9 @@ pub fn execute_package_command(
             "candidate sources or dependency graph changed since the proposal; discard it and review a fresh candidate",
         ));
     }
+    // One closure serves every requested target's review; binding-independent
+    // source preparation happens once and each target still checks fresh.
+    let mut preparation = CandidateSourcePreparation::for_closure(&closure);
     let mut reviews = Vec::new();
     for target in &targets {
         let build_root = transaction
@@ -205,11 +209,12 @@ pub fn execute_package_command(
             .join("build/package-manager")
             .join(format!("check-{}", target.target_name()));
         reviews.push(
-            review_package_change(
+            review_package_change_reusing(
                 closure.clone(),
                 *target,
                 accepted.as_ref().and_then(|lock| lock.target(*target)),
                 &build_root,
+                &mut preparation,
             )
             .map_err(failure)?,
         );

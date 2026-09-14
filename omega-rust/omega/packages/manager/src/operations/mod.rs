@@ -41,7 +41,9 @@ pub use inspect_source::{
     PackageSourceRequestParseError, SourceAdapter, inspect_package_source,
     inspect_package_source_locator,
 };
-pub use package_change::{PackageChangeError, PackageChangeReview, review_package_change};
+pub use package_change::{
+    PackageChangeError, PackageChangeReview, review_package_change, review_package_change_reusing,
+};
 pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
 pub use prepare_project::{
     LocalProjectPreparationOptions, PrepareLocalProjectError, PreparedLocalProject,

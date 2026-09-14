@@ -13,9 +13,10 @@ use crate::resolution::graph::{
     ResolvedPackageSourceClosure,
 };
 use crate::review::{
-    CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits, PackagePolicyChangeSet,
-    PackagePolicyResolution, PackageSourceVerificationPhase, compare_package_policy_changes,
-    compile_resolved_package_reviews, verify_transitive_source_custody,
+    CandidateSourcePreparation, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
+    PackagePolicyChangeSet, PackagePolicyResolution, PackageSourceVerificationPhase,
+    compare_package_policy_changes, compile_resolved_package_reviews_reusing,
+    verify_transitive_source_custody,
 };
 use std::path::Path;
 use target::TargetProfile;
@@ -122,16 +123,36 @@ pub fn review_package_change(
     accepted: Option<&PackageLockTarget>,
     build_root: &Path,
 ) -> Result<PackageChangeReview, PackageChangeError> {
+    review_package_change_reusing(
+        source_closure,
+        target,
+        accepted,
+        build_root,
+        &mut CandidateSourcePreparation::new(),
+    )
+}
+
+/// The same candidate review, retaining binding-independent source preparation
+/// in the caller's store. A command reviewing several targets of this resolved
+/// closure prepares each package once.
+pub fn review_package_change_reusing(
+    source_closure: ResolvedPackageSourceClosure,
+    target: TargetProfile,
+    accepted: Option<&PackageLockTarget>,
+    build_root: &Path,
+    preparation: &mut CandidateSourcePreparation,
+) -> Result<PackageChangeReview, PackageChangeError> {
     if accepted.is_some_and(|accepted| accepted.target() != target) {
         return Err(PackageChangeError::Comparison(
             crate::review::PackagePolicyChangeError::TargetMismatch,
         ));
     }
     let target_closure = source_closure.for_exact_target(target);
-    let reviews = compile_resolved_package_reviews(
+    let reviews = compile_resolved_package_reviews_reusing(
         &target_closure,
         build_root,
         SemanticBindingReview::Discover,
+        preparation,
     )
     .map_err(PackageChangeError::Compilation)?;
     for review in reviews.reviews() {

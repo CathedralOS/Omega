@@ -30,18 +30,11 @@ use package_evidence::record::PackagePolicyRepresentationProducerInstance;
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use super::{CandidateSourcePreparation, PreparedPackageSource};
+
 pub(super) struct CompiledPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
     pub(super) checked_root: Option<Box<compiler::CheckedCompilation>>,
-}
-
-/// Slots follow the resolver's package positions and live only across the two
-/// passes of one candidate. Completed reviews and session authority never enter
-/// these slots. Final compilation consumes each checkpoint after custody checks.
-pub(super) enum PackageSourcePreparation<'a> {
-    Independent,
-    Retain(&'a mut [Option<compiler::PreparedCheckedSource>]),
-    Consume(&'a mut [Option<compiler::PreparedCheckedSource>]),
 }
 
 /// Only the preliminary Discover pass may propose an already-checked
@@ -61,7 +54,7 @@ pub(super) fn compile_dependency_closure(
     semantic_bindings_by_consumer: &BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>,
     retained_root_entry: Option<&Path>,
     discovery: TargetEntryDiscovery,
-    mut source_preparation: PackageSourcePreparation<'_>,
+    preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let target = target_closure.target_profile().target_name();
@@ -203,24 +196,39 @@ pub(super) fn compile_dependency_closure(
             .graph()
             .package_position(&key)
             .expect("reviewed package belongs to the validated graph");
-        let checked = match &mut source_preparation {
-            PackageSourcePreparation::Independent => compile_to_checked(request),
-            PackageSourcePreparation::Retain(prepared_sources) => {
-                let mut request = request;
-                request.prepared_source_output = Some(&mut prepared_sources[position]);
-                compile_to_checked(request)
+        // A populated slot supplies only this package's binding-independent
+        // parse frontier; the child still runs custody, build execution, and
+        // checking, and the checkpoint is written back so a later pass or
+        // candidate of this same closure prepares it once. A slot recorded
+        // under another entry root belongs to a differently resolved package
+        // at this position; it is replaced rather than consumed.
+        let prepared = match preparation.slots[position].take() {
+            Some(slot) if slot.entry_root == *entry => Some(slot.prepared),
+            _ => None,
+        };
+        let mut retained = None;
+        let checked = {
+            let mut request = request;
+            request.prepared_source_output = Some(&mut retained);
+            match prepared {
+                Some(prepared) => prepared.compile_to_checked(request),
+                None => {
+                    preparation.fresh_preparations += 1;
+                    compile_to_checked(request)
+                }
             }
-            PackageSourcePreparation::Consume(prepared_sources) => prepared_sources[position]
-                .take()
-                .expect("successful discovery retained every package's source preparation")
-                .compile_to_checked(request),
-        }
-        .map_err(
-            |diagnostics| CompileResolvedPackageReviewsError::Compilation {
-                package: key.clone(),
-                diagnostics,
-            },
-        )?;
+        };
+        preparation.slots[position] = retained.map(|prepared| PreparedPackageSource {
+            entry_root: entry.to_path_buf(),
+            prepared,
+        });
+        let checked =
+            checked.map_err(
+                |diagnostics| CompileResolvedPackageReviewsError::Compilation {
+                    package: key.clone(),
+                    diagnostics,
+                },
+            )?;
         verify_selected_source_custody(&scope, PackageSourceVerificationPhase::AfterCompilation)?;
         checked
             .verify_current_source_consumption()
