@@ -5,29 +5,6 @@ use crate::psi_lowering::operation_emission::buffer::OperationBuffer;
 
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn shared_literal_carrier_requires_exact_prepared_declaration() {
-        let mut types = Vec::new();
-        assert!(existing_literal_view_type(&types).is_err());
-        let identity = literal_view_type(&mut types).expect("prepare literal carrier");
-        let original = types.clone();
-        assert_eq!(existing_literal_view_type(&types).unwrap(), identity);
-        assert_eq!(literal_view_type(&mut types).unwrap(), identity);
-        assert_eq!(types, original);
-
-        types[0].shape =
-            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                capacity: 8,
-            });
-        assert!(existing_literal_view_type(&types).is_err());
-        assert!(literal_view_type(&mut types).is_err());
-    }
-}
-
 /// Shared callees must use the closure's existing carrier, not allocate one.
 pub(crate) fn existing_literal_view_type(
     types: &[StructuralTypeDeclaration],
@@ -199,4 +176,27 @@ pub(crate) fn emit(
         length,
         obligation: obligation_id(allocate_dense(next_obligation)?),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_literal_carrier_requires_exact_prepared_declaration() {
+        let mut types = Vec::new();
+        assert!(existing_literal_view_type(&types).is_err());
+        let identity = literal_view_type(&mut types).expect("prepare literal carrier");
+        let original = types.clone();
+        assert_eq!(existing_literal_view_type(&types).unwrap(), identity);
+        assert_eq!(literal_view_type(&mut types).unwrap(), identity);
+        assert_eq!(types, original);
+
+        types[0].shape =
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                capacity: 8,
+            });
+        assert!(existing_literal_view_type(&types).is_err());
+        assert!(literal_view_type(&mut types).is_err());
+    }
 }
