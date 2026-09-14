@@ -36,6 +36,11 @@ use target::NativeTarget;
 #[path = "fixture_rosters/layout_plans.rs"]
 mod fixture_roster;
 
+// Reuse the host linker/executor without modifying the shared differential owner.
+#[path = "../../../../../tests/native-differential/tests/common/native_function.rs"]
+#[allow(dead_code)]
+mod native_function;
+
 fn write_program(name: &str, source: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("omega-layout-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
@@ -3232,7 +3237,16 @@ machine Main::main(&mut self) { }
 /// semantic slot the write addresses — while the emitted bytes and machine
 /// footprint belong to the selected architecture. Exact replay validation
 /// proves each lowered fragment still carries the checked write geometry.
-fn lower_writer_on_both_linux_isas(writer: &PostHandoffWriterPlan) {
+///
+/// On a matching Linux host, native execution is compared with the Rust
+/// reference image so target-dependent instruction selection must preserve the
+/// exact semantic slots.
+fn lower_writer_on_both_linux_isas(
+    writer: &PostHandoffWriterPlan,
+    fill: u8,
+    expected_image: &[u8],
+    resolve: impl Fn(RelocationTarget) -> u64,
+) {
     let x86 = program_entry_plan::lower_post_handoff_writer_fragment(
         NativeTarget::linux_x64(),
         MachineRegister::X86Rdi,
@@ -3259,6 +3273,92 @@ fn lower_writer_on_both_linux_isas(writer: &PostHandoffWriterPlan) {
         arm.fragment().bytes(),
         "each ISA emits its own target-dependent writer bytes"
     );
+    assert_eq!(x86.invocation(), arm.invocation());
+    let invocation = x86.invocation();
+    let source_values = invocation
+        .sources()
+        .iter()
+        .map(|slot| resolve(slot.target))
+        .collect::<Vec<_>>();
+    invocation
+        .validate_source_values(&source_values)
+        .expect("resolved source values satisfy the writer invocation");
+    assert_eq!(expected_image.len(), writer.byte_len);
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    let bytes = {
+        let mut bytes = x86.fragment().bytes().to_vec();
+        bytes.push(0xc3);
+        bytes
+    };
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    let bytes = {
+        let mut bytes = arm.fragment().bytes().to_vec();
+        bytes.extend_from_slice(&0xd65f03c0_u32.to_le_bytes());
+        bytes
+    };
+    #[cfg(any(
+        not(target_os = "linux"),
+        all(
+            target_os = "linux",
+            not(any(target_arch = "x86_64", target_arch = "aarch64"))
+        )
+    ))]
+    {
+        eprintln!("skip: native writer execution needs a Linux x86-64 or aarch64 host");
+        return;
+    }
+
+    #[cfg(any(
+        all(target_os = "linux", target_arch = "x86_64"),
+        all(target_os = "linux", target_arch = "aarch64")
+    ))]
+    {
+        let expected = expected_image
+            .iter()
+            .map(|byte| format!("0x{byte:02x}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let source_context = source_values
+            .iter()
+            .enumerate()
+            .map(|(index, value)| format!("    context[{}] = 0x{value:016x}ULL;", index + 1))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let driver = format!(
+            r#"#include <stdint.h>
+#include <string.h>
+
+extern void omega_entry(uint64_t *context);
+
+static const uint8_t expected[] = {{{expected}}};
+
+int main(void) {{
+    struct {{
+        uint64_t before;
+        uint8_t destination[{byte_len}];
+        uint64_t after;
+    }} image;
+    uint64_t context[1 + {source_slot_count}];
+    const uint64_t guard = UINT64_C(0x5a5a5a5a5a5a5a5a);
+
+    image.before = guard;
+    image.after = guard;
+    memset(image.destination, {fill}, {byte_len});
+    context[0] = (uint64_t)(uintptr_t)image.destination;
+{source_context}
+    omega_entry(context);
+    omega_entry(context);
+    return memcmp(image.destination, expected, {byte_len})
+        ? 1
+        : (image.before != guard || image.after != guard) ? 2 : 0;
+}}
+"#,
+            byte_len = writer.byte_len,
+            source_slot_count = source_values.len(),
+        );
+        native_function::assert_c_text(&bytes, 0, &driver);
+    }
 }
 
 #[test]
@@ -3373,7 +3473,10 @@ machine Main::main(&mut self) { }
             .all(|byte| *byte == 0xa5),
         "index materialization writes only the addressed element"
     );
-    lower_writer_on_both_linux_isas(&writer);
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &bytes, |resolved| {
+        assert_eq!(resolved, target);
+        0x1122_3344_5566_7788
+    });
 }
 
 #[test]
@@ -3501,7 +3604,10 @@ machine Main::main(&mut self) { }
             .all(|byte| *byte == 0xa5),
         "nested materialization writes only the addressed member"
     );
-    lower_writer_on_both_linux_isas(&writer);
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &bytes, |resolved| {
+        assert_eq!(resolved, target);
+        0x1122_3344_5566_7788
+    });
 }
 
 #[test]
@@ -3672,7 +3778,14 @@ machine Main::main(&mut self) { }
             .all(|byte| *byte == 0xa5),
         "nested index materialization writes only the addressed member slots"
     );
-    lower_writer_on_both_linux_isas(&writer);
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &bytes, |resolved| {
+        if resolved == entry_target {
+            0x1122_3344_5566_7788
+        } else {
+            assert_eq!(resolved, data_target);
+            0x99aa_bbcc_ddee_ff00
+        }
+    });
 }
 
 #[test]
@@ -3858,5 +3971,12 @@ machine Main::main(&mut self) { }
             .all(|byte| *byte == 0xa5),
         "deeper materialization writes only the addressed member slots"
     );
-    lower_writer_on_both_linux_isas(&writer);
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &bytes, |resolved| {
+        if resolved == entry_target {
+            0x1122_3344_5566_7788
+        } else {
+            assert_eq!(resolved, data_target);
+            0x99aa_bbcc_ddee_ff00
+        }
+    });
 }
