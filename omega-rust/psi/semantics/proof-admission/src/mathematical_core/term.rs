@@ -138,6 +138,31 @@ pub(crate) fn levels_equal(left: &Level, right: &Level) -> bool {
     normal_form(left) == normal_form(right)
 }
 
+/// The instantiation rule for level parameters: replace every
+/// `Parameter(i)` in `level` by `arguments[i]`. Level parameters are
+/// judgment scope, not de Bruijn-bound, so substitution needs no binder
+/// arithmetic — it is the universe-polymorphic analog of instantiation in
+/// the declaration rule. An out-of-range parameter is a malformed
+/// declaration instantiation: typing scope-checks every level argument
+/// before this runs, so `Err(index)` reports the defecting parameter of
+/// an unchecked or malformed input rather than a judgment failure.
+pub(crate) fn instantiate_level(level: &Level, arguments: &[Level]) -> Result<Level, u32> {
+    match level {
+        Level::Constant(_) => Ok(level.clone()),
+        Level::Parameter(index) => arguments
+            .get(usize::try_from(*index).unwrap_or(usize::MAX))
+            .cloned()
+            .ok_or(*index),
+        Level::Successor(inner) => Ok(Level::Successor(Box::new(instantiate_level(
+            inner, arguments,
+        )?))),
+        Level::Maximum(left, right) => Ok(Level::Maximum(
+            Box::new(instantiate_level(left, arguments)?),
+            Box::new(instantiate_level(right, arguments)?),
+        )),
+    }
+}
+
 /// Semantic sort equality: the layers agree (`Type` never converts to
 /// `Strict` — there is no cumulativity and no layer collapse) and the
 /// levels convert.
@@ -289,6 +314,19 @@ pub enum Term {
         motive: TermHandle,
         step: TermHandle,
         tree: TermHandle,
+    },
+    /// A reference to declaration `declaration` of the ambient
+    /// signature, instantiated at `levels` — one level argument per
+    /// universe parameter the declaration is polymorphic over. This is
+    /// how a named definition or assumption enters a judgment: a
+    /// definition constant unfolds to its instantiated body as a
+    /// budgeted step, while an assumption constant is a neutral atom.
+    /// The level arguments are judgment-scope level expressions, not
+    /// terms: no binder binds them and `shift`/`substitute` never
+    /// reach them.
+    Constant {
+        declaration: u32,
+        levels: Vec<Level>,
     },
 }
 
@@ -505,6 +543,16 @@ impl TermArena {
                     && self.structurally_equal(left_step, right_step)
                     && self.structurally_equal(left_tree, right_tree)
             }
+            (
+                Term::Constant {
+                    declaration: left_declaration,
+                    levels: left_levels,
+                },
+                Term::Constant {
+                    declaration: right_declaration,
+                    levels: right_levels,
+                },
+            ) => left_declaration == right_declaration && left_levels == right_levels,
             _ => false,
         }
     }

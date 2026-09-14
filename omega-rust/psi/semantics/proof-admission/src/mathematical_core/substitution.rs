@@ -1,7 +1,7 @@
 //! Capture-avoiding de Bruijn operations. Both functions return the original
 //! handle when no node changes, so unchanged subterms keep their storage.
 
-use super::term::{Term, TermArena, TermHandle};
+use super::term::{Level, Sort, Term, TermArena, TermHandle, instantiate_level};
 
 /// Increase every free variable at or above `cutoff` by `amount`. Returns
 /// `term` unchanged when `amount` is zero or no variable qualifies.
@@ -208,7 +208,15 @@ pub fn shift(arena: &mut TermArena, term: TermHandle, cutoff: u32, amount: u32) 
                 tree: shifted_tree,
             })
         }
-        Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Dummy => term,
+        // A constant's level arguments are judgment-scope level
+        // expressions, not terms: binders never bind them, so a term
+        // shift leaves a constant untouched.
+        Term::Sort(_)
+        | Term::Two
+        | Term::TwoZero
+        | Term::TwoOne
+        | Term::Dummy
+        | Term::Constant { .. } => term,
     }
 }
 
@@ -423,6 +431,246 @@ fn substitute_at(
                 tree: new_tree,
             })
         }
-        Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Dummy => term,
+        // Level arguments are not de Bruijn terms — term substitution
+        // never reaches them.
+        Term::Sort(_)
+        | Term::Two
+        | Term::TwoZero
+        | Term::TwoOne
+        | Term::Dummy
+        | Term::Constant { .. } => term,
+    }
+}
+
+/// Instantiate the universe parameters of `term` at `arguments`: every
+/// `Parameter(i)` inside a `Sort` payload or a nested `Constant`'s level
+/// arguments becomes `arguments[i]`. This is the substitution half of the
+/// declaration rule — a declaration checked at arity `n` is sound at
+/// `arguments` of length `n` because the checking judgment was
+/// parametric. Returns the same handle where nothing changed, so
+/// instantiated subterms keep their storage.
+///
+/// `Err(index)` reports a parameter out of range of `arguments`: typing
+/// scope-checks the declaration's own arity and every instantiation's
+/// argument list before this runs, so reaching it means the signature or
+/// term was malformed input rather than a checked judgment.
+pub fn instantiate_levels(
+    arena: &mut TermArena,
+    term: TermHandle,
+    arguments: &[Level],
+) -> Result<TermHandle, u32> {
+    match arena.get(term) {
+        Term::Sort(sort) => {
+            let level = instantiate_level(&sort.level(), arguments)?;
+            let sort = match sort {
+                Sort::Type(_) => Sort::Type(level),
+                Sort::Strict(_) => Sort::Strict(level),
+            };
+            Ok(arena.insert(Term::Sort(sort)))
+        }
+        Term::Constant {
+            declaration,
+            levels,
+        } => {
+            let mut instantiated = Vec::with_capacity(levels.len());
+            for level in &levels {
+                instantiated.push(instantiate_level(level, arguments)?);
+            }
+            Ok(arena.insert(Term::Constant {
+                declaration,
+                levels: instantiated,
+            }))
+        }
+        Term::Pi { domain, codomain } => {
+            let new_domain = instantiate_levels(arena, domain, arguments)?;
+            let new_codomain = instantiate_levels(arena, codomain, arguments)?;
+            if new_domain == domain && new_codomain == codomain {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Pi {
+                domain: new_domain,
+                codomain: new_codomain,
+            }))
+        }
+        Term::Lambda { domain, body } => {
+            let new_domain = instantiate_levels(arena, domain, arguments)?;
+            let new_body = instantiate_levels(arena, body, arguments)?;
+            if new_domain == domain && new_body == body {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Lambda {
+                domain: new_domain,
+                body: new_body,
+            }))
+        }
+        Term::Apply { function, argument } => {
+            let new_function = instantiate_levels(arena, function, arguments)?;
+            let new_argument = instantiate_levels(arena, argument, arguments)?;
+            if new_function == function && new_argument == argument {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Apply {
+                function: new_function,
+                argument: new_argument,
+            }))
+        }
+        Term::Sigma { domain, codomain } => {
+            let new_domain = instantiate_levels(arena, domain, arguments)?;
+            let new_codomain = instantiate_levels(arena, codomain, arguments)?;
+            if new_domain == domain && new_codomain == codomain {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Sigma {
+                domain: new_domain,
+                codomain: new_codomain,
+            }))
+        }
+        Term::Pair { first, second } => {
+            let new_first = instantiate_levels(arena, first, arguments)?;
+            let new_second = instantiate_levels(arena, second, arguments)?;
+            if new_first == first && new_second == second {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Pair {
+                first: new_first,
+                second: new_second,
+            }))
+        }
+        Term::Fst { pair } => {
+            let new_pair = instantiate_levels(arena, pair, arguments)?;
+            if new_pair == pair {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Fst { pair: new_pair }))
+        }
+        Term::Snd { pair } => {
+            let new_pair = instantiate_levels(arena, pair, arguments)?;
+            if new_pair == pair {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Snd { pair: new_pair }))
+        }
+        Term::CaseTwo {
+            motive,
+            zero_branch,
+            one_branch,
+            scrutinee,
+        } => {
+            let new_motive = instantiate_levels(arena, motive, arguments)?;
+            let new_zero_branch = instantiate_levels(arena, zero_branch, arguments)?;
+            let new_one_branch = instantiate_levels(arena, one_branch, arguments)?;
+            let new_scrutinee = instantiate_levels(arena, scrutinee, arguments)?;
+            if new_motive == motive
+                && new_zero_branch == zero_branch
+                && new_one_branch == one_branch
+                && new_scrutinee == scrutinee
+            {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::CaseTwo {
+                motive: new_motive,
+                zero_branch: new_zero_branch,
+                one_branch: new_one_branch,
+                scrutinee: new_scrutinee,
+            }))
+        }
+        Term::Id { ty, left, right } => {
+            let new_ty = instantiate_levels(arena, ty, arguments)?;
+            let new_left = instantiate_levels(arena, left, arguments)?;
+            let new_right = instantiate_levels(arena, right, arguments)?;
+            if new_ty == ty && new_left == left && new_right == right {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Id {
+                ty: new_ty,
+                left: new_left,
+                right: new_right,
+            }))
+        }
+        Term::Refl { ty, value } => {
+            let new_ty = instantiate_levels(arena, ty, arguments)?;
+            let new_value = instantiate_levels(arena, value, arguments)?;
+            if new_ty == ty && new_value == value {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Refl {
+                ty: new_ty,
+                value: new_value,
+            }))
+        }
+        Term::IdElim {
+            motive,
+            base,
+            endpoint,
+            proof,
+        } => {
+            let new_motive = instantiate_levels(arena, motive, arguments)?;
+            let new_base = instantiate_levels(arena, base, arguments)?;
+            let new_endpoint = instantiate_levels(arena, endpoint, arguments)?;
+            let new_proof = instantiate_levels(arena, proof, arguments)?;
+            if new_motive == motive
+                && new_base == base
+                && new_endpoint == endpoint
+                && new_proof == proof
+            {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::IdElim {
+                motive: new_motive,
+                base: new_base,
+                endpoint: new_endpoint,
+                proof: new_proof,
+            }))
+        }
+        Term::W { carrier, children } => {
+            let new_carrier = instantiate_levels(arena, carrier, arguments)?;
+            let new_children = instantiate_levels(arena, children, arguments)?;
+            if new_carrier == carrier && new_children == children {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::W {
+                carrier: new_carrier,
+                children: new_children,
+            }))
+        }
+        Term::Sup {
+            carrier,
+            children,
+            label,
+            function,
+        } => {
+            let new_carrier = instantiate_levels(arena, carrier, arguments)?;
+            let new_children = instantiate_levels(arena, children, arguments)?;
+            let new_label = instantiate_levels(arena, label, arguments)?;
+            let new_function = instantiate_levels(arena, function, arguments)?;
+            if new_carrier == carrier
+                && new_children == children
+                && new_label == label
+                && new_function == function
+            {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Sup {
+                carrier: new_carrier,
+                children: new_children,
+                label: new_label,
+                function: new_function,
+            }))
+        }
+        Term::IndW { motive, step, tree } => {
+            let new_motive = instantiate_levels(arena, motive, arguments)?;
+            let new_step = instantiate_levels(arena, step, arguments)?;
+            let new_tree = instantiate_levels(arena, tree, arguments)?;
+            if new_motive == motive && new_step == step && new_tree == tree {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::IndW {
+                motive: new_motive,
+                step: new_step,
+                tree: new_tree,
+            }))
+        }
+        // No remaining node can mention a level parameter.
+        Term::Dummy | Term::Variable(_) | Term::Two | Term::TwoZero | Term::TwoOne => Ok(term),
     }
 }

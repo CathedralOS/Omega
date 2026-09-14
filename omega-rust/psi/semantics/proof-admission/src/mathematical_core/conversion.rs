@@ -12,7 +12,8 @@
 //! non-function shared type and grants no pointwise-equality collapse:
 //! `x ↦ g x` and `f` convert only when `g` and `f` already do.
 
-use super::substitution::{shift, substitute};
+use super::signature::Signature;
+use super::substitution::{instantiate_levels, shift, substitute};
 use super::term::{Level, Sort, Term, TermArena, TermHandle, levels_equal, sorts_equal};
 use super::typing::{Context, CoreError, infer_sort, infer_type, w_step_type};
 
@@ -49,18 +50,51 @@ impl Default for Budget {
     }
 }
 
-/// β and pair-projection weak-head normalization. Each reduction consumes
-/// one step.
+/// β, pair-projection, constructor-scrutinee and constant-unfolding
+/// weak-head normalization. Each reduction consumes one step.
+///
+/// Reduction is untyped — it takes the declaration `signature` it unfolds
+/// constants against, never a context. A definition constant unfolds to
+/// its instantiated body as a budgeted step (δ); an assumption constant
+/// is a neutral atom and stays stuck. Unfolding terminates because
+/// signatures are prefix-checked: every constant references a strictly
+/// earlier declaration, so each step lowers the greatest reachable index.
 pub fn weak_head_normalize(
     arena: &mut TermArena,
+    signature: &Signature,
     term: TermHandle,
     budget: &mut Budget,
 ) -> Result<TermHandle, CoreError> {
     let mut current = term;
     loop {
         match arena.get(current) {
+            Term::Constant {
+                declaration,
+                levels,
+            } => {
+                let Some(declaration) = signature.get(declaration) else {
+                    return Err(CoreError::UnknownDeclaration {
+                        declaration,
+                        signature_len: signature.len(),
+                    });
+                };
+                match declaration.body {
+                    Some(body) => {
+                        budget.consume()?;
+                        current = instantiate_levels(arena, body, &levels).map_err(|index| {
+                            CoreError::UnboundLevelParameter {
+                                index,
+                                arity: declaration.level_arity,
+                            }
+                        })?;
+                    }
+                    // An assumption constant is a neutral atom: it has no
+                    // body to unfold and stays stuck.
+                    None => return Ok(current),
+                }
+            }
             Term::Apply { function, argument } => {
-                let head = weak_head_normalize(arena, function, budget)?;
+                let head = weak_head_normalize(arena, signature, function, budget)?;
                 match arena.get(head) {
                     Term::Lambda { body, .. } => {
                         budget.consume()?;
@@ -78,7 +112,7 @@ pub fn weak_head_normalize(
                 }
             }
             Term::Fst { pair } => {
-                let head = weak_head_normalize(arena, pair, budget)?;
+                let head = weak_head_normalize(arena, signature, pair, budget)?;
                 match arena.get(head) {
                     Term::Pair { first, .. } => {
                         budget.consume()?;
@@ -93,7 +127,7 @@ pub fn weak_head_normalize(
                 }
             }
             Term::Snd { pair } => {
-                let head = weak_head_normalize(arena, pair, budget)?;
+                let head = weak_head_normalize(arena, signature, pair, budget)?;
                 match arena.get(head) {
                     Term::Pair { second, .. } => {
                         budget.consume()?;
@@ -118,7 +152,7 @@ pub fn weak_head_normalize(
                 // scrutinee keeps the elimination stuck. There is no
                 // eta law for `Two` — a stuck `caseTwo` is its own
                 // normal form.
-                let head = weak_head_normalize(arena, scrutinee, budget)?;
+                let head = weak_head_normalize(arena, signature, scrutinee, budget)?;
                 match arena.get(head) {
                     Term::TwoZero => {
                         budget.consume()?;
@@ -153,7 +187,7 @@ pub fn weak_head_normalize(
                 // `refl` value, so the match needs no endpoint re-check;
                 // a neutral proof keeps the elimination stuck. There is
                 // no identity eta — a stuck `J` is its own normal form.
-                let head = weak_head_normalize(arena, proof, budget)?;
+                let head = weak_head_normalize(arena, signature, proof, budget)?;
                 match arena.get(head) {
                     Term::Refl { .. } => {
                         budget.consume()?;
@@ -182,7 +216,7 @@ pub fn weak_head_normalize(
                 // child function stays arbitrary — a neutral `k` never
                 // blocks the step. A non-`sup` tree keeps the
                 // elimination stuck; there is no W eta.
-                let head = weak_head_normalize(arena, tree, budget)?;
+                let head = weak_head_normalize(arena, signature, tree, budget)?;
                 match arena.get(head) {
                     Term::Sup {
                         children,
@@ -263,8 +297,8 @@ pub fn convertible(
         return Ok(true);
     }
 
-    let left = weak_head_normalize(arena, left, budget)?;
-    let right = weak_head_normalize(arena, right, budget)?;
+    let left = weak_head_normalize(arena, context.signature(), left, budget)?;
+    let right = weak_head_normalize(arena, context.signature(), right, budget)?;
 
     match (arena.get(left), arena.get(right)) {
         (Term::Sort(left_sort), Term::Sort(right_sort)) => {
@@ -319,7 +353,7 @@ pub fn convertible(
                 body: right_body, ..
             },
         ) => {
-            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
             match arena.get(type_head) {
                 Term::Pi { domain, codomain } => {
                     let extended = context.extend(domain);
@@ -372,7 +406,7 @@ pub fn convertible(
                 second: right_second,
             },
         ) => {
-            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
             match arena.get(type_head) {
                 Term::Sigma { domain, codomain } => {
                     if !convertible(arena, context, left_first, right_first, domain, budget)? {
@@ -393,6 +427,30 @@ pub fn convertible(
         }
         (Term::Variable(left_index), Term::Variable(right_index)) => Ok(left_index == right_index),
         (
+            Term::Constant {
+                declaration: left_declaration,
+                levels: left_levels,
+            },
+            Term::Constant {
+                declaration: right_declaration,
+                levels: right_levels,
+            },
+        ) => {
+            // Stuck constants: both are assumptions — a definition would
+            // have unfolded in weak-head normalization above. They
+            // convert exactly when they name the same declaration at
+            // semantically equal instantiations: `d(max(u, v))` is the
+            // same assumption as `d(max(v, u))`. Both sides share
+            // `shared_type` by the judgment, so a declaration match
+            // already fixes the type; only the level arguments decide.
+            Ok(left_declaration == right_declaration
+                && left_levels.len() == right_levels.len()
+                && left_levels
+                    .iter()
+                    .zip(right_levels.iter())
+                    .all(|(left, right)| levels_equal(left, right)))
+        }
+        (
             Term::Apply {
                 function: left_function,
                 argument: left_argument,
@@ -405,7 +463,7 @@ pub fn convertible(
             // Neutral spines: the heads must convert and the arguments must
             // convert at the function's inferred Π domain.
             let function_type = infer_type(arena, context, left_function, budget)?;
-            let type_head = weak_head_normalize(arena, function_type, budget)?;
+            let type_head = weak_head_normalize(arena, context.signature(), function_type, budget)?;
             match arena.get(type_head) {
                 Term::Pi { domain, .. } => {
                     if !convertible(
@@ -435,7 +493,7 @@ pub fn convertible(
             // Neutral projections: the projected pairs must convert at
             // their inferred `Sigma`.
             let pair_type = infer_type(arena, context, left_pair, budget)?;
-            let pair_head = weak_head_normalize(arena, pair_type, budget)?;
+            let pair_head = weak_head_normalize(arena, context.signature(), pair_type, budget)?;
             match arena.get(pair_head) {
                 Term::Sigma { .. } => {
                     convertible(arena, context, left_pair, right_pair, pair_head, budget)
@@ -543,7 +601,7 @@ pub fn convertible(
             // Two reflexivity proofs at a shared identity type: the `ty`
             // annotations each convert to the shared carrier, so only
             // the values decide — compared at the shared type's carrier.
-            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
             match arena.get(type_head) {
                 Term::Id { ty, .. } => {
                     convertible(arena, context, left_value, right_value, ty, budget)
@@ -585,7 +643,7 @@ pub fn convertible(
                 return Ok(false);
             }
             let proof_type = infer_type(arena, context, left_proof, budget)?;
-            let proof_head = weak_head_normalize(arena, proof_type, budget)?;
+            let proof_head = weak_head_normalize(arena, context.signature(), proof_type, budget)?;
             let (ty, fixed) = match arena.get(proof_head) {
                 Term::Id { ty, left, .. } => (ty, left),
                 _ => return Ok(false),
@@ -680,7 +738,7 @@ pub fn convertible(
             // The annotation fields were already checked into the
             // shared `W`, so they decide nothing here; and there is no
             // W eta, so a `sup` never converts to a non-`sup`.
-            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
             match arena.get(type_head) {
                 Term::W { carrier, children } => {
                     if !convertible(arena, context, left_label, right_label, carrier, budget)? {
@@ -735,7 +793,7 @@ pub fn convertible(
                 return Ok(false);
             }
             let tree_type = infer_type(arena, context, left_tree, budget)?;
-            let tree_head = weak_head_normalize(arena, tree_type, budget)?;
+            let tree_head = weak_head_normalize(arena, context.signature(), tree_type, budget)?;
             let (carrier, children) = match arena.get(tree_head) {
                 Term::W { carrier, children } => (carrier, children),
                 _ => return Ok(false),
@@ -749,7 +807,7 @@ pub fn convertible(
         (Term::Pair { first, second }, _) => {
             // Pair eta: a literal pair converts to a non-pair only when the
             // non-pair's projections convert to its components.
-            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
             match arena.get(type_head) {
                 Term::Sigma { domain, codomain } => {
                     let right_first = arena.insert(Term::Fst { pair: right });
@@ -764,7 +822,7 @@ pub fn convertible(
             }
         }
         (_, Term::Pair { first, second }) => {
-            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
             match arena.get(type_head) {
                 Term::Sigma { domain, codomain } => {
                     let left_first = arena.insert(Term::Fst { pair: left });
@@ -788,7 +846,7 @@ pub fn convertible(
             // so an `f x` body converts only when `f` itself does; a
             // pointwise match is never enough. A strict `Pi` never reaches
             // here — irrelevance already collapsed its inhabitants.
-            let type_head = weak_head_normalize(arena, shared_type, budget)?;
+            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
             match arena.get(type_head) {
                 Term::Pi { domain, codomain } => {
                     let (lambda_body, other) = match (arena.get(left), arena.get(right)) {
@@ -823,12 +881,12 @@ fn w_children_level(
     budget: &mut Budget,
 ) -> Result<Option<Level>, CoreError> {
     let family_type = infer_type(arena, context, family, budget)?;
-    let head = weak_head_normalize(arena, family_type, budget)?;
+    let head = weak_head_normalize(arena, context.signature(), family_type, budget)?;
     let codomain = match arena.get(head) {
         Term::Pi { codomain, .. } => codomain,
         _ => return Ok(None),
     };
-    let codomain_head = weak_head_normalize(arena, codomain, budget)?;
+    let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
     match arena.get(codomain_head) {
         Term::Sort(Sort::Type(level)) => Ok(Some(level)),
         _ => Ok(None),

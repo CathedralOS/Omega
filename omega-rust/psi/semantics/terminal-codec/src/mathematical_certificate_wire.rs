@@ -24,19 +24,30 @@
 //! parameters the judgment is polymorphic over — and sorts carry level
 //! expressions (`constant | parameter | successor | maximum`), so a
 //! universe-polymorphic judgment survives the wire exactly.
+//!
+//! Format 3 carries the ambient declaration signature between the term
+//! table and the judgment roots: each declaration is its level arity, its
+//! statement's table index and an optional body's table index, in signature
+//! order. `Term::Constant` nodes name a declaration position and carry
+//! their level arguments inline. A constant never encodes what its
+//! declaration is — that is the signature's job — so a forged index can
+//! only point at a checked declaration or nowhere.
 
 use std::collections::HashMap;
 
-use proof_admission::{Level, MathematicalCertificate, Sort, Term, TermArena, TermHandle};
+use proof_admission::{
+    Declaration, Level, MathematicalCertificate, Sort, Term, TermArena, TermHandle,
+};
 
 use super::CodecError;
 use super::wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSICORE\0";
-/// Format 2 adds the judgment's level arity and level expressions inside
-/// sorts; format 1 held only closed constant levels and must not decode
-/// polymorphic syntax as a constant.
-const FORMAT_MARKER: u16 = 2;
+/// Format 3 adds the declaration signature and `Term::Constant`; format 2
+/// carried level expressions but no declarations, and format 1 held only
+/// closed constant levels. Neither must decode a signature as judgment
+/// roots.
+const FORMAT_MARKER: u16 = 3;
 /// Matches the other codec term depth bounds; exceeding it refuses the
 /// certificate, never decides against the judgment it carries.
 const MAX_MATHEMATICAL_TERM_DEPTH: u32 = 256;
@@ -64,6 +75,30 @@ pub fn encode_mathematical_certificate(
     let mut by_handle = HashMap::new();
     let mut by_bytes = HashMap::new();
     let mut count = 0u32;
+    // Declaration statements and bodies are roots: the signature's terms
+    // join the table before the judgment's, in signature order.
+    for declaration in &certificate.signature {
+        encode_term(
+            &mut nodes,
+            arena,
+            declaration.ty,
+            &mut by_handle,
+            &mut by_bytes,
+            &mut count,
+            0,
+        )?;
+        if let Some(body) = declaration.body {
+            encode_term(
+                &mut nodes,
+                arena,
+                body,
+                &mut by_handle,
+                &mut by_bytes,
+                &mut count,
+                0,
+            )?;
+        }
+    }
     for &binding in &certificate.context {
         encode_term(
             &mut nodes,
@@ -100,6 +135,21 @@ pub fn encode_mathematical_certificate(
     writer.u32(certificate.level_arity);
     writer.u32(count);
     writer.bytes(&nodes.finish());
+    writer.len(
+        "mathematical certificate signature",
+        certificate.signature.len(),
+    )?;
+    for declaration in &certificate.signature {
+        writer.u32(declaration.level_arity);
+        writer.u32(by_handle[&declaration.ty]);
+        match declaration.body {
+            Some(body) => {
+                writer.u8(1);
+                writer.u32(by_handle[&body]);
+            }
+            None => writer.u8(0),
+        }
+    }
     writer.len(
         "mathematical certificate context",
         certificate.context.len(),
@@ -142,6 +192,28 @@ pub fn decode_mathematical_certificate(
         depths.push(depth);
         handles.push(arena.insert(term));
     }
+    let signature_count =
+        usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
+    // A declaration occupies at least nine bytes (arity, statement index,
+    // body flag), so a count beyond the remaining input cannot parse.
+    if signature_count > reader.remaining() {
+        return Err(CodecError::UnexpectedEnd);
+    }
+    let mut signature = Vec::with_capacity(signature_count);
+    for _ in 0..signature_count {
+        let level_arity = reader.u32()?;
+        let ty = decode_root(&mut reader, &handles)?;
+        let body = if reader.boolean()? {
+            Some(decode_root(&mut reader, &handles)?)
+        } else {
+            None
+        };
+        signature.push(Declaration {
+            level_arity,
+            ty,
+            body,
+        });
+    }
     let context_count = usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
     if context_count > reader.remaining() {
         return Err(CodecError::UnexpectedEnd);
@@ -156,6 +228,7 @@ pub fn decode_mathematical_certificate(
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
     let certificate = MathematicalCertificate {
+        signature,
         level_arity,
         context,
         term,
@@ -434,6 +507,17 @@ fn encode_term(
             node.u32(step);
             node.u32(tree);
         }
+        Term::Constant {
+            declaration,
+            levels,
+        } => {
+            node.u8(20);
+            node.u32(declaration);
+            node.len("constant level arguments", levels.len())?;
+            for level in levels {
+                encode_level(&mut node, level, 0)?;
+            }
+        }
     }
     let bytes = node.finish();
     if let Some(&index) = by_bytes.get(&bytes) {
@@ -650,6 +734,28 @@ fn decode_term(
                 1 + motive_depth.max(step_depth).max(tree_depth),
             )
         }
+        20 => {
+            let declaration = reader.u32()?;
+            let level_count = usize::try_from(reader.count()?).map_err(|_| {
+                CodecError::MalformedMathematicalCertificate("constant level count too large")
+            })?;
+            // Every level expression takes at least one byte, so a count
+            // beyond the remaining input cannot parse.
+            if level_count > reader.remaining() {
+                return Err(CodecError::UnexpectedEnd);
+            }
+            let mut levels = Vec::with_capacity(level_count);
+            for _ in 0..level_count {
+                levels.push(decode_level(reader, 0)?);
+            }
+            (
+                Term::Constant {
+                    declaration,
+                    levels,
+                },
+                1,
+            )
+        }
         tag => return Err(CodecError::InvalidTag("MathematicalTerm", tag)),
     })
 }
@@ -724,6 +830,7 @@ mod tests {
         let codomain = pi(&mut arena, codomain_domain, codomain_body);
         let expected = pi(&mut arena, type_zero, codomain);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term: identity,
@@ -764,6 +871,7 @@ mod tests {
         let body = lambda(&mut arena, bound, type_zero_again);
         let term = lambda(&mut arena, type_zero, body);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term,
@@ -781,6 +889,7 @@ mod tests {
         let mut arena = TermArena::new();
         let type_zero = type_sort(&mut arena, 0);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term: TermHandle::default(),
@@ -900,6 +1009,7 @@ mod tests {
             codomain: sigma_codomain,
         });
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: vec![type_zero, a_binding, two_binding],
             term,
@@ -925,8 +1035,8 @@ mod tests {
         let (arena, certificate) = polymorphic_identity();
         let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
         // Forged: one unreachable `Variable(0)` node appended after the real
-        // table, roots unchanged.
-        let roots_len = 4 + 4 + 4; // empty context count + term + expected
+        // table, signature and roots unchanged.
+        let roots_len = 4 + 4 + 4 + 4; // empty signature + context counts + term + expected
         let split = bytes.len() - roots_len;
         let node_count = u32::from_le_bytes(bytes[14..18].try_into().unwrap());
         let mut forged = Vec::new();
@@ -953,6 +1063,7 @@ mod tests {
         let bound = variable(&mut arena, 0);
         let shifted = variable(&mut arena, 1);
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 2,
             context: vec![binding_type, bound],
             term: bound,
@@ -1002,10 +1113,12 @@ mod tests {
     }
 
     #[test]
-    fn format_one_and_unknown_markers_do_not_decode() {
+    fn stale_and_unknown_markers_do_not_decode() {
         let (arena, certificate) = polymorphic_identity();
         let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-        for marker in [0_u16, 1, 3] {
+        // Formats 0–2 predate the signature section; an unknown marker is
+        // refused the same way rather than guessing a layout.
+        for marker in [0_u16, 1, 2, 9] {
             let mut stale = bytes.clone();
             stale[8..10].copy_from_slice(&marker.to_le_bytes());
             assert!(matches!(
@@ -1041,6 +1154,7 @@ mod tests {
         let mut arena = TermArena::new();
         let deep_sort = arena.insert(Term::Sort(Sort::Type(deep)));
         let certificate = MathematicalCertificate {
+            signature: Vec::new(),
             level_arity: 0,
             context: Vec::new(),
             term: deep_sort,

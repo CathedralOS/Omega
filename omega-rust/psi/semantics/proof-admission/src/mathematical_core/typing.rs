@@ -5,26 +5,34 @@
 //! their dependent eliminators.
 
 use super::conversion::{Budget, convertible, weak_head_normalize};
-use super::substitution::{shift, substitute};
+use super::signature::Signature;
+use super::substitution::{instantiate_levels, shift, substitute};
 use super::term::{Level, Sort, Term, TermArena, TermHandle};
 
-/// Types of the bound variables, innermost last, plus the judgment's level
-/// arity — the count of universe parameters every `Level::Parameter` must
-/// stay under. Each stored type is well-scoped for its own prefix;
-/// `lookup` shifts it into the full context.
+/// The full ambient judgment scope `Σ; Δ; Γ`: the signature `Σ` of
+/// declarations every `Constant` resolves through, the level arity `Δ` —
+/// the count of universe parameters every `Level::Parameter` must stay
+/// under — and the types of the bound variables `Γ`, innermost last.
+/// Each stored type is well-scoped for its own prefix; `lookup` shifts it
+/// into the full context. Extending a binder never touches the signature
+/// or the level arity: constants and level parameters are judgment scope,
+/// not de Bruijn-bound.
 #[derive(Clone, Debug, Default)]
 pub struct Context {
     bindings: Vec<TermHandle>,
     level_arity: u32,
+    signature: Signature,
 }
 
 impl Context {
-    /// The closed context: no term bindings and no universe parameters, so
-    /// every level must be a closed constant.
+    /// The closed context: no term bindings, no universe parameters and
+    /// no declarations, so every level must be a closed constant and no
+    /// `Constant` resolves.
     pub fn empty() -> Self {
         Self {
             bindings: Vec::new(),
             level_arity: 0,
+            signature: Signature::new(),
         }
     }
 
@@ -32,16 +40,35 @@ impl Context {
     /// parameters: `Level::Parameter(i)` is in scope exactly when
     /// `i < level_arity`. This is the substrate of a universe-polymorphic
     /// declaration — the judgment holds for every level instantiation.
+    /// The signature starts empty; `with_signature` installs one.
     pub fn with_level_arity(level_arity: u32) -> Self {
         Self {
             bindings: Vec::new(),
             level_arity,
+            signature: Signature::new(),
         }
     }
 
     /// The number of universe parameters in scope for this judgment.
     pub fn level_arity(&self) -> u32 {
         self.level_arity
+    }
+
+    /// The declaration signature this judgment resolves `Constant`
+    /// references against — the ambient `Σ`, unchanged by binders.
+    pub fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    /// The same judgment scope under `signature`. The signature is
+    /// ambient, not a binder, so the local bindings and level arity carry
+    /// over unchanged.
+    pub fn with_signature(&self, signature: Signature) -> Context {
+        Context {
+            bindings: self.bindings.clone(),
+            level_arity: self.level_arity,
+            signature,
+        }
     }
 
     /// A new context with one more innermost binding of type `domain`.
@@ -53,6 +80,7 @@ impl Context {
         Context {
             bindings,
             level_arity: self.level_arity,
+            signature: self.signature.clone(),
         }
     }
 
@@ -185,6 +213,22 @@ pub enum CoreError {
     InductionMotiveCodomainNotAUniverse {
         codomain: TermHandle,
     },
+    /// A `Constant` names a declaration position the ambient signature
+    /// does not have — a forward reference, a self-reference (the
+    /// signature only holds the checked prefix), or a reference into an
+    /// empty signature. Malformed, never a valid judgment.
+    UnknownDeclaration {
+        declaration: u32,
+        signature_len: usize,
+    },
+    /// A `Constant` instantiation must supply exactly the declaration's
+    /// own level arity — the judgment claims the declaration at precisely
+    /// those universe parameters.
+    DeclarationArityMismatch {
+        declaration: u32,
+        expected: u32,
+        supplied: usize,
+    },
     ArgumentTypeMismatch {
         expected: TermHandle,
         actual: TermHandle,
@@ -205,7 +249,7 @@ pub fn infer_sort(
     budget: &mut Budget,
 ) -> Result<Sort, CoreError> {
     let inferred = infer_type(arena, context, term, budget)?;
-    let head = weak_head_normalize(arena, inferred, budget)?;
+    let head = weak_head_normalize(arena, context.signature(), inferred, budget)?;
     match arena.get(head) {
         Term::Sort(sort) => Ok(sort),
         _ => Err(CoreError::NotASort {
@@ -263,7 +307,8 @@ pub fn infer_type(
         }
         Term::Apply { function, argument } => {
             let function_type = infer_type(arena, context, function, budget)?;
-            let function_head = weak_head_normalize(arena, function_type, budget)?;
+            let function_head =
+                weak_head_normalize(arena, context.signature(), function_type, budget)?;
             match arena.get(function_head) {
                 Term::Pi { domain, codomain } => {
                     if let Term::Pair { .. } = arena.get(argument) {
@@ -319,7 +364,7 @@ pub fn infer_type(
         }
         Term::Fst { pair } => {
             let pair_type = infer_type(arena, context, pair, budget)?;
-            let head = weak_head_normalize(arena, pair_type, budget)?;
+            let head = weak_head_normalize(arena, context.signature(), pair_type, budget)?;
             match arena.get(head) {
                 Term::Sigma { domain, .. } => Ok(domain),
                 _ => Err(CoreError::NotAPair {
@@ -330,7 +375,7 @@ pub fn infer_type(
         }
         Term::Snd { pair } => {
             let pair_type = infer_type(arena, context, pair, budget)?;
-            let head = weak_head_normalize(arena, pair_type, budget)?;
+            let head = weak_head_normalize(arena, context.signature(), pair_type, budget)?;
             match arena.get(head) {
                 Term::Sigma { codomain, .. } => {
                     // `snd p : B[fst p]` — the dependent result keeps the
@@ -361,7 +406,7 @@ pub fn infer_type(
             // off the checked codomain — elimination is not confined to
             // the scrutinee's level.
             let motive_type = infer_type(arena, context, motive, budget)?;
-            let motive_head = weak_head_normalize(arena, motive_type, budget)?;
+            let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
             let codomain = match arena.get(motive_head) {
                 Term::Pi { domain, codomain } => {
                     let two = arena.insert(Term::Two);
@@ -382,7 +427,7 @@ pub fn infer_type(
                     });
                 }
             };
-            let codomain_head = weak_head_normalize(arena, codomain, budget)?;
+            let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
             match arena.get(codomain_head) {
                 Term::Sort(Sort::Type(_)) => {}
                 Term::Sort(Sort::Strict(_)) => {
@@ -454,7 +499,7 @@ pub fn infer_type(
             // endpoint, so an elimination never silently relocates its
             // target.
             let proof_type = infer_type(arena, context, proof, budget)?;
-            let proof_head = weak_head_normalize(arena, proof_type, budget)?;
+            let proof_head = weak_head_normalize(arena, context.signature(), proof_type, budget)?;
             let (ty, fixed, recorded) = match arena.get(proof_head) {
                 Term::Id { ty, left, right } => (ty, left, right),
                 _ => {
@@ -472,7 +517,7 @@ pub fn infer_type(
                 });
             }
             let motive_type = infer_type(arena, context, motive, budget)?;
-            let motive_head = weak_head_normalize(arena, motive_type, budget)?;
+            let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
             let (domain, first_codomain) = match arena.get(motive_head) {
                 Term::Pi { domain, codomain } => (domain, codomain),
                 _ => {
@@ -494,7 +539,8 @@ pub fn infer_type(
             // function of the identity proof, at `Id A x y` with `A`
             // and `x` shifted under the binder and `y` naming it.
             let extended = context.extend(domain);
-            let first_codomain_head = weak_head_normalize(arena, first_codomain, budget)?;
+            let first_codomain_head =
+                weak_head_normalize(arena, context.signature(), first_codomain, budget)?;
             let (proof_domain, motive_codomain) = match arena.get(first_codomain_head) {
                 Term::Pi { domain, codomain } => (domain, codomain),
                 _ => {
@@ -530,7 +576,8 @@ pub fn infer_type(
             // elimination is not confined to the carrier's level — but
             // it must be a relevant universe: strict targets belong to
             // the reference core's boxing rules.
-            let codomain_head = weak_head_normalize(arena, motive_codomain, budget)?;
+            let codomain_head =
+                weak_head_normalize(arena, context.signature(), motive_codomain, budget)?;
             match arena.get(codomain_head) {
                 Term::Sort(Sort::Type(_)) => {}
                 Term::Sort(Sort::Strict(_)) => {
@@ -605,7 +652,7 @@ pub fn infer_type(
             // is read off the checked codomain rather than confined to
             // the tree's level.
             let tree_type = infer_type(arena, context, tree, budget)?;
-            let tree_head = weak_head_normalize(arena, tree_type, budget)?;
+            let tree_head = weak_head_normalize(arena, context.signature(), tree_type, budget)?;
             let (carrier, children) = match arena.get(tree_head) {
                 Term::W { carrier, children } => (carrier, children),
                 _ => {
@@ -616,7 +663,7 @@ pub fn infer_type(
                 }
             };
             let motive_type = infer_type(arena, context, motive, budget)?;
-            let motive_head = weak_head_normalize(arena, motive_type, budget)?;
+            let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
             let codomain = match arena.get(motive_head) {
                 Term::Pi { domain, codomain } => {
                     let domain_sort = infer_sort(arena, context, domain, budget)?;
@@ -636,7 +683,7 @@ pub fn infer_type(
                     });
                 }
             };
-            let codomain_head = weak_head_normalize(arena, codomain, budget)?;
+            let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
             match arena.get(codomain_head) {
                 Term::Sort(Sort::Type(_)) => {}
                 Term::Sort(Sort::Strict(_)) => {
@@ -652,6 +699,42 @@ pub fn infer_type(
                 function: motive,
                 argument: tree,
             }))
+        }
+        Term::Constant {
+            declaration: index,
+            levels,
+        } => {
+            // `d(ls) : instantiate(decl[d].ty, ls)` — the declaration's
+            // statement instantiated at the supplied level arguments. The
+            // reference is checked, never trusted: the declaration must
+            // exist in the ambient signature (which for a declaration
+            // under check holds only its prefix, so self- and forward
+            // references never resolve), the instantiation must supply
+            // exactly its level arity, and every level argument must be
+            // in scope under this judgment's own arity.
+            let signature = context.signature();
+            let Some(declaration) = signature.get(index) else {
+                return Err(CoreError::UnknownDeclaration {
+                    declaration: index,
+                    signature_len: signature.len(),
+                });
+            };
+            if levels.len() != declaration.level_arity as usize {
+                return Err(CoreError::DeclarationArityMismatch {
+                    declaration: index,
+                    expected: declaration.level_arity,
+                    supplied: levels.len(),
+                });
+            }
+            for level in &levels {
+                check_level(context.level_arity(), level)?;
+            }
+            instantiate_levels(arena, declaration.ty, &levels).map_err(|index| {
+                CoreError::UnboundLevelParameter {
+                    index,
+                    arity: declaration.level_arity,
+                }
+            })
         }
     }
 }
@@ -699,7 +782,7 @@ fn check_w_formation(
         Sort::Strict(_) => return Err(CoreError::StrictWCarrier { carrier }),
     };
     let children_type = infer_type(arena, context, children, budget)?;
-    let children_head = weak_head_normalize(arena, children_type, budget)?;
+    let children_head = weak_head_normalize(arena, context.signature(), children_type, budget)?;
     let (domain, codomain) = match arena.get(children_head) {
         Term::Pi { domain, codomain } => (domain, codomain),
         _ => {
@@ -717,7 +800,7 @@ fn check_w_formation(
             actual: domain,
         });
     }
-    let codomain_head = weak_head_normalize(arena, codomain, budget)?;
+    let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
     let children_level = match arena.get(codomain_head) {
         Term::Sort(Sort::Type(level)) => level,
         Term::Sort(Sort::Strict(_)) => {
@@ -824,7 +907,7 @@ pub fn check_type(
     // A pair against a `Sigma` checks componentwise, so the second
     // component sees the dependent codomain instantiated by the first.
     if let Term::Pair { first, second } = arena.get(term) {
-        let head = weak_head_normalize(arena, expected, budget)?;
+        let head = weak_head_normalize(arena, context.signature(), expected, budget)?;
         if let Term::Sigma { domain, codomain } = arena.get(head) {
             check_type(arena, context, first, domain, budget)?;
             let second_type = substitute(arena, codomain, first);
