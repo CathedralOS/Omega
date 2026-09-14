@@ -1,0 +1,9 @@
+module first;
+
+// `first` and `second` publish identically named schemas. The codec call
+// receiver must select the declaration its authored path names: the
+// qualified spelling `second::Counter` binds `second`'s two-field schema,
+// never `first`'s same-named one and never whichever was declared first.
+pub data Counter {
+    #1 counter: i32;
+}

@@ -19,6 +19,11 @@ pub(crate) use schema_validation::validate_wire_schemas;
 /// 2a) or `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)`
 /// decoder (wire stage 2b). Returns `true` when the receiver names a wire
 /// schema (the call belongs to this module whether or not it validates).
+///
+/// The receiver binds by its resolved declaration symbol
+/// (`wire_call_receiver_schema`), so a qualified `module::Schema::encode`
+/// reaches here and same-named schemas in sibling modules cannot be
+/// confused by the receiver's leaf spelling.
 pub(crate) fn validate_wire_schema_call(
     program: &TypedTrees,
     call: &typed_trees::statement::TableCall,
@@ -26,16 +31,8 @@ pub(crate) fn validate_wire_schema_call(
     current_state: Option<&typed_trees::state::State>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    let receiver_members = program.statement_table.name_path_members(call.receiver);
-    let [schema_name] = receiver_members else {
-        return false;
-    };
-    let Some(schema) = program
-        .wire_schemas()
-        .iter()
-        .find(|schema| schema.name.as_str() == schema_name.as_str())
-    else {
-        return false;
+    let Some(schema) = program.wire_call_receiver_schema(call) else {
+        return ambiguous_schema_receiver(program, call, diagnostics);
     };
 
     match call.target.as_str() {
@@ -76,6 +73,50 @@ pub(crate) fn validate_wire_schema_call(
             )));
         }
     }
+    true
+}
+
+/// A codec-spelled call (`encode`/`decode`, including the retired spellings)
+/// whose receiver did not resolve to one schema still belongs to this module
+/// when its leaf names more than one wire schema: the call is rejected with
+/// the ambiguity rather than silently binding the first declaration or
+/// reporting the receiver as undeclared state storage.
+fn ambiguous_schema_receiver(
+    program: &TypedTrees,
+    call: &typed_trees::statement::TableCall,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if !matches!(
+        call.target.as_str(),
+        typed_trees::wire::WIRE_ENCODE_MACHINE_NAME
+            | typed_trees::wire::WIRE_DECODE_MACHINE_NAME
+            | "encode_wire"
+            | "decode_wire"
+    ) {
+        return false;
+    }
+    let members = program.statement_table.name_path_members(call.receiver);
+    let Some(leaf) = members.last() else {
+        return false;
+    };
+    let candidates: Vec<String> = program
+        .wire_schemas()
+        .iter()
+        .map(|schema| program.symbols.display_path(schema.symbol, "::"))
+        .filter(|path| path.rsplit("::").next() == Some(leaf.as_str()))
+        .collect();
+    if candidates.len() < 2 {
+        return false;
+    }
+    let authored = members
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    diagnostics.push(Diagnostic::error(format!(
+        "codec call receiver `{authored}` is ambiguous between wire schemas {}; qualify the receiver path",
+        candidates.join(", ")
+    )));
     true
 }
 

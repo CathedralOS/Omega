@@ -807,6 +807,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "versioning/versioned_match_default_arm",
     "wire/wire_compatibility_migration_out_of_order_eras",
     "wire/wire_compatibility_migration_same_named_eras",
+    "wire/wire_codec_qualified_schema_calls",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
@@ -1685,6 +1686,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "versioning/data_version_block_retired",
     "wire/wire_compatibility_migration_same_named_route_missing",
     "wire/wire_compatibility_migration_ambiguous_era",
+    "wire/wire_codec_ambiguous_schema_receiver",
+    "wire/wire_codec_schema_identity_buffer_bound",
 ];
 
 #[path = "canary_suite/entry_and_abi.rs"]
