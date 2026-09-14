@@ -2013,6 +2013,13 @@ pub(crate) fn validate_linear_permission_events(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut selected_replay = CheckFacts::default();
+    // `record_statement` consults the borrow ledger and the statement-entry
+    // constraint sets to decide whether a once-borrowed source may join a
+    // selection. Those are inputs recorded by earlier passes, so the replay
+    // seeds them unchanged while the ownership arenas it fills stay fresh.
+    selected_replay.borrow = facts.borrow.clone();
+    selected_replay.flow.contexts = facts.flow.contexts.clone();
+    selected_replay.flow.control = facts.flow.control.clone();
 
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(state) = crate::find_state(program, state_flow.state_symbol) else {

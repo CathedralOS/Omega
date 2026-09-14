@@ -196,16 +196,23 @@ pub(super) fn record_statement(
                 "owned match source must be an available whole immutable plain-affine local of the exact result type",
             ));
         }
-        // Loan-bearing selection is outside this receipt's whole-owned scope.
-        // Existing borrow checking remains authoritative; do not admit a new
-        // conditional move while relying on an unrepresented loan closure.
-        if statements[..statement_index].iter().any(|statement| {
-            statement_expressions(program, statement).iter().any(|expression| {
-                matches!(program.expression_table.expression(*expression), ExpressionNode::Borrow(borrow)
-                    if expression_names(program, borrow.target, symbol))
-            })
-        }) {
-            return Err(Diagnostic::error("owned match source with borrowed custody requires selected loan-closure evidence"));
+        // A source whose custody was borrowed joins the selection once every
+        // recorded loan on its root has already closed. A loan still live at
+        // this edge would need per-edge closure evidence the receipt cannot
+        // express, and a borrow the ledger never recorded cannot vouch for
+        // closure either, so both keep the conservative rejection.
+        if source_needs_loan_closure(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            &statements[..statement_index],
+            symbol,
+        ) {
+            return Err(Diagnostic::error(
+                "owned match source with borrowed custody requires selected loan-closure evidence",
+            ));
         }
         if !origin_selection.is_valid() && provenance == PermissionProvenance::Unknown {
             return Err(Diagnostic::error(
@@ -313,6 +320,63 @@ pub(super) fn apply_availability(
         place.ever_established = true;
         place.provenance = Some(PermissionProvenance::Unknown);
         place.claim_identity = Some(PermissionClaimIdentity::Unknown);
+    }
+}
+
+/// Whether an owned match source still owes loan-closure evidence: either a
+/// syntactic borrow the loan ledger never recorded (an escape without a
+/// trackable loan, for example persistent machine storage) or a recorded loan
+/// on the source root still live at this statement's entry. The flow builder
+/// drops a loan from the entry constraint set once its last use passes, so a
+/// once-borrowed source whose loans all closed joins like any other owner; a
+/// live loan keeps the explicit rejection instead of guessing at referent
+/// custody across the conditional move.
+fn source_needs_loan_closure(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    prior_statements: &[StatementNode],
+    symbol: SymbolHandle,
+) -> bool {
+    let borrowed = prior_statements.iter().any(|statement| {
+        statement_expressions(program, statement).iter().any(|expression| {
+            matches!(program.expression_table.expression(*expression), ExpressionNode::Borrow(borrow)
+                if expression_names(program, borrow.target, symbol))
+        })
+    });
+    let recorded = facts
+        .borrow
+        .loans
+        .iter()
+        .any(|(_, loan)| loan.root_symbol == symbol);
+    if borrowed && !recorded {
+        return true;
+    }
+    if !recorded {
+        return false;
+    }
+    let statement_fact = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, flow_state)| {
+            (flow_state.machine_symbol == machine.symbol && flow_state.state_symbol == state.symbol)
+                .then_some(flow_state)
+        })
+        .and_then(|flow_state| facts.flow.state_statement(flow_state, statement_index));
+    match statement_fact {
+        Some(statement_fact) => facts
+            .flow
+            .borrow_loan_constraints(statement_fact.entry_constraints)
+            .any(|loan| facts.borrow.loans.get(loan).root_symbol == symbol),
+        // Without the statement's entry constraint set, fall back to the
+        // loan's recorded last use, the same boundary the expiry filter uses.
+        None => facts.borrow.loans.iter().any(|(_, loan)| {
+            loan.root_symbol == symbol && loan.last_use_statement_index >= statement_index
+        }),
     }
 }
 

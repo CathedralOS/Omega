@@ -240,10 +240,113 @@ fn owned_selection_in_call_argument_is_rejected_or_retains_a_receipt() {
 }
 
 #[test]
-fn owned_selection_admits_fresh_arms_and_keeps_the_borrowed_custody_fence() {
+fn owned_selection_admits_fresh_arms_and_closed_loan_sources() {
     lower("let result: Choice = match selected { true -> left, false -> Choice::Empty }; result in Choice::Some")
         .expect("a fresh exact-type arm joins an existing source");
-    assert!(lower("let view: &Choice = &left; let result: Choice = match selected { true -> left, false -> right }; result in Choice::Some").is_err());
+    for body in [
+        // The stored view is never used again: its loan expired before the
+        // selection edge, so the source's owned custody is intact.
+        "let view: &Choice = &left; let result: Choice = match selected { true -> left, false -> right }; result in Choice::Some",
+        // The loan's last use is a real read before the selection edge.
+        "let view: &Choice = &left; let seen: bool = view in Choice::Some; let result: Choice = match selected { true -> left, false -> right }; seen && result in Choice::Some",
+    ] {
+        lower(body).expect("closed loans admit the once-borrowed source");
+    }
+}
+
+#[test]
+fn owned_selection_keeps_the_live_loan_custody_fence() {
+    // `view` is still read after the match, so its loan on `left` is live at
+    // the selection edge and the conditional move stays rejected.
+    let errors = lower(
+        "let view: &Choice = &left; let result: Choice = match selected { true -> left, false -> right }; view in Choice::Some",
+    )
+    .expect_err("a live loan keeps the borrowed-custody fence");
+    assert!(
+        format!("{errors:?}").contains("requires selected loan-closure evidence"),
+        "{errors:#?}"
+    );
+}
+
+#[test]
+fn owned_selection_replay_rejects_a_loan_made_live_past_the_edge() {
+    let checked = lower(
+        "let view: &Choice = &left; let result: Choice = match selected { true -> left, false -> right }; result in Choice::Some",
+    )
+    .expect("a closed loan admits the once-borrowed source");
+    let mut facts = checked.facts.clone();
+    // Reattach the closed loan to the selection edge's entry constraint set,
+    // the same shape the flow builder records while the loan is still live.
+    // The replay seeds both arenas and must refuse to re-derive the recorded
+    // receipt under a custody the edge cannot discharge.
+    let loan = facts.borrow.loans.iter().next().expect("recorded loan").0;
+    let ordinal = facts
+        .flow
+        .ownership
+        .owned_selections
+        .iter()
+        .next()
+        .expect("receipt")
+        .1
+        .statement_ordinal;
+    let statement_handle = facts
+        .flow
+        .control
+        .statements
+        .iter()
+        .find(|(_, statement)| statement.statement_index == ordinal as usize)
+        .expect("match statement fact")
+        .0;
+    let mut entry_constraints = facts.flow.contexts.constraint_refs.copy_span_pair(
+        facts
+            .flow
+            .control
+            .statements
+            .get(statement_handle)
+            .entry_constraints,
+        arena::HandleSpan::empty(),
+    );
+    facts.flow.contexts.constraint_refs.append_to_span(
+        &mut entry_constraints,
+        checked_trees::FlowConstraintRef {
+            kind: checked_trees::FlowConstraintKind::BorrowLoan { loan },
+        },
+    );
+    facts
+        .flow
+        .control
+        .statements
+        .get_mut(statement_handle)
+        .entry_constraints = entry_constraints;
+    let errors = crate::checks::validate_linear_permission_events(&checked.typed, &facts)
+        .expect_err("a live loan must not replay as closed");
+    assert!(
+        format!("{errors:?}").contains("selected loan-closure evidence"),
+        "replay rejection: {errors:#?}"
+    );
+}
+
+#[test]
+fn owned_selection_keeps_the_unrecorded_borrow_fence() {
+    // A call-argument borrow records no persistent loan occurrence, so the
+    // ledger cannot show whether its custody closed before the edge. The
+    // conservative rejection stays until call-scoped access evidence joins.
+    let errors = lower_program(
+        "data Choice { case Empty; case Some(value: u32); }
+         machine inspect(value: &Choice) -> bool { true }
+         machine choose(selected: bool) -> bool {
+             let left: Choice = Choice::Some { value: 37 };
+             let right: Choice = Choice::Empty;
+             let seen: bool = inspect(&right);
+             let result: Choice = match selected { true -> left, false -> right };
+             seen && result in Choice::Some
+         }",
+    )
+    .expect_err("an unrecorded call-argument borrow keeps the closure fence");
+    assert!(
+        format!("{errors:?}").contains("requires selected loan-closure evidence"),
+        "{errors:#?}"
+    );
 }
 
 fn lower_projection_program() -> checked_trees::CheckedTrees {

@@ -106,3 +106,32 @@ fn mixed_fresh_and_existing_owned_arms_execute() {
         assert_eq!(outcome.exit_code, expected, "selected={selected}");
     }
 }
+
+#[test]
+fn owned_match_source_with_closed_loan_dispatches_normally() {
+    // A stored borrow whose loan closed before the selection edge joins the
+    // source roster like any other owner: `view`'s last read precedes the
+    // match, so moving `right` through the selected arm cannot dangle it.
+    for (selected, expected) in [("true", 37), ("false", 0)] {
+        let outcome = execute(&format!(
+            "data Choice {{ case Empty; case Some(value: u32); }}
+             machine choose(selected: bool) -> i64 {{
+                 let left: Choice = Choice::Some {{ value: 37 }};
+                 let right: Choice = Choice::Empty;
+                 let view: &Choice = &right;
+                 let seen: bool = view in Choice::Empty;
+                 let result: Choice = match selected {{
+                     true -> left,
+                     false -> right
+                 }};
+                 match result in Choice::Some && seen {{
+                     true -> 37,
+                     false -> 0
+                 }}
+             }}
+             machine main() -> i64 {{ choose({selected}) }}",
+        ));
+        assert_eq!(outcome.error, None, "selected={selected}");
+        assert_eq!(outcome.exit_code, expected, "selected={selected}");
+    }
+}
