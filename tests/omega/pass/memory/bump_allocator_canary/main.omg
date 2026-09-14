@@ -15,6 +15,33 @@
 // operations; this pins the dormant-custody shape those operations must
 // satisfy.
 //
+// Beside the tail extent the strategy carries `remaining`, a counted byte
+// residual — the contract keeps it a distinct premise from the tail's
+// placement authority (wiki/spec/resources/allocation.md: "A counted byte
+// residual summarizes capacity; the tail extent supplies placement. These
+// are distinct premises."). The infallible request bounds the caller's
+// demand on that count: `allocate` requires `length <= strategy.remaining`,
+// the exact capacity requirement.
+//
+// Carrying the count is necessary, not cosmetic, and the caller must
+// restate it per request:
+// - `split`'s conservation law fixes only the union of the two parts'
+//   content and never `result.taken.length`, so the residual left after an
+//   allocation is not derivable through `separate` and cannot be discharged
+//   against `tail.length`.
+// - The decrement cannot be published either: a machine whose signature
+//   carries `Granted` content has its `ensures` validated as a
+//   content-conservation contract, admitting only qualification clauses,
+//   exact content projections, and `separate` compositions — a scalar count
+//   equality is outside that grammar.
+// - And the next residual cannot be computed at the call site: the requires
+//   check does not propagate a subtraction's lower bound (`capacity - 16`
+//   cannot prove `>= 32`), and a param's `requires` bounds do not survive
+//   the first request's consumption of the backing — so `exercise` grants
+//   the second request a stated residual floor equal to its own demand
+//   (`remaining: 32`), the minimal authority the call needs.
+// `reset` restores the residual from the recomposed range's own geometry.
+//
 // Shape decisions a next reader needs:
 //
 // - `Granted` cannot be minted from geometry, and a checked callable may
@@ -84,8 +111,11 @@ boundary trait ExtentPartition {
 
 // Bump policy: the allocation is the low end of the tail; the rest is the new
 // tail. Nothing about the allocation's later cleanup moves the tail.
+// `remaining` is the counted byte residual summarizing the tail's capacity;
+// it is a separate premise from the tail's placement authority.
 data Bump {
     tail: Extent in Granted & Vacant;
+    remaining: u64;
 }
 
 data Issued {
@@ -93,7 +123,13 @@ data Issued {
     allocation: Extent in Granted & Vacant;
 }
 
+// Infallible request: the caller proves the exact capacity requirement
+// `length <= strategy.remaining` (allocation.md), and the body decrements
+// the residual by the same length the requires bounds — the requires
+// ordering is what licenses the subtraction.
 machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
+requires
+    length <= strategy.remaining
 reaches ExtentPartition
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
@@ -101,7 +137,10 @@ reaches ExtentPartition
     let taken: Extent in Granted & Vacant = parts.taken;
     let rest: Extent in Granted & Vacant = parts.rest;
     Issued {
-        strategy: Bump { tail: rest },
+        strategy: Bump {
+            tail: rest,
+            remaining: strategy.remaining - length,
+        },
         allocation: taken,
     }
 }
@@ -127,28 +166,46 @@ reaches ExtentPartition
         taken: lower,
         rest: upper_and_tail,
     });
-    Bump { tail: whole }
+    let restored_residual: u64 = whole.length;
+    Bump { tail: whole, remaining: restored_residual }
 }
 
 // Two coexisting allocations, cleanup of each, then reset to the whole range,
-// chained through the package machines `allocate` and `reset`. Each returned
-// record's qualified fields are restated through exactly typed locals in the
-// custody order described in the header.
+// chained through the package machines `allocate` and `reset`. The caller
+// proves the exact capacity requirement at the entry — `capacity` covers the
+// whole 16 + 32 plan and equals the backing's geometry — then grants each
+// request its stated residual: the full `capacity` first, then the literal
+// floor `32`, since the derived residual `capacity - 16` cannot be spelled
+// or proved here. Each returned record's qualified fields are restated
+// through exactly typed locals in the custody order described in the header.
 machine exercise(
     partition: &ExtentPartition,
-    whole: Extent in Granted & Vacant
+    whole: Extent in Granted & Vacant,
+    capacity: u64
 ) -> Extent
+requires
+    48 <= capacity;
+    capacity == whole.length
 reaches ExtentPartition
 {
-    let issued_first: Issued = allocate(partition, Bump { tail: whole }, 16);
+    let issued_first: Issued = allocate(
+        partition,
+        Bump { tail: whole, remaining: capacity },
+        16,
+    );
     let first_tail: Extent in Granted & Vacant = issued_first.strategy.tail;
-    let issued_second: Issued = allocate(partition, Bump { tail: first_tail }, 32);
-    let second_allocation: Extent in Granted & Vacant = issued_second.allocation;
+    let issued_second: Issued = allocate(
+        partition,
+        Bump { tail: first_tail, remaining: 32 },
+        32,
+    );
+    let second_residual: u64 = issued_second.strategy.remaining;
     let second_tail: Extent in Granted & Vacant = issued_second.strategy.tail;
+    let second_allocation: Extent in Granted & Vacant = issued_second.allocation;
     let first_allocation: Extent in Granted & Vacant = issued_first.allocation;
     let restored: Bump = reset(
         partition,
-        Bump { tail: second_tail },
+        Bump { tail: second_tail, remaining: second_residual },
         first_allocation,
         second_allocation,
     );
