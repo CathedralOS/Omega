@@ -1,5 +1,7 @@
 use super::*;
-use crate::{StructuralAccess, StructuralMultiplicity, bind_structural_arguments};
+use crate::terminal_interpreter::{
+    StructuralAccess, StructuralMultiplicity, bind_structural_arguments,
+};
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
 };

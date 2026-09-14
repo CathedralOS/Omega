@@ -1,5 +1,5 @@
 use super::*;
-use crate::{StructuralRuntimePlace, StructuralScalarRuntimeField};
+use crate::terminal_interpreter::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, StructuralFieldId};
 use terminal_psi::{
     BindingRelevance, Operation, OperationKind, OperationResult, StructuralFieldDeclaration,
@@ -58,7 +58,13 @@ fn owned_execution(
         .collect(),
     };
     execution.byte_sequence_values.clear();
-    let target = execution.blocks.get_mut(&BlockId::new(2).unwrap()).unwrap();
+    let target = std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .blocks
+        .get_mut(&BlockId::new(2).unwrap())
+        .unwrap();
     let mut sources = target.structural_parameters.clone();
     for source in &mut sources {
         source.access = StructuralAccess::Owned;
@@ -110,39 +116,42 @@ fn owned_execution(
             Vec::new()
         },
     };
-    let machine = execution
-        .machines
+    let target_id = target.id;
+    let parameters = target.parameters.clone();
+    let target_parameters = target.structural_parameters.clone();
+    let machine = std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap();
-    machine.parameters = target.parameters.clone();
+    machine.parameters = parameters;
     machine.structural_parameters = sources;
-    machine.structural_places =
-        machine
-            .structural_parameters
-            .iter()
-            .map(|parameter| StructuralPlaceDeclaration {
-                id: parameter.place,
-                kind: StructuralPlaceKind::Parameter {
-                    position: parameter.position,
-                    is_self: false,
-                },
-            })
-            .chain(target.structural_parameters.iter().map(|parameter| {
-                StructuralPlaceDeclaration {
+    machine.structural_places = machine
+        .structural_parameters
+        .iter()
+        .map(|parameter| StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+                is_self: false,
+            },
+        })
+        .chain(
+            target_parameters
+                .iter()
+                .map(|parameter| StructuralPlaceDeclaration {
                     id: parameter.place,
                     kind: StructuralPlaceKind::BlockParameter {
-                        block: target.id,
+                        block: target_id,
                         position: parameter.position,
                     },
-                }
-            }))
-            .collect();
+                }),
+        )
+        .collect();
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
         qualifications: Default::default(),
         id: ValueId::new(9).unwrap(),
         scalar_type: integer_read.scalar_type,
     });
-    machine.blocks = execution.blocks.clone();
     execution.live_affine_frontier =
         bind_affine_frontier(&machine.structural_parameters, &execution.structural_values).unwrap();
     for (place, integer, boolean) in [(1, 7, true), (2, 42, false)] {
@@ -201,8 +210,13 @@ fn assert_record_binding(
 }
 
 fn assert_owned_execution(mut execution: TerminalExecution) {
-    let multiplicity =
-        execution.blocks[&BlockId::new(2).unwrap()].structural_parameters[0].multiplicity;
+    let multiplicity = std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .blocks[&BlockId::new(2).unwrap()]
+        .structural_parameters[0]
+        .multiplicity;
     let original = execution.structural_values.clone();
     let fields = execution.structural_scalar_fields.clone();
     let frontier = execution.live_affine_frontier.clone();
@@ -268,7 +282,12 @@ fn assert_owned_execution(mut execution: TerminalExecution) {
     assert_eq!(
         execution.live_affine_frontier,
         bind_affine_frontier(
-            &execution.blocks[&BlockId::new(2).unwrap()].structural_parameters,
+            &std::sync::Arc::get_mut(&mut execution.machines)
+                .unwrap()
+                .get_mut(&execution.current_machine)
+                .unwrap()
+                .blocks[&BlockId::new(2).unwrap()]
+                .structural_parameters,
             &execution.structural_values
         )
         .unwrap()
@@ -301,8 +320,8 @@ fn owned_record_result_handoff_preserves_backing_and_rejects_forged_producer() {
         let mut execution =
             owned_execution(jump(owned_successor()), StructuralMultiplicity::Affine);
         let machine_id = execution.current_machine;
-        let machine = execution
-            .machines
+        let machine = std::sync::Arc::get_mut(&mut execution.machines)
+            .unwrap()
             .get_mut(&execution.current_machine)
             .unwrap();
         // The fixture starts with already committed payloads. Replace their
@@ -350,7 +369,11 @@ fn owned_record_result_handoff_preserves_backing_and_rejects_forged_producer() {
                     },
                 });
         }
-        let machine = execution.machines.get_mut(&machine_id).unwrap();
+        execution.next_operation = machine.blocks[&machine.entry].operations.len();
+        let machine = std::sync::Arc::get_mut(&mut execution.machines)
+            .unwrap()
+            .get_mut(&machine_id)
+            .unwrap();
         let StructuralPlaceKind::OperationResult { producer, .. } =
             &mut machine.structural_places[0].kind
         else {
@@ -368,12 +391,13 @@ fn owned_record_result_handoff_preserves_backing_and_rejects_forged_producer() {
         );
         assert_eq!(execution.structural_values, previous);
         assert_eq!(execution.live_affine_frontier, frontier);
-        let StructuralPlaceKind::OperationResult { producer, .. } = &mut execution
-            .machines
-            .get_mut(&machine_id)
-            .unwrap()
-            .structural_places[0]
-            .kind
+        let StructuralPlaceKind::OperationResult { producer, .. } =
+            &mut std::sync::Arc::get_mut(&mut execution.machines)
+                .unwrap()
+                .get_mut(&machine_id)
+                .unwrap()
+                .structural_places[0]
+                .kind
         else {
             unreachable!();
         };
@@ -748,16 +772,16 @@ fn malformed_owned_handoffs_leave_all_custody_uncommitted() {
                     });
             }
             "source mode" => {
-                execution
-                    .machines
+                std::sync::Arc::get_mut(&mut execution.machines)
+                    .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()
                     .structural_parameters[1]
                     .access = StructuralAccess::SharedBorrow
             }
             "target owner" => {
-                execution
-                    .machines
+                std::sync::Arc::get_mut(&mut execution.machines)
+                    .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()
                     .structural_places[2]
@@ -776,7 +800,7 @@ fn malformed_owned_handoffs_leave_all_custody_uncommitted() {
             "claim" => {
                 execution.live_claims.insert(
                     semantic_vocabulary::ClaimId::new(1).unwrap(),
-                    crate::LiveClaim {
+                    crate::terminal_interpreter::LiveClaim {
                         place: Some(source),
                         path: Vec::new(),
                         multiplicity: Some(StructuralMultiplicity::Linear),

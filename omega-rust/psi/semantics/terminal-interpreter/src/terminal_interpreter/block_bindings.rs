@@ -136,6 +136,11 @@ impl TerminalExecution {
         structural_arguments: &[StructuralArgument],
     ) -> Result<BlockBindings, TerminalInterpretError> {
         let block = self
+            .machines
+            .get(&self.current_machine)
+            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
+                self.current_machine,
+            ))?
             .blocks
             .get(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
@@ -398,7 +403,8 @@ impl TerminalExecution {
                         && parameter.is_self == is_self
                 })
             }
-            StructuralPlaceKind::BlockParameter { block, position } => self
+            StructuralPlaceKind::BlockParameter { block, position } => self.machines
+                [&self.current_machine]
                 .blocks
                 .get(&block)?
                 .structural_parameters

@@ -1,5 +1,7 @@
 use super::*;
-use crate::{ExecutableMachine, TerminalExecutionResult, TerminalExecutionStatus};
+use crate::terminal_interpreter::{
+    ExecutableMachine, TerminalExecutionResult, TerminalExecutionStatus,
+};
 use semantic_vocabulary::{EdgeId, MachineId, ScalarType, StructuralTypeId};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
@@ -116,7 +118,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
                 shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
             },
         )]),
-        machines: BTreeMap::from([(machine_id, machine)]),
+        machines: BTreeMap::from([(machine_id, machine)]).into(),
         dynamic_scalar_calls: BTreeMap::new(),
         dynamic_descriptor_templates: BTreeMap::new(),
         dynamic_selection_templates: BTreeMap::new(),
@@ -125,7 +127,6 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         boundary_machines: BTreeMap::new(),
         provider_candidates: Default::default(),
         provider_installation: BTreeMap::new(),
-        blocks,
         values: BTreeMap::from([
             (ValueId::new(1).unwrap(), TerminalScalarValue::Boolean(true)),
             (
@@ -138,7 +139,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         reference_referents: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
         local_structural_identities:
-            crate::primitive_storage::LocalStructuralIdentities::with_reserved_identities([
+            crate::terminal_interpreter::primitive_storage::LocalStructuralIdentities::with_reserved_identities([
                 1, 2, 101, 102,
             ]),
         structural_scalar_fields: BTreeMap::new(),
@@ -149,11 +150,11 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         byte_sequence_values: BTreeMap::from([
             (
                 PlaceId::new(1).unwrap(),
-                crate::ByteSequenceBinding::Immutable(crate::ByteSequenceView::new(vec![0, 128])),
+                crate::terminal_interpreter::ByteSequenceBinding::Immutable(crate::terminal_interpreter::ByteSequenceView::new(vec![0, 128])),
             ),
             (
                 PlaceId::new(2).unwrap(),
-                crate::ByteSequenceBinding::Immutable(crate::ByteSequenceView::new(vec![
+                crate::terminal_interpreter::ByteSequenceBinding::Immutable(crate::terminal_interpreter::ByteSequenceView::new(vec![
                     255, 7, 42,
                 ])),
             ),
@@ -318,7 +319,10 @@ fn malformed_view_bindings_reject_without_replacing_values() {
                     .structural_type = StructuralTypeId::new(999).unwrap();
             }
             6 => {
-                execution
+                std::sync::Arc::get_mut(&mut execution.machines)
+                    .unwrap()
+                    .get_mut(&execution.current_machine)
+                    .unwrap()
                     .blocks
                     .get_mut(&successor.target)
                     .unwrap()
@@ -341,7 +345,7 @@ fn malformed_view_bindings_reject_without_replacing_values() {
 
 #[test]
 fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
-    use crate::{
+    use crate::terminal_interpreter::{
         ByteSequenceBinding, ByteSequenceView, StructuralByteSequenceRuntimeField,
         StructuralRuntimePlace,
     };
@@ -395,7 +399,13 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
         .insert(backing.clone(), ByteSequenceView::new(vec![10, 20]));
 
     let loan_place = PlaceId::new(1).unwrap();
-    let mut formal = execution.blocks[&edge.target].structural_parameters[0].clone();
+    let mut formal = std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .blocks[&edge.target]
+        .structural_parameters[0]
+        .clone();
     formal.access = StructuralAccess::MutableBorrow;
     let mut prepared = execution
         .prepare_boundary_arguments(
@@ -421,12 +431,19 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
 
     // Retain the real mutable source declaration and distinct block targets,
     // so Owned rejects a loan, not a missing source/declaration or arity error.
-    let target = execution.blocks.get_mut(&edge.target).unwrap();
+    let target = std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .blocks
+        .get_mut(&edge.target)
+        .unwrap();
     for (position, parameter) in target.structural_parameters.iter_mut().enumerate() {
         parameter.place = PlaceId::new(position as u64 + 3).unwrap();
     }
-    let machine = execution
-        .machines
+    let target_parameters = target.structural_parameters.clone();
+    let machine = std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap();
     machine.structural_parameters = vec![formal];
@@ -440,8 +457,7 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
     machine
         .structural_places
         .extend(
-            target
-                .structural_parameters
+            target_parameters
                 .iter()
                 .map(|parameter| StructuralPlaceDeclaration {
                     id: parameter.place,
@@ -457,7 +473,10 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
         .bytes()
         .as_ptr();
     for access in [StructuralAccess::SharedBorrow, StructuralAccess::Owned] {
-        execution
+        std::sync::Arc::get_mut(&mut execution.machines)
+            .unwrap()
+            .get_mut(&execution.current_machine)
+            .unwrap()
             .blocks
             .get_mut(&edge.target)
             .unwrap()

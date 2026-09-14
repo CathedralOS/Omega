@@ -24,8 +24,8 @@ fn array_execution(length: u64) -> TerminalExecution {
     };
     let mut root = parameter(1);
     root.structural_type = structural_type(2);
-    execution
-        .machines
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
         .structural_parameters = vec![root];
@@ -115,8 +115,8 @@ fn array_view_forwarding_keeps_raw_backing_and_rejects_resize_and_aliases() {
             .resolve_boundary_arguments(&[parameter(4)], &[argument(3)])
             .is_err()
     );
-    execution
-        .machines
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
         .get_mut(&MachineId::new(2).unwrap())
         .unwrap()
         .structural_parameters = vec![parameter(4), parameter(5)];
@@ -152,7 +152,10 @@ fn array_view_forwarding_keeps_raw_backing_and_rejects_resize_and_aliases() {
             obligation: ObligationId::new(1).unwrap(),
         },
     };
-    execution
+    std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap()
         .blocks
         .get_mut(&execution.current)
         .unwrap()
@@ -194,8 +197,8 @@ fn array_input_rejects_wrong_access_path_and_element_type() {
         let mut supplied = input(&[1, 2, 3]);
         match mutation {
             0 => {
-                execution
-                    .machines
+                std::sync::Arc::get_mut(&mut execution.machines)
+                    .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()
                     .structural_parameters[0]
@@ -219,8 +222,8 @@ fn array_input_rejects_wrong_access_path_and_element_type() {
                     .structural_type = structural_type(1)
             }
             4 => {
-                execution
-                    .machines
+                std::sync::Arc::get_mut(&mut execution.machines)
+                    .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()
                     .structural_parameters[0]
@@ -260,8 +263,8 @@ fn array_field_input_and_presentation_require_record_not_mixed_or_affine() {
             .get_mut(&place(1))
             .unwrap()
             .structural_type = structural_type(1);
-        execution
-            .machines
+        std::sync::Arc::get_mut(&mut execution.machines)
+            .unwrap()
             .get_mut(&execution.current_machine)
             .unwrap()
             .structural_parameters[0]
@@ -294,8 +297,8 @@ fn array_field_input_and_presentation_require_record_not_mixed_or_affine() {
                     )
                     .is_ok()
             );
-            execution
-                .machines
+            std::sync::Arc::get_mut(&mut execution.machines)
+                .unwrap()
                 .get_mut(&execution.current_machine)
                 .unwrap()
                 .structural_parameters[0]
