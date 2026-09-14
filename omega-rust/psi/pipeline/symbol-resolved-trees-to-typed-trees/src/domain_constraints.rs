@@ -82,14 +82,48 @@ fn normalize_constraint_span(
             normalized.push(constraint);
             continue;
         };
+        let authored_name = domain_constraint.name.as_str();
+        let reference = domain_constraint
+            .authored_selection
+            .map(|selection| selection.source_span)
+            .filter(|span| span.span.start != span.span.end);
+        // The resolved symbol table already knows module-local precedence,
+        // qualified paths, and import exposure; exact symbol selection wins
+        // before any declared-spelling match is considered.
+        let selected = reference.and_then(|span| {
+            source.symbols.find_top_level_by_name_and_kinds_from_source(
+                authored_name,
+                &[symbols::SymbolKind::Domain],
+                span,
+            )
+        });
         let matches = program
             .domain_definitions()
             .iter()
             .filter(|domain| {
-                let full = domain.name.as_str();
-                let authored = domain_constraint.name.as_str();
-                (full == authored || full.rsplit("::").next().unwrap_or(full) == authored)
-                    && domain_accepts_carrier(program, domain, carrier, &carrier_label)
+                if !source
+                    .symbols
+                    .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
+                {
+                    return false;
+                }
+                let name_matches = if let Some(symbol) = selected {
+                    domain.symbol == symbol
+                } else {
+                    let local = domain.name.as_str();
+                    let qualified = source.symbols.display_path(domain.symbol, "::");
+                    qualified == authored_name
+                        || ((local == authored_name
+                            || local.rsplit("::").next().unwrap_or(local) == authored_name)
+                            && domain_exposed_to(
+                                source,
+                                domain,
+                                &qualified,
+                                authored_name,
+                                reference,
+                            ))
+                };
+                name_matches && domain_accepts_carrier(program, domain, carrier, &carrier_label)
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -237,6 +271,36 @@ fn normalize_constraint_span(
         }
     }
     Ok(())
+}
+
+/// A relative spelling (declared name or leaf) reaches a module-owned domain
+/// only inside its own module or through a narrow import of the exact
+/// declaration, which exposes the leaf spelling just like ordinary name
+/// resolution. Unmoduled domains keep root scope, and generated constraints
+/// without authored source custody select only unmoduled or
+/// qualified-exact declarations.
+fn domain_exposed_to(
+    source: &SymbolResolvedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+    qualified: &str,
+    authored: &str,
+    reference: Option<source::SourceSpan>,
+) -> bool {
+    let domain_module = source.symbols.symbol_module(domain.symbol);
+    if !domain_module.is_valid() {
+        return true;
+    }
+    let Some(reference) = reference else {
+        return false;
+    };
+    if source.symbols.source_module(reference.source_id) == domain_module {
+        return true;
+    }
+    !authored.contains("::")
+        && source
+            .symbols
+            .source_module_import_paths(reference.source_id)
+            .any(|path| path == qualified)
 }
 
 pub(crate) fn domain_accepts_carrier(

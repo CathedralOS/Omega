@@ -1,6 +1,144 @@
+use std::collections::HashMap;
+
 use arena::{Arena, HandleSpan, OrderedRootArena};
 use diagnostics::Diagnostic;
+use source::SourceId;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::domain::DomainDefinition;
+
+use crate::signature_free_requirements::same_semantic_name;
+use crate::symbols::NamespaceDeclarations;
+
+/// Logical module/import custody available before the final symbol table is
+/// assigned. Fresh sources answer from the collected namespace declarations;
+/// retained base sources (seeded extension) answer through the base table
+/// already installed on the program.
+struct NamespaceScope {
+    source_modules: HashMap<SourceId, String>,
+    source_imports: HashMap<SourceId, Vec<String>>,
+}
+
+impl NamespaceScope {
+    fn collect(namespaces: &NamespaceDeclarations) -> Self {
+        let mut source_modules = HashMap::new();
+        for path in &namespaces.modules {
+            let Some(first) = path.first() else {
+                continue;
+            };
+            source_modules.insert(
+                first.source_span().source_id,
+                path.iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::"),
+            );
+        }
+        let mut source_imports: HashMap<SourceId, Vec<String>> = HashMap::new();
+        for path in &namespaces.imports {
+            let Some(first) = path.first() else {
+                continue;
+            };
+            source_imports
+                .entry(first.source_span().source_id)
+                .or_default()
+                .push(
+                    path.iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::"),
+                );
+        }
+        Self {
+            source_modules,
+            source_imports,
+        }
+    }
+
+    /// The declaring module's logical path for one source, or "" for
+    /// unmoduled scope. New sources come from the collected declarations;
+    /// base sources resolve through the retained table.
+    fn module_of_source(&self, program: &SymbolResolvedTrees, source: SourceId) -> String {
+        if let Some(module) = self.source_modules.get(&source) {
+            return module.clone();
+        }
+        let module = program.symbols.source_module(source);
+        if module.is_valid() {
+            program.symbols.display_path(module, "::")
+        } else {
+            String::new()
+        }
+    }
+
+    fn imports_of_source(&self, program: &SymbolResolvedTrees, source: SourceId) -> Vec<String> {
+        let mut imports = self
+            .source_imports
+            .get(&source)
+            .cloned()
+            .unwrap_or_default();
+        imports.extend(
+            program
+                .symbols
+                .source_module_import_paths(source)
+                .map(str::to_owned),
+        );
+        imports
+    }
+
+    fn domain_module(&self, program: &SymbolResolvedTrees, domain: &DomainDefinition) -> String {
+        if domain.symbol.is_valid() {
+            let module = program.symbols.symbol_module(domain.symbol);
+            return if module.is_valid() {
+                program.symbols.display_path(module, "::")
+            } else {
+                String::new()
+            };
+        }
+        self.module_of_source(program, domain.name.source_span().source_id)
+    }
+
+    /// The domain's complete logical path: module prefix plus its declared
+    /// carrier-qualified name. Retained symbols answer exactly; unsymbolled
+    /// declarations compose the path from their owning module.
+    fn domain_path(&self, program: &SymbolResolvedTrees, domain: &DomainDefinition) -> String {
+        if domain.symbol.is_valid() {
+            return program.symbols.display_path(domain.symbol, "::");
+        }
+        let module = self.domain_module(program, domain);
+        let local = domain.name.as_str();
+        if module.is_empty() {
+            local.to_owned()
+        } else {
+            format!("{module}::{local}")
+        }
+    }
+
+    /// A relative spelling (the domain's declared name or its leaf) reaches a
+    /// module-owned domain only inside its own module or through a narrow
+    /// import of the exact declaration, which exposes the leaf spelling just
+    /// like ordinary name resolution. Fully qualified spellings always
+    /// select exactly; unmoduled domains keep root scope.
+    fn domain_exposed_to(
+        &self,
+        program: &SymbolResolvedTrees,
+        domain_module: &str,
+        domain_path: &str,
+        authored: &str,
+        reference_source: SourceId,
+    ) -> bool {
+        if authored == domain_path || domain_module.is_empty() {
+            return true;
+        }
+        let reference_module = self.module_of_source(program, reference_source);
+        if !reference_module.is_empty() && reference_module == domain_module {
+            return true;
+        }
+        !authored.contains("::")
+            && self
+                .imports_of_source(program, reference_source)
+                .iter()
+                .any(|import| import == domain_path)
+    }
+}
 
 /// Move an ordinary top-level operator into its exact domain's semantic
 /// operator family before symbols are assigned. The home is supplied either
@@ -8,17 +146,34 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 /// or by one unique declared-domain constraint across the operand tuple
 /// (`operator add(left: i32::Degrees, ...)`).
 ///
+/// Selection follows module name law rather than declared spelling alone:
+/// a domain declared in the operator's own module outranks same-spelled
+/// foreign declarations, fully qualified paths select exactly, and relative
+/// spellings reach a foreign module's domain only through an exposing import.
+///
 /// The declaration remains an ordinary root item in source. This one lowering
 /// point owns the semantic association; domain bodies are reserved for exact
 /// establishment requirements and no checked consumer reconstructs ownership
 /// from an operator name later.
 pub(crate) fn normalize_domain_operator_homes(
     program: &mut SymbolResolvedTrees,
+    namespaces: &NamespaceDeclarations,
 ) -> Result<(), Diagnostic> {
+    let scope = NamespaceScope::collect(namespaces);
     let domain_names = program
         .domain_definitions
         .iter()
         .map(|domain| domain.name.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let domain_modules = program
+        .domain_definitions
+        .iter()
+        .map(|domain| scope.domain_module(program, domain))
+        .collect::<Vec<_>>();
+    let domain_paths = program
+        .domain_definitions
+        .iter()
+        .map(|domain| scope.domain_path(program, domain))
         .collect::<Vec<_>>();
     let mut operators_by_domain = program
         .domain_definitions
@@ -35,18 +190,34 @@ pub(crate) fn normalize_domain_operator_homes(
             remaining_roots.push(operator.clone());
             continue;
         };
+        let reference_source = path
+            .first()
+            .map(|member| member.source_span().source_id)
+            .unwrap_or_default();
+        let reference_module = scope.module_of_source(program, reference_source);
         let explicit_owner = owner_path
             .iter()
             .map(|member| member.as_str())
             .collect::<Vec<_>>()
             .join("::");
-        let explicit_matches = domain_names
-            .iter()
-            .enumerate()
-            .filter(|(_, domain)| !explicit_owner.is_empty() && domain.as_str() == explicit_owner)
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-        let inferred_matches = inferred_domain_homes(program, operator, &domain_names);
+        let explicit_matches = explicit_domain_homes(
+            program,
+            &scope,
+            &explicit_owner,
+            &domain_names,
+            &domain_modules,
+            &domain_paths,
+            reference_source,
+            &reference_module,
+        );
+        let inferred_matches = inferred_domain_homes(
+            program,
+            &scope,
+            operator,
+            &domain_names,
+            &domain_modules,
+            &domain_paths,
+        );
         let matches = if explicit_matches.is_empty() {
             inferred_matches
         } else if inferred_matches.is_empty() {
@@ -60,7 +231,16 @@ pub(crate) fn normalize_domain_operator_homes(
 
         let [domain_index] = matches.as_slice() else {
             if matches.is_empty() {
-                if !inferred_domain_homes(program, operator, &domain_names).is_empty() {
+                if !inferred_domain_homes(
+                    program,
+                    &scope,
+                    operator,
+                    &domain_names,
+                    &domain_modules,
+                    &domain_paths,
+                )
+                .is_empty()
+                {
                     return Err(Diagnostic::error(format!(
                         "operator `{}` names a domain home that conflicts with its operand domains",
                         operator_label(program, operator)
@@ -105,17 +285,69 @@ pub(crate) fn normalize_domain_operator_homes(
     Ok(())
 }
 
+/// The explicit `Owner::` prefix of an operator name selects its home.
+/// Module-local declarations bind tighter than imported or absolute matches;
+/// each narrower set must still be unique.
+fn explicit_domain_homes(
+    program: &SymbolResolvedTrees,
+    scope: &NamespaceScope,
+    explicit_owner: &str,
+    domain_names: &[String],
+    domain_modules: &[String],
+    domain_paths: &[String],
+    reference_source: SourceId,
+    reference_module: &str,
+) -> Vec<usize> {
+    if explicit_owner.is_empty() {
+        return Vec::new();
+    }
+    // Same-module relative spellings bind tighter than any foreign or
+    // unmoduled candidate.
+    let local = (0..domain_names.len())
+        .filter(|index| {
+            !reference_module.is_empty()
+                && domain_modules[*index] == reference_module
+                && domain_names[*index].as_str() == explicit_owner
+        })
+        .collect::<Vec<_>>();
+    if !local.is_empty() {
+        return local;
+    }
+    let imports = scope.imports_of_source(program, reference_source);
+    // A narrow import of the exact declaration exposes its leaf spelling,
+    // matching ordinary name resolution.
+    let imported = (0..domain_names.len())
+        .filter(|index| {
+            !explicit_owner.contains("::")
+                && domain_names[*index].as_str() == explicit_owner
+                && imports.iter().any(|import| import == &domain_paths[*index])
+        })
+        .collect::<Vec<_>>();
+    if !imported.is_empty() {
+        return imported;
+    }
+    (0..domain_names.len())
+        .filter(|index| domain_paths[*index].as_str() == explicit_owner)
+        .collect()
+}
+
 fn inferred_domain_homes(
     program: &SymbolResolvedTrees,
+    scope: &NamespaceScope,
     operator: &symbol_resolved_trees::operator::OperatorDefinition,
     domain_names: &[String],
+    domain_modules: &[String],
+    domain_paths: &[String],
 ) -> Vec<usize> {
     let mut matches = Vec::new();
     for parameter in program.state_parameters(operator.parameters) {
         collect_type_domain_homes(
             program,
+            scope,
             &parameter.type_reference,
             domain_names,
+            domain_modules,
+            domain_paths,
             &mut matches,
         );
     }
@@ -124,8 +356,11 @@ fn inferred_domain_homes(
 
 fn collect_type_domain_homes(
     program: &SymbolResolvedTrees,
+    scope: &NamespaceScope,
     type_reference: &symbol_resolved_trees::types::TypeReference,
     domain_names: &[String],
+    domain_modules: &[String],
+    domain_paths: &[String],
     matches: &mut Vec<usize>,
 ) {
     use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
@@ -133,8 +368,11 @@ fn collect_type_domain_homes(
     match type_reference {
         TypeReference::Reference(reference) => collect_type_domain_homes(
             program,
+            scope,
             program.child_type_reference(reference.referee),
             domain_names,
+            domain_modules,
+            domain_paths,
             matches,
         ),
         TypeReference::Constrained(constrained) => {
@@ -148,23 +386,60 @@ fn collect_type_domain_homes(
                 let TypeConstraint::Domain(authored) = constraint else {
                     continue;
                 };
+                let reference_source = authored.name.source_span().source_id;
+                let reference_module = scope.module_of_source(program, reference_source);
+                let mut constraint_matches = Vec::new();
                 for (index, domain) in program.domain_definitions.iter().enumerate() {
-                    let full = &domain_names[index];
-                    if (full == authored.name.as_str()
-                        || full.rsplit("::").next() == Some(authored.name.as_str()))
+                    let local = &domain_names[index];
+                    let qualified = &domain_paths[index];
+                    let name_matches = qualified.as_str() == authored.name.as_str()
+                        || same_semantic_name(local.as_str(), authored.name.as_str());
+                    if name_matches
+                        && scope.domain_exposed_to(
+                            program,
+                            &domain_modules[index],
+                            qualified,
+                            authored.name.as_str(),
+                            reference_source,
+                        )
                         && domain_accepts_carrier(
                             program,
                             domain,
                             carrier,
                             authored.arguments.len(),
                         )
-                        && !matches.contains(&index)
                     {
+                        constraint_matches.push(index);
+                    }
+                }
+                // A domain declared in the constraint's own module outranks
+                // same-spelled foreign candidates, just like a local binding.
+                let local_matches = constraint_matches
+                    .iter()
+                    .copied()
+                    .filter(|index| {
+                        !reference_module.is_empty() && domain_modules[*index] == reference_module
+                    })
+                    .collect::<Vec<_>>();
+                for index in if local_matches.is_empty() {
+                    constraint_matches
+                } else {
+                    local_matches
+                } {
+                    if !matches.contains(&index) {
                         matches.push(index);
                     }
                 }
             }
-            collect_type_domain_homes(program, carrier, domain_names, matches);
+            collect_type_domain_homes(
+                program,
+                scope,
+                carrier,
+                domain_names,
+                domain_modules,
+                domain_paths,
+                matches,
+            );
         }
         TypeReference::FixedArray(_)
         | TypeReference::Slice(_)

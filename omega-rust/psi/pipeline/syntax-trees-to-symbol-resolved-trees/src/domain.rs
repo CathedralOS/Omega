@@ -50,10 +50,16 @@ pub(crate) fn lower_domain_definition(
 
     // STR4 checked plans, slice 1: mint the normalized semantic identity
     // ONCE here (declaration order); every downstream layer copies it.
+    // A module-owned domain interns under its complete logical path so a
+    // module declaration and a same-spelled declaration elsewhere never share
+    // semantic identity.
+    let semantic_identity = declared_module_path(syntax_trees, domain.name.source_span().source_id)
+        .map(|module| format!("{module}::{}", domain.name.as_str()))
+        .unwrap_or_else(|| domain.name.as_str().to_owned());
     let semantic_id = lowerer
         .symbol_resolved_trees
         .semantic_domains
-        .intern(domain.name.as_str());
+        .intern(&semantic_identity);
     // Until authored denotation declarations land, an authored domain-owned
     // operator is the source-level contribution to the denotation/dimension
     // role. This projection happens once; downstream consumers read the
@@ -80,6 +86,25 @@ pub(crate) fn lower_domain_definition(
         semantic_id,
         semantic_roles,
         establishment_routes: Vec::new(),
+    })
+}
+
+/// The logical module path declared by the source that owns `source`, if any.
+/// Scans root items directly so declaration order cannot hide a module header
+/// that follows the domain in source order.
+fn declared_module_path(syntax_trees: &SyntaxTrees, source: source::SourceId) -> Option<String> {
+    syntax_trees.root_items().find_map(|item| {
+        let syntax::item::Item::Module(module) = item else {
+            return None;
+        };
+        let members = syntax_trees.items.identifier_path_members(module.path);
+        (members.first()?.source_span().source_id == source).then(|| {
+            members
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
     })
 }
 

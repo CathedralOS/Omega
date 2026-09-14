@@ -407,5 +407,6 @@ pub(crate) fn assign_constant_expression_symbols(
 }
 
 pub(crate) use lookup::{
-    MembershipSelection, bare_case_type, constructor_type, membership_selection,
+    MembershipSelection, bare_case_type, constructor_type, domain_name_reaches,
+    membership_selection, prefer_module_local_domain,
 };

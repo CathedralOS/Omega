@@ -618,40 +618,49 @@ fn resolve_domain_symbol(
     name: &str,
     reference: source::SourceSpan,
 ) -> SymbolHandle {
-    if name.contains("::") {
-        return domain_symbols
-            .iter()
-            .find(|(candidate, symbol, _)| {
-                candidate == name && symbols.source_reference_can_see_symbol(reference, *symbol)
-            })
-            .map(|(_, symbol, _)| *symbol)
-            .or_else(|| {
-                symbols.find_top_level_by_name_and_kinds_from_source(
-                    name,
-                    &[SymbolKind::Domain],
-                    reference,
-                )
-            })
-            .unwrap_or_else(SymbolHandle::invalid);
-    }
-
-    let mut matches = domain_symbols.iter().filter(|(candidate, symbol, _)| {
-        candidate.rsplit("::").next().unwrap_or(candidate) == name
-            && symbols.source_reference_can_see_symbol(reference, *symbol)
-    });
-    let Some((first_name, symbol, first_semantic_id)) = matches.next() else {
-        return SymbolHandle::invalid();
-    };
-    // Capacity-specialized carriers normalize their domain owner to the same
-    // published name (`[u8; N]::Utf8`). Multiple declarations with that exact
-    // normalized name are one semantic lookup candidate, not an ambiguous set.
-    // Distinct owners that merely share the trailing presentation name remain
-    // ambiguous and fail closed.
-    if matches.any(|(candidate, _, semantic_id)| {
-        candidate != first_name || semantic_id != first_semantic_id
-    }) {
+    // One selection law for qualified, relative, and leaf spellings: the
+    // complete logical path always selects exactly, while a relative or leaf
+    // spelling must reach the declaration through its module exposure. A
+    // same-module declaration outranks every other tier.
+    let matches = domain_symbols
+        .iter()
+        .filter(|(candidate, symbol, _)| {
+            symbols.source_reference_can_see_symbol(reference, *symbol)
+                && super::lookup::domain_name_reaches(symbols, *symbol, candidate, name, reference)
+        })
+        .map(|(name, symbol, semantic_id)| (name.as_str(), *symbol, *semantic_id))
+        .collect::<Vec<_>>();
+    let reference_module = if reference.span.start == reference.span.end {
         SymbolHandle::invalid()
     } else {
-        *symbol
+        symbols.source_module(reference.source_id)
+    };
+    let local = matches
+        .iter()
+        .copied()
+        .filter(|(_, symbol, _)| {
+            reference_module.is_valid() && symbols.symbol_module(*symbol) == reference_module
+        })
+        .collect::<Vec<_>>();
+    let pool = if local.is_empty() { matches } else { local };
+    if let Some((first_name, symbol, first_semantic_id)) = pool.first() {
+        // Capacity-specialized carriers normalize their domain owner to the
+        // same published name (`[u8; N]::Utf8`). Multiple declarations with
+        // that exact normalized name are one semantic lookup candidate, not
+        // an ambiguous set. Distinct owners that merely share the trailing
+        // presentation name remain ambiguous and fail closed.
+        if pool.iter().any(|(candidate, _, semantic_id)| {
+            candidate != first_name || semantic_id != first_semantic_id
+        }) {
+            SymbolHandle::invalid()
+        } else {
+            *symbol
+        }
+    } else if name.contains("::") {
+        symbols
+            .find_top_level_by_name_and_kinds_from_source(name, &[SymbolKind::Domain], reference)
+            .unwrap_or_else(SymbolHandle::invalid)
+    } else {
+        SymbolHandle::invalid()
     }
 }

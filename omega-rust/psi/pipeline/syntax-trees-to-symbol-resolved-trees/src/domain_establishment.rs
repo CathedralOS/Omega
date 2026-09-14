@@ -14,7 +14,7 @@ use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolHandle;
 
 use crate::signature_free_requirements::{
-    SignatureFreeRequirementResolutionError, resolve_signature_free_requirement, same_semantic_name,
+    SignatureFreeRequirementResolutionError, resolve_signature_free_requirement,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -259,13 +259,29 @@ fn type_reference_domain_symbols(
         let symbol_resolved_trees::types::TypeConstraint::Domain(name) = constraint else {
             continue;
         };
-        for matching in program.domain_definitions.iter().filter(|domain| {
-            same_semantic_name(domain.name.as_str(), name.name.as_str())
-                && program
+        let matched = program
+            .domain_definitions
+            .iter()
+            .filter(|domain| {
+                program
                     .symbols
                     .source_reference_can_see_symbol(name.name.source_span(), domain.symbol)
-        }) {
-            for atom in atomic_domain_symbols(program, matching.symbol) {
+                    && crate::symbols::domain_name_reaches(
+                        &program.symbols,
+                        domain.symbol,
+                        domain.name.as_str(),
+                        name.name.as_str(),
+                        name.name.source_span(),
+                    )
+            })
+            .map(|domain| domain.symbol)
+            .collect::<Vec<_>>();
+        for matching in crate::symbols::prefer_module_local_domain(
+            &program.symbols,
+            matched,
+            name.name.source_span(),
+        ) {
+            for atom in atomic_domain_symbols(program, matching) {
                 if !domains.contains(&atom) {
                     domains.push(atom);
                 }
