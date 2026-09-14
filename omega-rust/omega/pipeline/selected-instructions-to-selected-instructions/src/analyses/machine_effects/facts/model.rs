@@ -94,6 +94,7 @@ pub enum MachineEffectError {
     MissingDeclaration { instruction: SelectedInstructionId },
     AmbiguousDeclaration { instruction: SelectedInstructionId },
     ConstraintEffectMismatch { instruction: SelectedInstructionId },
+    ConstraintOperandMismatch { instruction: SelectedInstructionId },
     NonCanonicalFunction,
     NonCanonicalBlock,
     InstructionMismatch { instruction: SelectedInstructionId },
