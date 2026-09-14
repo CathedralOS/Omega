@@ -36,9 +36,19 @@ Scalar block predicates provide the checked merge/induction route when an
 ordinary intersection loses a useful relationship. Every actual arrival proves
 the same destination-scoped predicate under exact simultaneous substitution.
 Acyclic destinations retain common incoming facts; cyclic cuts discard them.
-Predicates can name only scalar formals and destination parameters, not storage
-observations or branch-local values. The verifier never searches for a predicate
+Predicates can name scalar formals, destination parameters and scalar storage
+observations rooted at machine parameters or the destination's own structural
+parameters, not branch-local values or operation-created places. Current field
+observations still expire on covering writes. The verifier never searches for a predicate
 or removes an edge because producer automation finds it contradictory.
+
+[Field snapshot reconstruction](src/verification/field_snapshots.rs) captures
+affected facts through live exact field-to-SSA equalities just before ordinary
+store/call invalidation. One fact yields at most one captured fact; conditional
+facts remain conditional and uncaptured observations still expire. The copied
+value keeps its old meaning, not the mutated field. Call requirements precede
+capture and guarantees follow invalidation. Private crash-entry reconstruction
+does not use this current-value capture route.
 
 Selected Boolean and integer case payloads retain their exact source, case,
 field and successor parameter identities. Their scalar binding equation is an

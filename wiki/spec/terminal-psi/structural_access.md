@@ -213,6 +213,18 @@ A bounded integer leaf supplies its declaration-derived range on the fresh read
 SSA value, not on a mutable field alias; construction, entry and store checks
 remain independently responsible for the declared invariant.
 
+Before a write or mutating/consuming call invalidates current field facts, a
+live exact equality between a Boolean/integer field and an immutable SSA value
+may capture the affected scalar occurrences in those facts. The equality must
+match the canonical root, complete path and scalar type; it may come from a
+validated read, completed store or imported guarantee. Conditional equalities
+cannot supply unconditional substitutions. Correlations keep their whole
+connective, and any remaining affected storage observation still invalidates
+the fact. This preserves a saved value's proof without transferring it to a
+new read. It adds neither an entry-origin claim for private crash checking nor
+an invariant for an unchecked cyclic arrival. Capture replaces facts rather
+than enumerating combinations of old and new observations.
+
 Consumers reconstruct projections from retained field/index identities and
 types, rather than trusting an accumulated byte offset. Runtime scalar inputs
 retain value identity; integer, Boolean, and IEEE literals retain their exact

@@ -43,9 +43,13 @@ General invariant evidence must be checked before importing its conclusions.
 A scalar block invariant is a semantic row identifying a machine, destination
 block, scalar predicate, and one obligation for every actual incoming edge.
 There is one row per block; multiple assertions form a conjunction. Predicate
-scope contains only immutable scalar machine formals and destination scalar
-parameters. Storage observations, branch-local values, result pseudo-values,
-and opaque or structural predicates cannot gain scope through an assertion.
+scope contains immutable scalar machine formals, destination scalar parameters,
+and scalar storage observations rooted at machine structural parameters or that
+destination's own structural parameters. An operation-created place, another
+block's local, a branch-local value, a result pseudo-value, or an opaque or
+structural predicate cannot gain scope through an assertion. Storage observations
+denote current contents and remain subject to exact write invalidation; they
+are not immutable invocation-entry snapshots.
 The machine entry cannot carry a row: invocation is an implicit arrival, not an
 edge whose certificate can be supplied.
 
