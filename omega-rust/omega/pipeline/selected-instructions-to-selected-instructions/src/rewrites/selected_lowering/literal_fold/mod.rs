@@ -16,8 +16,10 @@ pub use model::*;
 pub use pair_rule::*;
 pub use validate::validate_literal_fold;
 
-/// Fold one classified incoming unsigned-12-bit literal into its immediately
-/// following enabled exact-add or exact-subtract consumer.
+/// Fold one classified incoming literal into its immediately following enabled
+/// consumer: an unsigned-12-bit literal into an exact-add, exact-subtract, or
+/// compare immediate form, or an unsigned 64-bit literal through a unary
+/// extension into a direct `MaterializeI64`.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

@@ -39,7 +39,9 @@ impl LiteralFoldPolicy {
     const EXACT_ADD_BIT: u8 = 1 << 0;
     const EXACT_SUBTRACT_BIT: u8 = 1 << 1;
     const COMPARE_BIT: u8 = 1 << 2;
-    const KNOWN_BITS: u8 = Self::EXACT_ADD_BIT | Self::EXACT_SUBTRACT_BIT | Self::COMPARE_BIT;
+    const EXTENSION_BIT: u8 = 1 << 3;
+    const KNOWN_BITS: u8 =
+        Self::EXACT_ADD_BIT | Self::EXACT_SUBTRACT_BIT | Self::COMPARE_BIT | Self::EXTENSION_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -49,6 +51,12 @@ impl LiteralFoldPolicy {
     };
     pub const COMPARE_V1: Self = Self {
         enabled_rules: Self::COMPARE_BIT,
+    };
+    /// Exact unary extension elimination: fold a materialized incoming literal
+    /// through its sole `ZeroExtend`/`SignExtend` consumer into a direct
+    /// `MaterializeI64` of the extension's exact output bits.
+    pub const EXTENSION_V1: Self = Self {
+        enabled_rules: Self::EXTENSION_BIT,
     };
 
     pub(crate) const fn empty() -> Self {
@@ -75,6 +83,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_compare(self) -> bool {
         self.enabled_rules & Self::COMPARE_BIT != 0
+    }
+
+    pub const fn enables_extension(self) -> bool {
+        self.enabled_rules & Self::EXTENSION_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u8 {

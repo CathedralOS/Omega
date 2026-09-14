@@ -21,6 +21,7 @@ pub(super) const DECLARATIONS: &str = r#"pub data Optimization {
     case Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1;
     case SelectedIncomingU12CompareImmediate;
     case CheckedTreeProductPruning;
+    case SelectedIncomingLiteralExtensionElimination;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -46,6 +47,7 @@ pub data Optimizations {
     aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1: u8 in Trapping;
     selected_incoming_u12_compare_immediate: u8 in Trapping;
     checked_tree_product_pruning: u8 in Trapping;
+    selected_incoming_literal_extension_elimination: u8 in Trapping;
 }
 "#;
 
@@ -73,6 +75,7 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
         Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 -> aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1()
         Optimization::SelectedIncomingU12CompareImmediate -> selected_incoming_u12_compare_immediate()
         Optimization::CheckedTreeProductPruning -> checked_tree_product_pruning()
+        Optimization::SelectedIncomingLiteralExtensionElimination -> selected_incoming_literal_extension_elimination()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -161,6 +164,10 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
 
     state checked_tree_product_pruning(&mut self) {
         self.checked_tree_product_pruning = self.checked_tree_product_pruning + 1;
+    }
+
+    state selected_incoming_literal_extension_elimination(&mut self) {
+        self.selected_incoming_literal_extension_elimination = self.selected_incoming_literal_extension_elimination + 1;
     }
 }
 "#;

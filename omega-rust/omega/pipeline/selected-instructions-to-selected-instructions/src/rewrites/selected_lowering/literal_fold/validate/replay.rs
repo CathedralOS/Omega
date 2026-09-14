@@ -1,10 +1,10 @@
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
 use crate::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, RecoveryClassification,
@@ -80,10 +80,8 @@ fn reconstruct_action(
             function: function_index,
         });
     };
-    let immediate = u64::try_from(*value)
-        .ok()
-        .filter(|value| *value <= 4095)
-        .ok_or(LiteralFoldError::UnsupportedImmediate {
+    let literal_u64 =
+        u64::try_from(*value).map_err(|_| LiteralFoldError::UnsupportedImmediate {
             function: function_index,
         })?;
     let [future_use] = future_uses.as_slice() else {
@@ -91,7 +89,7 @@ fn reconstruct_action(
             function: function_index,
         });
     };
-    if future_use.operand != 1 || future_use.block != candidate.block {
+    if future_use.block != candidate.block {
         return Err(LiteralFoldError::FutureUseMismatch {
             function: function_index,
         });
@@ -134,12 +132,49 @@ fn reconstruct_action(
         });
     }
 
-    let row =
-        immediate_row_for_consumer(consumer, rows).ok_or(LiteralFoldError::ConsumerMismatch {
+    // The validator re-derives the source grammar from the consumer kind
+    // alone: binary consumers fold the literal into an immediate form whose
+    // row it owns, while unary extension consumers fold into a direct
+    // `MaterializeI64` of the extension's exact output bits.
+    let (shape, row) = match consumer.kind {
+        SelectedInstructionKind::ExactAddI64 { .. } => (SourceShape::BinaryImmediate, rows.add),
+        SelectedInstructionKind::ExactSubtractI64 { .. } => {
+            (SourceShape::BinaryImmediate, rows.subtract)
+        }
+        SelectedInstructionKind::CompareI64 => (SourceShape::BinaryImmediate, rows.compare),
+        SelectedInstructionKind::ZeroExtendU8
+        | SelectedInstructionKind::ZeroExtendU16
+        | SelectedInstructionKind::ZeroExtendU32
+        | SelectedInstructionKind::SignExtendI8
+        | SelectedInstructionKind::SignExtendI16
+        | SelectedInstructionKind::SignExtendI32 => (SourceShape::UnaryExtension, rows.materialize),
+        _ => (SourceShape::BinaryImmediate, None),
+    };
+    let row = row.ok_or(LiteralFoldError::ConsumerMismatch {
+        function: function_index,
+    })?;
+    if future_use.operand != shape.victim_operand() {
+        return Err(LiteralFoldError::FutureUseMismatch {
             function: function_index,
-        })?;
-    let result = match consumer.operands.as_slice() {
-        [left, right, result] => {
+        });
+    }
+    let immediate = match shape {
+        SourceShape::BinaryImmediate => {
+            if literal_u64 > 4095 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            literal_u64
+        }
+        SourceShape::UnaryExtension => extension_bits(consumer.kind, literal_u64).ok_or(
+            LiteralFoldError::ConsumerMismatch {
+                function: function_index,
+            },
+        )?,
+    };
+    let result = match (shape, consumer.operands.as_slice()) {
+        (SourceShape::BinaryImmediate, [left, right, result]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim
@@ -154,7 +189,7 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
-        [left, right] => {
+        (SourceShape::BinaryImmediate, [left, right]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim
@@ -166,6 +201,20 @@ fn reconstruct_action(
                 });
             }
             None
+        }
+        (SourceShape::UnaryExtension, [input, result]) => {
+            if input.access != RegisterOperandAccess::Use
+                || input.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
         }
         _ => {
             return Err(LiteralFoldError::ConsumerMismatch {
@@ -198,16 +247,59 @@ fn reconstruct_action(
     })
 }
 
-fn immediate_row_for_consumer<'a>(
-    consumer: &SelectedInstruction,
-    rows: &ValidationImmediateRows<'a>,
-) -> Option<&'a RegisterInstructionConstraint> {
-    match consumer.kind {
-        SelectedInstructionKind::ExactAddI64 { .. } => rows.add,
-        SelectedInstructionKind::ExactSubtractI64 { .. } => rows.subtract,
-        SelectedInstructionKind::CompareI64 => rows.compare,
+/// The consumer source grammar the validator admits: the binary immediate
+/// forms whose literal is the right operand, or the unary extension forms
+/// whose literal is the sole operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SourceShape {
+    BinaryImmediate,
+    UnaryExtension,
+}
+
+impl SourceShape {
+    const fn victim_operand(self) -> u16 {
+        match self {
+            Self::BinaryImmediate => 1,
+            Self::UnaryExtension => 0,
+        }
+    }
+}
+
+/// The exact 64-bit output an extension consumer computes on `literal`. The
+/// validator recomputes the fold from the concrete consumer kind rather than
+/// trusting the producer's recorded action.
+fn extension_bits(kind: SelectedInstructionKind, literal: u64) -> Option<u64> {
+    match kind {
+        SelectedInstructionKind::ZeroExtendU8 => Some(literal & 0xFF),
+        SelectedInstructionKind::ZeroExtendU16 => Some(literal & 0xFFFF),
+        SelectedInstructionKind::ZeroExtendU32 => Some(literal & 0xFFFF_FFFF),
+        SelectedInstructionKind::SignExtendI8 => Some((literal & 0xFF) as u8 as i8 as i64 as u64),
+        SelectedInstructionKind::SignExtendI16 => {
+            Some((literal & 0xFFFF) as u16 as i16 as i64 as u64)
+        }
+        SelectedInstructionKind::SignExtendI32 => {
+            Some((literal & 0xFFFF_FFFF) as u32 as i32 as i64 as u64)
+        }
         _ => None,
     }
+}
+
+/// The `IntegerValue` a folded `MaterializeI64` declares for `bits` under the
+/// result register's scalar type: `Unsigned` for unsigned integer results,
+/// the two's-complement interpretation for signed ones. Non-integer,
+/// address-carrier, wider-than-64, or non-admitting result types reject.
+fn materialize_value(bits: u64, scalar: ScalarType) -> Option<IntegerValue> {
+    let ScalarType::Integer(integer) = scalar else {
+        return None;
+    };
+    if integer.is_address() || integer.bits() > 64 {
+        return None;
+    }
+    let value = match integer.sign() {
+        IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(bits)),
+        IntegerSign::Signed => IntegerValue::Signed(i128::from(bits as i64)),
+    };
+    integer.admits(value).then_some(value)
 }
 
 fn validate_dense_identifiers(
@@ -317,6 +409,36 @@ fn rebuild_function(
                 immediate: IntegerValue::Unsigned(u128::from(action.immediate)),
             },
         ),
+        SelectedInstructionKind::ZeroExtendU8
+        | SelectedInstructionKind::ZeroExtendU16
+        | SelectedInstructionKind::ZeroExtendU32
+        | SelectedInstructionKind::SignExtendI8
+        | SelectedInstructionKind::SignExtendI16
+        | SelectedInstructionKind::SignExtendI32 => {
+            // The folded materialization must declare the exact constant the
+            // result register's scalar type admits; the validator recomputes
+            // it from the action payload and the surviving result register.
+            let result = action.result.ok_or(LiteralFoldError::ConsumerMismatch {
+                function: function_index,
+            })?;
+            let scalar = function
+                .virtual_registers
+                .iter()
+                .find(|register| register.id == result)
+                .map(|register| register.scalar_type)
+                .ok_or(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                })?;
+            let value = materialize_value(action.immediate, scalar).ok_or(
+                LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                },
+            )?;
+            (
+                rows.materialize,
+                SelectedInstructionKind::MaterializeI64 { value },
+            )
+        }
         _ => (None, consumer.kind),
     };
     let row = row
@@ -330,11 +452,19 @@ fn rebuild_function(
     operations.extend(consumer_provenance.operations);
     let mut fuel = literal.provenance.fuel;
     fuel.extend(consumer_provenance.fuel);
-    let registers = [Some(action.left), action.result];
-    if registers.iter().flatten().count() != row.operands.len() {
-        return Err(LiteralFoldError::ConsumerMismatch {
+    // Bind each rewritten row operand to its recorded register: `Use`
+    // positions take the surviving left operand and `Def` positions take the
+    // scalar result, so unary constant folds bind only their result.
+    let mut registers = Vec::with_capacity(row.operands.len());
+    for constraint in &row.operands {
+        let register = match constraint.access {
+            RegisterOperandAccess::Use => Some(action.left),
+            RegisterOperandAccess::Def => action.result,
+            _ => None,
+        };
+        registers.push(register.ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
-        });
+        })?);
     }
     if consumer.operands.iter().any(|operand| {
         operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
@@ -348,7 +478,7 @@ fn rebuild_function(
     consumer.operands = row
         .operands
         .iter()
-        .zip(registers.iter().flatten())
+        .zip(registers.iter())
         .map(|(constraint, register)| selected_operand(constraint, *register))
         .collect();
     consumer.implicit_uses = row.implicit_uses.clone();

@@ -7,8 +7,8 @@ use register_model::{
 use selected_instructions::SelectedInstructionKind;
 
 use crate::{
-    LiteralFoldError, LiteralFoldPolicy, PairResultDisposition, SelectedInstructionPairRule,
-    enabled_pair_rules,
+    LiteralFoldError, LiteralFoldPolicy, PairOperandShape, PairResultDisposition,
+    SelectedInstructionPairRule, enabled_pair_rules,
 };
 
 /// One policy-enabled catalog row bound to its constraint-catalog row.
@@ -55,9 +55,10 @@ pub(super) fn select_admitted_pairs<'a>(
 }
 
 /// Admit the rewritten row whose operand shape matches the rule's declared
-/// result channel and whose unit traffic satisfies the rule's declared
-/// unit-effect surface: a scalar `Def` operand or implicit physical-unit
-/// defs, with no implicit uses, clobbers, or operand unit bindings beyond it.
+/// operand grammar and result channel — a surviving `Use` operand plus scalar
+/// `Def`, a lone `Def` for the constant folds, or implicit physical-unit
+/// defs — and whose unit traffic satisfies the rule's declared unit-effect
+/// surface: no implicit uses, clobbers, or operand unit bindings beyond it.
 fn validate_immediate_row(
     rule: SelectedInstructionPairRule,
     row: &RegisterInstructionConstraint,
@@ -69,9 +70,13 @@ fn validate_immediate_row(
             .all(|operand| unit_effects.admits_operand(operand))
             && unit_effects.admits_row_units(row)
     };
-    match (rule.result(), row.operands.as_slice()) {
+    match (rule.operand_shape(), rule.result(), row.operands.as_slice()) {
         // Scalar-result form: `result = left <op> immediate`.
-        (PairResultDisposition::ScalarRegister, [left, result]) => {
+        (
+            PairOperandShape::BinaryRightLiteral,
+            PairResultDisposition::ScalarRegister,
+            [left, result],
+        ) => {
             if left.operand != 0
                 || left.access != RegisterOperandAccess::Use
                 || result.operand != 1
@@ -85,11 +90,22 @@ fn validate_immediate_row(
         }
         // Flag-defining form: `compare left, immediate` carries no `Def`
         // operand; its only implicit output is the target condition state.
-        (PairResultDisposition::ImplicitUnits, [left]) => {
+        (PairOperandShape::BinaryRightLiteral, PairResultDisposition::ImplicitUnits, [left]) => {
             if left.operand != 0
                 || left.access != RegisterOperandAccess::Use
                 || !clean(&[left])
                 || row.implicit_defs.is_empty()
+            {
+                return Err(LiteralFoldError::ImmediateConstraintMismatch);
+            }
+        }
+        // Constant-materialization form: `result = materialize folded` carries
+        // no register input; its single `Def` operand is the only output.
+        (PairOperandShape::UnaryLiteral, PairResultDisposition::ScalarRegister, [result]) => {
+            if result.operand != 0
+                || result.access != RegisterOperandAccess::Def
+                || !clean(&[result])
+                || !row.implicit_defs.is_empty()
             {
                 return Err(LiteralFoldError::ImmediateConstraintMismatch);
             }

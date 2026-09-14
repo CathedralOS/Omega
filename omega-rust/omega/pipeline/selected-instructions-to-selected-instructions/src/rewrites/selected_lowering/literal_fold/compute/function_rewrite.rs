@@ -1,5 +1,6 @@
 //! Producer application and dense-identifier reconstruction for one function.
 
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionProvenance,
     SelectedOperand, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
@@ -51,9 +52,18 @@ pub(super) fn apply_action(
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
+    let result_scalar = action
+        .result
+        .and_then(|result| {
+            function
+                .virtual_registers
+                .iter()
+                .find(|register| register.id == result)
+        })
+        .map(|register| register.scalar_type);
     let rewritten_kind = pair
         .rule
-        .rewrite_consumer(consumer.kind, action.immediate)
+        .rewrite_consumer(consumer.kind, action.immediate, result_scalar)
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
@@ -64,11 +74,19 @@ pub(super) fn apply_action(
     operations.extend(consumer_provenance.operations);
     let mut fuel = literal.provenance.fuel;
     fuel.extend(consumer_provenance.fuel);
-    let registers = [Some(action.left), action.result];
-    if registers.iter().flatten().count() != row.operands.len() {
-        return Err(LiteralFoldError::ConsumerMismatch {
+    // Bind each rewritten row operand to its recorded register: `Use`
+    // positions take the surviving left operand and `Def` positions take the
+    // scalar result, so unary constant folds bind only their result.
+    let mut registers = Vec::with_capacity(row.operands.len());
+    for constraint in &row.operands {
+        let register = match constraint.access {
+            RegisterOperandAccess::Use => Some(action.left),
+            RegisterOperandAccess::Def => action.result,
+            _ => None,
+        };
+        registers.push(register.ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
-        });
+        })?);
     }
     // The operand rebuild below replaces the consumer's operands wholesale;
     // the declared unit-effect surface admits only operands whose unit
@@ -83,7 +101,7 @@ pub(super) fn apply_action(
     consumer.operands = row
         .operands
         .iter()
-        .zip(registers.iter().flatten())
+        .zip(registers.iter())
         .map(|(constraint, register)| selected_operand(constraint, *register))
         .collect();
     consumer.implicit_uses = row.implicit_uses.clone();
