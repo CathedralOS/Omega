@@ -20,8 +20,10 @@
 //! terminator-operand pairs in successor then binding order, and the binding
 //! keeps its semantic declaration while moving to the fresh reload register.
 //! Structural transports, case payloads, and the parameter side of every
-//! binding remain unsupported; block-parameter victims additionally require
-//! an acyclic function.
+//! binding remain unsupported. Cyclic functions stay admitted: a back edge
+//! reaching the destination is just one more incoming edge, and it must run
+//! the same dedicated edge-copy definition whose store initializes the slot
+//! before the destination — and therefore every dominated use — executes.
 //!
 //! Each retained rewrite shares unchanged selected functions. Replay still
 //! restores and compares the complete source by content, so separately allocated
@@ -183,47 +185,6 @@ pub(crate) fn control_successors_mut(
             ..
         } => [Some(when_less), Some(when_not_less)],
     }
-}
-
-/// Block-parameter victims' edge-initialized storage keeps cyclic functions
-/// frozen; single-definition instruction results rely on dominance alone.
-/// Walk all components; block vector order is not execution order.
-fn require_acyclic(
-    function: &selected_instructions::SelectedFunction,
-) -> Result<(), RuntimeSpillError> {
-    let mut colors = vec![0u8; function.blocks.len()];
-    let mut pending = Vec::new();
-    for root in 0..function.blocks.len() {
-        if colors[root] != 0 {
-            continue;
-        }
-        colors[root] = 1;
-        pending.push((root, 0usize));
-        while let Some((block_index, successor_index)) = pending.last_mut() {
-            if *successor_index == 2 {
-                colors[*block_index] = 2;
-                pending.pop();
-                continue;
-            }
-            let successor = control(&function.blocks[*block_index].terminator).1[*successor_index];
-            *successor_index += 1;
-            let Some(successor) = successor else { continue };
-            let destination = function
-                .blocks
-                .iter()
-                .position(|block| block.id == successor.block)
-                .ok_or(RuntimeSpillError::SourceMismatch)?;
-            match colors[destination] {
-                1 => return Err(RuntimeSpillError::UnsupportedControlFlow),
-                0 => {
-                    colors[destination] = 1;
-                    pending.push((destination, 0));
-                }
-                _ => {}
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Removing the initialization anchor must disconnect every use from entry.
