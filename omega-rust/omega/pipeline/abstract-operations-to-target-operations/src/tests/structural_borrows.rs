@@ -349,6 +349,60 @@ fn projected_field_borrow_rejects_substituted_identity_access_shape_and_placemen
 }
 
 #[test]
+fn projected_field_borrow_rejects_substituted_home_identity() {
+    let source = projected_field_borrow_plan();
+    let native = NativeTarget::linux_x64();
+    let target = crate::lower_to_target_operations(&source, native).unwrap();
+    let expected =
+        crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+            machine: MachineId::new(1).unwrap(),
+            operation: OperationId::new(1).unwrap(),
+        };
+    for mutation in [
+        Box::new(|argument: &mut TargetStructuralArgument| {
+            argument.source = target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: OperationId::new(1).unwrap(),
+            }
+        }) as Box<dyn Fn(&mut TargetStructuralArgument)>,
+        Box::new(|argument: &mut TargetStructuralArgument| {
+            argument.source =
+                target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                    psi_operation: OperationId::new(1).unwrap(),
+                }
+        }),
+        Box::new(|argument: &mut TargetStructuralArgument| {
+            argument.source =
+                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                    psi_operation: OperationId::new(77).unwrap(),
+                }
+        }),
+        Box::new(|argument: &mut TargetStructuralArgument| {
+            argument.source = target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block: semantic_vocabulary::BlockId::new(1).unwrap(),
+                place: argument.place,
+            }
+        }),
+        Box::new(|argument: &mut TargetStructuralArgument| {
+            let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                &argument.source
+            else {
+                panic!("caller parameter transport");
+            };
+            let mut forged = placement.clone();
+            forged.locations.clear();
+            argument.source = forged.into();
+        }),
+    ] {
+        let mutated = mutate_call_arguments(&target, mutation);
+        assert_eq!(
+            crate::validate_abstract_to_target_translation(&source, native, &mutated),
+            Err(expected.clone()),
+            "substituted argument source"
+        );
+    }
+}
+
+#[test]
 fn every_borrow_mode_uses_register_and_stack_pointers_without_value_copies() {
     use crate::lowering::structural_signature::StructuralCallSignature;
     use calling_conventions::IndirectPointerLocation;

@@ -63,7 +63,11 @@ A staged pointer is not a staged copy of its referent. See the
 Retained call arguments are reconciled against the source place, path, and
 access, the callee declaration's access and type, their reconstructed shape,
 the callee plan row placement, and caller-parameter roots with field-only
-paths' root type and projected byte offset.
+paths' root type and projected byte offset. Each argument's retained source
+must also name the referent's canonical caller-side home: the incoming
+parameter placement, a non-entry block parameter, or the exact establishing
+operation — a staged destination, a sibling's home, or a copied referent
+cannot substitute for the original storage.
 
 For a mutable fixed-byte-array view, the projected storage type is the array
 while the callee receives a view descriptor. Validation reconstructs the exact
