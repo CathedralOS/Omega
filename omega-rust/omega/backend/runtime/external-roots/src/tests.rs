@@ -74,11 +74,14 @@ fn install_id<T>(
     constructor(identity).expect("normalized installation identity")
 }
 
-fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
+pub(crate) fn extent_id<T>(
+    identity: u64,
+    constructor: fn(u64) -> Result<T, ExtentDiagnostic>,
+) -> T {
     constructor(identity).expect("normalized extent identity")
 }
 
-fn extent_provider_issuance(seed: u64) -> extents::ExtentProviderIssuance {
+pub(crate) fn extent_provider_issuance(seed: u64) -> extents::ExtentProviderIssuance {
     let base = seed * 16;
     extents::ExtentProviderIssuance::from_normalized_identities([
         base + 1,

@@ -53,3 +53,17 @@ non-aliasing, and `{base, limit}` naming the exact established destination —
 before minting. The answer records the operand read, the contract's fixed
 `r10` scratch clobber, and the descriptor-table register state a published
 answer installs; a declined attempt installs nothing.
+
+Byte materialization keeps the same writer/consumer split: the ledger derives
+the checked post-handoff writer program whose fragments resolve each member's
+sealed entry target into the produced gate's offset fields, while the
+consumer-declared descriptor constants — selector, gate kind, privilege, IST
+slot, and the reserved-zero bytes — are staged table content the writer
+preserves. `validate_written_descriptor_table` is the consumer's semantic
+edge: it proves the produced image came from exactly this table's derived
+writer over this exact installed realization, replays every declared
+descriptor's constant fields plus the zero fill across undeclared slots,
+joins each member's declared IST slot through the installed TSS to its
+declared critical stack class, and only then mints the established value
+naming the exact written destination. Publication still consumes only that
+established value plus separately supplied authority.
