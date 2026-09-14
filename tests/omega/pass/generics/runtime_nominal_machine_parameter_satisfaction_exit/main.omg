@@ -1,0 +1,62 @@
+// CALLBACK-PARAMETER-REQUIREMENT native witness: the nominal
+// `where machine Selected satisfies Trait::requirement` binder must carry its
+// selected entry through specialization to the target call recipe. `chosen`
+// returns its argument and `doubled` returns a distinct constant; both are
+// reachable ONLY through their binder selections, so the two checks prove each
+// retained selected entry, its envelope refinement, and the rewritten
+// `Selected(value)` call site reach the target entry recipe. A swapped or
+// dropped selection exits with a different value. Native scalar lowering admits
+// no wrapping-arithmetic instruction yet, so the bodies stay arithmetic-free:
+// identity and a constant distinguish the selections through `==` alone.
+use omega_language_std::console;
+use omega::language::core::service;
+
+trait Handler {
+    machine call(value: i32) -> i32;
+}
+
+machine chosen(value: i32) -> i32
+satisfies Handler::call
+{
+    value
+}
+
+machine constant(value: i32) -> i32
+satisfies Handler::call
+{
+    35
+}
+
+machine register<machine Selected>(value: i32) -> i32
+where machine Selected satisfies Handler::call;
+{
+    Selected(value)
+}
+
+data Main {
+    console: Service<Console> in Bound;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let first_result: i32 = register<chosen>(70);
+    transition first_result == 70 {
+        true -> check_second()
+        _ -> fail()
+    }
+
+    state check_second(&mut self) {
+        let second_result: i32 = register<constant>(0);
+        transition second_result == 35 {
+            true -> good()
+            _ -> fail()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state fail(&mut self) {
+        self.console.exit_process(1);
+    }
+}

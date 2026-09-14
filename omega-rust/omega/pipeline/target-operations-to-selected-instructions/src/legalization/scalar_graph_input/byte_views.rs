@@ -97,12 +97,27 @@ pub(super) fn validate(
         || !optimized.entry_claim_declarations.is_empty()
         || !optimized.content_entry_claims.is_empty()
         || abstracted.published_service_ceiling != optimized.published_service_ceiling
+        // Provider attachments are specialization witnesses, not declared
+        // storage; they stay out of `declared_places` by contract (see
+        // `reconstruct_declared_places` and `aggregate_results::roster`).
         || optimized.declared_places
             != optimized
                 .structural_places
                 .iter()
+                .filter(|place| {
+                    !matches!(
+                        place.kind,
+                        semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
+                    )
+                })
                 .map(|place| place.id)
                 .collect()
+        || !optimized.structural_places.iter().all(|place| match place.kind {
+            semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { attachment, .. } => {
+                optimized.attachment == Some(attachment)
+            }
+            _ => true,
+        })
         || !(crate::structural_unit_input::accepts_borrowed_view(
             call_plan,
             &parameters,
@@ -153,7 +168,16 @@ pub(super) fn validate(
                 .map(move |parameter| (block.id, parameter))
         })
         .collect::<Vec<_>>();
-    if optimized.structural_places.len()
+    if optimized
+        .structural_places
+        .iter()
+        .filter(|place| {
+            !matches!(
+                place.kind,
+                semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
+            )
+        })
+        .count()
         != abstracted.structural_parameters.len()
             + block_parameters.len()
             + subslices.len()
@@ -186,6 +210,18 @@ pub(super) fn validate(
         return Err(invalid);
     }
     for place in &optimized.structural_places {
+        // Provider attachments are specialization witnesses, not declared
+        // storage or runtime views. Unit custody checks their exact field,
+        // boundary, and service authority; here they must name the function's
+        // own attachment, matching `aggregate_results::roster`.
+        if let semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { attachment, .. } =
+            place.kind
+        {
+            if optimized.attachment == Some(attachment) {
+                continue;
+            }
+            return Err(invalid);
+        }
         if let Ok((producer, result)) = super::structural_case::source_result(optimized, place.id) {
             // A borrowed-view activation may also own a completed boundary
             // result. Keep its producer/type custody separate from descriptors;

@@ -51,6 +51,8 @@ pub(crate) const RUNTIME_GENERIC_PARAM_POSITION_INFERENCE_EXIT: &str =
     "generics/runtime_generic_param_position_inference_exit";
 pub(crate) const RUNTIME_GENERIC_MULTIPLE_SPECIALIZATIONS_EXIT: &str =
     "generics/runtime_generic_multiple_specializations_exit";
+pub(crate) const RUNTIME_NOMINAL_MACHINE_PARAMETER_SATISFACTION_EXIT: &str =
+    "generics/runtime_nominal_machine_parameter_satisfaction_exit";
 pub(crate) const RUNTIME_GENERIC_ENUM_PAYLOAD_EXIT: &str =
     "generics/runtime_generic_enum_payload_exit";
 pub(crate) const RUNTIME_GENERIC_RECORD_INSTANCE_EXIT: &str =
@@ -255,6 +257,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     TRAIT_GENERIC_BOUND_STATIC_DISPATCH,
     RUNTIME_GENERIC_PARAM_POSITION_INFERENCE_EXIT,
     RUNTIME_GENERIC_MULTIPLE_SPECIALIZATIONS_EXIT,
+    RUNTIME_NOMINAL_MACHINE_PARAMETER_SATISFACTION_EXIT,
     RUNTIME_GENERIC_ENUM_PAYLOAD_EXIT,
     RUNTIME_GENERIC_RECORD_INSTANCE_EXIT,
     RUNTIME_CONST_DATA_ARRAY_LENGTH_EXIT,
