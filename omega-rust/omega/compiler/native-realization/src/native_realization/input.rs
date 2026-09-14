@@ -84,6 +84,14 @@ pub(crate) fn lower_realization_input(
     proof_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
+    // This leg requires the sealed PSIPSC proof section: the section must name
+    // the identity reconstructed from this exact module, so a bare proof
+    // bundle or a section sealed to another subject is rejected here rather
+    // than inside the still-transitional admission decode beneath.
+    let module = terminal_codec::decode_module(semantic_bytes)
+        .map_err(|error| realization_error("semantic section", error))?;
+    terminal_codec::decode_proof_section_for(&module, proof_bytes)
+        .map_err(|error| realization_error("proof section", error))?;
     terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes,
@@ -214,6 +222,44 @@ mod tests {
         let profile = AdmissionProfile::default();
         assert!(lower_realization_input(&[], artifact.proof_bytes(), &profile).is_err());
         assert!(lower_realization_input(artifact.semantic_bytes(), &[], &profile).is_err());
+    }
+
+    #[test]
+    fn native_input_requires_the_sealed_proof_section() {
+        let artifact = artifact_fixture();
+        let profile = AdmissionProfile::default();
+        lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+            .expect("the canonical sealed proof section is admitted");
+        let bundle = terminal_codec::decode_proof_section(artifact.proof_bytes())
+            .expect("canonical artifact proof bytes are a sealed section")
+            .1;
+        // Recover the bare PSIPRF bundle by slicing past the fixed PSIPSC
+        // section header (8-byte magic, u16 format marker, u16 vocabulary
+        // marker, 32-byte subject fingerprint); the bare-bundle encoder is a
+        // pre-Terminal producer this consumer must not reference.
+        let bare = &artifact.proof_bytes()[8 + 2 + 2 + 32..];
+        assert!(
+            bare.starts_with(b"PSIPRF"),
+            "the sealed section tail is the bare proof bundle"
+        );
+        let error = lower_realization_input(artifact.semantic_bytes(), bare, &profile)
+            .expect_err("a bare proof bundle is not a sealed proof section");
+        assert!(
+            error
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("proof section")),
+            "bare-bundle rejection names the proof section: {error:?}"
+        );
+        let foreign = terminal_codec::encode_proof_section(
+            &terminal_codec::decode_module(alternate_artifact_fixture().semantic_bytes())
+                .expect("alternate module decodes"),
+            &bundle,
+        )
+        .expect("foreign-sealed section encodes");
+        assert!(
+            lower_realization_input(artifact.semantic_bytes(), &foreign, &profile).is_err(),
+            "a proof section sealed to another subject is rejected"
+        );
     }
 
     #[test]

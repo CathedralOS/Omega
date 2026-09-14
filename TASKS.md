@@ -1422,6 +1422,12 @@ Owners include
   replay, and reports. Producers may not choose the verifier's root subject.
   Acceptance: a proof or commitment valid for one source/model/profile cannot
   be replayed in another role even when compact coordinates coincide.
+  Resume: canonical artifacts seal `PSIPSC` sections at construction; the
+  native-realization input leg and the object custody join now require the
+  sealed form and reject bare bundles and foreign seals. Remaining legs are
+  the terminal-interpreter artifact starts, the compiler `terminal_product`
+  verifier, the transitional `decode_proof_bundle_for` admissions beneath
+  them, and the bare-bundle test producers.
 
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted Rust fusion of artifact
   traversal and proof search with a small total canonical-ledger generator plus
