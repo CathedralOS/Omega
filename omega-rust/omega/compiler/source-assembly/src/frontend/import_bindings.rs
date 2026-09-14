@@ -1,9 +1,9 @@
 //! Import occurrence custody and an I/O-free join to the loaded source frontier.
 
 use super::{ReconciledPackageImportRequest, identifier_path_text, source_path_candidates};
-use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::source::SourceStorage;
+use crate::source::SourceStorage;
 use diagnostics::Diagnostic;
+use package_compilation::PackageCompilationInputs;
 use source::SourceId;
 use std::path::{Path, PathBuf};
 use syntax_trees::identifier::Identifier;
@@ -34,24 +34,24 @@ impl ImportOccurrence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::pipeline) struct ResolvedSourceImport {
+pub(crate) struct ResolvedSourceImport {
     pub(super) occurrence: ImportOccurrence,
-    pub(in crate::pipeline) path: PathBuf,
+    pub(crate) path: PathBuf,
     pub(super) requires_module: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::pipeline) struct PendingPackageImport {
+pub(crate) struct PendingPackageImport {
     pub(super) occurrence: ImportOccurrence,
     pub(super) request: ReconciledPackageImportRequest,
 }
 
 impl PendingPackageImport {
-    pub(in crate::pipeline) fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
+    pub(crate) fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
         self.request.physical_source()
     }
 
-    pub(in crate::pipeline) fn resolve_for_exact_target(
+    pub(crate) fn resolve_for_exact_target(
         &self,
         packages: &PackageCompilationInputs,
     ) -> Result<ResolvedSourceImport, Vec<Diagnostic>> {
@@ -88,7 +88,7 @@ fn same_source_path(candidate: &Path, resolved: &Path) -> bool {
     candidate == resolved || candidate.canonicalize().is_ok_and(|path| path == resolved)
 }
 
-pub(in crate::pipeline) fn retain_module_import_bindings(
+pub(crate) fn retain_module_import_bindings(
     storage: &SourceStorage,
 ) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
     if storage.resolved_imports.is_empty() {

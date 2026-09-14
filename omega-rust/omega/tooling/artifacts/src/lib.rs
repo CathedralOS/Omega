@@ -8,6 +8,7 @@
 pub mod allocations;
 mod artifact_writer;
 mod calling_plan_json;
+pub mod compile_timings;
 #[cfg(any(test, feature = "external-root-report"))]
 mod external_root_report;
 mod html_report;

@@ -49,6 +49,7 @@ tokens = { path = "../../../psi/representations/tokens" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 artifacts = { path = "../../tooling/artifacts" }
+source-assembly = { path = "../source-assembly" }
 bounded-process = { path = "../../tooling/bounded-process", optional = true }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }

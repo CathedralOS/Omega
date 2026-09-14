@@ -1,11 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::source::{SourceStorage, ToolchainContractCustody};
-use crate::{lexer, parser};
+use crate::source::{SourceStorage, ToolchainContractCustody};
 use arena::{Arena, HandleSpan};
 use diagnostics::Diagnostic;
+use package_compilation::PackageCompilationInputs;
 use source::{SourceId, SourceOrigin, SourcePosition};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -14,7 +13,7 @@ use tokens::{Token, TokenStream, TokenText};
 
 mod import_bindings;
 use import_bindings::{ImportOccurrence, direct_source_import};
-pub(super) use import_bindings::{
+pub(crate) use import_bindings::{
     PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings,
 };
 
@@ -137,7 +136,7 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
     let mut lexed = Vec::with_capacity(source_count);
 
     for loaded_source in loaded_sources {
-        let tokens = lexer::Lexer::new(loaded_source.source.as_ref())
+        let tokens = source_files_to_tokens::Lexer::new(loaded_source.source.as_ref())
             .tokenize()
             .map_err(|error| {
                 let position = SourcePosition::of(loaded_source.source.as_ref(), error.span.start);
@@ -177,7 +176,7 @@ pub fn parse_sources(
     let mut parsed = Vec::with_capacity(source_count);
 
     for lexed_source in lexed_sources {
-        let root_items = parser::parse_syntax_trees_into_with_id(
+        let root_items = tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
             syntax_trees,
             lexed_source.source_id,
             &lexed_source.tokens,
@@ -213,7 +212,7 @@ pub fn parse_sources(
 
 /// Discover standalone imports without interpreting dependency declarations.
 /// Package aliases are meaningful only on the reconciled package-aware path.
-pub(super) fn discover_imports(
+pub(crate) fn discover_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     root_path: &Path,
@@ -271,7 +270,7 @@ fn standalone_source_root(default_root: &Path, source: &Path) -> PathBuf {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum ReconciledPackageImport {
+pub(crate) enum ReconciledPackageImport {
     Toolchain(PathBuf),
     /// An import authored inside a closed toolchain contract source. It owns
     /// no package identity, so its path closes inside the registered contract
@@ -289,7 +288,7 @@ pub(super) enum ReconciledPackageImport {
 /// Physical source lookup is target-independent. Generated-source selection
 /// and physical/generated collision rejection remain exact-child work.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ReconciledPackageImportRequest {
+pub(crate) struct ReconciledPackageImportRequest {
     package: semantic_vocabulary::PackageKeyIdentity,
     expected_root: PathBuf,
     relative_path: PathBuf,
@@ -298,7 +297,7 @@ pub(super) struct ReconciledPackageImportRequest {
 }
 
 impl ReconciledPackageImportRequest {
-    pub(super) fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
+    pub(crate) fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
         if !source_import_candidates(&self.relative_path)
             .into_iter()
             .any(|candidate| self.expected_root.join(candidate).exists())
@@ -314,7 +313,7 @@ impl ReconciledPackageImportRequest {
         Ok(Some(resolved))
     }
 
-    pub(super) fn resolve_for_exact_target(
+    pub(crate) fn resolve_for_exact_target(
         &self,
         packages: &PackageCompilationInputs,
     ) -> Result<PathBuf, Vec<Diagnostic>> {
@@ -364,7 +363,7 @@ impl ReconciledPackageImportRequest {
     }
 }
 
-pub(super) fn reconciled_package_import(
+pub(crate) fn reconciled_package_import(
     requesting_source: &Path,
     members: &[Identifier],
     requester: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -451,7 +450,7 @@ pub(super) fn reconciled_package_import(
 
 /// Resolve imports exclusively through a reconciled, requester-local package
 /// graph. This path never reads or combines dependency rows from `build.omg`.
-pub(super) fn discover_imports_with_packages(
+pub(crate) fn discover_imports_with_packages(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     packages: &PackageCompilationInputs,
@@ -470,13 +469,13 @@ pub(super) fn discover_imports_with_packages(
     Ok(imports)
 }
 
-pub(super) enum PackageImportPhase {
+pub(crate) enum PackageImportPhase {
     TargetIndependent,
     ExactTarget(Option<semantic_vocabulary::PackageKeyIdentity>),
 }
 
 /// Retain package requests until the exact child checks generated-source collisions.
-pub(super) fn discover_package_imports(
+pub(crate) fn discover_package_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     packages: &PackageCompilationInputs,
@@ -743,7 +742,6 @@ fn source_import_candidates(relative_path: &Path) -> Vec<PathBuf> {
 #[cfg(test)]
 mod token_retention_tests {
     use super::own_token_stream;
-    use crate::lexer;
     use source::Span;
     use std::sync::Arc;
     use tokens::{Token, TokenKind, TokenStream, TokenText};
@@ -751,7 +749,7 @@ mod token_retention_tests {
     #[test]
     fn retention_moves_decoded_literal_allocations_and_preserves_tokens() {
         let source: Arc<str> = Arc::from(r#"name "line\ntext" "\xFF\0""#);
-        let tokens = lexer::Lexer::new(&source)
+        let tokens = source_files_to_tokens::Lexer::new(&source)
             .tokenize()
             .expect("lex literal fixture");
         let expected = tokens
@@ -787,7 +785,7 @@ mod token_retention_tests {
     fn retained_token_keeps_source_alive_after_stream_and_owner_drop() {
         let source: Arc<str> = Arc::from("name");
         let weak_source = Arc::downgrade(&source);
-        let tokens = lexer::Lexer::new(&source)
+        let tokens = source_files_to_tokens::Lexer::new(&source)
             .tokenize()
             .expect("lex identifier");
         let owned = own_token_stream(tokens, &source);

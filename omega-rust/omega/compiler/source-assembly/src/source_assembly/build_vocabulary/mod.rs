@@ -10,7 +10,7 @@ pub(super) const DECLARATIONS_SLOT: &str = "// compiler-owned optimization decla
 pub(super) const ENABLE_SLOT: &str = "// compiler-owned optimization enable machine\n";
 pub(super) const REPORT_SLOT: &str = "// compiler-owned optimization report machine\n";
 
-pub(in crate::pipeline) fn install(base: &str) -> String {
+pub(crate) fn install(base: &str) -> String {
     for slot in [DECLARATIONS_SLOT, ENABLE_SLOT, REPORT_SLOT] {
         assert_eq!(
             base.matches(slot).count(),

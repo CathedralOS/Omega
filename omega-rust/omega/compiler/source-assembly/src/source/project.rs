@@ -1,10 +1,10 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ProjectRoots {
-    pub(super) sources: Vec<std::path::PathBuf>,
-    pub(super) build: Option<std::path::PathBuf>,
+pub(crate) struct ProjectRoots {
+    pub(crate) sources: Vec<std::path::PathBuf>,
+    pub(crate) build: Option<std::path::PathBuf>,
 }
 
-pub(super) fn project_roots(root_path: &std::path::Path) -> ProjectRoots {
+pub(crate) fn project_roots(root_path: &std::path::Path) -> ProjectRoots {
     let mut roots = vec![root_path.to_path_buf()];
     let mut build = (root_path.file_name().and_then(|name| name.to_str()) == Some("build.omg"))
         .then(|| root_path.to_path_buf());

@@ -273,10 +273,10 @@ mod tests {
     use super::{SelectedTargetMachineDeclarations, filter_target_machines};
 
     fn syntax(source_id: usize, source: &str) -> syntax_trees::SyntaxTrees {
-        let tokens = crate::lexer::Lexer::new(source)
+        let tokens = source_files_to_tokens::Lexer::new(source)
             .tokenize()
             .expect("tokenize target-machine fixture");
-        crate::parser::parse_syntax_trees_with_id(source::SourceId(source_id), &tokens)
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(source_id), &tokens)
             .expect("parse target-machine fixture")
     }
 

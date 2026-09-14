@@ -1,4 +1,5 @@
 pub mod import_queue;
+pub mod project;
 pub mod source_file;
 pub mod source_storage;
 

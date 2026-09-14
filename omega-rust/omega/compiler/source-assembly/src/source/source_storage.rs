@@ -1,5 +1,5 @@
-use crate::pipeline::frontend::ParsedSources;
-use crate::pipeline::source::SourceFile;
+use crate::frontend::ParsedSources;
+use crate::source::SourceFile;
 use arena::Arena;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -14,7 +14,7 @@ pub struct SourceStorage {
     pub files: Arena<SourceFile>,
     pub sources: SourceMap,
     pub syntax_trees: SyntaxTrees,
-    pub(in crate::pipeline) resolved_imports: Vec<crate::pipeline::frontend::ResolvedSourceImport>,
+    pub(crate) resolved_imports: Vec<crate::frontend::ResolvedSourceImport>,
     default_package_root: PathBuf,
     default_package_identity: Option<PackageKeyIdentity>,
     package_roots: Vec<RegisteredPackageRoot>,

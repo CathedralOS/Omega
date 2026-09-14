@@ -1,11 +1,11 @@
-use crate::pipeline::source_assembly::AssembledSyntax;
-use crate::pipeline::stage::{
+use artifacts::compile_timings::CompileTimings;
+use artifacts::compile_timings::{
     SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
     TYPED_TREES_TO_CHECKED_TREES,
 };
-use crate::pipeline::timing::CompileTimings;
 use checked_trees::CheckedTrees as CheckedProgram;
 use diagnostics::Diagnostic;
+use source_assembly::AssembledSyntax;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees::TypedTrees;
