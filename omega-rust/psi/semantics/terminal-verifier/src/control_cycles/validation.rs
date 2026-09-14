@@ -11,7 +11,10 @@ use terminal_psi::{
 
 use crate::{ModuleError, control_graph};
 
-pub(crate) fn validate_natural_cycles(machine: &TerminalMachine) -> Result<(), ModuleError> {
+pub(crate) fn validate_natural_cycles(
+    machine: &TerminalMachine,
+    dominators: &control_graph::DominatorTree,
+) -> Result<(), ModuleError> {
     let Some(TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
         return Ok(());
     };
@@ -20,7 +23,6 @@ pub(crate) fn validate_natural_cycles(machine: &TerminalMachine) -> Result<(), M
     if components.is_empty() || components.len() != topology.len() {
         return Err(invalid());
     }
-    let dominators = control_graph::dominators(machine);
     let outgoing = control_graph::successors(machine);
     for (component, members) in components.iter().zip(topology) {
         if component.rank_type.carrier() != IntegerCarrier::Fixed
@@ -64,7 +66,7 @@ pub(crate) fn validate_natural_cycles(machine: &TerminalMachine) -> Result<(), M
         }
         for rank in &component.ranks {
             if value_type(machine, rank.value) != Some(ScalarType::Integer(component.rank_type))
-                || !available(machine, &dominators, rank.value, rank.block)
+                || !available(machine, dominators, rank.value, rank.block)
                 || !rank_origin(machine, rank.value)
             {
                 return Err(invalid());
@@ -73,7 +75,7 @@ pub(crate) fn validate_natural_cycles(machine: &TerminalMachine) -> Result<(), M
         for edge in &component.edges {
             if value_type(machine, edge.successor_rank)
                 != Some(ScalarType::Integer(component.rank_type))
-                || !available(machine, &dominators, edge.successor_rank, edge.source)
+                || !available(machine, dominators, edge.successor_rank, edge.source)
                 || !substituted_rank(
                     machine,
                     edge.source,
@@ -161,7 +163,7 @@ fn definition(machine: &TerminalMachine, value: ValueId) -> Option<BlockId> {
 
 fn available(
     machine: &TerminalMachine,
-    dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    dominators: &control_graph::DominatorTree,
     value: ValueId,
     block: BlockId,
 ) -> bool {
@@ -169,11 +171,7 @@ fn available(
         .parameters
         .iter()
         .any(|parameter| parameter.id == value)
-        || definition(machine, value).is_some_and(|owner| {
-            dominators
-                .get(&block)
-                .is_some_and(|blocks| blocks.contains(&owner))
-        })
+        || definition(machine, value).is_some_and(|owner| dominators.dominates(owner, block))
 }
 
 fn observed_view(machine: &TerminalMachine, value: ValueId) -> Option<PlaceId> {

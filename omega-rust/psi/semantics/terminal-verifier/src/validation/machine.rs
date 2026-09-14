@@ -1083,7 +1083,7 @@ pub(super) fn validate_machine(
     }
 
     let representation_backedges = ranked_scc::validate_ranked_scc(machine, &blocks, &value_types)?;
-    control_flow::validate_control_flow(
+    let dominators = control_flow::validate_control_flow(
         module,
         machine,
         machines,
@@ -1098,8 +1098,9 @@ pub(super) fn validate_machine(
         machines,
         &blocks,
         &representation_backedges,
+        &dominators,
     )?;
-    crate::control_cycles::validate_natural_cycles(machine)?;
+    crate::control_cycles::validate_natural_cycles(machine, &dominators)?;
     if policy == ValidationPolicy::Execution
         && machine
             .ranked_scc

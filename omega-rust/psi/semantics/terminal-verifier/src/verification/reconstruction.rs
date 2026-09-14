@@ -492,7 +492,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 machine,
                 operation,
                 machines,
-                &context.value_types,
+                &context,
                 if crash_facts {
                     operation_facts::OperationFactPurpose::PrivateCrashPredicates
                 } else {

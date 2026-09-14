@@ -153,6 +153,14 @@ further work. The latter require canonical case identity, not a guessed field.
 
 ## Cyclic control
 
+Full-graph dominance lives in [control_graph.rs](src/control_graph.rs). A compact
+immediate-dominator tree retains one interval/depth record per block, including
+backedges; it does not retain a set of ancestors for every block. Machine
+validation shares that analysis with frontier, disposal-order, and cycle checks.
+Proof reconstruction builds its own tree lazily, once per borrowed machine
+context, when a byte-length observation needs it. Neither route reuses a
+producer's dominance claim or grants facts across a proof-loop cut.
+
 Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).
 [control_cycles](src/control_cycles.rs) reconstructs complete SCC topology,
 rank substitution, and proof questions. The natural carrier selects one fixed

@@ -173,6 +173,7 @@ pub(super) fn validate_structural_frontier(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     representation_backedges: &BTreeSet<EdgeId>,
+    dominators: &crate::control_graph::DominatorTree,
 ) -> Result<VerifiedMachineStructuralFrontiers, ModuleError> {
     let mut snapshots = VerifiedMachineStructuralFrontiers {
         machine: machine.id,
@@ -231,7 +232,7 @@ pub(super) fn validate_structural_frontier(
         partial_custody_paths: BTreeMap::new(),
     };
 
-    let parameter_order = block_parameters::disposal_order(machine);
+    let parameter_order = block_parameters::disposal_order(machine, dominators);
     let order = traversal::block_order(machine.entry, blocks, representation_backedges);
     let mut incoming = BTreeMap::<BlockId, Vec<StructuralOwnershipFrontier>>::new();
     incoming.insert(machine.entry, vec![entry]);
@@ -279,7 +280,7 @@ pub(super) fn validate_structural_frontier(
                 operation,
                 &mut frontier.references,
             )?;
-            validate_owned_reads(module, machine, operation, &frontier)?;
+            validate_owned_reads(module, machine, operation, &frontier, dominators)?;
             if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind
                 && frontier
                     .owned_places
@@ -1136,6 +1137,7 @@ fn validate_owned_reads(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     frontier: &StructuralOwnershipFrontier,
+    dominators: &crate::control_graph::DominatorTree,
 ) -> Result<(), ModuleError> {
     if let OperationKind::EstablishRecord { fields } = &operation.kind {
         for field in fields {
@@ -1162,14 +1164,11 @@ fn validate_owned_reads(
                                 .any(|candidate| candidate.id == operation.id)
                         })
                         .is_some_and(|current| {
-                            let dominators = crate::control_graph::dominators(machine);
                             machine.blocks.iter().any(|definition| {
                                 definition.structural_parameters.iter().any(|parameter| {
                                     parameter.place == argument.place
                                         && parameter.access == StructuralAccess::Owned
-                                }) && dominators
-                                    .get(&current.id)
-                                    .is_some_and(|blocks| blocks.contains(&definition.id))
+                                }) && dominators.dominates(definition.id, current.id)
                             })
                         }));
             if (!unrestricted_parameter
