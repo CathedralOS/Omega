@@ -1,7 +1,9 @@
 //! Ordinary private crash summaries compose through exact invocation substitutions;
 //! authored published ceilings remain authoritative. Predicate reduction requires
 //! the callee's builtin operator meaning and entry custody for referenced actuals.
-//! Optional scalar annotations carry lowering detail, never discharge authority.
+//! Optional scalar annotations carry checked lowering evidence: after a fully
+//! concrete substitution they may discharge or confirm a route the domain-free
+//! identity cannot fold, and they never keep an undecidable origin from widening.
 
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
@@ -156,7 +158,8 @@ struct CallArgumentSubstitution {
 }
 
 /// Reduce only closed proof-literal comparisons after entry substitution.
-/// Optional scalar annotations never establish or erase a crash cause.
+/// The predicate identity is domain-free: arithmetic operands stay opaque
+/// here so no caller-selected meaning is silently replaced by builtin laws.
 fn summary_boolean_value(expression: &CrashPredicateExpression) -> Option<bool> {
     use typed_trees::expression::{BinaryOperator, UnaryOperator};
 
@@ -225,6 +228,40 @@ fn summary_integer_literal(
     })
 }
 
+/// The checked scalar evidence for an arithmetic guard is a (possibly negated)
+/// integer comparison. It is the only annotation form the domain-free identity
+/// cannot fold itself, so it is the only form consulted for discharge.
+fn scalar_guard_is_integer_comparison(
+    expression: &checked_trees::CheckedBooleanExpression,
+) -> bool {
+    use checked_trees::CheckedBooleanExpression;
+    match expression {
+        CheckedBooleanExpression::IntegerComparison { .. } => true,
+        CheckedBooleanExpression::Not(operand) => {
+            matches!(
+                &**operand,
+                CheckedBooleanExpression::IntegerComparison { .. }
+            )
+        }
+        _ => false,
+    }
+}
+
+/// Evaluate a fully substituted checked scalar guard. `Some` is decided only
+/// from closed concrete operands under the selected domains; `None` leaves
+/// the route conservative and never establishes or erases a cause by itself.
+fn concrete_guard_scalar_value(
+    expression: &checked_trees::CheckedBooleanExpression,
+) -> Option<bool> {
+    match crate::values::evaluate_checked_scalar(
+        &checked_trees::CheckedScalarExpression::Boolean(Box::new(expression.clone())),
+        &mut |_| None,
+    )? {
+        facts::ScalarValue::Boolean(value) => Some(value),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct SummaryCrashBucket {
     cause: checked_trees::CrashCause,
@@ -255,19 +292,35 @@ impl SummaryCrashBucket {
                         // without inventing a guard in the caller namespace.
                         return Some(SummaryCrashRouteGuard::Truth);
                     };
-                    match if predicate.builtin_meaning {
+                    let scalar = predicate.scalar.as_ref().and_then(|scalar| {
+                        substitute_checked_boolean_expression(scalar, &arguments.scalar)
+                    });
+                    let folded = if predicate.builtin_meaning {
                         summary_boolean_value(&identity)
                     } else {
                         identity.boolean_value()
-                    } {
+                    };
+                    // Domain-free folding stands down on arithmetic operands:
+                    // a checked integer-comparison annotation remains the only
+                    // authority that can decide them under their selected
+                    // domains. An annotation never substitutes for the
+                    // retained identity and never erases a guard it cannot
+                    // describe.
+                    let value = folded.or_else(|| {
+                        (predicate.builtin_meaning
+                            && scalar
+                                .as_ref()
+                                .is_some_and(scalar_guard_is_integer_comparison))
+                        .then(|| scalar.as_ref().and_then(concrete_guard_scalar_value))
+                        .flatten()
+                    });
+                    match value {
                         Some(false) => None,
                         Some(true) => Some(SummaryCrashRouteGuard::Truth),
                         None => Some(SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
                             identity,
                             builtin_meaning: predicate.builtin_meaning,
-                            scalar: predicate.scalar.as_ref().and_then(|scalar| {
-                                substitute_checked_boolean_expression(scalar, &arguments.scalar)
-                            }),
+                            scalar,
                         })),
                     }
                 }
@@ -390,7 +443,6 @@ fn call_argument_substitution(
             // Receiver-entry identity needs retained referent custody. A name
             // alone must not impersonate a caller entry value.
             identity.push(None);
-            scalar.push(None);
             continue;
         }
         let argument = arguments.get(argument_index).copied();
@@ -405,19 +457,24 @@ fn call_argument_substitution(
                 argument,
             )
         });
-        scalar.push(argument.and_then(|argument| {
-            entry_identity.as_ref()?;
-            let expected = program.primitive_type_reference(parameter.type_reference)?;
-            crate::values::lower_state_scalar_expression(
-                program,
-                operators,
-                owner?.1,
-                before_statement,
-                argument,
-                expected,
-                exact_integer_casts,
-            )
-        }));
+        // Scalar annotations live in the dense primitive namespace: only
+        // primitive-typed formals occupy a slot, regardless of aggregate
+        // parameters or receivers before them. Checked scalar evidence is
+        // retained independently of entry custody so arithmetic actuals and
+        // unprovable origins can still discharge once they become concrete.
+        if let Some(expected) = program.primitive_type_reference(parameter.type_reference) {
+            scalar.push(argument.and_then(|argument| {
+                crate::values::lower_state_scalar_expression(
+                    program,
+                    operators,
+                    owner?.1,
+                    before_statement,
+                    argument,
+                    expected,
+                    exact_integer_casts,
+                )
+            }));
+        }
         identity.push(entry_identity);
     }
     CallArgumentSubstitution { identity, scalar }
@@ -642,23 +699,34 @@ fn refine_published_crash_routes(
                                 guards.push(SummaryCrashRouteGuard::Truth);
                                 continue;
                             };
-                            match if builtin_meaning {
+                            let scalar = identity.scalar_expression().and_then(|scalar| {
+                                substitute_checked_boolean_expression(scalar, &substitution.scalar)
+                            });
+                            let folded = if builtin_meaning {
                                 summary_boolean_value(&predicate)
                             } else {
                                 predicate.boolean_value()
-                            } {
+                            };
+                            // Domain-free folding stands down on arithmetic
+                            // operands: a checked integer-comparison
+                            // annotation decides them under their selected
+                            // domains once every actual is concrete.
+                            let value = folded.or_else(|| {
+                                (builtin_meaning
+                                    && scalar
+                                        .as_ref()
+                                        .is_some_and(scalar_guard_is_integer_comparison))
+                                .then(|| scalar.as_ref().and_then(concrete_guard_scalar_value))
+                                .flatten()
+                            });
+                            match value {
                                 Some(false) => {}
                                 Some(true) => guards.push(SummaryCrashRouteGuard::Truth),
                                 None => guards.push(SummaryCrashRouteGuard::Predicate(
                                     SummaryCrashPredicate {
                                         identity: predicate,
                                         builtin_meaning,
-                                        scalar: identity.scalar_expression().and_then(|scalar| {
-                                            substitute_checked_boolean_expression(
-                                                scalar,
-                                                &substitution.scalar,
-                                            )
-                                        }),
+                                        scalar,
                                     },
                                 )),
                             }
@@ -918,10 +986,11 @@ pub(crate) fn infer_checked_crash_causes(
 ) -> Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)> {
     let content_conservation = validation::build_content_conservation_plans(program);
     // Validation-only exact-cast facts are not retained in CheckedTrees. They
-    // feed only CallArgumentSubstitution.scalar, never its identity. Summary
-    // guard selection, false-guard removal, equality and fixed-point closure
-    // use the identity alone; dropping scalar annotations cannot remove a
-    // cause. This query does not publish the discarded guard annotations.
+    // feed only CallArgumentSubstitution.scalar, never its identity. Guard
+    // retention, equality and fixed-point closure still use the identity
+    // alone; a scalar annotation decides only a retained guard whose
+    // substituted identity cannot fold, through a closed integer comparison.
+    // This query does not publish the guard annotations it consumes.
     let summaries = infer_private_body_summaries(
         program,
         &facts.operators,
@@ -1755,6 +1824,103 @@ mod tests {
             scalar: vec![None; identity.len()],
             identity,
         }
+    }
+
+    #[test]
+    fn arithmetic_actual_guards_discharge_through_checked_scalar_evidence() {
+        use checked_trees::{
+            CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+            CheckedScalarExpression,
+        };
+        use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+        use typed_trees::expression::BinaryOperator;
+        use typed_trees::types::PrimitiveType;
+
+        let literal = |text: &str| CheckedScalarExpression::IntegerLiteral {
+            literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, text)
+                .unwrap()
+                .with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U64,
+                    domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                }),
+        };
+        // `divide(value - 1)` inside a forwarding body: the published guard
+        // `value == 0` retains the arithmetic actual over the caller's entry.
+        let identity = CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Equal as u8,
+            left: Box::new(CrashPredicateExpression::Binary {
+                operator: BinaryOperator::Subtract as u8,
+                left: Box::new(CrashPredicateExpression::Parameter(0)),
+                right: Box::new(CrashPredicateExpression::Integer("1".into())),
+            }),
+            right: Box::new(CrashPredicateExpression::Integer("0".into())),
+        };
+        let scalar = CheckedBooleanExpression::IntegerComparison {
+            kind: CheckedIntegerComparisonKind::Equal,
+            left: Box::new(CheckedScalarExpression::IntegerBinary {
+                kind: CheckedIntegerBinaryKind::ExactSubtract,
+                primitive_type: PrimitiveType::U64,
+                left: Box::new(CheckedScalarExpression::Parameter {
+                    position: 0,
+                    primitive_type: PrimitiveType::U64,
+                }),
+                right: Box::new(literal("1")),
+            }),
+            right: Box::new(literal("0")),
+        };
+        let bucket = SummaryCrashBucket {
+            cause: checked_trees::CrashCause::Trap,
+            alternative_guards: vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+                identity,
+                builtin_meaning: true,
+                scalar: Some(scalar),
+            })],
+        };
+        let substitute = |actual: &str| {
+            let mut substitution =
+                identity_substitution(vec![Some(CrashPredicateExpression::Integer(actual.into()))]);
+            substitution.scalar = vec![Some(literal(actual))];
+            normalize_summary_buckets(vec![bucket.substitute(&substitution)])
+        };
+        // `3 - 1 == 0` is decided false: the guarded Trap discharges.
+        assert!(substitute("3").is_empty());
+        // `1 - 1 == 0` is decided true: the route is unconditional.
+        assert_eq!(
+            substitute("1"),
+            vec![SummaryCrashBucket::unconditional(
+                checked_trees::CrashCause::Trap
+            )],
+        );
+        // `0 - 1` cannot produce a u64 under the exact domain, so the guard
+        // stays undecidable and the route survives as a predicate.
+        let surviving_buckets = substitute("0");
+        let [surviving] = surviving_buckets.as_slice() else {
+            panic!("the undecidable arithmetic guard retains its route")
+        };
+        let [SummaryCrashRouteGuard::Predicate(_)] = surviving.alternative_guards.as_slice() else {
+            panic!("exact-domain underflow keeps the guarded route")
+        };
+        // The identity alone cannot fold arithmetic: without the annotation
+        // the same substitution only retains.
+        let mut without_scalar = bucket.clone();
+        without_scalar.alternative_guards =
+            vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+                scalar: None,
+                ..match &without_scalar.alternative_guards[0] {
+                    SummaryCrashRouteGuard::Predicate(predicate) => predicate.clone(),
+                    _ => unreachable!(),
+                }
+            })];
+        let mut substitution =
+            identity_substitution(vec![Some(CrashPredicateExpression::Integer("3".into()))]);
+        substitution.scalar = vec![Some(literal("3"))];
+        let [SummaryCrashRouteGuard::Predicate(_)] = without_scalar
+            .substitute(&substitution)
+            .alternative_guards
+            .as_slice()
+        else {
+            panic!("an arithmetic identity alone cannot decide the guard")
+        };
     }
 
     #[test]

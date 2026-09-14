@@ -60,6 +60,44 @@ pub(super) fn entry_operand(
                 member: member.member.as_str().to_owned(),
             })
         }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                typed_trees::expression::BinaryOperator::Add
+                    | typed_trees::expression::BinaryOperator::Subtract
+                    | typed_trees::expression::BinaryOperator::Multiply
+                    | typed_trees::expression::BinaryOperator::Divide
+                    | typed_trees::expression::BinaryOperator::Modulo
+                    | typed_trees::expression::BinaryOperator::BitwiseAnd
+                    | typed_trees::expression::BinaryOperator::BitwiseOr
+                    | typed_trees::expression::BinaryOperator::BitwiseXor
+                    | typed_trees::expression::BinaryOperator::ShiftLeft
+                    | typed_trees::expression::BinaryOperator::ShiftRight
+            ) =>
+        {
+            // Only value-producing arithmetic crosses this boundary. The
+            // domain-free predicate reducers can never fold these operators,
+            // so transporting them cannot substitute builtin meaning for a
+            // caller-authored one; the checked scalar channel remains the
+            // only evaluation authority over the substituted expression.
+            Some(CrashPredicateExpression::Binary {
+                operator: binary.operator as u8,
+                left: Box::new(entry_operand(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    binary.left,
+                )?),
+                right: Box::new(entry_operand(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    binary.right,
+                )?),
+            })
+        }
         ExpressionNode::Name(path) => {
             if program
                 .expression_table
