@@ -300,6 +300,63 @@ fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
 }
 
 #[test]
+fn checked_uefi_os_handoff_invocation_retains_edge_binding() {
+    let canary = pass_canary(fixture_roster::BUILD_UEFI_OS_HANDOFF_INVOCATION);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("uefi_x86_64"),
+    ))
+    .expect("UEFI OS-handoff invocation canary should compile");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        Some("Loader::run")
+    );
+
+    let machine_path = |symbol| checked.typed.symbols.display_path(symbol, "::").to_owned();
+    let loader_entry = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine_path(machine.symbol) == "Loader::run")
+        .expect("the loader entry machine must be retained");
+
+    // The selected loader entry reaches and invokes the target-owned
+    // nonreturning handoff surface, naming the exact `UefiOsHandoff` service.
+    let handoff_invocation = checked
+        .typed
+        .machine_invokes(loader_entry)
+        .iter()
+        .find(|invocation| invocation.as_str() == "UefiOsHandoff")
+        .expect("Loader::run must invoke the UefiOsHandoff boundary");
+    let typed_trees::signature::AuthoredInvocationTarget::Service(service) =
+        handoff_invocation.target
+    else {
+        panic!("the handoff invocation must target a boundary service");
+    };
+    assert_eq!(machine_path(service), "UefiOsHandoff");
+
+    // The target package's boundary realization supplies the requirement: the
+    // native provider's `handoff` boundary machine satisfies
+    // `UefiOsHandoff::handoff`, the authored route for the custody edge.
+    let provider_handoff = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine_path(machine.symbol) == "UefiOsHandoffNativeProvider::handoff")
+        .expect("the target's handoff realization must be retained");
+    let conformance = checked
+        .typed
+        .machine_trait_conformances(provider_handoff)
+        .iter()
+        .find(|conformance| conformance.requirement.as_deref() == Some("handoff"))
+        .expect("the provider realization must satisfy the handoff requirement");
+    assert_eq!(
+        machine_path(conformance.requirement_symbol),
+        "UefiOsHandoff::handoff"
+    );
+}
+
+#[test]
 fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
     let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
