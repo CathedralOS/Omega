@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
-"""Coordinate a wave of Devin Cloud sessions, each advancing one board item.
+"""Coordinate a wave of sessions, each advancing one board item.
 
 Why pre-assignment exists: the repository's advance skill selects its own work
 from the execution boards, which is correct for one agent and a collision when
-N cloud sessions start at once. The manifest is the coordinator's partitioning
+N sessions start at once. The manifest is the coordinator's partitioning
 decision: one session, one named board item, one set of owning paths. Sessions
 then run the ordinary advance protocol end to end, including landing through
 tools/landing.py; the swarm adds nothing to the boards themselves.
 
+Sessions are either Devin Cloud agents (host "linux"; plan/launch/status/report)
+or local agents on this machine (host "local"; the `local` subcommand). A local
+session runs the identical claim/land/release protocol in a Git worktree under
+.codex/worktrees/; `local` renders its prompts, optionally creates the
+worktrees, and prints the launch table for the coordinator to spawn from.
+Local waves have no session receipts, so status/report remain cloud-only —
+tools/swarm/worktree_status.py is the local equivalent.
+
 What this launcher deliberately does NOT do: it writes no board text, holds no
-landing claim, creates no Git refs, and keeps no ownership state. Its receipts
-live only in the ignored build/swarm/ directory so worker/session IDs stay off
-the boards. Partitioning lives only in the manifest the coordinator wrote;
-overlaps with in-flight human work are excluded there, not detected here.
+landing claim, creates no Git refs beyond the worktrees `local` is explicitly
+asked for, and keeps no ownership state. Its receipts live only in the ignored
+build/swarm/ directory so worker/session IDs stay off the boards. Partitioning
+lives only in the manifest the coordinator wrote; overlaps with in-flight
+human work are excluded there, not detected here.
 
 Every subcommand prints one JSON object. Credentials come only from the
 DEVIN_API_KEY and DEVIN_ORG_ID environment variables and are never printed.
@@ -23,6 +32,8 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -39,6 +50,12 @@ MAX_ATTEMPTS = 3
 PROMPT_FIELDS = ("name", "wave", "item", "board", "owner_label", "exclusions",
                  "max_acu_limit", "suggested_first_slice_block",
                  "probe_block", "claim_command", "structured_output_schema")
+LOCAL_PROMPT_FIELDS = ("name", "wave", "item", "board", "owner_label",
+                       "repository", "worktree", "branch", "claim_command",
+                       "wave_items", "exclusions", "build_tool", "host_block",
+                       "suggested_first_slice_block", "probe_block",
+                       "continuation_block")
+LOCAL_CLAIM_LEASE_MINUTES = 120
 
 STRUCTURED_OUTPUT_SCHEMA = {
     "type": "object",
@@ -127,8 +144,9 @@ def validate_manifest(manifest, repository):
         if session["board"] not in BOARDS:
             raise SwarmError(f"{session['name']}: unknown board {session['board']!r}; "
                              f"expected one of {', '.join(BOARDS)}.")
-        if session["host"] != "linux":
-            raise SwarmError(f"{session['name']}: host must be linux, got {session['host']!r}.")
+        if session["host"] not in ("linux", "local"):
+            raise SwarmError(f"{session['name']}: host must be linux or local, "
+                             f"got {session['host']!r}.")
         if not isinstance(session["owning_paths"], list) or not session["owning_paths"]:
             raise SwarmError(f"{session['name']}: owning_paths must be a non-empty list.")
         if "host_gates" in session:
@@ -350,8 +368,7 @@ def route_check(sessions, freshness_by_name):
         raise SwarmError("\n".join(failures))
 
 
-def render_prompt(template, manifest, session):
-    owner_label = f"{manifest['owner_label_prefix']}-{session['name']}"
+def session_blocks(session):
     slice_block = ""
     if session.get("suggested_first_slice"):
         slice_block = (
@@ -365,23 +382,182 @@ def render_prompt(template, manifest, session):
             "witnessed rejection, the exact missing seam, and the next "
             "acceptance in `remaining_dependency` is a planned success here, "
             "not a failure; still land a bounded improvement if one exists.")
+    return slice_block, probe_block
+
+
+def claim_command(session, owner_label, lease_minutes=None):
     paths = " ".join(f"--path {path}" for path in session["owning_paths"])
+    lease = (f" --lease-minutes {lease_minutes}" if lease_minutes else "")
+    return (f"python3 tools/claims.py claim --board {session['board']} "
+            f"--item {session['item']} --owner \"{owner_label}\""
+            + (f" {paths}" if paths else "") + lease)
+
+
+def sessions_for(manifest, command):
+    want = "local" if command == "local" else "linux"
+    selected = [s for s in manifest["sessions"] if s["host"] == want]
+    skipped = [s["name"] for s in manifest["sessions"] if s["host"] != want]
+    if not selected:
+        other = "linux" if want == "local" else "local"
+        raise SwarmError(f"Manifest has no {want}-host sessions "
+                         f"({len(manifest['sessions'])} are {other}); use the "
+                         "matching subcommand for them.")
+    return selected, skipped
+
+
+def render_prompt(template, manifest, session):
+    owner_label = f"{manifest['owner_label_prefix']}-{session['name']}"
+    slice_block, probe_block = session_blocks(session)
     values = {
         "name": session["name"],
         "wave": manifest["wave"],
         "item": session["item"],
         "board": session["board"],
         "owner_label": owner_label,
-        "claim_command": (f"python3 tools/claims.py claim --board {session['board']} "
-                          f"--item {session['item']} --owner \"{owner_label}\""
-                          + (f" {paths}" if paths else "")),
-        "exclusions": ", ".join(manifest["exclusions"]),
+        "claim_command": claim_command(session, owner_label),
+        "exclusions": ", ".join(manifest["exclusions"]) or "(none)",
         "max_acu_limit": manifest["max_acu_limit"],
         "suggested_first_slice_block": slice_block,
         "probe_block": probe_block,
         "structured_output_schema": json.dumps(STRUCTURED_OUTPUT_SCHEMA, indent=2),
     }
     return template.format_map(values)
+
+
+def local_host_block():
+    system, machine = platform.system(), platform.machine()
+    if system == "Darwin" and machine == "x86_64":
+        return (
+            "You are on Intel macOS (x86_64). `TargetProfile::host()` has no "
+            "macos_x86_64 profile and `canary_suite`'s `native_hosted_target()` "
+            "has no matching cfg arm: host-profiled tests panic with "
+            "`unsupported host profile for Omega native planning` and the "
+            "canary target does not compile here. See "
+            "wiki/drafts/known_baseline_failures.md. Route omega invocations "
+            "through `--target linux_x86_64` (or another declared target) and "
+            "report native-host coverage as unavailable, never as passing.")
+    if system == "Darwin":
+        return ("You are on macOS arm64. Host-profiled checks and the canary "
+                "suite run natively on this host.")
+    return f"You are on {system} {machine}."
+
+
+def local_session_state(repository, wave, session):
+    worktree = repository / ".codex" / "worktrees" / f"{wave}-{session['name']}"
+    branch = f"swarm/{wave}-{session['name']}"
+    try:
+        git(repository, "rev-parse", "--verify", f"refs/heads/{branch}")
+        ahead = int(git(repository, "rev-list", "--count",
+                        f"origin/main..{branch}") or 0)
+    except (SwarmError, ValueError):
+        ahead = 0
+        branch_exists = False
+    else:
+        branch_exists = True
+    if ahead and worktree.is_dir():
+        state = "resumable"
+    elif ahead or branch_exists:
+        state = "resumable_no_worktree"
+    elif worktree.is_dir():
+        state = "existing"
+    else:
+        state = "absent"
+    return {"worktree": worktree, "branch": branch, "ahead": ahead,
+            "branch_exists": branch_exists, "state": state}
+
+
+def render_local_prompt(template, manifest, session, repository, state):
+    owner_label = f"{manifest['owner_label_prefix']}-{session['name']}"
+    slice_block, probe_block = session_blocks(session)
+    continuation_block = ""
+    if state["ahead"]:
+        continuation_block = (
+            "Continuation slot: this branch already carries "
+            f"{state['ahead']} unpublished commit(s) from an interrupted "
+            "session. Inspect `git log origin/main..HEAD` and `git status` "
+            "first and continue the existing work; do not restart or discard "
+            "it without recording why in your report.")
+    values = {
+        "name": session["name"],
+        "wave": manifest["wave"],
+        "item": session["item"],
+        "board": session["board"],
+        "owner_label": owner_label,
+        "repository": str(repository),
+        "worktree": str(state["worktree"]),
+        "branch": state["branch"],
+        "claim_command": claim_command(session, owner_label,
+                                       LOCAL_CLAIM_LEASE_MINUTES),
+        "wave_items": ", ".join(s["item"] for s in manifest["sessions"]),
+        "exclusions": ", ".join(manifest["exclusions"]) or "(none)",
+        "build_tool": "mbx" if shutil.which("mbx") else "cargo",
+        "host_block": local_host_block(),
+        "suggested_first_slice_block": slice_block,
+        "probe_block": probe_block,
+        "continuation_block": continuation_block,
+    }
+    return template.format_map(values)
+
+
+def command_local(arguments, repository):
+    manifest = load_manifest(arguments.manifest, repository)
+    sessions, skipped = sessions_for(manifest, "local")
+    gate_results = host_gate_results(repository, sessions,
+                                     skip=arguments.skip_host_gates)
+    route_data = "skipped" if arguments.skip_route_check else route_crates(repository)
+    freshness = {
+        session["name"]: freshness_probe(repository, session, route_data)
+        for session in sessions
+    }
+    if not arguments.skip_route_check:
+        route_check(sessions, freshness)
+    claims_state = claims_report(repository, sessions,
+                                 skip=arguments.skip_claims_check)
+    template = (Path(__file__).resolve().parent
+                / "prompt_template_local.md").read_text(encoding="utf-8")
+    wave_directory = build_directory(repository, manifest["wave"])
+    prompts_directory = wave_directory / "prompts"
+    prompts_directory.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for session in sessions:
+        state = local_session_state(repository, manifest["wave"], session)
+        prompt = render_local_prompt(template, manifest, session, repository,
+                                     state)
+        unresolved = [field for field in LOCAL_PROMPT_FIELDS
+                      if "{" + field + "}" in prompt]
+        if unresolved:
+            raise SwarmError(f"{session['name']}: local prompt template left "
+                             f"placeholders unresolved: {unresolved}")
+        prompt_path = prompts_directory / f"{session['name']}.md"
+        prompt_path.write_text(prompt, encoding="utf-8", newline="\n")
+        if arguments.create_worktrees and state["state"] in (
+                "absent", "resumable_no_worktree"):
+            worktree_arg = state["worktree"].relative_to(repository).as_posix()
+            if state["branch_exists"]:
+                git(repository, "worktree", "add", worktree_arg,
+                    state["branch"])
+            else:
+                git(repository, "worktree", "add", worktree_arg, "-b",
+                    state["branch"], "origin/main")
+            state["state"] = ("resumable" if state["ahead"] else "existing")
+        rows.append({
+            "name": session["name"],
+            "item": session["item"],
+            "board": session["board"],
+            "prompt": str(prompt_path.relative_to(repository)),
+            "worktree": str(state["worktree"].relative_to(repository)),
+            "branch": state["branch"],
+            "worktree_state": state["state"],
+            "owner_label":
+                f"{manifest['owner_label_prefix']}-{session['name']}",
+            "host_gates": gate_results[session["name"]],
+            "claims": claims_state[session["name"]],
+            "probe_only": bool(session.get("probe_only", False)),
+            "freshness": freshness[session["name"]],
+        })
+    emit({"command": "local", "wave": manifest["wave"],
+          "skipped_non_local_sessions": skipped, "sessions": rows})
+    return 0
 
 
 def request_body(manifest, session, prompt):
@@ -465,17 +641,18 @@ def write_receipts(directory, receipts):
 
 def command_plan(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
-    gate_results = host_gate_results(repository, manifest["sessions"],
+    sessions, skipped = sessions_for(manifest, "plan")
+    gate_results = host_gate_results(repository, sessions,
                                      skip=arguments.skip_host_gates)
     skip_route_check = arguments.skip_route_check
     route_data = "skipped" if skip_route_check else route_crates(repository)
     freshness = {
         session["name"]: freshness_probe(repository, session, route_data)
-        for session in manifest["sessions"]
+        for session in sessions
     }
     if not skip_route_check:
-        route_check(manifest["sessions"], freshness)
-    claims_state = claims_report(repository, manifest["sessions"],
+        route_check(sessions, freshness)
+    claims_state = claims_report(repository, sessions,
                                  skip=arguments.skip_claims_check)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
@@ -483,7 +660,7 @@ def command_plan(arguments, repository):
     prompts_directory = wave_directory / "prompts"
     prompts_directory.mkdir(parents=True, exist_ok=True)
     planned = []
-    for session in manifest["sessions"]:
+    for session in sessions:
         prompt = render_prompt(template, manifest, session)
         unresolved = [field for field in PROMPT_FIELDS
                       if "{" + field + "}" in prompt]
@@ -503,23 +680,25 @@ def command_plan(arguments, repository):
             "freshness": freshness[session["name"]],
             "body": request_body(manifest, session, prompt),
         })
-    emit({"command": "plan", "wave": manifest["wave"], "sessions": planned})
+    emit({"command": "plan", "wave": manifest["wave"],
+          "skipped_non_linux_sessions": skipped, "sessions": planned})
     return 0
 
 
 def command_launch(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
+    sessions, skipped = sessions_for(manifest, "launch")
     if not arguments.dry_run:
-        host_gate_results(repository, manifest["sessions"],
+        host_gate_results(repository, sessions,
                           skip=arguments.skip_host_gates)
         route_data = "skipped" if arguments.skip_route_check else route_crates(repository)
         freshness = {
             session["name"]: freshness_probe(repository, session, route_data)
-            for session in manifest["sessions"]
+            for session in sessions
         }
         if not arguments.skip_route_check:
-            route_check(manifest["sessions"], freshness)
-        claims_report(repository, manifest["sessions"],
+            route_check(sessions, freshness)
+        claims_report(repository, sessions,
                       skip=arguments.skip_claims_check)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
@@ -529,7 +708,7 @@ def command_launch(arguments, repository):
     if not arguments.dry_run:
         _, organization = credentials()
     launched = []
-    for session in manifest["sessions"]:
+    for session in sessions:
         name = session["name"]
         if name in receipts and arguments.relaunch != name:
             launched.append({"name": name, "skipped": "receipt_exists",
@@ -557,7 +736,8 @@ def command_launch(arguments, repository):
         launched.append({"name": name, "session_id": session_id,
                          "url": receipts[name]["url"]})
     emit({"command": "launch", "wave": manifest["wave"],
-          "dry_run": bool(arguments.dry_run), "sessions": launched})
+          "dry_run": bool(arguments.dry_run),
+          "skipped_non_linux_sessions": skipped, "sessions": launched})
     return 0
 
 
@@ -749,6 +929,16 @@ def main(argv=None):
     launch.add_argument("--skip-route-check", action="store_true")
     launch.add_argument("--skip-claims-check", action="store_true")
     launch.add_argument("--relaunch")
+    local = subparsers.add_parser(
+        "local", help="render local-wave prompts and print the launch table; "
+                      "the coordinator spawns the agents itself")
+    local.add_argument("--manifest", required=True)
+    local.add_argument("--create-worktrees", action="store_true",
+                       help="create .codex/worktrees/<wave>-<name> and "
+                            "swarm/<wave>-<name> branches before spawning")
+    local.add_argument("--skip-host-gates", action="store_true")
+    local.add_argument("--skip-route-check", action="store_true")
+    local.add_argument("--skip-claims-check", action="store_true")
     status = subparsers.add_parser("status")
     status.add_argument("--wave", required=True)
     report = subparsers.add_parser("report")
@@ -761,7 +951,8 @@ def main(argv=None):
         arguments = parser.parse_args(argv)
         repository = repository_root(arguments)
         handler = {"plan": command_plan, "launch": command_launch,
-                   "status": command_status, "report": command_report}[arguments.command]
+                   "local": command_local, "status": command_status,
+                   "report": command_report}[arguments.command]
         return handler(arguments, repository)
     except (SwarmError, OSError) as error:
         print(f"swarm: {error}", file=sys.stderr)
