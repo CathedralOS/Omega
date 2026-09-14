@@ -88,6 +88,7 @@ fn check_program(
     // normalization and destination typing, before validation/backend facts
     // consume the call identity.
     validation::resolve_named_result_overloads(&mut program)?;
+    crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
     let validated = validate_typed_program(
         &program,
         opaque_property_receipts,

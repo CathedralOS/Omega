@@ -43,6 +43,10 @@ fn lower_machine_contents(
         name: crate::name::lower_name(&machine.name),
         attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
         attached_data_symbol: machine.attached_data_symbol,
+        attached_data_application: typed::types::TypeReferenceHandle::invalid(),
+        // `lower_machine` validates the exact clone origin before entering
+        // this conversion; retain it for application-property checking.
+        generic_data_template: machine.generic_data_origin.template,
         is_public: machine.is_public,
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
@@ -72,6 +76,11 @@ fn lower_machine_contents(
     };
 
     typed_machine.type_parameters = lower_type_parameters(lowerer, machine.type_parameters)?;
+
+    if let Some(application) = &machine.attached_data_application {
+        typed_machine.attached_data_application =
+            lower_type_reference_into_table(lowerer, application)?;
+    }
 
     for owned_data in lowerer.source_trees.machine_owned_data(machine.owned_data) {
         let owned_data = lowerer.with_type_reference_exposure(

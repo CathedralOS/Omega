@@ -144,6 +144,55 @@ pub(super) fn assign_machine_symbols(
             .span_or_empty(machine.type_parameters)
             .to_vec();
 
+        // Seeded resolution revisits retained declarations. Their application
+        // is already resolved; preserve its exact arena span rather than
+        // replacing an unchanged prefix with freshly allocated arguments.
+        if machine.attached_data_application.is_none() {
+        machine.attached_data_application = data_definitions
+            .iter()
+            .find(|definition| {
+                machine.attached_data_symbol.is_valid()
+                    && definition.symbol == machine.attached_data_symbol
+                    && !definition.type_parameters.is_empty()
+            })
+            .map(|definition| {
+                // Source resolution is where repeated binder spellings acquire
+                // their declaration identities. A method may strengthen its
+                // own bound without changing the owner's parameter globally.
+                // Unmentioned or differently kinded parameters remain the
+                // owner's exact binders, not unrelated method-local names.
+                let arguments = data_type_parameters
+                    .span_or_empty(definition.type_parameters)
+                    .iter()
+                    .map(|owner_parameter| {
+                        let parameter = local_type_parameters
+                            .iter()
+                            .find(|parameter| {
+                                parameter.name.as_str() == owner_parameter.name.as_str()
+                                    && parameter.kind == owner_parameter.kind
+                            })
+                            .unwrap_or(owner_parameter);
+                        symbol_resolved_trees::types::TypeReference::Named {
+                            symbol: parameter.symbol,
+                            name: parameter.name.clone(),
+                        }
+                    });
+                symbol_resolved_trees::types::TypeReference::Generic(
+                    symbol_resolved_trees::types::GenericTypeReference {
+                        storage: symbol_resolved_trees::types::GenericTypeReferenceStorage {
+                            base_symbol: definition.symbol,
+                            base_name: machine
+                                .attached_data
+                                .clone()
+                                .unwrap_or_else(|| definition.name.clone()),
+                            lifetime_arguments: definition.lifetime_parameters.clone(),
+                            arguments: child_type_references.insert_many(arguments),
+                        },
+                    },
+                )
+            });
+        }
+
         for bound in &mut machine.conformance_bounds {
             if bound.binder_name.is_some() {
                 bound.binder = Some(next_child_of_kind(

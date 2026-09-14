@@ -35,6 +35,8 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         name: Identifier::generated("Game"),
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
+        attached_data_application: typed_trees::types::TypeReferenceHandle::invalid(),
+        generic_data_template: symbols::SymbolHandle::invalid(),
         is_public: false,
         supply_mode: Default::default(),
         termination_plan: Default::default(),
