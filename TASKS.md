@@ -1866,9 +1866,16 @@ Owners include
   selected edge, and the Terminal interpreter replays the verifier's split
   contract so the root carrier leaves storage only after every semantic
   path is discharged (`pass/expressions/owned_match_projected_field`,
-  macOS). Remaining: parameter, borrowed, and linear custody joins plus the
-  borrowed-subject and operator-result obligations below; preserve exact
-  origins and actual death edges.
+  macOS). `9f8c787780` admits whole owned affine state parameters as match
+  sources: the checker establishes each source at state entry with its
+  authored parameter position as the source ordinal and orders parameters
+  after statement locals, lowering resolves the physical structural
+  parameter places and splices residual parameter custody through the same
+  positional selection-edge roster, and selected parameters stay out of
+  unconditional return drops (`pass/expressions/owned_match_parameter_values`,
+  macOS). Remaining: projected-parameter, borrowed, and linear custody joins
+  plus the borrowed-subject and operator-result obligations below; preserve
+  exact origins and actual death edges.
   Owners: `validation/src/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
   canonical package-review contract/index projection. Preserve a once-evaluated
