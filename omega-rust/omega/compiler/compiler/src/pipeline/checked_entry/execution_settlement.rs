@@ -136,11 +136,16 @@ pub(super) fn check_selected_execution(
         validation::land_float_literal_destinations(&mut typed);
         const_evaluation.operators =
             const_evaluation::selected_operators(&typed, &selected_provider_plan_facts)?;
+        const_evaluation.provider_bodies =
+            const_evaluation::selected_provider_bodies(&typed, &selected_provider_plan_facts)?;
         for pre_check in pending_pre_checks {
-            const_evaluation.folds.extend(
-                pre_check
-                    .evaluate_with_selected_operators(&mut typed, &const_evaluation.operators)?,
-            );
+            const_evaluation
+                .folds
+                .extend(pre_check.evaluate_with_selected_operators(
+                    &mut typed,
+                    &const_evaluation.operators,
+                    &const_evaluation.provider_bodies,
+                )?);
         }
     }
     const_evaluation::require_evaluated_array_lengths(&typed)?;

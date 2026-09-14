@@ -90,7 +90,9 @@ pub use reflection::{
     VisitationOperation, construct_semantic_schema_graph, replay_runtime_visitation_plan,
     replay_selection_snapshot, replay_semantic_schema_graph,
 };
-pub use selected_operators::validate_selected_operators;
+pub use selected_operators::{
+    SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,
+};
 pub use wire_plans::{compute_wire_plans, compute_wire_plans_with_authority};
 
 pub use build_time_evaluation::{

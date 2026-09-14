@@ -169,6 +169,7 @@ pub(crate) fn evaluate_with_selected_operators(
     typed: &mut TypedTrees,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
+    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
 ) -> Result<Vec<FoldedArrayLength>, Vec<Diagnostic>> {
     let pending: Vec<_> = typed
         .type_reference_table
@@ -180,13 +181,27 @@ pub(crate) fn evaluate_with_selected_operators(
             Some((handle, name.as_str().to_owned(), *source_span))
         })
         .collect();
-    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(typed, authority)
-        .with_selected_operators(typed, operators)
+    // Admission and execution must see the same selected realization. When a
+    // selected use means an ordinary checked provider body, rebind its
+    // occurrence to the exact provider entry state on one private copy: the
+    // provider joins the ordinary call closure and runs its real body, while
+    // the caller's tree and its source-owned handles stay untouched.
+    let selected_program = if provider_bodies.is_empty() {
+        None
+    } else {
+        Some(
+            crate::selected_operators::apply_selected_provider_bodies(typed, provider_bodies)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        )
+    };
+    let execution = selected_program.as_ref().unwrap_or(typed);
+    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(execution, authority)
+        .with_selected_operators(execution, operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let roots = receivers::roots(typed);
     let mut folded = Vec::new();
     for (type_reference, name, source) in pending {
-        let machines: Vec<_> = typed
+        let machines: Vec<_> = execution
             .machines()
             .iter()
             .filter(|machine| machine.name.as_str() == name)
@@ -196,7 +211,7 @@ pub(crate) fn evaluate_with_selected_operators(
                 "folded length has no unique source invocation",
             )]);
         };
-        let value = evaluate_exact_invocation(typed, &admission, machine, source)
+        let value = evaluate_exact_invocation(execution, &admission, machine, source)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let receivers = receivers::capture(typed, &roots, type_reference);
         receivers::require_unique(&receivers).map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -218,14 +233,27 @@ pub(crate) fn evaluate_with_selected_operators(
 
 /// Replay the retained invocation using current selected semantics and compare
 /// both the current receiving type and recorded result to the actual value.
+/// Selected provider bodies replay through the same private rebinding the
+/// original fold used, so the checked value is never trusted: it is recomputed
+/// under the currently selected plans before comparison.
 pub fn validate_folded_array_lengths(
     typed: &TypedTrees,
     folds: &[FoldedArrayLength],
     operators: &[crate::SelectedBuildTimeBinaryOperator],
+    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(typed, authority)
-        .with_selected_operators(typed, operators)
+    let selected_program = if provider_bodies.is_empty() {
+        None
+    } else {
+        Some(
+            crate::selected_operators::apply_selected_provider_bodies(typed, provider_bodies)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        )
+    };
+    let execution = selected_program.as_ref().unwrap_or(typed);
+    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(execution, authority)
+        .with_selected_operators(execution, operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let roots = receivers::roots(typed);
     for (index, fold) in folds.iter().enumerate() {
@@ -239,7 +267,7 @@ pub fn validate_folded_array_lengths(
         }
         receivers::validate(typed, &roots, fold.type_reference, &fold.receivers)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let machines: Vec<_> = typed
+        let machines: Vec<_> = execution
             .machines()
             .iter()
             .filter(|machine| machine.symbol == fold.machine)
@@ -249,7 +277,7 @@ pub fn validate_folded_array_lengths(
                 "folded array invocation disappeared",
             )]);
         };
-        let actual = evaluate_exact_invocation(typed, &admission, machine, fold.source)
+        let actual = evaluate_exact_invocation(execution, &admission, machine, fold.source)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         if actual != fold.value
             || !typed
