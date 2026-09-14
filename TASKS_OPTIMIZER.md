@@ -421,11 +421,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   each transformation is independently verifiable. Existing narrow same-view
   and compare-adjacent cases do not imply general authority. Landed:
   `rewrites/redundant_extension` rewrites an extension whose input's unique
-  producer already guarantees the normalized bits to `CopyI64`, under
-  replayed restore-by-content validation (crate `nextest`: 175 pass).
-  Remaining: copy removal, address folding, compare/test selection,
-  scheduling, and producers whose contracts do not fix the high bits
-  (`ZeroExtendU32` output, packed loads, FP bit transfers).
+  producer already guarantees the normalized bits to `CopyI64`, and
+  `rewrites/literal_compare` rewrites a `CompareI64` whose right operand's
+  unique producer is a `MaterializeI64` inside the shared twelve-bit
+  unsigned immediate bound to `CompareI64Immediate` — or `CompareI64Zero`
+  for a literal of zero — keeping the compare's identity, position, and
+  published flag surface while retaining the materialization for other
+  readers, each under replayed restore-by-content validation (crate
+  `nextest`: 211 pass). Remaining: copy removal, address folding,
+  scheduling, left-operand literal folding (immediate forms fix the literal
+  as the subtrahend), and producers whose contracts do not fix the high
+  bits (`ZeroExtendU32` output, packed loads, FP bit transfers).
 
 ## Proof-, ownership-, and state-aware optimization
 
