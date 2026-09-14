@@ -23,9 +23,19 @@
 //! is unchanged, so any dropped, reordered, or invented cleanup action on the
 //! selected return edge must diverge from the reference interpreter before
 //! the native result can agree.
+//!
+//! The atomic-establishment lane atomically establishes a seeded sum case on
+//! each conditional arm through `EstablishScalarCase`, answers the arm's
+//! Boolean result with a `StructuralCaseMembership` query, and then atomically
+//! establishes an unobserved unrestricted fixed array through
+//! `EstablishScalarArray`. Arms may establish different cases, so the
+//! membership answers can disagree between `omega_entry(0)` and
+//! `omega_entry(1)`; both selected-machine replays and the host-native oracle
+//! must agree with each arm's exact reference-interpreter answer.
 
 mod optimizer_corpus {
     mod affine_cleanup;
+    mod atomic_establishment;
     mod exact_traps;
     mod generator;
     mod ieee_compare;
@@ -217,6 +227,48 @@ mod optimizer_corpus {
                 all(target_os = "macos", target_arch = "aarch64"),
             ))]
             selected_machine::exercise_host_native_affine_cleanup(case, &artifact);
+        }
+    }
+
+    #[test]
+    fn deterministic_atomic_establishment_corpus() {
+        let cases = atomic_establishment::cases();
+        atomic_establishment::validate_manifest(&cases);
+        let requested = std::env::var("OMEGA_OPTIMIZER_CORPUS_CASE")
+            .ok()
+            .map(|value| {
+                value
+                    .parse::<usize>()
+                    .expect("corpus case must be an integer")
+            });
+        if let Some(ordinal) = requested {
+            assert!(
+                ordinal < atomic_establishment::CASE_COUNT,
+                "corpus case must be below {}",
+                atomic_establishment::CASE_COUNT
+            );
+        }
+
+        for case in cases
+            .iter()
+            .filter(|case| requested.is_none_or(|ordinal| case.ordinal == ordinal))
+        {
+            if requested.is_some() {
+                eprintln!(
+                    "optimizer corpus replay: format={} seed={:#018x} case={case:?}",
+                    atomic_establishment::FORMAT,
+                    generator::SEED,
+                );
+            }
+            let artifact = psi::atomic_establishment_artifact(case.ordinal, case, 90_000);
+            selected_machine::exercise_atomic_establishment(case, &artifact);
+
+            #[cfg(any(
+                all(target_os = "linux", target_arch = "x86_64"),
+                all(target_os = "linux", target_arch = "aarch64"),
+                all(target_os = "macos", target_arch = "aarch64"),
+            ))]
+            selected_machine::exercise_host_native_atomic_establishment(case, &artifact);
         }
     }
 }

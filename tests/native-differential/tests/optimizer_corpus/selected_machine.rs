@@ -183,6 +183,44 @@ pub(super) fn exercise_host_native_affine_cleanup(
     super::native::assert_u64_result(&first.layout, expected_unsigned(artifact));
 }
 
+pub(super) fn exercise_atomic_establishment(
+    case: &super::atomic_establishment::AtomicCase,
+    artifact: &CorpusArtifact,
+) {
+    let first_x86 = run_atomic_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    let second_x86 = run_atomic_machine(case.ordinal, artifact, NativeTarget::linux_x64());
+    assert_eq!(
+        first_x86, second_x86,
+        "atomic-establishment x86 corpus case drifted: {case:?}"
+    );
+    let first_aarch64 = run_atomic_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    let second_aarch64 = run_atomic_machine(case.ordinal, artifact, NativeTarget::linux_arm64());
+    assert_eq!(
+        first_aarch64, second_aarch64,
+        "atomic-establishment AArch64 corpus case drifted: {case:?}"
+    );
+}
+
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
+pub(super) fn exercise_host_native_atomic_establishment(
+    case: &super::atomic_establishment::AtomicCase,
+    artifact: &CorpusArtifact,
+) {
+    let target = NativeTarget::host();
+    let first = run_atomic_machine(case.ordinal, artifact, target);
+    let second = run_atomic_machine(case.ordinal, artifact, target);
+    assert_eq!(
+        first, second,
+        "host-native atomic-establishment corpus case drifted: {case:?}"
+    );
+    let (when_false, when_true) = expected_boolean_arms(artifact);
+    super::native::assert_bool_result_arms_atomic(artifact, when_false, when_true);
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PsiEvidence {
     unit: optimization_core::OptimizationUnitIdentity,
@@ -207,6 +245,127 @@ struct MachineEvidence {
     encoding: StagedOptimizedSelectedFormEncoding,
     layout: StagedOptimizedResolvedSelectedFormLayout,
     physical: register_model::ValidatedPhysicalRegisterModel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AtomicMachineEvidence {
+    unit: optimization_core::OptimizationUnitIdentity,
+    identity_bundle: optimization_core::OptimizationIdentityBundle,
+    pass_manifests: Vec<optimization_core::OptimizationPassManifestRecord>,
+    commits: Vec<abstract_operations_to_abstract_operations::PsiOptimizationCommit>,
+    ledger: optimization_unit::PsiTransformationLedger,
+    pre_manifest: optimization_unit::PrePhysicalOptimizationManifest,
+    post_manifest: selected_instructions_to_register_homes::PostAllocationOptimizationManifest,
+    machine_custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    frame: machine_code::TargetFrameLayoutPlan,
+    encoding: StagedOptimizedSelectedFormEncoding,
+    layout: StagedOptimizedResolvedSelectedFormLayout,
+    physical: register_model::ValidatedPhysicalRegisterModel,
+}
+
+/// The atomic lane's `EstablishScalarCase`/`EstablishScalarArray` results own
+/// frame-local aggregate storage, so this runner composes the production
+/// selected-instruction optimization, register allocation, callee-save
+/// requirement/storage, and fixed-frame layout stages exactly as
+/// `stage_optimized_verified_physical_pipeline` does, then encodes against the
+/// resolved frame. The scalar-only lanes above keep the granular no-frame
+/// stages because their machine plans declare no local storage.
+fn run_atomic_machine(
+    ordinal: usize,
+    artifact: &CorpusArtifact,
+    target: NativeTarget,
+) -> AtomicMachineEvidence {
+    let selections = OptimizationSelections::new([]).unwrap();
+    let optimized = optimize_artifact_sections(
+        &artifact.semantic,
+        &artifact.proof,
+        &AdmissionProfile::default(),
+        compiler_baseline_request_v1(&selections),
+    )
+    .unwrap_or_else(|error| panic!("case {ordinal} failed Psi optimization: {error}"));
+    assert!(optimized.commits().is_empty());
+
+    let unit = optimized.unit().identity;
+    let identity_bundle = optimized.identity_bundle();
+    let pass_manifests = optimized.pass_manifests().to_vec();
+    let commits = optimized.commits().to_vec();
+    let ledger = optimized.transformation_ledger().clone();
+    let pre_manifest = optimized.pre_physical_manifest().record().clone();
+    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let register_environment = baseline_target_register_environment(target.target()).unwrap();
+    let selected =
+        target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+            target,
+            register_environment,
+        )
+        .unwrap();
+    let selected = optimize_selected_instructions(selected).unwrap();
+    let allocation = stage_register_allocation(selected).unwrap();
+    let machine = stage_optimized_post_allocation_machine_plan(&allocation.current()).unwrap();
+    let machine_custody = machine.custody().clone();
+    let current = allocation.current();
+    let budget = current.budget_per_pass();
+    let environment = current.register_environment();
+    let requirements = stage_allocated_callee_saved_requirements(
+        &allocation,
+        AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
+        budget,
+    )
+    .unwrap();
+    let storage = machine_emission::frame_layout::stage_non_authoritative_callee_save_storage(
+        &requirements,
+        environment,
+        machine_code::NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1,
+        budget,
+    )
+    .unwrap();
+    let frame = machine_emission::frame_layout::stage_target_frame_layout(
+        &machine,
+        &requirements,
+        &storage,
+        environment,
+        machine_code::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+    )
+    .unwrap();
+    let selected_stage = current.selected();
+    let physical = environment.physical().clone();
+    let encoding = stage_optimized_layout_independent_selected_form_encoding(
+        selected_stage,
+        &machine,
+        &physical,
+        Some(frame.plan()),
+    )
+    .unwrap();
+    let layout = stage_optimized_resolved_selected_form_layout(
+        selected_stage,
+        &machine,
+        &physical,
+        &encoding,
+    )
+    .unwrap();
+
+    validate_optimized_layout_independent_selected_form_encoding(
+        selected_stage,
+        &machine,
+        &physical,
+        Some(frame.plan()),
+        &encoding,
+    )
+    .unwrap();
+    AtomicMachineEvidence {
+        unit,
+        identity_bundle,
+        pass_manifests,
+        commits,
+        ledger,
+        pre_manifest,
+        post_manifest: current.post_allocation_manifest().record().clone(),
+        machine_custody,
+        frame: frame.plan().clone(),
+        encoding,
+        layout,
+        physical,
+    }
 }
 
 fn run_psi(case: &CorpusCase, artifact: &CorpusArtifact) -> PsiEvidence {
@@ -362,13 +521,29 @@ fn assert_sccp(
 fn expected_unsigned(artifact: &CorpusArtifact) -> u64 {
     match artifact.expected {
         CorpusExpected::Unsigned(expected) => expected,
-        CorpusExpected::Boolean(_) => panic!("expected an unsigned corpus artifact"),
+        CorpusExpected::Boolean(_) | CorpusExpected::BooleanPerArm { .. } => {
+            panic!("expected an unsigned corpus artifact")
+        }
     }
 }
 
 fn expected_boolean(artifact: &CorpusArtifact) -> bool {
     match artifact.expected {
         CorpusExpected::Boolean(expected) => expected,
-        CorpusExpected::Unsigned(_) => panic!("expected a Boolean corpus artifact"),
+        CorpusExpected::Unsigned(_) | CorpusExpected::BooleanPerArm { .. } => {
+            panic!("expected a Boolean corpus artifact")
+        }
+    }
+}
+
+fn expected_boolean_arms(artifact: &CorpusArtifact) -> (bool, bool) {
+    match artifact.expected {
+        CorpusExpected::BooleanPerArm {
+            when_false,
+            when_true,
+        } => (when_false, when_true),
+        CorpusExpected::Unsigned(_) | CorpusExpected::Boolean(_) => {
+            panic!("expected a per-arm Boolean corpus artifact")
+        }
     }
 }

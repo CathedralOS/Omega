@@ -2,14 +2,16 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IeeeFloatComparisonOperation, IeeeFloatFormat,
     IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
-    PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    PlaceId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
     Block, CertificateEnvelope, EvidenceRoute, MachineContract, ObligationEvidence, Operation,
-    OperationKind, OperationResult, ProofSystemMarker, StructuralMultiplicity,
+    OperationKind, OperationResult, ProofSystemMarker, ScalarCaseField, StructuralCaseDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
@@ -18,6 +20,7 @@ use terminal_verifier::ProofBundle;
 
 use super::{
     affine_cleanup::CleanupCase,
+    atomic_establishment::AtomicCase,
     exact_traps::{TrapCase, TrapOperation},
     generator::LaneInput,
     ieee_compare::CompareCase,
@@ -27,6 +30,12 @@ use super::{
 pub(super) enum CorpusExpected {
     Unsigned(u64),
     Boolean(bool),
+    /// Per-arm Boolean results: the false arm answers `when_false`, the true
+    /// arm answers `when_true`.
+    BooleanPerArm {
+        when_false: bool,
+        when_true: bool,
+    },
 }
 
 pub(super) struct CorpusArtifact {
@@ -98,6 +107,307 @@ pub(super) fn affine_cleanup_artifact(
             false_records: case.false_cleanups,
         },
     )
+}
+
+/// One atomic-establishment artifact: each conditional arm atomically
+/// establishes its `established` sum case from u64 payload literals, observes
+/// the discriminator through a `StructuralCaseMembership` query for the
+/// Boolean result, then establishes an unobserved unrestricted fixed array.
+/// The module shape diverges from `build_artifact` (two structural result
+/// places per arm and a declared sum/array pair), so the artifact is built
+/// here rather than through the shared leaf model.
+pub(super) fn atomic_establishment_artifact(
+    ordinal: usize,
+    case: &AtomicCase,
+    lane_base: u64,
+) -> CorpusArtifact {
+    let base = lane_base + u64::try_from(ordinal).unwrap() * 256;
+    let machine = MachineId::new(base + 1).unwrap();
+    let entry = BlockId::new(base + 2).unwrap();
+    let when_true = BlockId::new(base + 3).unwrap();
+    let when_false = BlockId::new(base + 4).unwrap();
+    let condition = ValueId::new(base + 5).unwrap();
+    let machine_result = ValueId::new(base + 9).unwrap();
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let integer_scalar_type = ScalarType::Integer(integer_type);
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
+    let literal = |id, result, value: u64| Operation {
+        static_reach_binding: None,
+        id,
+        result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
+        kind: OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(value.into()),
+        },
+    };
+
+    // Declared case `index` carries `index % 3` u64 fields. Case IDs and field
+    // IDs must each be strictly increasing in the canonical encoding, so the
+    // rosters are placed at dense ascending offsets.
+    let sum_type = StructuralTypeId::new(base + 30).unwrap();
+    let case_id = |index: u8| StructuralCaseId::new(base + 31 + u64::from(index)).unwrap();
+    let field_id = |case_index: u8, field_index: u8| {
+        StructuralFieldId::new(base + 40 + u64::from(case_index) * 3 + u64::from(field_index))
+            .unwrap()
+    };
+    let element_type = StructuralTypeId::new(base + 50).unwrap();
+    let array_type = StructuralTypeId::new(base + 51).unwrap();
+    let cases = (0..case.case_count)
+        .map(|index| StructuralCaseDeclaration {
+            id: case_id(index),
+            identity: format!("Case{index}"),
+            fields: (0..AtomicCase::field_count(index))
+                .map(|field| StructuralFieldDeclaration {
+                    id: field_id(index, field),
+                    identity: format!("f{field}"),
+                    relevance: language_core::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(integer_scalar_type),
+                })
+                .collect(),
+        })
+        .collect::<Vec<_>>();
+    let queried = case_id(case.queried);
+
+    // Per-arm operation IDs stay inside disjoint 32-wide windows.
+    let arm = |op_base: u64, place_base: u64, edge: u64, established: u8| {
+        let establish_op = OperationId::new(op_base + 8).unwrap();
+        let member_op = OperationId::new(op_base + 9).unwrap();
+        let array_op = OperationId::new(op_base + 10).unwrap();
+        let result_value = ValueId::new(op_base + 11).unwrap();
+        let case_place = PlaceId::new(place_base).unwrap();
+        let array_place = PlaceId::new(place_base + 1).unwrap();
+        let field_count = AtomicCase::field_count(established);
+        let mut operations = Vec::new();
+        let mut fields = Vec::new();
+        for field in 0..field_count {
+            let literal_op = OperationId::new(op_base + u64::from(field)).unwrap();
+            let operand = ValueId::new(op_base + 12 + u64::from(field)).unwrap();
+            operations.push(literal(literal_op, operand, case.payload));
+            fields.push(ScalarCaseField {
+                field: field_id(established, field),
+                value: operand,
+                range_obligation: None,
+            });
+        }
+        operations.push(Operation {
+            static_reach_binding: None,
+            id: establish_op,
+            result: OperationResult::Structural(StructuralOperationResult {
+                place: case_place,
+                structural_type: sum_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishScalarCase {
+                result_case: case_id(established),
+                fields,
+            },
+        });
+        operations.push(Operation {
+            static_reach_binding: None,
+            id: member_op,
+            result: OperationResult::Scalar(declaration(result_value, ScalarType::Boolean)),
+            kind: OperationKind::StructuralCaseMembership {
+                source: case_place,
+                path: Vec::new(),
+                case: queried,
+            },
+        });
+        let mut elements = Vec::new();
+        for element in 0..case.array_elements {
+            let element_op = OperationId::new(op_base + 16 + u64::from(element) * 2).unwrap();
+            let operand = ValueId::new(op_base + 17 + u64::from(element) * 2).unwrap();
+            operations.push(literal(element_op, operand, case.payload));
+            elements.push(operand);
+        }
+        operations.push(Operation {
+            static_reach_binding: None,
+            id: array_op,
+            result: OperationResult::Structural(StructuralOperationResult {
+                place: array_place,
+                structural_type: array_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishScalarArray { elements },
+        });
+        let places = vec![
+            StructuralPlaceDeclaration {
+                id: case_place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: establish_op,
+                    structural_type: sum_type,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: array_place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: array_op,
+                    structural_type: array_type,
+                },
+            },
+        ];
+        (
+            operations,
+            places,
+            Terminator::Return {
+                edge: EdgeId::new(edge).unwrap(),
+                value: result_value,
+                cleanup_actions: Vec::new(),
+            },
+        )
+    };
+    let (true_operations, true_places, true_terminator) =
+        arm(base + 60, base + 140, base + 21, case.established_true);
+    let (false_operations, false_places, false_terminator) =
+        arm(base + 96, base + 142, base + 22, case.established_false);
+
+    let module = TerminalModule {
+        scalar_qualifications: Default::default(),
+        scalar_block_invariants: Vec::new(),
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine,
+        // Canonical encoding orders structural types by id.
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: sum_type,
+                identity: "omega.optimizer-corpus.atomic.Outcome".into(),
+                shape: StructuralTypeShape::Sum { cases },
+            },
+            StructuralTypeDeclaration {
+                id: element_type,
+                identity: "omega.optimizer-corpus.atomic.Element".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(integer_scalar_type),
+            },
+            StructuralTypeDeclaration {
+                id: array_type,
+                identity: "omega.optimizer-corpus.atomic.Buffer".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: element_type,
+                    length: u64::from(case.array_elements),
+                },
+            },
+        ],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            parameters: vec![declaration(condition, ScalarType::Boolean)],
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(declaration(machine_result, ScalarType::Boolean)),
+            structural_places: true_places.into_iter().chain(false_places).collect(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry,
+            blocks: vec![
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
+                            edge: EdgeId::new(base + 19).unwrap(),
+                            target: when_true,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
+                            edge: EdgeId::new(base + 20).unwrap(),
+                            target: when_false,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                },
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: when_true,
+                    parameters: Vec::new(),
+                    operations: true_operations,
+                    terminator: true_terminator,
+                },
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: when_false,
+                    parameters: Vec::new(),
+                    operations: false_operations,
+                    terminator: false_terminator,
+                },
+            ],
+            contract: MachineContract {
+                id: ContractId::new(base + 23).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    };
+    let proof = terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let expected = CorpusExpected::BooleanPerArm {
+        when_false: case.expected_false(),
+        when_true: case.expected_true(),
+    };
+    for (condition, arm_expected) in [(false, case.expected_false()), (true, case.expected_true())]
+    {
+        let execution = interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[TerminalScalarValue::Boolean(condition)],
+        )
+        .unwrap();
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(arm_expected)),
+            "atomic corpus ordinal {ordinal} diverged in the reference interpreter"
+        );
+    }
+    CorpusArtifact {
+        semantic,
+        proof,
+        expected,
+        add_operations: Vec::new(),
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -587,6 +897,9 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 value: IntegerValue::Unsigned(expected.into()),
             },
             CorpusExpected::Boolean(expected) => TerminalScalarValue::Boolean(expected),
+            CorpusExpected::BooleanPerArm { .. } => {
+                unreachable!("shared leaf artifacts never carry per-arm Boolean results")
+            }
         };
         assert_eq!(
             execution.value(),
