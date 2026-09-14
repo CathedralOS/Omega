@@ -11,6 +11,8 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use crate::structural_reference_input::stack_pointer_offset;
 
 #[cfg(test)]
+mod canonical_plan_tests;
+#[cfg(test)]
 mod fixed_array_tests;
 
 /// Records and arrays share whole-value transport, not source identity.
@@ -242,6 +244,28 @@ pub(super) fn validate(
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
     call.validate_shape().map_err(|_| invalid())?;
+    // The retained call plan is producer evidence, not authority: replay the
+    // declared ABI over the call's own signature so parameter locations,
+    // result mechanics, clobbers, stack geometry, and entry control must equal
+    // the canonical plan rather than merely agreeing with one another.
+    let canonical = evaluate_call_plan(
+        call.call_plan.policy,
+        &CallSignature {
+            parameters: call
+                .arguments
+                .iter()
+                .map(|argument| argument.placement().shape)
+                .collect(),
+            result: call
+                .result_placement
+                .as_ref()
+                .map(|placement| placement.shape),
+        },
+    )
+    .map_err(|_| invalid())?;
+    if call.call_plan != canonical {
+        return Err(invalid());
+    }
     if call
         .arguments
         .iter()
@@ -266,23 +290,7 @@ pub(super) fn validate(
             .is_some()
     }) {
         crate::selection::aggregate_result_input::call_result(source, call).ok_or_else(invalid)?;
-        let canonical = evaluate_call_plan(
-            call.call_plan.policy,
-            &CallSignature {
-                parameters: call
-                    .arguments
-                    .iter()
-                    .map(|argument| argument.placement().shape)
-                    .collect(),
-                result: call
-                    .result_placement
-                    .as_ref()
-                    .map(|placement| placement.shape),
-            },
-        )
-        .map_err(|_| invalid())?;
-        if call.call_plan != canonical
-            || unit_key(call, environment) != Some(key)
+        if unit_key(call, environment) != Some(key)
             || environment.constraint(key) != Some(row)
             || row.key != key
         {
