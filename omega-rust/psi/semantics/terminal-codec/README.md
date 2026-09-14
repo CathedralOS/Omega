@@ -10,6 +10,16 @@ artifact envelope/manifest, debug map, installation payload, optimization
 execution, obligation ledger, and observation profile have distinct owners.
 Do not infer one section's identity from another section's current version.
 
+Start at `encode_module` and `decode_module` in [lib.rs](src/lib.rs). Section
+payloads live in the `*_wire` modules;
+[module_foundation_validation.rs](src/module_foundation_validation.rs) owns the
+pre-encoding shape checks (identities, carriers, signatures, provider
+attachments, operation and result shape);
+[structural_place_wire.rs](src/structural_place_wire.rs) owns structural
+argument, path, and place-kind encoding shared by several sections;
+[wire.rs](src/wire.rs) owns byte cursors and counted/optional primitives; and
+[codec_error.rs](src/codec_error.rs) owns the error vocabulary.
+
 Current markers live with their owners: semantic format in [lib.rs](src/lib.rs),
 vocabulary in [VocabularyMarker](../../representations/terminal-psi/src/terminal_module/identity/vocabulary.rs),
 proof format in [proof_bundle.rs](src/proof_bundle.rs), envelope in

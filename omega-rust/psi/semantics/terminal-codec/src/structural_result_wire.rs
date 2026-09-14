@@ -5,13 +5,13 @@ use terminal_psi::{
     StructuralResultDeclaration,
 };
 
+use super::CodecError;
 use super::structural_signature_wire::{
     decode_projected_qualifications, encode_projected_qualifications,
 };
 use super::wire::{Reader, Writer};
-use super::{
-    CodecError, decode_counted, decode_ids, decode_structural_path, encode_structural_path,
-};
+use crate::structural_place_wire::{decode_structural_path, encode_structural_path};
+use crate::wire::{decode_counted, decode_ids};
 
 pub(super) fn validate_reference_sources(
     module: &terminal_psi::TerminalModule,
@@ -25,35 +25,46 @@ pub(super) fn validate_reference_sources(
         .windows(2)
         .any(|pair| pair[0].path >= pair[1].path)
     {
-        return super::malformed("reference result sources must have unique ordered paths");
+        return crate::codec_error::malformed(
+            "reference result sources must have unique ordered paths",
+        );
     }
     for reference in &result.reference_sources {
-        let reference_type =
-            super::validate_structural_path(module, result.structural_type, &reference.path)?;
+        let reference_type = crate::module_foundation_validation::validate_structural_path(
+            module,
+            result.structural_type,
+            &reference.path,
+        )?;
         let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) = module
             .structural_types
             .iter()
             .find(|row| row.id == reference_type)
             .map(|row| &row.shape)
         else {
-            return super::malformed("reference result source must identify a reference leaf");
+            return crate::codec_error::malformed(
+                "reference result source must identify a reference leaf",
+            );
         };
         let Some(parameter) = machine
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == reference.source.place)
         else {
-            return super::malformed("reference result source must identify a formal ingress");
+            return crate::codec_error::malformed(
+                "reference result source must identify a formal ingress",
+            );
         };
         if *access != reference.source.access
             || *referent
-                != super::validate_structural_path(
+                != crate::module_foundation_validation::validate_structural_path(
                     module,
                     parameter.structural_type,
                     &reference.source.path,
                 )?
         {
-            return super::malformed("reference result source has mismatched referent or access");
+            return crate::codec_error::malformed(
+                "reference result source has mismatched referent or access",
+            );
         }
     }
     Ok(())

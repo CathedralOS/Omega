@@ -18,6 +18,7 @@ use super::contract_wire::{
     encode_crash_routes, encode_successor_edge,
 };
 
+use super::CodecError;
 use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
 };
@@ -30,11 +31,12 @@ use super::structural_signature_wire::{
     decode_structural_parameters, encode_structural_parameters,
 };
 use super::wire::{Reader, Writer};
-use super::{
-    CodecError, decode_affine_cleanup_action, decode_counted, decode_ids, decode_optional_id,
-    decode_structural_arguments, decode_structural_path, encode_affine_cleanup_action,
-    encode_obligation_ids, encode_optional_id, encode_structural_arguments, encode_structural_path,
+use crate::structural_place_wire::{
+    decode_affine_cleanup_action, decode_structural_path, encode_affine_cleanup_action,
+    encode_obligation_ids, encode_structural_path,
 };
+use crate::structural_place_wire::{decode_structural_arguments, encode_structural_arguments};
+use crate::wire::{decode_counted, decode_ids, decode_optional_id, encode_optional_id};
 
 fn encode_scalar_field_path(
     writer: &mut Writer,

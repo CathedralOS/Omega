@@ -10,12 +10,13 @@ use terminal_psi::{
     StructuralMultiplicity,
 };
 
+use super::CodecError;
 use super::structural_signature_wire::{
     decode_projected_qualifications, decode_structural_access, encode_projected_qualifications,
     encode_service_ceiling, encode_structural_access,
 };
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted, decode_ids};
+use crate::wire::{decode_counted, decode_ids};
 
 pub(super) fn encode_provider_candidate(
     writer: &mut Writer,

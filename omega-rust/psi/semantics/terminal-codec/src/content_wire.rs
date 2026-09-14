@@ -17,10 +17,9 @@ use terminal_psi::{
 };
 
 use super::wire::{Reader, Writer};
-use super::{
-    CodecError, MAX_CONTENT_TERM_DEPTH, decode_counted, decode_structural_place_kind,
-    encode_structural_place_kind,
-};
+use super::{CodecError, MAX_CONTENT_TERM_DEPTH};
+use crate::structural_place_wire::{decode_structural_place_kind, encode_structural_place_kind};
+use crate::wire::decode_counted;
 
 pub(super) fn encode_content_entry_claim(
     writer: &mut Writer,

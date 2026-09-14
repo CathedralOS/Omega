@@ -59,7 +59,8 @@ use super::structural_signature_wire::{
 };
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
 use super::wire::{Reader, Writer};
-use super::{CodecError, FORMAT_MARKER, MAGIC, decode_counted, decode_ids};
+use super::{CodecError, FORMAT_MARKER, MAGIC};
+use crate::wire::{decode_counted, decode_ids};
 
 fn encode_carry_policy(writer: &mut Writer, policy: CarryPolicy) {
     writer.u8(match policy.suspension {
