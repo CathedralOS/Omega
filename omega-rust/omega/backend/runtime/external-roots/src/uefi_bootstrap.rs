@@ -37,6 +37,8 @@ mod exit_boot_services;
 pub use exit_boot_services::*;
 mod get_memory_map;
 pub use get_memory_map::*;
+mod os_handoff_cycle;
+pub use os_handoff_cycle::*;
 
 static NEXT_LEDGER_AUTHORITY: AtomicU64 = AtomicU64::new(1);
 
