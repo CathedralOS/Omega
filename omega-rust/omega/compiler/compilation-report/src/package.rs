@@ -376,7 +376,9 @@ pub(crate) fn publish_macos_application_package(
         let _ = std::fs::remove_dir_all(&staged);
         return Err(format!("failed to publish {}: {error}", app_root.display()));
     }
-    if let Err(error) = super::make_executable(&app_root.join(&executable_leaf)) {
+    if let Err(error) =
+        crate::executable_publication::make_executable(&app_root.join(&executable_leaf))
+    {
         let _ = std::fs::remove_dir_all(&app_root);
         return Err(error);
     }
@@ -513,7 +515,7 @@ mod tests {
             "window-app",
             &identifier("com.omega.window-app"),
             &executable,
-            crate::executable_container_digest(&executable),
+            crate::executable_publication::executable_container_digest(&executable),
             &[],
         )
         .expect("publish package");
@@ -582,7 +584,7 @@ mod tests {
             "window-app",
             &identifier,
             &executable,
-            crate::executable_container_digest(&executable),
+            crate::executable_publication::executable_container_digest(&executable),
             &[],
         )
         .expect("first publish");
@@ -608,7 +610,7 @@ mod tests {
             "window-app",
             &identifier,
             &executable,
-            crate::executable_container_digest(&executable),
+            crate::executable_publication::executable_container_digest(&executable),
             &[],
         )
         .expect("second publish");
@@ -648,7 +650,7 @@ mod tests {
             "window-app",
             &identifier("com.omega.window-app"),
             &executable,
-            crate::executable_container_digest(&executable),
+            crate::executable_publication::executable_container_digest(&executable),
             &[],
         );
         assert!(result.is_err());
@@ -666,7 +668,7 @@ mod tests {
             "window-app",
             &identifier("com.omega.window-app"),
             b"not a signed mach-o",
-            crate::executable_container_digest(b"not a signed mach-o"),
+            crate::executable_publication::executable_container_digest(b"not a signed mach-o"),
             &[],
         );
         assert!(result.is_err());
@@ -685,7 +687,7 @@ mod tests {
             "window-app",
             &identifier("com.omega.window-app"),
             &executable,
-            crate::executable_container_digest(&executable),
+            crate::executable_publication::executable_container_digest(&executable),
             &[],
         )
         .expect("publish package");
@@ -726,7 +728,7 @@ mod tests {
             "window-app",
             &identifier("com.omega.window-app"),
             &executable,
-            crate::executable_container_digest(&executable),
+            crate::executable_publication::executable_container_digest(&executable),
             &[
                 (".psi".to_owned(), b"psi-bytes".to_vec()),
                 (".psi.proof".to_owned(), b"proof-bytes".to_vec()),

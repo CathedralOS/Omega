@@ -1236,6 +1236,26 @@ fn build_evaluation_is_not_owned_by_the_compiler() {
     );
 }
 
+/// The compile report and its publication custody, read as source text with
+/// their test modules excluded, so string pins see production code only.
+fn compilation_report_production_source(root: &std::path::Path) -> String {
+    [
+        "omega-rust/omega/compiler/compilation-report/src/compile_report.rs",
+        "omega-rust/omega/compiler/compilation-report/src/executable_publication.rs",
+    ]
+    .iter()
+    .map(|relative| {
+        let path = root.join(relative);
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        source
+            .split_once("#[cfg(test)]")
+            .map_or(source.clone(), |(production, _)| production.to_owned())
+    })
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
 #[test]
 fn compilation_report_is_not_owned_by_the_compiler() {
     let root = workspace_root();
@@ -3200,9 +3220,7 @@ fn compiler_function_validation_authority_does_not_collapse_to_fnv() {
         "the residual function-validation FNV value must remain explicitly report-only",
     );
 
-    let report_path = root.join("omega-rust/omega/compiler/compilation-report/src/lib.rs");
-    let report = std::fs::read_to_string(&report_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", report_path.display()));
+    let report = compilation_report_production_source(&root);
     assert!(
         report.contains(
             "compiler_function_validation_digest: image::CompilerFunctionValidationDigest",
@@ -3245,9 +3263,7 @@ fn final_image_symbol_authority_binds_exact_entry_and_data_rows() {
         "native image replay must retain and recompute exact final-image symbol evidence",
     );
 
-    let publication_path = root.join("omega-rust/omega/compiler/compilation-report/src/lib.rs");
-    let publication = std::fs::read_to_string(&publication_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", publication_path.display()));
+    let publication = compilation_report_production_source(&root);
     assert!(
         publication.contains("artifact.image().final_image_symbol_digest()")
             && publication.contains("final_image_symbol_digest: image::FinalImageSymbolDigest",)
