@@ -11,21 +11,25 @@ use super::projection::{RankOrder, RankProjection};
 pub(super) fn preserves_rank(
     program: &TypedTrees,
     machine: &Machine,
+    state: &typed_trees::state::State,
     rank: &RankProjection,
     statement: &StatementNode,
     frames: Option<&CallFrameResolver<'_>>,
 ) -> bool {
     if !matches!(
         rank.order,
-        RankOrder::Natural(_) | RankOrder::IncreasingTo(_) | RankOrder::BoundedDistance(_)
+        RankOrder::Natural(_)
+            | RankOrder::IncreasingTo(_)
+            | RankOrder::BoundedDistance(_)
+            | RankOrder::SliceLength
     ) {
         return false;
     }
     let StatementNode::Assignment(assignment) = statement else {
         return false;
     };
-    if !super::expression_is_inert(program, machine.symbol, assignment.target)
-        || !super::expression_is_inert(program, machine.symbol, assignment.value)
+    if !super::expression_is_inert(program, machine, state, assignment.target)
+        || !super::expression_is_inert(program, machine, state, assignment.value)
     {
         return false;
     }

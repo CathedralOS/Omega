@@ -42,9 +42,46 @@ pub(crate) fn prove_ranking_range_call_entry(
         if !engine.strict_symbol_bindings_are_valid() {
             return None;
         }
-        let comparisons =
+        let length_bindings = if matches!(measure, RankingRangeMeasure::SliceLength(_)) {
+            lengths::bindings(program, state, None)
+        } else {
+            Vec::new()
+        };
+        if !length_bindings.is_empty() {
+            let mut expressions = vec![range.start, range.end];
+            if let RankingRangeMeasure::SliceLength(subject) = measure {
+                expressions.push(subject);
+            }
+            expressions.extend(projections::entry_expressions(
+                program,
+                member.machine,
+                state,
+            ));
+            lengths::install(
+                program,
+                member.machine,
+                state,
+                state,
+                &length_bindings,
+                &mut engine,
+                &expressions,
+            )?;
+        }
+        let mut comparisons =
             entry_comparisons(program, member.machine, state, &mut engine, &bindings)?;
-        let coordinate = rank_coordinate(&mut engine, measure)?;
+        comparisons.extend(length_bindings.iter().map(|(_, identity)| {
+            (
+                BinaryOperator::GreaterOrEqual,
+                Polynomial::atom(identity.clone()),
+                Polynomial::default(),
+            )
+        }));
+        let coordinate = match measure {
+            RankingRangeMeasure::SliceLength(subject) => {
+                length_coordinate(program, state, subject, &length_bindings)?
+            }
+            _ => rank_coordinate(&mut engine, measure)?,
+        };
         let floor = engine.normalize(range.start)?;
         let ceiling = engine.normalize(range.end)?;
         if !engine.install_hypotheses(comparisons) {
@@ -94,6 +131,9 @@ pub(crate) fn prove_ranking_range_call(
         ) | (
             RankingRangeMeasure::Distance { .. },
             RankingRangeMeasure::Distance { .. }
+        ) | (
+            RankingRangeMeasure::SliceLength(_),
+            RankingRangeMeasure::SliceLength(_)
         )
     ) {
         return None;
@@ -115,12 +155,60 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }
+    // A slice-length member's rank is its collection's length coordinate:
+    // distinct atoms, never the scalar value of the slice parameter itself.
+    // Install the same projections the named-state judgment uses so a `.len`
+    // inside a guard, actual, endpoint, or requires fact names the same atom.
+    let length_bindings = if matches!(source_measure, RankingRangeMeasure::SliceLength(_)) {
+        lengths::bindings(program, source, None)
+    } else {
+        Vec::new()
+    };
+    if !length_bindings.is_empty() {
+        let mut expressions = Vec::new();
+        if let RankingRangeMeasure::SliceLength(subject) = source_measure {
+            expressions.push(subject);
+        }
+        if caller.range.is_valid()
+            && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
+        {
+            expressions.extend([range.start, range.end]);
+        }
+        expressions.extend(arguments.iter().copied());
+        expressions.extend(guards.iter().map(|(guard, _)| *guard));
+        expressions.extend(projections::entry_expressions(
+            program,
+            caller.machine,
+            source,
+        ));
+        lengths::install(
+            program,
+            caller.machine,
+            source,
+            source,
+            &length_bindings,
+            &mut engine,
+            &expressions,
+        )?;
+    }
     let mut comparisons =
         entry_comparisons(program, caller.machine, source, &mut engine, &bindings)?;
+    comparisons.extend(length_bindings.iter().map(|(_, identity)| {
+        (
+            BinaryOperator::GreaterOrEqual,
+            Polynomial::atom(identity.clone()),
+            Polynomial::default(),
+        )
+    }));
     for &(guard, holds) in guards {
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
-    let rank = rank_coordinate(&mut engine, source_measure)?;
+    let rank = match source_measure {
+        RankingRangeMeasure::SliceLength(subject) => {
+            length_coordinate(program, source, subject, &length_bindings)?
+        }
+        _ => rank_coordinate(&mut engine, source_measure)?,
+    };
     let view_bound = match source_measure {
         RankingRangeMeasure::IncreasingTo { limit, .. } => Some(engine.normalize(limit)?),
         _ => None,
@@ -165,14 +253,35 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.bind_strict_arguments(&actuals) {
         return None;
     }
-    let next_rank = rank_coordinate(&mut engine, destination_measure)?;
+    let next_rank = match destination_measure {
+        // The callee's ranked slice formal arrives as this call's exact
+        // actual; its produced length is the actual's own coordinate, not a
+        // forwarded caller parameter.
+        RankingRangeMeasure::SliceLength(subject) => {
+            let formal = lengths::parameter(program, destination, subject)?;
+            let position = program
+                .state_parameters(destination)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .position(|parameter| parameter.symbol == formal.symbol)?;
+            lengths::actual(
+                program,
+                caller.machine,
+                source,
+                arguments[position],
+                &length_bindings,
+                &mut engine,
+            )?
+        }
+        _ => rank_coordinate(&mut engine, destination_measure)?,
+    };
     let pinned_view_bound = match (view_bound, destination_measure) {
         (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. }) => {
             Some((bound, engine.normalize(limit)?))
         }
-        (None, RankingRangeMeasure::Single(_)) | (None, RankingRangeMeasure::Distance { .. }) => {
-            None
-        }
+        (None, RankingRangeMeasure::Single(_))
+        | (None, RankingRangeMeasure::Distance { .. })
+        | (None, RankingRangeMeasure::SliceLength(_)) => None,
         _ => return None,
     };
     let destination_range = if callee.range.is_valid() {
@@ -281,7 +390,11 @@ fn membership(
     };
     let slack = i64::from(!inclusive);
     match measure {
-        RankingRangeMeasure::Single(_) | RankingRangeMeasure::Distance { .. } => {
+        // A slice length is already the produced natural coordinate; its
+        // membership shape matches the scalar views.
+        RankingRangeMeasure::Single(_)
+        | RankingRangeMeasure::Distance { .. }
+        | RankingRangeMeasure::SliceLength(_) => {
             prove(coordinate.clone(), 0)
                 && prove(coordinate.sub(floor), 0)
                 && prove(ceiling.sub(coordinate), slack)
@@ -295,6 +408,21 @@ fn membership(
         }
         _ => false,
     }
+}
+
+/// The produced length coordinate of a slice-typed entry parameter: the
+/// metadata atom shared with `.len` projections, never the collection value.
+fn length_coordinate(
+    program: &TypedTrees,
+    state: &State,
+    subject: ExpressionHandle,
+    length_bindings: &[(symbols::SymbolHandle, String)],
+) -> Option<Polynomial> {
+    let parameter = lengths::parameter(program, state, subject)?;
+    let (_, identity) = length_bindings
+        .iter()
+        .find(|(symbol, _)| *symbol == parameter.symbol)?;
+    Some(Polynomial::atom(identity.clone()))
 }
 
 fn rank_coordinate(engine: &mut Engine<'_>, measure: RankingRangeMeasure) -> Option<Polynomial> {
@@ -376,6 +504,17 @@ fn scalar_entry<'program>(
                 upper: member.paired_subject,
             }
         }
+        language_semantics::RankingViewId::SLICE_LENGTH
+            if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
+        {
+            let [subject] = custody.subjects.as_slice() else {
+                return None;
+            };
+            if *subject != member.subject || member.paired_subject.is_valid() {
+                return None;
+            }
+            RankingRangeMeasure::SliceLength(member.subject)
+        }
         _ => return None,
     };
     let [state] = program.machine_states(machine) else {
@@ -385,7 +524,14 @@ fn scalar_entry<'program>(
         .into_iter()
         .filter(|subject| subject.is_valid())
     {
-        entry_scalar_parameter(program, state, subject)?;
+        if matches!(measure, RankingRangeMeasure::SliceLength(_)) {
+            // The ranked subject is the exact slice-typed entry parameter;
+            // its produced length coordinate, not the collection value,
+            // carries the rank.
+            lengths::parameter(program, state, subject)?;
+        } else {
+            entry_scalar_parameter(program, state, subject)?;
+        }
     }
     Some((state, measure))
 }
