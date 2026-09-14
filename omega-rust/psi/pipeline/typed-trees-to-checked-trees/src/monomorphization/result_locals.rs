@@ -120,8 +120,11 @@ pub(super) fn refresh_generic_call_results(
         {
             continue;
         }
-        let type_start = program.type_reference_table.type_reference_count();
-        let expression_start = program.expression_table.iter_expressions().count();
+        // Arena indices are one-based, so the copied result begins one past
+        // the last pre-existing node; bounding substitution at count()+1 keeps
+        // an already-materialized endpoint or binder sentinel out of the sweep.
+        let type_start = program.type_reference_table.type_reference_count() + 1;
+        let expression_start = program.expression_table.iter_expressions().count() + 1;
         // Copy the declaration result before substitution. An open caller's
         // result uses this call's exact constants or caller binders, never the
         // callee's unbound parameters or the inferred destination as evidence.

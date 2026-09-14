@@ -323,6 +323,11 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
         }
     }
     range_arguments::collect_literals(program, &mut literals);
+    // Open declared-range endpoints keep their exact binder identity the same
+    // way open array extents do: a forwarded const binder occurring as an
+    // endpoint gets a named reference so range inference can propose the
+    // structural equation rather than a value leaf.
+    range_arguments::collect_binders(program, &mut types);
     literals.sort();
     literals.dedup();
     for literal in literals {

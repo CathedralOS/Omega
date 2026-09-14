@@ -10,12 +10,18 @@
 //! Closed anonymous arithmetic uses exact evaluation and canonical const leaves,
 //! so inference cannot truncate fractions or overflow an intermediate carrier.
 //! Closed builtin typed arithmetic retains exact constant points and checks
-//! each fixed-width operation before interval projection. Named computations and
-//! owner-sensitive selections still need their own evaluation custody; neither
-//! flow bounds nor type display strings establish a static endpoint.
+//! each fixed-width operation before interval projection.
+//!
+//! An open endpoint still carries an exact structural equation when it spells
+//! one caller const binder in the same authored inclusion position: the
+//! callee's endpoint then binds that binder's identity, and the retained
+//! selection rechecks the occurrence once the caller specializes. Any other
+//! open shape records an unresolved occurrence instead; neither flow bounds
+//! nor type display strings establish a static endpoint.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 use validation::{
@@ -112,6 +118,13 @@ pub(super) fn infer(
                     .find(|(_, symbol, name)| !symbol.is_valid() && *name == value)
                     .map(|(binding, _, _)| binding)
             })
+            .or_else(|| {
+                open_endpoint_binder(
+                    program,
+                    actual_endpoints[endpoint_index],
+                    endpoint_index == 0 || required_inclusive == actual_inclusive,
+                )
+            })
             .unwrap_or_default();
         // Zero records an unresolved occurrence, not permission to ignore it.
         // Another argument must not select a compatible but unequal endpoint
@@ -121,11 +134,204 @@ pub(super) fn infer(
     }
 }
 
+/// Exact binder evidence for one open actual endpoint. Only a bare caller
+/// const binder in the same authored inclusion position carries the
+/// structural equation; the endpoint's named reference is materialized by
+/// `collect_binders` so this lookup stays a pure read.
+fn open_endpoint_binder(
+    program: &TypedTrees,
+    actual_endpoint: typed_trees::expression::ExpressionHandle,
+    same_inclusion_position: bool,
+) -> Option<TypeReferenceHandle> {
+    if !same_inclusion_position {
+        return None;
+    }
+    let ExpressionNode::Name(name) = program.expression_table.expression(actual_endpoint) else {
+        return None;
+    };
+    if !is_const_parameter_symbol(program, name.symbol) {
+        return None;
+    }
+    program
+        .type_reference_table
+        .find_named_type_reference(name.symbol)
+}
+
+fn is_const_parameter_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    symbol.is_valid()
+        && program.machines().iter().any(|machine| {
+            program
+                .machine_type_parameters(machine)
+                .iter()
+                .any(|parameter| {
+                    parameter.symbol == symbol
+                        && matches!(parameter.kind, TypeParameterKind::Const { .. })
+                })
+        })
+}
+
+/// Retain the binder identity of open declared-range endpoints. A generic
+/// caller's const parameter occurring as an endpoint needs a named type
+/// reference so `infer` can propose the exact structural equation instead of
+/// an anonymous value leaf.
+pub(super) fn collect_binders(
+    program: &TypedTrees,
+    types: &mut Vec<(SymbolHandle, typed_trees::name::Identifier)>,
+) {
+    for (_, constraints) in program.type_reference_table.constrained_type_references() {
+        for constraint in program.type_reference_table.constraints(constraints) {
+            let TypeConstraintNode::Range {
+                minimum, maximum, ..
+            } = constraint
+            else {
+                continue;
+            };
+            for endpoint in [minimum, maximum] {
+                let ExpressionNode::Name(name) = program.expression_table.expression(*endpoint)
+                else {
+                    continue;
+                };
+                if !is_const_parameter_symbol(program, name.symbol)
+                    || types.iter().any(|(symbol, _)| *symbol == name.symbol)
+                {
+                    continue;
+                }
+                if let Some(member) = program
+                    .expression_table
+                    .name_path_members(name.members)
+                    .first()
+                {
+                    types.push((name.symbol, member.clone()));
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use numerics::arithmetic::ArithmeticDomain;
     use typed_trees::types::TypeReferenceNode;
+
+    fn typed(source: &str) -> TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("range tokens");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("range syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("range symbols");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("range types")
+    }
+
+    #[test]
+    fn open_symbolic_endpoint_binds_the_caller_binder_until_it_specializes() {
+        let mut program = typed(
+            "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+             machine forward<const K: u64>(v: u64[0..=K]) -> u64 { upper_bound(v) }
+             machine caller(v: u64[0..=256]) -> u64 { forward<256>(v) }",
+        );
+        crate::specialize_static_machine_calls_with_nominal_uses(&mut program)
+            .expect("open endpoint forwards the caller binder");
+        let forward = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "forward")
+            .expect("forward template");
+        let upper_bound = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "upper_bound")
+            .expect("upper_bound template");
+        assert!(
+            program
+                .machine_specializations
+                .iter()
+                .any(|instance| instance.template == forward.symbol),
+            "forward<256> must specialize"
+        );
+        assert!(
+            program
+                .machine_specializations
+                .iter()
+                .any(|instance| instance.template == upper_bound.symbol),
+            "the forwarded upper_bound call must specialize inside forward<256>"
+        );
+    }
+
+    #[test]
+    fn open_exclusive_symbolic_endpoint_binds_the_caller_binder() {
+        let mut program = typed(
+            "machine upper_bound<const N: u64>(value: u64[0..N]) -> u64 { N }
+             machine forward<const K: u64>(v: u64[0..K]) -> u64 { upper_bound(v) }
+             machine caller(v: u64[0..256]) -> u64 { forward<256>(v) }",
+        );
+        crate::specialize_static_machine_calls_with_nominal_uses(&mut program)
+            .expect("exclusive open endpoint forwards the caller binder");
+        let upper_bound = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "upper_bound")
+            .expect("upper_bound template");
+        assert!(
+            program
+                .machine_specializations
+                .iter()
+                .any(|instance| instance.template == upper_bound.symbol),
+            "the forwarded upper_bound call must specialize inside forward<256>"
+        );
+    }
+
+    #[test]
+    fn mixed_inclusion_open_endpoint_records_no_equation() {
+        let mut program = typed(
+            "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+             machine forward<const K: u64>(v: u64[0..K]) -> u64 { upper_bound(v) }",
+        );
+        super::super::materialize_static_argument_types(&mut program);
+        let upper_bound = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "upper_bound")
+            .expect("upper_bound template");
+        let forward = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "forward")
+            .expect("forward template");
+        let required =
+            program.state_parameters(&program.machine_states(upper_bound)[0])[0].type_reference;
+        let actual =
+            program.state_parameters(&program.machine_states(forward)[0])[0].type_reference;
+        let const_parameters = program
+            .machine_type_parameters(upper_bound)
+            .iter()
+            .filter_map(|parameter| match parameter.kind {
+                TypeParameterKind::Const { type_reference } => Some((
+                    parameter.symbol,
+                    parameter.name.as_str().to_owned(),
+                    type_reference,
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let mut proposals = Vec::new();
+        infer(
+            &program,
+            required,
+            actual,
+            &const_parameters,
+            &[],
+            0,
+            &mut proposals,
+        );
+        assert_eq!(proposals.len(), 1);
+        assert!(
+            !proposals[0].2.is_valid(),
+            "an exclusive open endpoint cannot satisfy an inclusive required endpoint"
+        );
+    }
 
     #[test]
     fn declared_range_keeps_full_width_endpoints_and_rejects_ambiguous_shells() {
