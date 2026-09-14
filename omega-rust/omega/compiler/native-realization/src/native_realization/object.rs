@@ -24,7 +24,7 @@ pub(crate) fn emit_realization_object(
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
-    hosted_receiver: Option<crate::NativeProgramEntrySettlement<'_>>,
+    hosted_receiver: Option<&crate::ValidatedNativeProgramEntrySettlement>,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     if !request.callback_thunks.is_empty() || !request.native_callbacks.is_empty() {

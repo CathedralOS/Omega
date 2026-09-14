@@ -384,6 +384,66 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
 }
 
 #[test]
+fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
+    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
+    let (artifact, receipt, scope, _, _) = produced.into_parts();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let request = NativeRealizationRequest {
+        checked_scope: Some(&scope),
+        program_entry: NativeProgramEntrySettlement::new(&signature, None, &[])
+            .with_checked_entry(&receipt),
+        ..request(&signature, &profile, &optimizations, &providers)
+    };
+    // Emitting without the admitted settlement is the bypass shape: the entry
+    // code keeps its self parameter while no bridge constructs its receiver.
+    let input =
+        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+            .expect("checked receiver input");
+    let admitted_providers = super::providers::admit_native_providers(
+        &input,
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        *artifact.manifest().identity().as_bytes(),
+        &request,
+    )
+    .expect("provider admission");
+    let emitted = super::emit_realization_object(
+        input,
+        admitted_providers.installation,
+        &admitted_providers.settlements,
+        None,
+        None,
+        &request,
+    )
+    .expect("emission alone never provisions the receiver");
+    assert!(emitted.object.hosted_receiver_binding().is_none());
+    // The bypass verdict needs only the admitted custody, not a complete
+    // paired-contract settlement: the binding is already absent.
+    let native_target = request.target;
+    let settlement = crate::ValidatedNativeProgramEntrySettlement {
+        checked_entry: receipt,
+        target: native_target,
+        source: signature,
+        semantic_calling_application: None,
+        physical_calling_application: None,
+        storage_entry: None,
+        fused_service_establishments: Vec::new(),
+    };
+    let diagnostics = super::validate_emitted_receiver_binding(&emitted.object, Some(&settlement))
+        .expect_err("an admitted receiver that never reached the object must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("did not reach the emitted object")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+    super::validate_emitted_receiver_binding(&emitted.object, None)
+        .expect("no admitted receiver and no binding stays consistent");
+}
+
+#[test]
 fn namespace_attachment_without_receiver_still_realizes_an_executable() {
     let (produced, signature) = entry_fixture(
         "data Main {} machine Main::launch() {}",
