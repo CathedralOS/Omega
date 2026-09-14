@@ -667,11 +667,33 @@ an implementation shortcut.
   normalization, `no_route`/`only_via` with structural certificates and
   checked violation witnesses, versioned codec with golden
   `tests/fixtures/payment.{request,plan}`, producer `compose_plan`, and
-  source-free `verify_plan` covering the acceptance rejection matrix (46
-  package tests). Remaining: the build-only Omega package and composition
-  project itself, consuming verified component descriptions over the scoped
-  build output route — the crate deliberately does not accept hand-authored
-  endpoint inventories as verified evidence.
+  source-free `verify_plan` covering the acceptance rejection matrix
+  (`mbx nextest run -p topology-plan`: 76/76 at 960a736352, macOS x86_64).
+  Remaining: the build-only Omega package and composition project itself,
+  consuming verified component descriptions over the scoped build output
+  route — the crate deliberately does not accept hand-authored endpoint
+  inventories as verified evidence.
+
+  Seam map probed at 960a736352 (macOS x86_64; `omega install`/`update`
+  against a composition `build.omg`): all three consumption routes are
+  absent, so no compilable first slice exists yet. `build_depend_as` rows
+  are acquired and reviewed, but `use topology::policies` in the root
+  build.omg resolves the alias as an intra-package directory module
+  (`source/topology/policies.omg` under the requester's own snapshot)
+  while product-scope `depend_as` aliases do resolve there — build-purpose
+  nameability belongs to BUILD-DEPENDENCY-PURPOSES.
+  `builder.output.require`/`complete`/`fail` and `builder.artifact_only`
+  are absent from the toolchain build prelude and reject as unresolved
+  calls; `BuildSnapshotRequest` is populated only by
+  `compiler/tests/build_config_granted.rs`, never by the manager's compile
+  path — owned by BUILD-SNAPSHOT-OUTPUTS. No `verify_component`/
+  `VerifiedComponent` producer or consumer exists, and
+  `CompositionMode::Independent` still rejects at provider-planning's
+  explicit component-closure fence — owned by COMPONENT-SUBSTRATE. Next
+  acceptance when the seams land: the composition project compiles
+  `use topology::...` under the build scope, admits three verified
+  component descriptions, and publishes the checked plan as a required
+  artifact of an `artifact_only` build.
 
 - **TOPOLOGY-PRIVATE-PIPE-INSTALLATION.** Build the package-owned installer and
   Windows/macOS pipe adapters for three checked local payment processes. Depends
