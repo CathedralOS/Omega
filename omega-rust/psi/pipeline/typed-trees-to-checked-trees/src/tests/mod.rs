@@ -49,6 +49,7 @@ mod operational_tail_calls;
 mod operators;
 mod proof_embedding_totality;
 mod proof_embeddings;
+mod range_atomic_dependencies;
 mod range_byte_live_lengths;
 mod range_call_invalidation;
 mod range_entry_contracts;

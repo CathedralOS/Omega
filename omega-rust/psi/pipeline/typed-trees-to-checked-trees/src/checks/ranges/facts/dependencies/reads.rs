@@ -126,8 +126,35 @@ pub(super) fn collect_reads(
             }
             true
         }
-        // Calls can read implicit storage; atomic operands need their own
-        // stability evidence, not an argument-only scan.
+        // `place.load(ordering)` is the one atomic observation whose complete
+        // footprint is exactly its resident place: the desugar keeps that
+        // place in `value` and leaves `result` empty. Every writing axis
+        // wraps a stored operand or an instruction-shaped update in `value`,
+        // which no operand scan can describe as reads. The ordering plan,
+        // custody agreement, and empty result are rechecked so a writing
+        // operation cannot borrow the load's place-shaped footprint.
+        ExpressionNode::Atomic(atomic) => {
+            let footprint_start = reads.len();
+            matches!(
+                atomic.ordering,
+                language_core::atomic::AtomicOrderingPlan::Load(ordering)
+                    if ordering.valid_for_load()
+            ) && atomic.result_custody.is_valid_for(atomic.ordering)
+                && !atomic.result_custody.requires_result_destination()
+                && !atomic.result.is_valid()
+                && collect_reads(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    atomic.value,
+                    reads,
+                    depth + 1,
+                )
+                && reads.len() > footprint_start
+        }
+        // Calls can read implicit storage, and every writing atomic axis
+        // wraps its operand in `value`; neither admits an operand-only scan.
         _ => false,
     }
 }
