@@ -21,13 +21,25 @@
 //! publication instruction answers with a receipt naming the exact carrier; a
 //! refusal returns the established value so a fresh carrier can retry, while a
 //! published table keeps every member pinned for as long as the ledger lives.
+//!
+//! The checked instruction edge is the sole minting boundary for
+//! [`InterruptTablePublicationReceipt`]. On x86-64 this is the provider-only
+//! `lidt` contract: the edge replays the exercised consumer authority's exact
+//! bound identity, its installed-realization scope, and both required scope
+//! legs — processor table control and table publication — then replays the
+//! declared pseudo-descriptor operand against the carrier's exact established
+//! destination before minting the receipt. The answer accounts for the
+//! operand's descriptor read, the contract's fixed `r10` scratch clobber, and
+//! the descriptor-table register state installed on a published answer;
+//! declined attempts mint no state.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use calling_conventions::{EntryControl, EntryStack};
-use executable_installation::{ArtifactId, InstalledCodeId};
+use calling_conventions::{EntryControl, EntryStack, MachineRegister};
+use executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
 use extents::Extent;
 use layout_plans::EntryStubId;
+use target::Architecture;
 
 use crate::{
     ExternalRootDiagnostic, ExternalRootId, InstalledExternalRoot, InstalledRootLedger,
@@ -276,6 +288,12 @@ impl InterruptTablePublication {
 /// Provider receipt answering one issued publication carrier.
 /// `published == false` is a refused attempt: the carrier is consumed and the
 /// established value returns to the ledger's admitting phase for a retry.
+///
+/// Receipts are minted only inside this module by the checked
+/// publication-instruction edge
+/// ([`InterruptTablePublication::execute_checked_publication`]): external code
+/// cannot forge a receipt for a carrier it never executed under the bound
+/// authority and operand contract.
 #[derive(Debug, PartialEq, Eq)]
 pub struct InterruptTablePublicationReceipt {
     identity: InterruptTablePublicationReceiptId,
@@ -285,7 +303,7 @@ pub struct InterruptTablePublicationReceipt {
 }
 
 impl InterruptTablePublicationReceipt {
-    pub fn from_provider(
+    fn from_provider(
         identity: InterruptTablePublicationReceiptId,
         carrier: &InterruptTablePublication,
         published: bool,
@@ -300,6 +318,12 @@ impl InterruptTablePublicationReceipt {
 
     pub const fn identity(&self) -> InterruptTablePublicationReceiptId {
         self.identity
+    }
+
+    /// Whether the provider's answer published the table (`true`) or declined
+    /// the attempt (`false`).
+    pub const fn published(&self) -> bool {
+        self.published
     }
 }
 
@@ -815,6 +839,374 @@ impl InterruptTableCompletionError {
 
     pub fn into_parts(self) -> (InterruptTablePublication, InterruptTablePublicationReceipt) {
         (self.carrier, self.receipt)
+    }
+}
+
+/// Closed scope legs one consumer descriptor-table publication authority may
+/// declare.
+///
+/// The checked publication instruction both changes the executing
+/// processor's descriptor-table register and makes the established table
+/// reachable to hardware arrivals, so the provider edge requires the
+/// exercised authority to declare both legs. A token covering only one leg
+/// cannot lawfully answer a carrier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum InterruptTablePublicationScope {
+    /// Change the executing processor's descriptor-table register state.
+    ProcessorTableControl,
+    /// Make an established interrupt table reachable to hardware arrivals.
+    TablePublication,
+}
+
+/// Consumer-issued authority exercised at the checked publication
+/// instruction.
+///
+/// Issuance policy is the consumer's: the provider edge cannot mint, widen,
+/// or split authorities. It replays that the exercised token names the exact
+/// identity the carrier bound at issuance, declares both required scope
+/// legs, and binds the carrier's installed realization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterruptTablePublicationAuthority {
+    identity: InterruptTablePublicationAuthorityId,
+    installed_code: InstalledCodeId,
+    artifact: ArtifactId,
+    scopes: BTreeSet<InterruptTablePublicationScope>,
+}
+
+impl InterruptTablePublicationAuthority {
+    /// The consumer's issuance edge. An authority declaring no scope leg can
+    /// never answer a carrier, so it rejects here rather than at execution.
+    pub fn from_consumer(
+        identity: InterruptTablePublicationAuthorityId,
+        installed_code: InstalledCodeId,
+        artifact: ArtifactId,
+        scopes: impl IntoIterator<Item = InterruptTablePublicationScope>,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        let scopes = scopes.into_iter().collect::<BTreeSet<_>>();
+        if scopes.is_empty() {
+            return Err(ExternalRootDiagnostic(
+                "interrupt-table publication authority declares no scope".into(),
+            ));
+        }
+        Ok(Self {
+            identity,
+            installed_code,
+            artifact,
+            scopes,
+        })
+    }
+
+    pub const fn identity(&self) -> InterruptTablePublicationAuthorityId {
+        self.identity
+    }
+
+    /// Whether the consumer declared this scope leg on the exercised token.
+    pub fn covers(&self, scope: InterruptTablePublicationScope) -> bool {
+        self.scopes.contains(&scope)
+    }
+}
+
+/// Byte width of the pseudo-descriptor a checked x86-64 descriptor-table
+/// load reads: a `u16` limit followed by a `u64` base.
+pub const INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES: u64 = 10;
+
+/// The pseudo-descriptor operand a checked table-load instruction reads:
+/// the provider-declared `{limit, base}` staged at one readable operand
+/// extent.
+///
+/// The provider stages the operand bytes itself; this carrier is the
+/// declared decode plus the accounted read site. The edge replays that the
+/// declared value names exactly the carrier's established destination and
+/// that the read site is a distinct 10-byte extent in the table's own
+/// address space — a load answered from any other geometry installs a
+/// different table.
+#[derive(Debug, PartialEq, Eq)]
+pub struct InterruptTableDescriptorOperand {
+    site: Extent,
+    limit: u16,
+    base: u64,
+}
+
+impl InterruptTableDescriptorOperand {
+    pub fn from_provider(site: Extent, limit: u16, base: u64) -> Self {
+        Self { site, limit, base }
+    }
+
+    /// The accounted read site the instruction consumes.
+    pub const fn site(&self) -> &Extent {
+        &self.site
+    }
+
+    /// Declared pseudo-descriptor limit field.
+    pub const fn limit(&self) -> u16 {
+        self.limit
+    }
+
+    /// Declared pseudo-descriptor base field.
+    pub const fn base(&self) -> u64 {
+        self.base
+    }
+}
+
+/// The descriptor-table register state one published carrier installed: the
+/// executing processor's table register now names exactly this
+/// `{base, limit}`. Minted only by the checked provider edge on a published
+/// answer; a declined attempt installs nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InterruptDescriptorTableState {
+    publication: InterruptTablePublicationId,
+    base: u64,
+    limit: u16,
+}
+
+impl InterruptDescriptorTableState {
+    pub const fn publication(&self) -> InterruptTablePublicationId {
+        self.publication
+    }
+
+    pub const fn base(&self) -> u64 {
+        self.base
+    }
+
+    pub const fn limit(&self) -> u16 {
+        self.limit
+    }
+}
+
+/// Minted-once evidence that the checked provider edge answered one issued
+/// carrier.
+///
+/// The bundle retains the consumed carrier and operand custody, records the
+/// instruction contract's fixed scratch clobber (the x86-64 `lidt` contract
+/// stages its operand pointer through `r10`), and — only when the provider
+/// published — the descriptor-table register state the instruction
+/// installed. The minted receipt is meaningful only to
+/// [`InterruptTableLedger::complete_interrupt_table_publication`], which
+/// still requires it to name the exact carrier.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExecutedInterruptTablePublication {
+    carrier: InterruptTablePublication,
+    receipt: InterruptTablePublicationReceipt,
+    operand: InterruptTableDescriptorOperand,
+    scratch_clobber: MachineRegister,
+    installed_state: Option<InterruptDescriptorTableState>,
+}
+
+impl ExecutedInterruptTablePublication {
+    pub const fn carrier(&self) -> &InterruptTablePublication {
+        &self.carrier
+    }
+
+    /// The minted receipt naming the exact carrier and exercised authority.
+    pub const fn receipt(&self) -> &InterruptTablePublicationReceipt {
+        &self.receipt
+    }
+
+    /// The accounted operand read the instruction consumed.
+    pub const fn operand(&self) -> &InterruptTableDescriptorOperand {
+        &self.operand
+    }
+
+    /// The instruction contract's fixed scratch clobber.
+    pub const fn scratch_clobber(&self) -> MachineRegister {
+        self.scratch_clobber
+    }
+
+    /// The descriptor-table register state the instruction installed;
+    /// present exactly when the provider published the table.
+    pub const fn installed_state(&self) -> Option<InterruptDescriptorTableState> {
+        self.installed_state
+    }
+
+    /// Whether the provider published the table rather than declining the
+    /// attempt.
+    pub const fn is_published(&self) -> bool {
+        self.installed_state.is_some()
+    }
+
+    /// Decompose for ledger completion: the carrier and its minted receipt
+    /// go to
+    /// [`InterruptTableLedger::complete_interrupt_table_publication`], the
+    /// operand site returns to provider scratch custody, and any installed
+    /// register state remains consumer-visible evidence.
+    #[allow(clippy::type_complexity)]
+    pub fn into_parts(
+        self,
+    ) -> (
+        InterruptTablePublication,
+        InterruptTablePublicationReceipt,
+        InterruptTableDescriptorOperand,
+        Option<InterruptDescriptorTableState>,
+    ) {
+        (
+            self.carrier,
+            self.receipt,
+            self.operand,
+            self.installed_state,
+        )
+    }
+}
+
+/// Rejected provider-edge execution. The consumed carrier and operand are
+/// returned so a corrected attempt can be built without re-issuing the
+/// publication.
+#[derive(Debug)]
+pub struct InterruptTableProviderError {
+    carrier: InterruptTablePublication,
+    operand: InterruptTableDescriptorOperand,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl InterruptTableProviderError {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (InterruptTablePublication, InterruptTableDescriptorOperand) {
+        (self.carrier, self.operand)
+    }
+}
+
+impl InterruptTablePublication {
+    /// Execute the checked descriptor-table-load provider edge for this
+    /// issued carrier — on x86-64, the provider-only `lidt` contract.
+    ///
+    /// This is the sole minting boundary for
+    /// [`InterruptTablePublicationReceipt`]. The edge replays, in order:
+    /// the carrier's installed realization and the x86-64 instruction
+    /// contract against `installed_code`; the exercised authority's bound
+    /// identity, realization scope, and both required scope legs; and the
+    /// declared pseudo-descriptor against the exact established
+    /// destination, including its accounted 10-byte read site in the
+    /// table's address space and non-aliasing between the operand read and
+    /// the published table.
+    ///
+    /// `published == false` declines the attempt under the same checks —
+    /// the minted refusal receipt still names this exact carrier and
+    /// authority, so the ledger can return the established value for a
+    /// retry under a fresh publication identity.
+    pub fn execute_checked_publication(
+        self,
+        installed_code: &InstalledCode,
+        authority: &InterruptTablePublicationAuthority,
+        operand: InterruptTableDescriptorOperand,
+        receipt: InterruptTablePublicationReceiptId,
+        published: bool,
+    ) -> Result<ExecutedInterruptTablePublication, Box<InterruptTableProviderError>> {
+        let reject = |diagnostic: &str,
+                      carrier: InterruptTablePublication,
+                      operand: InterruptTableDescriptorOperand| {
+            Err(Box::new(InterruptTableProviderError {
+                carrier,
+                operand,
+                diagnostic: ExternalRootDiagnostic(diagnostic.into()),
+            }))
+        };
+
+        if installed_code.identity() != self.established.installed_code
+            || installed_code.artifact() != self.established.artifact
+        {
+            return reject(
+                "checked table publication cannot answer a carrier for a different installed realization",
+                self,
+                operand,
+            );
+        }
+        if installed_code.architecture() != Architecture::X86_64 {
+            return reject(
+                "the x86-64 descriptor-table-load contract cannot publish a foreign-architecture table",
+                self,
+                operand,
+            );
+        }
+        if authority.identity != self.authority {
+            return reject(
+                "the exercised authority is not the carrier's bound publication authority",
+                self,
+                operand,
+            );
+        }
+        if authority.installed_code != self.established.installed_code
+            || authority.artifact != self.established.artifact
+        {
+            return reject(
+                "the exercised authority is scoped to a different installed realization",
+                self,
+                operand,
+            );
+        }
+        if !authority.covers(InterruptTablePublicationScope::ProcessorTableControl)
+            || !authority.covers(InterruptTablePublicationScope::TablePublication)
+        {
+            return reject(
+                "the exercised authority does not declare both processor table control and table publication",
+                self,
+                operand,
+            );
+        }
+        if operand.site.length() != INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES {
+            return reject(
+                "the descriptor operand read site is not the 10-byte pseudo-descriptor",
+                self,
+                operand,
+            );
+        }
+        if operand.site.address_space() != self.established.destination.address_space() {
+            return reject(
+                "the descriptor operand read site is outside the published table's address space",
+                self,
+                operand,
+            );
+        }
+        let operand_end = operand.site.base().checked_add(operand.site.length());
+        let table_end = self
+            .established
+            .destination
+            .base()
+            .checked_add(self.established.destination.length());
+        let aliases = match (operand_end, table_end) {
+            (Some(operand_end), Some(table_end)) => {
+                operand.site.base() < table_end && self.established.destination.base() < operand_end
+            }
+            _ => true,
+        };
+        if aliases {
+            return reject(
+                "the descriptor operand read must not alias the published table",
+                self,
+                operand,
+            );
+        }
+        let names_destination = self
+            .established
+            .destination
+            .length()
+            .checked_sub(1)
+            .is_some_and(|limit| {
+                u64::from(operand.limit) == limit
+                    && operand.base == self.established.destination.base()
+            });
+        if !names_destination {
+            return reject(
+                "the declared pseudo-descriptor does not name the exact established destination",
+                self,
+                operand,
+            );
+        }
+
+        let receipt = InterruptTablePublicationReceipt::from_provider(receipt, &self, published);
+        let installed_state = published.then_some(InterruptDescriptorTableState {
+            publication: self.publication,
+            base: self.established.destination.base(),
+            limit: operand.limit,
+        });
+        Ok(ExecutedInterruptTablePublication {
+            carrier: self,
+            receipt,
+            operand,
+            scratch_clobber: MachineRegister::X86R10,
+            installed_state,
+        })
     }
 }
 
