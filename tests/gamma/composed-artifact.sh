@@ -5,15 +5,16 @@ TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 INVOKE="$OMEGA_REPO_ROOT/tools/bootstrap/gamma/invoke.py"
 SOURCE="$TMP/compiler.gamma"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$SOURCE" \
-    --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
+# The bound materializer refuses before writing when the canonical entry,
+# manifest, members, packed closure, or composed record differ from the
+# audited edge records.
+materialize_delta_compiler "$SOURCE"
 MANIFEST="$OMEGA_PATH_DELTA_COMPILER/delta_compiler.composed"
 CUSTOMER="$OMEGA_REPO_ROOT/tests/delta/staged-compiler/conformance_identity.delta"
 

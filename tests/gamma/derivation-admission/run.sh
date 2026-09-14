@@ -6,6 +6,7 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/proofs/sources_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Derivation admission: skipped (python3 absent)"
@@ -20,6 +21,9 @@ esac
 
 ADMISSION_TMP=$(mktemp -d)
 trap 'rm -rf -- "$ADMISSION_TMP"' EXIT HUP INT TERM
+# The bound member closure is checked against its audited record; the gate's
+# own diagnostic prefix entry packs on top of those bound members.
+require_derivation_checker_identity
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$ADMISSION_TMP/diagnostic.gamma" --prefix "$GATE_DIR/main.gamma"
