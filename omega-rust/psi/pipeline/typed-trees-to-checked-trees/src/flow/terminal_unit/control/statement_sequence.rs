@@ -1184,15 +1184,24 @@ pub(in crate::flow::terminal_unit) fn scalar_control(
                 prefix_count,
             )?
         };
-    if !matches!(
-        &terminator,
+    let returning_tail = match &terminator {
+        // Final expressions already belong to the scalar-result route, which
+        // also supports ownership frontiers outside scalar-control admission.
+        // Explicit unconditional transitions use the same retained return
+        // coordinate as guarded control, without inventing a Boolean guard.
+        checked_trees::CheckedScalarStateTerminator::Return { statement_ordinal } => matches!(
+            statements.get(*statement_ordinal as usize),
+            Some(StatementNode::Transition(_))
+        ),
         checked_trees::CheckedScalarStateTerminator::Guarded { .. }
-            | checked_trees::CheckedScalarStateTerminator::Conditional {
-                when_true: checked_trees::CheckedScalarBranchDestination::Return { .. },
-                when_false: checked_trees::CheckedScalarBranchDestination::Return { .. },
-                ..
-            }
-    ) {
+        | checked_trees::CheckedScalarStateTerminator::Conditional {
+            when_true: checked_trees::CheckedScalarBranchDestination::Return { .. },
+            when_false: checked_trees::CheckedScalarBranchDestination::Return { .. },
+            ..
+        } => true,
+        _ => false,
+    };
+    if !returning_tail {
         return None;
     }
     Some((

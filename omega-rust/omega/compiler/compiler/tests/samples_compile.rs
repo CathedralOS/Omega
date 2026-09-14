@@ -1007,6 +1007,17 @@ fn dutch_flag_sample_reaches_checked_trees() {
 }
 
 #[test]
+fn generic_counter_sample_reaches_terminal_psi() {
+    let main_path = repo_root().join("samples/cli/basics/generic_counters/main.omg");
+    let compilation =
+        compile_sample_to_checked(&main_path, None).expect("generic counter source checks");
+    let checked = &compilation.into_program();
+    let _ = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
+        .produce_artifact()
+        .expect("the complete counter program must reach Terminal Psi");
+}
+
+#[test]
 fn recursive_slice_samples_reach_checked_trees() {
     // Keep the original recursive calls, borrowed sibling fields, and result
     // consumers. Native acceptance remains the separate documented-exit test.
