@@ -1,0 +1,694 @@
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_unit::ValueDefinitionSite;
+use register_environment::baseline_target_register_environment;
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{
+    LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
+    PlaceId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+
+use super::*;
+use crate::ValidatedSelectedAnalysis;
+
+fn budget() -> OptimizationWorkBudget {
+    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
+}
+
+fn instruction(
+    id: SelectedInstructionId,
+    kind: SelectedInstructionKind,
+    row: &RegisterInstructionConstraint,
+    registers: &[VirtualRegisterId],
+) -> SelectedInstruction {
+    SelectedInstruction {
+        id,
+        kind,
+        constraint: row.key,
+        operands: row
+            .operands
+            .iter()
+            .zip(registers)
+            .map(|(operand, register)| SelectedOperand {
+                operand: operand.operand,
+                virtual_register: *register,
+                access: operand.access,
+                class: operand.class,
+                fixed_view: operand.fixed_view,
+                tied_to: operand.tied_to,
+                early_clobber: operand.early_clobber,
+            })
+            .collect(),
+        implicit_uses: row.implicit_uses.clone(),
+        implicit_defs: row.implicit_defs.clone(),
+        clobbers: row.clobbers.clone(),
+        provenance: Default::default(),
+    }
+}
+
+const STORE: SelectedInstructionId = SelectedInstructionId(2);
+const BETWEEN: SelectedInstructionId = SelectedInstructionId(3);
+const LOAD: SelectedInstructionId = SelectedInstructionId(4);
+const POINTER: VirtualRegisterId = VirtualRegisterId(0);
+const VALUE: VirtualRegisterId = VirtualRegisterId(1);
+const SCRATCH: VirtualRegisterId = VirtualRegisterId(2);
+const OUTPUT: VirtualRegisterId = VirtualRegisterId(3);
+
+fn place() -> PlaceId {
+    PlaceId::new(1).unwrap()
+}
+
+fn access(
+    instruction: SelectedInstructionId,
+    operation: u64,
+    place: PlaceId,
+    byte_offset: u32,
+    role: SelectedMemoryAccessRole,
+) -> SelectedMemoryAccess {
+    SelectedMemoryAccess {
+        instruction,
+        origin: SelectedMemoryAccessOrigin::Operation(OperationId::new(operation).unwrap()),
+        place,
+        byte_offset,
+        byte_count: 8,
+        role,
+    }
+}
+
+/// A raw selected-stage unit fixture, not a source/Terminal admission claim:
+/// `r1 = copy r0; store [r0+0] <- r1; r3 = copy r0; r2 = load [r0+0]; return`.
+fn fixture(target: NativeTarget) -> ValidatedStoredLoadForwarding {
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let copy = environment.constraint(keys.copy_i64).unwrap();
+    let store = environment.constraint(keys.store.unwrap()).unwrap();
+    let load = environment.constraint(keys.load64.unwrap()).unwrap();
+    let terminal_row = environment.constraint(keys.return_unit).unwrap();
+    let class = copy.operands[0].class;
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let source_value = ValueId::new(1).unwrap();
+    let registers = vec![
+        VirtualRegister {
+            id: POINTER,
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::EntryParameter {
+                source_value,
+                parameter_index: 0,
+            },
+            definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
+            entry_fixed_view: None,
+        },
+        VirtualRegister {
+            id: VALUE,
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(1),
+                source_value: ValueId::new(2).unwrap(),
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        },
+        VirtualRegister {
+            id: SCRATCH,
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: BETWEEN,
+                source_value: ValueId::new(3).unwrap(),
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        },
+        VirtualRegister {
+            id: OUTPUT,
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: LOAD,
+                source_value: ValueId::new(4).unwrap(),
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        },
+    ];
+    let instructions = vec![
+        instruction(
+            SelectedInstructionId(1),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[POINTER, VALUE],
+        ),
+        instruction(
+            STORE,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, VALUE],
+        ),
+        instruction(
+            BETWEEN,
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[POINTER, SCRATCH],
+        ),
+        {
+            let mut forwarded_load = instruction(
+                LOAD,
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                load,
+                &[POINTER, OUTPUT],
+            );
+            forwarded_load.provenance.operations = vec![OperationId::new(2).unwrap()];
+            forwarded_load.provenance.values = vec![ValueId::new(4).unwrap()];
+            forwarded_load
+        },
+    ];
+    let machine = MachineId::new(1).unwrap();
+    let place = place();
+    let plan = SelectedInstructionPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
+        },
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        target,
+        entry: machine,
+        functions: vec![SelectedFunction {
+            machine,
+            attachment: None,
+            provenance: Default::default(),
+            structural: None,
+            local_storage_slots: Vec::new(),
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: vec![
+                access(STORE, 1, place, 0, SelectedMemoryAccessRole::WritePlace),
+                access(LOAD, 2, place, 0, SelectedMemoryAccessRole::ReadPlace),
+            ],
+            boundary_settlements: Vec::new(),
+            entry_block: SelectedBlockId(0),
+            virtual_registers: registers,
+            blocks: vec![SelectedBlock {
+                id: SelectedBlockId(0),
+                origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+                instructions,
+                terminator: SelectedTerminator::Return {
+                    instruction: instruction(
+                        SelectedInstructionId(5),
+                        SelectedInstructionKind::ReturnUnit,
+                        terminal_row,
+                        &[],
+                    ),
+                    psi_return_edge: EdgeId::new(1).unwrap(),
+                },
+            }],
+        }]
+        .into(),
+    };
+    let identity = selected_instruction_plan_identity(&plan);
+    ValidatedStoredLoadForwarding {
+        receipt: StoredLoadForwardingReceipt {
+            source_selected: identity,
+            transformed_selected: identity,
+            optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
+            fuel_schedule: plan.fuel_schedule,
+        },
+        transformed: std::sync::Arc::new(plan),
+    }
+}
+
+#[test]
+fn same_block_store_forwards_through_copy_and_drops_the_read_row() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let source = fixture(target);
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source_load = source.transformed().functions[0].blocks[0].instructions[3].clone();
+        let result =
+            forward_selected_stored_load(&source, 0, LOAD, &environment, budget()).unwrap();
+        let function = &result.transformed().functions[0];
+        let rewritten = &function.blocks[0].instructions[3];
+        assert_eq!(rewritten.id, LOAD);
+        assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+        assert_eq!(rewritten.operands.len(), 2);
+        assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+        assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+        assert_eq!(rewritten.operands[1].access, RegisterOperandAccess::Def);
+        assert_eq!(rewritten.provenance, source_load.provenance);
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| access.role)
+                .collect::<Vec<_>>(),
+            vec![SelectedMemoryAccessRole::WritePlace]
+        );
+        assert_eq!(
+            result.receipt().source_selected(),
+            source.selected_identity()
+        );
+        assert_eq!(
+            result.receipt().transformed_selected(),
+            selected_instruction_plan_identity(result.transformed())
+        );
+        // The rewritten function detached from the source's shared storage.
+        assert!(!std::ptr::eq(
+            &source.transformed().functions[0],
+            &result.transformed().functions[0]
+        ));
+        validate_stored_load_forwarding(
+            &source,
+            0,
+            LOAD,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A detached, separately allocated proposal replays by content.
+        let mut detached = result.transformed().clone();
+        detached.functions = detached.functions.iter().cloned().collect();
+        validate_stored_load_forwarding(&source, 0, LOAD, &environment, budget(), detached)
+            .unwrap();
+    }
+}
+
+#[test]
+fn replay_rejects_anything_but_the_exact_forwarding() {
+    let target = NativeTarget::linux_x64();
+    let source = fixture(target);
+    let environment = baseline_target_register_environment(target).unwrap();
+    let result = forward_selected_stored_load(&source, 0, LOAD, &environment, budget()).unwrap();
+    for mutation in 0..9 {
+        let mut proposed = result.transformed().clone();
+        let function = &mut proposed.functions[0];
+        match mutation {
+            // Forwarded from the wrong register.
+            0 => {
+                function.blocks[0].instructions[3].operands[0].virtual_register = POINTER;
+            }
+            // Different result register.
+            1 => {
+                function.blocks[0].instructions[3].operands[1].virtual_register = SCRATCH;
+            }
+            // Kept the read row instead of dropping it.
+            2 => {
+                function.memory_accesses.push(access(
+                    LOAD,
+                    2,
+                    place(),
+                    0,
+                    SelectedMemoryAccessRole::ReadPlace,
+                ));
+            }
+            // Dropped the store's row as well.
+            3 => {
+                function.memory_accesses.remove(0);
+            }
+            // The surviving store must remain untouched.
+            4 => {
+                function.blocks[0].instructions[1].kind = SelectedInstructionKind::Store {
+                    byte_offset: 8,
+                    byte_size: 8,
+                };
+            }
+            // A different instruction id on the copy.
+            5 => function.blocks[0].instructions[3].id = BETWEEN,
+            // Fresh provenance must stay the read's.
+            6 => {
+                function.blocks[0].instructions[3]
+                    .provenance
+                    .values
+                    .push(ValueId::new(9).unwrap());
+            }
+            // An unrelated register must stay identical.
+            7 => function.virtual_registers[1].scalar_type = ScalarType::Boolean,
+            // The read must not survive elsewhere in the block.
+            8 => {
+                function.blocks[0].instructions[3].kind =
+                    SelectedInstructionKind::Load64 { byte_offset: 0 };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_stored_load_forwarding(&source, 0, LOAD, &environment, budget(), proposed)
+                .is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+/// Edit the single fixture function, then refresh the receipt identities so the
+/// mutated plan is a well-formed analysis source.
+fn mutated(
+    target: NativeTarget,
+    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+) -> ValidatedStoredLoadForwarding {
+    let environment = baseline_target_register_environment(target).unwrap();
+    let mut source = fixture(target);
+    edit(
+        &mut std::sync::Arc::make_mut(&mut source.transformed).functions[0],
+        &environment,
+    );
+    let identity = selected_instruction_plan_identity(&source.transformed);
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    source
+}
+
+fn forward(
+    source: &ValidatedStoredLoadForwarding,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
+    forward_selected_stored_load(source, 0, LOAD, environment, budget())
+}
+
+#[test]
+fn overlapping_or_dynamic_writes_between_reject() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Partial overwrite of the forwarded range cannot forward.
+    let partial = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 4,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 4,
+                ..access(BETWEEN, 3, place(), 4, SelectedMemoryAccessRole::WritePlace)
+            },
+        );
+    });
+    assert_eq!(
+        forward(&partial, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A dynamic-extent byte-sequence write to the same place cannot be proven
+    // disjoint.
+    let dynamic = mutated(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WriteByteSequence {
+                    index: ValueId::new(5).unwrap(),
+                    value: ValueId::new(6).unwrap(),
+                    length: ValueId::new(7).unwrap(),
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [3; 32],
+                    ),
+                },
+            ),
+        );
+    });
+    assert_eq!(
+        forward(&dynamic, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A place-backed local slot write targets the forwarded place's storage.
+    let local = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::Structural {
+            operation: OperationId::new(9).unwrap(),
+            place: place(),
+        };
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WriteLocal { slot },
+            ),
+        );
+    });
+    assert_eq!(
+        forward(&local, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // Materializing the place-backed local address lets later writes reach it.
+    let address = mutated(target, |function, _| {
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::AddressLocal { slot },
+            ),
+        );
+    });
+    assert_eq!(
+        forward(&address, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // An unaccounted referent write (no row) rejects.
+    let unaccounted = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+    });
+    assert_eq!(
+        forward(&unaccounted, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+}
+
+#[test]
+fn harmless_accesses_and_private_slots_still_forward() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A different place root cannot share writable storage with the forwarded
+    // place under place exclusivity.
+    let other_place = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                PlaceId::new(2).unwrap(),
+                0,
+                SelectedMemoryAccessRole::WritePlace,
+            ),
+        );
+    });
+    forward(&other_place, &environment).unwrap();
+    // A disjoint range of the same place cannot touch the forwarded bytes.
+    let disjoint = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store {
+                byte_offset: 16,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                16,
+                SelectedMemoryAccessRole::WritePlace,
+            ),
+        );
+    });
+    forward(&disjoint, &environment).unwrap();
+    // A re-read of the forwarded range cannot clobber it.
+    let reread = mutated(target, |function, environment| {
+        let load = environment
+            .constraint(environment.selected_keys().load64.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            load,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 0, SelectedMemoryAccessRole::ReadPlace),
+        );
+    });
+    forward(&reread, &environment).unwrap();
+    // Private spill-slot traffic carries no row and cannot alias a place.
+    let spill = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
+                    register: VirtualRegisterId(9),
+                }),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+    });
+    forward(&spill, &environment).unwrap();
+}
+
+#[test]
+fn calls_hosted_effects_and_use_violations_reject() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let call = mutated(target, |function, environment| {
+        let call = environment
+            .constraint(environment.selected_keys().call_unit[0])
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::CallUnit {
+                callee: MachineId::new(2).unwrap(),
+            },
+            call,
+            &[],
+        );
+    });
+    assert_eq!(
+        forward(&call, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedInstruction
+    );
+    // Redefining the carried value between store and load must not forward.
+    let redefined = mutated(target, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[POINTER, VALUE],
+        );
+    });
+    assert_eq!(
+        forward(&redefined, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedUse
+    );
+}
+
+#[test]
+fn admission_boundaries_and_budget_hold() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    // A nonexistent instruction id cannot forward.
+    assert_eq!(
+        forward_selected_stored_load(
+            &source,
+            0,
+            SelectedInstructionId(99),
+            &environment,
+            budget()
+        )
+        .unwrap_err(),
+        StoredLoadForwardingError::SourceMismatch
+    );
+    // A non-load instruction id cannot forward.
+    assert_eq!(
+        forward_selected_stored_load(&source, 0, STORE, &environment, budget()).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedInstruction
+    );
+    // The wrong target's environment is a different source.
+    let foreign = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
+    assert_eq!(
+        forward(&source, &foreign).unwrap_err(),
+        StoredLoadForwardingError::SourceMismatch
+    );
+    // Without a preceding same-range store there is nothing to forward.
+    let storeless = mutated(target, |function, _| {
+        function.blocks[0].instructions.remove(1);
+        function.memory_accesses.remove(0);
+    });
+    assert_eq!(
+        forward(&storeless, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // The load's read row is required; a private reload has nothing to prove.
+    let rowless = mutated(target, |function, _| {
+        function.memory_accesses.remove(1);
+    });
+    assert_eq!(
+        forward(&rowless, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedInstruction
+    );
+    let tiny = OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap();
+    assert_eq!(
+        forward_selected_stored_load(&source, 0, LOAD, &environment, tiny).unwrap_err(),
+        StoredLoadForwardingError::WorkBudgetExceeded
+    );
+}

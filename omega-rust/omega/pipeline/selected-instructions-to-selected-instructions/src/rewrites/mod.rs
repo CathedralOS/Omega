@@ -3,12 +3,14 @@
 mod allocation_recovery;
 mod fixed_view;
 mod literal_folds;
+mod load_forwarding;
 mod runtime_spill;
 mod selected_lowering;
 
 pub use allocation_recovery::*;
 pub use fixed_view::*;
 pub use literal_folds::*;
+pub use load_forwarding::*;
 pub use runtime_spill::*;
 pub use selected_lowering::*;
 
