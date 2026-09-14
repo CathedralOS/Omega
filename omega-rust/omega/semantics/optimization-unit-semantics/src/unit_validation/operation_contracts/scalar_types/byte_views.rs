@@ -4,6 +4,10 @@ use super::*;
 pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDefinition>) -> bool {
     let scalar = |value: ValueId| definitions.get(&value).map(|row| row.scalar_type);
     match operation {
+        O::StructuralByteSequenceFieldStore { length, .. } => {
+            matches!(scalar(*length), Some(ScalarType::Integer(integer))
+                if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
+        }
         O::ByteSequenceWrite {
             index,
             value,

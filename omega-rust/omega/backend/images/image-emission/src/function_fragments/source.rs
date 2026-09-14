@@ -47,6 +47,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::PrimitiveScalarRead { .. }
                 | AbstractOperation::IntegerStructuralField { .. }
                 | AbstractOperation::StructuralByteSequenceFieldLength { .. }
+                | AbstractOperation::StructuralByteSequenceFieldStore { .. }
                 | AbstractOperation::BooleanStructuralField { .. }
                 | AbstractOperation::StructuralCaseMembership { .. }
         )
@@ -221,6 +222,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for operation in &abstracted.operations {
             let admitted = match operation {
+                AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
+                    structural_fields::replacement_retained(abstracted, operation, targeted)
+                        && structural_fields::replacement_footprints_retained(operation, &selected.memory_accesses)
+                }
                 AbstractOperation::PrimitiveScalarRead { path, .. } if !path.is_empty() => {
                     structural_fields::retained(abstracted, operation, targeted)
                 }

@@ -37,6 +37,9 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 Instruction::ByteSequenceSubslice {
                     start, end, length, ..
                 } => pending.extend([*start, *end, *length]),
+                Instruction::StructuralByteSequenceFieldStore { length, .. } => {
+                    pending.push(*length)
+                }
                 Instruction::ByteSequenceWrite {
                     index,
                     value,

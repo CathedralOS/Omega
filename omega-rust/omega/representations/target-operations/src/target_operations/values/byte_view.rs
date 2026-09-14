@@ -5,6 +5,13 @@ use semantic_vocabulary::{BlockId, ObligationId, OperationId, PlaceId, Structura
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetByteView {
+    /// Immutable backing established by this exact operation, not a parameter
+    /// descriptor or authority to manufacture additional literal bytes.
+    Literal {
+        psi_operation: OperationId,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
     BlockParameter {
         block: BlockId,
         place: PlaceId,

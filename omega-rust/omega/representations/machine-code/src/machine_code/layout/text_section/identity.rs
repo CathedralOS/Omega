@@ -155,6 +155,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
+        MachineAlternativeFamily::CopyBytes => 59,
         MachineAlternativeFamily::Store64 => 17,
         MachineAlternativeFamily::FrameAddress => 18,
         MachineAlternativeFamily::CallUnit => 19,

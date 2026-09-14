@@ -95,6 +95,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
+        SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
         SelectedInstructionKind::CallUnit { .. } => 19,
@@ -262,6 +263,7 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
             45,
         ),
         (SelectedInstructionKind::Load8Indexed, 21),
+        (SelectedInstructionKind::CopyBytes, 59),
         (SelectedInstructionKind::ByteViewAddress, 22),
     ] {
         let mut bytes = Vec::new();
@@ -392,6 +394,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         },
         22 => SelectedInstructionKind::ByteViewAddress,
         21 => SelectedInstructionKind::Load8Indexed,
+        59 => SelectedInstructionKind::CopyBytes,
         5 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
             accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(

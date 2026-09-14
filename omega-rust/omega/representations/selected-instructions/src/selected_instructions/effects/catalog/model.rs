@@ -23,6 +23,7 @@ impl MachineEffectCatalogIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineSemanticKind {
+    CopyBytes,
     BitwiseAndI64,
     BitwiseXorI64,
     CallAggregate,
@@ -85,7 +86,8 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 59] = [
+    pub const ALL: [Self; 60] = [
+        Self::CopyBytes,
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
         Self::CallAggregate,
@@ -150,6 +152,7 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    CopyBytes,
     BitwiseAndI64,
     BitwiseXorI64,
     CallAggregate,
@@ -214,6 +217,7 @@ pub enum MachineAlternativeFamily {
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
+            MachineSemanticKind::CopyBytes => Self::CopyBytes,
             MachineSemanticKind::BitwiseAndI64 => Self::BitwiseAndI64,
             MachineSemanticKind::BitwiseXorI64 => Self::BitwiseXorI64,
             MachineSemanticKind::CallAggregate => Self::CallAggregate,
@@ -325,6 +329,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Reads source and writes destination for the explicit runtime count.
+    CopyBytesV1,
     /// Initialize an eight-byte structural home and read stdin into its i32 payload.
     HostedReadByteV1,
     /// Private-byte initialization and kernel read, with an observable stdout write.
@@ -418,6 +424,11 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    CopyBytesV1 {
+        source_pointer_operand: u16,
+        destination_pointer_operand: u16,
+        count_operand: u16,
+    },
     /// Zero eight frame bytes, read stdin into payload at offset four, and set the tag at zero.
     HostedReadByteV1 {
         stack_pointer: RegisterViewId,

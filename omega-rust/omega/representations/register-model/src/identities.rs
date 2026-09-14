@@ -58,7 +58,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v18\0"
+    b"omega.target-register-environment-identity.v19\0"
 );
 
 pub(super) fn physical_register_model_identity(
@@ -162,6 +162,7 @@ pub fn target_register_environment_identity(
         selected_keys.load16,
         selected_keys.load32,
         selected_keys.load8_indexed,
+        selected_keys.copy_bytes,
         selected_keys.store,
         selected_keys.address_offset,
         selected_keys.store64,

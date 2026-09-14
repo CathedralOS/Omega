@@ -1,5 +1,57 @@
 use super::*;
 
+pub(in crate::legalization) fn replacement(
+    function: &PsiOptimizationFunction,
+    operation: &AbstractOperation,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<terminal_psi::StructuralArgument> {
+    let AbstractOperation::StructuralByteSequenceFieldStore {
+        destination,
+        path,
+        field,
+        source,
+        ..
+    } = operation
+    else {
+        return None;
+    };
+    let parameter = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == *destination)?;
+    if !matches!(
+        parameter.access,
+        terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+    ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || source == destination
+        || function
+            .entry_claim_declarations
+            .iter()
+            .any(|claim| [*destination, *source].contains(&claim.input))
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| [*destination, *source].contains(&claim.input.root))
+        || !super::byte_views::contains_view(function, *source)
+    {
+        return None;
+    }
+    crate::structural_reference_input::byte_field_storage(
+        parameter.structural_type,
+        path,
+        *field,
+        types,
+    )?;
+    Some(terminal_psi::StructuralArgument {
+        place: *destination,
+        access: parameter.access,
+        path: path.clone(),
+    })
+}
+
 pub(in crate::legalization) fn read(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,

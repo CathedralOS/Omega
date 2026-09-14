@@ -142,6 +142,19 @@ pub struct SelectedCallContract {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedMemoryAccessRole {
+    /// Runtime span at byte_offset. byte_count must be zero; length is the
+    /// authoritative extent, not a capacity or a fixed memory footprint.
+    ReadByteSpan {
+        length: semantic_vocabulary::ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    /// Exact destination span of a non-overlapping copy; byte_count must be zero.
+    WriteByteSpan {
+        length: semantic_vocabulary::ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     /// Exactly one written byte at the checked dynamic index in the current mutable view.
     WriteByteSequence {
         index: semantic_vocabulary::ValueId,

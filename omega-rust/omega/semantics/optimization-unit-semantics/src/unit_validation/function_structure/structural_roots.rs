@@ -49,6 +49,27 @@ pub(crate) fn validate_structural_root_operations(
                 structural_types,
             )?;
             match &node.operation {
+                O::StructuralByteSequenceFieldStore { source, .. } => {
+                    super::byte_views::validate_byte_view_source(
+                        function,
+                        block.id,
+                        node_index,
+                        &node.operation,
+                        place_kinds.get(source),
+                        structural_types,
+                    )?;
+                    if super::byte_views::byte_field_store_capacity(
+                        function,
+                        &node.operation,
+                        structural_types,
+                    )
+                    .is_none()
+                    {
+                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                            machine: Some(function.machine),
+                        });
+                    }
+                }
                 O::StructuralByteSequenceFieldLength {
                     source,
                     path,

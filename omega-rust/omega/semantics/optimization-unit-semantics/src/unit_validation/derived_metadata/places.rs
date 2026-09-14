@@ -173,6 +173,14 @@ pub(crate) fn validate_operation_places(
                 }
             }
         }
+        O::StructuralByteSequenceFieldStore {
+            destination,
+            source,
+            ..
+        } => {
+            require(*destination, known)?;
+            require(*source, known)?;
+        }
         O::PrimitiveScalarRead { source, .. }
         | O::StructuralCaseMembership { source, .. }
         | O::ByteSequenceSubslice { source, .. }

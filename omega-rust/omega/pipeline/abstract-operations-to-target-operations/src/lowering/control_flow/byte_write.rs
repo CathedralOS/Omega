@@ -3,6 +3,109 @@
 use super::LiveDefinitions;
 use crate::lowering::shared::*;
 
+/// Keep replacement as one ordered operation. Capacity is a destination bound,
+/// not permission to read that many bytes from a shorter immutable source.
+pub(super) fn replace(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
+    live: &LiveDefinitions,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let AbstractOperation::StructuralByteSequenceFieldStore {
+        psi_operation,
+        destination,
+        path,
+        field,
+        source,
+        length,
+        obligation,
+    } = operation
+    else {
+        return Err(invalid());
+    };
+    let parameter = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == *destination)
+        .ok_or_else(invalid)?;
+    if !matches!(
+        parameter.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) || parameter.multiplicity == StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        || function
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == *destination)
+        || source == destination
+        || live.lengths.get(length) != Some(source)
+        || !(prepared
+            .parameters
+            .iter()
+            .any(|parameter| parameter.place == *source)
+            || live.views.contains_key(source)
+            || live.block_views.contains(source))
+    {
+        return Err(invalid());
+    }
+    let carrier = if path.is_empty() {
+        parameter.structural_type
+    } else {
+        crate::lowering::structural_layout::resolve_structural_projection_path(
+            parameter.structural_type,
+            path,
+            structural_types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?
+        .0
+    };
+    let StructuralTypeShape::Record { fields } =
+        &structural_types.get(&carrier).ok_or_else(invalid)?.shape
+    else {
+        return Err(invalid());
+    };
+    let mut matching = fields.iter().filter(|candidate| candidate.id == *field);
+    let selected = matching.next().ok_or_else(invalid)?;
+    if matching.next().is_some()
+        || selected.relevance.is_erased()
+        || !matches!(
+            selected.field_type,
+            StructuralFieldType::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+            )
+        )
+    {
+        return Err(invalid());
+    }
+    let length_value = *live.integers.get(length).ok_or_else(invalid)?;
+    if length_value.scalar_type()
+        != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?
+    {
+        return Err(invalid());
+    }
+    operations.push(TargetUnitOperation::StructuralByteSequenceFieldStore {
+        psi_operation: *psi_operation,
+        destination: terminal_psi::StructuralArgument {
+            place: *destination,
+            access: parameter.access,
+            path: path.clone(),
+        },
+        field: *field,
+        source: *source,
+        length: length_value.into_target_source(*length),
+        obligation: *obligation,
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
 pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,

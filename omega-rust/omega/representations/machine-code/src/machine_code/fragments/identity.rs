@@ -314,6 +314,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
+        MachineAlternativeFamily::CopyBytes => 59,
         MachineAlternativeFamily::Store64 => 17,
         MachineAlternativeFamily::FrameAddress => 18,
         MachineAlternativeFamily::CallUnit => 19,
@@ -362,6 +363,16 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             .collect::<Vec<_>>(),
     );
     match effects.memory {
+        MachineEncodedMemoryEffect::CopyBytesV1 {
+            source_pointer_operand,
+            destination_pointer_operand,
+            count_operand,
+        } => {
+            hasher.update([9]);
+            hasher.update(source_pointer_operand.to_le_bytes());
+            hasher.update(destination_pointer_operand.to_le_bytes());
+            hasher.update(count_operand.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
             pointer_operand,
             index_operand,

@@ -380,6 +380,7 @@ fn operation_effect(
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
+        | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishScalarArray { .. }

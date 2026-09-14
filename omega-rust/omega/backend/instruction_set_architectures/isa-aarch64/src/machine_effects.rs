@@ -142,6 +142,7 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        copy_bytes: Some(crate::AARCH64_COPY_BYTES),
         load_packed: Some(crate::AARCH64_LOAD_PACKED),
         store_packed: Some(crate::AARCH64_STORE_PACKED),
         hosted_read_byte: if target == NativeTarget::linux_arm64() {
@@ -245,7 +246,9 @@ fn declaration(
         constraint: keys
             .for_semantic(semantic)
             .expect("required AArch64 machine semantic has a constraint"),
-        memory: if matches!(
+        memory: if semantic == MachineSemanticKind::CopyBytes {
+            MachineMemoryEffect::CopyBytesV1
+        } else if matches!(
             semantic,
             MachineSemanticKind::Load8
                 | MachineSemanticKind::Load16
@@ -267,7 +270,8 @@ fn declaration(
         },
         trap: if matches!(
             semantic,
-            MachineSemanticKind::Load8
+            MachineSemanticKind::CopyBytes
+                | MachineSemanticKind::Load8
                 | MachineSemanticKind::Load16
                 | MachineSemanticKind::Load32
                 | MachineSemanticKind::Load64
@@ -328,6 +332,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::CopyBytes => (vec![0, 1, 2], vec![3, 4]),
         MachineSemanticKind::LoadPacked3
         | MachineSemanticKind::LoadPacked5
         | MachineSemanticKind::LoadPacked6
@@ -393,6 +398,12 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         }
     };
     let (implicit_uses, implicit_defs, trap, control) = match semantic {
+        MachineSemanticKind::CopyBytes => (
+            vec![],
+            vec![],
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            MachineEncodedControlEffect::FallThroughV1,
+        ),
         MachineSemanticKind::MaterializeBooleanEqual
         | MachineSemanticKind::MaterializeBooleanU64LessThan
         | MachineSemanticKind::MaterializeBooleanI64LessThan
@@ -485,8 +496,18 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         external_operand_writes: writes,
         implicit_unit_uses: implicit_uses,
         implicit_unit_defs: implicit_defs,
-        implicit_unit_clobbers: vec![],
-        memory: if matches!(
+        implicit_unit_clobbers: if semantic == MachineSemanticKind::CopyBytes {
+            units("nzcv")
+        } else {
+            vec![]
+        },
+        memory: if semantic == MachineSemanticKind::CopyBytes {
+            MachineEncodedMemoryEffect::CopyBytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+                count_operand: 2,
+            }
+        } else if matches!(
             semantic,
             MachineSemanticKind::Load8
                 | MachineSemanticKind::Load16
@@ -537,6 +558,7 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         return MachineSizeKnowledge::ExactBytes((2 * width - 1) * 4);
     }
     match semantic {
+        MachineSemanticKind::CopyBytes => MachineSizeKnowledge::ExactBytes(28),
         MachineSemanticKind::StorePacked => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 24,
             maximum_bytes: Some(56),

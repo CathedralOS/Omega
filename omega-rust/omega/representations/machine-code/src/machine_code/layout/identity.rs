@@ -216,6 +216,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::HostedWriteByteI32 => 23,
         Family::ByteViewAddress => 22,
         Family::Load8Indexed => 21,
+        Family::CopyBytes => 59,
         Family::Store64 => 17,
         Family::FrameAddress => 18,
         Family::CallUnit => 19,
@@ -232,6 +233,16 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     encode_units(hasher, &effects.implicit_unit_defs);
     encode_units(hasher, &effects.implicit_unit_clobbers);
     match effects.memory {
+        MachineEncodedMemoryEffect::CopyBytesV1 {
+            source_pointer_operand,
+            destination_pointer_operand,
+            count_operand,
+        } => {
+            hasher.update([9]);
+            hasher.update(source_pointer_operand.to_le_bytes());
+            hasher.update(destination_pointer_operand.to_le_bytes());
+            hasher.update(count_operand.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
             pointer_operand,
             index_operand,

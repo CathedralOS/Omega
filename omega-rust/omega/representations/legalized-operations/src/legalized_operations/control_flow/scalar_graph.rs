@@ -81,6 +81,7 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { value: stored, .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
+                    LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
@@ -161,6 +162,16 @@ pub enum LegalizedScalarInstructionKind {
     StructuralByteSequenceFieldLength {
         source: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
+    },
+    /// Copy precisely the immutable source's live bytes, then publish its length.
+    /// Geometry is reconstructed from the destination, never from source capacity.
+    StructuralByteSequenceFieldStore {
+        destination: terminal_psi::StructuralArgument,
+        field: semantic_vocabulary::StructuralFieldId,
+        source: semantic_vocabulary::PlaceId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     StructuralCaseMembership {
         source: semantic_vocabulary::PlaceId,

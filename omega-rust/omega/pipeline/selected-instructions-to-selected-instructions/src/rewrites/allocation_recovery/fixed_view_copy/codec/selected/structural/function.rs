@@ -97,6 +97,27 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
         bytes.extend_from_slice(&row.byte_offset.to_le_bytes());
         bytes.extend_from_slice(&row.byte_count.to_le_bytes());
         match row.role {
+            SelectedMemoryAccessRole::ReadByteSpan {
+                length,
+                obligation,
+                accepted_fact,
+            }
+            | SelectedMemoryAccessRole::WriteByteSpan {
+                length,
+                obligation,
+                accepted_fact,
+            } => {
+                bytes.push(
+                    if matches!(row.role, SelectedMemoryAccessRole::ReadByteSpan { .. }) {
+                        8
+                    } else {
+                        9
+                    },
+                );
+                bytes.extend_from_slice(&length.get().to_le_bytes());
+                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                bytes.extend_from_slice(&accepted_fact.bytes());
+            }
             SelectedMemoryAccessRole::WriteByteSequence {
                 index,
                 value,
@@ -208,6 +229,25 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
         let byte_offset = cursor.u32()?;
         let byte_count = cursor.u32()?;
         let role = match cursor.byte()? {
+            tag @ (8 | 9) => {
+                let length = decode_id(cursor, semantic_vocabulary::ValueId::new)?;
+                let obligation = decode_id(cursor, semantic_vocabulary::ObligationId::new)?;
+                let accepted_fact =
+                    optimization_core::AcceptedObligationFactIdentity::from_bytes(cursor.array()?);
+                if tag == 8 {
+                    SelectedMemoryAccessRole::ReadByteSpan {
+                        length,
+                        obligation,
+                        accepted_fact,
+                    }
+                } else {
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length,
+                        obligation,
+                        accepted_fact,
+                    }
+                }
+            }
             7 => SelectedMemoryAccessRole::WriteByteSequence {
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 value: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
@@ -268,6 +308,83 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
 #[cfg(test)]
 mod local_slot_tests {
     use super::*;
+
+    #[test]
+    fn byte_span_contract_roundtrip_retains_length_obligation_and_accepted_fact() {
+        let empty = || SelectedFunction {
+            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+            attachment: None,
+            provenance: Default::default(),
+            structural: None,
+            local_storage_slots: Vec::new(),
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+            entry_block: SelectedBlockId(0),
+            virtual_registers: Vec::new(),
+            blocks: Vec::new(),
+        };
+        let length = semantic_vocabulary::ValueId::new(7).unwrap();
+        let obligation = semantic_vocabulary::ObligationId::new(8).unwrap();
+        let accepted_fact = optimization_core::AcceptedObligationFactIdentity::from_bytes([9; 32]);
+        let mut source = empty();
+        for role in [
+            SelectedMemoryAccessRole::ReadByteSpan {
+                length,
+                obligation,
+                accepted_fact,
+            },
+            SelectedMemoryAccessRole::WriteByteSpan {
+                length,
+                obligation,
+                accepted_fact,
+            },
+        ] {
+            source.memory_accesses.push(SelectedMemoryAccess {
+                instruction: SelectedInstructionId(2),
+                origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                    OperationId::new(3).unwrap(),
+                ),
+                place: PlaceId::new(4).unwrap(),
+                byte_offset: 5,
+                byte_count: 0,
+                role,
+            });
+        }
+        let mut bytes = Vec::new();
+        encode_contracts(&mut bytes, &source);
+        let mut cursor = Cursor::new(&bytes);
+        let mut decoded = empty();
+        decode_contracts(&mut cursor, &mut decoded).unwrap();
+        assert_eq!(cursor.remaining(), 0);
+        assert_eq!(decoded, source);
+        for mutation in 0..3 {
+            let mut changed = source.clone();
+            let SelectedMemoryAccessRole::WriteByteSpan {
+                length,
+                obligation,
+                accepted_fact,
+            } = &mut changed.memory_accesses[1].role
+            else {
+                panic!("write span");
+            };
+            match mutation {
+                0 => *length = semantic_vocabulary::ValueId::new(17).unwrap(),
+                1 => *obligation = semantic_vocabulary::ObligationId::new(18).unwrap(),
+                _ => {
+                    *accepted_fact =
+                        optimization_core::AcceptedObligationFactIdentity::from_bytes([19; 32])
+                }
+            }
+            let mut changed_bytes = Vec::new();
+            encode_contracts(&mut changed_bytes, &changed);
+            assert_ne!(bytes, changed_bytes);
+        }
+        for length in 0..bytes.len() {
+            assert!(decode_contracts(&mut Cursor::new(&bytes[..length]), &mut empty()).is_err());
+        }
+    }
 
     #[test]
     fn owned_entry_slot_decoder_rejects_zero_truncation_and_unknown_tag() {

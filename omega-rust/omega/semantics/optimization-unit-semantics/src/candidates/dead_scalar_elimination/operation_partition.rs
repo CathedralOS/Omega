@@ -72,6 +72,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceWrite { .. }
+        | O::StructuralByteSequenceFieldStore { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }

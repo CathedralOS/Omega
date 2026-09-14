@@ -5,6 +5,7 @@ use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractRes
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::VocabularyMarker;
 
+mod byte_field_stores;
 mod byte_reads;
 mod byte_subslices;
 

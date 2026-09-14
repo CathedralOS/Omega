@@ -417,6 +417,43 @@ pub(super) fn validate(
             }
         }
         (
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
+                destination,
+                field,
+                source,
+                length,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::StructuralByteSequenceFieldStore {
+                field: expected_field,
+                source: expected_source,
+                length: expected_length,
+                obligation: expected_obligation,
+                ..
+            },
+        ) => {
+            if Some(destination.clone())
+                != scalar_graph_input::structural_fields::replacement(
+                    optimized,
+                    &node.operation,
+                    &plan.structural_types,
+                )
+                || field != expected_field
+                || source != expected_source
+                || length != expected_length
+                || obligation != expected_obligation
+                || !unit.accepted_obligation_facts.iter().any(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == operation
+                        && fact.obligation == *obligation
+                        && fact.identity == *accepted_fact
+                })
+            {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::ByteSequenceWrite {
                 destination,
                 index,

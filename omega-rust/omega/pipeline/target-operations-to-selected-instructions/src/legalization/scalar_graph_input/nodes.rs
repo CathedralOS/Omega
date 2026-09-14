@@ -15,6 +15,7 @@ pub(in crate::legalization) fn instruction(
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
     | AbstractOperation::CallUnit { psi_operation, .. }
     | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
+    | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } = &node.operation
     {
@@ -296,6 +297,16 @@ pub(super) fn validate(
                 || [start, end, length].iter().any(|value| {
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
+        if let AbstractOperation::StructuralByteSequenceFieldStore { length, .. } = &node.operation
+        {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
             {
                 return Err(invalid);
             }

@@ -254,6 +254,23 @@ pub(in crate::lowering) fn view_for_place(
     if active.contains(&place) {
         return Err(invalid());
     }
+    if let Some(AbstractOperation::EstablishByteSequenceLiteral {
+        psi_operation, place: declaration, structural_type, ..
+    }) = function.operations.iter().find(|operation|
+        matches!(operation, AbstractOperation::EstablishByteSequenceLiteral { place: declaration, .. }
+            if declaration.id == place))
+    {
+        if !matches!(declaration.kind,
+            semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { structural_type: identity, .. }
+                if identity == structural_type.id)
+            || structural_type.shape != StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView)
+            || structural_types.get(&structural_type.id).copied() != Some(structural_type)
+        { return Err(invalid()); }
+        return Ok(TargetByteView::Literal {
+            psi_operation: *psi_operation, place, structural_type: structural_type.id,
+        });
+    }
     if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
         entry
             .structural_parameters

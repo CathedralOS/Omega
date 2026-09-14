@@ -18,6 +18,7 @@ pub(super) fn decode_instruction(
         5 => MachineMemoryEffect::HostedReadByteV1,
         3 => MachineMemoryEffect::HostedWriteByteV1,
         2 => MachineMemoryEffect::WriteFrameStorageV1,
+        6 => MachineMemoryEffect::CopyBytesV1,
         4 => MachineMemoryEffect::WritePointerV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
@@ -99,6 +100,7 @@ fn decode_kind(
         1 => SelectedInstructionKind::MaterializeI64 {
             value: decode_integer(cursor)?,
         },
+        59 => SelectedInstructionKind::CopyBytes,
         2 => SelectedInstructionKind::CopyI64,
         26 => SelectedInstructionKind::Float32ToBits,
         27 => SelectedInstructionKind::Float64ToBits,
@@ -348,6 +350,7 @@ fn decode_alternative_for_version(
     let family = match cursor.byte()? {
         0 => MachineAlternativeFamily::CompareI64Zero,
         1 => MachineAlternativeFamily::MaterializeI64,
+        59 => MachineAlternativeFamily::CopyBytes,
         2 => MachineAlternativeFamily::CopyI64,
         26 => MachineAlternativeFamily::Float32ToBits,
         27 => MachineAlternativeFamily::Float64ToBits,
@@ -485,6 +488,11 @@ fn decode_encoded_effects(
         },
         6 => MachineEncodedMemoryEffect::HostedWriteByteV1 {
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+        },
+        9 => MachineEncodedMemoryEffect::CopyBytesV1 {
+            source_pointer_operand: cursor.u16()?,
+            destination_pointer_operand: cursor.u16()?,
+            count_operand: cursor.u16()?,
         },
         0 => MachineEncodedMemoryEffect::NoneV1,
         7 => MachineEncodedMemoryEffect::WritePointerV1 {

@@ -12,10 +12,11 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v25\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v26\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
+        catalog.selected_keys.copy_bytes,
         catalog.selected_keys.hosted_read_byte,
         catalog.selected_keys.hosted_write_byte_i32,
         catalog.selected_keys.store,
@@ -53,6 +54,7 @@ pub fn machine_effect_catalog_identity(
         // Keep effect matches exhaustive so additions cannot silently collide
         // with an older catalog identity.
         bytes.push(match declaration.memory {
+            crate::MachineMemoryEffect::CopyBytesV1 => 6,
             crate::MachineMemoryEffect::NoneV1 => 0,
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
             crate::MachineMemoryEffect::HostedReadByteV1 => 5,
@@ -180,6 +182,16 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
         MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
             bytes.push(6);
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::CopyBytesV1 {
+            source_pointer_operand,
+            destination_pointer_operand,
+            count_operand,
+        } => {
+            bytes.push(9);
+            bytes.extend_from_slice(&source_pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&destination_pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&count_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
         MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
@@ -320,6 +332,7 @@ fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
 
 pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
     match kind {
+        MachineSemanticKind::CopyBytes => 59,
         MachineSemanticKind::CallAggregate => 35,
         MachineSemanticKind::ReturnAggregate => 36,
         MachineSemanticKind::CompareI64Zero => 0,
@@ -384,6 +397,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
 
 pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
     match family {
+        MachineAlternativeFamily::CopyBytes => 59,
         MachineAlternativeFamily::CallAggregate => 35,
         MachineAlternativeFamily::ReturnAggregate => 36,
         MachineAlternativeFamily::CompareI64Zero => 0,

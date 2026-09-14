@@ -76,6 +76,7 @@ pub(super) fn folded_literal<'a>(
                         || *end == definition.value
                         || *length == definition.value
                 }
+                LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => *length == definition.value,
                 LegalizedScalarInstructionKind::ByteSequenceWrite {
                     index,
                     value,

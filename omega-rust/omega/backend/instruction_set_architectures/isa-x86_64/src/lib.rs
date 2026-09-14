@@ -13,6 +13,7 @@ mod mov_r64_imm32_sign_extended_i64_materialization;
 mod post_handoff_writer;
 mod preservation_storage;
 mod register_model;
+pub use register_model::X86_64_COPY_BYTES;
 pub use register_model::X86_64_DIVIDE_U64;
 pub use register_model::X86_64_LOAD8;
 pub use register_model::X86_64_LOAD16;

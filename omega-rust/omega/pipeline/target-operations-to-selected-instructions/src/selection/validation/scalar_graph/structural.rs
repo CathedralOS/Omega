@@ -12,6 +12,7 @@ mod block_views;
 mod entry;
 pub(super) use block_views::block_entry;
 pub(super) use entry::entry;
+mod byte_field_store;
 mod byte_views;
 mod literals;
 mod local_storage;
@@ -158,6 +159,13 @@ pub(super) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     replay: &mut Replay<'_>,
 ) -> Result<bool, SelectedInstructionError> {
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
+    ) {
+        byte_field_store::replace(source, replay, node)?;
+        return Ok(true);
+    }
     if matches!(
         node.kind,
         LegalizedScalarInstructionKind::ByteSequenceWrite { .. }

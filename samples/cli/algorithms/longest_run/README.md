@@ -59,8 +59,24 @@ Native bounded fields use an aligned leading `u64` length followed by inline
 capacity bytes, not a synthesized borrowed-view descriptor. Metadata observation
 does not grant byte-content read or replacement authority.
 
-Remaining dependencies include field-backed byte reads and native byte-field
-replacement. After those operations compose, the complete state
+Whole-field byte replacement now copies the exact live source span before
+writing length metadata. Run `cargo nextest run -p compiler --test
+byte_field_replacement --no-fail-fast`: authored empty/short/full literals and
+direct/nested fields publish for all four hosted targets and execute on macOS
+ARM64. Verified Terminal runtime-view cases also execute with null empty backing
+and short read-only backing ending at a protected page; source, neighbors and
+unused destination bytes remain unchanged. Oversized input follows the guard's
+non-writing branch. Equal-capacity field/source substitutions and altered copy
+operands or footprints reject independent replay.
+
+Runtime-view RHS and write-only bounded-domain assignment still need their
+authored Psi producers in `typed-trees-to-checked-trees/src/flow`; the runtime
+and write-only tests construct verified Terminal explicitly, not pretend that
+those source forms already compile. The native copy itself is shared across
+literal and runtime views, with ISA-local loops rather than source CFG edges.
+
+Remaining scanner dependencies include field-backed byte reads. After those
+operations compose, the complete state
 loop must still pass its termination/proof and native execution checks. Keep this
 command as the outer acceptance check rather than deriving completion from a
 passing isolated store test.
@@ -81,5 +97,5 @@ capacities, using existing resolved-domain predicate denotation; nonempty and
 unknown requirements reject. Native image replay separately checks owned
 zero-filled storage and the existing root-backed receiver partition. This adds
 neither borrowed-view initialization nor authority from a carrier's layout.
-Byte reads, replacement execution, and the complete scanner loop remain
+Byte reads and the complete scanner loop remain
 the next dependencies; receiver initialization alone does not close them.

@@ -20,7 +20,8 @@ pub(crate) fn operation_scalar_types_match(
         integer(left, expected) && integer(right, expected)
     };
     match operation {
-        O::ByteSequenceWrite { .. }
+        O::StructuralByteSequenceFieldStore { .. }
+        | O::ByteSequenceWrite { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }

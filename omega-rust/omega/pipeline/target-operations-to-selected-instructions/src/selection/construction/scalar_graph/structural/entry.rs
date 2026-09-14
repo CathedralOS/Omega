@@ -149,6 +149,7 @@ pub(in crate::selection) fn entry(
             continue;
         }
         let used = crate::selection::established_view_input::transferred(source, place) || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { destination, source, .. } => destination.place == place || *source == place,
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source: argument, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source: argument, .. } => argument.place == place,
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }

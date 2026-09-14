@@ -101,6 +101,7 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         Instruction::ByteSequenceSubslice {
             start, end, length, ..
         } => [*start, *end, *length].contains(&value),
+        Instruction::StructuralByteSequenceFieldStore { length, .. } => *length == value,
         Instruction::ByteSequenceWrite {
             index,
             value: stored,

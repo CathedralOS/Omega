@@ -193,6 +193,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             .collect(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
+        O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,
             value,

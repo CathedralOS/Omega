@@ -52,6 +52,52 @@ impl Forwarded {
     }
 }
 
+#[test]
+fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
+    let place = PlaceId::new(1).unwrap();
+    let forwarded = Forwarded {
+        place,
+        byte_offset: 8,
+    };
+    let length = semantic_vocabulary::ValueId::new(3).unwrap();
+    let obligation = semantic_vocabulary::ObligationId::new(4).unwrap();
+    let accepted_fact = optimization_core::AcceptedObligationFactIdentity::from_bytes([5; 32]);
+    let mut access = SelectedMemoryAccess {
+        instruction: SelectedInstructionId(1),
+        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+            semantic_vocabulary::OperationId::new(1).unwrap(),
+        ),
+        place,
+        byte_offset: 0,
+        byte_count: 0,
+        role: SelectedMemoryAccessRole::WriteByteSpan {
+            length,
+            obligation,
+            accepted_fact,
+        },
+    };
+    assert!(interferes(&forwarded, &access));
+    access.role = SelectedMemoryAccessRole::ReadByteSpan {
+        length,
+        obligation,
+        accepted_fact,
+    };
+    assert!(!interferes(&forwarded, &access));
+    access.role = SelectedMemoryAccessRole::WriteByteSpan {
+        length,
+        obligation,
+        accepted_fact,
+    };
+    access.place = PlaceId::new(2).unwrap();
+    assert!(!interferes(&forwarded, &access));
+    access.place = place;
+    access.role = SelectedMemoryAccessRole::WritePlace;
+    assert!(
+        !interferes(&forwarded, &access),
+        "fixed zero-byte rows are not dynamic spans"
+    );
+}
+
 pub(super) fn admit<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
     function_index: usize,
@@ -261,12 +307,14 @@ fn interferes(forwarded: &Forwarded, access: &SelectedMemoryAccess) -> bool {
         SelectedMemoryAccessRole::WritePlace => {
             access.place == forwarded.place && forwarded.intersects(access)
         }
-        SelectedMemoryAccessRole::WriteByteSequence { .. } => access.place == forwarded.place,
+        SelectedMemoryAccessRole::WriteByteSequence { .. }
+        | SelectedMemoryAccessRole::WriteByteSpan { .. } => access.place == forwarded.place,
         SelectedMemoryAccessRole::WriteLocal { slot }
         | SelectedMemoryAccessRole::AddressLocal { slot } => {
             slot.structural_place() == Some(forwarded.place)
         }
         SelectedMemoryAccessRole::ReadPlace
+        | SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteOutgoing { .. }
         | SelectedMemoryAccessRole::AddressOutgoing { .. } => false,
@@ -409,7 +457,7 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), StoredLoa
         | MaterializeBooleanI64LessThan
         | MaterializeBooleanU64LessOrEqual
         | MaterializeBooleanI64LessOrEqual => Ok(()),
-        Store { .. } | StorePacked { .. } | Store64 { .. } => {
+        Store { .. } | StorePacked { .. } | Store64 { .. } | CopyBytes => {
             Err(StoredLoadForwardingError::AliasingWrite)
         }
         _ => Err(StoredLoadForwardingError::UnsupportedInstruction),

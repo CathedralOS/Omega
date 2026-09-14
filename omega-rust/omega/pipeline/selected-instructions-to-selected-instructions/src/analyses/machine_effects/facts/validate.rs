@@ -239,6 +239,7 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         load16: keys.load16,
         load32: keys.load32,
         load8_indexed: keys.load8_indexed,
+        copy_bytes: keys.copy_bytes,
         store: keys.store,
         address_offset: keys.address_offset,
         store64: keys.store64,
