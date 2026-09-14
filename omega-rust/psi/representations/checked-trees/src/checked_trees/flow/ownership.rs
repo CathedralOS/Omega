@@ -65,6 +65,10 @@ pub struct FlowOwnedSelectionTransfer {
     pub expression: typed_trees::expression::ExpressionHandle,
     pub source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
     pub source: arena::Handle<FlowOwnedSelectionSource>,
+    /// Exact moved path below the source root. Empty selects the whole local;
+    /// a nonempty path (fields and literal fixed indexes only) selects one
+    /// affine child while the root's residual custody dies on the same edge.
+    pub path: HandleSpan<facts::PlaceSegment>,
 }
 
 impl super::FlowOwnershipFacts {

@@ -1637,6 +1637,25 @@ fn consume_value_places(
             checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                 pending.extend(plans.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
             }
+            checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+                // The selected edge moves a projected child: its root owner
+                // remains live for the residual complement that edge commits.
+                if let checked_trees::CheckedStructuralValueKind::Place(argument) =
+                    &plans.nodes.get(*source).kind
+                    && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    } = argument.source
+                {
+                    let mut matching = results
+                        .iter()
+                        .filter(|(_, source)| *source == facts::PlaceRoot::Symbol(symbol));
+                    let (result, _) = matching.next()?;
+                    if matching.next().is_some() || result.type_identity != argument.type_identity {
+                        return None;
+                    }
+                    consume_result(operations, result.binding_ordinal, argument.access, true)?;
+                }
+            }
             checked_trees::CheckedStructuralValueKind::Reference { .. }
             | checked_trees::CheckedStructuralValueKind::Call { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_) => {}

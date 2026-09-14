@@ -2,11 +2,20 @@
 
 use super::*;
 
-pub(super) fn bind(
+/// Phase one consumes each owned source before the residual and trivial
+/// cleanup for the same edge runs. A projected owned argument moves one
+/// affine child out of a live root: the root records the exact moved path as
+/// partial custody instead of leaving `owned_places`, and the residual
+/// complement is discarded on that same edge. Only Jump edges carry residual
+/// evidence, so `allow_projected` is false for the other successor kinds.
+pub(super) fn consume(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
     frontier: &mut StructuralOwnershipFrontier,
     edge: EdgeId,
     target: &terminal_psi::Block,
     arguments: &[StructuralArgument],
+    allow_projected: bool,
 ) -> Result<(), ModuleError> {
     if arguments.len() != target.structural_parameters.len() {
         return Err(ModuleError::StructuralJumpArityMismatch {
@@ -19,8 +28,54 @@ pub(super) fn bind(
         if parameter.access != StructuralAccess::Owned {
             continue;
         }
-        if !argument.path.is_empty()
-            || argument.access != StructuralAccess::Owned
+        if !argument.path.is_empty() {
+            // A projected move keeps its root live until the residual
+            // complement on this edge disposes of every untouched child.
+            if !allow_projected
+                || argument.access != StructuralAccess::Owned
+                || parameter.multiplicity != StructuralMultiplicity::Affine
+                || parameter.is_self
+                || frontier.owned_places.get(&argument.place)
+                    != Some(&StructuralMultiplicity::Affine)
+                || frontier
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(argument.place))
+            {
+                return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: argument.place,
+                });
+            }
+            let path_is_exact =
+                partial_affine_root_type(machine, argument.place).is_some_and(|root_type| {
+                    resolve_structural_path(module, root_type, &argument.path)
+                        == Some(parameter.structural_type)
+                });
+            let moved = frontier
+                .partial_custody_paths
+                .entry(argument.place)
+                .or_default();
+            if !path_is_exact
+                || moved.iter().any(|existing| {
+                    existing.starts_with(&argument.path) || argument.path.starts_with(existing)
+                })
+                || !moved.insert(argument.path.clone())
+            {
+                return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: argument.place,
+                });
+            }
+            // A fully transferred root has no residual complement left to
+            // discard; it leaves both frontier maps at this edge.
+            if projected_root_is_fully_consumed(module, machine, frontier, argument.place) {
+                frontier.owned_places.remove(&argument.place);
+                frontier.partial_custody_paths.remove(&argument.place);
+            }
+            continue;
+        }
+        if argument.access != StructuralAccess::Owned
             || frontier.partial_custody_paths.contains_key(&argument.place)
             || frontier
                 .claims
@@ -36,8 +91,18 @@ pub(super) fn bind(
             });
         }
     }
-    // Two-phase binding permits swaps and a self-loop without reviving a moved
-    // source or overwriting an independently live target obligation.
+    Ok(())
+}
+
+/// Phase two installs the target roots after every consumed source has left
+/// the frontier. Two-phase binding permits swaps and a self-loop without
+/// reviving a moved source or overwriting an independently live target
+/// obligation.
+pub(super) fn establish(
+    frontier: &mut StructuralOwnershipFrontier,
+    edge: EdgeId,
+    target: &terminal_psi::Block,
+) -> Result<(), ModuleError> {
     for parameter in &target.structural_parameters {
         if parameter.access == StructuralAccess::Owned
             && parameter.multiplicity == StructuralMultiplicity::Affine

@@ -206,7 +206,12 @@ pub(crate) fn authored_postorder(
                     if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         children.push((pattern, false, None));
                     }
-                    children.push((arm.value, false, None));
+                    // The selected arm produces the match result directly: a
+                    // structural match root may select a call product projected
+                    // through a member/indexed path. Scalar matches still reach
+                    // their calls as scalar helpers because a record-producing
+                    // call cannot compose in an indirect operand position.
+                    children.push((arm.value, direct_argument, None));
                 }
                 None
             }

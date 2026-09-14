@@ -361,6 +361,7 @@ pub(super) fn validate_control_flow(
                     structural_arguments,
                     &available_structural,
                     block_dominators,
+                    true,
                 )?;
             }
             Terminator::Conditional {
@@ -386,6 +387,7 @@ pub(super) fn validate_control_flow(
                         &successor.structural_arguments,
                         &available_structural,
                         block_dominators,
+                        false,
                     )?;
                     validate_successor_bindings(
                         successor.edge,
@@ -421,6 +423,7 @@ pub(super) fn validate_control_flow(
                         &[],
                         &available_structural,
                         block_dominators,
+                        false,
                     )?;
                 }
                 let source_signature = super::structural_result_contracts::source_signature(

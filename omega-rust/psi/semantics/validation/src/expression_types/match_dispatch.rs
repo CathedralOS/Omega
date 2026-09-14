@@ -243,7 +243,86 @@ fn plain_local_owner_selection(
                         if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
                 })
         }
+        // An owned child selected by exact field/fixed-index path is the same
+        // plain-local transfer at a projected boundary: the root carries the
+        // ownership event while the untouched residual siblings die on the
+        // selected edge. Multiplicity checking replays the exact root, path,
+        // and type from the owned-selection transfer evidence.
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            projected_plain_owned_source(program, machine, state, expression)
+        }
         _ => false,
+    }
+}
+
+/// Walk an exact projection chain to its whole local root. Only record fields
+/// and literal fixed indexes keep exact path identity; a borrowed, dynamic, or
+/// otherwise opaque receiver rejects admission instead of guessing custody.
+fn projected_plain_owned_source(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(reference) = declared_value_type(program, machine, state, expression) else {
+        return false;
+    };
+    if program.type_multiplicity(reference) != language_semantics::Multiplicity::Affine
+        || !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+    {
+        return false;
+    }
+    let mut cursor = expression;
+    loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                if !matches!(
+                    program.expression_table.expression(indexed.index),
+                    ExpressionNode::Integer(_)
+                ) {
+                    return false;
+                }
+                cursor = indexed.collection;
+            }
+            ExpressionNode::Name(path) => {
+                let Some(root_reference) = declared_value_type(program, machine, state, cursor)
+                else {
+                    return false;
+                };
+                return program.type_multiplicity(root_reference)
+                    == language_semantics::Multiplicity::Affine
+                    && crate::plain_owned_value_source(program, cursor, root_reference)
+                        == Some(path.symbol)
+                    && crate::has_plain_owned_contents_with_numeric_constraints(
+                        program,
+                        root_reference,
+                    )
+                    && program.statement_table.statements(state.statement_nodes).iter().any(
+                        |statement| {
+                            matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
+                                if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
+                        },
+                    );
+            }
+            // A call's structural product is its own once-evaluated owned
+            // root: the declared return type carries the affine custody whose
+            // projected child moves on the selected edge while the untouched
+            // complement dies there.
+            ExpressionNode::Call(_) => {
+                let Some(root_reference) = declared_value_type(program, machine, state, cursor)
+                else {
+                    return false;
+                };
+                return program.type_multiplicity(root_reference)
+                    == language_semantics::Multiplicity::Affine
+                    && crate::has_plain_owned_contents_with_numeric_constraints(
+                        program,
+                        root_reference,
+                    );
+            }
+            _ => return false,
+        }
     }
 }
 

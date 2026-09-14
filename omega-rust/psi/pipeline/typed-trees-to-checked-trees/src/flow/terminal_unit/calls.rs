@@ -1377,7 +1377,7 @@ fn checked_literal_index_path(
 /// type must satisfy against the target parameter. The ordinary transitive lane
 /// admits exact mutable byte-view presentations as well as equal normalized
 /// identity; each call owner retains its own access and path restrictions.
-pub(super) fn projected_argument_path(
+pub(crate) fn projected_argument_path(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,

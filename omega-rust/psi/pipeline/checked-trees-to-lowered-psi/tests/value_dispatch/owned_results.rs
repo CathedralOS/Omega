@@ -747,3 +747,144 @@ fn interleaved_selection_rejects_swapped_join_arguments() {
         .is_err()
     );
 }
+
+const PROJECTED_FIELD_SOURCE: &str = include_str!(
+    "../../../../../../tests/omega/pass/expressions/owned_match_projected_field/main.omg"
+);
+
+#[test]
+fn owned_match_projected_children_execute_and_close_root_residuals() {
+    let (first, second) = (0x8123456789abcdef_u128, 0xfedcba9876543210_u128);
+    for selected in [0_u128, 1] {
+        let (module, execution) = execute(
+            PROJECTED_FIELD_SOURCE,
+            &[unsigned(selected), unsigned(first), unsigned(second)],
+        );
+        // Arm 0 moves `pair.first`; the fallback arm moves `second` out of the
+        // call product `supply(first ^ 255, second ^ 255)`.
+        let expected = if selected == 0 {
+            first ^ second
+        } else {
+            (second ^ 255) ^ (first ^ 255)
+        };
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected)),
+            "selected={selected}"
+        );
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        let projected = machine
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                terminal_psi::Terminator::Jump {
+                    structural_arguments,
+                    residual_affine_discards,
+                    ..
+                } if structural_arguments
+                    .iter()
+                    .any(|argument| !argument.path.is_empty()) =>
+                {
+                    Some((
+                        structural_arguments.as_slice(),
+                        residual_affine_discards.as_slice(),
+                    ))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(projected.len(), 2, "each arm edge projects its child");
+        // The local arm moves `pair.first`; the call arm moves the product's
+        // `second`. Pick the edge whose moved path belongs to the arm this
+        // execution selected.
+        let moved_field = if selected == 0 { "first" } else { "second" };
+        let (arguments, residuals) = projected
+            .iter()
+            .copied()
+            .find(|(arguments, _)| {
+                arguments.iter().any(|argument| {
+                    argument.path
+                        == vec![terminal_psi::StructuralPathSegment::Field(
+                            moved_field.into(),
+                        )]
+                })
+            })
+            .expect("the executed arm's edge carries its projection");
+        let moved = arguments
+            .iter()
+            .find(|argument| !argument.path.is_empty())
+            .expect("selected edge moves a projected child");
+        assert_eq!(
+            moved.access,
+            terminal_psi::StructuralAccess::Owned,
+            "the moved child keeps owned access"
+        );
+        // The untouched sibling residual closes on the same edge, under the
+        // same root place: `pair.second` for the local arm, the product's
+        // `first` for the call arm.
+        let sibling = if selected == 0 { "second" } else { "first" };
+        assert!(
+            residuals.iter().any(|discard| {
+                discard.place == moved.place
+                    && discard.path
+                        == vec![terminal_psi::StructuralPathSegment::Field(sibling.into())]
+            }),
+            "the untouched residual sibling dies on the selected edge: {residuals:?}"
+        );
+    }
+}
+
+#[test]
+fn owned_match_projected_children_reject_mutated_edge_evidence() {
+    let checked = check_source(PROJECTED_FIELD_SOURCE).unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap();
+    for mutation in 0..3 {
+        let mut changed = lowered.semantic_module.clone();
+        for block in changed
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+        {
+            let terminal_psi::Terminator::Jump {
+                structural_arguments,
+                residual_affine_discards,
+                ..
+            } = &mut block.terminator
+            else {
+                continue;
+            };
+            match mutation {
+                // The moved child path must equal the checked projection.
+                0 => {
+                    for argument in structural_arguments
+                        .iter_mut()
+                        .filter(|argument| !argument.path.is_empty())
+                    {
+                        argument.path[0] = terminal_psi::StructuralPathSegment::from("forged");
+                    }
+                }
+                // Each residual discard must name the exact untouched sibling.
+                1 => {
+                    for discard in residual_affine_discards.iter_mut() {
+                        discard.path[0] = terminal_psi::StructuralPathSegment::from("forged");
+                    }
+                }
+                // Dropping the residual leaves the sibling undisposed.
+                _ => residual_affine_discards.clear(),
+            }
+        }
+        assert!(
+            terminal_verifier::verify_module(
+                &changed,
+                &lowered.proof_bundle,
+                &super::AdmissionProfile::default()
+            )
+            .is_err(),
+            "projected edge mutation {mutation}"
+        );
+    }
+}

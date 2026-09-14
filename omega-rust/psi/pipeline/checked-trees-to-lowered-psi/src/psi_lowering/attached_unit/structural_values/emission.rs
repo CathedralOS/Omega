@@ -348,6 +348,18 @@ pub(super) struct ValueContinuation {
     residuals: Vec<PlaceId>,
 }
 
+/// One projected affine child moved on a selected edge. The root place keeps
+/// its once-evaluated owner, `path` is the exact checked field/fixed-index
+/// projection, and the two identities let the edge argument carry the moved
+/// leaf type while residual reconstruction replays the root's complement.
+pub(super) struct ProjectedMove {
+    pub(super) root: PlaceId,
+    pub(super) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    pub(super) leaf_type_identity: String,
+    pub(super) root_type_identity: String,
+    pub(super) root_source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+}
+
 impl Emission<'_, '_, '_> {
     pub(super) fn record_field_value(
         &mut self,
@@ -416,14 +428,14 @@ impl Emission<'_, '_, '_> {
                 let place = declaration.id;
                 self.temporary_places.push(declaration);
                 if let Some(continuation) = continuation {
-                    self.complete_value(place, continuation)?;
+                    self.complete_value(place, None, continuation)?;
                 }
                 Ok(place)
             }
             CheckedStructuralValueKind::Record { .. } => {
                 let place = self.record(value)?;
                 if let Some(continuation) = continuation {
-                    self.complete_value(place, continuation)?;
+                    self.complete_value(place, None, continuation)?;
                 }
                 Ok(place)
             }
@@ -464,9 +476,30 @@ impl Emission<'_, '_, '_> {
                     return unsupported("structural operand call changed its returned type");
                 }
                 if let Some(continuation) = continuation {
-                    self.complete_value(declaration.id, continuation)?;
+                    self.complete_value(declaration.id, None, continuation)?;
                 }
                 Ok(declaration.id)
+            }
+            CheckedStructuralValueKind::Projection {
+                source,
+                path,
+                type_identity,
+            } => {
+                // The root owner evaluates once: a local keeps its established
+                // place, a structural product emits its producing call. The
+                // selected edge then moves only the projected child while the
+                // root's residual complement dies on that same edge.
+                let continuation = continuation.ok_or(LoweringError::Unsupported(
+                    "projected selection requires a structural continuation",
+                ))?;
+                if path.is_empty()
+                    || lookup_type_id(self.type_ids, &type_identity)? != self.structural_type
+                {
+                    return unsupported("projected selection changed its moved child type");
+                }
+                let projected = self.projected_root(source, path, type_identity)?;
+                self.complete_value(projected.root, Some(&projected), continuation)?;
+                Ok(continuation.place)
             }
             CheckedStructuralValueKind::Place(argument) => {
                 if self.sources.is_empty()
@@ -512,7 +545,7 @@ impl Emission<'_, '_, '_> {
                 let continuation = continuation.ok_or(LoweringError::Unsupported(
                     "direct owned place requires a structural continuation",
                 ))?;
-                self.complete_value(selected, continuation)?;
+                self.complete_value(selected, None, continuation)?;
                 Ok(continuation.place)
             }
             CheckedStructuralValueKind::Case(construction) => {
@@ -568,7 +601,7 @@ impl Emission<'_, '_, '_> {
                 self.temporary_places.push(declaration);
                 self.values.truncate(field_start);
                 if let Some(continuation) = continuation {
-                    self.complete_value(place, continuation)?;
+                    self.complete_value(place, None, continuation)?;
                 }
                 Ok(place)
             }
@@ -889,7 +922,7 @@ impl Emission<'_, '_, '_> {
             pass_through,
             residuals: Vec::new(),
         };
-        self.complete_value(source, &continuation)?;
+        self.complete_value(source, None, &continuation)?;
         self.start(block);
         if self.multiplicity == StructuralMultiplicity::Affine {
             self.evaluation
@@ -922,9 +955,127 @@ impl Emission<'_, '_, '_> {
         Ok(place)
     }
 
+    /// The once-evaluated root carrying a projected move: an established local
+    /// keeps its emitted place; a structural product emits its producing call.
+    /// Returns the root place, the root's checked type identity for residual
+    /// reconstruction, and its argument source plan for stamped evidence.
+    fn projected_root(
+        &mut self,
+        source: CheckedStructuralValueHandle,
+        path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        leaf_type_identity: String,
+    ) -> Result<ProjectedMove, LoweringError> {
+        let node = self
+            .checked
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get(source)
+            .clone();
+        let (root, root_type_identity, root_source) = match node.kind {
+            CheckedStructuralValueKind::Place(argument) => {
+                let root_source = argument.source.clone();
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol,
+                } = root_source
+                else {
+                    return unsupported("projected selection root is not a structural local");
+                };
+                if !argument.path.is_empty()
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                {
+                    return unsupported("projected selection root requires whole owned custody");
+                }
+                let place = self
+                    .evaluation
+                    .structural_locals
+                    .iter()
+                    .find(|(source, _)| *source == symbol)
+                    .map(|(_, argument)| argument.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "projected selection root place missing",
+                    ))?;
+                if !self.sources.iter().any(|source| source.place == place) {
+                    return unsupported(
+                        "projected selection root is absent from its receipt sources",
+                    );
+                }
+                (place, argument.type_identity, root_source)
+            }
+            CheckedStructuralValueKind::Call { .. } => {
+                let mut matching = self
+                    .operand_calls
+                    .iter()
+                    .filter(|call| call.value == source);
+                let call = matching.next().ok_or(LoweringError::Unsupported(
+                    "projected selection operand call missing",
+                ))?;
+                if matching.next().is_some() {
+                    return unsupported("projected selection operand call is duplicated");
+                }
+                let CheckedUnitEffectOperationPlan::StructuralCall { result, .. } =
+                    call.operation()
+                else {
+                    return unsupported(
+                        "projected selection call drifted from its structural producer",
+                    );
+                };
+                let root_type_identity = result.type_identity.clone();
+                let binding_ordinal = result.binding_ordinal;
+                let evaluated = self.evaluation.arguments(
+                    self.checked,
+                    self.machine,
+                    self.state,
+                    call.operation(),
+                    self.values,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.operations,
+                    self.calls,
+                )?;
+                let declaration = (self.call_emitter)(
+                    call.operation(),
+                    evaluated.as_deref(),
+                    self.calls,
+                    self.operations,
+                    self.next_place,
+                )?;
+                let StructuralPlaceKind::OperationResult {
+                    structural_type, ..
+                } = declaration.kind
+                else {
+                    return unsupported("projected selection call has no result place");
+                };
+                if structural_type != lookup_type_id(self.type_ids, &root_type_identity)? {
+                    return unsupported("projected selection call changed its returned type");
+                }
+                (
+                    declaration.id,
+                    root_type_identity,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    },
+                )
+            }
+            _ => {
+                return unsupported("projected selection requires a place or call root");
+            }
+        };
+        Ok(ProjectedMove {
+            root,
+            path,
+            leaf_type_identity,
+            root_type_identity,
+            root_source,
+        })
+    }
+
     fn complete_value(
         &mut self,
         selected: PlaceId,
+        projection: Option<&ProjectedMove>,
         continuation: &ValueContinuation,
     ) -> Result<(), LoweringError> {
         // The join binds owner slots positionally, so arguments are built
@@ -980,14 +1131,56 @@ impl Emission<'_, '_, '_> {
         if unselected.next().is_some() {
             return unsupported("owned selection has untransported residual candidates");
         }
+        let selected_path = projection
+            .map(|projected| lower_structural_path(&projected.path))
+            .unwrap_or_default();
         structural_arguments.push(StructuralArgument {
             place: selected,
-            path: Vec::new(),
+            path: selected_path,
             access: StructuralAccess::Owned,
         });
         if structural_arguments.len() != continuation.structural_parameters.len() {
             return unsupported("structural value has unequal residual ownership at its join");
         }
+        // A projected move keeps the root's untouched structural complement
+        // owned on this same edge. Reconstruction against the checked root
+        // type yields the exact residual schedule in positional order; the
+        // terminal verifier replays it independently.
+        let residual_affine_discards = match projection {
+            Some(projected) => {
+                if projected.root != selected || projected.path.is_empty() {
+                    return unsupported(
+                        "projected selection root disagrees with its moved argument",
+                    );
+                }
+                let moved = [(
+                    projected.path.as_slice(),
+                    projected.leaf_type_identity.as_str(),
+                )];
+                crate::psi_lowering::unit_cleanup::checked_partial_affine_residuals(
+                    &self
+                        .checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .structural_types,
+                    &projected.root_source,
+                    &projected.root_type_identity,
+                    &moved,
+                    usize::MAX,
+                )?
+                .iter()
+                .map(|residual| {
+                    Ok(terminal_psi::StructuralAffineDiscard {
+                        place: selected,
+                        path: lower_structural_path(&residual.path),
+                        structural_type: lookup_type_id(self.type_ids, &residual.type_identity)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?
+            }
+            None => Vec::new(),
+        };
         let mut trivial_affine_discards = Vec::new();
         if let Some(place) = displaced_place {
             trivial_affine_discards.push(place);
@@ -1004,7 +1197,7 @@ impl Emission<'_, '_, '_> {
             arguments: edge.arguments,
             structural_arguments: edge.structural_arguments,
             trivial_affine_discards,
-            residual_affine_discards: Vec::new(),
+            residual_affine_discards,
         });
         Ok(())
     }

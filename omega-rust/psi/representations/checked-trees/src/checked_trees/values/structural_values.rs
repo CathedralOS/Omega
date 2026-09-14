@@ -51,6 +51,15 @@ pub enum CheckedStructuralValueKind {
     /// Existing storage is transferred, never reconstructed as a fresh case.
     /// Conditional transfer and residual ownership come from checked flow.
     Place(crate::CheckedUnitStructuralArgumentPlan),
+    /// An owned child projected out of `source` (a `Place` or `Call` node)
+    /// along an exact field/fixed-index path. The untouched residual siblings
+    /// die on the selected edge; `type_identity` is the normalized projected
+    /// (leaf) type, matching the enclosing result expectation.
+    Projection {
+        source: CheckedStructuralValueHandle,
+        path: Vec<crate::CheckedUnitStructuralPathSegment>,
+        type_identity: String,
+    },
     Dispatch {
         subject: CheckedScalarComputationHandle,
         arms: HandleSpan<CheckedStructuralDispatchArm>,

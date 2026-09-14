@@ -50,6 +50,11 @@ pub(super) fn partial_affine_root_type(
         operation.kind,
         OperationKind::CallStructuralWithScalarArguments { .. }
             | OperationKind::BoundaryCall { .. }
+            // A constructed record reaches its partial-affine lane when one of
+            // its affine children is moved out through a projected successor
+            // argument (for example an owned match arm selecting `pair.first`);
+            // the leftover complement is discarded as residuals on that edge.
+            | OperationKind::EstablishRecord { .. }
     ) {
         return None;
     }

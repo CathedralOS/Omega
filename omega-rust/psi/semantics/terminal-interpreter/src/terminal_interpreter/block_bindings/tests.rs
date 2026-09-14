@@ -335,7 +335,7 @@ fn malformed_view_bindings_reject_without_replacing_values() {
         let original_scalars = execution.values.clone();
         assert!(
             execution
-                .prepare_block_bindings(successor.target, &successor.arguments, &arguments)
+                .prepare_block_bindings(successor.target, &successor.arguments, &arguments, true)
                 .is_err()
         );
         assert_eq!(execution.structural_values, original_structural);
@@ -361,7 +361,12 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
         trivial_affine_discards: Vec::new(),
     });
     execution
-        .prepare_block_bindings(edge.target, &edge.arguments, &edge.structural_arguments)
+        .prepare_block_bindings(
+            edge.target,
+            &edge.arguments,
+            &edge.structural_arguments,
+            true,
+        )
         .expect("the existing immutable-view fixture admits this successor");
     let parent_type = StructuralTypeId::new(2).unwrap();
     let field = StructuralFieldId::new(1).unwrap();
@@ -495,7 +500,12 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
             // into an immutable snapshot or bypass its access-kind checks.
             assert!(
                 matches!(
-                    execution.prepare_block_bindings(edge.target, &edge.arguments, &arguments),
+                    execution.prepare_block_bindings(
+                        edge.target,
+                        &edge.arguments,
+                        &arguments,
+                        true
+                    ),
                     Err(TerminalInterpretError::VerifiedOperationMalformed)
                 ),
                 "access={access:?}, erase_path={erase_path}"

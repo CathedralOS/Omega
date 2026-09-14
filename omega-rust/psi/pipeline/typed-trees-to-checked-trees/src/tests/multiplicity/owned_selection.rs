@@ -246,6 +246,205 @@ fn owned_selection_admits_fresh_arms_and_keeps_the_borrowed_custody_fence() {
     assert!(lower("let view: &Choice = &left; let result: Choice = match selected { true -> left, false -> right }; result in Choice::Some").is_err());
 }
 
+fn lower_projection_program() -> checked_trees::CheckedTrees {
+    lower_program(
+        "data Payload { left:u64; right:u64; }
+         data Pair { first:Payload; second:Payload; }
+         machine supply(first:u64, second:u64) -> Pair {
+             Pair { first: Payload { left:first, right:second }, second: Payload { left:second, right:first } }
+         }
+         machine choose(selected:u64, first:u64, second:u64) -> u64 {
+             let pair: Pair = Pair { first: Payload { left:first, right:second }, second: Payload { left:second, right:first } };
+             let result: Payload = match selected { 0 -> pair.first, _ -> supply(first, second).second };
+             result.left ^ result.right
+         }",
+    )
+    .expect("projected selection checks")
+}
+
+#[test]
+fn owned_selection_projected_children_record_exact_paths_and_roots() {
+    let checked = lower_projection_program();
+    let ownership = &checked.facts.flow.ownership;
+    let (_, receipt) = ownership
+        .owned_selections
+        .iter()
+        .next()
+        .expect("selection receipt");
+    let transfers = ownership
+        .selection_transfers
+        .span_or_empty(receipt.transfers);
+    assert_eq!(transfers.len(), 2);
+    // `pair.first` moves through its local roster source; the call product
+    // carries no roster entry and is identified by its authored root instead.
+    let local = transfers
+        .iter()
+        .find(|transfer| transfer.source.is_valid())
+        .expect("local source transfer");
+    let product = transfers
+        .iter()
+        .find(|transfer| !transfer.source.is_valid())
+        .expect("call product transfer");
+    let local_path = ownership.segments.span_or_empty(local.path);
+    let product_path = ownership.segments.span_or_empty(product.path);
+    assert!(
+        matches!(local_path, [facts::PlaceSegment::Field { .. }])
+            && matches!(product_path, [facts::PlaceSegment::Field { .. }])
+            && local_path != product_path,
+        "each transfer records its own exact field path: {local_path:?} {product_path:?}"
+    );
+    assert_eq!(
+        ownership
+            .selection_sources
+            .span_or_empty(receipt.sources)
+            .len(),
+        1,
+        "only the whole-local root joins the candidate roster"
+    );
+    // Each arm's structural value is a Projection over its exact root, and the
+    // normalized leaf identity is the receipt's result type.
+    let values = &checked.facts.values.structural_values;
+    let root = values
+        .root_at(receipt.state, receipt.statement_ordinal)
+        .expect("structural result root");
+    let checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } =
+        &values.nodes.get(root.root).kind
+    else {
+        panic!("selected result is a structural dispatch")
+    };
+    let mut sources = Vec::new();
+    for arm in values.dispatch_arms.span(*arms).expect("arm span") {
+        let checked_trees::CheckedStructuralValueKind::Projection {
+            source,
+            path,
+            type_identity,
+        } = &values.nodes.get(arm.value).kind
+        else {
+            panic!("each selected arm projects one affine child")
+        };
+        assert_eq!(path.len(), 1);
+        assert_eq!(
+            type_identity.as_str(),
+            checked
+                .normalized_type_identity(receipt.type_reference)
+                .as_str()
+        );
+        sources.push(*source);
+    }
+    assert!(matches!(
+        values.nodes.get(sources[0]).kind,
+        checked_trees::CheckedStructuralValueKind::Place(_)
+    ));
+    assert!(matches!(
+        values.nodes.get(sources[1]).kind,
+        checked_trees::CheckedStructuralValueKind::Call { .. }
+    ));
+}
+
+#[test]
+fn owned_selection_rejects_reusing_a_partially_moved_source() {
+    let errors = lower_program(
+        "data Payload { left:u64; right:u64; }
+         data Pair { first:Payload; second:Payload; }
+         machine choose(selected:u64, first:u64, second:u64) -> u64 {
+             let pair: Pair = Pair { first: Payload { left:first, right:second }, second: Payload { left:second, right:first } };
+             let result: Payload = match selected { 0 -> pair.first, _ -> pair.second };
+             let again: Pair = pair;
+             result.left
+         }",
+    )
+    .expect_err("a possibly projected source cannot move again");
+    assert!(format!("{errors:?}").contains("may have been transferred"));
+}
+
+#[test]
+fn owned_selection_projected_replay_rejects_mutated_paths_and_sources() {
+    let checked = lower_projection_program();
+    for mutation in 0..5 {
+        let mut facts = checked.facts.clone();
+        match mutation {
+            // Rewrite the recorded moved path below the local source.
+            0 => {
+                let ownership = &mut facts.flow.ownership;
+                let path = ownership
+                    .selection_transfers
+                    .iter()
+                    .map(|(_, transfer)| transfer)
+                    .find(|transfer| transfer.source.is_valid())
+                    .expect("local transfer")
+                    .path;
+                *ownership.segments.get_mut(path.start()) =
+                    facts::PlaceSegment::FixedIndex { index: 0 };
+            }
+            // A call-product transfer must not gain a roster source.
+            1 => {
+                let ownership = &mut facts.flow.ownership;
+                let source = ownership.selection_sources.iter().next().expect("source").0;
+                let handle = ownership
+                    .selection_transfers
+                    .iter()
+                    .find(|(_, transfer)| !transfer.source.is_valid())
+                    .expect("product transfer")
+                    .0;
+                ownership.selection_transfers.get_mut(handle).source = source;
+            }
+            // The recorded leaf occurrence is part of the transfer identity.
+            2 => {
+                let ownership = &mut facts.flow.ownership;
+                let mut handles = ownership
+                    .selection_transfers
+                    .iter()
+                    .map(|(handle, _)| handle);
+                let first = handles.next().expect("first transfer");
+                let second = handles.next().expect("second transfer");
+                let expression = ownership.selection_transfers.get(second).expression;
+                ownership.selection_transfers.get_mut(first).expression = expression;
+            }
+            // Source claim identity is authoritative replay evidence.
+            3 => {
+                let ownership = &mut facts.flow.ownership;
+                let receipt = ownership.owned_selections.iter().next().expect("receipt").0;
+                let (machine, state) = {
+                    let receipt = ownership.owned_selections.get(receipt);
+                    (receipt.machine, receipt.state)
+                };
+                let handle = ownership.selection_sources.iter().next().expect("source").0;
+                ownership.selection_sources.get_mut(handle).claim_identity =
+                    language_semantics::PermissionClaimIdentity::Established {
+                        machine_symbol: machine,
+                        state_symbol: state,
+                        source: language_semantics::PermissionEventSource::StateEntry,
+                        ordinal: u32::MAX,
+                    };
+            }
+            // The receipt's projected leaf type is exact.
+            _ => {
+                let handle = facts
+                    .flow
+                    .ownership
+                    .owned_selections
+                    .iter()
+                    .next()
+                    .expect("receipt")
+                    .0;
+                facts
+                    .flow
+                    .ownership
+                    .owned_selections
+                    .get_mut(handle)
+                    .type_reference = Default::default();
+            }
+        }
+        let result = crate::checks::validate_linear_permission_events(&checked.typed, &facts);
+        assert!(result.is_err(), "mutation {mutation} accepted");
+        let errors = result.unwrap_err();
+        assert!(
+            format!("{errors:?}").contains("owned selection receipts differ"),
+            "mutation {mutation}: {errors:?}"
+        );
+    }
+}
+
 #[test]
 fn owned_selection_replay_rejects_changed_origin_arm_and_death() {
     let checked = lower("let result: Choice = match selected { true -> left, false -> right }; result in Choice::Some")

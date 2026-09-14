@@ -309,7 +309,7 @@ fn mutable_view_state_transfer_rejects_duplicate_loan_and_access_widening() {
         );
     assert!(
         execution
-            .prepare_block_bindings(target, &[], &[argument(3), argument(3)])
+            .prepare_block_bindings(target, &[], &[argument(3), argument(3)], true)
             .is_err()
     );
     std::sync::Arc::get_mut(&mut execution.machines)
@@ -323,7 +323,7 @@ fn mutable_view_state_transfer_rejects_duplicate_loan_and_access_widening() {
         .pop();
     assert!(
         execution
-            .prepare_block_bindings(target, &[], &[argument(3)])
+            .prepare_block_bindings(target, &[], &[argument(3)], true)
             .is_ok()
     );
     for access in [
@@ -344,7 +344,7 @@ fn mutable_view_state_transfer_rejects_duplicate_loan_and_access_widening() {
         argument.access = access;
         assert!(
             execution
-                .prepare_block_bindings(target, &[], &[argument])
+                .prepare_block_bindings(target, &[], &[argument], true)
                 .is_err()
         );
     }
