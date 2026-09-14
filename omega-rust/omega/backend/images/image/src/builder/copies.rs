@@ -2,7 +2,7 @@
 //! executable regions, imports, relocations - and the one place that re-checks a
 //! reused handle before storing it.
 
-use crate::model::{
+use crate::final_image::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImport,
     FinalImageImportPlan, FinalImageRelocation, FinalImageSymbol,
 };

@@ -3219,7 +3219,8 @@ fn compiler_function_validation_authority_does_not_collapse_to_fnv() {
 #[test]
 fn final_image_symbol_authority_binds_exact_entry_and_data_rows() {
     let root = workspace_root();
-    let symbols_path = root.join("omega-rust/omega/backend/images/image/src/model/symbols.rs");
+    let symbols_path =
+        root.join("omega-rust/omega/backend/images/image/src/final_image/symbols.rs");
     let symbols = std::fs::read_to_string(&symbols_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", symbols_path.display()));
     assert!(

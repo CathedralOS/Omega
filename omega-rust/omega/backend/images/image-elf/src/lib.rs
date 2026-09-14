@@ -110,7 +110,7 @@ mod dynamic_sections;
 mod dynamic_table_descriptor;
 mod dynamic_tag_bytes;
 mod dynamic_tags;
-mod entry;
+mod entry_symbol;
 mod headers;
 mod imports;
 mod layout;
@@ -214,7 +214,7 @@ pub use section_roster::{
     plan_elf_dynamic_section_roster,
 };
 
-use entry::elf_entry_address;
+use entry_symbol::elf_entry_address;
 use headers::{write_data_program_header, write_elf_header, write_text_program_header};
 use imports::{ElfImportLocator, canonical_referenced_imports};
 use sections::plan_elf_sections;

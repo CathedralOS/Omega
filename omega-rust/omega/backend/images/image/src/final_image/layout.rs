@@ -1,4 +1,4 @@
-use crate::model::FinalImageSection;
+use crate::final_image::FinalImageSection;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct FinalImageLayout {

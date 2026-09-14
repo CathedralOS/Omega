@@ -1,4 +1,4 @@
-use crate::model::FinalImage;
+use crate::final_image::FinalImage;
 use arena::{Arena, Handle};
 use object_file::SymbolKind;
 use sha2::{Digest, Sha256};
@@ -152,7 +152,7 @@ pub enum FinalImageImportPlan {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{
+    use crate::final_image::{
         FinalImage, FinalImageImport, FinalImageMemory, FinalImageSymbol, FinalImageSymbolTable,
         final_image_symbol_digest,
     };

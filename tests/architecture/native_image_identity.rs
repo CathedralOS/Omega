@@ -18,7 +18,8 @@ fn source(relative: &str) -> String {
 
 #[test]
 fn native_inventory_compact_coordinates_are_report_only_and_publication_keeps_the_digest() {
-    let inventory = source("omega-rust/omega/backend/images/image/src/model/executable_regions.rs");
+    let inventory =
+        source("omega-rust/omega/backend/images/image/src/final_image/executable_regions.rs");
     for report_field in [
         "byte_report_fingerprint: u64",
         "text_report_fingerprint: u64",

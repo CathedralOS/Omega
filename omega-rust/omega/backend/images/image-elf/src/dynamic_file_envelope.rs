@@ -12,7 +12,7 @@
 //! grant loader, publication, or runnable-image authority.
 
 use crate::bytes::{write_u16, write_u32, write_u64};
-use crate::entry::elf_entry_address;
+use crate::entry_symbol::elf_entry_address;
 use crate::load_layout::{
     ElfLoadProgramHeader, ElfLoadProgramHeaderKind, ValidatedElfDynamicLoadLayout,
 };

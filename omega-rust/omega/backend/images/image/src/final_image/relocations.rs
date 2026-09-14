@@ -1,7 +1,7 @@
 use arena::{Arena, Handle};
 use object_file::RelocationKind;
 
-use crate::model::{FinalImageSection, FinalImageSymbolHandle};
+use crate::final_image::{FinalImageSection, FinalImageSymbolHandle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImageRelocationTable {
@@ -49,7 +49,7 @@ impl Default for FinalImageRelocation {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{FinalImageRelocation, FinalImageRelocationTable};
+    use crate::final_image::{FinalImageRelocation, FinalImageRelocationTable};
     use arena::Arena;
 
     #[test]
