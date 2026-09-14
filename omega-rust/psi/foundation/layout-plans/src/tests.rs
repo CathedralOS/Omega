@@ -1,4 +1,5 @@
 use super::*;
+use crate::post_handoff_writer::apply_post_handoff_writes_atomically;
 
 fn entry() -> RelocationTarget {
     RelocationTarget::Entry(

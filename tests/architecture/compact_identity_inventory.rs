@@ -532,7 +532,7 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
     let root = workspace_root();
     let cases = [
         (
-            "omega-rust/psi/foundation/layout-plans/src/lib.rs",
+            "omega-rust/psi/foundation/layout-plans/src/layout_reports.rs",
             &["pub schema_identity: u64"][..],
         ),
         (
