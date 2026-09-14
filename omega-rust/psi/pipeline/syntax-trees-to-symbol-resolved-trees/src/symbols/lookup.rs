@@ -38,7 +38,7 @@ pub(crate) fn domain_name_reaches(
     if qualified == authored {
         return true;
     }
-    if !crate::signature_free_requirements::same_semantic_name(domain_name, authored) {
+    if !crate::selection::signature_free_requirements::same_semantic_name(domain_name, authored) {
         return false;
     }
     let domain_module = symbols.symbol_module(domain_symbol);
@@ -423,7 +423,6 @@ pub(crate) fn membership_selection(
 }
 
 #[cfg(test)]
-#[path = "lookup_membership_tests.rs"]
 mod membership_tests;
 
 #[cfg(test)]

@@ -1,12 +1,19 @@
-use crate::data::lower_data_definition;
-use crate::domain::lower_domain_definition;
+//! Root item dispatch.
+//!
+//! `lower_item` records the item's authored-expression exposure, routes each
+//! syntax item kind to the module owning its carrier area, and pushes the
+//! result into the lowerer's trees. Target-marked machines the pre-resolution
+//! filter left inert are skipped; their call sites fail resolution loudly.
+
 use crate::lowerer::Lowerer;
-use crate::machine::lower_machine_into;
-use crate::measure::lower_measure_definition;
-use crate::operator::lower_operator_definition;
-use crate::proposition::lower_proposition_definition;
-use crate::trait_definition::lower_trait_definition;
-use crate::type_reference::lower_child_type_references;
+use crate::lowering::data::lower_data_definition;
+use crate::lowering::domain::lower_domain_definition;
+use crate::lowering::machine::lower_machine_into;
+use crate::lowering::measure::lower_measure_definition;
+use crate::lowering::operator::lower_operator_definition;
+use crate::lowering::proposition::lower_proposition_definition;
+use crate::lowering::trait_definition::lower_trait_definition;
+use crate::lowering::type_reference::lower_child_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -28,7 +35,7 @@ fn lower_item_with_exposure(
     match item {
         syntax::item::Item::Data(data_definition) => {
             let lowered = lower_data_definition(lowerer, syntax_trees, data_definition)?;
-            crate::wire::derive_wire_schema(lowerer, &lowered);
+            crate::lowering::wire::derive_wire_schema(lowerer, &lowered);
             lowerer.symbol_resolved_trees.data_definitions.push(lowered);
         }
         syntax::item::Item::Domain(domain_definition) => {
@@ -56,7 +63,7 @@ fn lower_item_with_exposure(
         syntax::item::Item::Conformance(conformance) => {
             let arguments =
                 lower_child_type_references(lowerer, syntax_trees, conformance.trait_arguments)?;
-            let type_parameters = crate::data::lower_type_parameters(
+            let type_parameters = crate::lowering::data::lower_type_parameters(
                 lowerer,
                 syntax_trees,
                 conformance.type_parameters,
@@ -136,11 +143,11 @@ fn lower_item_with_exposure(
                                 rows.push(
                                     symbol_resolved_trees::trait_definition::ConformanceRow {
                                         declaring_trait: symbols::SymbolHandle::invalid(),
-                                        declaring_trait_name: crate::name::lower_name(
+                                        declaring_trait_name: crate::lowering::name::lower_name(
                                             declaring_trait,
                                         ),
                                         requirement: symbols::SymbolHandle::invalid(),
-                                        requirement_name: crate::name::lower_name(requirement),
+                                        requirement_name: crate::lowering::name::lower_name(requirement),
                                         provisional_requirement_ordinal: None,
                                         realization_machine: symbols::SymbolHandle::invalid(),
                                         realization_state: symbols::SymbolHandle::invalid(),
@@ -168,13 +175,13 @@ fn lower_item_with_exposure(
                     lifetime_parameters: conformance
                         .lifetime_parameters
                         .iter()
-                        .map(crate::name::lower_name)
+                        .map(crate::lowering::name::lower_name)
                         .collect(),
                     type_parameters,
                     subject: match &conformance.subject {
                         syntax::item::ConformanceSubject::Carrier(type_name) => {
                             symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
-                                crate::name::lower_name(type_name),
+                                crate::lowering::name::lower_name(type_name),
                             )
                         }
                         syntax::item::ConformanceSubject::Subjectless => {
@@ -182,15 +189,18 @@ fn lower_item_with_exposure(
                         }
                     },
                     carrier_symbol: symbols::SymbolHandle::invalid(),
-                    trait_name: crate::name::lower_name(&conformance.trait_name),
+                    trait_name: crate::lowering::name::lower_name(&conformance.trait_name),
                     trait_symbol: symbols::SymbolHandle::invalid(),
                     trait_lifetime_arguments: conformance
                         .trait_lifetime_arguments
                         .iter()
-                        .map(crate::name::lower_name)
+                        .map(crate::lowering::name::lower_name)
                         .collect(),
                     arguments,
-                    alias: conformance.alias.as_ref().map(crate::name::lower_name),
+                    alias: conformance
+                        .alias
+                        .as_ref()
+                        .map(crate::lowering::name::lower_name),
                     implementation,
                 },
             );
@@ -262,7 +272,7 @@ fn lower_item_with_exposure(
                 .ok()
                 .map(|value| value.encoding)
             };
-            let declared_type = crate::type_reference::lower_type_reference_handle(
+            let declared_type = crate::lowering::type_reference::lower_type_reference_handle(
                 lowerer,
                 syntax_trees,
                 definition.type_reference,
@@ -387,10 +397,10 @@ fn lower_closed_machine_row(
     Ok(symbol_resolved_trees::trait_definition::ConformanceRow {
         declaring_trait: symbols::SymbolHandle::invalid(),
         declaring_trait_name: declaring_trait
-            .map(crate::name::lower_name)
+            .map(crate::lowering::name::lower_name)
             .unwrap_or_default(),
         requirement: symbols::SymbolHandle::invalid(),
-        requirement_name: crate::name::lower_name(&requirement_name),
+        requirement_name: crate::lowering::name::lower_name(&requirement_name),
         provisional_requirement_ordinal: requirement_ordinal,
         realization_machine: symbols::SymbolHandle::invalid(),
         realization_state: symbols::SymbolHandle::invalid(),

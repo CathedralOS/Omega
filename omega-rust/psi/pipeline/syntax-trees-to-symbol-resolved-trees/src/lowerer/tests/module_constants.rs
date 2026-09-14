@@ -525,8 +525,12 @@ fn normalized_builtin_operators_keep_occurrence_exposure_and_exact_exclusions() 
         let mut lowerer = crate::lowerer::Lowerer::new(None, Vec::new());
         lowerer.current_authored_expression_exposure = Some(exposure);
         lowerer.derived_const_argument_builtin_operators.push(first);
-        crate::type_reference::lower_type_reference_handle(&mut lowerer, &syntax, argument)
-            .expect("lower completed builtin result");
+        crate::lowering::type_reference::lower_type_reference_handle(
+            &mut lowerer,
+            &syntax,
+            argument,
+        )
+        .expect("lower completed builtin result");
         let selections = lowerer
             .symbol_resolved_trees
             .authored_declaration_selections();
@@ -543,8 +547,12 @@ fn normalized_builtin_operators_keep_occurrence_exposure_and_exact_exclusions() 
         // A later real use of the copied occurrence remains visible once its
         // synthetic derivation scope has ended.
         lowerer.derived_const_argument_builtin_operators.clear();
-        crate::type_reference::lower_type_reference_handle(&mut lowerer, &syntax, argument)
-            .expect("lower actual occurrence");
+        crate::lowering::type_reference::lower_type_reference_handle(
+            &mut lowerer,
+            &syntax,
+            argument,
+        )
+        .expect("lower actual occurrence");
         assert!(
             lowerer
                 .symbol_resolved_trees
@@ -562,8 +570,12 @@ fn normalized_builtin_operators_keep_occurrence_exposure_and_exact_exclusions() 
             .derived_const_argument_builtin_operators
             .extend([first, independent]);
         assert!(
-            crate::type_reference::lower_type_reference_handle(&mut lowerer, &syntax, argument)
-                .is_err(),
+            crate::lowering::type_reference::lower_type_reference_handle(
+                &mut lowerer,
+                &syntax,
+                argument
+            )
+            .is_err(),
             "synthetic exclusion must not suppress payload validation"
         );
     }

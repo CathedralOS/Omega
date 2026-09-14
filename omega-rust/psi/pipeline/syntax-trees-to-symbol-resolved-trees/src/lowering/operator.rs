@@ -1,7 +1,10 @@
-use crate::data::lower_type_parameters;
+//! Operator definitions. Domain homes are selected later by
+//! `selection::domain_operator_homes`.
+
 use crate::lowerer::Lowerer;
-use crate::state::{lower_signature_contracts, lower_state_parameters};
-use crate::type_reference::lower_type_reference_handle;
+use crate::lowering::data::lower_type_parameters;
+use crate::lowering::state::{lower_signature_contracts, lower_state_parameters};
+use crate::lowering::type_reference::lower_type_reference_handle;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use syntax_trees::{self as syntax, SyntaxTrees};
@@ -19,7 +22,7 @@ pub(crate) fn lower_operator_definition(
         lifetime_parameters: operator
             .lifetime_parameters
             .iter()
-            .map(crate::name::lower_name)
+            .map(crate::lowering::name::lower_name)
             .collect(),
         type_parameters: lower_type_parameters(lowerer, syntax_trees, operator.type_parameters)?,
         parameters: lower_state_parameters(lowerer, syntax_trees, operator.parameters)?,
@@ -47,7 +50,7 @@ fn lower_operator_name(
             .tables
             .declarations
             .operator_path_members
-            .append_to_span(&mut span, crate::name::lower_name(member));
+            .append_to_span(&mut span, crate::lowering::name::lower_name(member));
     }
 
     span

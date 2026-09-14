@@ -1,3 +1,11 @@
+//! Closed conformance blocks: exact requirement rows and inline member
+//! routing.
+//!
+//! Each closed block's rows resolve against the trait catalog, including
+//! inherited defaults and same-named overloads. Calls an inline member makes
+//! to inherited requirements select this block's rows, never an ambient
+//! attached machine sharing the leaf name.
+
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::name::DiagnosticName;

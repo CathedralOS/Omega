@@ -1,7 +1,10 @@
-use crate::data::lower_type_parameters;
+//! Trait definitions: parents, requirements, conformance bounds, and machine
+//! signatures.
+
 use crate::lowerer::Lowerer;
-use crate::state::lower_state_signature_node;
-use crate::type_reference::lower_child_type_references;
+use crate::lowering::data::lower_type_parameters;
+use crate::lowering::state::lower_state_signature_node;
+use crate::lowering::type_reference::lower_child_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::signature::StateSignature;
@@ -14,10 +17,10 @@ pub(crate) fn lower_trait_definition(
     syntax_trees: &SyntaxTrees,
     trait_definition: &syntax::item::TraitDefinition,
 ) -> Result<TraitDefinition, Diagnostic> {
-    let name = crate::name::lower_name(&trait_definition.name);
+    let name = crate::lowering::name::lower_name(&trait_definition.name);
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, trait_definition.type_parameters)?;
-    let conformance_bounds = crate::machine::lower_generic_conformance_bounds(
+    let conformance_bounds = crate::lowering::machine::lower_generic_conformance_bounds(
         lowerer,
         syntax_trees,
         &trait_definition.conformance_bounds,
@@ -44,7 +47,7 @@ pub(crate) fn lower_trait_definition(
             lifetime_parameters: trait_definition
                 .lifetime_parameters
                 .iter()
-                .map(crate::name::lower_name)
+                .map(crate::lowering::name::lower_name)
                 .collect(),
             type_parameters,
             conformance_bounds,
@@ -77,7 +80,7 @@ fn lower_trait_requirements(
                     base_name,
                     lifetime_arguments
                         .iter()
-                        .map(crate::name::lower_name)
+                        .map(crate::lowering::name::lower_name)
                         .collect(),
                     lower_child_type_references(lowerer, syntax_trees, *arguments)?,
                 ),
@@ -96,7 +99,7 @@ fn lower_trait_requirements(
                 &mut span,
                 TraitRequirement {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::name::lower_name(name),
+                    name: crate::lowering::name::lower_name(name),
                     lifetime_arguments,
                     arguments,
                 },
@@ -113,7 +116,7 @@ fn lower_trait_requirements(
                 &mut span,
                 TraitRequirement {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::name::lower_name(required_trait),
+                    name: crate::lowering::name::lower_name(required_trait),
                     lifetime_arguments: Vec::new(),
                     arguments: HandleSpan::empty(),
                 },
@@ -146,9 +149,9 @@ fn lower_trait_machine_signatures(
         lowerer.pending_signature_service_reaches.push(
             crate::lowerer::PendingSignatureServiceReach {
                 location: crate::lowerer::PendingSignatureLocation::Trait(handle),
-                owner: crate::lowerer::PendingSignatureOwner::Trait(crate::name::lower_name(
-                    trait_name,
-                )),
+                owner: crate::lowerer::PendingSignatureOwner::Trait(
+                    crate::lowering::name::lower_name(trait_name),
+                ),
                 keyword_source_spans: lowered.service_reach_keyword_source_spans,
                 authored: lowered.service_reaches,
             },

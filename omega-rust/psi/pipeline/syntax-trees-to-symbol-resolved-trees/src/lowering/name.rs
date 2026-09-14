@@ -1,3 +1,5 @@
+//! Identifier to diagnostic name.
+
 use symbol_resolved_trees::name::DiagnosticName;
 use syntax_trees as syntax;
 

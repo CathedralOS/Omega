@@ -402,8 +402,11 @@ pub(crate) fn retain_const_initializer(
             validate_literal_initializer(syntax, definition, definition.value)?;
         }
     }
-    let initializer =
-        crate::expression::lower_expression_into_table(lowerer, syntax, definition.value)?;
+    let initializer = crate::lowering::expression::lower_expression_into_table(
+        lowerer,
+        syntax,
+        definition.value,
+    )?;
     lowerer.pending_const_values.push(initializer);
     initializer_normalization::retain(lowerer, syntax, definition, initializer)?;
     Ok(initializer)

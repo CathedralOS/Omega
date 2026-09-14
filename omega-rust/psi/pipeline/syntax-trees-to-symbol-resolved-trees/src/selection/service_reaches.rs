@@ -1,3 +1,10 @@
+//! Service reaches: authored `reaches` names bound to exact boundary-trait
+//! identities.
+//!
+//! Names live in lowering-private sidecars until every declaration and
+//! trait-parent edge has a symbol; published rows cannot carry an invalid
+//! member or a parallel spelling contract.
+
 use diagnostics::Diagnostic;
 use language_semantics::{
     ServiceReachId, ServiceReachRowId, ServiceReachRowTable, ServiceReachTable,

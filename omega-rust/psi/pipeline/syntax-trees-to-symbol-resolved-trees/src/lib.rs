@@ -1,34 +1,28 @@
 #![forbid(unsafe_code)]
 
 //! Resolves names in parsed Omega source into stable Psi symbol identities.
+//!
+//! `lowerer` owns the route. Before any symbol exists, `module_normalization`
+//! validates the forest, `generic_data` closes eligible generic data
+//! applications, and `trait_defaults` synthesizes default trait machines;
+//! all three consume syntax and return syntax. The lowerer then walks every
+//! root item through `lowering`, which translates each syntax node into the
+//! symbol-resolved carrier and leaves pending selections on the lowerer.
+//! `symbols` builds the symbol table and assigns identities. `selection`
+//! binds the references lexical lookup alone cannot settle: operator homes,
+//! establishment routes, closed conformance rows, machine-parameter
+//! requirements, service reaches, and the authored-selection ledger the
+//! checked stage consumes. `constant` owns constant declarations,
+//! substitution, and initializer custody across every phase.
 
-mod authored_selections;
-mod conformance_blocks;
 mod constant;
-mod data;
-mod domain;
-mod domain_establishment;
-mod domain_operator_homes;
-mod expression;
 mod generic_data;
-mod item;
 mod lowerer;
-mod machine;
-mod machine_parameter_requirements;
-mod measure;
+mod lowering;
 mod module_normalization;
-mod name;
-mod operator;
-mod proposition;
-mod service_reaches;
-mod signature_free_requirements;
-mod state;
-mod statement;
+mod selection;
 mod symbols;
 mod trait_defaults;
-mod trait_definition;
-mod type_reference;
-mod wire;
 
 pub use constant::initializer_dependencies::ConstInitializerDependencies;
 pub use constant::requires_const_initializer_evaluation;

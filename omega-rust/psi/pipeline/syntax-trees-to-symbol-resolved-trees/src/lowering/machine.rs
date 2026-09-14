@@ -1,7 +1,14 @@
-use crate::data::lower_type_parameters;
-use crate::expression::lower_expression_into_table;
+//! Machine definitions.
+//!
+//! `lower_machine_into` sets the lowerer's current-machine context, then lowers
+//! the ranking view and termination plan, trait conformances, external
+//! binding identity, and every state. `lower_generic_conformance_bounds` is
+//! shared with trait definitions.
+
 use crate::lowerer::Lowerer;
-use crate::state::{
+use crate::lowering::data::lower_type_parameters;
+use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::state::{
     lower_machine_signature_contracts, lower_service_reach_names, lower_signature_invokes,
     lower_state_node,
 };
@@ -74,8 +81,11 @@ pub(crate) fn lower_machine_into(
     let invokes = lower_signature_invokes(lowerer, syntax_trees, machine.invokes);
     let contracts =
         lower_machine_signature_contracts(lowerer, syntax_trees, machine.contracts, states)?;
-    let machine_name = crate::name::lower_name(&machine.name);
-    let attached_data = machine.attached_data.as_ref().map(crate::name::lower_name);
+    let machine_name = crate::lowering::name::lower_name(&machine.name);
+    let attached_data = machine
+        .attached_data
+        .as_ref()
+        .map(crate::lowering::name::lower_name);
     let termination_plan = build_termination_plan(lowerer, syntax_trees, machine, states);
 
     // STR3: the supply mode's ONE population site. Requirement gains its
@@ -139,7 +149,7 @@ pub(crate) fn lower_machine_into(
         }
     };
     lowerer.pending_machine_service_reaches.push(
-        crate::service_reaches::PendingAuthoredServiceReach {
+        crate::selection::service_reaches::PendingAuthoredServiceReach {
             keyword_source_spans: machine.service_reach_keyword_source_spans.clone(),
             authored: service_reaches,
         },
@@ -148,7 +158,7 @@ pub(crate) fn lower_machine_into(
         symbol: SymbolHandle::invalid(),
         name: machine_name,
         generic_data_origin: symbol_resolved_trees::machine::GenericDataMachineOrigin {
-            template_source: crate::name::lower_name(&machine.generic_data_template),
+            template_source: crate::lowering::name::lower_name(&machine.generic_data_template),
             ..Default::default()
         },
         attached_data,
@@ -169,7 +179,7 @@ pub(crate) fn lower_machine_into(
             lifetime_parameters: machine
                 .lifetime_parameters
                 .iter()
-                .map(crate::name::lower_name)
+                .map(crate::lowering::name::lower_name)
                 .collect(),
             type_parameters,
             owned_data: HandleSpan::empty(),
@@ -226,12 +236,12 @@ pub(crate) fn lower_generic_conformance_bounds(
         .map(|bound| {
             Ok(GenericConformanceBound {
                 binder: bound.binder.as_ref().map(|_| SymbolHandle::invalid()),
-                binder_name: bound.binder.as_ref().map(crate::name::lower_name),
+                binder_name: bound.binder.as_ref().map(crate::lowering::name::lower_name),
                 subject: SymbolHandle::invalid(),
-                subject_name: crate::name::lower_name(&bound.subject),
+                subject_name: crate::lowering::name::lower_name(&bound.subject),
                 carrier: SymbolHandle::invalid(),
-                carrier_name: crate::name::lower_name(&bound.carrier),
-                arguments: crate::type_reference::lower_child_type_references(
+                carrier_name: crate::lowering::name::lower_name(&bound.carrier),
+                arguments: crate::lowering::type_reference::lower_child_type_references(
                     lowerer,
                     syntax_trees,
                     bound.arguments,
@@ -239,7 +249,7 @@ pub(crate) fn lower_generic_conformance_bounds(
                 selected_conformance: bound
                     .selected_conformance
                     .as_ref()
-                    .map(crate::expression::lower_static_machine_argument),
+                    .map(crate::lowering::expression::lower_static_machine_argument),
             })
         })
         .collect()
@@ -497,7 +507,7 @@ fn lower_machine_ranking_view(
             .tables
             .declarations
             .ranking_views
-            .append_to_span(&mut lowered, crate::name::lower_name(member));
+            .append_to_span(&mut lowered, crate::lowering::name::lower_name(member));
     }
 
     lowered
@@ -534,7 +544,7 @@ fn lower_machine_trait_conformances(
     let mut span = HandleSpan::empty();
 
     for clause in syntax_trees.items.satisfies_clauses(satisfies) {
-        let arguments = crate::type_reference::lower_child_type_references(
+        let arguments = crate::lowering::type_reference::lower_child_type_references(
             lowerer,
             syntax_trees,
             clause.arguments,
@@ -560,15 +570,18 @@ fn lower_machine_trait_conformances(
                 &mut span,
                 TraitConformance {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::name::lower_name(&clause.trait_name),
+                    name: crate::lowering::name::lower_name(&clause.trait_name),
                     lifetime_arguments: clause
                         .lifetime_arguments
                         .iter()
-                        .map(crate::name::lower_name)
+                        .map(crate::lowering::name::lower_name)
                         .collect(),
                     arguments,
-                    requirement: clause.requirement.as_ref().map(crate::name::lower_name),
-                    alias: clause.alias.as_ref().map(crate::name::lower_name),
+                    requirement: clause
+                        .requirement
+                        .as_ref()
+                        .map(crate::lowering::name::lower_name),
+                    alias: clause.alias.as_ref().map(crate::lowering::name::lower_name),
                     external_binding,
                     via_expression,
                     external_binding_source_span: clause.via_keyword_source_span,
@@ -648,7 +661,7 @@ fn lower_machine_states(
     // symbols exactly like authored states.
     let synthesized = std::mem::take(&mut lowerer.pending_synthesized_states);
     for arm in synthesized {
-        let state = crate::state::build_synthesized_arm_state(lowerer, arm);
+        let state = crate::lowering::state::build_synthesized_arm_state(lowerer, arm);
         let state = lowerer
             .symbol_resolved_trees
             .tables
@@ -665,7 +678,8 @@ fn lower_machine_states(
 
     let synthesized = std::mem::take(&mut lowerer.pending_synthesized_transition_argument_states);
     for arm in synthesized {
-        let state = crate::state::build_synthesized_transition_argument_state(lowerer, arm);
+        let state =
+            crate::lowering::state::build_synthesized_transition_argument_state(lowerer, arm);
         let state = lowerer
             .symbol_resolved_trees
             .tables

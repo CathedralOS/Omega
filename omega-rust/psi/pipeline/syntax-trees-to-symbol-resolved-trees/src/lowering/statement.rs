@@ -1,6 +1,14 @@
-use crate::expression::lower_private_expression_into_table;
+//! Statements, including the operand-hoisting rewrites.
+//!
+//! Most statements lower one-to-one. Runtime-indexed operand reads and
+//! guarded arm-local value calls are hoisted into synthetic `let` bindings
+//! and continuation states ahead of the rewritten statement, so later passes
+//! see only root-level reads and plain locals. `guarded_call_arguments`
+//! captures the values an arm-local return call needs.
+
 use crate::lowerer::Lowerer;
-use crate::type_reference::lower_type_reference_handle;
+use crate::lowering::expression::lower_private_expression_into_table;
+use crate::lowering::type_reference::lower_type_reference_handle;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
@@ -58,11 +66,15 @@ fn lower_statement_node(
         syntax::statement::StatementNode::RootBinding(binding) => Ok(vec![Statement::RootBinding(
             symbol_resolved_trees::statement::RootBinding {
                 receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
-                slot: binding.slot.iter().map(crate::name::lower_name).collect(),
+                slot: binding
+                    .slot
+                    .iter()
+                    .map(crate::lowering::name::lower_name)
+                    .collect(),
                 implementation: binding
                     .implementation
                     .iter()
-                    .map(crate::name::lower_name)
+                    .map(crate::lowering::name::lower_name)
                     .collect(),
                 // The delegated operand is a place expression, not a product
                 // declaration spelling: it is lowered outside the authored-
@@ -72,7 +84,7 @@ fn lower_statement_node(
                 // `implementation` path remains the only declaration channel.
                 implementation_operand: if binding.implementation_operand.is_valid() {
                     let exposure = lowerer.current_authored_expression_exposure.take();
-                    let lowered = crate::expression::lower_expression_into_table(
+                    let lowered = crate::lowering::expression::lower_expression_into_table(
                         lowerer,
                         syntax_trees,
                         binding.implementation_operand,
@@ -115,8 +127,8 @@ fn lower_statement_node(
                         machine_symbol: SymbolHandle::invalid(),
                         state_symbol: SymbolHandle::invalid(),
                         statement_index,
-                        target: crate::name::lower_name(target),
-                        source: crate::name::lower_name(source),
+                        target: crate::lowering::name::lower_name(target),
+                        source: crate::lowering::name::lower_name(source),
                         source_conformance: None,
                     },
                 );
@@ -157,7 +169,7 @@ fn lower_statement_node(
                     .statement_path_members
                     .span_or_empty(receiver)
                     .to_vec();
-                path.push(crate::name::lower_name(&call.target));
+                path.push(crate::lowering::name::lower_name(&call.target));
                 lowerer
                     .pending_static_module_statement_calls
                     .push((call.target.source_span(), path));
@@ -190,7 +202,7 @@ fn lower_statement_node(
             hoisted.push(Statement::Call(Call {
                 receiver_symbol: SymbolHandle::invalid(),
                 target_symbol: SymbolHandle::invalid(),
-                target: crate::name::lower_name(&call.target),
+                target: crate::lowering::name::lower_name(&call.target),
                 storage: CallStorage {
                     receiver_root_symbol: SymbolHandle::invalid(),
                     receiver,
@@ -198,14 +210,14 @@ fn lower_statement_node(
                     machine_arguments: call
                         .machine_arguments
                         .iter()
-                        .map(crate::expression::lower_static_machine_argument)
+                        .map(crate::lowering::expression::lower_static_machine_argument)
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     arguments,
                     evidence_arguments: call
                         .evidence_arguments
                         .iter()
-                        .map(crate::name::lower_name)
+                        .map(crate::lowering::name::lower_name)
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -230,8 +242,8 @@ fn lower_statement_node(
                             .push(binding.binding.as_str().to_owned());
                     }
                     symbol_resolved_trees::statement::ProofOutputSelector {
-                        output_field: crate::name::lower_name(&binding.output_field),
-                        binding: crate::name::lower_name(&binding.binding),
+                        output_field: crate::lowering::name::lower_name(&binding.output_field),
+                        binding: crate::lowering::name::lower_name(&binding.binding),
                     }
                 })
                 .collect::<Vec<_>>()
@@ -244,7 +256,7 @@ fn lower_statement_node(
                 // local enters the typed runtime statement stream.
                 lowered.push(Statement::LocalData(LocalData {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::name::lower_name(&runtime_value.binding),
+                    name: crate::lowering::name::lower_name(&runtime_value.binding),
                     storage: LocalDataStorage {
                         type_reference: TypeReference::Unit,
                         initial_value: call,
@@ -336,7 +348,7 @@ fn lower_statement_node(
             };
             hoisted.push(Statement::LocalData(LocalData {
                 symbol: SymbolHandle::invalid(),
-                name: crate::name::lower_name(&local_data.name),
+                name: crate::lowering::name::lower_name(&local_data.name),
                 storage: LocalDataStorage {
                     type_reference,
                     initial_value,
@@ -490,8 +502,8 @@ fn lower_statement_node(
                     .iter()
                     .map(
                         |selector| symbol_resolved_trees::statement::OutcomeProofSelector {
-                            output_field: crate::name::lower_name(&selector.output_field),
-                            binding: crate::name::lower_name(&selector.binding),
+                            output_field: crate::lowering::name::lower_name(&selector.output_field),
+                            binding: crate::lowering::name::lower_name(&selector.binding),
                         },
                     )
                     .collect::<Vec<_>>()
@@ -2355,7 +2367,7 @@ fn lower_transition_target_node(
                     arguments,
                     evidence_arguments: evidence_arguments
                         .iter()
-                        .map(crate::name::lower_name)
+                        .map(crate::lowering::name::lower_name)
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     source_span: *source_span,
@@ -2396,7 +2408,7 @@ fn lower_statement_path_members(
             .tables
             .declarations
             .statement_path_members
-            .append_to_span(&mut span, crate::name::lower_name(member));
+            .append_to_span(&mut span, crate::lowering::name::lower_name(member));
     }
 
     span

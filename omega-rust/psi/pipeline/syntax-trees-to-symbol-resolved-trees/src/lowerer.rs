@@ -1,4 +1,15 @@
-use crate::item::lower_item;
+//! The resolution route and its working state.
+//!
+//! `lower_syntax_trees` and its variants validate the module, synthesize
+//! trait defaults, walk every root item through `lowering`, then `finish`:
+//! operator homes, symbol assignment, constant finalization, the
+//! authored-selection ledger, machine-parameter requirements, evidence
+//! forwarding owners, closed conformance blocks, establishment routes, and
+//! service reaches, in that order. `Lowerer` holds the pending sidecars each
+//! phase leaves for a later one. Seeded and rebased carriers extend a
+//! retained base with a later stratum without parsing again.
+
+use crate::lowering::item::lower_item;
 use diagnostics::Diagnostic;
 use source::SourceMap;
 use std::sync::Arc;
@@ -492,7 +503,7 @@ pub(crate) struct Lowerer {
     /// Authored machine `reaches` clauses retained until symbol assignment
     /// binds every member occurrence to its exact boundary-trait identity.
     pub(crate) pending_machine_service_reaches:
-        Vec<crate::service_reaches::PendingAuthoredServiceReach>,
+        Vec<crate::selection::service_reaches::PendingAuthoredServiceReach>,
     pub(crate) pending_signature_service_reaches: Vec<PendingSignatureServiceReach>,
     /// Authored expressions whose exact declaration selections are collected
     /// after symbol assignment. Expressions absent from this list are either
@@ -827,7 +838,7 @@ impl Lowerer {
         mut self,
         finish_mode: FinishMode,
     ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-        crate::domain_operator_homes::normalize_domain_operator_homes(
+        crate::selection::domain_operator_homes::normalize_domain_operator_homes(
             &mut self.symbol_resolved_trees,
             &self.namespace_declarations,
         )
@@ -861,7 +872,7 @@ impl Lowerer {
             &self.pending_static_module_calls,
             &self.pending_static_module_statement_calls,
         );
-        crate::state::finalize_outcome_specific_contract_symbols(
+        crate::lowering::state::finalize_outcome_specific_contract_symbols(
             &mut self.symbol_resolved_trees,
             &self.pending_outcome_specific_contracts,
         )
@@ -884,7 +895,7 @@ impl Lowerer {
                 .copied()
                 .chain(self.pending_const_argument_expressions.iter().copied()),
         );
-        crate::authored_selections::finalize_constant_expression_selections(
+        crate::selection::authored_selections::finalize_constant_expression_selections(
             &mut self.symbol_resolved_trees,
             self.pending_const_values
                 .iter()
@@ -911,7 +922,7 @@ impl Lowerer {
             &self.pending_const_selections,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        crate::authored_selections::finalize_authored_expression_selections(
+        crate::selection::authored_selections::finalize_authored_expression_selections(
             &mut self.symbol_resolved_trees,
             &self.pending_authored_expressions,
             &self.pending_authored_proof_memberships,
@@ -923,17 +934,17 @@ impl Lowerer {
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let compatibility =
-            crate::signature_free_requirements::validate_signature_free_requirement_compatibility(
+            crate::selection::signature_free_requirements::validate_signature_free_requirement_compatibility(
                 &self.symbol_resolved_trees,
             );
         if !compatibility.is_empty() {
             return Err(compatibility);
         }
-        crate::machine_parameter_requirements::normalize_nominal_machine_parameter_requirements(
+        crate::selection::machine_parameter_requirements::normalize_nominal_machine_parameter_requirements(
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        crate::machine_parameter_requirements::normalize_trait_machine_requirement_arguments(
+        crate::selection::machine_parameter_requirements::normalize_trait_machine_requirement_arguments(
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -972,7 +983,7 @@ impl Lowerer {
                             .symbol
                     }
                 };
-                crate::service_reaches::PendingSignatureServiceReach {
+                crate::selection::service_reaches::PendingSignatureServiceReach {
                     symbol,
                     owner: pending.owner.clone(),
                     keyword_source_spans: pending.keyword_source_spans.clone(),
@@ -980,20 +991,20 @@ impl Lowerer {
                 }
             })
             .collect::<Vec<_>>();
-        crate::conformance_blocks::normalize_closed_conformance_blocks(
+        crate::selection::conformance_blocks::normalize_closed_conformance_blocks(
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        crate::authored_selections::finalize_conformance_reference_selections(
+        crate::selection::authored_selections::finalize_conformance_reference_selections(
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        crate::domain_establishment::normalize_domain_establishment_routes(
+        crate::selection::domain_establishment::normalize_domain_establishment_routes(
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         match finish_mode {
-            FinishMode::Complete => crate::service_reaches::normalize_service_reaches(
+            FinishMode::Complete => crate::selection::service_reaches::normalize_service_reaches(
                 &mut self.symbol_resolved_trees,
                 &pending_machine_service_reaches,
                 &pending_signature_service_reaches,
@@ -1002,7 +1013,7 @@ impl Lowerer {
                 retained_service_reaches,
                 retained_service_reach_rows,
                 ..
-            } => crate::service_reaches::normalize_service_reaches_with_retained_tables(
+            } => crate::selection::service_reaches::normalize_service_reaches_with_retained_tables(
                 &mut self.symbol_resolved_trees,
                 &pending_machine_service_reaches,
                 &pending_signature_service_reaches,
@@ -1012,7 +1023,9 @@ impl Lowerer {
         }
         .map_err(|diagnostic| vec![diagnostic])?;
         self.symbol_resolved_trees.rebuild_tables();
-        crate::conformance_blocks::route_inline_member_calls(&mut self.symbol_resolved_trees);
+        crate::selection::conformance_blocks::route_inline_member_calls(
+            &mut self.symbol_resolved_trees,
+        );
         let SymbolResolvedTrees {
             roots,
             tables,
@@ -1103,18 +1116,18 @@ fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees) {
 fn pending_service_reach_for(
     program: &SymbolResolvedTrees,
     owner: symbols::SymbolHandle,
-) -> crate::service_reaches::PendingAuthoredServiceReach {
+) -> crate::selection::service_reaches::PendingAuthoredServiceReach {
     let Some(row) = program
         .authored_service_reach_rows
         .iter()
         .find(|row| row.owner == owner)
     else {
-        return crate::service_reaches::PendingAuthoredServiceReach {
+        return crate::selection::service_reaches::PendingAuthoredServiceReach {
             keyword_source_spans: Vec::new(),
             authored: Vec::new(),
         };
     };
-    crate::service_reaches::PendingAuthoredServiceReach {
+    crate::selection::service_reaches::PendingAuthoredServiceReach {
         keyword_source_spans: row.keyword_source_spans.clone(),
         authored: row
             .targets

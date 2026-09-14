@@ -1,3 +1,10 @@
+//! The shared law for paths that name one trait requirement without a call
+//! signature.
+//!
+//! Neither visible satisfiers nor an expected call shape may select among
+//! overloads. Establishment routes, nominal machine binders, and lookup all
+//! resolve through this module.
+
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::signature::StateSignature;
