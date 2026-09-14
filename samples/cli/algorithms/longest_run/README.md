@@ -33,7 +33,9 @@ an observed wrong native exit.
 
 Bounded scalar field writes carry independently checked pre-write range proofs.
 The native regression `bounded_integer_field_stores_run_natively` checks signed
-literal writes observed by the caller; the source regression
+literal initialization followed by guarded `i32` addition and negative `i8`
+subtraction, with updated values observed by the caller after return. The source
+regression
 `guarded_bounded_integer_field_increment_publishes_checked_terminal` checks the
 guarded `i32` increment through Terminal production. Neither closes this scanner.
 
@@ -42,9 +44,8 @@ ordinary scalar operands. The field-length regression observes a nested field's
 length after a helper shrinks it and after empty replacement, without substituting
 capacity or changing sibling contents.
 
-Remaining dependencies include field-backed byte reads, byte-field length and
-whole replacement in native execution, and signed exact arithmetic in
-native instruction selection. After those operations compose, the complete state
+Remaining dependencies include field-backed byte reads and native byte-field
+length/replacement. After those operations compose, the complete state
 loop must still pass its termination/proof and native execution checks. Keep this
 command as the outer acceptance check rather than deriving completion from a
 passing isolated store test.

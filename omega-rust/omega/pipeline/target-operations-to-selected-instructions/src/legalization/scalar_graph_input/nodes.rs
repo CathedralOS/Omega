@@ -169,10 +169,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             result,
             scalar_type,
             ..
-        } if *scalar_type == u64_type()
-            || *scalar_type == u8_type()
-            || *scalar_type == u32_type() =>
-        {
+        } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
+            // Exact add/sub use the full-register operation for every fixed
+            // native carrier. Inputs are sign/zero normalized; the retained
+            // representability proof makes the result canonical without the
+            // truncation needed by wrapping arithmetic. Signedness is not an
+            // admission fence, and this does not widen exact division.
             Some((*psi_operation, *result))
         }
         AbstractOperation::IntegerEqual {
