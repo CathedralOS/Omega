@@ -63,10 +63,13 @@ mutable call observe signed updates, while byte-buffer regions, padding, and the
 sibling record remain unchanged. Its function harness supplies valid empty
 buffers; it does not provision a hosted receiver or execute byte replacement.
 
-A hosted receiver containing those fields still needs source-backed ZII
-eligibility in `terminal-production/src/production/receiver_eligibility.rs`.
-The native-entry probe rejects with `hosted receiver requires a checked ZII-valid
-value with no executable nominal cleanup`. Do not admit every bounded byte carrier:
-its domain might exclude empty values. The existing resolved-domain byte-predicate
-denotation can distinguish UTF-8/ASCII/no-NUL from nonempty requirements; source
-eligibility must rejoin all actual field constraints before admitting empty storage.
+Hosted receivers now admit direct and nested bounded byte fields whose complete
+understood source constraints accept empty storage. `bounded_integer_field_stores_run_natively`
+executes the ordinary ProgramEntry with UTF-8, ASCII and no-NUL fields beside the
+updated integers. Source eligibility rejoins exact fields, nominal paths and
+capacities, using existing resolved-domain predicate denotation; nonempty and
+unknown requirements reject. Native image replay separately checks owned
+zero-filled storage and the existing root-backed receiver partition. This adds
+neither borrowed-view initialization nor authority from a carrier's layout.
+Byte reads, length/replacement execution, and the complete scanner loop remain
+the next dependencies; receiver initialization alone does not close them.

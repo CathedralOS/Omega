@@ -405,6 +405,12 @@ fn receiver_layout(
                 StructuralFieldType::BoundedInteger(integer)
                     if integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
                         || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0)) => {}
+                // Zero-filled owned storage has live length zero for every
+                // capacity. Source receipts separately establish its domains;
+                // fragment replay already checked the complete native footprint.
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                ) => {}
                 StructuralFieldType::Structural(structural_type)
                     if zero_valid_record_storage(
                         &target.graph.structural_types,
@@ -458,6 +464,9 @@ fn zero_valid_record_storage(
                     integer.contains(IntegerValue::Signed(0))
                         || integer.contains(IntegerValue::Unsigned(0))
                 }
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                ) => true,
                 StructuralFieldType::Structural(child) => {
                     zero_valid_record_storage(declarations, child, visiting)
                 }

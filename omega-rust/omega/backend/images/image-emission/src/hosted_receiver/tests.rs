@@ -1,6 +1,54 @@
 use super::*;
 
 #[test]
+fn zero_filled_receiver_byte_fields_require_owned_backing() {
+    use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+    use terminal_psi::{
+        BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let root = StructuralTypeId::new(1).unwrap();
+    let child = StructuralTypeId::new(2).unwrap();
+    let field = |field_type| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(1).unwrap(),
+        identity: "bytes".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type,
+    };
+    for carrier in [
+        ByteSequenceCarrier::BoundedOwned { capacity: 0 },
+        ByteSequenceCarrier::BoundedOwned { capacity: 3 },
+        ByteSequenceCarrier::BoundedOwned { capacity: 9 },
+        ByteSequenceCarrier::BorrowedView,
+    ] {
+        let declarations = [
+            StructuralTypeDeclaration {
+                id: root,
+                identity: "outer".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![field(StructuralFieldType::Structural(child))],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: child,
+                identity: "inner".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![field(StructuralFieldType::ByteSequence(carrier))],
+                },
+            },
+        ];
+        let expected = matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. });
+        for selected in [root, child] {
+            assert_eq!(
+                zero_valid_record_storage(&declarations, selected, &mut Vec::new()),
+                expected,
+                "carrier {carrier:?}, root {selected:?}",
+            );
+        }
+    }
+}
+
+#[test]
 fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leaves() {
     use semantic_vocabulary::{
         BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralFieldId,
