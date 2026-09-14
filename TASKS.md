@@ -232,21 +232,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `dungeon_crawler_cli` (case-literal construction and branch-local
   transfer joins unsupported). `math_proofs` — its owned Bag/multiset row.
 
-  Native resume for `generic_counters`: at `6791c3988e` (2026-09-14 UTC,
-  macOS ARM64), the unchanged sample passes verified Terminal production
-  (`generic_counter_sample_reaches_terminal_psi` in `samples_compile`);
-  `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=generic_counters cargo
-  nextest run -p compiler --test samples_compile --no-fail-fast
-  -E 'test(=samples_with_documented_exit_run_correctly)'` now reaches
-  `Selection(Legalization(SourceCustodyMismatch))` during native physical
-  staging. Trace the exact rejected custody relationship in
-  `target-operations-to-selected-instructions/src/legalization/` and its
-  verified optimization input; native exit 16 remains the acceptance.
-  Closed generic receiver stores, ordinary unconditional getters, and
-  arithmetic-policy-only integer results now use the shared checked Psi route;
-  do not restart the missing-callee diagnosis or bypass independent custody.
-  Preserve the exact generic attachment applications and selected method bounds;
-  do not constrain the whole container or simplify the two-counter program.
+  Remaining `generic_counters` acceptance: run the
+  [documented command](samples/cli/basics/generic_counters/README.md) with ordinary
+  project review, and execute the exit-16 oracle on Linux x86-64/AArch64 and
+  Windows x86-64. At `838a868432` (2026-09-14 UTC), the macOS ARM64
+  compiler-library oracle passes with explicit test-owned acceptance after the
+  canonical Bound Console migration; both counter instances and their logic are
+  unchanged. `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=generic_counters
+  cargo nextest run -p compiler --test samples_compile --no-fail-fast
+  -E 'test(=samples_with_documented_exit_run_correctly)'` exercises that route.
+  Common wrapping-add and nested mutation/getter regressions publish all four
+  targets, but cross-emission is not matching-host execution. Do not resume the
+  closed missing-callee, wrapping-add, or physical-custody diagnoses.
 
   Native resume for `recursive_sum`: at `a1deabd205` (2026-09-14 UTC, macOS ARM64),
   `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=recursive_sum cargo nextest

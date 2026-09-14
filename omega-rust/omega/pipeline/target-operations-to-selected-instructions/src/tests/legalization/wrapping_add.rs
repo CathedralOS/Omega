@@ -116,10 +116,10 @@ fn wrapping_add_replays_width_policy_snapshot_and_normalized_consumers() {
                     };
                     match mutation {
                         "operand" => {
-                            *left = Box::new(TargetIntegerExpression::Immediate {
+                            **left = TargetIntegerExpression::Immediate {
                                 source_value: value(99),
                                 value: semantic_vocabulary::IntegerValue::Unsigned(0),
-                            })
+                            }
                         }
                         "width" => {
                             *scalar_type =
