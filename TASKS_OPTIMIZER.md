@@ -158,7 +158,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   optimization, register allocation, callee-save, and fixed-frame stages so
   the aggregate results' frame-local storage participates in encoding, and
   the host oracle drives both arms through the placed fixed-frame text.
-  Remaining: placed-memory and transition lanes.
+  Landed: the seeded placed-memory lane
+  (`tests/native-differential/tests/optimizer_corpus/placed_memory.rs`, 64
+  cases) establishes an unrestricted u64 primitive local per conditional arm
+  through `EstablishPrimitiveLocal`, performs zero to three
+  `WriteOnlyPrimitiveStore` writes whose final store restores the
+  initializer, observes the referent through `PrimitiveScalarRead`,
+  establishes a claim-free single-field record read through
+  `IntegerStructuralField`, and returns the saturating u64 sum of both
+  observations — a dropped, reordered, or invented store, load, or field
+  view must diverge from the reference interpreter before the native result
+  can agree. The shared machine harness now derives the canonical target
+  frame layout whenever the post-allocation plan carries local storage or
+  outgoing arguments, and the cfg-gated host-native oracle on Linux x86-64,
+  Linux AArch64, and macOS AArch64 executes through the full
+  fragment/frame/text/image publication path rather than the slot-free
+  row-byte shortcut. Remaining: transition lane.
 
 - **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
   tests for every remaining manifest, receipt, codec, and artifact-custody
