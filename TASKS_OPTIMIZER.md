@@ -388,7 +388,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
   removal, address folding, compare/test selection, and scheduling only where
   each transformation is independently verifiable. Existing narrow same-view
-  and compare-adjacent cases do not imply general authority.
+  and compare-adjacent cases do not imply general authority. Landed:
+  `rewrites/redundant_extension` rewrites an extension whose input's unique
+  producer already guarantees the normalized bits to `CopyI64`, under
+  replayed restore-by-content validation (crate `nextest`: 175 pass).
+  Remaining: copy removal, address folding, compare/test selection,
+  scheduling, and producers whose contracts do not fix the high bits
+  (`ZeroExtendU32` output, packed loads, FP bit transfers).
 
 ## Proof-, ownership-, and state-aware optimization
 
