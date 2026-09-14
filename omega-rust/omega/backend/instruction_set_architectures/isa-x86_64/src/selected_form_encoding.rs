@@ -531,6 +531,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             (MachineAlternativeFamily::ExactDivideU64, 4, 0..=0)
         }
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+            (MachineAlternativeFamily::WrappingRemainderI64, 4, 0..=0)
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             (MachineAlternativeFamily::BitwiseXorI64, 3, 0..=0)
         }
@@ -891,6 +894,23 @@ fn encode_unchecked(
             }
             bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 6, registers[1])]);
         }
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+            if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            // Initialize the exceptional result before testing -1: IDIV would
+            // otherwise fault for MIN / -1 even though its remainder is zero.
+            append_register_binary(&mut bytes, 0x31, registers[3], registers[3]);
+            bytes.extend([
+                rex(0, 0, registers[1]),
+                0x83,
+                modrm(3, 7, registers[1]),
+                0xff,
+            ]);
+            bytes.extend([0x74, 5, 0x48, 0x99]);
+            bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 7, registers[1])]);
+            append_register_binary(&mut bytes, 0x89, registers[3], registers[2]);
+        }
         SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
             // Both operations commute, so either input may already own the
             // output register. A distinct output needs one non-destructive copy.
@@ -975,6 +995,17 @@ fn encode_unchecked(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedInstruction {
+    SignedDivide {
+        divisor: u8,
+    },
+    SignExtendDividend,
+    JumpEqualShort {
+        displacement: i8,
+    },
+    CompareSignedImmediate8 {
+        register: u8,
+        immediate: i8,
+    },
     UnsignedDivide {
         divisor: u8,
     },
@@ -1079,6 +1110,29 @@ fn decode_all(bytes: &[u8]) -> Result<Vec<DecodedInstruction>, X86_64SelectedFor
 fn decode_one(
     bytes: &[u8],
 ) -> Result<(DecodedInstruction, usize), X86_64SelectedFormEncodingError> {
+    if let [0x48, 0x99, ..] = bytes {
+        return Ok((DecodedInstruction::SignExtendDividend, 2));
+    }
+    if let [0x74, displacement, ..] = bytes {
+        return Ok((
+            DecodedInstruction::JumpEqualShort {
+                displacement: *displacement as i8,
+            },
+            2,
+        ));
+    }
+    if let [rex, 0x83, modrm, immediate, ..] = bytes
+        && rex & !1 == 0x48
+        && modrm & 0xf8 == 0xf8
+    {
+        return Ok((
+            DecodedInstruction::CompareSignedImmediate8 {
+                register: (modrm & 7) | ((rex & 1) << 3),
+                immediate: *immediate as i8,
+            },
+            4,
+        ));
+    }
     if let [rex, 0x0f, 0x42, modrm, ..] = bytes
         && rex & !0x05 == 0x48
         && modrm & 0xc0 == 0xc0
@@ -1264,6 +1318,7 @@ fn decode_one(
             },
             0xf7 if reg == 2 && rex_x == 0 => DecodedInstruction::Complement { destination: rm },
             0xf7 if reg == 6 && rex_x == 0 => DecodedInstruction::UnsignedDivide { divisor: rm },
+            0xf7 if reg == 7 && rex_x == 0 => DecodedInstruction::SignedDivide { divisor: rm },
             0xf7 if (modrm >> 3) & 7 == 3 => DecodedInstruction::Negate { destination: rm },
             _ => return Err(X86_64SelectedFormEncodingError::MalformedEncoding),
         };
@@ -1507,6 +1562,32 @@ fn validate_decoded(
                         divisor: registers[1],
                     }]
         }
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+            registers[0] == 0
+                && registers[2] == 0
+                && registers[3] == 2
+                && registers[1] != 2
+                && decoded
+                    == [
+                        DecodedInstruction::Xor {
+                            source: 2,
+                            destination: 2,
+                        },
+                        DecodedInstruction::CompareSignedImmediate8 {
+                            register: registers[1],
+                            immediate: -1,
+                        },
+                        DecodedInstruction::JumpEqualShort { displacement: 5 },
+                        DecodedInstruction::SignExtendDividend,
+                        DecodedInstruction::SignedDivide {
+                            divisor: registers[1],
+                        },
+                        DecodedInstruction::Move {
+                            source: 2,
+                            destination: 0,
+                        },
+                    ]
+        }
         SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
             let operation = |source, destination| {
                 if kind == SelectedInstructionKind::BitwiseXorI64 {
@@ -1660,6 +1741,11 @@ fn footprint(
             vec![operands[2]],
             true,
         ),
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => (
+            vec![operands[0], operands[1]],
+            vec![operands[2], operands[3]],
+            true,
+        ),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
@@ -1782,6 +1868,7 @@ fn footprint(
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 SelectedInstructionKind::CompareI64 => vec![0, 1],
                 SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1, 3],
+                SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ExactSubtractI64 { .. } if alternative.variant == 0 => {
@@ -1821,6 +1908,7 @@ fn footprint(
                 }
                 SelectedInstructionKind::CompareI64Zero => vec![],
                 SelectedInstructionKind::ExactDivideU64 { .. } => vec![2],
+                SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![2, 3],
                 SelectedInstructionKind::CompareI64 => vec![],
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
                 _ => unreachable!("control forms handled separately"),
@@ -1859,6 +1947,10 @@ fn footprint(
             effects.implicit_unit_clobbers.extend(units("rflags"));
             effects.implicit_unit_clobbers.sort_unstable();
             effects.implicit_unit_clobbers.dedup();
+            effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+        }
+        if matches!(kind, SelectedInstructionKind::WrappingRemainderI64 { .. }) {
+            effects.implicit_unit_clobbers = units("rflags");
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         }
         effects
@@ -2024,6 +2116,142 @@ mod tests {
             assert_eq!(encoded.bytes(), bytes);
             validate_x86_64_selected_form_encoding(&physical, kind, key, &operands, &bytes)
                 .unwrap();
+        }
+    }
+
+    #[test]
+    fn wrapping_remainder_binds_guard_signed_division_scratch_and_aliases() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::WrappingRemainderI64 {
+            obligation: ObligationId::new(1).unwrap(),
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        };
+        let key = alternative(MachineAlternativeFamily::WrappingRemainderI64, 0);
+        for divisor in ["rax", "rcx", "r9", "r15"] {
+            let operands = ["rax", divisor, "rax", "rdx"]
+                .map(|name| physical.model().view_named(name).unwrap().id);
+            let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
+            assert_eq!(encoded.bytes().len(), 17);
+            assert_eq!(encoded.footprint().register_reads, operands[..2]);
+            assert_eq!(encoded.footprint().register_writes, operands[2..]);
+            assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
+            assert_eq!(encoded.footprint().encoded.external_operand_writes, [2, 3]);
+            assert!(encoded.footprint().writes_rflags);
+            if divisor == "r9" {
+                assert_eq!(
+                    encoded.bytes(),
+                    [
+                        0x48, 0x31, 0xd2, 0x49, 0x83, 0xf9, 0xff, 0x74, 0x05, 0x48, 0x99, 0x49,
+                        0xf7, 0xf9, 0x48, 0x89, 0xd0,
+                    ]
+                );
+            }
+            for byte_position in 0..encoded.bytes().len() {
+                let mut changed = encoded.bytes().to_vec();
+                changed[byte_position] ^= 1;
+                assert!(
+                    validate_x86_64_selected_form_encoding(
+                        &physical, kind, key, &operands, &changed,
+                    )
+                    .is_err(),
+                    "mutated byte {byte_position}"
+                );
+            }
+            for operand_position in 0..operands.len() {
+                let mut changed = operands;
+                changed[operand_position] = physical.model().view_named("r8").unwrap().id;
+                assert!(
+                    validate_x86_64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &changed,
+                        encoded.bytes(),
+                    )
+                    .is_err()
+                );
+            }
+        }
+        let invalid =
+            ["rax", "rdx", "rax", "rdx"].map(|name| physical.model().view_named(name).unwrap().id);
+        assert!(encode_x86_64_selected_form(&physical, kind, key, &invalid).is_err());
+    }
+
+    #[test]
+    fn wrapping_remainder_guard_skips_overflowing_quotient_and_keeps_dividend_sign() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let kind = SelectedInstructionKind::WrappingRemainderI64 {
+            obligation: ObligationId::new(1).unwrap(),
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        };
+        let key = alternative(MachineAlternativeFamily::WrappingRemainderI64, 0);
+        let operands =
+            ["rax", "r9", "rax", "rdx"].map(|name| physical.model().view_named(name).unwrap().id);
+        let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
+        for (dividend, divisor, expected) in [
+            (i64::MIN, -1, 0),
+            (i64::MIN, 1, 0),
+            (i64::MIN, 3, -2),
+            (7, 2, 1),
+            (-7, 2, -1),
+            (7, -2, 1),
+            (-7, -2, -1),
+            (0, -1, 0),
+        ] {
+            // Execute only this decoded sequence in the test, with the byte
+            // displacement selecting whether CQO and IDIV are reached.
+            let mut registers = [0_i64; 16];
+            registers[0] = dividend;
+            registers[9] = divisor;
+            registers[2] = 123;
+            let mut equal = false;
+            let mut byte_position = 0;
+            while byte_position < encoded.bytes().len() {
+                let (instruction, length) = decode_one(&encoded.bytes()[byte_position..]).unwrap();
+                byte_position += length;
+                match instruction {
+                    DecodedInstruction::Xor {
+                        source,
+                        destination,
+                    } => {
+                        registers[destination as usize] ^= registers[source as usize];
+                    }
+                    DecodedInstruction::CompareSignedImmediate8 {
+                        register,
+                        immediate,
+                    } => {
+                        equal = registers[register as usize] == i64::from(immediate);
+                    }
+                    DecodedInstruction::JumpEqualShort { displacement } => {
+                        if equal {
+                            byte_position = byte_position
+                                .checked_add_signed(displacement as isize)
+                                .unwrap();
+                        }
+                    }
+                    DecodedInstruction::SignExtendDividend => {
+                        registers[2] = registers[0] >> 63;
+                    }
+                    DecodedInstruction::SignedDivide { divisor } => {
+                        let dividend =
+                            (i128::from(registers[2]) << 64) | i128::from(registers[0] as u64);
+                        let divisor = i128::from(registers[divisor as usize]);
+                        let quotient =
+                            i64::try_from(dividend / divisor).expect("IDIV quotient must fit");
+                        registers[2] = (dividend % divisor) as i64;
+                        registers[0] = quotient;
+                    }
+                    DecodedInstruction::Move {
+                        source,
+                        destination,
+                    } => {
+                        registers[destination as usize] = registers[source as usize];
+                    }
+                    _ => panic!("unexpected remainder instruction"),
+                }
+            }
+            assert_eq!(registers[0], expected, "{dividend} % {divisor}");
+            assert_eq!(registers[9], divisor);
         }
     }
 

@@ -351,6 +351,18 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::WrappingRemainder {
+                    left,
+                    right,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(37);
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::ExactBinary {
                     operator,
                     left,

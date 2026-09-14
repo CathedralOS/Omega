@@ -283,6 +283,7 @@ pub(super) fn validate_operation(
             | AbstractOperation::SaturatingIntegerAdd { .. }
             | AbstractOperation::ExactIntegerAdd { .. }
             | AbstractOperation::ExactIntegerDivide { .. }
+            | AbstractOperation::WrappingIntegerRemainder { .. }
             | AbstractOperation::IntegerBitwiseAnd { .. }
             | AbstractOperation::IntegerBitwiseXor { .. }
             | AbstractOperation::IntegerExactCast { .. }

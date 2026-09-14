@@ -49,6 +49,7 @@ impl SelectedConstraintKeys {
             self.saturating_subtract_u64,
             self.saturating_add_u64,
             self.divide_u64,
+            self.remainder_i64,
         ])
         .collect()
     }
@@ -104,6 +105,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::SaturatingSubtractU64 => self.saturating_subtract_u64,
             MachineSemanticKind::SaturatingAddU64 => self.saturating_add_u64,
             MachineSemanticKind::ExactDivideU64 => self.divide_u64,
+            MachineSemanticKind::WrappingRemainderI64 => self.remainder_i64,
             MachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
             MachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
             MachineSemanticKind::ReturnScalar => self.return_i64,

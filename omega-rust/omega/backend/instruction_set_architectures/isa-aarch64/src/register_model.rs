@@ -258,6 +258,11 @@ pub const AARCH64_DIVIDE_U64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 56,
 };
+/// Signed remainder preserves both inputs until MSUB consumes the SDIV quotient.
+pub const AARCH64_REMAINDER_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 57,
+};
 /// Flag-transparent three-address exact i64 subtraction, matching the
 /// ordinary AArch64 `SUB` register form.
 pub const AARCH64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
@@ -347,7 +352,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 80] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 81] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -504,9 +509,6 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 80] = [
     AARCH64_ADD_I64,
     AARCH64_ADD_I64_IMMEDIATE,
     AARCH64_SUBTRACT_I64,
-    AARCH64_SATURATING_SUBTRACT_U64,
-    AARCH64_SATURATING_ADD_U64,
-    AARCH64_DIVIDE_U64,
     AARCH64_SUBTRACT_I64_IMMEDIATE,
     AARCH64_COMPARE_I64,
     AARCH64_JUMP,
@@ -519,6 +521,10 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 80] = [
     AARCH64_ADDRESS_OFFSET,
     AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32,
     AARCH64_COMPARE_I64_IMMEDIATE,
+    AARCH64_SATURATING_SUBTRACT_U64,
+    AARCH64_SATURATING_ADD_U64,
+    AARCH64_DIVIDE_U64,
+    AARCH64_REMAINDER_I64,
     AARCH64_FLOAT32_TO_BITS,
     AARCH64_FLOAT64_TO_BITS,
     AARCH64_BITS_TO_FLOAT32,
@@ -1475,6 +1481,22 @@ pub fn aarch64_register_constraint_catalog(
         ],
         implicit_uses: Vec::new(),
         implicit_defs: view("nzcv").units.clone(),
+        clobbers: Vec::new(),
+    });
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_REMAINDER_I64,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            {
+                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
+                output.early_clobber = true;
+                output
+            },
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
         clobbers: Vec::new(),
     });
     constraints.push(RegisterInstructionConstraint {

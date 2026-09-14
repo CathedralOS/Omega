@@ -104,6 +104,7 @@ pub(super) fn folded_literal<'a>(
                 LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right }
         | LegalizedScalarInstructionKind::SaturatingAddU64 { left, right }
                 | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
+                | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
                 | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
                 | LegalizedScalarInstructionKind::BitwiseXor { left, right }
                 | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. }

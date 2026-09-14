@@ -109,6 +109,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SaturatingSubtractU64 => 54,
         SelectedInstructionKind::SaturatingAddU64 => 55,
         SelectedInstructionKind::ExactDivideU64 { .. } => 56,
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => 57,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -190,7 +191,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Immediate { immediate } => {
             encode_integer(bytes, immediate)
         }
-        SelectedInstructionKind::ExactDivideU64 {
+        SelectedInstructionKind::WrappingRemainderI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactDivideU64 {
             obligation,
             accepted_fact,
         }
@@ -350,6 +355,12 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         54 => SelectedInstructionKind::SaturatingSubtractU64,
         55 => SelectedInstructionKind::SaturatingAddU64,
         56 => SelectedInstructionKind::ExactDivideU64 {
+            obligation: decode_id(cursor, ObligationId::new)?,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                cursor.array()?,
+            ),
+        },
+        57 => SelectedInstructionKind::WrappingRemainderI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
             accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
                 cursor.array()?,
@@ -619,5 +630,40 @@ fn outgoing_slot_roles_round_trip_with_legacy_argument_frame_bytes() {
                 Err(FixedViewCopyDecodeError::UnknownOption(4))
             );
         }
+    }
+}
+
+#[test]
+#[cfg(test)]
+fn wrapping_remainder_round_trips_with_distinct_tag_and_complete_proof() {
+    use optimization_core::AcceptedObligationFactIdentity;
+
+    let obligation = ObligationId::new(41).unwrap();
+    let accepted_fact = AcceptedObligationFactIdentity::from_bytes([42; 32]);
+    for (kind, tag) in [
+        (
+            SelectedInstructionKind::ExactDivideU64 {
+                obligation,
+                accepted_fact,
+            },
+            56,
+        ),
+        (
+            SelectedInstructionKind::WrappingRemainderI64 {
+                obligation,
+                accepted_fact,
+            },
+            57,
+        ),
+    ] {
+        let mut expected = vec![tag];
+        expected.extend_from_slice(&obligation.get().to_le_bytes());
+        expected.extend_from_slice(&accepted_fact.bytes());
+        let mut bytes = Vec::new();
+        encode_kind(&mut bytes, kind);
+        assert_eq!(bytes, expected);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_kind(&mut cursor).unwrap(), kind);
+        assert_eq!(cursor.remaining(), 0);
     }
 }

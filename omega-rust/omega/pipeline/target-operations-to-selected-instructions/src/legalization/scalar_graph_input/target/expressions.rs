@@ -145,6 +145,14 @@ impl Checker<'_> {
                 };
                 result == resolved && source_obligation == *obligation && self.integer_source(left,source_left,aliases) && self.integer_source(right,source_right,aliases)
             }
+            Expression::WrappingRemainder { psi_operation, obligation, left, right } => {
+                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::WrappingIntegerRemainder { psi_operation: operation, obligation: expected_obligation, result, scalar_type, left: source_left, right: source_right }
+                    if operation == psi_operation && expected_obligation == obligation && *result == resolved
+                        && supports_signed_wrapping_remainder(*scalar_type)
+                        && self.integer_source(left, *source_left, aliases)
+                        && self.integer_source(right, *source_right, aliases)))
+            }
             Expression::IntegerWiden { psi_operation, source_type, operand } => {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerWiden { psi_operation: operation, result, source_type: actual_type, operand: source, .. }

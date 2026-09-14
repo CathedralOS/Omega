@@ -14,6 +14,7 @@ pub use register_model::AARCH64_LOAD8;
 pub use register_model::AARCH64_LOAD16;
 pub use register_model::AARCH64_LOAD32;
 pub use register_model::AARCH64_MATERIALIZE_BOOLEAN;
+pub use register_model::AARCH64_REMAINDER_I64;
 pub use register_model::AARCH64_SATURATING_ADD_U64;
 pub use register_model::AARCH64_SATURATING_SUBTRACT_U64;
 pub use register_model::{

@@ -437,6 +437,51 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::WrappingRemainder {
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !matches!(scalar_type, ScalarType::Integer(integer)
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                    && integer.sign() == IntegerSign::Signed
+                                    && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        {
+                            return Err(invalid());
+                        }
+                        // Scalar transport sign-normalizes narrow carriers. Remainder
+                        // preserves that range, including zero for MIN % -1, so the
+                        // signed-i64 realization needs no destination truncation.
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        let mut operands = vec![left_register, right_register, output];
+                        if environment.target().architecture == target::Architecture::X86_64 {
+                            operands.push(remainder_scratch(&mut builder)?);
+                        }
+                        builder.emit(
+                            SelectedInstructionKind::WrappingRemainderI64 {
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraints.keys.remainder_i64,
+                            &operands,
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::ExactBinary {
                         operator,
                         left,
@@ -691,6 +736,37 @@ impl Builder<'_> {
         )?;
         Ok(output)
     }
+}
+
+// The signed remainder encoding defines its high-half scratch itself. Unlike
+// unsigned division, there is no incoming zero value to materialize or trust.
+fn remainder_scratch(
+    builder: &mut Builder<'_>,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    let instruction = SelectedInstructionId(
+        builder
+            .instructions
+            .len()
+            .try_into()
+            .map_err(|_| invalid())?,
+    );
+    builder.registers.push(VirtualRegister {
+        id,
+        scalar_type: ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(IntegerSign::Signed, 64)
+                .map_err(|_| invalid())?,
+        ),
+        class: builder.class,
+        origin: VirtualRegisterOrigin::InstructionScratch {
+            instruction,
+            operand: 3,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    Ok(id)
 }
 
 // The x86 high half is an explicit zero-valued implementation register.

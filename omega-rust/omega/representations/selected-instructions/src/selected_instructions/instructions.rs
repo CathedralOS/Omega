@@ -104,6 +104,12 @@ pub enum SelectedInstructionKind {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },
+    /// Signed remainder of normalized i64 operands with a proven nonzero divisor.
+    /// The wrapping overflow case i64::MIN % -1 produces zero, not a trap.
+    WrappingRemainderI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
     CopyI64,
     /// Bitwise intersection of normalized integer carriers; no arithmetic overflow.
     BitwiseAndI64,

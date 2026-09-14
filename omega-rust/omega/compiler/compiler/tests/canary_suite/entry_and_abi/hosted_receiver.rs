@@ -23,6 +23,7 @@ enum ReceiverObservation {
     BorrowedRecordCopy,
     BorrowedResultSnapshot,
     LocalBorrowedResultSnapshot,
+    SignedWrappingRemainder,
 }
 
 fn compile_and_run_hosted_receiver(
@@ -79,6 +80,31 @@ fn compile_and_run_hosted_receiver(
             "let mut counter: Counter = Counter::new(65); let saved: i32 = counter.read(); counter.write(66); let current: i32 = counter.read(); self.value = saved;",
             "saved == 65 && current == 66",
             260,
+        ),
+        ReceiverObservation::SignedWrappingRemainder => (
+            "dividend: i64 in Wrapping; divisor: i64 in Wrapping;
+             first: i64 in Wrapping; second: i64 in Wrapping;
+             third: i64 in Wrapping; self_remainder: i64 in Wrapping;
+             small: i8 in Wrapping; small_divisor: i8 in Wrapping; small_remainder: i8 in Wrapping;
+             medium: i16 in Wrapping; medium_divisor: i16 in Wrapping; medium_remainder: i16 in Wrapping;
+             word: i32 in Wrapping; word_divisor: i32 in Wrapping; word_remainder: i32 in Wrapping;",
+            "self.dividend = -7; self.divisor = 3;
+             self.first = self.dividend % self.divisor;
+             self.self_remainder = self.dividend % self.dividend;
+             self.dividend = 7; self.divisor = -3;
+             self.second = self.dividend % self.divisor;
+             self.dividend = -9223372036854775808; self.divisor = -1;
+             self.third = self.dividend % self.divisor;
+             self.small = -7; self.small_divisor = 3;
+             self.small_remainder = self.small % self.small_divisor;
+             self.medium = -32768; self.medium_divisor = -1;
+             self.medium_remainder = self.medium % self.medium_divisor;
+             self.word = -7; self.word_divisor = 3;
+             self.word_remainder = self.word % self.word_divisor;
+             self.value = 65;",
+            "self.first == -1 && self.second == 1 && self.third == 0 && self.self_remainder == 0
+             && self.small_remainder == -1 && self.medium_remainder == 0 && self.word_remainder == -1",
+            336,
         ),
     };
     fs::write(
@@ -272,6 +298,11 @@ fn hosted_receiver_keeps_local_scalar_call_results_across_later_mutation() {
         true,
         ReceiverObservation::LocalBorrowedResultSnapshot,
     );
+}
+
+#[test]
+fn hosted_receiver_signed_wrapping_remainder_preserves_sign_and_overflow_policy() {
+    compile_and_run_hosted_receiver(false, true, ReceiverObservation::SignedWrappingRemainder);
 }
 
 #[test]

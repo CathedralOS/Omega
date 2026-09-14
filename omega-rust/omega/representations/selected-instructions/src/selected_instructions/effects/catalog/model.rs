@@ -80,10 +80,11 @@ pub enum MachineSemanticKind {
     MaterializeBooleanI64LessThan,
     MaterializeBooleanU64LessOrEqual,
     MaterializeBooleanI64LessOrEqual,
+    WrappingRemainderI64,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 57] = [
+    pub const ALL: [Self; 58] = [
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
         Self::CallAggregate,
@@ -141,6 +142,7 @@ impl MachineSemanticKind {
         Self::MaterializeBooleanI64LessThan,
         Self::MaterializeBooleanU64LessOrEqual,
         Self::MaterializeBooleanI64LessOrEqual,
+        Self::WrappingRemainderI64,
     ];
 }
 
@@ -203,6 +205,7 @@ pub enum MachineAlternativeFamily {
     MaterializeBooleanI64LessThan,
     MaterializeBooleanU64LessOrEqual,
     MaterializeBooleanI64LessOrEqual,
+    WrappingRemainderI64,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -240,6 +243,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::SaturatingSubtractU64 => Self::SaturatingSubtractU64,
             MachineSemanticKind::SaturatingAddU64 => Self::SaturatingAddU64,
             MachineSemanticKind::ExactDivideU64 => Self::ExactDivideU64,
+            MachineSemanticKind::WrappingRemainderI64 => Self::WrappingRemainderI64,
             MachineSemanticKind::ExactSubtractI64Immediate => Self::ExactSubtractI64Immediate,
             MachineSemanticKind::ConditionalBranchNonZero => Self::ConditionalBranchNonZero,
             MachineSemanticKind::ReturnScalar => Self::ReturnScalar,

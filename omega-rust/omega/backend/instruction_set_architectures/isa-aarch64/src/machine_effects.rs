@@ -220,6 +220,7 @@ fn selected_keys(
         saturating_subtract_u64: crate::register_model::AARCH64_SATURATING_SUBTRACT_U64,
         saturating_add_u64: crate::register_model::AARCH64_SATURATING_ADD_U64,
         divide_u64: crate::register_model::AARCH64_DIVIDE_U64,
+        remainder_i64: crate::register_model::AARCH64_REMAINDER_I64,
         add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
@@ -358,7 +359,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::SignExtendI16
         | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
-        MachineSemanticKind::ExactDivideU64 => (vec![0, 1], vec![2]),
+        MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::WrappingRemainderI64 => {
+            (vec![0, 1], vec![2])
+        }
         MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseXorI64
@@ -399,7 +402,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             MachineEncodedTrapBehavior::NeverV1,
             MachineEncodedControlEffect::FallThroughV1,
         ),
-        MachineSemanticKind::ExactDivideU64 => (
+        MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::WrappingRemainderI64 => (
             vec![],
             vec![],
             MachineEncodedTrapBehavior::NeverV1,
@@ -553,6 +556,7 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::SaturatingSubtractU64 => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(4),
+        MachineSemanticKind::WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
         _ => MachineSizeKnowledge::ExactBytes(4),
     }
 }
@@ -584,6 +588,48 @@ mod tests {
             &physical,
         )
         .unwrap_or_else(|error: Aarch64RegisterConstraintCatalogValidationError| panic!("{error}"))
+    }
+
+    #[test]
+    fn wrapping_remainder_catalog_preserves_inputs_and_flags() {
+        let constraints = constraints();
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            let declaration = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == MachineSemanticKind::WrappingRemainderI64)
+                .unwrap();
+            assert_eq!(
+                declaration.constraint,
+                crate::register_model::AARCH64_REMAINDER_I64
+            );
+            assert_eq!(
+                declaration.alternatives[0].size,
+                MachineSizeKnowledge::ExactBytes(8)
+            );
+            assert_eq!(
+                declaration.alternatives[0].encoded,
+                MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2])
+            );
+            for corruption in 0..3 {
+                let mut changed = catalog.clone();
+                let alternative = &mut changed
+                    .declarations
+                    .iter_mut()
+                    .find(|row| row.semantic == MachineSemanticKind::WrappingRemainderI64)
+                    .unwrap()
+                    .alternatives[0];
+                match corruption {
+                    0 => alternative.encoded.external_operand_reads.truncate(1),
+                    1 => alternative.size = MachineSizeKnowledge::ExactBytes(4),
+                    _ => alternative.key.family = MachineSemanticKind::ExactDivideU64.into(),
+                };
+                assert!(
+                    validate_aarch64_machine_effect_catalog(target, &constraints, changed).is_err()
+                );
+            }
+        }
     }
 
     #[test]

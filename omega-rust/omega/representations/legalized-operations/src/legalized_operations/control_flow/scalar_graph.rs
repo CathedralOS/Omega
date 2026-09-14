@@ -103,6 +103,7 @@ impl LegalizedScalarInstruction {
                     LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right }
                     | LegalizedScalarInstructionKind::SaturatingAddU64 { left, right }
                     | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
+                    | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
                     | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
                     | LegalizedScalarInstructionKind::BitwiseXor { left, right }
                     | LegalizedScalarInstructionKind::Compare { left, right, .. }
@@ -249,6 +250,14 @@ pub enum LegalizedScalarInstructionKind {
     SaturatingSubtractU64 {
         left: ValueId,
         right: ValueId,
+    },
+    /// Signed remainder retains its declared width. MIN % -1 is zero under
+    /// Wrapping, but the accepted nonzero-divisor obligation remains required.
+    WrappingRemainder {
+        left: ValueId,
+        right: ValueId,
+        obligation: ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     ExactBinary {
         operator: super::super::LegalizedExactIntegerOperator,

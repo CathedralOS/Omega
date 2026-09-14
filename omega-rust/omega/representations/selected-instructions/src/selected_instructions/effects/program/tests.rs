@@ -24,6 +24,65 @@ use super::encoding::*;
 use super::*;
 
 #[test]
+fn wrapping_remainder_codec_preserves_proof_and_distinguishes_unsigned_division() {
+    use optimization_core::AcceptedObligationFactIdentity;
+
+    let obligation = ObligationId::new(41).unwrap();
+    let accepted_fact = AcceptedObligationFactIdentity::from_bytes([42; 32]);
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::WrappingRemainderI64 {
+        obligation,
+        accepted_fact,
+    };
+    instruction.alternatives.truncate(1);
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::WrappingRemainderI64;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+
+    for replacement in [
+        SelectedInstructionKind::WrappingRemainderI64 {
+            obligation: ObligationId::new(43).unwrap(),
+            accepted_fact,
+        },
+        SelectedInstructionKind::WrappingRemainderI64 {
+            obligation,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes([44; 32]),
+        },
+        SelectedInstructionKind::ExactDivideU64 {
+            obligation,
+            accepted_fact,
+        },
+    ] {
+        let mut changed = source.clone();
+        changed.functions[0].blocks[0].instructions[0].kind = replacement;
+        assert_ne!(
+            source.identity,
+            pre_allocation_machine_effect_identity(&changed)
+        );
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&changed.encode()),
+            Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
+        );
+    }
+    let mut changed = source.clone();
+    changed.functions[0].blocks[0].instructions[0].alternatives[0]
+        .key
+        .family = MachineAlternativeFamily::ExactDivideU64;
+    assert_ne!(
+        source.identity,
+        pre_allocation_machine_effect_identity(&changed)
+    );
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&changed.encode()),
+        Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
+    );
+}
+
+#[test]
 fn outgoing_frame_roles_round_trip_and_cannot_substitute_under_a_retained_identity() {
     use crate::{FrameStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole};
 

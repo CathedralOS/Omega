@@ -260,6 +260,7 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         saturating_subtract_u64: keys.saturating_subtract_u64,
         saturating_add_u64: keys.saturating_add_u64,
         divide_u64: keys.divide_u64,
+        remainder_i64: keys.remainder_i64,
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,

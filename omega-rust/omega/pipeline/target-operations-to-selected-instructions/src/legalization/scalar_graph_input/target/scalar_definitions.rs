@@ -127,6 +127,28 @@ pub(super) fn observation(
         return Err(invalid);
     };
     let (operation, value, scalar_type) = match abstracted {
+        AbstractOperation::WrappingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => {
+            if !supports_signed_wrapping_remainder(*scalar_type)
+                || checker.available.is_none_or(|sources| {
+                    [left, right].iter().any(|operand| {
+                        !sources.iter().any(|(value, source)| {
+                            value == *operand
+                                && source.scalar_type() == ScalarType::Integer(*scalar_type)
+                        })
+                    })
+                })
+            {
+                return Err(invalid);
+            }
+            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
+        }
         AbstractOperation::IntegerExactCast {
             psi_operation,
             result,

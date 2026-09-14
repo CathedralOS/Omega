@@ -336,6 +336,11 @@ pub const X86_64_DIVIDE_U64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 56,
 };
+/// Signed wrapping remainder uses RAX and an early-clobber RDX scratch output.
+pub const X86_64_REMAINDER_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 57,
+};
 /// Exact `result = left - right` three-address pseudo. Its realization must be
 /// alias-safe for every allocator result: `XOR result, result` when both inputs
 /// share a view, `SUB` when the result is only the left input, `NEG; ADD` when
@@ -375,7 +380,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 63] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 64] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -481,13 +486,14 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 63] = [
     X86_64_ADD_I64,
     X86_64_ADD_I64_IMMEDIATE,
     X86_64_SUBTRACT_I64,
-    X86_64_SATURATING_SUBTRACT_U64,
-    X86_64_SATURATING_ADD_U64,
-    X86_64_DIVIDE_U64,
     X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_COMPARE_I64,
     X86_64_JUMP,
     X86_64_COMPARE_I64_IMMEDIATE,
+    X86_64_SATURATING_SUBTRACT_U64,
+    X86_64_SATURATING_ADD_U64,
+    X86_64_DIVIDE_U64,
+    X86_64_REMAINDER_I64,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,
@@ -1107,6 +1113,23 @@ pub fn x86_64_register_constraint_catalog(
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             saturation_output,
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_REMAINDER_I64,
+        operands: vec![
+            fixed(0, RegisterOperandAccess::Use, "rax"),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            fixed(2, RegisterOperandAccess::Def, "rax"),
+            {
+                let mut scratch = fixed(3, RegisterOperandAccess::Def, "rdx");
+                scratch.early_clobber = true;
+                scratch
+            },
         ],
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),
