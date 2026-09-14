@@ -147,7 +147,8 @@ pub(in crate::selection) fn entry(
             continue;
         }
         if owned_pointer.is_none() && !crate::selection::established_view_input::transferred(source, place) && !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
-            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source: argument, .. } => argument.place == place,
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source: argument, .. }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source: argument, .. } => argument.place == place,
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }

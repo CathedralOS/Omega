@@ -87,6 +87,7 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
                     | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
                     | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
@@ -153,6 +154,11 @@ pub enum LegalizedScalarInstructionKind {
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     },
     StructuralScalarFieldRead {
+        source: terminal_psi::StructuralArgument,
+        field: semantic_vocabulary::StructuralFieldId,
+    },
+    /// Exact bounded-field metadata subject; selection reconstructs its offset.
+    StructuralByteSequenceFieldLength {
         source: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
     },

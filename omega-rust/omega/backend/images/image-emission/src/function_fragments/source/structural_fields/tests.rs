@@ -209,6 +209,91 @@ fn field_types() -> [ScalarType; 3] {
 }
 
 #[test]
+fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        let (mut function, mut target) = field_fixture(scalar);
+        function.structural_parameters[0].access = access;
+        target.graph.parameters[0].access = access;
+        let psi_operation = OperationId::new(1).unwrap();
+        let result = AbstractResult {
+            value: ValueId::new(1).unwrap(),
+            scalar_type: scalar,
+        };
+        let source = StructuralArgument {
+            place: function.structural_parameters[0].place,
+            access,
+            path: vec![terminal_psi::StructuralPathSegment::Field("inner".into())],
+        };
+        let field = StructuralFieldId::new(1).unwrap();
+        function.operations[0] = AbstractOperation::StructuralByteSequenceFieldLength {
+            psi_operation,
+            result,
+            source: source.place,
+            path: source.path.clone(),
+            field,
+        };
+        target.graph.blocks[0].operations[0] =
+            TargetUnitOperation::StructuralByteSequenceFieldLength {
+                psi_operation,
+                result,
+                source: source.clone(),
+                field,
+            };
+        assert!(retained(&function, &function.operations[0], &target));
+        assert!(super::super::requires_graph_storage_replay(
+            &function.operations
+        ));
+        for mutation in 0..9 {
+            let mut changed = target.clone();
+            let operation = &mut changed.graph.blocks[0].operations[0];
+            let TargetUnitOperation::StructuralByteSequenceFieldLength {
+                psi_operation,
+                result,
+                source,
+                field,
+            } = operation
+            else {
+                panic!("metadata")
+            };
+            match mutation {
+                0 => *psi_operation = OperationId::new(2).unwrap(),
+                1 => result.value = ValueId::new(2).unwrap(),
+                2 => result.scalar_type = ScalarType::Boolean,
+                3 => source.place = PlaceId::new(2).unwrap(),
+                4 => source.path.clear(),
+                5 => *field = StructuralFieldId::new(2).unwrap(),
+                6 => source.access = StructuralAccess::Owned,
+                7 => {
+                    *operation = TargetUnitOperation::StructuralScalarFieldRead {
+                        psi_operation: *psi_operation,
+                        result: *result,
+                        source: source.clone(),
+                        field: *field,
+                    }
+                }
+                _ => {
+                    let duplicate = operation.clone();
+                    changed.graph.blocks[0].operations.push(duplicate);
+                }
+            }
+            assert!(
+                !retained(&function, &function.operations[0], &changed),
+                "mutation {mutation}"
+            );
+        }
+        // Even matching metadata operands cannot supply owned root admission.
+        function.structural_parameters[0].access = StructuralAccess::Owned;
+        target.graph.parameters[0].access = StructuralAccess::Owned;
+        assert!(!retained(&function, &function.operations[0], &target));
+    }
+}
+
+#[test]
 fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
     for scalar in field_types() {
         let (mut function, mut target) = field_fixture(scalar);

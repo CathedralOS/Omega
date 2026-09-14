@@ -142,7 +142,15 @@ pub(super) fn read_geometry(
         Instruction::StructuralScalarFieldRead {
             source: argument,
             field,
+        }
+        | Instruction::StructuralByteSequenceFieldLength {
+            source: argument,
+            field,
         } => {
+            let observes_byte_length = matches!(
+                row.kind,
+                Instruction::StructuralByteSequenceFieldLength { .. }
+            );
             let signature = source.structural.as_ref()?;
             if !signature.entry_claims.is_empty() {
                 return None;
@@ -160,7 +168,9 @@ pub(super) fn read_geometry(
                 .find(|parameter| parameter.place == argument.place)
             {
                 if parameter.access != argument.access
-                    || parameter.access == StructuralAccess::WriteOnlyBorrow
+                    || (parameter.access == StructuralAccess::WriteOnlyBorrow
+                        && !observes_byte_length)
+                    || (parameter.access == StructuralAccess::Owned && observes_byte_length)
                     || parameter.multiplicity == StructuralMultiplicity::Linear
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
@@ -169,7 +179,7 @@ pub(super) fn read_geometry(
                 }
                 parameter.structural_type
             } else {
-                if argument.access != StructuralAccess::Owned {
+                if argument.access != StructuralAccess::Owned || observes_byte_length {
                     return None;
                 }
                 let mut producers = source
@@ -203,7 +213,12 @@ pub(super) fn read_geometry(
                 }
                 result.structural_type
             };
-            let (offset, _) = crate::structural_reference_input::field_read(
+            let geometry = if observes_byte_length {
+                crate::structural_reference_input::byte_field_length
+            } else {
+                crate::structural_reference_input::field_read
+            };
+            let (offset, _) = geometry(
                 structural_type,
                 &argument.path,
                 *field,

@@ -230,6 +230,15 @@ pub(super) fn validate_operation(
             },
             AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::BooleanStructuralField { .. },
+        )
+        | (
+            TargetUnitOperation::StructuralByteSequenceFieldLength {
+                psi_operation,
+                result,
+                source,
+                field,
+            },
+            AbstractOperation::StructuralByteSequenceFieldLength { .. },
         ) => {
             let expected = super::super::structural_fields::read(
                 optimized,

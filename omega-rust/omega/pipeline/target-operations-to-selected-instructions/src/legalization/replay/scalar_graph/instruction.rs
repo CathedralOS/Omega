@@ -89,6 +89,10 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field },
             AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::BooleanStructuralField { .. },
+        )
+        | (
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field },
+            AbstractOperation::StructuralByteSequenceFieldLength { .. },
         ) => {
             let (_, _, expected_source, expected_field) =
                 scalar_graph_input::structural_fields::read(

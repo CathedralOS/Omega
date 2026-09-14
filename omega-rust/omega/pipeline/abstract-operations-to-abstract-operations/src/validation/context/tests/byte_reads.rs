@@ -6,6 +6,94 @@ use terminal_psi::{
 };
 
 #[test]
+fn surviving_byte_field_length_retains_exact_operation_and_storage_identity() {
+    let initial = verified_byte_operation(false);
+    let mut module = initial.input().context().module().clone();
+    let byte_type = module.structural_types[0].id;
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: (1..=2)
+            .map(|ordinal| terminal_psi::StructuralFieldDeclaration {
+                id: id(ordinal, semantic_vocabulary::StructuralFieldId::new),
+                identity: format!("bytes{ordinal}"),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: terminal_psi::StructuralFieldType::ByteSequence(
+                    ByteSequenceCarrier::BoundedOwned { capacity: 3 },
+                ),
+            })
+            .collect(),
+    };
+    let machine = &mut module.machines[0];
+    machine.blocks.truncate(1);
+    machine.blocks[0].operations.truncate(1);
+    machine.blocks[0].operations[0].kind = OperationKind::StructuralByteSequenceFieldLength {
+        source: machine.structural_parameters[0].place,
+        path: Vec::new(),
+        field: id(1, semantic_vocabulary::StructuralFieldId::new),
+    };
+    machine.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: id(1, EdgeId::new),
+        trivial_affine_discards: Vec::new(),
+    };
+    assert_eq!(machine.structural_parameters[1].structural_type, byte_type);
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &terminal_codec::encode_module(&module).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_bundle(
+                &terminal_verifier::ProofBundle::default(),
+            )
+            .unwrap(),
+            obligation_ledger_bytes: None,
+        },
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .unwrap();
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .unwrap();
+    validate_verified_psi_optimization_unit(&verified).unwrap();
+    let (input, baseline) = verified.into_parts();
+    for mutation in 0..7 {
+        let mut changed = baseline.clone();
+        let operation = &mut changed.functions[0].blocks[0].nodes[0].operation;
+        let AbstractOperation::StructuralByteSequenceFieldLength {
+            psi_operation,
+            result,
+            source,
+            path,
+            field,
+        } = operation
+        else {
+            panic!("field length")
+        };
+        match mutation {
+            0 => *source = id(2, PlaceId::new),
+            1 => *field = id(2, semantic_vocabulary::StructuralFieldId::new),
+            2 => path.push(terminal_psi::StructuralPathSegment::Field("bytes1".into())),
+            3 => *psi_operation = id(9, OperationId::new),
+            4 => result.value = id(9, ValueId::new),
+            5 => result.scalar_type = ScalarType::Boolean,
+            6 => {
+                *operation = AbstractOperation::ByteSequenceLength {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    source: *source,
+                }
+            }
+            _ => panic!("bounded mutation"),
+        }
+        refresh_identity(&mut changed);
+        assert_ne!(changed.identity, baseline.identity);
+        assert!(
+            validate_transformed_psi_optimization_unit(&input, &changed).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn surviving_byte_read_cannot_reuse_bounds_after_operand_drift() {
     let verified = verified_byte_operation(false);
     validate_verified_psi_optimization_unit(&verified).unwrap();

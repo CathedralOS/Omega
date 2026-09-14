@@ -77,6 +77,13 @@ pub enum TargetUnitOperation {
         source: StructuralArgument,
         field: StructuralFieldId,
     },
+    /// Observe bounded inline storage metadata, not the field's byte contents.
+    StructuralByteSequenceFieldLength {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: StructuralArgument,
+        field: StructuralFieldId,
+    },
     /// One ordered scalar definition; residence is assigned downstream, not
     /// prescribed as a stack slot by target lowering.
     ScalarDefinition {

@@ -49,8 +49,18 @@ ordinary scalar operands. The field-length regression observes a nested field's
 length after a helper shrinks it and after empty replacement, without substituting
 capacity or changing sibling contents.
 
+Native field-length observations preserve the exact metadata operation through
+optimization, selection and publication. The regression
+`record_reads::byte_lengths::bounded_byte_field_lengths_observe_exact_direct_and_nested_live_extents`
+publishes for all four hosted targets and executes on macOS ARM64. Direct and
+nested fields with equal capacities return their distinct live lengths, including
+empty storage; reads compose with ordinary calls and leave backing unchanged.
+Native bounded fields use an aligned leading `u64` length followed by inline
+capacity bytes, not a synthesized borrowed-view descriptor. Metadata observation
+does not grant byte-content read or replacement authority.
+
 Remaining dependencies include field-backed byte reads and native byte-field
-length/replacement. After those operations compose, the complete state
+replacement. After those operations compose, the complete state
 loop must still pass its termination/proof and native execution checks. Keep this
 command as the outer acceptance check rather than deriving completion from a
 passing isolated store test.
@@ -71,5 +81,5 @@ capacities, using existing resolved-domain predicate denotation; nonempty and
 unknown requirements reject. Native image replay separately checks owned
 zero-filled storage and the existing root-backed receiver partition. This adds
 neither borrowed-view initialization nor authority from a carrier's layout.
-Byte reads, length/replacement execution, and the complete scanner loop remain
+Byte reads, replacement execution, and the complete scanner loop remain
 the next dependencies; receiver initialization alone does not close them.

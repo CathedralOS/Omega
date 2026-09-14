@@ -36,7 +36,8 @@ pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDe
                     if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
                 && scalar(*index) == scalar(*length)
         }
-        O::ByteSequenceLength { result, .. } => {
+        O::ByteSequenceLength { result, .. }
+        | O::StructuralByteSequenceFieldLength { result, .. } => {
             matches!(result.scalar_type, ScalarType::Integer(integer)
                 if Ok(integer) == IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
         }

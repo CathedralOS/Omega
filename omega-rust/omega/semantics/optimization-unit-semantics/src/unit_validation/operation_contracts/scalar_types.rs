@@ -23,6 +23,7 @@ pub(crate) fn operation_scalar_types_match(
         O::ByteSequenceWrite { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceLength { .. }
+        | O::StructuralByteSequenceFieldLength { .. }
         | O::ByteSequenceSubslice { .. } => byte_views::types_match(operation, definitions),
         O::DynamicDescriptorParameter { parameter } => {
             parameter.owner == function.machine

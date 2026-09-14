@@ -29,7 +29,8 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
     }
     source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
         match &row.kind {
-            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. } => source.place == place,
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. } => source.place == place,
             LegalizedScalarInstructionKind::StructuralCaseMembership { source, path, .. } => *source == place && !path.is_empty(),
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
                 matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }

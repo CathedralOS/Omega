@@ -94,6 +94,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             psi_operation,
             result,
             ..
+        }
+        | AbstractOperation::StructuralByteSequenceFieldLength {
+            psi_operation,
+            result,
+            ..
         } if result.scalar_type == ScalarType::Integer(u64_type()) => {
             Some((*psi_operation, result.value))
         }
@@ -439,6 +444,7 @@ pub(super) fn validate(
             }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
             | AbstractOperation::IntegerStructuralField { result, .. }
+            | AbstractOperation::StructuralByteSequenceFieldLength { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. } => result.scalar_type,
             AbstractOperation::ByteSequenceRead {
                 source,

@@ -28,6 +28,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
         | O::ByteSequenceLength { result, .. }
+        | O::StructuralByteSequenceFieldLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Scalar(result),

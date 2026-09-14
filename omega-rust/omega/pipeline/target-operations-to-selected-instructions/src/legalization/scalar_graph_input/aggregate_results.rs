@@ -30,6 +30,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                     node.operation,
                     AbstractOperation::StructuralCaseMembership { .. }
                         | AbstractOperation::IntegerStructuralField { .. }
+                        | AbstractOperation::StructuralByteSequenceFieldLength { .. }
                         | AbstractOperation::BooleanStructuralField { .. }
                         | AbstractOperation::EstablishScalarArray { .. }
                         | AbstractOperation::EstablishRecord { .. }

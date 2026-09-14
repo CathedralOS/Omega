@@ -10,6 +10,9 @@ const DRIVER: &str = "#include <stdbool.h>\n#include <stdint.h>\nextern uint64_t
 #[path = "record_reads/parameters.rs"]
 mod parameters;
 
+#[path = "record_reads/byte_lengths.rs"]
+mod byte_lengths;
+
 #[test]
 fn immutable_record_local_field_reaches_native_execution() {
     let artifact = produce_source(

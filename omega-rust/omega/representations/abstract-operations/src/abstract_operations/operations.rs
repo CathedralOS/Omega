@@ -85,6 +85,14 @@ pub enum AbstractOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Observe live length metadata of the exact bounded-owned byte field.
+    StructuralByteSequenceFieldLength {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+    },
     /// Observe the byte count of one verifier-approved view.
     ByteSequenceLength {
         psi_operation: OperationId,

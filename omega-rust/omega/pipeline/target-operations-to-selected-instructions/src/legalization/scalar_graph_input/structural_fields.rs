@@ -10,6 +10,55 @@ pub(in crate::legalization) fn read(
     terminal_psi::StructuralArgument,
     semantic_vocabulary::StructuralFieldId,
 )> {
+    if let AbstractOperation::StructuralByteSequenceFieldLength {
+        psi_operation,
+        result,
+        source,
+        path,
+        field,
+    } = operation
+    {
+        let parameter = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *source)?;
+        if !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || function
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == *source)
+            || function
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == *source)
+        {
+            return None;
+        }
+        crate::structural_reference_input::byte_field_length(
+            parameter.structural_type,
+            path,
+            *field,
+            result.scalar_type,
+            types,
+        )?;
+        return Some((
+            *psi_operation,
+            *result,
+            terminal_psi::StructuralArgument {
+                place: *source,
+                access: parameter.access,
+                path: path.clone(),
+            },
+            *field,
+        ));
+    }
     let (operation, result, place, path, field) = match operation {
         AbstractOperation::IntegerStructuralField {
             psi_operation,

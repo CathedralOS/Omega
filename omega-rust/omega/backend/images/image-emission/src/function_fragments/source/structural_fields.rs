@@ -16,6 +16,41 @@ pub(super) fn retained(
     operation: &AbstractOperation,
     target: &TargetFunction,
 ) -> bool {
+    if let AbstractOperation::StructuralByteSequenceFieldLength {
+        psi_operation,
+        result,
+        source,
+        path,
+        field,
+    } = operation
+    {
+        let Some((access, _)) = read_access(function, target, *source, true) else {
+            return false;
+        };
+        let expected_source = StructuralArgument {
+            place: *source,
+            access,
+            path: path.clone(),
+        };
+        // Mandatory graph replay reconstructs bounded-field geometry and u64
+        // metadata typing. Publication rejoins this exact observation, not a
+        // content read or a synthesized whole-view descriptor.
+        let mut reads = target
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match operation {
+                TargetUnitOperation::StructuralByteSequenceFieldLength {
+                    psi_operation: identity,
+                    result,
+                    source,
+                    field,
+                } if identity == psi_operation => Some((result, source, field)),
+                _ => None,
+            });
+        return reads.next() == Some((result, &expected_source, field)) && reads.next().is_none();
+    }
     if let AbstractOperation::PrimitiveScalarRead {
         psi_operation,
         result,
@@ -23,7 +58,7 @@ pub(super) fn retained(
         path,
     } = operation
     {
-        let Some((_, root)) = read_access(function, target, *source) else {
+        let Some((_, root)) = read_access(function, target, *source, false) else {
             return false;
         };
         if path.is_empty()
@@ -81,7 +116,7 @@ pub(super) fn retained(
         ),
         _ => return false,
     };
-    let Some((access, mut carrier)) = read_access(function, target, place) else {
+    let Some((access, mut carrier)) = read_access(function, target, place, false) else {
         return false;
     };
     let mut runtime_path = Vec::with_capacity(path.len());
@@ -144,6 +179,7 @@ fn read_access(
     function: &AbstractFunction,
     target: &TargetFunction,
     place: semantic_vocabulary::PlaceId,
+    observes_byte_length: bool,
 ) -> Option<(
     terminal_psi::StructuralAccess,
     semantic_vocabulary::StructuralTypeId,
@@ -158,12 +194,11 @@ fn read_access(
     {
         let retained = target.graph.parameters.get(position)?;
         if parameter.position as usize != position
-            || !matches!(
+            || !(matches!(
                 parameter.access,
-                StructuralAccess::Owned
-                    | StructuralAccess::SharedBorrow
-                    | StructuralAccess::MutableBorrow
-            )
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) || (parameter.access == StructuralAccess::Owned && !observes_byte_length)
+                || (parameter.access == StructuralAccess::WriteOnlyBorrow && observes_byte_length))
             || parameter.multiplicity == StructuralMultiplicity::Linear
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
@@ -185,7 +220,8 @@ fn read_access(
             .iter()
             .filter(|parameter| parameter.place == place)
         {
-            if parameter.access != StructuralAccess::Owned
+            if observes_byte_length
+                || parameter.access != StructuralAccess::Owned
                 || parameter.multiplicity == StructuralMultiplicity::Linear
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
@@ -218,7 +254,8 @@ fn read_access(
             } if result.place == place => (*psi_operation, result),
             _ => continue,
         };
-        if result.multiplicity == StructuralMultiplicity::Linear
+        if observes_byte_length
+            || result.multiplicity == StructuralMultiplicity::Linear
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
