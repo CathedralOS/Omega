@@ -30,7 +30,9 @@ actual next compiler/evaluator customer, not general-purpose language completene
 beyond the selected contracts. Language and topology experiments follow
 whole-chain minimization without an owner-approval prerequisite. Adoption must
 reconcile contracts and evidence; proposed weakening of required assurances
-still requires owner escalation.
+still requires owner escalation. Tag an added item's provenance on its first
+line: `(new-scope)` for newly discovered work, `(split-of:<parent-item>)` when
+it decomposes an existing item. Items added before 2026-09-14 are untagged.
 
 ## Selection and stopping rules
 
