@@ -164,12 +164,29 @@ pub fn realize_accepted_native_report(
     let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
         diagnostics("accepted Terminal realization requires one retained Terminal artifact")
     })?;
-    let subsystem = retained
+    let proposal = retained
         .native_realization_proposal()
         .ok_or_else(|| {
             diagnostics("retained Terminal product: source-evaluated import realization requires one native proposal")
-        })?
-        .subsystem();
+        })?;
+    let subsystem = proposal.subsystem();
+    // Publication metadata crosses invocations with the artifact through the
+    // retained proposal; the receiving report binds exactly that custody,
+    // never re-deriving it from the live project
+    // (wiki/spec/build/macos_application.md). A consumer-supplied signing
+    // identity stands in only when the proposal authored none — it is the
+    // identity actually bound into the signed bytes.
+    let application_name = proposal.application_name().map(str::to_owned);
+    let application_intent = proposal.application_intent();
+    let retained_identifier = proposal.application_identifier().cloned();
+    let image_request = native_realization::ExecutableImageEmissionRequest::direct(subsystem);
+    let application_identifier = retained_identifier.or_else(|| {
+        image_request
+            .code_signature_identifier()
+            .and_then(|spelling| {
+                build_evaluation::ApplicationIdentifier::new(spelling.as_bytes()).ok()
+            })
+    });
     let artifact = compiler::realize_retained_native_artifact(
         retained,
         compiler::RetainedNativeRealizationRequest {
@@ -178,7 +195,7 @@ pub fn realize_accepted_native_report(
             terminal_authority_policy,
             accepted_package_terminal_authority_permission_policy: accepted_permission_policy,
             terminal_authority_permission_policy: receiving_terminal_authority_permission_policy,
-            image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
+            image_request,
             imports,
         },
     )
@@ -197,6 +214,13 @@ pub fn realize_accepted_native_report(
     )
     .map(|report| report.with_trust_admission_settlement(trust_settlement))
     .map(|report| report.with_pcc_context(pcc_requests, pcc_admission_profile))
+    .and_then(|report| {
+        report.with_application_metadata(
+            application_name,
+            application_intent,
+            application_identifier,
+        )
+    })
     .map_err(|message| vec![Diagnostic::error(message)])
 }
 

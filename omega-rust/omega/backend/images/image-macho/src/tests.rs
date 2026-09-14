@@ -224,41 +224,10 @@ fn loader_mapping_rejects_segment_and_zero_fill_corruption() {
     }
 }
 
-/// The CodeDirectory identifier spelled inside the emitted file.
-/// `LC_CODE_SIGNATURE` fields are little-endian like every load command; the
-/// superblob it points at is the one big-endian structure in the file.
+/// The CodeDirectory identifier spelled inside the emitted file, read back
+/// through the same public replay publication validation uses.
 fn code_signature_identifier(bytes: &[u8]) -> String {
-    let mut cursor = 32;
-    let mut signature = None;
-    for _ in 0..word(bytes, 16) {
-        let end = cursor + word(bytes, cursor + 4) as usize;
-        if word(bytes, cursor) == 0x1d {
-            assert!(
-                signature
-                    .replace((
-                        word(bytes, cursor + 8) as usize,
-                        word(bytes, cursor + 12) as usize,
-                    ))
-                    .is_none(),
-                "exactly one LC_CODE_SIGNATURE command"
-            );
-        }
-        cursor = end;
-    }
-    let (offset, size) = signature.expect("one LC_CODE_SIGNATURE command");
-    let blob = &bytes[offset..offset + size];
-    let field = |offset: usize| u32::from_be_bytes(blob[offset..offset + 4].try_into().unwrap());
-    assert_eq!(field(0), 0xfade_0cc0, "embedded signature superblob");
-    let directory = &blob[field(16) as usize..];
-    let field =
-        |offset: usize| u32::from_be_bytes(directory[offset..offset + 4].try_into().unwrap());
-    assert_eq!(field(0), 0xfade_0c02, "CodeDirectory");
-    let identifier = &directory[field(20) as usize..];
-    let end = identifier
-        .iter()
-        .position(|byte| *byte == 0)
-        .expect("NUL-terminated CodeDirectory identifier");
-    String::from_utf8(identifier[..end].to_vec()).expect("CodeDirectory identifier is ASCII")
+    super::code_signature_identifier(bytes).expect("one signed CodeDirectory identifier")
 }
 
 #[test]

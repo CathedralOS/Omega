@@ -141,6 +141,7 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
             proposal.subsystem(),
             proposal.application_intent(),
             proposal.application_identifier().cloned(),
+            proposal.application_name().map(str::to_owned),
             proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),

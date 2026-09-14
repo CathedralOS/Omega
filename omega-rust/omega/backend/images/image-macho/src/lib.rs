@@ -81,6 +81,7 @@ use image::{
 
 mod bytes;
 mod code_signature;
+pub use code_signature::code_signature_identifier;
 mod constants;
 mod entry;
 mod imports;

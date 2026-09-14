@@ -242,6 +242,11 @@ fn authored_identifier_reaches_the_checked_and_retained_carriers() {
         Some("com.omega.window-app"),
         "the retained proposal carries the authored signing identity"
     );
+    assert_eq!(
+        proposal.application_name(),
+        Some("target-activation"),
+        "the retained proposal carries the authored application name for a later packaging invocation"
+    );
 }
 
 #[test]
@@ -584,6 +589,108 @@ fn macos_gui_image_emission_requires_the_authored_identifier() {
             .message
             .contains("signed macOS GUI image emission requires the authored Build identifier")
     }));
+}
+
+#[test]
+fn macos_gui_publication_installs_one_app_package() {
+    // Complete selected macOS GUI output is the `.app` tree, not a flat
+    // executable beside it (wiki/spec/build/macos_application.md).
+    let project = TempProject::with_main(
+        MACOS_HOSTED_MAIN,
+        &application_build(
+            "    builder.subsystem = Subsystem::Gui;\n    builder.identifier = \"com.omega.window-app\";\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);",
+        ),
+    );
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: project.main(),
+            build_dir: None,
+            target_name: Some("macos_arm64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .unwrap_or_else(|diagnostics| panic!("macOS GUI compilation: {diagnostics:#?}"));
+    let build_dir = project.0.join("build");
+    let published = report
+        .publish_retained_native_artifact(&build_dir)
+        .expect("macOS GUI publication installs one .app package");
+    let package_root = published
+        .checked_native_package_path()
+        .expect("checked package root")
+        .to_path_buf();
+    assert_eq!(package_root, build_dir.join("target-activation.app"));
+    let executable = published
+        .checked_native_executable_path()
+        .expect("checked inner executable")
+        .to_path_buf();
+    assert_eq!(
+        executable,
+        package_root.join("Contents/MacOS/target-activation"),
+        "the inner executable path is checked separately from the package root"
+    );
+    assert!(package_root.join("Contents/Info.plist").is_file());
+    assert!(executable.is_file());
+    assert!(
+        !build_dir.join("omega-program").exists(),
+        "no redundant flat executable beside the bundle"
+    );
+    let plist =
+        fs::read_to_string(package_root.join("Contents/Info.plist")).expect("read installed plist");
+    assert!(
+        plist.contains("<key>CFBundleIdentifier</key>\n\t<string>com.omega.window-app</string>"),
+        "the retained authored identifier is the plist identity"
+    );
+    assert!(
+        plist.contains("<key>CFBundleExecutable</key>\n\t<string>target-activation</string>"),
+        "the authored application name is the plist executable leaf"
+    );
+    assert!(plist.contains("<key>CFBundlePackageType</key>\n\t<string>APPL</string>"),);
+    // The installed executable carries the authored CodeDirectory identity.
+    let bytes = fs::read(&executable).expect("read installed executable");
+    assert!(
+        bytes
+            .windows(b"com.omega.window-app".len())
+            .any(|window| window == b"com.omega.window-app"),
+        "the installed inner executable is the signed artifact"
+    );
+}
+
+#[test]
+fn macos_console_publication_stays_flat() {
+    // macOS console output remains a flat Mach-O: only selected GUI intent
+    // selects the `.app` package.
+    let project = TempProject::with_main(
+        MACOS_HOSTED_MAIN,
+        &application_build("    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);"),
+    );
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: project.main(),
+            build_dir: None,
+            target_name: Some("macos_arm64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .unwrap_or_else(|diagnostics| panic!("macOS console compilation: {diagnostics:#?}"));
+    let build_dir = project.0.join("build");
+    let published = report
+        .publish_retained_native_artifact(&build_dir)
+        .expect("macOS console publication installs a flat executable");
+    assert!(published.checked_native_package_path().is_none());
+    let executable = published
+        .checked_native_executable_path()
+        .expect("checked flat executable")
+        .to_path_buf();
+    assert_eq!(executable, build_dir.join("omega-program"));
+    assert!(executable.is_file());
+    assert!(
+        !build_dir.join("target-activation.app").exists(),
+        "console output never becomes a bundle"
+    );
 }
 
 #[test]

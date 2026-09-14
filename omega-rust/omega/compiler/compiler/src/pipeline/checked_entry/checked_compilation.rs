@@ -131,6 +131,13 @@ impl CheckedCompilation {
         self.execution.application_identifier.as_ref()
     }
 
+    /// The validated authored `builder.application` name retained at source
+    /// custody. It supplies the `.app` basename and inner executable leaf at
+    /// publication; `None` for package/workspace build roles.
+    pub const fn application_name(&self) -> Option<&build_declarations::ProjectName> {
+        self.execution.application_name.as_ref()
+    }
+
     /// Exact image subsystem selected by the owning build configuration.
     pub const fn subsystem(&self) -> u16 {
         self.execution.subsystem

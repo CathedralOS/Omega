@@ -306,6 +306,9 @@ fn project_terminal_native_realization_proposal(
         checked.subsystem(),
         checked.application_intent(),
         checked.application_identifier().cloned(),
+        checked
+            .application_name()
+            .map(|name| name.as_str().to_owned()),
         selections.project_post_terminal(),
         program_entry,
         checked.selected_provider_plans().clone(),

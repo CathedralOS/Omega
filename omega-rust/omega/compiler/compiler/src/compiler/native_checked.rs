@@ -49,6 +49,18 @@ impl NativeCompilationWithCheckedReceipt {
         {
             return Err("checked native receipt production manifest disagrees with checking");
         }
+        // The retained publication metadata is exactly the checked build's:
+        // a report whose authored name, intent, or identifier drifted from
+        // checking cannot pair with it.
+        if report.application_name()
+            != checked
+                .application_name()
+                .map(build_declarations::ProjectName::as_str)
+            || report.application_intent() != checked.application_intent()
+            || report.application_identifier() != checked.application_identifier()
+        {
+            return Err("checked native receipt application metadata disagrees with checking");
+        }
         Ok(Self { checked, report })
     }
 

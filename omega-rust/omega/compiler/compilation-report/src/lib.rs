@@ -7,7 +7,7 @@
 //! `has_consistent_executable_publication_custody` checks that cardinality and
 //! validates the retained artifact or flat executable receipt.
 //!
-//! Four SHA-256 domains carry the chain, each prefix NUL-terminated so no
+//! Six SHA-256 domains carry the chain, each prefix NUL-terminated so no
 //! prefix can be a prefix of another, and each carrying a `.v1` suffix that
 //! makes a future change a new domain rather than a silent reinterpretation:
 //!
@@ -20,6 +20,10 @@
 //!        -> omega.published-executable-container.sha256.v1
 //!   evidence + destination tag + output path + container
 //!        -> omega.installed-executable-publication-evidence.sha256.v1
+//!   each installed package member's bytes, length-prefixed
+//!        -> omega.published-package-component.sha256.v1
+//!   package root + name + identifier + executable commitment + members
+//!        -> omega.native-package-evidence.sha256.v1
 //! ```
 //!
 //! A receipt verifies itself. `has_consistent_installation_identity` recomputes
@@ -72,11 +76,14 @@
 //! rather than `pub(crate)` because its only caller lives in another crate, at
 //! `compiler/src/pipeline/reporting/production_subject.rs:36`.
 //!
-//! @Incomplete: publication currently installs flat executables only.
-//! Whole macOS application packages require the executable, plist, and exact
-//! directory shape to be validated together, as specified in
-//! `wiki/spec/build/macos_application.md`. A second executable
-//! receipt would not establish that contract.
+//! A selected macOS GUI product publishes one complete `.app` package through
+//! `package::publish_macos_application_package` — the executable, the fixed
+//! `Contents/Info.plist`, the exact directory shape, and the three-way
+//! identifier join specified in `wiki/spec/build/macos_application.md` —
+//! instead of the flat executable path. The retained authored
+//! `builder.application` name supplies the basename and inner leaf; the
+//! retained `builder.identifier` must agree with the CodeDirectory identity
+//! already bound into the signed bytes.
 
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
@@ -86,6 +93,7 @@ mod pcc;
 mod production_manifest;
 mod terminal_product;
 pub use optimization_rollback::OptimizationRollbackReceipt;
+pub use package::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use pcc::{PccPublicationReceipt, verify_native_proof_sidecar};
 pub use production_manifest::{
     FinalRealizationEvidenceError, ProductionArtifactIdentity, ProductionCompilationManifest,
@@ -133,6 +141,10 @@ publication_digest!(NativePublicationCertificateDigest);
 publication_digest!(NativePublicationEvidenceDigest);
 publication_digest!(ExecutableContainerDigest);
 publication_digest!(ExecutableInstallationEvidenceDigest);
+
+// Declared after `publication_digest!` so the package module mints its own
+// component and evidence domains through the same four-line newtype.
+mod package;
 
 pub fn executable_installation_evidence_digest(
     publication_evidence_digest: NativePublicationEvidenceDigest,
@@ -526,6 +538,22 @@ pub struct CompileReport {
     /// Every artifact/`.proof` companion pair this report published, each
     /// carrying separate artifact and sidecar byte sizes.
     pcc_publications: Vec<PccPublicationReceipt>,
+    /// The validated authored `builder.application` name retained with a
+    /// retained native artifact. Publication uses it for the `.app` basename
+    /// and inner executable leaf when the artifact is a selected macOS GUI
+    /// product; `None` means the build declared a non-application role.
+    application_name: Option<String>,
+    /// The authored hosted intent retained with the native artifact. `Gui`
+    /// selects whole-package publication for a Mach-O target; it is semantic
+    /// data, never a PE loader word.
+    application_intent: Option<build_evaluation::HostedApplicationIntent>,
+    /// The authored identifier retained with the native artifact. It supplies
+    /// `CFBundleIdentifier` and must agree with the identity already bound
+    /// into the signed executable bytes.
+    application_identifier: Option<build_evaluation::ApplicationIdentifier>,
+    /// Exact checked receipt for a macOS application package publication.
+    /// Flat publications and unpublished reports retain `None`.
+    package_publication: Option<package::NativePackagePublicationReceipt>,
 }
 
 impl CompileReport {
@@ -561,6 +589,10 @@ impl CompileReport {
             pcc_requests: build_evaluation::PccRequests::default(),
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             pcc_publications: Vec::new(),
+            application_name: None,
+            application_intent: None,
+            application_identifier: None,
+            package_publication: None,
         };
         if report.has_consistent_executable_publication_custody() {
             Ok(report)
@@ -596,6 +628,10 @@ impl CompileReport {
             pcc_requests: build_evaluation::PccRequests::default(),
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             pcc_publications: Vec::new(),
+            application_name: None,
+            application_intent: None,
+            application_identifier: None,
+            package_publication: None,
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("compiler report retained inconsistent native-artifact custody");
@@ -674,38 +710,103 @@ impl CompileReport {
                 build_dir.display()
             )
         })?;
-        let output_path = build_dir.join(&output.file_name);
 
-        // Every requested artifact/companion pair is staged, validated and
-        // published before the executable itself becomes visible. A failed
-        // pair therefore never produces a certified-looking install, and a
-        // sidecar can never be left bound to bytes this report did not write.
-        let mut pcc_publications = Vec::new();
-        if self.pcc_requests.psi {
-            let psi_bytes = artifact.psi_artifact().to_bytes();
-            let psi_sidecar = terminal_codec::build_psi_proof_sidecar(
-                artifact.psi_artifact(),
-                &self.terminal_admission_profile,
-                &psi_bytes,
-            )
-            .map_err(|error| format!("cannot build the psi proof sidecar: {error}"))?;
-            let psi_sidecar_bytes = psi_sidecar.to_bytes();
-            validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
-            let psi_path = appended_file_name_path(&output_path, ".psi");
-            publish_exact_file_bytes(&psi_path, &psi_bytes)?;
-            let psi_sidecar_path = appended_file_name_path(&psi_path, ".proof");
-            publish_exact_file_bytes(&psi_sidecar_path, &psi_sidecar_bytes)?;
-            pcc_publications.push(PccPublicationReceipt {
-                product: terminal_codec::PccProductKind::Psi,
-                artifact_path: psi_path,
-                artifact_byte_len: psi_bytes.len() as u64,
-                sidecar_path: psi_sidecar_path,
-                sidecar_byte_len: psi_sidecar_bytes.len() as u64,
-            });
-        }
-        publish_exact_executable_bytes(&output_path, &output.bytes)?;
-
+        // Complete selected macOS GUI output is one `.app` package; every
+        // other selected product keeps the flat executable path. The
+        // retained authored name and identifier — not the emitted leaf or a
+        // re-derived folder name — supply the package shape.
+        let package = artifact.target().object_format == target::ObjectFormat::MachO
+            && matches!(
+                self.application_intent,
+                Some(build_evaluation::HostedApplicationIntent::Gui)
+            );
         let container_digest = executable_container_digest(&output.bytes);
+        let mut pcc_publications = Vec::new();
+        let mut package_publication = None;
+        let output_path = if package {
+            let application_name = self.application_name.clone().ok_or_else(|| {
+                "macOS GUI package publication requires the retained authored application name"
+                    .to_owned()
+            })?;
+            let application_identifier =
+                self.application_identifier.clone().ok_or_else(|| {
+                    "macOS GUI package publication requires the retained authored application identifier"
+                        .to_owned()
+                })?;
+            let mut companions = Vec::new();
+            // Requested artifact/companion pairs assemble inside the package
+            // beside the executable: one staged tree, one rename, so a failed
+            // pair can never leave a certified-looking install.
+            if self.pcc_requests.psi {
+                let psi_bytes = artifact.psi_artifact().to_bytes();
+                let psi_sidecar = terminal_codec::build_psi_proof_sidecar(
+                    artifact.psi_artifact(),
+                    &self.terminal_admission_profile,
+                    &psi_bytes,
+                )
+                .map_err(|error| format!("cannot build the psi proof sidecar: {error}"))?;
+                let psi_sidecar_bytes = psi_sidecar.to_bytes();
+                validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
+                companions.push((".psi".to_owned(), psi_bytes.clone()));
+                companions.push((".psi.proof".to_owned(), psi_sidecar_bytes.clone()));
+                let package_root = build_dir.join(format!("{application_name}.app"));
+                let macos_dir = std::path::Path::new("Contents").join("MacOS");
+                pcc_publications.push(PccPublicationReceipt {
+                    product: terminal_codec::PccProductKind::Psi,
+                    artifact_path: package_root
+                        .join(macos_dir.join(format!("{application_name}.psi"))),
+                    artifact_byte_len: psi_bytes.len() as u64,
+                    sidecar_path: package_root
+                        .join(macos_dir.join(format!("{application_name}.psi.proof"))),
+                    sidecar_byte_len: psi_sidecar_bytes.len() as u64,
+                });
+            }
+            let receipt = package::publish_macos_application_package(
+                build_dir,
+                &application_name,
+                &application_identifier,
+                &output.bytes,
+                container_digest,
+                &companions,
+            )?;
+            let output_path = receipt.inner_executable_path().ok_or_else(|| {
+                "macOS package publication produced no inner executable component".to_owned()
+            })?;
+            package_publication = Some(receipt);
+            output_path
+        } else {
+            let output_path = build_dir.join(&output.file_name);
+
+            // Every requested artifact/companion pair is staged, validated and
+            // published before the executable itself becomes visible. A failed
+            // pair therefore never produces a certified-looking install, and a
+            // sidecar can never be left bound to bytes this report did not write.
+            if self.pcc_requests.psi {
+                let psi_bytes = artifact.psi_artifact().to_bytes();
+                let psi_sidecar = terminal_codec::build_psi_proof_sidecar(
+                    artifact.psi_artifact(),
+                    &self.terminal_admission_profile,
+                    &psi_bytes,
+                )
+                .map_err(|error| format!("cannot build the psi proof sidecar: {error}"))?;
+                let psi_sidecar_bytes = psi_sidecar.to_bytes();
+                validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
+                let psi_path = appended_file_name_path(&output_path, ".psi");
+                publish_exact_file_bytes(&psi_path, &psi_bytes)?;
+                let psi_sidecar_path = appended_file_name_path(&psi_path, ".proof");
+                publish_exact_file_bytes(&psi_sidecar_path, &psi_sidecar_bytes)?;
+                pcc_publications.push(PccPublicationReceipt {
+                    product: terminal_codec::PccProductKind::Psi,
+                    artifact_path: psi_path,
+                    artifact_byte_len: psi_bytes.len() as u64,
+                    sidecar_path: psi_sidecar_path,
+                    sidecar_byte_len: psi_sidecar_bytes.len() as u64,
+                });
+            }
+            publish_exact_executable_bytes(&output_path, &output.bytes)?;
+            output_path
+        };
+
         let certificate_digest = native_publication_certificate_digest(
             &native_artifact_identity,
             artifact.semantic_bytes(),
@@ -772,6 +873,10 @@ impl CompileReport {
             pcc_requests: self.pcc_requests,
             terminal_admission_profile: self.terminal_admission_profile,
             pcc_publications,
+            application_name: self.application_name,
+            application_intent: self.application_intent,
+            application_identifier: self.application_identifier,
+            package_publication,
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("published native report failed custody replay".to_owned());
@@ -858,6 +963,10 @@ impl CompileReport {
             pcc_requests: self.pcc_requests,
             terminal_admission_profile: self.terminal_admission_profile,
             pcc_publications,
+            application_name: self.application_name,
+            application_intent: self.application_intent,
+            application_identifier: self.application_identifier,
+            package_publication: None,
         })
     }
 
@@ -930,6 +1039,46 @@ impl CompileReport {
         self
     }
 
+    /// Retain the authored application name, hosted intent, and identifier
+    /// with a retained native artifact. Publication uses the name for the
+    /// `.app` basename and inner executable leaf, the intent to select
+    /// whole-package versus flat output, and the identifier for
+    /// `CFBundleIdentifier` — checked against the CodeDirectory identity
+    /// already bound into the signed bytes. Only a retained-native report
+    /// can carry them.
+    pub fn with_application_metadata(
+        mut self,
+        application_name: Option<String>,
+        application_intent: Option<build_evaluation::HostedApplicationIntent>,
+        application_identifier: Option<build_evaluation::ApplicationIdentifier>,
+    ) -> Result<Self, &'static str> {
+        if self.output_kind != CompileOutputKind::RetainedNativeArtifact {
+            return Err("application publication metadata requires a retained native artifact");
+        }
+        self.application_name = application_name;
+        self.application_intent = application_intent;
+        self.application_identifier = application_identifier;
+        self.has_consistent_executable_publication_custody()
+            .then_some(self)
+            .ok_or("application publication metadata left inconsistent report custody")
+    }
+
+    /// The retained authored `builder.application` name, when the build
+    /// declared an application role.
+    pub fn application_name(&self) -> Option<&str> {
+        self.application_name.as_deref()
+    }
+
+    /// The retained authored hosted intent.
+    pub const fn application_intent(&self) -> Option<build_evaluation::HostedApplicationIntent> {
+        self.application_intent
+    }
+
+    /// The retained authored application identifier.
+    pub const fn application_identifier(&self) -> Option<&build_evaluation::ApplicationIdentifier> {
+        self.application_identifier.as_ref()
+    }
+
     /// The normalized Build's two independent optional proof-product
     /// requests retained on this report.
     pub const fn pcc_requests(&self) -> build_evaluation::PccRequests {
@@ -985,6 +1134,10 @@ impl CompileReport {
             pcc_requests: build_evaluation::PccRequests::default(),
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             pcc_publications: Vec::new(),
+            application_name: None,
+            application_intent: None,
+            application_identifier: None,
+            package_publication: None,
         };
         report
             .has_consistent_executable_publication_custody()
@@ -1049,8 +1202,10 @@ impl CompileReport {
     }
 
     /// Returns the exact installed flat executable only after independently
-    /// replaying the complete report custody checks. Object/check-only reports
-    /// and any internally drifted receipt graph fail closed.
+    /// replaying the complete report custody checks. For a published macOS
+    /// package this is the inner `Contents/MacOS/<name>` path — the checked
+    /// package root is [`Self::checked_native_package_path`]. Object/check-only
+    /// reports and any internally drifted receipt graph fail closed.
     pub fn checked_native_executable_path(&self) -> Option<&std::path::Path> {
         if self.output_kind != CompileOutputKind::NativeExecutable
             || !self.has_consistent_executable_publication_custody()
@@ -1060,6 +1215,27 @@ impl CompileReport {
         self.executable_publication
             .as_ref()
             .map(ExecutablePublicationReceipt::output_path)
+    }
+
+    /// Returns the installed `.app` package root only after independently
+    /// replaying the complete report custody checks, including the
+    /// package/executable cross-binding. Flat publications, non-executable
+    /// reports, and any drifted receipt graph expose no path at all.
+    pub fn checked_native_package_path(&self) -> Option<&std::path::Path> {
+        if self.output_kind != CompileOutputKind::NativeExecutable
+            || !self.has_consistent_executable_publication_custody()
+        {
+            return None;
+        }
+        self.package_publication
+            .as_ref()
+            .map(package::NativePackagePublicationReceipt::package_root)
+    }
+
+    /// The checked package receipt for a published `.app`, when this report
+    /// installed one.
+    pub fn package_publication(&self) -> Option<&package::NativePackagePublicationReceipt> {
+        self.package_publication.as_ref()
     }
 
     /// Replays exact output-product cardinality. A retained native artifact is
@@ -1111,6 +1287,7 @@ impl CompileReport {
                     && self.artifact.is_none()
                     && self.retained_native_artifact.is_none()
                     && self.executable_publication.is_none()
+                    && self.package_publication.is_none()
             }
             CompileOutputKind::TerminalArtifact => {
                 !self.wrote_output
@@ -1120,6 +1297,7 @@ impl CompileReport {
                         .as_ref()
                         .is_some_and(|artifact| artifact.validate().is_ok())
                     && self.executable_publication.is_none()
+                    && self.package_publication.is_none()
                     && self.production_manifest.as_ref().is_none_or(|manifest| {
                         self.artifact
                             .as_ref()
@@ -1144,6 +1322,7 @@ impl CompileReport {
                         .as_ref()
                         .is_some_and(|artifact| artifact.validate().is_ok())
                     && self.executable_publication.is_none()
+                    && self.package_publication.is_none()
                     && self.production_manifest.as_ref().is_none_or(|manifest| {
                         self.retained_native_artifact
                             .as_ref()
@@ -1157,6 +1336,21 @@ impl CompileReport {
                     && self.executable_publication.as_ref().is_some_and(|receipt| {
                         receipt.has_consistent_installation_identity()
                     })
+                    && self.package_publication.as_ref().is_none_or(|package| {
+                        package.has_consistent_package_identity()
+                            && self.executable_publication.as_ref().is_some_and(|receipt| {
+                                package.inner_executable_path().as_deref()
+                                    == Some(receipt.output_path())
+                                    && package.executable_container_digest()
+                                        == receipt.container_digest()
+                                    && package.executable_byte_count()
+                                        == receipt.container_byte_count()
+                            })
+                            && self.application_name.as_deref()
+                                == Some(package.application_name())
+                            && self.application_identifier.as_ref()
+                                == Some(package.application_identifier())
+                    })
                     && self.production_manifest.as_ref().is_none_or(|manifest| {
                         matches!(manifest.artifact(), ProductionArtifactIdentity::Native(identity)
                             if self.executable_publication.as_ref().is_some_and(|receipt| receipt.native_artifact_identity() == identity.as_bytes()))
@@ -1167,6 +1361,7 @@ impl CompileReport {
                     && self.artifact.is_none()
                     && self.retained_native_artifact.is_none()
                     && self.executable_publication.is_none()
+                    && self.package_publication.is_none()
             }
         }
     }
@@ -1183,7 +1378,7 @@ impl CompileReport {
 
 #[cfg(test)]
 mod tests {
-    use super::{CompileOutputKind, CompileReport, ExecutablePublicationReceipt};
+    use super::{CompileOutputKind, CompileReport, ExecutablePublicationReceipt, package};
 
     fn function_validation_digest(
         final_text_validation_report_fingerprint: u64,
@@ -1262,6 +1457,10 @@ mod tests {
             pcc_requests: build_evaluation::PccRequests::default(),
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             pcc_publications: Vec::new(),
+            application_name: None,
+            application_intent: None,
+            application_identifier: None,
+            package_publication: None,
         }
     }
 
@@ -1449,5 +1648,128 @@ mod tests {
         assert_eq!(retained.root_path(), std::path::Path::new("Main/main.omg"));
         assert_eq!(retained.output_kind(), CompileOutputKind::NativeExecutable);
         assert_eq!(retained.executable_publication(), Some(&flat));
+    }
+
+    /// One structurally valid package receipt whose inner executable
+    /// component is bound to `exe` custody by construction. The receipt is
+    /// self-consistent; report custody decides whether it also matches the
+    /// executable receipt it claims to contain.
+    fn package_receipt(
+        root: &str,
+        executable_container_digest: super::ExecutableContainerDigest,
+        executable_byte_count: usize,
+    ) -> package::NativePackagePublicationReceipt {
+        package::NativePackagePublicationReceipt::new(
+            root.into(),
+            "window-app".to_owned(),
+            build_evaluation::ApplicationIdentifier::new(b"com.omega.window-app")
+                .expect("valid identifier"),
+            executable_container_digest,
+            executable_byte_count,
+            vec![
+                package::PackagePublicationComponent {
+                    relative_path: "Contents/Info.plist".into(),
+                    byte_count: 4,
+                    digest: package::PackageComponentDigest::from_digest([3; 32]),
+                },
+                package::PackagePublicationComponent {
+                    relative_path: "Contents/MacOS/window-app".into(),
+                    byte_count: executable_byte_count,
+                    digest: package::PackageComponentDigest::from_digest([7; 32]),
+                },
+            ],
+        )
+    }
+
+    #[test]
+    fn package_publication_rejects_custody_join_drift() {
+        let inner = "build/window-app.app/Contents/MacOS/window-app";
+        let flat = receipt(inner);
+        // The exe receipt's container commitment is [7;32] over 6 bytes; the
+        // matching package repeats that exact commitment.
+        let package = package_receipt(
+            "build/window-app.app",
+            super::ExecutableContainerDigest::from_digest([7; 32]),
+            6,
+        );
+        let mut published = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+        );
+        published.package_publication = Some(package);
+        published.application_name = Some("window-app".to_owned());
+        published.application_identifier =
+            Some(build_evaluation::ApplicationIdentifier::new(b"com.omega.window-app").unwrap());
+        published.application_intent = Some(build_evaluation::HostedApplicationIntent::Gui);
+        assert!(published.has_consistent_executable_publication_custody());
+        assert_eq!(
+            published.checked_native_package_path(),
+            Some(std::path::Path::new("build/window-app.app")),
+        );
+        assert_eq!(
+            published.checked_native_executable_path(),
+            Some(std::path::Path::new(inner)),
+        );
+
+        // A package root that does not contain the receipt's inner executable
+        // fails the structural join.
+        let mut wrong_root = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+        );
+        wrong_root.package_publication = Some(package_receipt(
+            "build/other-app.app",
+            super::ExecutableContainerDigest::from_digest([7; 32]),
+            6,
+        ));
+        wrong_root.application_name = Some("window-app".to_owned());
+        wrong_root.application_identifier =
+            Some(build_evaluation::ApplicationIdentifier::new(b"com.omega.window-app").unwrap());
+        assert!(!wrong_root.has_consistent_executable_publication_custody());
+        assert!(wrong_root.checked_native_package_path().is_none());
+        assert!(wrong_root.checked_native_executable_path().is_none());
+
+        // An executable commitment that disagrees with the executable
+        // receipt's container digest fails the join.
+        let mut wrong_container = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+        );
+        wrong_container.package_publication = Some(package_receipt(
+            "build/window-app.app",
+            super::ExecutableContainerDigest::from_digest([8; 32]),
+            6,
+        ));
+        wrong_container.application_name = Some("window-app".to_owned());
+        wrong_container.application_identifier =
+            Some(build_evaluation::ApplicationIdentifier::new(b"com.omega.window-app").unwrap());
+        assert!(!wrong_container.has_consistent_executable_publication_custody());
+        assert!(wrong_container.checked_native_package_path().is_none());
+
+        // Report-level application metadata that disagrees with the package
+        // receipt fails the join.
+        let mut wrong_metadata = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+        );
+        wrong_metadata.package_publication = Some(package_receipt(
+            "build/window-app.app",
+            super::ExecutableContainerDigest::from_digest([7; 32]),
+            6,
+        ));
+        wrong_metadata.application_name = Some("other-app".to_owned());
+        wrong_metadata.application_identifier =
+            Some(build_evaluation::ApplicationIdentifier::new(b"com.omega.window-app").unwrap());
+        assert!(!wrong_metadata.has_consistent_executable_publication_custody());
+        assert!(wrong_metadata.checked_native_package_path().is_none());
+
+        // A flat publication carries no package receipt and no package path.
+        let flat_only = report(true, CompileOutputKind::NativeExecutable, Some(flat));
+        assert!(flat_only.has_consistent_executable_publication_custody());
+        assert!(flat_only.checked_native_package_path().is_none());
     }
 }
