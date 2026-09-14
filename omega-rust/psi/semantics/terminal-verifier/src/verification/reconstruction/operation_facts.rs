@@ -13,6 +13,7 @@ use terminal_semantics::{
 use crate::ModuleError;
 
 use super::super::call_composition::compose_call_operation;
+use super::super::field_snapshots;
 use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwner};
 
 mod boolean_polarity;
@@ -56,6 +57,9 @@ pub(super) fn append_operation(
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
+    // Private crash questions retain their own entry-origin discipline. A
+    // current-value capture cannot manufacture an invocation-entry observation.
+    let capture_snapshots = matches!(purpose, OperationFactPurpose::ProofObligations);
     if matches!(operation.kind, OperationKind::EstablishRecord { .. }) {
         return record::append(module, machine, operation, axioms, operation_obligations);
     }
@@ -71,12 +75,12 @@ pub(super) fn append_operation(
     if let OperationKind::EstablishPrimitiveLocal { .. } = &operation.kind
         && let Some(result) = operation.result.structural()
     {
-        axioms.retain(|proposition| {
+        field_snapshots::retain(axioms, capture_snapshots, |proposition| {
             !crate::validation::proposition_observes_places(proposition, &[result.place])
         });
     }
     if let OperationKind::WriteOnlyPrimitiveStore { destination, .. } = &operation.kind {
-        axioms.retain(|proposition| {
+        field_snapshots::retain(axioms, capture_snapshots, |proposition| {
             !crate::validation::proposition_observes_places(proposition, &[*destination])
         });
     }
@@ -88,7 +92,7 @@ pub(super) fn append_operation(
     ) {
         match crate::validation::structural_field_store_write_path(module, machine, operation) {
             Some((root, written)) => {
-                axioms.retain(|proposition| {
+                field_snapshots::retain(axioms, capture_snapshots, |proposition| {
                     !crate::validation::proposition_observes_write(proposition, root, &written)
                 });
                 // A scalar field store fixes the exact leaf it writes: the
@@ -128,7 +132,7 @@ pub(super) fn append_operation(
                     }
                     _ => unreachable!("store kinds are matched above"),
                 };
-                axioms.retain(|proposition| {
+                field_snapshots::retain(axioms, capture_snapshots, |proposition| {
                     !crate::validation::proposition_observes_places(proposition, &[root])
                 });
             }
@@ -261,6 +265,7 @@ pub(super) fn append_operation(
         operation,
         machines,
         value_types,
+        capture_snapshots,
         axioms,
         operation_obligations,
     )? {

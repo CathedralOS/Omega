@@ -211,30 +211,38 @@ rows! {
         &["scope:dominance-order"],
         &[tv!( "verification/reconstruction/primitive_snapshots.rs")]
     );
+    SCOPE_FIELD_SNAPSHOTS => (
+        "scope:field-value-snapshots",
+        PremiseScope,
+        "live unconditional typed canonical field-to-SSA equalities before store or call invalidation, outside private crash reconstruction",
+        "affected scalar facts are re-expressed through one saved value per field without splitting connectives or growing the fact roster; remaining affected observations still expire",
+        &["scope:dominance-order", "fact:structural-effect-observation"],
+        &[tv!( "verification/field_snapshots.rs"), tv!( "verification/reconstruction/operation_facts.rs"), tv!( "verification/call_composition.rs")]
+    );
 
     // -- Write invalidation --
     INV_ESTABLISH_LOCAL => (
         "invalidation:establish-primitive-local",
         WriteInvalidation,
         "an EstablishPrimitiveLocal producing a structural result place",
-        "every proposition observing the result place is removed from the axiom set",
-        &["fact:structural-effect-observation"],
+        "every proposition still observing the result place after exact scalar capture is removed from the axiom set",
+        &["fact:structural-effect-observation", "scope:field-value-snapshots"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
     );
     INV_PRIMITIVE_STORE => (
         "invalidation:write-only-primitive-store",
         WriteInvalidation,
         "a WriteOnlyPrimitiveStore to a destination place",
-        "every proposition observing the destination is removed from the axiom set",
-        &["fact:structural-effect-observation"],
+        "every proposition still observing the destination after exact scalar capture is removed from the axiom set",
+        &["fact:structural-effect-observation", "scope:field-value-snapshots"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
     );
     INV_FIELD_STORE => (
         "invalidation:structural-field-store",
         WriteInvalidation,
         "a structural field store whose canonical write path may resolve",
-        "propositions observing the exact write are removed; an unresolvable path forgets the entire root",
-        &["scope:place-substitution"],
+        "propositions still observing the exact write after exact scalar capture are removed; an unresolvable path forgets the entire root",
+        &["scope:place-substitution", "scope:field-value-snapshots"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/structural_operations.rs")]
     );
     INV_BYTE_WRITE => (
@@ -260,7 +268,7 @@ rows! {
         CallComposition,
         "a call operation's callee signature, argument substitution, and the callee's verified contract",
         "parameter equalities, instantiated requires obligations, and imported ensures propositions composed into the caller frame",
-        &["scope:call-frame-rewrite", "formation:contract-validation"],
+        &["scope:call-frame-rewrite", "formation:contract-validation", "scope:field-value-snapshots"],
         &[tv!( "verification/call_composition.rs"), ts!( "call_composition.rs")]
     );
     COMP_CALL_ROW_VALIDATION => (

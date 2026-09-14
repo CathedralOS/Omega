@@ -16,6 +16,7 @@ use crate::{
 
 mod call_composition;
 mod evidence_provenance;
+mod field_snapshots;
 mod float_meaning_projection;
 mod proof_bundle;
 mod reconstruction;

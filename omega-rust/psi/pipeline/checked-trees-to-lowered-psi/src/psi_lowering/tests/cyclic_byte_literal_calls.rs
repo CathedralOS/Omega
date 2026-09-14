@@ -279,6 +279,146 @@ machine Main::main(&mut self) reaches Trace {
 }
 
 #[test]
+fn saved_field_value_keeps_its_proof_after_overwriting_the_field() {
+    let source = r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Main { divisor: u32; result: u32; }
+machine Main::main(&mut self) reaches Trace {
+    self.divisor = 5;
+    self.consume();
+    transition self.result == 20 { true -> passed() _ -> failed() }
+    state passed(&mut self) { Trace::write("saved"); }
+    state failed(&mut self) { Trace::write("wrong"); }
+}
+machine Main::consume(&mut self) {
+    transition self.divisor > 0 { true -> positive() _ -> done() }
+    state positive(&mut self) {
+        let saved: u32 = self.divisor;
+        self.divisor = 0;
+        self.result = 100 / saved;
+    }
+    state done(&mut self) { }
+}
+machine Main::clear(&mut self) { self.divisor = 0; }
+"#;
+    for mutating_call in [false, true] {
+        let source = if mutating_call {
+            source.replacen("        self.divisor = 0;", "        self.clear();", 1)
+        } else {
+            source.to_owned()
+        };
+        let checked = checked_source(&source);
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+            .produce_artifact()
+            .expect("a copied field value retains its pre-write nonzero proof");
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        let receiver = &entry.structural_parameters[0];
+        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            &[TerminalStructuralValue {
+                opaque_identity: 1,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+        )
+        .expect("saved-value proof independently reloads");
+        let mut meter = TerminalFuelMeter::with_allowance(1000);
+        let mut trace = ByteTrace::default();
+        assert_eq!(
+            execution
+                .resume_with_effect_handler(&mut meter, &mut trace)
+                .unwrap(),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert_eq!(trace.0, [b"saved".to_vec()]);
+        // Moving the saved read after the write/call leaves a structurally
+        // valid program, but its old nonzero certificate must no longer check.
+        let mut late_read = module.clone();
+        let block = late_read
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .find(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::ExactIntegerDivide { .. }
+                    )
+                })
+            })
+            .unwrap();
+        let right = block
+            .operations
+            .iter()
+            .find_map(|operation| match operation.kind {
+                terminal_psi::OperationKind::ExactIntegerDivide { right, .. } => Some(right),
+                _ => None,
+            })
+            .unwrap();
+        let read = block
+            .operations
+            .iter()
+            .position(|operation| {
+                operation
+                    .result
+                    .scalar_ref()
+                    .is_some_and(|result| result.id == right)
+            })
+            .unwrap();
+        assert!(matches!(
+            block.operations[read].kind,
+            terminal_psi::OperationKind::IntegerStructuralField { .. }
+        ));
+        let captured = block.operations.remove(read);
+        let division = block
+            .operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::ExactIntegerDivide { .. }
+                )
+            })
+            .unwrap();
+        block.operations.insert(division, captured);
+        terminal_verifier::validate_module(&late_read)
+            .expect("late read still has valid types and dominance");
+        let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+        assert!(
+            terminal_verifier::verify_module(
+                &late_read,
+                &proof,
+                &proof_admission::AdmissionProfile::default()
+            )
+            .is_err(),
+            "the saved-value certificate cannot justify a post-mutation read"
+        );
+    }
+    let reread = source.replace("100 / saved", "100 / self.divisor");
+    let tokens = super::Lexer::new(&reread).tokenize().unwrap();
+    let syntax = super::parse_syntax_trees(&tokens).unwrap();
+    let resolved = super::lower_syntax_trees(&syntax).unwrap();
+    let typed = super::lower_symbol_resolved_trees(&resolved).unwrap();
+    let Err(diagnostics) = super::lower_typed_trees(typed) else {
+        panic!("a new read cannot inherit the saved value's bound");
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("division by zero"))
+    );
+}
+
+#[test]
 fn incompatible_integer_guards_keep_the_dead_operation_checked() {
     let source = r#"
 boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }

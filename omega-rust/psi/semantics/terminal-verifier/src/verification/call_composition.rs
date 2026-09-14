@@ -27,6 +27,7 @@ pub(super) fn compose_call_operation(
     operation: &Operation,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     value_types: &BTreeMap<ValueId, ScalarType>,
+    capture_snapshots: bool,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<bool, ModuleError> {
@@ -147,7 +148,13 @@ pub(super) fn compose_call_operation(
                     canonical_certificate: false,
                 });
             }
-            invalidate_mutated_arguments(module, machine, axioms, structural_arguments);
+            invalidate_mutated_arguments(
+                module,
+                machine,
+                axioms,
+                structural_arguments,
+                capture_snapshots,
+            );
             for guarantee in &callee.contract.ensures {
                 push_unique(axioms, substitute(&guarantee.proposition));
             }
@@ -175,6 +182,7 @@ pub(super) fn compose_call_operation(
                 structural_arguments,
                 requirement_obligations,
                 value_types,
+                capture_snapshots,
                 axioms,
                 operation_obligations,
             )?;
@@ -253,6 +261,7 @@ pub(super) fn compose_call_operation(
                 std::slice::from_ref(&selection.source),
                 requirement_obligations,
                 value_types,
+                capture_snapshots,
                 axioms,
                 operation_obligations,
             )?;
@@ -378,7 +387,13 @@ pub(super) fn compose_call_operation(
                     canonical_certificate: false,
                 });
             }
-            invalidate_mutated_arguments(module, machine, axioms, structural_arguments);
+            invalidate_mutated_arguments(
+                module,
+                machine,
+                axioms,
+                structural_arguments,
+                capture_snapshots,
+            );
             for guarantee in &callee.contract.ensures {
                 push_unique(axioms, instantiate(&guarantee.proposition));
             }
@@ -412,7 +427,13 @@ pub(super) fn compose_call_operation(
                 ..
             },
         ) => {
-            invalidate_mutated_arguments(module, machine, axioms, structural_arguments);
+            invalidate_mutated_arguments(
+                module,
+                machine,
+                axioms,
+                structural_arguments,
+                capture_snapshots,
+            );
         }
         _ => {
             return Err(ModuleError::OperationSemanticSchema(
@@ -435,6 +456,7 @@ fn compose_structural_scalar_call(
     structural_arguments: &[terminal_psi::StructuralArgument],
     requirement_obligations: &[semantic_vocabulary::ObligationId],
     value_types: &BTreeMap<ValueId, ScalarType>,
+    capture_snapshots: bool,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
@@ -483,7 +505,13 @@ fn compose_structural_scalar_call(
             canonical_certificate: false,
         });
     }
-    invalidate_mutated_arguments(module, machine, axioms, structural_arguments);
+    invalidate_mutated_arguments(
+        module,
+        machine,
+        axioms,
+        structural_arguments,
+        capture_snapshots,
+    );
     for guarantee in &callee.contract.ensures {
         push_unique(axioms, substitute(&guarantee.proposition));
     }
@@ -573,6 +601,7 @@ fn invalidate_mutated_arguments(
     machine: &TerminalMachine,
     axioms: &mut Vec<Proposition>,
     arguments: &[StructuralArgument],
+    capture_snapshots: bool,
 ) {
     let mut written = arguments
         .iter()
@@ -609,7 +638,7 @@ fn invalidate_mutated_arguments(
         .map(|argument| argument.place)
         .collect::<Vec<_>>();
     if !written.is_empty() || !consumed.is_empty() {
-        axioms.retain(|proposition| {
+        super::field_snapshots::retain(axioms, capture_snapshots, |proposition| {
             (written.is_empty()
                 || !crate::validation::proposition_observes_places(proposition, &written))
                 && (consumed.is_empty()
