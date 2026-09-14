@@ -5,6 +5,8 @@
 //! sum. Opaque same-stack leaves enter only through an exact admitted
 //! contribution; a provider-stack or new-activation transfer contributes no
 //! child frame to this stack and therefore has no edge in this graph.
+//! Projections spelled `wcsu` carry the worst-case stack usage (WCSU) that the
+//! storage contract defines.
 
 use crate::{
     AdmittedStackContributionReportId, SameStackContributionAdmissionReceiptId, StackPlan,
