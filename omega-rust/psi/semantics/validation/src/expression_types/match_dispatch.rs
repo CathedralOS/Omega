@@ -305,12 +305,22 @@ fn projected_plain_owned_source(
                         program,
                         root_reference,
                     )
-                    && program.statement_table.statements(state.statement_nodes).iter().any(
+                    && (program.statement_table.statements(state.statement_nodes).iter().any(
                         |statement| {
                             matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
                                 if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
                         },
-                    );
+                    ) || program.state_parameters(state).iter().any(|parameter| {
+                        // An immutable owned parameter is a live root
+                        // established at state entry: the moved child keeps
+                        // its exact path on the transfer while the residual
+                        // complement dies on the selected edge, exactly as a
+                        // local root does.
+                        parameter.symbol == path.symbol
+                            && !parameter.is_self
+                            && !parameter.is_const
+                            && !parameter.is_mutable
+                    }));
             }
             // A call's structural product is its own once-evaluated owned
             // root: the declared return type carries the affine custody whose
