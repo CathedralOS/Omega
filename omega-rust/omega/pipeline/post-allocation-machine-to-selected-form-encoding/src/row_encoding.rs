@@ -14,12 +14,15 @@ use super::{
     SelectedFormMachineDisposition,
 };
 
+mod route;
 mod scalar_call;
 
 #[cfg(test)]
 mod narrow_load_tests;
 #[cfg(test)]
 mod tests;
+
+use route::{HostedChannel, RowRoute};
 
 pub(super) fn encode_row(
     target: NativeTarget,
@@ -28,126 +31,51 @@ pub(super) fn encode_row(
     physical: &ValidatedPhysicalRegisterModel,
     address: Option<machine_code::ResolvedPhysicalAddress>,
 ) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
-    let architecture = target.architecture;
     let alternative = machine.alternative.key;
-    let state = match selected.kind {
-        kind @ (SelectedInstructionKind::Store { .. }
-        | SelectedInstructionKind::AddressOffset { .. }
-        | SelectedInstructionKind::Load64 { .. }
-        | SelectedInstructionKind::LoadPacked { .. }
-        | SelectedInstructionKind::StorePacked { .. }
-        | SelectedInstructionKind::Load8 { .. }
-        | SelectedInstructionKind::Load16 { .. }
-        | SelectedInstructionKind::Load32 { .. }
-        | SelectedInstructionKind::HostedWriteByteI32 { .. }
-        | SelectedInstructionKind::HostedReadByte { .. }
-        | SelectedInstructionKind::Load8Indexed
-        | SelectedInstructionKind::Store64 { .. }
-        | SelectedInstructionKind::FrameAddress { .. }) => {
+    let route = route::route_of(selected.kind);
+    let state = match route {
+        RowRoute::ResolvedAddress { operation, channel } => {
+            // The declared route binds both the address's presence and its
+            // symbolic operation family: a missing address, or one naming a
+            // family the kind does not declare, is malformed input rather
+            // than an encoding choice.
             let address = address.ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-            let views = machine
-                .operands
-                .iter()
-                .map(|operand| operand.view)
-                .collect::<Vec<_>>();
-            if architecture == Architecture::Aarch64 {
-                let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
-                {
-                    isa_aarch64::encode_aarch64_selected_hosted_write_byte_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        address.displacement,
-                    )
-                } else if matches!(kind, SelectedInstructionKind::HostedReadByte { .. }) {
-                    isa_aarch64::encode_aarch64_selected_hosted_read_byte_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        address.displacement,
-                    )
-                } else {
-                    isa_aarch64::encode_aarch64_selected_memory_form(
-                        physical,
-                        kind,
-                        alternative,
-                        &views,
-                        address.displacement,
-                    )
-                }
-                .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
-                let footprint = encoded.footprint();
-                validate_operand_footprint(
-                    selected.id,
-                    machine,
-                    &footprint.encoded,
-                    &footprint.register_reads,
-                    &footprint.register_writes,
-                )?;
-                if footprint.encoded != machine.alternative.encoded {
-                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-                }
-                validate_size(selected.id, machine.alternative.size, encoded.bytes().len())?;
-                SelectedFormEncodingState::Encoded {
-                    bytes: encoded.bytes().to_vec(),
-                    footprint: Box::new(SelectedFormDecodedFootprint {
-                        register_reads: footprint.register_reads.clone(),
-                        register_writes: footprint.register_writes.clone(),
-                        implicit_defs: footprint.encoded.implicit_unit_defs.clone(),
-                        implicit_clobbers: footprint.encoded.implicit_unit_clobbers.clone(),
-                        encoded: footprint.encoded.clone(),
-                    }),
-                }
-            } else {
-                let encode = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. }) {
-                    isa_x86_64::encode_x86_64_selected_hosted_write_byte_form
-                } else if matches!(kind, SelectedInstructionKind::HostedReadByte { .. }) {
-                    isa_x86_64::encode_x86_64_selected_hosted_read_byte_form
-                } else {
-                    isa_x86_64::encode_x86_64_selected_memory_form
-                };
-                let encoded = encode(physical, kind, alternative, &views, address.displacement)
-                    .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
-                let footprint = encoded.footprint();
-                validate_operand_footprint(
-                    selected.id,
-                    machine,
-                    &footprint.encoded,
-                    &footprint.register_reads,
-                    &footprint.register_writes,
-                )?;
-                if footprint.encoded != machine.alternative.encoded {
-                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-                }
-                validate_size(selected.id, machine.alternative.size, encoded.bytes().len())?;
-                SelectedFormEncodingState::Encoded {
-                    bytes: encoded.bytes().to_vec(),
-                    footprint: Box::new(SelectedFormDecodedFootprint {
-                        register_reads: footprint.register_reads.clone(),
-                        register_writes: footprint.register_writes.clone(),
-                        implicit_defs: footprint.encoded.implicit_unit_defs.clone(),
-                        implicit_clobbers: footprint.encoded.implicit_unit_clobbers.clone(),
-                        encoded: footprint.encoded.clone(),
-                    }),
-                }
+            if !operation.admits(address.symbolic) {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
+            encode_address_routed(
+                target,
+                selected.id,
+                selected.kind,
+                channel,
+                alternative,
+                machine,
+                physical,
+                address,
+            )?
+        }
+        RowRoute::InternalCallTemplate => {
+            reject_unrouted_address(address)?;
+            scalar_call::encode(target, selected.id, selected.kind, machine, physical)?
+        }
+        RowRoute::DeferredControlFlow => {
+            reject_unrouted_address(address)?;
+            SelectedFormEncodingState::DeferredControl {
+                reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
             }
         }
-        kind @ (SelectedInstructionKind::CallScalar { .. }
-        | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallAggregate { .. }) => {
-            scalar_call::encode(target, selected.id, kind, machine, physical)?
+        RowRoute::Ordinary { channel } => {
+            reject_unrouted_address(address)?;
+            encode_scalar(
+                target,
+                selected.id,
+                selected.kind,
+                channel,
+                alternative,
+                machine,
+                physical,
+            )?
         }
-        SelectedInstructionKind::ConditionalBranchNonZero
-        | SelectedInstructionKind::ConditionalBranchU64LessThan
-        | SelectedInstructionKind::ConditionalBranchI64LessThan
-        | SelectedInstructionKind::Jump => SelectedFormEncodingState::DeferredControl {
-            reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
-        },
-        kind => encode_scalar(target, selected.id, kind, alternative, machine, physical)?,
     };
     Ok(SelectedFormEncodingRow {
         instruction: selected.id,
@@ -158,10 +86,142 @@ pub(super) fn encode_row(
     })
 }
 
+/// Routes declaring no address operation reject a resolved address on the
+/// machine row: presence would attach frame geometry to a row whose selected
+/// kind never asked for one.
+fn reject_unrouted_address(
+    address: Option<machine_code::ResolvedPhysicalAddress>,
+) -> Result<(), OptimizedSelectedFormEncodingError> {
+    if address.is_some() {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn encode_address_routed(
+    target: NativeTarget,
+    instruction: SelectedInstructionId,
+    kind: SelectedInstructionKind,
+    channel: HostedChannel,
+    alternative: MachineAlternativeKey,
+    machine: &PostAllocationMachineInstruction,
+    physical: &ValidatedPhysicalRegisterModel,
+    address: machine_code::ResolvedPhysicalAddress,
+) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
+    let views = machine
+        .operands
+        .iter()
+        .map(|operand| operand.view)
+        .collect::<Vec<_>>();
+    let displacement = address.displacement;
+    let (bytes, reads, writes, encoded_effects) = match target.architecture {
+        Architecture::X86_64 => {
+            let encoded = match channel {
+                HostedChannel::None => isa_x86_64::encode_x86_64_selected_memory_form(
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                    displacement,
+                ),
+                HostedChannel::WriteByteI32 => {
+                    isa_x86_64::encode_x86_64_selected_hosted_write_byte_form(
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                        displacement,
+                    )
+                }
+                HostedChannel::ReadByte => {
+                    isa_x86_64::encode_x86_64_selected_hosted_read_byte_form(
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                        displacement,
+                    )
+                }
+                // The exit channel is declared only on ordinary routes.
+                HostedChannel::ExitProcessI32 => {
+                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                }
+            }
+            .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
+            (
+                encoded.bytes().to_vec(),
+                encoded.footprint().register_reads.clone(),
+                encoded.footprint().register_writes.clone(),
+                encoded.footprint().encoded.clone(),
+            )
+        }
+        Architecture::Aarch64 => {
+            let encoded = match channel {
+                HostedChannel::None => isa_aarch64::encode_aarch64_selected_memory_form(
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                    displacement,
+                ),
+                HostedChannel::WriteByteI32 => {
+                    isa_aarch64::encode_aarch64_selected_hosted_write_byte_form(
+                        target,
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                        displacement,
+                    )
+                }
+                HostedChannel::ReadByte => {
+                    isa_aarch64::encode_aarch64_selected_hosted_read_byte_form(
+                        target,
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                        displacement,
+                    )
+                }
+                // The exit channel is declared only on ordinary routes.
+                HostedChannel::ExitProcessI32 => {
+                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                }
+            }
+            .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+            (
+                encoded.bytes().to_vec(),
+                encoded.footprint().register_reads.clone(),
+                encoded.footprint().register_writes.clone(),
+                encoded.footprint().encoded.clone(),
+            )
+        }
+    };
+    validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
+    if encoded_effects != machine.alternative.encoded {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    validate_size(instruction, machine.alternative.size, bytes.len())?;
+    Ok(SelectedFormEncodingState::Encoded {
+        bytes,
+        footprint: Box::new(SelectedFormDecodedFootprint {
+            register_reads: reads,
+            register_writes: writes,
+            implicit_defs: encoded_effects.implicit_unit_defs.clone(),
+            implicit_clobbers: encoded_effects.implicit_unit_clobbers.clone(),
+            encoded: encoded_effects,
+        }),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
 fn encode_scalar(
     target: NativeTarget,
     instruction: SelectedInstructionId,
     kind: SelectedInstructionKind,
+    channel: HostedChannel,
     alternative: MachineAlternativeKey,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
@@ -173,16 +233,23 @@ fn encode_scalar(
         .collect::<Vec<_>>();
     let (bytes, reads, writes, encoded_effects) = match target.architecture {
         Architecture::X86_64 => {
-            let encoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
-                isa_x86_64::encode_x86_64_selected_hosted_exit_process_form(
-                    target,
-                    physical,
-                    kind,
-                    alternative,
-                    &views,
-                )
-            } else {
-                encode_x86_64_selected_form(physical, kind, alternative, &views)
+            let encoded = match channel {
+                HostedChannel::ExitProcessI32 => {
+                    isa_x86_64::encode_x86_64_selected_hosted_exit_process_form(
+                        target,
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                    )
+                }
+                HostedChannel::None => {
+                    encode_x86_64_selected_form(physical, kind, alternative, &views)
+                }
+                // Byte channels are declared only on resolved-address routes.
+                HostedChannel::WriteByteI32 | HostedChannel::ReadByte => {
+                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                }
             }
             .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
             (
@@ -193,16 +260,23 @@ fn encode_scalar(
             )
         }
         Architecture::Aarch64 => {
-            let encoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
-                isa_aarch64::encode_aarch64_selected_hosted_exit_process_form(
-                    target,
-                    physical,
-                    kind,
-                    alternative,
-                    &views,
-                )
-            } else {
-                encode_aarch64_selected_form(physical, kind, alternative, &views)
+            let encoded = match channel {
+                HostedChannel::ExitProcessI32 => {
+                    isa_aarch64::encode_aarch64_selected_hosted_exit_process_form(
+                        target,
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                    )
+                }
+                HostedChannel::None => {
+                    encode_aarch64_selected_form(physical, kind, alternative, &views)
+                }
+                // Byte channels are declared only on resolved-address routes.
+                HostedChannel::WriteByteI32 | HostedChannel::ReadByte => {
+                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                }
             }
             .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
             (

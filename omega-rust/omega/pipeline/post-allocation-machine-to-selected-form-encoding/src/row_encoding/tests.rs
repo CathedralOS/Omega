@@ -1,5 +1,7 @@
 use isa_x86_64::x86_64_physical_register_model;
-use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
+use physical_instructions::{
+    PhysicalAddressOperation, PhysicalOperandFootprint, PostAllocationMachineInstruction,
+};
 use register_model::{
     RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
@@ -103,6 +105,63 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
         unreachable!()
     };
     bytes[0] ^= 1;
+    assert!(
+        crate::validation::row::validate(target, &selected, &machine, &physical, &changed).is_err()
+    );
+}
+
+/// Ordinary routes declare no address operation: a resolved address on such a
+/// machine row is malformed input in the producer and a contradiction in the
+/// independent replay, even when the address equation is self-consistent.
+#[test]
+fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
+    let (physical, selected, machine) = fixture();
+    let target = target::NativeTarget::linux_x64();
+    let unrouted = Some(machine_code::ResolvedPhysicalAddress {
+        symbolic: PhysicalAddressOperation::Load64 {
+            base_operand: 0,
+            byte_offset: 0,
+        },
+        displacement: 0,
+    });
+    assert!(matches!(
+        encode_row(target, &selected, &machine, &physical, unrouted),
+        Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
+    ));
+    let row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let mut changed = row;
+    changed.address = unrouted;
+    assert!(
+        crate::validation::row::validate(target, &selected, &machine, &physical, &changed).is_err()
+    );
+}
+
+/// Deferred control rows own no bytes and no address: attaching a resolved
+/// address rejects in the producer and in the independent replay.
+#[test]
+fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
+    let (physical, mut selected, machine) = fixture();
+    selected.kind = SelectedInstructionKind::Jump;
+    let target = target::NativeTarget::linux_x64();
+    let unrouted = Some(machine_code::ResolvedPhysicalAddress {
+        symbolic: PhysicalAddressOperation::Load64 {
+            base_operand: 0,
+            byte_offset: 0,
+        },
+        displacement: 0,
+    });
+    assert!(matches!(
+        encode_row(target, &selected, &machine, &physical, unrouted),
+        Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
+    ));
+    let row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    assert!(matches!(
+        row.state,
+        SelectedFormEncodingState::DeferredControl { .. }
+    ));
+    crate::validation::row::validate(target, &selected, &machine, &physical, &row).unwrap();
+    let mut changed = row;
+    changed.address = unrouted;
     assert!(
         crate::validation::row::validate(target, &selected, &machine, &physical, &changed).is_err()
     );
