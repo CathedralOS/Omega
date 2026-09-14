@@ -74,6 +74,11 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
         .try_reserve(candidate_by_key.len())
         .map_err(|_| ReviewOnlyCapabilityConflictError::AllocationFailed)?;
     let mut owned_budget = OwnedConflictBudget::default();
+    let dependency_paths = source_closure.dependency_paths().ok_or_else(|| {
+        ReviewOnlyCapabilityConflictError::MissingDependencyPath {
+            package: Box::new(source_closure.graph().root().clone()),
+        }
+    })?;
     for baseline_review in &baseline_by_key {
         let key = baseline_review.key();
         let Ok(candidate_index) = candidate_by_key.binary_search_by(|review| review.key().cmp(key))
@@ -86,7 +91,7 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
                 package: Box::new(key.clone()),
             });
         }
-        let dependency_path = source_closure.dependency_path(key).ok_or_else(|| {
+        let dependency_path = dependency_paths.path(key).ok_or_else(|| {
             ReviewOnlyCapabilityConflictError::MissingDependencyPath {
                 package: Box::new(key.clone()),
             }
@@ -147,7 +152,7 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
             continue;
         }
         let key = candidate_review.key();
-        let dependency_path = source_closure.dependency_path(key).ok_or_else(|| {
+        let dependency_path = dependency_paths.path(key).ok_or_else(|| {
             ReviewOnlyCapabilityConflictError::MissingDependencyPath {
                 package: Box::new(key.clone()),
             }

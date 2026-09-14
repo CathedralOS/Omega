@@ -298,6 +298,11 @@ old source no longer exists. Old and new resolutions and dependency paths remain
 separate; a removed package has no invented candidate source or path. Same-named
 packages from different source lineages do not merge.
 
+Detailed capability comparison prepares one borrowed predecessor tree for its
+candidate closure. Requested explanation paths retain shortest-path selection,
+authored-edge tie order, purpose and dependency ordinal; only final paths copy
+keys and aliases. A one-off path query still stops when its target is discovered.
+
 Root role changes retain their directional compatibility finding: package to
 application breaks dependency compatibility, while application to package
 breaks application activation. Both require a decision for the same exact root.
