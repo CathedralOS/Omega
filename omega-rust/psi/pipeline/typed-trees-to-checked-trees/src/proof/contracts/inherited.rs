@@ -81,6 +81,7 @@ pub(crate) fn append_inherited_trait_contract_facts(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     contract_facts: &mut arena::Arena<ContractProofFact>,
+    inherited_scopes: &mut arena::Arena<checked_trees::InheritedContractScope>,
     evidence_terms: &arena::Arena<CheckedEvidenceTerm>,
 ) {
     let mut visited_traits = Vec::new();
@@ -88,11 +89,16 @@ pub(crate) fn append_inherited_trait_contract_facts(
         let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {
             continue;
         };
+        let effective_arguments = program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments);
         append_trait_contract_facts_for_machine(
             program,
             machine,
             trait_definition,
+            effective_arguments,
             contract_facts,
+            inherited_scopes,
             evidence_terms,
             &mut visited_traits,
         );
@@ -103,7 +109,9 @@ fn append_trait_contract_facts_for_machine(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    effective_arguments: &[typed_trees::types::TypeReferenceHandle],
     contract_facts: &mut arena::Arena<ContractProofFact>,
+    inherited_scopes: &mut arena::Arena<checked_trees::InheritedContractScope>,
     evidence_terms: &arena::Arena<CheckedEvidenceTerm>,
     visited_traits: &mut Vec<SymbolHandle>,
 ) {
@@ -163,6 +171,16 @@ fn append_trait_contract_facts_for_machine(
                         contract.kind.clone(),
                         fact,
                     );
+                // The retained `fact` handle keeps the requirement's authored
+                // row; the scope records the exact edge arguments so semantic
+                // labels and obligations can instantiate the schema instead of
+                // guessing from display names.
+                let scope = inherited_scopes.append(checked_trees::InheritedContractScope {
+                    conformance_machine: machine.symbol,
+                    declaring_trait: trait_definition.symbol,
+                    requirement: signature.symbol,
+                    trait_arguments: effective_arguments.to_vec(),
+                });
                 contract_facts.append(ContractProofFact {
                     kind,
                     owner: ContractProofFactOwner::MachineState {
@@ -172,6 +190,7 @@ fn append_trait_contract_facts_for_machine(
                     fact,
                     evidence_term,
                     qualification_authorization,
+                    inherited_scope: Some(scope),
                 });
             }
         }
@@ -181,11 +200,27 @@ fn append_trait_contract_facts_for_machine(
         let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol) else {
             continue;
         };
+        // Parent requirements are written against this trait's own parameter
+        // telescope (for example `Reflexive<C, Relation>` inside
+        // `Equivalence<C, proposition Relation>`), so compose the authored
+        // parent arguments with this edge's concrete arguments before the
+        // parent's contract facts migrate further.
+        let parent_arguments = program
+            .type_reference_table
+            .type_reference_handles(requirement.arguments);
+        let composed_arguments = validation::compose_forwarded_trait_arguments(
+            program,
+            trait_definition,
+            effective_arguments,
+            parent_arguments,
+        );
         append_trait_contract_facts_for_machine(
             program,
             machine,
             required_trait,
+            &composed_arguments,
             contract_facts,
+            inherited_scopes,
             evidence_terms,
             visited_traits,
         );

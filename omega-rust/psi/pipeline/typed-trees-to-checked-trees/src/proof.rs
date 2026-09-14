@@ -42,6 +42,7 @@ pub(crate) fn build_proof_facts_with_operators(
 ) -> ProofFacts {
     let mut obligations = arena::Arena::with_capacity(proof_plan.obligations.len());
     let mut contract_facts = arena::Arena::with_capacity(estimated_contract_fact_capacity(program));
+    let mut inherited_contract_scopes = arena::Arena::default();
     let mut outcome_specific_guarantees = arena::Arena::default();
     let mut evidence_terms = arena::Arena::default();
 
@@ -124,6 +125,7 @@ pub(crate) fn build_proof_facts_with_operators(
             program,
             machine,
             &mut contract_facts,
+            &mut inherited_contract_scopes,
             &evidence_terms,
         );
         for (owner_symbol, _, contract) in
@@ -223,6 +225,7 @@ pub(crate) fn build_proof_facts_with_operators(
     ProofFacts::with_roots(
         obligations,
         contract_facts,
+        inherited_contract_scopes,
         outcome_specific_guarantees,
         arena::Arena::default(),
         evidence_terms,

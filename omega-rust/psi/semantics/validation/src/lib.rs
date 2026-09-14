@@ -238,8 +238,9 @@ pub use recasts::{
 pub use result_overloads::resolve_named_result_overloads;
 pub use traits::{
     DynamicConformanceSelection, DynamicDescriptorStorage, collect_dynamic_conformance_selections,
-    collect_dynamic_descriptor_storages, generic_bound_operator_requirement,
-    resolve_dynamic_call_targets, revalidate_top_level_requirement_realization,
+    collect_dynamic_descriptor_storages, compose_forwarded_trait_arguments,
+    generic_bound_operator_requirement, resolve_dynamic_call_targets,
+    revalidate_top_level_requirement_realization,
 };
 pub use type_references::normalize_open_index_expressions;
 pub use type_references::{
@@ -268,6 +269,10 @@ pub use arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use contract_entailment::integer_embedding_sources_equal;
 pub use contract_entailment::is_arm_pattern_marker;
 pub use contract_entailment::transparent_proposition_application_entailed;
+pub use contract_entailment::{
+    InheritedRequirementApplication, inherited_requirement_proposition_application,
+    inherited_requirement_proposition_label, inherited_satisfier_parameters,
+};
 pub use contract_entailment::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub use contract_entailment::{
     RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,

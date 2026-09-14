@@ -19,7 +19,8 @@ pub(super) fn append_contract_semantic_facts(
     for (contract_handle, contract) in proof.contract_facts.iter() {
         let point = contract_fact_point(program, contract);
         let place = contract_fact_place(program, facts, contract);
-        let payload = semantic_contract_payload(program, contract);
+        let mut payload = semantic_contract_payload(program, contract);
+        instantiate_inherited_contract_payload(program, proof, facts, contract, &mut payload);
         let declaration_fact = Fact {
             place,
             point,
@@ -228,6 +229,7 @@ pub(super) fn append_contract_semantic_facts(
                 fact: guarantee.fact,
                 evidence_term: row.selected_term,
                 qualification_authorization: None,
+                inherited_scope: None,
             };
             let mut payload = semantic_contract_payload(program, &contract);
             if let Some(identity) = &row.instantiated_identity {
@@ -287,8 +289,83 @@ pub(super) fn append_contract_semantic_facts(
     }
 }
 
+/// Resolve one inherited contract fact's migrated proposition endpoint: the
+/// declaring trait, its requirement signature, and the satisfying state the
+/// fact is owned by. `None` fails closed -- the fact keeps its authored schema
+/// identity rather than publishing a partial substitution.
+fn inherited_contract_scope_parts<'program>(
+    program: &'program typed_trees::TypedTrees,
+    proof: &'program ProofFacts,
+    contract: &ContractProofFact,
+) -> Option<(
+    &'program typed_trees::trait_definition::TraitDefinition,
+    &'program typed_trees::signature::StateSignature,
+    &'program typed_trees::state::State,
+    &'program checked_trees::InheritedContractScope,
+)> {
+    let scope = proof
+        .inherited_contract_scopes
+        .get(contract.inherited_scope?);
+    let trait_definition = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == scope.declaring_trait)?;
+    let requirement = program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .find(|signature| signature.symbol == scope.requirement)?;
+    let ContractProofFactOwner::MachineState { state_symbol, .. } = contract.owner else {
+        return None;
+    };
+    let satisfier_state = program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == state_symbol)
+    })?;
+    Some((trait_definition, requirement, satisfier_state, scope))
+}
+
+/// Instantiate one requirement-authored proposition fact through the exact
+/// conformance edge recorded on it. The migrated obligation keeps its
+/// obligation kind; only the endpoint family and the argument labels move from
+/// the requirement's schema onto the satisfying state's own terms.
+fn instantiate_inherited_contract_payload(
+    program: &typed_trees::TypedTrees,
+    proof: &ProofFacts,
+    facts: &mut FactPlan,
+    contract: &ContractProofFact,
+    payload: &mut FactPayload,
+) {
+    let FactPayload::ContractPropositionApplication { instantiated, .. } = payload else {
+        return;
+    };
+    let Some((trait_definition, requirement, satisfier_state, scope)) =
+        inherited_contract_scope_parts(program, proof, contract)
+    else {
+        return;
+    };
+    let typed_trees::domain::ProofFact::Proposition(application) =
+        program.proof_facts.get(contract.fact)
+    else {
+        return;
+    };
+    let Some(label) = validation::inherited_requirement_proposition_label(
+        program,
+        trait_definition,
+        requirement,
+        satisfier_state,
+        &scope.trait_arguments,
+        application,
+    ) else {
+        return;
+    };
+    *instantiated = facts.append_instantiated_expression(label);
+}
+
 fn instantiate_call_contract_payload(
     program: &typed_trees::TypedTrees,
+    proof: &ProofFacts,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     contract: &ContractProofFact,
@@ -332,6 +409,67 @@ fn instantiate_call_contract_payload(
         };
         parameters
     };
+    // A migrated fact's expressions name the requirement's parameters, not the
+    // satisfying state's. Alias the requirement's exact parameter identities
+    // onto the target parameter row so call-argument resolution stays
+    // positional; requirement arity is already validated against the target.
+    let mut alias_parameters = Vec::new();
+    let mut inherited_endpoint = None;
+    if let Some((trait_definition, requirement, satisfier_state, scope)) =
+        inherited_contract_scope_parts(program, proof, contract)
+    {
+        let required_parameters = program.state_signature_parameters(requirement);
+        // Boundary satisfiers may carry one extra leading trait-typed adapter
+        // parameter; align through the validation helper so the requirement
+        // telescope binds positionally to the satisfier's own parameter row.
+        // Arity drift fails closed, keeping the authored schema identity.
+        let Some(satisfier_parameters) = validation::inherited_satisfier_parameters(
+            program,
+            trait_definition,
+            requirement,
+            satisfier_state,
+        ) else {
+            return;
+        };
+        alias_parameters = required_parameters
+            .iter()
+            .zip(satisfier_parameters.iter())
+            .map(
+                |(required, actual)| typed_trees::signature::StateParameter {
+                    symbol: required.symbol,
+                    name: required.name.clone(),
+                    type_reference: actual.type_reference,
+                    is_const: actual.is_const,
+                    is_mutable: actual.is_mutable,
+                    is_self: actual.is_self,
+                },
+            )
+            .collect();
+        if matches!(payload, FactPayload::ContractPropositionApplication { .. }) {
+            let typed_trees::domain::ProofFact::Proposition(application) =
+                program.proof_facts.get(contract.fact)
+            else {
+                return;
+            };
+            let Some(endpoint) = validation::inherited_requirement_proposition_application(
+                program,
+                trait_definition,
+                requirement,
+                satisfier_state,
+                &scope.trait_arguments,
+                application,
+            ) else {
+                return;
+            };
+            inherited_endpoint = Some(endpoint);
+        }
+    }
+    let label_parameters: &[typed_trees::signature::StateParameter] =
+        if inherited_endpoint.is_some() || !alias_parameters.is_empty() {
+            &alias_parameters
+        } else {
+            target_parameters
+        };
     if let FactPayload::ContractBooleanExpression {
         expression,
         instantiated,
@@ -346,7 +484,7 @@ fn instantiate_call_contract_payload(
             call.caller_state_symbol,
             call.statement_index,
             &call_site,
-            target_parameters,
+            label_parameters,
             *expression,
         );
         *instantiated = facts.append_instantiated_expression(label);
@@ -355,16 +493,22 @@ fn instantiate_call_contract_payload(
     let FactPayload::ContractPropositionApplication { instantiated, .. } = payload else {
         return;
     };
-    let typed_trees::domain::ProofFact::Proposition(application) =
-        program.proof_facts.get(contract.fact)
-    else {
-        return;
+    let (application, binder_labels) = match inherited_endpoint {
+        Some(endpoint) => (endpoint.application, endpoint.binder_labels),
+        None => {
+            let typed_trees::domain::ProofFact::Proposition(application) =
+                program.proof_facts.get(contract.fact)
+            else {
+                return;
+            };
+            let binder_labels = application
+                .binder_arguments
+                .iter()
+                .map(|argument| argument.display_name())
+                .collect::<Vec<_>>();
+            (application.clone(), binder_labels)
+        }
     };
-    let binder_labels = application
-        .binder_arguments
-        .iter()
-        .map(|argument| argument.display_name())
-        .collect::<Vec<_>>();
     let argument_labels = program
         .expression_table
         .expression_handles(application.arguments)
@@ -375,13 +519,13 @@ fn instantiate_call_contract_payload(
                 call.caller_state_symbol,
                 call.statement_index,
                 &call_site,
-                target_parameters,
+                label_parameters,
                 *argument,
             )
         })
         .collect::<Vec<_>>();
     if let Some(formula) = program.normalize_proposition_application_with_labels(
-        application,
+        &application,
         &binder_labels,
         &argument_labels,
     ) {
@@ -403,7 +547,7 @@ fn append_call_semantic_contract_refs(
         let contract = proof.contract_facts.get(source_ref.fact);
         let place = instantiate_call_contract_place(program, facts, call, contract);
         let mut payload = semantic_contract_payload(program, contract);
-        instantiate_call_contract_payload(program, facts, call, contract, &mut payload);
+        instantiate_call_contract_payload(program, proof, facts, call, contract, &mut payload);
         if matches!(payload, FactPayload::ContractBooleanExpression { instantiated, .. } if !instantiated.is_valid())
         {
             // Missing call/parameter custody cannot publish a callee-local

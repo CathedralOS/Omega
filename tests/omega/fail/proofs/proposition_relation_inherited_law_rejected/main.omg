@@ -1,0 +1,25 @@
+// A satisfier whose concrete ensures proves a different proposition family
+// than the conformance edge selects still owes the instantiated law:
+// Reflexive<Carrier, related> requires related(value, value), not
+// different(value, value).
+use omega::language::core::relation;
+
+data Carrier {
+}
+
+proposition related(left: Carrier, right: Carrier);
+
+proposition different(left: Carrier, right: Carrier);
+
+machine related_reflexive(value: Carrier)
+satisfies Reflexive<Carrier, related>::reflexive
+requires different(value, value)
+ensures different(value, value)
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
