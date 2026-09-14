@@ -20,11 +20,12 @@ pub use audit::{
     triage_initial_install, triage_review_update, triage_update_without_admission_baseline,
 };
 pub use candidate::{
-    CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
+    CandidateSourcePreparation, CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, ConsumerScopedSemanticBindingReviewInput,
     PackageSourceVerificationPhase, ReviewOnlySourceConsumptionCommitment,
     ReviewedPackageProductionCandidate, SemanticBindingReview, SemanticBindingReviewCandidate,
     compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
+    compile_resolved_package_reviews_reusing,
 };
 pub use compare::{
     LockedPolicyComparisonError, PackagePolicyChangeError, PackagePolicyChangeFingerprint,

@@ -185,6 +185,14 @@ sources, executes builds, checks bindings, and accounts for its own disposable
 session. Retaining a checkpoint copies parsed storage for the discovery child;
 the final child can consume that storage. This avoids repeated base discovery,
 lexing and parsing, not final checking or all source copying.
+`CandidateSourcePreparation` moves that checkpoint store into the caller, so
+one resolved closure's unchanged packages prepare once across passes and across
+every exact target a command reviews (`review_package_change_reusing`,
+`compile_resolved_package_reviews_reusing`, and the install/update/inspect
+target loops). Slots are keyed by each package's prepared entry root, and every
+pass still runs its own custody verification, build evaluation, target
+selection, semantic bindings, and generated-source custody; only the
+binding-independent parse frontier is shared.
 Each returned package review also exposes borrowed access to its complete typed
 `PackagePolicyBaseline`, projected from that same final checked source and
 target. The closure retains at most 64 MiB in aggregate canonical policy

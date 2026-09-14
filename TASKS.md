@@ -390,19 +390,6 @@ Source inspection identified the costs below; it did not establish their share
 of whole-compilation time. Record compared inputs, work counts and timings;
 do not claim a faster compiler from a smaller helper alone.
 
-- **PACKAGE-PREPARATION-REUSE.** Measurement-gated in
-  `omega-rust/omega/packages/manager/src/review/candidate/compilation.rs` and
-  compiler source preparation. The macOS ARM64 `cli_mvp` probe at `9d9075eb61`
-  spent 46.248 ms across four source preparations in a 19.36 s route; this does
-  not justify a public parse checkpoint or persistent cache. Further
-  symbol-lookup tuning is likewise paused after failing to improve the outer
-  command. Resume only with material phase self time on a real workload.
-  Acceptance: an already-built release CLI prepares unchanged binding-independent
-  inputs once, invalidates changed source/selections, and improves whole-route
-  cost without changing findings, admission, or generated-source custody.
-  Discovery/final checking can select different std bindings; neither checked
-  results nor build effects may be reused merely because bytes match.
-
 - **CRASH-GUARD-COST.** Investigate repeated classification in
   `typed-trees-to-checked-trees/src/checks/crashes.rs` before adding caches or
   threads. At `0989d752ae` on macOS ARM64,

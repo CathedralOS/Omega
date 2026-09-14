@@ -63,6 +63,10 @@ struct SourcePreparationFixture(PathBuf);
 
 impl SourcePreparationFixture {
     fn new() -> Self {
+        Self::with_main("pub const VALUE: u32 = 7;\n")
+    }
+
+    fn with_main(main_source: &str) -> Self {
         let root = std::env::temp_dir().join(format!(
             "omega-candidate-source-preparation-{}-{}",
             std::process::id(),
@@ -74,7 +78,7 @@ impl SourcePreparationFixture {
             "machine build(builder: &mut Build) { builder.package(\"prepared-package\"); }\n",
         )
         .unwrap();
-        fs::write(root.join("package/main.omg"), "pub const VALUE: u32 = 7;\n").unwrap();
+        fs::write(root.join("package/main.omg"), main_source).unwrap();
         Self(root)
     }
 
@@ -102,18 +106,22 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
     let fixture = SourcePreparationFixture::new();
     let closure = fixture.closure();
     let exact = closure.for_exact_target(target::TargetProfile::WindowsX64);
-    let mut prepared_sources = vec![None; closure.graph().packages().len()];
+    let mut preparation = CandidateSourcePreparation::for_closure(&closure);
     let discovery = compile_pass(
         &exact,
         &fixture.0.join("discovery"),
         &[],
         None,
         TargetEntryDiscovery::Dependencies,
-        PackageSourcePreparation::Retain(&mut prepared_sources),
+        &mut preparation,
     )
     .map(|compiled| compiled.reviews)
     .expect("discovery retains immutable preparation");
-    assert!(prepared_sources.iter().all(Option::is_some));
+    assert!(preparation.slots.iter().all(Option::is_some));
+    assert_eq!(
+        preparation.fresh_preparation_count(),
+        closure.graph().packages().len()
+    );
     assert!(
         candidate_semantic_binding_inputs(&discovery)
             .unwrap()
@@ -125,23 +133,34 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &[],
         None,
         TargetEntryDiscovery::Disabled,
-        PackageSourcePreparation::Consume(&mut prepared_sources),
+        &mut preparation,
     )
     .map(|compiled| compiled.reviews)
-    .expect("final pass consumes preparation under fresh sponsors");
-    assert!(prepared_sources.iter().all(Option::is_none));
+    .expect("final pass reuses preparation under fresh sponsors");
+    assert!(preparation.slots.iter().all(Option::is_some));
+    assert_eq!(
+        preparation.fresh_preparation_count(),
+        closure.graph().packages().len(),
+        "the final pass prepared nothing fresh"
+    );
     let independent = compile_resolved_package_reviews(
         &exact,
         &fixture.0.join("independent"),
         SemanticBindingReview::Explicit(&[]),
     )
     .expect("independent reference pass");
-    let candidate = compile_resolved_package_reviews(
+    let candidate = compile_resolved_package_reviews_reusing(
         &exact,
         &fixture.0.join("candidate"),
         SemanticBindingReview::Discover,
+        &mut preparation,
     )
-    .expect("no binding returns discovery reviews");
+    .expect("a repeated candidate reuses the same preparation");
+    assert_eq!(
+        preparation.fresh_preparation_count(),
+        closure.graph().packages().len(),
+        "an unchanged repeated candidate prepared no source again"
+    );
     let reference = independent.review(closure.graph().root()).unwrap();
     for reviews in [&discovery, &consumed, &candidate] {
         let review = reviews.review(closure.graph().root()).unwrap();
@@ -171,14 +190,14 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
     let fixture = SourcePreparationFixture::new();
     let closure = fixture.closure();
     let exact = closure.for_exact_target(target::TargetProfile::WindowsX64);
-    let mut prepared_sources = vec![None; closure.graph().packages().len()];
+    let mut preparation = CandidateSourcePreparation::for_closure(&closure);
     compile_pass(
         &exact,
         &fixture.0.join("discovery"),
         &[],
         None,
         TargetEntryDiscovery::Dependencies,
-        PackageSourcePreparation::Retain(&mut prepared_sources),
+        &mut preparation,
     )
     .map(|compiled| compiled.reviews)
     .expect("discovery completes before source drift");
@@ -202,7 +221,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         &[],
         None,
         TargetEntryDiscovery::Disabled,
-        PackageSourcePreparation::Consume(&mut prepared_sources),
+        &mut preparation,
     )
     .map(|compiled| compiled.reviews);
     assert!(matches!(
@@ -212,11 +231,104 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
             ..
         })
     ));
-    assert!(prepared_sources.iter().all(Option::is_some));
+    assert!(preparation.slots.iter().all(Option::is_some));
     assert!(
         fs::read_dir(fixture.0.join("final"))
             .unwrap()
             .next()
             .is_none()
     );
+}
+
+/// The effects canary source rides the review route unchanged: one store
+/// serves repeated and cross-target candidates while custody still rejects a
+/// changed source before its retained checkpoint can be consumed.
+#[test]
+#[cfg_attr(not(unix), allow(clippy::permissions_set_readonly_false))]
+fn shared_preparation_serves_cross_target_reviews_and_still_rejects_drift() {
+    let fixture = SourcePreparationFixture::with_main(include_str!(
+        "../../../../../../../../tests/omega/pass/effects/nominal_callback_const_reach/main.omg"
+    ));
+    let closure = fixture.closure();
+    let mut preparation = CandidateSourcePreparation::for_closure(&closure);
+    let package_count = closure.graph().packages().len();
+
+    let mut references = Vec::new();
+    let mut reused = Vec::new();
+    for target in [
+        target::TargetProfile::WindowsX64,
+        target::TargetProfile::LinuxX64,
+    ] {
+        let exact = closure.for_exact_target(target);
+        references.push(
+            compile_resolved_package_reviews(
+                &exact,
+                &fixture.0.join(format!(
+                    "reference-{}",
+                    exact.target_profile().target_name()
+                )),
+                SemanticBindingReview::Discover,
+            )
+            .expect("independent reference review"),
+        );
+        reused.push(
+            compile_resolved_package_reviews_reusing(
+                &exact,
+                &fixture
+                    .0
+                    .join(format!("reused-{}", exact.target_profile().target_name())),
+                SemanticBindingReview::Discover,
+                &mut preparation,
+            )
+            .expect("cross-target review reuses prepared sources"),
+        );
+    }
+    assert_eq!(
+        preparation.fresh_preparation_count(),
+        package_count,
+        "every package prepared once across both target reviews"
+    );
+    for (reused, reference) in reused.iter().zip(&references) {
+        let review = reused.review(closure.graph().root()).unwrap();
+        let reference = reference.review(closure.graph().root()).unwrap();
+        assert_eq!(
+            review.source_consumption_commitment(),
+            reference.source_consumption_commitment()
+        );
+        assert_eq!(
+            review.canonical_review_bytes,
+            reference.canonical_review_bytes
+        );
+        assert_eq!(review.semantic_bindings(), reference.semantic_bindings());
+    }
+
+    // A changed source invalidates: custody rejects before the retained
+    // checkpoint can supply its stale parse frontier.
+    let main = closure
+        .source_root(closure.graph().root())
+        .unwrap()
+        .join("main.omg");
+    let mut permissions = fs::metadata(&main).unwrap().permissions();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        permissions.set_mode(permissions.mode() | 0o200);
+    }
+    #[cfg(not(unix))]
+    permissions.set_readonly(false);
+    fs::set_permissions(&main, permissions).unwrap();
+    fs::write(&main, "pub const VALUE: u32 = 9;\n").unwrap();
+    let result = compile_resolved_package_reviews_reusing(
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &fixture.0.join("drifted"),
+        SemanticBindingReview::Discover,
+        &mut preparation,
+    );
+    assert!(matches!(
+        result,
+        Err(CompileResolvedPackageReviewsError::SourceCustody {
+            phase: PackageSourceVerificationPhase::BeforeCompilation,
+            ..
+        })
+    ));
 }
