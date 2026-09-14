@@ -173,6 +173,17 @@ fn reconstruct_action(
             });
         }
     };
+    // The rebuild replaces the consumer's operands wholesale; an operand
+    // carrying a unit binding would silently lose it. The validator
+    // re-derives this requirement itself rather than reading the producer's
+    // declared unit-effect surface.
+    if consumer.operands.iter().any(|operand| {
+        operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
+    }) {
+        return Err(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        });
+    }
 
     Ok(LiteralFoldAction {
         block: candidate.block,
@@ -321,6 +332,13 @@ fn rebuild_function(
     fuel.extend(consumer_provenance.fuel);
     let registers = [Some(action.left), action.result];
     if registers.iter().flatten().count() != row.operands.len() {
+        return Err(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        });
+    }
+    if consumer.operands.iter().any(|operand| {
+        operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
+    }) {
         return Err(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         });

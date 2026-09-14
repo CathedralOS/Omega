@@ -70,6 +70,14 @@ pub(super) fn apply_action(
             function: function_index,
         });
     }
+    // The operand rebuild below replaces the consumer's operands wholesale;
+    // the declared unit-effect surface admits only operands whose unit
+    // bindings would not be silently dropped.
+    if !pair.rule.unit_effects().admits_consumer(consumer) {
+        return Err(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        });
+    }
     consumer.kind = rewritten_kind;
     consumer.constraint = action.immediate_constraint;
     consumer.operands = row
