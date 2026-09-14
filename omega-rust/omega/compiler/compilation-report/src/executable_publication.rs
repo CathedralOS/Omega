@@ -205,6 +205,22 @@ pub(crate) fn make_executable(_path: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Remove one companion this publication is not refreshing. The publication
+/// contract forbids associating a stale sidecar with newly written bytes, so
+/// an unrequested artifact/`.proof` pair cannot survive beside the artifact
+/// it no longer commits to. Absence is the expected common case; every other
+/// removal failure aborts publication before any new bytes are installed.
+pub(crate) fn remove_stale_companion(path: &std::path::Path) -> Result<(), String> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "failed to remove stale proof companion {}: {error}",
+            path.display()
+        )),
+    }
+}
+
 /// The adjacent `.proof`/`.psi` companion path beside `path`, formed by
 /// appending `suffix` to the complete artifact filename per the contract.
 pub(crate) fn appended_file_name_path(path: &std::path::Path, suffix: &str) -> PathBuf {
