@@ -71,7 +71,9 @@ pub(in crate::assignment::home_assignment) fn compute_function(
 /// view the most still-unassigned unconstrained partners would themselves
 /// take once this domain's home is fixed — the partner's own satisfied-edge
 /// ranking plus the edges pending here, lowest rescanned-viable view breaking
-/// ties — then the plain first candidate.
+/// ties. A constrained neighbor can never share this domain's home, so the view
+/// stealing the fewest of its already-guaranteed coalesces wins third; the
+/// plain first candidate breaks any remaining tie.
 fn preferred_view(
     function: usize,
     domain_index: usize,
@@ -172,7 +174,7 @@ fn preferred_view(
             }
         }
     }
-    let mut leading = None::<(usize, usize, RegisterViewId)>;
+    let mut leading = None::<(usize, usize, Reverse<usize>, RegisterViewId)>;
     for &view in pool {
         let mut guaranteed = 0usize;
         let mut votes = 0usize;
@@ -203,17 +205,80 @@ fn preferred_view(
                 }
             }
         }
-        if (guaranteed, votes) > (0, 0)
-            && leading.is_none_or(|(best_guaranteed, best_votes, _)| {
-                (guaranteed, votes) > (best_guaranteed, best_votes)
-            })
-        {
-            leading = Some((guaranteed, votes, view));
+        let stolen = stolen_coalesces(
+            function,
+            domain_index,
+            view,
+            &neighbor_viable,
+            unassigned,
+            &homes,
+            domains,
+            &ranges.copy_affinities,
+            ranges,
+            physical,
+        )?;
+        let rank = (guaranteed, votes, Reverse(stolen));
+        if leading.is_none_or(|(best_guaranteed, best_votes, best_stolen, _)| {
+            rank > (best_guaranteed, best_votes, best_stolen)
+        }) {
+            leading = Some((guaranteed, votes, Reverse(stolen), view));
         }
     }
     Ok(leading
-        .map(|(_, _, view)| view)
+        .map(|(_, _, _, view)| view)
         .or_else(|| pool.first().copied()))
+}
+
+fn stolen_coalesces(
+    function: usize,
+    domain_index: usize,
+    view: RegisterViewId,
+    neighbor_viable: &BTreeMap<usize, Vec<RegisterViewId>>,
+    unassigned: &[usize],
+    homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
+    domains: &[AllocationDomain<'_>],
+    affinities: &[CopyAffinity],
+    ranges: &crate::FunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<usize, RegisterHomeError> {
+    let domain = &domains[domain_index];
+    let mut stolen = 0;
+    for &neighbor in unassigned {
+        if neighbor == domain_index
+            || !domains_constrained(domain, &domains[neighbor], ranges)
+            || neighbor_viable[&neighbor].binary_search(&view).is_err()
+        {
+            continue;
+        }
+        let mut retains = false;
+        for &candidate in &neighbor_viable[&neighbor] {
+            if !candidate_conflicts(
+                function,
+                &domains[neighbor],
+                candidate,
+                &[(domain_index, view)],
+                domains,
+                ranges,
+                physical,
+            )? && candidate == view
+            {
+                retains = true;
+            }
+        }
+        if retains {
+            continue;
+        }
+        for affinity in affinities {
+            let coalesces = (domains[neighbor].contains(affinity.source)
+                && homes.get(&affinity.destination) == Some(&view))
+                || (domains[neighbor].contains(affinity.destination)
+                    && homes.get(&affinity.source) == Some(&view));
+            if coalesces {
+                stolen += 1;
+            }
+        }
+    }
+    Ok(stolen)
 }
 
 fn affinity_partner(

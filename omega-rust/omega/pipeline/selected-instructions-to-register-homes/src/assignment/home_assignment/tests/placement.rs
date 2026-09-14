@@ -297,6 +297,49 @@ fn copy_affinity_prefers_the_view_satisfying_the_most_unassigned_partners() {
 }
 
 #[test]
+fn copy_affinity_avoids_stealing_a_constrained_neighbors_guaranteed_home() {
+    let physical = physical();
+    let mut legality = legality(&[(0, 2), (1, 3), (5, 6)]);
+    set_candidates(&mut legality, 2, &[0]);
+    let mut ranges = ranges(3, &[(0, 1)]);
+    ranges.copy_affinities.push(CopyAffinity {
+        block: SelectedBlockId(0),
+        instruction: SelectedInstructionId(0),
+        source: VirtualRegisterId(2),
+        destination: VirtualRegisterId(1),
+    });
+
+    let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+    assert_eq!(
+        homes
+            .assignments
+            .iter()
+            .map(|assignment| assignment.view)
+            .collect::<Vec<_>>(),
+        vec![RegisterViewId(1), RegisterViewId(0), RegisterViewId(0)]
+    );
+    assert_eq!(
+        validate::replay_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+    assert_eq!(
+        scan_reference::compute_function(0, &legality, &ranges, &physical).unwrap(),
+        homes
+    );
+
+    let mut stolen = homes.clone();
+    stolen.assignments[0].view = RegisterViewId(0);
+    stolen.assignments[1].view = RegisterViewId(1);
+    assert!(matches!(
+        validate::validate_function(0, &stolen, &legality, &ranges, &physical),
+        Err(RegisterHomeError::VirtualRegisterMismatch {
+            function: 0,
+            register: 0,
+        })
+    ));
+}
+
+#[test]
 fn copy_affinity_prefers_the_view_satisfying_the_most_assigned_partners() {
     let physical = physical();
     // Register 0 is placed last: its single-candidate partners take views 0,
