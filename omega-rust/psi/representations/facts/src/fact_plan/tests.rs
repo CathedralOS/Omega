@@ -257,6 +257,8 @@ fn expression_places_resolve_attached_data_members() {
         type_parameters: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),
         attached_data_symbol: main_data_symbol,
+        attached_data_application: TypeReferenceHandle::invalid(),
+        generic_data_template: SymbolHandle::invalid(),
         is_public: false,
         owned_data: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
