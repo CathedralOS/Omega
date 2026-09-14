@@ -17,6 +17,7 @@ mod provider_planning;
 mod selection;
 pub mod service_schema;
 pub mod task_plans;
+pub mod x86_fma_plan_association;
 
 pub use provider_planning::*;
 pub use selection::{

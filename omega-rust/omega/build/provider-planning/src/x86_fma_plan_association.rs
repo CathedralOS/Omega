@@ -6,10 +6,10 @@
 
 use std::collections::BTreeSet;
 
+use crate::{CompilerIntrinsicExecutionIdentity, SelectedProviderReviewProvenance};
 use checked_trees::{CheckedNamedOperatorUseFact, CheckedTrees};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
-use provider_planning::{CompilerIntrinsicExecutionIdentity, SelectedProviderReviewProvenance};
 use symbols::{BuiltinFunction, SymbolHandle};
 use target::{
     AdmittedX86ScalarFmaProvider, TargetProfile, X86FeatureRequirement, X86ScalarFmaSlot,
@@ -105,7 +105,7 @@ impl CheckedX86ScalarFmaPlanAssociation {
     }
 }
 
-pub(super) fn bind_checked_x86_scalar_fma_plan_associations(
+pub fn bind_checked_x86_scalar_fma_plan_associations(
     checked: &CheckedTrees,
     selected: &effects::SelectedProviderPlanFacts,
     provenance: &[SelectedProviderReviewProvenance],
@@ -397,12 +397,10 @@ const fn slot_for_builtin(builtin: BuiltinFunction) -> Option<X86ScalarFmaSlot> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance};
     use checked_trees::CheckedProviderPlanCommitment;
     use effects::SelectedProviderPlanFacts;
     use effects::provider_plan::{ProviderPlanRow, ServiceMethod, ServiceSchema};
-    use provider_planning::{
-        ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance,
-    };
 
     fn selected_plans(
         definitions: &[(&str, BuiltinFunction)],
