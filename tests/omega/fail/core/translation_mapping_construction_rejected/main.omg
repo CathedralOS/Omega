@@ -1,0 +1,58 @@
+// Numeric page-walk validation grants no mapping authority, and the mapping
+// carrier is opaque boundary data: it has no public constructor, so source
+// cannot spell a value carrying the `Installed` state `unmap` requires --
+// only the provider's establishing routes mint it
+// (wiki/spec/resources/extents.md).
+use omega::language::core::extent;
+
+boundary data Mapping [linear];
+
+domain Mapping::Pending
+established by TranslationAuthority::map;
+
+domain Mapping::Installed
+established by TranslationAuthority::activate;
+
+boundary data Shootdown [linear];
+
+domain Shootdown::Owed;
+
+data Unmapped {
+    destination: Extent in Granted;
+    source: Extent in Granted;
+    shootdown: Shootdown in Owed;
+}
+
+boundary trait TranslationAuthority {
+    machine map(source: Extent in Granted, destination: Extent in Granted)
+        -> Mapping
+    requires
+        source.length == destination.length
+    ensures
+        result in Mapping::Pending;
+
+    machine activate(pending: Mapping in Pending) -> Mapping
+    ensures
+        result in Mapping::Installed;
+
+    machine unmap(active: Mapping in Installed) -> Unmapped;
+}
+
+machine forged_mapping_is_unqualified(authority: &TranslationAuthority)
+reaches TranslationAuthority
+{
+    // Spelling the provider-owned carrier's runtime fields is rejected
+    // outright: no forged value ever reaches `unmap`'s `Installed`
+    // requirement.
+    let forged: Mapping = Mapping {
+        root: 1,
+        invocation: 2,
+    };
+    authority.unmap(forged);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

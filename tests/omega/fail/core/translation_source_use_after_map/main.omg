@@ -1,0 +1,41 @@
+// `map` consumes both ranges' authority: the source extent cannot be used
+// again while its custody lives inside the pending mapping
+// (wiki/spec/resources/extents.md "Mapping and reclamation").
+use omega::language::core::extent;
+
+boundary data Mapping [linear];
+
+domain Mapping::Pending
+established by TranslationAuthority::map;
+
+boundary trait TranslationAuthority {
+    machine map(source: Extent in Granted, destination: Extent in Granted)
+        -> Mapping
+    requires
+        source.length == destination.length
+    ensures
+        result in Mapping::Pending;
+}
+
+machine measure(source: Extent in Granted) -> u64 {
+    source.length
+}
+
+machine map_and_touch_source(
+    authority: &TranslationAuthority,
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> u64
+requires
+    source.length == destination.length
+reaches TranslationAuthority
+{
+    let pending: Mapping in Pending = authority.map(source, destination);
+    measure(source)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

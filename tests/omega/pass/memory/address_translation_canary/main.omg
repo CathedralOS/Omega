@@ -1,0 +1,109 @@
+// ADDRESS-TRANSLATION-CANARY first slice: the mapping-authority contract the
+// numeric page-table walk lacks (wiki/spec/resources/extents.md "Mapping and
+// reclamation"). Cathedral's page-table package is the OS owner; Omega owns
+// only the general authority and checking rules this boundary exercises.
+//
+// A translation provider installs and tears down mappings over ordinary
+// extent custody. Fixed placement consumes the exact source and destination
+// extents into one linear `Mapping` carrier that is only `Pending` after
+// structural validation -- a pending mapping is not mapped access. The
+// provider's activation crossing requalifies that same carrier `Installed`;
+// only an installed mapping may be unmapped. `unmap` returns reusable
+// `Granted` custody for both ranges plus the owed cross-core shootdown
+// token -- TLB debt that must be discharged through `Shootdown::discharge`
+// before the teardown is complete. Equal-length ranges are the contract's
+// structural precondition, matching the conservation model's check.
+//
+// Nothing here grants access to the mapped range: placed access
+// (wiki/spec/resources/placed_access.md -- `Vacant`/`Resident` place/take/read
+// operations) is still undeclared, so this contract pins custody, state, and
+// ordering, not content. Borrowed-source custody and provider-visible
+// obligation sets (`TranslationInstallObligations`/`TranslationRelease-
+// Obligations` in psi/foundation/extents) remain later surfaces; this slice
+// models owned fixed placement with the shootdown as the one residual debt.
+use omega::language::core::assembly;
+use omega::language::core::extent;
+
+// Provider-owned identity of one pending or installed mapping over the exact
+// consumed extents. Opaque to source: reconstructing or requalifying it
+// outside the establishing routes below is not a spelling source can make.
+boundary data Mapping [linear];
+
+domain Mapping::Pending
+established by TranslationAuthority::map;
+
+domain Mapping::Installed
+established by TranslationAuthority::activate;
+
+// The linear cross-core invalidation debt a teardown leaves. It cannot be
+// dropped; only `discharge` consumes it.
+boundary data Shootdown [linear];
+
+domain Shootdown::Owed;
+
+// Teardown's intermediate custody: the reusable destination, the owned
+// source the mapping held, and the still-owed shootdown obligation.
+data Unmapped {
+    destination: Extent in Granted;
+    source: Extent in Granted;
+    shootdown: Shootdown in Owed;
+}
+
+// The debt-free shape after `discharge`: both ranges' authority, nothing owed.
+data Reclaimed {
+    destination: Extent in Granted;
+    source: Extent in Granted;
+}
+
+boundary trait TranslationAuthority {
+    // Structural validation only: the pending carrier holds both ranges'
+    // custody and grants no mapped access.
+    machine map(source: Extent in Granted, destination: Extent in Granted)
+        -> Mapping
+    requires
+        source.length == destination.length
+    ensures
+        result in Mapping::Pending;
+
+    // The provider receipt crossing: installed translations exist for the
+    // exact pending mapping.
+    machine activate(pending: Mapping in Pending) -> Mapping
+    ensures
+        result in Mapping::Installed;
+
+    // Stale translations are released by the provider before this returns;
+    // the cross-core shootdown debt remains the caller's to discharge.
+    machine unmap(active: Mapping in Installed) -> Unmapped;
+}
+
+boundary requirement Shootdown::discharge(self)
+reaches MachineControl
+requires
+    self in Shootdown::Owed;
+
+// The Cathedral-shaped driver: install one owned mapping, then tear it down
+// and discharge its TLB debt, recovering both ranges' authority.
+machine install_and_teardown(
+    authority: &TranslationAuthority,
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> Reclaimed
+requires
+    source.length == destination.length
+reaches TranslationAuthority + MachineControl
+{
+    let pending: Mapping in Pending = authority.map(source, destination);
+    let installed: Mapping in Installed = authority.activate(pending);
+    let unmapped: Unmapped = authority.unmap(installed);
+    let owed: Shootdown in Owed = unmapped.shootdown;
+    owed.discharge();
+    let released_destination: Extent in Granted = unmapped.destination;
+    let released_source: Extent in Granted = unmapped.source;
+    Reclaimed { destination: released_destination, source: released_source }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
