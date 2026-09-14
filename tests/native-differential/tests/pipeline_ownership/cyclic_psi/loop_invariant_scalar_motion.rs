@@ -6,12 +6,12 @@ use abstract_operations_to_abstract_operations::validation::{
     validate_transformed_psi_cycle_components, validate_transformed_psi_optimization_unit,
 };
 use abstract_operations_to_abstract_operations::{
-    apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
-    validate_loop_invariant_scalar_motion, LoopInvariantScalarMotionError,
+    LoopInvariantScalarMotionError, apply_loop_invariant_scalar_motion,
+    propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,
 };
 use optimization_unit::{
-    recompute_psi_optimization_unit_identity, ProvenanceDisposition, PsiProvenance,
-    PsiRealizationSite,
+    ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
+    recompute_psi_optimization_unit_identity,
 };
 
 const NATURAL_LOOP_SOURCE: &str = r#"
@@ -217,9 +217,11 @@ fn natural_loop_hoists_every_invariant_scalar_leaf_and_ledgers_source_custody() 
             let [component] = session.cycle_components().components() else {
                 panic!("one component")
             };
-            assert!(component
-                .members
-                .contains(&relocation.leaf().location().block));
+            assert!(
+                component
+                    .members
+                    .contains(&relocation.leaf().location().block)
+            );
             relocation.leaf().location().block
         });
     }
@@ -258,9 +260,11 @@ fn natural_loop_hoists_every_invariant_scalar_leaf_and_ledgers_source_custody() 
             Some(&PsiProvenance::Operation(relocation.leaf().psi_operation()))
         );
     }
-    assert!(propose_loop_invariant_scalar_motion(applied.session(), 1)
-        .expect("relocated session is an exact fixed point")
-        .is_empty());
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
 }
 
 #[test]
@@ -338,9 +342,11 @@ fn natural_loop_partial_relocation_normalizes_without_duplicate_ledger_rows() {
     let rows = &applied.ledger().records()[0].provenance;
     assert!(!rows.is_empty());
     assert!(rows.windows(2).all(|pair| pair[0].input < pair[1].input));
-    assert!(propose_loop_invariant_scalar_motion(applied.session(), 1)
-        .expect("normalized relocation is a fixed point")
-        .is_empty());
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("normalized relocation is a fixed point")
+            .is_empty()
+    );
 }
 
 #[test]

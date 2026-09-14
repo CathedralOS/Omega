@@ -33,18 +33,15 @@ pub(super) fn validate(
     Some(())
 }
 
-fn header(
+/// The complete call signature one source function's declarations determine:
+/// scalar parameters first in declared order, then each structural parameter's
+/// access-selected shape, then the result. Every producer of an ABI plan for
+/// this function — its own entrance or any caller's embedded call plan — must
+/// reconstruct this same signature; the physical shape alone is not authority.
+pub(super) fn signature(
     source: &AbstractFunction,
-    actual_plan: &CallPlan,
-    actual_parameters: &[TargetStructuralParameter],
-    native_target: NativeTarget,
     declarations: &[StructuralTypeDeclaration],
-) -> Option<()> {
-    if actual_parameters.len() != source.structural_parameters.len()
-        || actual_plan.parameters.len() != source.parameters.len() + actual_parameters.len()
-    {
-        return None;
-    }
+) -> Option<CallSignature> {
     let structural_shapes = source
         .structural_parameters
         .iter()
@@ -57,7 +54,7 @@ fn header(
             ))
         })
         .collect::<Option<Vec<_>>>()?;
-    let signature = CallSignature {
+    Some(CallSignature {
         parameters: source
             .parameters
             .iter()
@@ -73,7 +70,22 @@ fn header(
                 Some(structural_shapes::reconstruct(result.structural_type, declarations).ok()?)
             }
         },
-    };
+    })
+}
+
+fn header(
+    source: &AbstractFunction,
+    actual_plan: &CallPlan,
+    actual_parameters: &[TargetStructuralParameter],
+    native_target: NativeTarget,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<()> {
+    if actual_parameters.len() != source.structural_parameters.len()
+        || actual_plan.parameters.len() != source.parameters.len() + actual_parameters.len()
+    {
+        return None;
+    }
+    let signature = signature(source, declarations)?;
     let expected_plan =
         evaluate_call_plan(CallingPolicy::native_for_target(native_target), &signature).ok()?;
     if &expected_plan != actual_plan {
@@ -83,7 +95,7 @@ fn header(
         .structural_parameters
         .iter()
         .zip(actual_parameters)
-        .zip(&structural_shapes)
+        .zip(&signature.parameters[source.parameters.len()..])
         .zip(
             expected_plan
                 .parameters

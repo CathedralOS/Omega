@@ -249,6 +249,77 @@ fn projected_field_borrow_plan() -> abstract_operations::AbstractOperationPlan {
     }
 }
 
+/// The same projected-field borrow with one runtime scalar argument, so the
+/// retained call exercises the scalar prefix of the callee's plan too.
+fn projected_field_borrow_scalar_argument_plan() -> abstract_operations::AbstractOperationPlan {
+    use super::*;
+    let mut plan = projected_field_borrow_plan();
+    let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let caller_value = ValueId::new(40).unwrap();
+    plan.functions[0].parameters.push(AbstractParameter {
+        value: caller_value,
+        scalar_type: unsigned,
+    });
+    plan.functions[1].parameters.push(AbstractParameter {
+        value: ValueId::new(41).unwrap(),
+        scalar_type: unsigned,
+    });
+    for operation in &mut plan.functions[0].operations {
+        if let AbstractOperation::CallUnit { arguments, .. } = operation {
+            arguments.push(caller_value);
+        }
+    }
+    plan
+}
+
+fn mutate_call_plan(
+    target: &TargetOperationPlan,
+    f: impl Fn(&mut calling_conventions::CallPlan),
+) -> TargetOperationPlan {
+    let mut target = target.clone();
+    for function in &mut target.functions {
+        for block in &mut function.graph.blocks {
+            for operation in &mut block.operations {
+                let call_plan = match operation {
+                    TargetUnitOperation::Call { call_plan, .. }
+                    | TargetUnitOperation::StructuralScalarCall { call_plan, .. }
+                    | TargetUnitOperation::StructuralResultCall { call_plan, .. } => call_plan,
+                    _ => continue,
+                };
+                f(call_plan);
+            }
+        }
+    }
+    target
+}
+
+fn mutate_scalar_arguments(
+    target: &TargetOperationPlan,
+    f: impl Fn(&mut Vec<target_operations::TargetUnitScalarCallArgument>),
+) -> TargetOperationPlan {
+    let mut target = target.clone();
+    for function in &mut target.functions {
+        for block in &mut function.graph.blocks {
+            for operation in &mut block.operations {
+                let arguments = match operation {
+                    TargetUnitOperation::Call {
+                        scalar_arguments, ..
+                    }
+                    | TargetUnitOperation::StructuralScalarCall {
+                        scalar_arguments, ..
+                    }
+                    | TargetUnitOperation::StructuralResultCall {
+                        scalar_arguments, ..
+                    } => scalar_arguments,
+                    _ => continue,
+                };
+                f(arguments);
+            }
+        }
+    }
+    target
+}
+
 fn mutate_call_arguments(
     target: &TargetOperationPlan,
     f: impl Fn(&mut TargetStructuralArgument),
@@ -402,6 +473,102 @@ fn projected_field_borrow_rejects_substituted_home_identity() {
             crate::validate_abstract_to_target_translation(&source, native, &mutated),
             Err(expected.clone()),
             "substituted argument source"
+        );
+    }
+}
+
+#[test]
+fn projected_field_borrow_rejects_substituted_callee_plan() {
+    let source = projected_field_borrow_plan();
+    let native = NativeTarget::linux_x64();
+    let target = crate::lower_to_target_operations(&source, native).unwrap();
+    let expected =
+        crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+            machine: MachineId::new(1).unwrap(),
+            operation: OperationId::new(1).unwrap(),
+        };
+    for mutation in [
+        Box::new(|plan: &mut calling_conventions::CallPlan| {
+            plan.stack_alignment = plan.stack_alignment.wrapping_add(8);
+        }) as Box<dyn Fn(&mut calling_conventions::CallPlan)>,
+        Box::new(|plan: &mut calling_conventions::CallPlan| {
+            plan.result = Some(plan.parameters[0].clone());
+        }),
+        Box::new(|plan: &mut calling_conventions::CallPlan| {
+            plan.parameters.push(plan.parameters[0].clone());
+        }),
+        Box::new(|plan: &mut calling_conventions::CallPlan| {
+            plan.policy = calling_conventions::CallingPolicy::MicrosoftX64;
+        }),
+        Box::new(|plan: &mut calling_conventions::CallPlan| {
+            plan.shadow_bytes = plan.shadow_bytes.wrapping_add(4);
+        }),
+    ] {
+        let mutated = mutate_call_plan(&target, mutation);
+        assert_eq!(
+            crate::validate_abstract_to_target_translation(&source, native, &mutated),
+            Err(expected.clone()),
+            "embedded callee plan detail"
+        );
+    }
+}
+
+#[test]
+fn call_scalar_arguments_reject_substituted_identity_and_placement() {
+    let source = projected_field_borrow_scalar_argument_plan();
+    let native = NativeTarget::linux_x64();
+    let target = crate::lower_to_target_operations(&source, native).unwrap();
+    crate::validate_abstract_to_target_translation(&source, native, &target)
+        .expect("honest scalar argument transport");
+    let expected =
+        crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+            machine: MachineId::new(1).unwrap(),
+            operation: OperationId::new(1).unwrap(),
+        };
+    for mutation in [
+        Box::new(
+            |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
+                arguments.clear();
+            },
+        ) as Box<dyn Fn(&mut Vec<target_operations::TargetUnitScalarCallArgument>)>,
+        Box::new(
+            |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
+                arguments[0].parameter_index = 9;
+            },
+        ),
+        Box::new(
+            |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
+                arguments[0].placement.locations.clear();
+            },
+        ),
+        Box::new(
+            |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
+                let target_operations::TargetUnitScalarArgumentSource::Parameter {
+                    scalar_type,
+                    ..
+                } = arguments[0].source
+                else {
+                    panic!("caller parameter transport");
+                };
+                arguments[0].source =
+                    target_operations::TargetUnitScalarArgumentSource::Parameter {
+                        parameter_index: 0,
+                        source_value: semantic_vocabulary::ValueId::new(99).unwrap(),
+                        scalar_type,
+                    };
+            },
+        ),
+        Box::new(
+            |arguments: &mut Vec<target_operations::TargetUnitScalarCallArgument>| {
+                arguments.push(arguments[0].clone());
+            },
+        ),
+    ] {
+        let mutated = mutate_scalar_arguments(&target, mutation);
+        assert_eq!(
+            crate::validate_abstract_to_target_translation(&source, native, &mutated),
+            Err(expected.clone()),
+            "scalar argument identity"
         );
     }
 }
