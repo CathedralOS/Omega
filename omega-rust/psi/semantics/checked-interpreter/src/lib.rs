@@ -149,11 +149,13 @@ pub use value::{Cell, Value};
 
 pub use evaluation::{
     BuildIncludedSource, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
+    BuildOutputObligation, BuildOutputObligationState, BuildOutputReceipt,
     BuildTimeOperationEvaluation, CURRENT_EVALUATION_SEMANTICS, CURRENT_EVALUATION_STEP_SCHEDULE,
     CURRENT_EVALUATION_USAGE_SCHEMA, DescribedProductEntry, EvaluationObservations,
     EvaluationSemanticsIdentity, EvaluationStepScheduleIdentity, EvaluationUsage,
     EvaluationUsageSchemaIdentity, ExecutedRootBinding, InterpretOutcome,
-    MeasuredBuildMachineEvaluation, MeasuredEvaluation, PrivateLayoutPlacementReceipt,
+    MAX_BUILD_OUTPUT_OBLIGATIONS, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
+    PrivateLayoutPlacementReceipt,
 };
 pub use filesystem::{
     CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,

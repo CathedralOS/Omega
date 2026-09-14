@@ -541,6 +541,8 @@ fn evaluate_observed_arguments(
                     Vec::new(),
                     Vec::new(),
                     std::mem::take(&mut evaluator.build_log),
+                    std::mem::take(&mut evaluator.output_obligations),
+                    std::mem::take(&mut evaluator.output_receipts),
                 );
                 match result {
                     Ok(values) => {
@@ -670,6 +672,8 @@ fn evaluate_granted_arguments(
                     std::mem::take(&mut evaluator.filesystem_operation_attempts),
                     std::mem::take(&mut evaluator.build_included_sources),
                     std::mem::take(&mut evaluator.build_log),
+                    std::mem::take(&mut evaluator.output_obligations),
+                    std::mem::take(&mut evaluator.output_receipts),
                 );
                 match result {
                     Ok(values) => {

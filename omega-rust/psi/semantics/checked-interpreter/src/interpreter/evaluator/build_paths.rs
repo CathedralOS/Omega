@@ -6,7 +6,7 @@ use crate::{
 
 pub(super) const ROOTED_BUILD_PATH_TYPE: &str = "$OmegaBuildRootedPath";
 const SOURCE_ROOT_FACET_TYPE: &str = "$OmegaBuildSourceRoot";
-const OUTPUT_ROOT_FACET_TYPE: &str = "$OmegaBuildOutputRoot";
+pub(super) const OUTPUT_ROOT_FACET_TYPE: &str = "$OmegaBuildOutputRoot";
 
 impl<'program> Evaluator<'program> {
     pub(super) fn enable_rooted_build_paths_from_arguments(

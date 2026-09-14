@@ -213,6 +213,8 @@ mod tests {
             filesystem_operation_schema_version: crate::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts: vec![attempt.clone()],
             build_included_sources: Vec::new(),
+            build_output_obligations: Vec::new(),
+            build_output_receipts: Vec::new(),
             build_log: Vec::new(),
         };
         let replay =

@@ -213,6 +213,7 @@ fn summary(attempts: Vec<BuildFilesystemOperationAttempt>) -> BuildObservationSu
             BuildFilesystemReplayDisposition::SourceInputsOnly,
         ),
         included_source_handoffs: Vec::new(),
+        required_output_settlements: Vec::new(),
         staged_output_tree: None,
         build_log: Vec::new(),
     }

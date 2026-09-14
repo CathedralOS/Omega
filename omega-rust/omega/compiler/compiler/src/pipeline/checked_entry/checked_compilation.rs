@@ -135,7 +135,21 @@ impl CheckedCompilation {
     /// custody. It supplies the `.app` basename and inner executable leaf at
     /// publication; `None` for package/workspace build roles.
     pub const fn application_name(&self) -> Option<&build_declarations::ProjectName> {
-        self.execution.application_name.as_ref()
+        match self.execution.application.as_ref() {
+            Some(application) => Some(&application.name),
+            None => None,
+        }
+    }
+
+    /// The validated `builder.artifact_only()` intent retained at source
+    /// custody. `true` only for an application build that declared the
+    /// modifier; package/workspace builds and missing build roots return
+    /// `false`.
+    pub const fn application_artifact_only(&self) -> bool {
+        match self.execution.application.as_ref() {
+            Some(application) => application.artifact_only,
+            None => false,
+        }
     }
 
     /// Exact image subsystem selected by the owning build configuration.

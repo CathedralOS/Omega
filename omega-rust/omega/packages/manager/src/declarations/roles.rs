@@ -33,6 +33,10 @@ pub struct PackageDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationDeclaration {
     pub name: PackageName,
+    /// The application declared `builder.artifact_only()` in its root build
+    /// entry: the build publishes only the staged artifact set and admits no
+    /// executable route.
+    pub artifact_only: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,6 +83,7 @@ pub(crate) fn convert_shared_declaration(
         shared::BuildDeclaration::Application(declaration) => {
             BuildDeclaration::Application(ApplicationDeclaration {
                 name: convert_project_name(declaration.name),
+                artifact_only: declaration.artifact_only,
             })
         }
         shared::BuildDeclaration::Workspace(declaration) => {

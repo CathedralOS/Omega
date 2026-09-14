@@ -105,7 +105,7 @@ impl BuildEvaluationUsage {
     }
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 76;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 77;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -942,8 +942,34 @@ pub struct BuildObservationSummary {
     pub(super) captured_source_inventory: Option<BuildCapturedSourceInventory>,
     pub(super) filesystem_replay_verdict: BuildFilesystemReplayVerdict,
     pub(super) included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
+    /// Terminal settlement rows for the compiler-owned required-output
+    /// obligations issued through `BuildOutput::require`, in issue order.
+    /// Only `Completed` obligations survive settlement, so every row pairs
+    /// a declared canonical name with the sealed-attempt ordinal its
+    /// completion receipt recorded.
+    pub(super) required_output_settlements: Vec<BuildRequiredOutputSettlement>,
     pub(super) staged_output_tree: Option<BuildStagedOutputTree>,
     pub(super) build_log: Vec<u8>,
+}
+
+/// One required-output obligation settled during build evaluation. The
+/// declared canonical name is paired with the filesystem-attempt ordinal
+/// that sealed its file; the sealed bytes themselves remain inside the
+/// staged-output tree commitment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildRequiredOutputSettlement {
+    pub(super) relative_path: Vec<u8>,
+    pub(super) sealed_attempt_ordinal: u64,
+}
+
+impl BuildRequiredOutputSettlement {
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+
+    pub const fn sealed_attempt_ordinal(&self) -> u64 {
+        self.sealed_attempt_ordinal
+    }
 }
 
 /// Exact explicit publication of one retained Output file as generated Omega
@@ -1009,6 +1035,13 @@ impl BuildObservationSummary {
     /// retained output files are absent.
     pub fn included_source_handoffs(&self) -> &[BuildIncludedSourceHandoff] {
         &self.included_source_handoffs
+    }
+
+    /// Ordered required-output settlement rows in `require` issue order.
+    /// Names here completed their linear obligation; files present only in
+    /// the staged tree are ordinary outputs, not completed obligations.
+    pub fn required_output_settlements(&self) -> &[BuildRequiredOutputSettlement] {
+        &self.required_output_settlements
     }
 
     /// One versioned disposition over the compiler's replay of this summary.
