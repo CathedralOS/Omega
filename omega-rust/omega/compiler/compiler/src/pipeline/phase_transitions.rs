@@ -35,7 +35,7 @@ pub(super) struct SelectedExecutionSettlementSurface {
     pub(super) accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub(super) contract_entailment_stand_downs: Vec<validation::ContractEntailmentStandDown>,
     pub(super) selected_provider_provenance:
-        Vec<crate::pipeline::provider_plans::SelectedProviderReviewProvenance>,
+        Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub(super) resolved_semantic_bindings: Vec<selected_dispatch::ResolvedAcceptedSemanticBinding>,
     pub(super) component_progress: Option<effects::ComponentProgressManifest>,
     pub(super) task_activations: task_plans::TaskActivationPlanSet,
@@ -43,11 +43,11 @@ pub(super) struct SelectedExecutionSettlementSurface {
 
 pub(super) struct SelectedExecutionSettlementInput<'a> {
     pub(super) exact_component_progress_root:
-        Option<crate::pipeline::component_progress::ExactComponentProgressRoot<'a>>,
+        Option<provider_planning::component_progress::ExactComponentProgressRoot<'a>>,
     pub(super) provider_selection_target: target::NativeTarget,
     pub(super) selected_target_profile: Option<target::TargetProfile>,
     pub(super) selected_provider_provenance:
-        Vec<crate::pipeline::provider_plans::SelectedProviderReviewProvenance>,
+        Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub(super) opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
     pub(super) accepted_console_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
@@ -65,7 +65,7 @@ pub(super) struct TypedToCheckedSettlementInput<'a> {
     pub(super) package_inputs: Option<&'a crate::pipeline::PackageCompilationInputs>,
     pub(super) selected_build_machine: Option<symbols::SymbolHandle>,
     pub(super) boundary_calling_plan_realizations:
-        &'a mut [crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization],
+        &'a mut [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub(super) opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
     pub(super) provider_plans: &'a [effects::provider_plan::ProviderPlan],
@@ -168,15 +168,15 @@ pub(super) fn typed_trees_to_checked_trees(
                 &opaque_property_receipts,
             )?
         };
-        crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;
+        provider_planning::approval::check_boundary_provider_approval(&program)?;
         if let Some(package_inputs) = settlement.package_inputs {
-            crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
+            crate::pipeline::package::declaration_admission::validate_authored_declaration_selections(
                 &program,
                 package_inputs,
             )?;
         }
         if let Some(native_target) = settlement.native_target {
-            crate::pipeline::calling_policy_plans::close_outbound_callback_materializations(
+            provider_planning::calling_policy_plans::close_outbound_callback_materializations(
                 &mut program,
                 settlement.boundary_calling_plan_realizations,
                 native_target,
@@ -185,13 +185,13 @@ pub(super) fn typed_trees_to_checked_trees(
             )?;
         }
         let callback_placements =
-            crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
+            provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(
                 &program,
                 settlement.boundary_calling_plan_realizations,
             )?;
         let program = Arc::new(program);
         let selected_provider_binding =
-            crate::pipeline::provider_plans::bind_selected_provider_plan_facts(
+            provider_planning::bind_selected_provider_plan_facts(
                 &program,
                 settlement.provider_plans,
                 settlement.selected_provider_plan_facts,
@@ -282,7 +282,7 @@ pub(super) fn settle_selected_execution(
     mut settlement: SelectedExecutionSettlementInput<'_>,
 ) -> Result<SelectedExecutionSettlementSurface, Vec<Diagnostic>> {
     let component_progress =
-        crate::pipeline::component_progress::build_selected_component_progress_manifest(
+        provider_planning::component_progress::build_selected_component_progress_manifest(
             &checked.program,
             &checked.selected_provider_plan_facts,
             settlement.exact_component_progress_root,
@@ -315,7 +315,7 @@ pub(super) fn settle_selected_execution(
         .selected_target_profile
         .map(|profile| profile.program_entry_slot())
         .and_then(|slot| slot.physical_contract_package)
-        .map(crate::pipeline::build_config::program_entry_semantic_binding_role);
+        .map(build_evaluation::program_entry_semantic_binding_role);
     let resolved_entry_binding = match (settlement.accepted_entry_binding, expected_entry_role) {
         (None, _) => None,
         (Some(binding), Some(role)) if binding.role() == role => Some(
@@ -333,7 +333,7 @@ pub(super) fn settle_selected_execution(
         &mut checked.program,
         &checked.selected_provider_plan_facts,
     )?;
-    let task_activations = crate::pipeline::task_plans::elaborate_task_activation_plans(
+    let task_activations = provider_planning::task_plans::elaborate_task_activation_plans(
         &checked.program,
         &checked.selected_provider_plan_facts,
         settlement.provider_selection_target,
@@ -368,7 +368,7 @@ pub(super) fn typed_trees_to_preliminary_checked_trees(
 ) -> Result<Arc<CheckedProgram>, Vec<Diagnostic>> {
     timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
         let program = typed_trees_to_checked_trees::lower_preliminary_typed_trees(typed)?;
-        crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;
+        provider_planning::approval::check_boundary_provider_approval(&program)?;
         Ok(Arc::new(program))
     })
 }

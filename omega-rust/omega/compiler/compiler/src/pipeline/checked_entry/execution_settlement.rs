@@ -44,9 +44,8 @@ pub(super) struct CheckedExecution {
         provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
     pub(super) external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
     pub(super) root_grants: Vec<String>,
-    pub(super) build_evaluation_usage: Option<crate::pipeline::build_config::BuildEvaluationUsage>,
-    pub(super) build_observation_summary:
-        Option<crate::pipeline::build_config::BuildObservationSummary>,
+    pub(super) build_evaluation_usage: Option<build_evaluation::BuildEvaluationUsage>,
+    pub(super) build_observation_summary: Option<build_evaluation::BuildObservationSummary>,
 }
 
 pub(super) fn check_selected_execution(
@@ -73,7 +72,7 @@ pub(super) fn check_selected_execution(
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
     let mut boundary_calling_plan_realizations =
-        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(
+        provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &mut typed,
             selected_native_target,
             &build_config.opaque_representation_selections,
@@ -103,8 +102,8 @@ pub(super) fn check_selected_execution(
     let program_entry_binding_role = selected_target_profile
         .map(|profile| profile.program_entry_slot())
         .and_then(|slot| slot.physical_contract_package)
-        .map(crate::pipeline::build_config::program_entry_semantic_binding_role);
-    let mut selected_program_entry = crate::pipeline::build_config::select_compiler_program_entry(
+        .map(build_evaluation::program_entry_semantic_binding_role);
+    let mut selected_program_entry = build_evaluation::select_compiler_program_entry(
         &typed,
         &build_config,
         selected_target_profile,
@@ -113,13 +112,13 @@ pub(super) fn check_selected_execution(
             program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
         }),
     )?;
-    let crate::pipeline::provider_selection::CheckedProviderSelection {
+    let crate::pipeline::provider::selection::CheckedProviderSelection {
         provider_plans,
         evaluated_via_bindings,
         selected_provider_plan_facts,
         selected_provider_provenance,
         external_binding_rows,
-    } = crate::pipeline::provider_selection::settle_checked_providers(
+    } = crate::pipeline::provider::selection::settle_checked_providers(
         &mut typed,
         selected_target_machine_declarations,
         selected_target_profile,
@@ -183,7 +182,7 @@ pub(super) fn check_selected_execution(
         package_inputs,
     )?;
     if let Some(package_inputs) = package_inputs {
-        crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
+        crate::pipeline::package::declaration_admission::validate_authored_declaration_selections(
             &checked.program,
             package_inputs,
         )?;
@@ -215,7 +214,7 @@ pub(super) fn check_selected_execution(
     )?;
     let exact_component_progress_root = selected_program_entry.as_ref().map(|entry| {
         let source = entry.source_signature();
-        crate::pipeline::component_progress::ExactComponentProgressRoot::new(
+        provider_planning::component_progress::ExactComponentProgressRoot::new(
             source.machine_symbol(),
             source.normalized_callable_identity(),
         )

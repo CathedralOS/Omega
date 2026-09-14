@@ -1,27 +1,21 @@
+//! Compilation pipeline stages, in route order beneath [`checked_entry`]:
+//! source assembly and the frontend, package declaration admission, provider
+//! selection over the selected target machines, optimization, phase
+//! transitions, artifacts, and reporting.
+
 mod artifacts;
 mod build_scope;
-pub(crate) use build_evaluation as build_config;
-pub(crate) use build_evaluation as build_replay_record;
-pub(crate) use provider_planning::calling_policy_plans;
 pub(crate) mod checked_entry;
-pub(crate) use provider_planning::component_progress;
 pub mod frontend;
 mod optimization;
-#[path = "package/declaration_admission.rs"]
-mod package_declaration_admission;
+mod package;
 mod phase_transitions;
 mod project;
-#[path = "provider/selection.rs"]
-mod provider_selection;
+mod provider;
 pub(crate) mod reporting;
-pub(crate) use provider_planning as provider_plans;
-pub(crate) use provider_planning::approval as provider_approval;
 pub mod source;
 mod source_assembly;
 mod stage;
-#[path = "provider/target_machines.rs"]
-mod target_machines;
-pub(crate) use provider_planning::task_plans;
 mod timing;
 pub(crate) mod x86_fma_plan_association;
 

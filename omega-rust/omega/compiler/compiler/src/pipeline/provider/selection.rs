@@ -1,5 +1,5 @@
-use super::PackageCompilationInputs;
-use super::target_machines::SelectedTargetMachineDeclarations;
+use crate::pipeline::PackageCompilationInputs;
+use crate::pipeline::provider::target_machines::SelectedTargetMachineDeclarations;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
@@ -11,18 +11,18 @@ use typed_trees::TypedTrees;
 
 /// Final typed provider choices and their evidence, retained for checking and
 /// selected execution. Candidate plans stay separate from selected plan facts.
-pub(super) struct CheckedProviderSelection {
-    pub(super) provider_plans: Vec<ProviderPlan>,
-    pub(super) evaluated_via_bindings: EvaluatedViaBindingTable,
-    pub(super) selected_provider_plan_facts: SelectedProviderPlanFacts,
-    pub(super) selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
-    pub(super) external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
+pub(in crate::pipeline) struct CheckedProviderSelection {
+    pub(in crate::pipeline) provider_plans: Vec<ProviderPlan>,
+    pub(in crate::pipeline) evaluated_via_bindings: EvaluatedViaBindingTable,
+    pub(in crate::pipeline) selected_provider_plan_facts: SelectedProviderPlanFacts,
+    pub(in crate::pipeline) selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
+    pub(in crate::pipeline) external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
 }
 
 /// Settle the final authored/generated target roster, validate and select its
 /// provider candidates, then bind fused erasure and exact invocation evidence.
 /// This must precede deferred const evaluation and typed-to-checked settlement.
-pub(super) fn settle_checked_providers(
+pub(in crate::pipeline) fn settle_checked_providers(
     typed: &mut TypedTrees,
     selected_target_machine_declarations: SelectedTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
@@ -47,7 +47,7 @@ pub(super) fn settle_checked_providers(
         package_inputs,
     )?;
     let derived_provider_plans =
-        crate::pipeline::provider_plans::derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
+        provider_planning::derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
             typed,
             target_name,
             &evaluated_via_bindings,
@@ -57,7 +57,7 @@ pub(super) fn settle_checked_providers(
         .iter()
         .map(|derived| derived.plan.clone())
         .collect::<Vec<_>>();
-    let diagnostics = crate::pipeline::provider_plans::validate_derived_provider_plan_candidates(
+    let diagnostics = provider_planning::validate_derived_provider_plan_candidates(
         typed,
         &evaluated_via_bindings,
         &derived_provider_plans,
@@ -65,13 +65,12 @@ pub(super) fn settle_checked_providers(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let selected_provider_plans =
-        crate::pipeline::provider_plans::select_provider_plans_with_provenance(
-            &derived_provider_plans,
-            provider_selection_target,
-            &target_provider_defaults,
-            build_provider_selections,
-        )?;
+    let selected_provider_plans = provider_planning::select_provider_plans_with_provenance(
+        &derived_provider_plans,
+        provider_selection_target,
+        &target_provider_defaults,
+        build_provider_selections,
+    )?;
     let mut fused_service_erasures = Vec::new();
     for selected in &selected_provider_plans {
         let composition_mode = selected
@@ -102,7 +101,7 @@ pub(super) fn settle_checked_providers(
         .iter()
         .map(|selected| selected.derived.plan.clone())
         .collect::<Vec<_>>();
-    crate::pipeline::provider_plans::validate_selected_synchronous_invocation_cycles(
+    provider_planning::validate_selected_synchronous_invocation_cycles(
         typed,
         &selected_semantic_plans,
     )?;
@@ -115,7 +114,7 @@ pub(super) fn settle_checked_providers(
         opaque_representation_selections,
     )?;
     let (selected_provider_plan_facts, selected_provider_provenance) =
-        crate::pipeline::provider_plans::selected_provider_plan_facts_with_provenance(
+        provider_planning::selected_provider_plan_facts_with_provenance(
             typed,
             &evaluated_via_bindings,
             selected_provider_plans,

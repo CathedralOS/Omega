@@ -36,7 +36,7 @@ pub(super) fn admit(
             "native-artifact production requires one exact selected native target",
         )]
     })?;
-    crate::pipeline::component_progress::reject_undischarged_build_bound_progress(
+    provider_planning::component_progress::reject_undischarged_build_bound_progress(
         checked.component_progress(),
     )?;
     selected_dispatch::validate_selected_operator_terminal_custody(

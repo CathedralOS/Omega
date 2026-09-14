@@ -112,7 +112,7 @@ impl SelectedTargetMachineDeclarations {
                 )));
                 continue;
             };
-            match super::build_config::harvest_provider_selections(typed, machine) {
+            match build_evaluation::harvest_provider_selections(typed, machine) {
                 Ok(mut machine_defaults) => defaults.append(&mut machine_defaults),
                 Err(mut errors) => diagnostics.append(&mut errors),
             }
