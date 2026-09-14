@@ -66,6 +66,32 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
    commit the outcomes file with the manifest so closure and ACU-per-closure
    stay measurable across waves.
 
+## Local worktree status
+
+Cloud `status`/`report` only see Devin sessions through their receipts. Local
+waves run in plain git worktrees (for example `.codex/worktrees/<wave>-<task>`)
+and produce no receipts, so `worktree_status.py` gives them the same
+visibility: each worktree's branch, uncommitted churn, ahead/behind against
+`origin/main`, whether its head already landed, the live claims-registry
+assignment matched by owner name (including `item_on_board` for board claims),
+and the landing queue's state — plus claims held by owners with no local
+worktree (cloud sessions, other machines). It is read-only.
+
+```sh
+python3 tools/swarm/worktree_status.py            # one JSON object
+python3 tools/swarm/worktree_status.py --markdown # report table
+python3 tools/swarm/worktree_status.py --offline  # local git state only
+```
+
+```powershell
+python tools/swarm/worktree_status.py
+```
+
+`--base <ref>` changes the ahead/behind and landed baseline (default
+`origin/main`); `--remote` and `--repository` match `claims.py`. Unreachable
+registries degrade to `unavailable` in the record rather than failing the
+run; `--offline` skips them deliberately.
+
 ## Coordinator selection rules
 
 Prioritize immediate customer outcomes within the requested scope, not the ease
