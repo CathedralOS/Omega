@@ -1723,9 +1723,15 @@ Owners include
   admits candidate sources interleaved with other live affine owners: edge
   arguments bind the join frontier positionally and the shared cleanup roster
   splices residual and pass-through parameters per row in establishment
-  order (`pass/expressions/owned_match_interleaved_values`, macOS). Remaining
-  existing-local joins need residual transport across authored states;
-  preserve exact origins and actual death edges.
+  order (`pass/expressions/owned_match_interleaved_values`, macOS).
+  `06b6da61d6` carries that same roster across authored state joins: each
+  ordinary successor partitions residual custody per edge through the shared
+  source-run splice, transfer sources resolve rebound frontier places, and
+  the checker's state-exit locals accept the receipt-backed destination
+  (`pass/expressions/owned_match_authored_state`, macOS). Remaining: owned
+  call arms and record fields moving existing affine children still need
+  their exact residual transport; preserve exact origins and actual death
+  edges.
   Owners: `validation/src/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
   canonical package-review contract/index projection. Preserve a once-evaluated
