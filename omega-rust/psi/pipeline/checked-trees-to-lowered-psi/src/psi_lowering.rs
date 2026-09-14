@@ -663,6 +663,12 @@ enum LoweredDirectExpression {
         source: PlaceId,
         scalar_type: ScalarType,
     },
+    ByteSequenceFieldLength {
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: StructuralFieldId,
+        scalar_type: ScalarType,
+    },
     ByteSequenceRead {
         source: PlaceId,
         index: Box<LoweredDirectExpression>,
@@ -743,6 +749,7 @@ impl LoweredDirectExpression {
             | Self::PrimitiveRead { scalar_type, .. }
             | Self::StructuralField { scalar_type, .. }
             | Self::ByteSequenceLength { scalar_type, .. }
+            | Self::ByteSequenceFieldLength { scalar_type, .. }
             | Self::ByteSequenceRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }

@@ -2153,6 +2153,7 @@ fn lowered_direct_scalar_term(
             return unsupported("runtime field read requires an occurrence-bound crash predicate");
         }
         LoweredDirectExpression::ByteSequenceLength { .. }
+        | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. } => {
             return unsupported("byte observation has no retained crash predicate term");
         }

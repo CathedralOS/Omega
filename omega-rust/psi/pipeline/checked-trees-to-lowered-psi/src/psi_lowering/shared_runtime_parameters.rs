@@ -430,7 +430,8 @@ fn shared_integer_runtime_parameters_with_shells(
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
-        | LoweredDirectExpression::ByteSequenceLength { .. } => None,
+        | LoweredDirectExpression::ByteSequenceLength { .. }
+        | LoweredDirectExpression::ByteSequenceFieldLength { .. } => None,
         LoweredDirectExpression::Parameter {
             position,
             scalar_type,

@@ -113,8 +113,8 @@ fn guarded_byte_tail_retains_full_source_and_authored_endpoint_positions() {
             }
         ),
         Some(CheckedScalarExpression::StructuralParameterByteLength {
-            parameter_position: 0
-        })
+            parameter_position: 0, path
+        }) if path.is_empty()
     ));
     assert!(
         bindings

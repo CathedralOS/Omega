@@ -7,6 +7,94 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceNode;
 
+fn byte_length_fixture(source: &str) -> (TypedTrees, ExpressionHandle) {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let ExpressionNode::Binary(relation) =
+        program.expression_table.expression(requirement(&program))
+    else {
+        panic!("length requirement");
+    };
+    let length = relation.left;
+    (program, length)
+}
+
+#[test]
+fn byte_field_length_retains_exact_path_and_rejects_wrong_members() {
+    let (program, length) = byte_length_fixture(
+        "domain [u8; 16]::Utf8 requires valid_utf8(self);
+         data Input { text: [u8; 16] in Utf8; }
+         data Other { text: [u8; 16] in Utf8; }
+         machine Input::measure(&mut self) -> u64
+         requires self.text.len == 0 { 0 }",
+    );
+    let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+    assert!(matches!(
+        super::structural_byte_length(&program, parameters, length),
+        Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+            parameter_position: 0, path,
+        }) if path == [CheckedStructuralPredicatePathSegment::Field("text".into())]
+    ));
+    let DataMember::Field(foreign) = &program.data_members(&program.data_definitions()[1])[0]
+    else {
+        panic!("foreign text field");
+    };
+    let ExpressionNode::Member(member) = program.expression_table.expression(length) else {
+        panic!("length member");
+    };
+    let receiver = member.receiver;
+    for target in [length, receiver] {
+        let mut invalid = program.clone();
+        let ExpressionNode::Member(member) = invalid.expression_table.expression_mut(target) else {
+            panic!("selected member");
+        };
+        member.member_symbol = foreign.symbol;
+        assert!(super::structural_byte_length(&invalid, parameters, length).is_none());
+    }
+    let mut wrong_spelling = program.clone();
+    let ExpressionNode::Member(member) = wrong_spelling.expression_table.expression_mut(length)
+    else {
+        panic!("length member");
+    };
+    member.member = "capacity".into();
+    assert!(super::structural_byte_length(&wrong_spelling, parameters, length).is_none());
+}
+
+#[test]
+fn byte_length_keeps_whole_views_distinct_from_field_carriers() {
+    for access in ["&", "&mut "] {
+        let (program, length) = byte_length_fixture(&format!(
+            "machine measure(input: {access}[u8]) -> u64 requires input.len == 0 {{ 0 }}"
+        ));
+        let parameters =
+            program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+        assert!(matches!(
+            super::structural_byte_length(&program, parameters, length),
+            Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+                parameter_position: 0, path,
+            }) if path.is_empty()
+        ));
+    }
+    for field_type in ["[u8; 16]", "u64", "NamedLength"] {
+        let (program, length) = byte_length_fixture(&format!(
+            "data NamedLength {{ len: u64; }}
+             data Input {{ text: {field_type}; }}
+             machine measure(input: &Input) -> u64 requires input.text.len == 0 {{ 0 }}"
+        ));
+        let parameters =
+            program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+        assert!(
+            super::structural_byte_length(&program, parameters, length).is_none(),
+            "raw arrays, nonbytes and nominal len fields are not bounded byte carriers"
+        );
+    }
+}
+
 #[test]
 fn boolean_field_value_rejoins_the_exact_declared_root_and_path() {
     let program = fixture();

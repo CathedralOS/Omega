@@ -5,7 +5,7 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
-pub(super) fn whole_byte_view_length(
+pub(super) fn structural_byte_length(
     program: &TypedTrees,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -19,38 +19,47 @@ pub(super) fn whole_byte_view_length(
     {
         return None;
     }
-    let place = crate::flow::canonical_place_from_expression(program, member.receiver)?;
-    if !place.segments.is_empty() {
-        return None;
-    }
-    let facts::PlaceRoot::Symbol(symbol) =
-        crate::flow::normalized_event_place_root(program, place.root)
-    else {
-        return None;
-    };
-    let parameter_position = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)?;
+    let (parameter_position, path, selected_type) =
+        structural_parameter_place(program, parameters, member.receiver)?;
     let TypeReferenceNode::Reference {
         referee,
         access: language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
         ..
-    } = program
-        .type_reference_table
-        .type_reference(parameters[parameter_position].type_reference)
+    } = program.type_reference_table.type_reference(
+        parameters
+            .get(usize::try_from(parameter_position).ok()?)?
+            .type_reference,
+    )
     else {
         return None;
     };
-    let TypeReferenceNode::Slice { element_type } =
-        program.type_reference_table.type_reference(*referee)
-    else {
-        return None;
-    };
-    if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
+    if path.is_empty() {
+        let TypeReferenceNode::Slice { element_type } =
+            program.type_reference_table.type_reference(*referee)
+        else {
+            return None;
+        };
+        if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
+            return None;
+        }
+    } else if !matches!(
+        path.last(),
+        Some(CheckedStructuralPredicatePathSegment::Field(_))
+    ) || path
+        .iter()
+        .any(|segment| matches!(segment, CheckedStructuralPredicatePathSegment::Case(_)))
+        // The shared carrier classifier distinguishes a bounded byte field's
+        // live length from a raw fixed array's static capacity.
+        || !matches!(
+            crate::flow::byte_sequence_carrier(program, selected_type, &[]),
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+        )
+    {
         return None;
     }
     Some(CheckedScalarExpression::StructuralParameterByteLength {
-        parameter_position: u32::try_from(parameter_position).ok()?,
+        parameter_position,
+        path,
     })
 }
 

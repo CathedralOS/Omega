@@ -859,6 +859,25 @@ pub(super) fn emit_direct_expression(
         LoweredDirectExpression::ByteSequenceLength { source, .. } => {
             emit_byte_length(*source, next_value_identity, operations)
         }
+        LoweredDirectExpression::ByteSequenceFieldLength {
+            source,
+            path,
+            field,
+            scalar_type,
+        } => {
+            // Field length is live storage metadata, not a whole-view extent.
+            // Emit at this occurrence; replacement and calls can change it.
+            emit_scalar_leaf(
+                OperationKind::StructuralByteSequenceFieldLength {
+                    source: *source,
+                    path: path.clone(),
+                    field: *field,
+                },
+                *scalar_type,
+                next_value_identity,
+                operations,
+            )
+        }
         LoweredDirectExpression::ByteSequenceRead {
             source,
             index,
