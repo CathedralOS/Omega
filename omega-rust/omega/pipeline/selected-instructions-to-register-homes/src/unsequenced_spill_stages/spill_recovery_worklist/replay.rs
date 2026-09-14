@@ -31,7 +31,7 @@ pub(super) fn replay(
     budget: OptimizationWorkBudget,
 ) -> Result<SpillRecoveryWorklistPlan, SpillRecoveryWorklistError> {
     admit_replay_policy(reload_home_policy, policy)?;
-    let trigger = match crate::assignment::reload_value_homes::replay::replay(
+    let trigger = match crate::unsequenced_spill_stages::reload_value_homes::replay::replay(
         insertion,
         logical,
         legality,

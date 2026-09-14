@@ -1,57 +1,17 @@
 //! Optimizer module role: stage group. Register homes for admitted selected-program facts.
+//!
+//! Every module here is sequenced by
+//! `crate::register_allocation::stage_register_allocation`: `transformed`
+//! homes after a completed selected-lowering run, the optional `recovery`
+//! rules, `runtime_spill` pressure recovery, `baseline` homes over the direct
+//! `home_assignment`, and the `post_allocation_manifest` every route
+//! publishes. The crate root re-exports each owner's public names by module.
+//! Spill boundaries that route does not yet call live in
+//! `crate::unsequenced_spill_stages`.
 
-mod baseline;
-mod current;
-mod recovery;
-pub(crate) mod runtime_spill;
-mod transformed;
-
-pub use baseline::*;
-pub use current::{RegisterAllocationError, stage_register_allocation};
-pub use recovery::{
-    stage_active_resident_register_allocation, stage_fixed_view_register_allocation,
-};
-pub use runtime_spill::RuntimeSpillAllocationError;
-pub use transformed::*;
-
-pub(crate) mod abstract_spill_access_constraints;
-pub(crate) mod abstract_spill_insertion;
-pub(crate) mod abstract_spill_memory_effects;
-pub(crate) mod generalized_reload_value_homes;
-pub(crate) mod generalized_spill_insertion;
-pub(crate) mod generalized_spill_recovery_actions;
-pub(crate) mod generalized_spill_recovery_choice;
-pub(crate) mod generalized_spill_recovery_worklist;
+pub(crate) mod baseline;
 pub(crate) mod home_assignment;
-pub(crate) mod logical_spill_operations;
-mod post_allocation_manifest;
-pub(crate) mod recursive_reload_value_homes;
-pub(crate) mod recursive_spill_insertion;
-pub(crate) mod reload_value_homes;
-pub(crate) mod spill_pseudo_instructions;
-pub(crate) mod spill_recovery_actions;
-pub(crate) mod spill_recovery_choice;
-pub(crate) mod spill_recovery_worklist;
-pub(crate) mod stack_slot_coloring;
-pub(crate) mod synthetic_reload_values;
-
-pub use abstract_spill_access_constraints::*;
-pub use abstract_spill_insertion::*;
-pub use abstract_spill_memory_effects::*;
-pub use generalized_reload_value_homes::*;
-pub use generalized_spill_insertion::*;
-pub use generalized_spill_recovery_actions::*;
-pub use generalized_spill_recovery_choice::*;
-pub use generalized_spill_recovery_worklist::*;
-pub use home_assignment::*;
-pub use logical_spill_operations::*;
-pub use post_allocation_manifest::*;
-pub use recursive_reload_value_homes::*;
-pub use recursive_spill_insertion::*;
-pub use reload_value_homes::*;
-pub use spill_pseudo_instructions::*;
-pub use spill_recovery_actions::*;
-pub use spill_recovery_choice::*;
-pub use spill_recovery_worklist::*;
-pub use stack_slot_coloring::*;
-pub use synthetic_reload_values::*;
+pub(crate) mod post_allocation_manifest;
+pub(crate) mod recovery;
+pub(crate) mod runtime_spill;
+pub(crate) mod transformed;

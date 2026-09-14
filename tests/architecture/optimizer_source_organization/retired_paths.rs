@@ -168,6 +168,43 @@ pub(crate) fn check(audit: &mut Audit) {
         ));
     }
 
+    let retired_allocation_entry = "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/current.rs";
+    if repository.join(retired_allocation_entry).exists() {
+        violations.insert(format!(
+            "register allocation retains its entry beneath the assignment group instead of the crate root: {retired_allocation_entry}"
+        ));
+    }
+
+    for family in [
+        "abstract_spill_access_constraints",
+        "abstract_spill_insertion",
+        "abstract_spill_memory_effects",
+        "generalized_reload_value_homes",
+        "generalized_spill_insertion",
+        "generalized_spill_recovery_actions",
+        "generalized_spill_recovery_choice",
+        "generalized_spill_recovery_worklist",
+        "logical_spill_operations",
+        "recursive_reload_value_homes",
+        "recursive_spill_insertion",
+        "reload_value_homes",
+        "spill_pseudo_instructions",
+        "spill_recovery_actions",
+        "spill_recovery_choice",
+        "spill_recovery_worklist",
+        "stack_slot_coloring",
+        "synthetic_reload_values",
+    ] {
+        let obsolete = format!(
+            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/{family}"
+        );
+        if repository.join(&obsolete).exists() {
+            violations.insert(format!(
+                "an unsequenced spill boundary sits beside the stages register allocation sequences: {obsolete}"
+            ));
+        }
+    }
+
     for obsolete in [
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/compute.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/validate.rs",
@@ -181,11 +218,11 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/codec.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/tests.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/compute.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/validate.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/codec.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

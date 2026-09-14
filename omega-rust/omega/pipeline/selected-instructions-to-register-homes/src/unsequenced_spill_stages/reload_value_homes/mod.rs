@@ -4,10 +4,10 @@
 //! view after abstract spill scheduling. It creates no instruction, memory
 //! effect, frame address, trap claim, encoding, or publication authority.
 
-pub(in crate::assignment) mod compute;
+pub(in crate::unsequenced_spill_stages) mod compute;
 mod identity;
 mod model;
-pub(in crate::assignment) mod replay;
+pub(in crate::unsequenced_spill_stages) mod replay;
 mod validate;
 
 pub use identity::reload_value_home_identity;

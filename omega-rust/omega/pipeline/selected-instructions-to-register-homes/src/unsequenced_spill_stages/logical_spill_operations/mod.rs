@@ -1,6 +1,9 @@
 //! Optimizer module role: executable entrance. Logical spill planning and independent replay.
 
-use crate::*;
+use crate::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    ValidatedSpillChoices,
+};
 
 mod codec;
 mod compute;
