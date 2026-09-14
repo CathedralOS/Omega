@@ -313,6 +313,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **ALLOCATION-REFINEMENT.** Complete coalescing, live-range splitting,
   fixed/precolored intervals, and rematerialization cost decisions while
   preserving exact register-unit aliases, liveness, and target custody.
+  Landed: runtime-spill recovery orders rematerialization before private
+  storage — a pressured victim defined by one pure MaterializeI64
+  regenerates a fresh materialization at each admitted flexible use, creating
+  no reload interval or stack slot, independently replayed through the
+  post-allocation manifest ledger (codec 9) on all four targets
+  (`runtime_rematerialization_pressure::loop_carried_rematerialization_replays_through_callable_publication`).
+  Remaining: coalescing, live-range splitting, and fixed/precolored
+  intervals.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
   CFG families: red-zone policy, probing, unwind

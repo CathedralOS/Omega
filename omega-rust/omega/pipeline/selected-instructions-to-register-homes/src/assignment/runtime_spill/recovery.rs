@@ -3,6 +3,7 @@
 
 use super::model::{
     RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts, RuntimeSpillStep,
+    RuntimeSpillStepRewrite,
 };
 use super::replay;
 use crate::{SelectedProgramRef, StagedOptimizedAllocationLegality, ValidatedSelectedAnalysis};
@@ -114,10 +115,17 @@ pub(super) fn transformations(
 ) -> Vec<crate::PostAllocationSelectedTransformation> {
     steps
         .iter()
-        .map(|step| {
-            crate::PostAllocationSelectedTransformation::RuntimeSpill(
-                step.rewrite.receipt().transformed_selected(),
-            )
+        .map(|step| match &step.rewrite {
+            RuntimeSpillStepRewrite::Spill(rewrite) => {
+                crate::PostAllocationSelectedTransformation::RuntimeSpill(
+                    rewrite.receipt().transformed_selected(),
+                )
+            }
+            RuntimeSpillStepRewrite::Rematerialization(rewrite) => {
+                crate::PostAllocationSelectedTransformation::RuntimeRematerialization(
+                    rewrite.receipt().transformed_selected(),
+                )
+            }
         })
         .collect()
 }
@@ -198,25 +206,38 @@ pub(crate) fn recover(
         let (function, register) = roster.remove(position);
         let selected = steps.last().map_or_else(
             || SelectedProgramRef::new(selected_stage.selected()),
-            |step| SelectedProgramRef::new(&step.rewrite),
+            |step| step.rewrite.selected(),
         );
-        let rewrite = match crate::spill_selected_runtime_value(
+        // The cost decision: regenerating one pure immediate materialization
+        // per use is strictly cheaper than private storage plus reload pairs,
+        // so rematerialization is attempted first. Its admission failure does
+        // not commit the step; spilling the same victim remains the fallback.
+        let rewrite = match crate::rematerialize_selected_runtime_value(
             &selected,
             function,
             register,
             environment,
             budget,
         ) {
-            Ok(rewrite) => rewrite,
-            Err(error) if replay::inadmissible(&error) => continue,
-            Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
+            Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
+            Err(_) => match crate::spill_selected_runtime_value(
+                &selected,
+                function,
+                register,
+                environment,
+                budget,
+            ) {
+                Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
+                Err(error) if replay::inadmissible(&error) => continue,
+                Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
+            },
         };
         let facts = analyze(
             &source,
             &selected,
             &current_liveness,
             &current_ranges,
-            &rewrite,
+            &rewrite.selected(),
         )?;
         let homes = assign(&source, &facts.ranges, &facts.legality);
         steps.push(RuntimeSpillStep {

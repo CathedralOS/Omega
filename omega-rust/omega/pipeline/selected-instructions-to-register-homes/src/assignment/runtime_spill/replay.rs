@@ -1,3 +1,4 @@
+use super::model::RuntimeSpillStepRewrite;
 use super::recovery::{
     analyze, assign, assign_source, candidates, overlaps_pressure, transformations,
 };
@@ -36,7 +37,7 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
         .liveness_stage()
         .liveness()
         .clone();
-    let mut prior: Option<crate::ValidatedRuntimeSpill> = None;
+    let mut prior: Option<RuntimeSpillStepRewrite> = None;
     for (step_index, step) in staged.steps.iter().enumerate() {
         let position = roster
             .iter()
@@ -50,14 +51,14 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
             // source is only an equality prerequisite for candidate fact reuse.
             let previous_source = step_index.checked_sub(2).map_or_else(
                 || SelectedProgramRef::new(selected_stage.selected()),
-                |source_index| SelectedProgramRef::new(&staged.steps[source_index].rewrite),
+                |source_index| staged.steps[source_index].rewrite.selected(),
             );
             let facts = analyze(
                 source,
                 &previous_source,
                 &current_liveness,
                 &current_ranges,
-                previous,
+                &previous.selected(),
             )?;
             failure = require_pressure(assign(source, &facts.ranges, &facts.legality))?;
             current_ranges = facts.ranges;
@@ -68,24 +69,59 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
         }
         let selected = prior.as_ref().map_or_else(
             || SelectedProgramRef::new(selected_stage.selected()),
-            SelectedProgramRef::new,
+            |previous| previous.selected(),
         );
-        let replayed = crate::validate_runtime_spill(
-            &selected,
-            step.function,
-            step.register,
-            environment,
-            budget,
-            step.rewrite.transformed().clone(),
-        )
-        .map_err(RuntimeSpillAllocationError::Rewrite)?;
-        if replayed.receipt() != step.rewrite.receipt() {
-            return Err(RuntimeSpillAllocationError::ReceiptMismatch);
-        }
+        let replayed = match &step.rewrite {
+            RuntimeSpillStepRewrite::Spill(rewrite) => {
+                // The producer's decision is replayed, not trusted: private
+                // storage may stand only while rematerialization remains
+                // inadmissible for the same pressured value.
+                if crate::rematerialize_selected_runtime_value(
+                    &selected,
+                    step.function,
+                    step.register,
+                    environment,
+                    budget,
+                )
+                .is_ok()
+                {
+                    return Err(RuntimeSpillAllocationError::CandidateMismatch);
+                }
+                let replayed = crate::validate_runtime_spill(
+                    &selected,
+                    step.function,
+                    step.register,
+                    environment,
+                    budget,
+                    rewrite.transformed().clone(),
+                )
+                .map_err(RuntimeSpillAllocationError::Rewrite)?;
+                if replayed.receipt() != rewrite.receipt() {
+                    return Err(RuntimeSpillAllocationError::ReceiptMismatch);
+                }
+                RuntimeSpillStepRewrite::Spill(replayed)
+            }
+            RuntimeSpillStepRewrite::Rematerialization(rewrite) => {
+                let replayed = crate::validate_runtime_rematerialization(
+                    &selected,
+                    step.function,
+                    step.register,
+                    environment,
+                    budget,
+                    rewrite.transformed().clone(),
+                )
+                .map_err(RuntimeSpillAllocationError::Rematerialization)?;
+                if replayed.receipt() != rewrite.receipt() {
+                    return Err(RuntimeSpillAllocationError::ReceiptMismatch);
+                }
+                RuntimeSpillStepRewrite::Rematerialization(replayed)
+            }
+        };
         prior = Some(replayed);
         used.push(position);
     }
-    let selected = prior.ok_or(RuntimeSpillAllocationError::CandidateMismatch)?;
+    let final_rewrite = prior.ok_or(RuntimeSpillAllocationError::CandidateMismatch)?;
+    let selected = final_rewrite.selected();
     let liveness = crate::validate_liveness(&selected, staged.facts.liveness.plan().clone())
         .map_err(RuntimeSpillAllocationError::Liveness)?;
     let ranges =

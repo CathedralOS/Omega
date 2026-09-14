@@ -21,7 +21,7 @@ use super::{
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 8;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 9;
 
 impl PostAllocationOptimizationManifest {
     pub fn encode(&self) -> Vec<u8> {
@@ -81,6 +81,9 @@ impl PostAllocationOptimizationManifest {
                     PressureRematerializationIdentity::from_bytes(cursor.array()?),
                 ),
                 4 => PostAllocationSelectedTransformation::RuntimeSpill(
+                    SelectedInstructionPlanIdentity::from_bytes(cursor.array()?),
+                ),
+                5 => PostAllocationSelectedTransformation::RuntimeRematerialization(
                     SelectedInstructionPlanIdentity::from_bytes(cursor.array()?),
                 ),
                 tag => {
@@ -181,6 +184,10 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             }
             PostAllocationSelectedTransformation::RuntimeSpill(identity) => {
                 canonical.push(4);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::RuntimeRematerialization(identity) => {
+                canonical.push(5);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }
