@@ -20,6 +20,7 @@ fn entry(program: &TypedTrees) -> bool {
         RankingRangeCallMember {
             machine,
             subject: rank.subject,
+            paired_subject: rank.paired_subject,
             range: rank.range,
         },
     )

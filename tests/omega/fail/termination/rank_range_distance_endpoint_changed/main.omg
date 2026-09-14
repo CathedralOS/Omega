@@ -1,0 +1,29 @@
+// FAIL CANARY. Both members pin their authored ceiling to the upper subject
+// itself. `scan_a` substitutes the caller's `bound` endpoint with `cursor`,
+// so the transported ceiling no longer equals the pinned input: the changed
+// endpoint invalidates the preserved premise.
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(0, 4) }
+}
+
+machine Main::scan_a(&mut self, index: u64 [0..=4], limit: u64 [0..=4])
+requires index <= limit;
+terminates by (index, limit) -> Nat::BoundedDistance in 0..=limit;
+-> u64 {
+    transition index < limit {
+        true -> self.scan_b(limit, index + 1)
+        false -> index
+    }
+}
+
+machine Main::scan_b(&mut self, bound: u64 [0..=4], cursor: u64 [0..=4])
+requires cursor <= bound;
+terminates by (cursor, bound) -> Nat::BoundedDistance in 0..=bound;
+-> u64 {
+    transition cursor < bound {
+        true -> self.scan_a(cursor + 1, cursor)
+        false -> cursor
+    }
+}

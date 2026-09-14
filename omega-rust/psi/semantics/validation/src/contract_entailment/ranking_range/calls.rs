@@ -9,6 +9,10 @@ pub(crate) use endpoint_pins::{RankingRangeCallEdge, mixed_call_endpoints_are_pi
 pub(crate) struct RankingRangeCallMember<'program> {
     pub(crate) machine: &'program Machine,
     pub(crate) subject: ExpressionHandle,
+    /// The upper subject of a two-subject view (`Nat::BoundedDistance` ranks
+    /// `(subject, paired_subject)` by `paired_subject - subject`). Invalid for
+    /// single-subject views.
+    pub(crate) paired_subject: ExpressionHandle,
     pub(crate) range: ExpressionHandle,
 }
 
@@ -87,6 +91,9 @@ pub(crate) fn prove_ranking_range_call(
         ) | (
             RankingRangeMeasure::IncreasingTo { .. },
             RankingRangeMeasure::IncreasingTo { .. }
+        ) | (
+            RankingRangeMeasure::Distance { .. },
+            RankingRangeMeasure::Distance { .. }
         )
     ) {
         return None;
@@ -163,7 +170,9 @@ pub(crate) fn prove_ranking_range_call(
         (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. }) => {
             Some((bound, engine.normalize(limit)?))
         }
-        (None, RankingRangeMeasure::Single(_)) => None,
+        (None, RankingRangeMeasure::Single(_)) | (None, RankingRangeMeasure::Distance { .. }) => {
+            None
+        }
         _ => return None,
     };
     let destination_range = if callee.range.is_valid() {
@@ -242,6 +251,9 @@ fn admit_member(
     measure: RankingRangeMeasure,
 ) -> Option<()> {
     meanings::builtin(program, member.machine, state, member.subject, 0)?;
+    if member.paired_subject.is_valid() {
+        meanings::builtin(program, member.machine, state, member.paired_subject, 0)?;
+    }
     if member.range.is_valid() {
         let ExpressionNode::Range(range) = program.expression_table.expression(member.range) else {
             return None;
@@ -269,7 +281,7 @@ fn membership(
     };
     let slack = i64::from(!inclusive);
     match measure {
-        RankingRangeMeasure::Single(_) => {
+        RankingRangeMeasure::Single(_) | RankingRangeMeasure::Distance { .. } => {
             prove(coordinate.clone(), 0)
                 && prove(coordinate.sub(floor), 0)
                 && prove(ceiling.sub(coordinate), slack)
@@ -293,6 +305,9 @@ fn rank_coordinate(engine: &mut Engine<'_>, measure: RankingRangeMeasure) -> Opt
         RankingRangeMeasure::IncreasingTo { subject, limit } => {
             Some(engine.normalize(limit)?.sub(&engine.normalize(subject)?))
         }
+        RankingRangeMeasure::Distance { lower, upper } => {
+            Some(engine.normalize(upper)?.sub(&engine.normalize(lower)?))
+        }
         _ => None,
     }
 }
@@ -308,9 +323,8 @@ fn scalar_entry<'program>(
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     let custody = program.ranking_expression_custody_for(machine.symbol)?;
     if Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
-        || witness.subjects.len() != 1
+        || witness.subjects.len() != custody.subjects.len()
         || witness.rank_range.is_some() != custody.rank_range.is_some()
-        || custody.subjects.as_slice() != [member.subject]
         || custody.rank_range.unwrap_or_default() != member.range
         || custody.rank_range.is_some_and(|range| !range.is_valid())
     {
@@ -320,11 +334,23 @@ fn scalar_entry<'program>(
         language_semantics::RankingViewId::NAT_DESCENDING
             if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
         {
+            let [subject] = custody.subjects.as_slice() else {
+                return None;
+            };
+            if *subject != member.subject || member.paired_subject.is_valid() {
+                return None;
+            }
             RankingRangeMeasure::Single(member.subject)
         }
         language_semantics::RankingViewId::NAT_INCREASING_TO
             if witness.view_arguments.len() == 1 =>
         {
+            let [subject] = custody.subjects.as_slice() else {
+                return None;
+            };
+            if *subject != member.subject || member.paired_subject.is_valid() {
+                return None;
+            }
             let [limit] = custody.view_arguments.as_slice() else {
                 return None;
             };
@@ -336,12 +362,43 @@ fn scalar_entry<'program>(
                 limit: *limit,
             }
         }
+        language_semantics::RankingViewId::NAT_BOUNDED_DISTANCE
+            if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
+        {
+            let [lower, upper] = custody.subjects.as_slice() else {
+                return None;
+            };
+            if *lower != member.subject || *upper != member.paired_subject {
+                return None;
+            }
+            RankingRangeMeasure::Distance {
+                lower: member.subject,
+                upper: member.paired_subject,
+            }
+        }
         _ => return None,
     };
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    let mut subject = member.subject;
+    for subject in [member.subject, member.paired_subject]
+        .into_iter()
+        .filter(|subject| subject.is_valid())
+    {
+        entry_scalar_parameter(program, state, subject)?;
+    }
+    Some((state, measure))
+}
+
+/// A scalar view subject must arrive as the machine's own exact unsigned
+/// entry parameter: a bare (possibly atomically wrapped) name bound to a
+/// non-self, non-const `u8..=u64` formal.
+fn entry_scalar_parameter(
+    program: &TypedTrees,
+    state: &State,
+    subject: ExpressionHandle,
+) -> Option<()> {
+    let mut subject = subject;
     let mut visited = Vec::new();
     while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(subject) {
         if visited.contains(&subject) {
@@ -376,5 +433,5 @@ fn scalar_entry<'program>(
     {
         return None;
     }
-    Some((state, measure))
+    Some(())
 }
