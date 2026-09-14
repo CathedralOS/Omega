@@ -780,7 +780,7 @@ fn validate_transition_target(
                 diagnostics,
             );
             for argument in program.statement_table.expression_handles(*arguments) {
-                validate_expression(program, machine, state, *argument, roots, diagnostics);
+                validate_call_argument(program, machine, state, *argument, roots, diagnostics);
             }
         }
         TransitionTargetNode::Value(value) => {
@@ -803,9 +803,11 @@ fn validate_call_argument(
         && (write_only_record_field_assignment(program, borrow.target, roots)
             || write_only_literal_indexed_direct_call_subloan(program, borrow.target, roots))
     {
-        // This milestone admits the exact projected subloan only at the direct
-        // checked-call argument boundary. It does not create a reusable local
-        // reference or widen general expression formation.
+        // This milestone admits the exact projected subloan only at a direct
+        // checked-call argument boundary — statement calls, expression calls,
+        // and named state-transition targets all deliver arguments to callee
+        // parameters through the same borrow-call facts. It does not create a
+        // reusable local reference or widen general expression formation.
         return;
     }
     validate_expression(program, machine, state, expression, roots, diagnostics);
@@ -935,12 +937,13 @@ fn validate_expression(
             } else if call.receiver.is_valid() {
                 validate_expression(program, machine, state, call.receiver, roots, diagnostics);
             }
+            // Every expression-call argument is the same direct checked-call
+            // boundary a statement call presents; the shared borrow-fact
+            // collection makes no distinction, so the non-observing subloan
+            // gate applies uniformly. Only the receiver operand keeps its
+            // observing/non-observing split above.
             for argument in program.expression_table.expression_handles(call.arguments) {
-                if nonobserving_receiver {
-                    validate_call_argument(program, machine, state, *argument, roots, diagnostics);
-                } else {
-                    validate_expression(program, machine, state, *argument, roots, diagnostics);
-                }
+                validate_call_argument(program, machine, state, *argument, roots, diagnostics);
             }
         }
         ExpressionNode::Range(range) => {
