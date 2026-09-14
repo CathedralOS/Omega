@@ -185,7 +185,10 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         checked.facts.flow.terminal_unit_effects.for_machine(callee),
         Some(&ordered_callee)
     );
-    crate::rebuild_checked_unit_effect_plans_with_selected_execution(&mut checked, &[], &[]);
+    let rebuilt = checked.clone();
+    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+        .expect("repeated full selected rebuild");
+    assert_eq!(checked, rebuilt, "full rebuild is idempotent");
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
         Some(&plan)
@@ -234,16 +237,8 @@ fn primitive_discovery_keeps_nominal_return_cleanup_in_the_dependent_phase() {
     );
     assert!(independent.for_machine(primitive_machine).is_some());
     assert!(independent.for_machine(nominal_machine).is_none());
-    crate::rebuild_checked_unit_effect_plans_with_selected_execution(&mut checked, &[], &[]);
-    assert_eq!(
-        checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .for_machine(nominal_machine),
-        Some(&nominal)
-    );
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[]).unwrap();
+    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+        .expect("full rebuild retains dependent nominal cleanup");
     assert_eq!(
         checked
             .facts

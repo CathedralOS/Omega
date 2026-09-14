@@ -427,14 +427,13 @@ fn unit_scalar_call_retains_registered_boundary_return_target() {
             .for_machine(root)
             .is_some()
     );
-    crate::rebuild_checked_unit_effect_plans_with_selected_execution(&mut checked, &[], &[]);
-    assert!(
+    assert_eq!(
         checked
             .facts
             .flow
-            .terminal_unit_effects
-            .for_machine(root)
-            .is_some()
+            .terminal_boundary_scalar_returns
+            .for_machine(target),
+        Some(&wrapper)
     );
 }
 
