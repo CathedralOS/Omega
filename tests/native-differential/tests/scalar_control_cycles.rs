@@ -72,7 +72,7 @@ fn produce_for_entry(source: &str, entry_name: &str, ranked: bool) -> CanonicalT
         artifact.semantic_bytes()
     );
     assert_eq!(
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
         artifact.proof_bytes()
     );
     let entry = module
@@ -182,6 +182,7 @@ fn unranked_finite_countdown_selected_scalar_call_executes_zero_and_several_iter
 #[test]
 fn native_entrance_rejects_corrupted_natural_cycle_evidence() {
     let artifact = produce(SELECTED_CALL, true);
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let original = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     assert!(original.control_cycles[0].certificate.edges.len() > 1);
     for corruption in [
@@ -205,7 +206,7 @@ fn native_entrance_rejects_corrupted_natural_cycle_evidence() {
             }
             _ => unreachable!(),
         }
-        let changed = terminal_codec::encode_proof_bundle(&proof).unwrap();
+        let changed = terminal_codec::encode_proof_section(&module, &proof).unwrap();
         assert_ne!(changed, artifact.proof_bytes(), "{corruption}");
         assert!(
             matches!(

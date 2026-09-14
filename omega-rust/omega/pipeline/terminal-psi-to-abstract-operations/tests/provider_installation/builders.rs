@@ -5,7 +5,7 @@ use super::ids::{
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, MachineId, OperationId, ServiceId, StructuralTypeId,
 };
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, MachineContract, Operation, OperationKind, OperationResult,
     ProviderCandidateConformance, ProviderRefinement, ProviderSignature, ServiceDeclaration,
@@ -26,7 +26,7 @@ pub(super) fn selected(_name: &str, provider: &str, machine: &str) -> Vec<Select
 pub(super) fn artifact(module: &TerminalModule) -> (Vec<u8>, Vec<u8>) {
     (
         encode_module(module).expect("semantic section"),
-        encode_proof_bundle(&ProofBundle::default()).expect("proof section"),
+        encode_proof_section(module, &ProofBundle::default()).expect("proof section"),
     )
 }
 

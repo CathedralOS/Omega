@@ -223,7 +223,7 @@ fn nested_record_fields_survive_borrowed_call_and_every_fuel_pause() {
         decode_module(&prior),
         Err(terminal_codec::CodecError::UnsupportedVocabularyMarker(99))
     ));
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     for value in [0, u64::MAX] {
         let start = || {
             TerminalExecution::start_artifact(
@@ -288,7 +288,7 @@ fn nested_scalar_reads_use_the_original_owned_record_backing_from_canonical_byte
         result.scalar_type = scalar_type;
         let bytes = encode_module(&module).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), module);
-        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         for value in [0, u64::MAX] {
             let mut execution = TerminalExecution::start_artifact(
                 &bytes,
@@ -598,7 +598,7 @@ fn repeated_child_call_results_keep_independent_completed_storage() {
         )
         .unwrap();
         let bytes = encode_module(&module).unwrap();
-        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         let start = || {
             TerminalExecution::start_artifact(
                 &bytes,
@@ -678,7 +678,7 @@ fn nested_record_mutable_receiver_updates_exact_child_storage() {
     )
     .unwrap();
     let bytes = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let mut execution = TerminalExecution::start_artifact(
         &bytes,
         &proof,
@@ -731,7 +731,7 @@ fn unrestricted_record_children_remain_available_after_parent_construction() {
     )
     .unwrap();
     let bytes = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let mut execution = TerminalExecution::start_artifact(
         &bytes,
         &proof,
@@ -854,7 +854,7 @@ fn owned_nested_record_call_copies_payload_before_mutating_its_child() {
     )
     .unwrap();
     let bytes = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let start = || {
         TerminalExecution::start_artifact(
             &bytes,

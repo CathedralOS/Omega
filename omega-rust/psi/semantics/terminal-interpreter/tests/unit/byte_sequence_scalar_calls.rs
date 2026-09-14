@@ -89,7 +89,7 @@ fn literal_backed_scalar_calls_return_exact_bytes_across_nested_calls_and_suspen
             (vec![0xff], u64::MAX, 256),
         ] {
             let module = module(bytes, byte_index, nested);
-            let proof = encode_proof_bundle(&certificate(&module)).unwrap();
+            let proof = encode_proof_section(&module, &certificate(&module)).unwrap();
             let semantic = encode_module(&module).unwrap();
             assert_eq!(decode_module(&semantic).unwrap(), module);
             let mut reference = None;

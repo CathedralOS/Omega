@@ -2,7 +2,7 @@ use checked_trees::CheckedUnitEffectOperationPlan;
 use checked_trees_to_lowered_psi::lower_machine;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralPlaceKind};
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
@@ -51,7 +51,8 @@ fn assert_call_execution(source: &str, name: &str, scalar_arguments: &[TerminalS
     let checked = checked(source);
     let lowered = lower_machine(&checked, name).expect("caller lowers");
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof");
     let module = decode_module(&semantic).expect("decode semantics");
     let proof_bundle = decode_proof_bundle(&proof).expect("decode proof");
     assert_eq!(module, lowered.semantic_module);

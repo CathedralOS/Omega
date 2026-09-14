@@ -2,7 +2,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
     interpret_terminal_artifact_with_effect_handler_measured,
@@ -60,7 +60,7 @@ impl TerminalEffectHandler for ByteEffects {
 fn execute(source: &str) -> Vec<Vec<Vec<u8>>> {
     let lowered = lower(source);
     let semantic = encode_module(&lowered.semantic_module).unwrap();
-    let evidence = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let evidence = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();
     let proof = decode_proof_bundle(&evidence).unwrap();
     assert_eq!(module, lowered.semantic_module);

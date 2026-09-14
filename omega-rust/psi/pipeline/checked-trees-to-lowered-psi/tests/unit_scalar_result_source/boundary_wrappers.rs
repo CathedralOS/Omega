@@ -1,6 +1,6 @@
 use super::*;
 use proof_admission::AdmissionProfile;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
@@ -28,7 +28,7 @@ fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
         .expect("Unit closure retains scalar boundary body");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
-    let evidence = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let evidence = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();
     let proof = decode_proof_bundle(&evidence).unwrap();
     assert_eq!(module, lowered.semantic_module);

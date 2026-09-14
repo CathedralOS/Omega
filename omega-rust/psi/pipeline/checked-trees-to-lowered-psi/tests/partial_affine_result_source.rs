@@ -6,7 +6,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
@@ -206,7 +206,7 @@ fn assert_source(
     let module = &lowered.semantic_module;
     let semantic = encode_module(module).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
     let published = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
         .produce_artifact()

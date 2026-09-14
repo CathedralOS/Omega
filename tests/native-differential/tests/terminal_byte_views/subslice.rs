@@ -40,7 +40,7 @@ fn assert_subslice_execution(module: &TerminalModule, caller: &str) {
     ))]
     {
         let semantic = terminal_codec::encode_module(module).unwrap();
-        let proof = terminal_codec::encode_proof_bundle(&suffix_proof(module)).unwrap();
+        let proof = terminal_codec::encode_proof_section(module, &suffix_proof(module)).unwrap();
         let selections = OptimizationSelections::new([]).unwrap();
         let optimized = optimize_artifact_sections(
             &semantic,

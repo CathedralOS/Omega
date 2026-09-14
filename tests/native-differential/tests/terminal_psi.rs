@@ -5,7 +5,7 @@ use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
     MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalCrash, TerminalExecution, TerminalExecutionResult,
@@ -179,7 +179,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         value: IntegerValue::Signed(7),
     };
     let semantic_bytes = encode_module(&module).expect("canonical semantic artifact");
-    let proof_bytes = encode_proof_bundle(&bundle).expect("canonical proof artifact");
+    let proof_bytes = encode_proof_section(&module, &bundle).expect("canonical proof artifact");
     let first = interpret_terminal_artifact_measured(
         &semantic_bytes,
         &proof_bytes,
@@ -263,8 +263,8 @@ fn verified_integer_control_contract_slice_executes_directly() {
         .and_then(|admitted| admitted.try_into_plan()),
         Err(ArtifactLoweringError::ProofDecode(_))
     ));
-    let empty_proof_bytes =
-        encode_proof_bundle(&ProofBundle::default()).expect("canonical empty proof artifact");
+    let empty_proof_bytes = encode_proof_section(&module, &ProofBundle::default())
+        .expect("canonical empty proof artifact");
     assert!(matches!(
         interpret_terminal_artifact(
             &semantic_bytes,
@@ -459,7 +459,8 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         machines: vec![machine],
     };
     let semantic_bytes = encode_module(&module).expect("crash semantic artifact");
-    let proof_bytes = encode_proof_bundle(&ProofBundle::default()).expect("crash proof artifact");
+    let proof_bytes =
+        encode_proof_section(&module, &ProofBundle::default()).expect("crash proof artifact");
     let expected = TerminalCrash {
         site: terminal_interpreter::TerminalCrashSite::Edge(EdgeId::new(90).expect("crash edge")),
         cause: CrashCause::Trap,
@@ -582,7 +583,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
     };
     let semantic_bytes = encode_module(&module).expect("parameter semantic artifact");
     let proof_bytes =
-        encode_proof_bundle(&ProofBundle::default()).expect("parameter proof artifact");
+        encode_proof_section(&module, &ProofBundle::default()).expect("parameter proof artifact");
 
     assert!(matches!(
         interpret_terminal_artifact(

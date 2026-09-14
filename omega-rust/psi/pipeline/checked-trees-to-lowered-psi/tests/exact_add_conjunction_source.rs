@@ -2,7 +2,7 @@ use proof_admission::{AdmissionProfile, EvidenceRoute, ProofNode, ProofRule};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -66,7 +66,8 @@ fn exact_outer_fork_join_crosses_source_codec_and_independent_verification() {
     .expect("independent verification replays source-produced conjunction custody");
 
     let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof bundle");
     let decoded_module = decode_module(&module_bytes).expect("decode module");
     let decoded_proof = decode_proof_bundle(&proof_bytes).expect("decode proof bundle");
     assert_eq!(decoded_module, lowered.semantic_module);

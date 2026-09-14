@@ -9,7 +9,8 @@ fn roundtrip(checked: &CheckedTrees) -> LoweredPsi {
     let lowered = lower_machine(checked, "Main::main").expect("computed leaves lower");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("encode module");
     let evidence =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof");
     let module = terminal_codec::decode_module(&semantic).expect("decode module");
     let proof = terminal_codec::decode_proof_bundle(&evidence).expect("decode proof");
     assert_eq!(module, lowered.semantic_module);

@@ -9,7 +9,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{StructuralPathSegment, TerminalAffineCleanupAction};
 use terminal_psi_to_abstract_operations::{
     build_verified_psi_optimization_unit, lower_artifact_for_optimization,
@@ -124,7 +124,7 @@ fn omega_retains_verified_partial_result_continuation_cleanup() {
     terminal_verifier::verify_module(module, &terminal.proof_bundle, &AdmissionProfile::default())
         .expect("partial continuation is valid target-neutral Terminal Psi");
     let semantic = encode_module(module).unwrap();
-    let proof = encode_proof_bundle(&terminal.proof_bundle).unwrap();
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle).unwrap();
     let input = lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -247,7 +247,8 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous:
         let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, entry_name)
             .expect("lower authored cleanup");
         let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-        let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+        let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+            .expect("encode proof");
         let input = lower_artifact_for_optimization(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,

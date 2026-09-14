@@ -4,7 +4,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::{
     lower_artifact, lower_artifact_for_native_realization, lower_artifact_for_optimization,
@@ -74,7 +74,8 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
             .expect("retained writer")
             .id;
         let semantic_bytes = encode_module(&terminal.semantic_module).expect("encode semantics");
-        let proof_bytes = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+        let proof_bytes = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+            .expect("encode proof");
         let profile = AdmissionProfile::default();
         terminal_verifier::verify_module(
             &terminal.semantic_module,
@@ -185,7 +186,8 @@ fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
         let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace")
             .expect("bounded byte-field replacement lowers to Terminal");
         let semantic_bytes = encode_module(&terminal.semantic_module).expect("encode semantics");
-        let proof_bytes = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+        let proof_bytes = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+            .expect("encode proof");
         let module = decode_module(&semantic_bytes).expect("decode canonical semantics");
         let proof = decode_proof_bundle(&proof_bytes).expect("decode canonical proof");
         let profile = AdmissionProfile::default();

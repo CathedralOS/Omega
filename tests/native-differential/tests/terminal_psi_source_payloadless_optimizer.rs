@@ -16,7 +16,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use target::NativeTarget;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi_to_abstract_operations::{
     build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_optimization,
@@ -70,7 +70,8 @@ fn optimizer_unit(
     lowered: &lowered_psi::LoweredPsi,
 ) -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof");
     let input = lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -101,7 +102,8 @@ fn assert_structural_call_rejects(mut unit: optimization_unit::PsiOptimizationUn
 fn source_payloadless_producer_retains_ordinary_and_optimizer_custody() {
     let lowered = lowered_source(SOURCE, "Root::choose");
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof");
     lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -171,7 +173,8 @@ fn source_scalar_payload_constructor_retains_exact_abstract_fields() {
         .expect("source retains its scalar payload constructor")
         .id;
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof");
     for result in [
         lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {

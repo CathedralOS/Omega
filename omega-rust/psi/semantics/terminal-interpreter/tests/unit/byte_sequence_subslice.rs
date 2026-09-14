@@ -290,7 +290,7 @@ fn guarded_subslice_calls_keep_bytes_empty_tails_nested_views_joins_and_fuel() {
         module.machines[0].blocks[0].operations[1] = integer(2, 64, start);
         let semantic = encode_module(&module).unwrap();
         assert_eq!(decode_module(&semantic).unwrap(), module);
-        let proof = encode_proof_bundle(&certificate(&module)).unwrap();
+        let proof = encode_proof_section(&module, &certificate(&module)).unwrap();
         let mut prior = None;
         for incremental in [false, true] {
             let mut execution = TerminalExecution::start_artifact(
@@ -384,7 +384,7 @@ fn subslice_boundary_receives_only_the_window_and_preserves_caller_continuation(
                 },
             },
         );
-        let proof = encode_proof_bundle(&certificate(&module)).unwrap();
+        let proof = encode_proof_section(&module, &certificate(&module)).unwrap();
         let execution = interpret_terminal_artifact_measured(
             &encode_module(&module).unwrap(),
             &proof,
@@ -709,7 +709,7 @@ fn subslice_types_and_borrowed_return_are_not_implicitly_supported() {
 #[test]
 fn subslice_wire_and_certificate_tampering_reject_before_execution() {
     let module = module(vec![0, 128]);
-    let proof = encode_proof_bundle(&certificate(&module)).unwrap();
+    let proof = encode_proof_section(&module, &certificate(&module)).unwrap();
     let bytes = encode_module(&module).unwrap();
     assert_eq!(
         &bytes[10..12],
@@ -761,7 +761,7 @@ fn subslice_wire_and_certificate_tampering_reject_before_execution() {
     assert!(
         TerminalExecution::start_artifact(
             &bytes,
-            &encode_proof_bundle(&forged).unwrap(),
+            &encode_proof_section(&module, &forged).unwrap(),
             &AdmissionProfile::default(),
             &[]
         )

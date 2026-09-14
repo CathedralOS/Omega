@@ -13,7 +13,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use target::NativeTarget;
 use target_operations::{HostedExitProcessI32Realization, LinuxWriteLineRealization};
-use terminal_codec::{decode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::TerminalModule;
 use terminal_psi_to_abstract_operations::{
@@ -113,7 +113,8 @@ fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
         .expect("lower O1 source to terminal Psi");
     (
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode O1 terminal Psi"),
-        encode_proof_bundle(&lowered.proof_bundle).expect("encode O1 proof bundle"),
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode O1 proof section"),
     )
 }
 
@@ -454,8 +455,9 @@ fn source_bounded_root_service_reach_reaches_verified_optimizer_admission() {
 #[test]
 fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
     let semantic = canonical_o0_bytes();
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("canonical empty proof");
     let decoded = decode_module(&semantic).expect("decode fixture");
+    let proof = encode_proof_section(&decoded, &ProofBundle::default())
+        .expect("canonical empty proof section");
     let (write_boundary, exit_boundary) = o0_boundaries(&decoded);
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {

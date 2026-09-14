@@ -3,7 +3,7 @@ use crate::terminal_interpreter::{
 };
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::*;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::*;
 use terminal_verifier::ProofBundle;
@@ -251,7 +251,7 @@ fn run(
     arguments: &[TerminalScalarValue],
 ) -> (TerminalExecution, TerminalExecutionResult) {
     let semantic = encode_module(module).expect("canonical semantic bytes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(module, &ProofBundle::default()).unwrap();
     let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
@@ -535,7 +535,7 @@ fn scalar_return_nominal_cleanup_preserves_record_locals_until_fuel_is_paid() {
     };
     module.machines.push(cleanup);
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
         &semantic,
         &proof,

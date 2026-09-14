@@ -7,7 +7,11 @@ fn indexed_field_write_replay_rejects_address_extent_and_evidence_changes() {
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
-            proof_bytes: &terminal_codec::encode_proof_bundle(&terminal.proof_bundle).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_section(
+                &terminal.semantic_module,
+                &terminal.proof_bundle,
+            )
+            .unwrap(),
             obligation_ledger_bytes: None,
         },
         &AdmissionProfile::default(),

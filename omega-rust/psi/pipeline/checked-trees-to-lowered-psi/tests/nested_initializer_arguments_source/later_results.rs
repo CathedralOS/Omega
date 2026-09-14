@@ -25,7 +25,7 @@ pub(super) fn encoded_locals(
         .expect("later immutable result initializer lowers");
     let artifact = (
         encode_module(&lowered.semantic_module).unwrap(),
-        encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
     );
     let module = decode_module(&artifact.0).unwrap();
     let proof = decode_proof_bundle(&artifact.1).unwrap();

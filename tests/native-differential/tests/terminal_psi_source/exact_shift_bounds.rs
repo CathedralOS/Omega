@@ -47,7 +47,8 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
     }));
 
     let semantic = encode_module(&lowered.semantic_module).expect("guarded narrowing semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("guarded narrowing proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("guarded narrowing proof");
     let module = decode_module(&semantic).expect("decode guarded narrowing semantics");
     let mut missing_cast_proof = decode_proof_bundle(&proof).expect("decode guarded proof");
     missing_cast_proof
@@ -180,7 +181,8 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
     );
 
     let semantic = encode_module(&lowered.semantic_module).expect("exact shift semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact shift proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("exact shift proof");
     let module = decode_module(&semantic).expect("decode exact shift semantics");
     let mut missing_shift_proof = decode_proof_bundle(&proof).expect("decode exact shift proof");
     missing_shift_proof
@@ -454,7 +456,8 @@ fn checked_source_range_proof_folds_a_later_integer_comparison() {
         .expect("the later range-comparable operation remains explicit");
     let comparison_operation = comparison.id;
     let semantic = encode_module(&lowered.semantic_module).expect("range fold semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range fold proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("range fold proof");
     let optimizer_input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -529,7 +532,8 @@ fn checked_source_range_comparison_proves_false_and_declines_overlap() {
             .expect("range comparison remains explicit before optimization")
             .id;
         let semantic = encode_module(&lowered.semantic_module).expect("range boundary semantics");
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range boundary proof");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("range boundary proof");
         let optimizer_input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
@@ -654,7 +658,8 @@ fn checked_source_range_comparisons_cover_both_operand_orders_and_inclusive_orde
             .expect("the ordered comparison remains explicit before optimization")
             .id;
         let semantic = encode_module(&lowered.semantic_module).expect("range comparison semantics");
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range comparison proof");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("range comparison proof");
         let optimizer_input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
@@ -757,7 +762,8 @@ fn checked_source_range_equality_covers_both_operand_orders_and_declines_overlap
             .expect("integer equality remains explicit before optimization")
             .id;
         let semantic = encode_module(&lowered.semantic_module).expect("range equality semantics");
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range equality proof");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("range equality proof");
         let optimizer_input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
@@ -862,7 +868,8 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
     }));
 
     let semantic = encode_module(&lowered.semantic_module).expect("exact left-shift semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact left-shift proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("exact left-shift proof");
     let module = decode_module(&semantic).expect("decode exact left-shift semantics");
     let mut missing_shift_proof =
         decode_proof_bundle(&proof).expect("decode exact left-shift proof");
@@ -967,8 +974,8 @@ fn checked_source_exact_left_shift_uses_known_count_bounds() {
 
     let semantic =
         encode_module(&lowered.semantic_module).expect("known-count exact left-shift semantics");
-    let proof =
-        encode_proof_bundle(&lowered.proof_bundle).expect("known-count exact left-shift proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("known-count exact left-shift proof");
     let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: u32_type,
@@ -1033,8 +1040,8 @@ fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
 
     let semantic =
         encode_module(&lowered.semantic_module).expect("bounded-count exact left-shift semantics");
-    let proof =
-        encode_proof_bundle(&lowered.proof_bundle).expect("bounded-count exact left-shift proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("bounded-count exact left-shift proof");
     let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: u32_type,
@@ -1090,7 +1097,8 @@ fn checked_source_exact_left_shift_uses_u64_bounded_count_maximum() {
         .expect("u64 bounded-count exact left shift should use its value and count bounds");
     let semantic =
         encode_module(&lowered.semantic_module).expect("u64 bounded-count shift semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("u64 bounded-count shift proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("u64 bounded-count shift proof");
     let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: u64_type,

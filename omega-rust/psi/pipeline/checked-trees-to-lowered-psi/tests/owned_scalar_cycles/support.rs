@@ -121,7 +121,7 @@ pub fn publish(source: &str) -> (TerminalModule, ProofBundle, Vec<u8>, Vec<u8>) 
         artifact.semantic_bytes()
     );
     assert_eq!(
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
         artifact.proof_bytes()
     );
     assert_eq!(

@@ -3,7 +3,7 @@ use semantic_vocabulary::{IntegerValue, Proposition};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -77,7 +77,8 @@ fn landed_negative_one_and_nonminimum_dividend_use_closed_exact_certificates() {
     )
     .expect("independent verifier accepts both canonical certificates");
     let encoded_module = encode_module(&lowered.semantic_module).expect("encode module");
-    let encoded_proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
+    let encoded_proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof bundle");
     let decoded_module = decode_module(&encoded_module).expect("decode module");
     let decoded_proof = decode_proof_bundle(&encoded_proof).expect("decode proof bundle");
     assert_eq!(decoded_module, lowered.semantic_module);

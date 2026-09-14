@@ -1,7 +1,7 @@
 //! Canonical primitive storage retains its real local and observation identities.
 
 use proof_admission::AdmissionProfile;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::{
     lower_artifact, lower_artifact_for_native_realization, lower_artifact_for_optimization,
@@ -43,7 +43,8 @@ fn borrowed_primitive_local_survives_every_abstract_entrance() {
         .expect("real primitive local establishment")
         .id;
     let semantic_bytes = encode_module(&lowered.semantic_module).expect("canonical semantics");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("canonical proof");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("canonical proof");
     let profile = AdmissionProfile::default();
     terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
         .expect("valid primitive storage");

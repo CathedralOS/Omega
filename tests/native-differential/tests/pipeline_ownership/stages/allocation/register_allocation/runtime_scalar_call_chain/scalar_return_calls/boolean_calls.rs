@@ -72,5 +72,8 @@ fn boolean_call_artifact(inverted: bool) -> (Vec<u8>, Vec<u8>) {
         unreachable!()
     };
     *condition = branch_condition;
-    (terminal_codec::encode_module(&module).unwrap(), proof)
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        reseal_proof(&module, &proof),
+    )
 }

@@ -67,7 +67,7 @@ fn natural_slice_writer_uses_ordinary_native_admission_without_losing_its_cycle(
     let verified = terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
     assert_eq!(verified.accepted_control_cycles().len(), 1);
     let semantic = terminal_codec::encode_module(&module).unwrap();
-    let evidence = terminal_codec::encode_proof_bundle(&proof).unwrap();
+    let evidence = terminal_codec::encode_proof_section(&module, &proof).unwrap();
     let ordinary = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -241,10 +241,10 @@ fn native_natural_routing_requires_exact_grouped_evidence() {
         );
         if mutation == 1 {
             // The artifact encoder also refuses noncanonical edge order.
-            assert!(terminal_codec::encode_proof_bundle(&changed).is_err());
+            assert!(terminal_codec::encode_proof_section(&module, &changed).is_err());
             continue;
         }
-        let evidence = terminal_codec::encode_proof_bundle(&changed).unwrap();
+        let evidence = terminal_codec::encode_proof_section(&module, &changed).unwrap();
         assert!(
             matches!(
                 lower_artifact(
@@ -327,7 +327,7 @@ fn unchanged_tail_cannot_reuse_the_strict_native_cycle_proof() {
         .kind = OperationKind::ByteSequenceLength { source: incoming };
     terminal_verifier::validate_module(&module).expect("identity forwarding remains well typed");
     let semantic = terminal_codec::encode_module(&module).unwrap();
-    let evidence = terminal_codec::encode_proof_bundle(&proof).unwrap();
+    let evidence = terminal_codec::encode_proof_section(&module, &proof).unwrap();
     assert!(matches!(
         lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {

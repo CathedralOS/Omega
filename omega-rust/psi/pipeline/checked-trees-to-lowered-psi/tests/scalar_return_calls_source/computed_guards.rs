@@ -86,7 +86,7 @@ fn encoded_guard_arms(
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).unwrap(),
-        encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
     )
 }
 

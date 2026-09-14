@@ -17,7 +17,9 @@ fn roundtrip(source: &str) -> lowered_psi::LoweredPsi {
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
         .expect("Boolean requirements survive mixed Unit lowering");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let evidence = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let evidence =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let module = terminal_codec::decode_module(&semantic).unwrap();
     let proof = terminal_codec::decode_proof_bundle(&evidence).unwrap();
     assert_eq!(module, lowered.semantic_module);

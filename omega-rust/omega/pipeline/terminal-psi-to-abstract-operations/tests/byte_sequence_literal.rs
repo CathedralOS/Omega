@@ -4,7 +4,7 @@ use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
     StructuralTypeId,
 };
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, ByteSequenceCarrier, MachineContract, Operation,
     OperationKind, OperationResult, StructuralAccess, StructuralArgument, StructuralMultiplicity,
@@ -23,7 +23,8 @@ fn preserves_exact_non_utf8_literal_and_structural_source() {
     let literal_bytes = vec![0, 0x7f, 0x80, 0xff];
     let module = byte_sequence_module(literal_bytes.clone());
     let semantic = encode_module(&module).expect("byte-sequence semantics encode");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let proof =
+        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -92,7 +93,7 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
         },
     );
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let profile = AdmissionProfile::default();
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {

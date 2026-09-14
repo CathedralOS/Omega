@@ -19,7 +19,9 @@ fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecution
         terminal_codec::decode_module(&semantic).unwrap(),
         lowered.semantic_module
     );
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     interpret_terminal_artifact(&semantic, &proof, &AdmissionProfile::default(), arguments)
         .unwrap_or_else(|error| {
             panic!("decoded literal arguments must execute: {error:?}\n{source}")

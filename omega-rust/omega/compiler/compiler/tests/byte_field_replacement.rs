@@ -69,7 +69,9 @@ fn publish(
     target: NativeTarget,
 ) -> (image_emission::ExecutableImage, usize) {
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let selections = OptimizationSelections::new([]).unwrap();
     let optimized = optimize_artifact_sections(
         &semantic,

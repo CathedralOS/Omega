@@ -69,7 +69,7 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("scalar-local terminal Psi should encode canonically");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("scalar-local proof bundle should encode canonically");
     let debug = encode_debug_map(
         &lowered.semantic_module,
@@ -143,7 +143,7 @@ fn checked_source_boolean_local_becomes_a_terminal_block_value() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("Boolean-local terminal Psi should encode canonically");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("Boolean-local proof bundle should encode canonically");
     let semantic = decode_module(&semantic).expect("Boolean-local terminal Psi should decode");
     let proof = decode_proof_bundle(&proof).expect("Boolean-local proof bundle should decode");
@@ -513,7 +513,7 @@ fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("short-circuit-local terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("short-circuit-local proof should encode");
     let semantic =
         decode_module(&semantic).expect("short-circuit-local terminal Psi should decode");
@@ -560,7 +560,7 @@ fn checked_source_strict_short_circuit_local_use_preserves_terminal_control() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("consumed short-circuit-local terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("consumed short-circuit-local proof should encode");
     let semantic =
         decode_module(&semantic).expect("consumed short-circuit-local terminal Psi should decode");
@@ -626,7 +626,7 @@ fn checked_source_reused_short_circuit_local_is_carried_once() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("reused short-circuit-local terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("reused short-circuit-local proof should encode");
     let semantic =
         decode_module(&semantic).expect("reused short-circuit-local terminal Psi should decode");
@@ -684,7 +684,7 @@ fn checked_source_short_circuit_local_is_carried_into_a_branch_guard() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("branched short-circuit-local terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("branched short-circuit-local proof should encode");
     let semantic =
         decode_module(&semantic).expect("branched short-circuit-local terminal Psi should decode");
@@ -749,7 +749,7 @@ fn checked_source_multiple_short_circuit_locals_are_staged_left_to_right() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("multiple short-circuit-local terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("multiple short-circuit-local proof should encode");
     let semantic =
         decode_module(&semantic).expect("multiple short-circuit-local terminal Psi should decode");
@@ -800,7 +800,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_return() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("staged-local short-circuit-return terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("staged-local short-circuit-return proof should encode");
     let semantic = decode_module(&semantic)
         .expect("staged-local short-circuit-return terminal Psi should decode");
@@ -848,8 +848,8 @@ fn checked_source_staged_local_is_carried_through_a_jump_argument() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("staged-local jump terminal Psi should encode");
-    let proof =
-        encode_proof_bundle(&lowered.proof_bundle).expect("staged-local jump proof should encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("staged-local jump proof should encode");
     let semantic = decode_module(&semantic).expect("staged-local jump terminal Psi should decode");
     let proof = decode_proof_bundle(&proof).expect("staged-local jump proof should decode");
     let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())
@@ -894,7 +894,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_jump_argument() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("staged-local nested-jump terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("staged-local nested-jump proof should encode");
     let semantic =
         decode_module(&semantic).expect("staged-local nested-jump terminal Psi should decode");
@@ -941,7 +941,7 @@ fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("staged-local jump-tuple terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("staged-local jump-tuple proof should encode");
     let semantic =
         decode_module(&semantic).expect("staged-local jump-tuple terminal Psi should decode");
@@ -988,7 +988,7 @@ fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("staged-local conditional-edge terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("staged-local conditional-edge proof should encode");
     let semantic =
         decode_module(&semantic).expect("staged-local conditional-edge terminal Psi should decode");
@@ -1036,7 +1036,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("staged-local short-circuit-guard terminal Psi should encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle)
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("staged-local short-circuit-guard proof should encode");
     let semantic = decode_module(&semantic)
         .expect("staged-local short-circuit-guard terminal Psi should decode");
@@ -1084,8 +1084,8 @@ fn checked_source_staged_local_sequences_before_an_explicit_crash() {
 
     let semantic = encode_module(&lowered.semantic_module)
         .expect("staged-local crash terminal Psi should encode");
-    let proof =
-        encode_proof_bundle(&lowered.proof_bundle).expect("staged-local crash proof should encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("staged-local crash proof should encode");
     let semantic = decode_module(&semantic).expect("staged-local crash terminal Psi should decode");
     let proof = decode_proof_bundle(&proof).expect("staged-local crash proof should decode");
     let verified = verify_module(&semantic, &proof, &AdmissionProfile::default())

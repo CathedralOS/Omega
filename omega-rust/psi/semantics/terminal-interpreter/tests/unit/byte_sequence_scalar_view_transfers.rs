@@ -14,7 +14,7 @@ fn borrowed(place: u64) -> StructuralArgument {
 
 fn observe(module: &TerminalModule, expected: u128) {
     let semantic = encode_module(module).unwrap();
-    let proof = encode_proof_bundle(&certificate(module)).unwrap();
+    let proof = encode_proof_section(module, &certificate(module)).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
     let mut reference = None;
     for incremental in [false, true] {

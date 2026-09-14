@@ -2,7 +2,7 @@ use super::super::super::*;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -44,7 +44,8 @@ fn dynamic_unit() -> optimization_unit::PsiOptimizationUnit {
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("lower rebound dynamic source");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
-    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
     let plan = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

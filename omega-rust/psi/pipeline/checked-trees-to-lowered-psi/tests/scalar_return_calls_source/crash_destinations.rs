@@ -344,7 +344,13 @@ fn direct_crash_causes_require_matching_routes_during_independent_verification()
         // These proof rows establish unchanged Boolean tautologies, not the
         // authenticity of an entire semantic module. Reuse is valid when the
         // verifier reconstructs a consistent body and published crash route.
-        let changed = (encode_module(&module).unwrap(), artifact.1);
+        // The seal still binds the section to this exact module, so reseal the
+        // same bundle against the changed subject before replaying it.
+        let (_, bundle) = terminal_codec::decode_proof_section(&artifact.1).unwrap();
+        let changed = (
+            encode_module(&module).unwrap(),
+            encode_proof_section(&module, &bundle).unwrap(),
+        );
         assert_eq!(
             execute(&changed, &[TerminalScalarValue::Boolean(true)]).unwrap(),
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true)),

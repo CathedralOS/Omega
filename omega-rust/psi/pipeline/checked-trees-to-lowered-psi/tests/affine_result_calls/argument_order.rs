@@ -4,7 +4,7 @@ fn assert_order(source: &str, arguments: &[TerminalScalarValue], expected: &[(us
     let checked = checked(source);
     let lowered = lower_machine(&checked, "Main::caller").expect("mixed arguments lower");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
-    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();
     let proof_bundle = decode_proof_bundle(&proof).unwrap();
     let verified =
@@ -219,7 +219,7 @@ fn argument_failure_preserves_only_already_established_structural_storage() {
             unreachable!()
         };
         let semantic = encode_module(module).unwrap();
-        let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
         let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
             &semantic,
             &proof,

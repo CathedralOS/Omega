@@ -73,7 +73,7 @@ use target::NativeTarget;
 use target_operations::HostedWriteByteI32Realization;
 use terminal_codec::{
     DebugSubject, build_artifact_manifest, decode_debug_map, decode_module, decode_proof_bundle,
-    encode_debug_map, encode_module, encode_proof_bundle, terminal_psi_identity,
+    encode_debug_map, encode_module, encode_proof_section, terminal_psi_identity,
     validate_artifact_manifest,
 };
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
@@ -271,7 +271,8 @@ fn unsupported_optimizer_source_canary() -> PathBuf {
 fn artifact_sections(verified: &VerifiedTerminalModule<'_>) -> (Vec<u8>, Vec<u8>) {
     (
         encode_module(verified.module()).expect("verified terminal semantics encode"),
-        encode_proof_bundle(verified.proof_bundle()).expect("verified proof bundle encodes"),
+        encode_proof_section(verified.module(), verified.proof_bundle())
+            .expect("verified proof bundle encodes"),
     )
 }
 

@@ -233,7 +233,8 @@ pub(super) fn acyclic_unit() -> terminal_psi_to_abstract_operations::VerifiedPsi
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode acyclic semantics");
     let proof =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode acyclic proof");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode acyclic proof");
     let input = lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

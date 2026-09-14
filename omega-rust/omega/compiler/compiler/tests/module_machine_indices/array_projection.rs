@@ -64,7 +64,11 @@ fn static_array_constant_projections_execute_checked_and_decoded_terminal_values
                 .expect("static projection lowers without constant storage");
             artifacts.push((
                 terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics"),
-                terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof"),
+                terminal_codec::encode_proof_section(
+                    &lowered.semantic_module,
+                    &lowered.proof_bundle,
+                )
+                .expect("encode proof"),
                 expected,
             ));
         }
@@ -165,7 +169,8 @@ fn constant_projection_types_are_checked_at_storage_call_and_conversion_sites() 
         .expect("explicit widening lowers");
     let result = terminal_interpreter::interpret_terminal_artifact(
         &terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics"),
-        &terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof"),
+        &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof"),
         &proof_admission::AdmissionProfile::default(),
         &[],
     )

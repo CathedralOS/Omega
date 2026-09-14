@@ -77,7 +77,7 @@ fn slice_ranked_writer_retains_its_witness_through_serialized_execution() {
     ));
     let executed = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )
@@ -285,14 +285,14 @@ fn serialized_ranked_writer_resumes_without_repeating_effects() {
     let lowered = lower_writer();
     let expected = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )
     .unwrap();
     let mut execution = TerminalExecution::start_artifact(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )

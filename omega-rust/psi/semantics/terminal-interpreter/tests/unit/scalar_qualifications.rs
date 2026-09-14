@@ -67,7 +67,7 @@ fn module() -> TerminalModule {
 fn canonical_scalar_qualification_transports_payload_without_an_operation() {
     let module = module();
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let decoded = decode_module(&semantic).unwrap();
     assert_eq!(decoded, module);
     assert_eq!(
@@ -97,7 +97,7 @@ fn canonical_qualified_root_parameters_require_host_membership_evidence() {
     module.machines[0].parameters[0].qualifications = ScalarQualificationSetId::new(1);
     module.scalar_qualifications.coercions.clear();
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let argument = TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
         value: IntegerValue::Unsigned(7),

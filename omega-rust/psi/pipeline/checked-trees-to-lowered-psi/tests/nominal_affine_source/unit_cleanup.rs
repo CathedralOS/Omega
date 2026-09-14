@@ -372,8 +372,8 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         lowered.semantic_module,
         "contextual cleanup premise and obligation are canonical terminal data",
     );
-    let proof_bytes =
-        encode_proof_bundle(&lowered.proof_bundle).expect("contextual proof bundle encodes");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("contextual proof bundle encodes");
     assert_eq!(
         decode_proof_bundle(&proof_bytes).expect("contextual proof bundle decodes"),
         lowered.proof_bundle,
@@ -646,8 +646,8 @@ fn finite_contextual_nominal_cleanup_preserves_caller_superset_and_canonical_art
         lowered.semantic_module,
         "finite contextual cleanup semantic data is canonical",
     );
-    let proof_bytes =
-        encode_proof_bundle(&lowered.proof_bundle).expect("finite contextual proof bundle encodes");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("finite contextual proof bundle encodes");
     assert_eq!(
         decode_proof_bundle(&proof_bytes).expect("finite contextual proof bundle decodes"),
         lowered.proof_bundle,
@@ -721,7 +721,7 @@ fn caller_only_contextual_fact_does_not_invent_a_cleanup_receiver_or_obligation(
         decode_module(&semantic_bytes).expect("caller-only contextual module decodes"),
         lowered.semantic_module,
     );
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("caller-only contextual proof bundle encodes");
     assert_eq!(
         decode_proof_bundle(&proof_bytes).expect("caller-only contextual proof bundle decodes"),
@@ -914,7 +914,8 @@ fn contextual_multi_root_nominal_cleanup_crosses_source_codec_and_verifier() {
         decode_module(&bytes).expect("semantic module decodes"),
         lowered.semantic_module
     );
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     assert_eq!(
         decode_proof_bundle(&proof_bytes).expect("proof bundle decodes"),
         lowered.proof_bundle
@@ -1157,7 +1158,8 @@ fn contextual_roots_may_share_one_executable_cleanup_target_and_helper() {
     .expect("contextual executable cleanup verifies");
     let bytes = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     assert_eq!(
         decode_proof_bundle(&proof_bytes).unwrap(),
         lowered.proof_bundle

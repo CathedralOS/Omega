@@ -6,7 +6,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_codec::{
     build_terminal_obligation_ledger, current_terminal_trust_graph, encode_module,
-    encode_proof_bundle, encode_terminal_obligation_ledger, semantic_fingerprint,
+    encode_proof_section, encode_terminal_obligation_ledger, semantic_fingerprint,
 };
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
@@ -537,7 +537,7 @@ fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_
     };
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter").unwrap();
     let semantic = encode_module(&lowered.semantic_module).unwrap();
-    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let profile = AdmissionProfile::default();
     let plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {

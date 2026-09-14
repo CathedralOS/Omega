@@ -220,7 +220,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
     };
     terminal_verifier::verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&bundle).unwrap();
+    let proof = encode_proof_section(&module, &bundle).unwrap();
     if !subslice {
         validate_retained_read(&semantic, &proof);
         return;

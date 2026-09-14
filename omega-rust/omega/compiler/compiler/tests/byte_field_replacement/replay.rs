@@ -38,7 +38,11 @@ fn byte_replacement_replay_binds_equal_capacity_siblings_and_dynamic_copy() {
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
-            proof_bytes: &terminal_codec::encode_proof_bundle(&terminal.proof_bundle).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_section(
+                &terminal.semantic_module,
+                &terminal.proof_bundle,
+            )
+            .unwrap(),
             obligation_ledger_bytes: None,
         },
         &AdmissionProfile::default(),

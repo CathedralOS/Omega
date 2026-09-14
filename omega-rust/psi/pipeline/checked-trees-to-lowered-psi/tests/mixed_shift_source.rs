@@ -3,7 +3,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::{
     AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
@@ -90,7 +90,8 @@ fn exact_arithmetic_after_bitwise_computation_uses_one_verified_cleanup_join() {
     .expect("independent operation and cleanup replay");
     drop(verified);
     let semantics = encode_module(&lowered.semantic_module).expect("encode composition");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode composition proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode composition proof");
     terminal_verifier::verify_module(
         &decode_module(&semantics).expect("decode composition"),
         &decode_proof_bundle(&proof).expect("decode composition proof"),
@@ -711,7 +712,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     drop(verified);
 
     let semantics = encode_module(&lowered.semantic_module).expect("encode mixed-shift module");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode mixed-shift proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).expect("encode mixed-shift proof");
     assert_eq!(
         decode_module(&semantics).expect("decode mixed-shift module"),
         lowered.semantic_module,

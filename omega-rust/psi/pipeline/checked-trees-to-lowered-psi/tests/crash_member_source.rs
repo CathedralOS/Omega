@@ -6,7 +6,7 @@ use semantic_vocabulary::{
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
@@ -1899,7 +1899,8 @@ fn direct_boolean_member_crash_route_survives_source_call_codec_and_interpretati
     assert_eq!(
         interpret_terminal_artifact_with_effect_handler_measured(
             &bytes,
-            &encode_proof_bundle(&lowered.proof_bundle).expect("proof encode"),
+            &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .expect("proof encode"),
             &AdmissionProfile::default(),
             &[],
             &[packet],
@@ -2068,7 +2069,8 @@ fn nested_boolean_member_path_survives_source_call_codec_verification_interpreta
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     let argument = TerminalStructuralValue {
         opaque_identity: 9,
         structural_type: root.structural_parameters[0].structural_type,
@@ -2188,7 +2190,8 @@ fn projected_structural_argument_prefix_rebases_member_crash_routes_end_to_end()
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     let argument = TerminalStructuralValue {
         opaque_identity: 11,
         structural_type: root.structural_parameters[0].structural_type,
@@ -2321,7 +2324,8 @@ fn composed_boolean_member_predicate_rebases_every_path_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -2532,7 +2536,8 @@ fn integer_member_comparisons_rebase_and_validate_exact_leaf_types_end_to_end() 
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -2787,7 +2792,8 @@ fn projected_argument_prefix_rebases_every_integer_member_path_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -2975,7 +2981,8 @@ fn exact_member_addition_rebases_every_operand_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -3164,7 +3171,8 @@ fn exact_member_subtraction_rebases_every_operand_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -3325,7 +3333,8 @@ fn exact_member_multiplication_rebases_every_operand_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -3522,7 +3531,8 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -3805,7 +3815,8 @@ fn bitwise_member_terms_rebase_across_projected_calls_and_codecs() {
         .expect("bitwise member route has an acyclic fixed-fuel certificate");
     validate_fixed_entry_fuel(&verified, &fixed).expect("bitwise fixed fuel recomputes");
     let semantics = encode_module(&lowered.semantic_module).expect("bitwise semantics encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("bitwise proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("bitwise proof encodes");
     assert_eq!(
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
@@ -3972,7 +3983,8 @@ fn total_policy_arithmetic_rebases_across_projected_calls_and_codecs() {
         .expect("policy arithmetic route has an acyclic fixed-fuel certificate");
     validate_fixed_entry_fuel(&verified, &fixed).expect("policy arithmetic fixed fuel recomputes");
     let semantics = encode_module(&lowered.semantic_module).expect("policy semantics encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("policy proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("policy proof encodes");
     assert_eq!(
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
@@ -4129,7 +4141,8 @@ fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
     validate_fixed_entry_fuel(&verified, &fixed).expect("wrapping shift fixed fuel recomputes");
     let semantics =
         encode_module(&lowered.semantic_module).expect("wrapping shift semantics encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping shift proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("wrapping shift proof encodes");
     assert_eq!(
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
@@ -4317,7 +4330,8 @@ fn exact_shifts_rebase_complete_count_and_overflow_requirements() {
         .expect("Exact shift route has an acyclic fixed-fuel certificate");
     validate_fixed_entry_fuel(&verified, &fixed).expect("Exact shift fixed fuel recomputes");
     let semantics = encode_module(&lowered.semantic_module).expect("Exact shift semantics encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("Exact shift proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("Exact shift proof encodes");
     assert_eq!(
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
@@ -4450,7 +4464,8 @@ fn policy_division_rebases_nonzero_requirements_across_projected_calls() {
         .expect("policy division route has an acyclic fixed-fuel certificate");
     validate_fixed_entry_fuel(&verified, &fixed).expect("policy division fixed fuel recomputes");
     let semantics = encode_module(&lowered.semantic_module).expect("policy division encodes");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("policy proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("policy proof encodes");
     assert_eq!(
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
@@ -4624,7 +4639,8 @@ fn runtime_divisor_call_requirements_rebase_and_verify_exact_obligations() {
     assert_eq!(verified.accepted_facts().len(), 1);
 
     let semantics = encode_module(&lowered.semantic_module).expect("call semantics encode");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("call proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("call proof encodes");
     assert_eq!(
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
@@ -4719,7 +4735,8 @@ fn projected_runtime_divisor_call_rebases_requirement_through_canonical_prefix()
     .expect("the projected call proof cites the exact rebased caller assumption");
 
     let semantics = encode_module(&lowered.semantic_module).expect("projected call encodes");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("projected proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("projected proof encodes");
     assert_eq!(
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
@@ -4895,7 +4912,8 @@ fn proposition_disjunction_rebases_and_verifies_each_member_path_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -5086,7 +5104,8 @@ fn whole_aggregate_equality_expands_and_reconstructs_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -5347,7 +5366,8 @@ fn nested_payload_sum_equality_retains_exact_record_case_payload_paths_end_to_en
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -5594,7 +5614,8 @@ fn mixed_aggregate_equality_retains_common_fields_cases_and_call_rebasing_end_to
     let fixed = derive_fixed_entry_fuel(&verified, equal.semantic_module.entry)
         .expect("mixed equality has fixed fuel");
     let semantics = encode_module(&equal.semantic_module).expect("semantic encode");
-    let proof = encode_proof_bundle(&equal.proof_bundle).expect("proof encode");
+    let proof =
+        encode_proof_section(&equal.semantic_module, &equal.proof_bundle).expect("proof encode");
     let arguments = equal.semantic_module.machines[0]
         .structural_parameters
         .iter()
@@ -5943,7 +5964,8 @@ fn nested_mixed_aggregate_equality_prefixes_every_path_and_rebases_whole_root_ca
     let fixed = derive_fixed_entry_fuel(&verified, equal.semantic_module.entry)
         .expect("nested mixed equality has fixed fuel");
     let semantics = encode_module(&equal.semantic_module).expect("semantic encode");
-    let proof = encode_proof_bundle(&equal.proof_bundle).expect("proof encode");
+    let proof =
+        encode_proof_section(&equal.semantic_module, &equal.proof_bundle).expect("proof encode");
     let arguments = equal.semantic_module.machines[0]
         .structural_parameters
         .iter()
@@ -6250,7 +6272,8 @@ fn two_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
             decode_module(&semantics),
             Ok(lowered.semantic_module.clone())
         );
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("proof encode");
         assert_eq!(
             decode_proof_bundle(&proof),
             Ok(lowered.proof_bundle.clone())
@@ -6568,7 +6591,8 @@ fn assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(
             decode_module(&semantics),
             Ok(lowered.semantic_module.clone())
         );
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("proof encode");
         assert_eq!(
             decode_proof_bundle(&proof),
             Ok(lowered.proof_bundle.clone())
@@ -7154,7 +7178,8 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -7304,7 +7329,8 @@ fn payload_sum_nested_sum_equality_replays_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -7399,7 +7425,8 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -7712,7 +7739,8 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -7832,7 +7860,8 @@ fn empty_record_equality_reuses_boolean_constants_end_to_end() {
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -7988,7 +8017,8 @@ fn fixed_index_argument_prefix_is_canonical_and_rebases_member_crash_routes_end_
         decode_module(&semantics),
         Ok(lowered.semantic_module.clone())
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encode");
     let argument = TerminalStructuralValue {
         opaque_identity: 13,
         structural_type: root.structural_parameters[0].structural_type,

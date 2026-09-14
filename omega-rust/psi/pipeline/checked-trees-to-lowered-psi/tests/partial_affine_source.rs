@@ -2,7 +2,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
@@ -355,7 +355,8 @@ fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interprete
             decode_module(&semantic).expect("module decodes"),
             lowered.semantic_module
         );
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("proof encodes");
         let argument_value = TerminalStructuralValue {
             opaque_identity: 0x4152_5241,
             structural_type: root.structural_type,
@@ -506,7 +507,8 @@ fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
         .expect("verifier reconstructs exact complete array consumption");
         let semantic = encode_module(&lowered.semantic_module).expect("module encodes");
         assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("proof encodes");
         let argument_value = TerminalStructuralValue {
             opaque_identity: 0x4655_4c4c,
             structural_type: root.structural_type,
@@ -701,7 +703,8 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
 
     let semantic = encode_module(&one.semantic_module).expect("module encodes");
     assert_eq!(decode_module(&semantic).unwrap(), one.semantic_module);
-    let proof = encode_proof_bundle(&one.proof_bundle).expect("proof encodes");
+    let proof =
+        encode_proof_section(&one.semantic_module, &one.proof_bundle).expect("proof encodes");
     let argument_value = TerminalStructuralValue {
         opaque_identity: 0x5452_4950,
         structural_type: root.structural_type,
@@ -799,7 +802,8 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
         .expect("verifier reconstructs the sole triple residual");
         let semantic = encode_module(&lowered.semantic_module).expect("module encodes");
         assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("proof encodes");
         let argument_value = TerminalStructuralValue {
             opaque_identity: 0x5452_4950,
             structural_type: root.structural_type,
@@ -1104,7 +1108,8 @@ fn affine_quartet_two_moves_retain_authored_calls_and_decreasing_residuals() {
 
     let semantic = encode_module(&lowered.semantic_module).expect("module encodes");
     assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encodes");
     let argument_value = TerminalStructuralValue {
         opaque_identity: 0x5155_4152,
         structural_type: root.structural_type,
@@ -1295,7 +1300,8 @@ fn assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpre
 
     let semantic = encode_module(&lowered.semantic_module).expect("module encodes");
     assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof encodes");
     let argument_value = TerminalStructuralValue {
         opaque_identity: 0x4e45_5354,
         structural_type: root.structural_type,
@@ -1928,7 +1934,8 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         lowered.semantic_module,
         "the partial frontier is canonical artifact identity"
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
 
     let argument = TerminalStructuralValue {
         opaque_identity: 0x5041_4952,
@@ -2080,7 +2087,8 @@ fn mixed_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpre
         decode_module(&semantic).expect("semantic module decodes"),
         lowered.semantic_module
     );
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let argument = TerminalStructuralValue {
         opaque_identity: 0x4e45_5354,
         structural_type: root.structural_type,

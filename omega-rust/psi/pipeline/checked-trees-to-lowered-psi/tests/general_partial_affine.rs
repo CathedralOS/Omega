@@ -1,6 +1,6 @@
 use checked_trees_to_lowered_psi::lower_machine;
 use proof_admission::AdmissionProfile;
-use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
@@ -104,7 +104,7 @@ fn assert_source(
     };
     let semantic = encode_module(module).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let verified = terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,

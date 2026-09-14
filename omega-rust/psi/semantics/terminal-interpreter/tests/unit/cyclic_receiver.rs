@@ -13,7 +13,7 @@ fn cyclic_mutating_callee_preserves_whole_receiver_and_every_fuel_pause() {
 fn check_cyclic_receiver(projected: bool) {
     let module = cyclic_receiver_module(projected);
     let semantic = encode_module(&module).expect("cyclic receiver encodes");
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let execute = || {
         TerminalExecution::start_artifact_with_structural_arguments(
             &semantic,

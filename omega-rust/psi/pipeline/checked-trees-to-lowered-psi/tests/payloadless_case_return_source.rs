@@ -3,7 +3,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_codec::{
-    CodecError, decode_module, decode_proof_bundle, encode_module, encode_proof_bundle,
+    CodecError, decode_module, decode_proof_bundle, encode_module, encode_proof_section,
 };
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
@@ -1021,7 +1021,8 @@ fn selected_witness_tail_use_is_canonical_and_runtime_free() {
 
     let bytes = encode_module(module).expect("selected-witness semantics encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("selected-witness proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("selected-witness proof encodes");
     let verified = terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,
@@ -1176,7 +1177,8 @@ fn two_selected_witness_tail_uses_are_ordered_distinct_and_runtime_free() {
 
     let bytes = encode_module(module).expect("two selected-witness rows encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let verified = terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,
@@ -1303,7 +1305,8 @@ fn three_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
     let bytes = encode_module(module).expect("three selected-witness rows encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let verified = terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,
@@ -1414,7 +1417,8 @@ fn four_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
     let bytes = encode_module(module).expect("four selected-witness rows encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let verified = terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,
@@ -1525,7 +1529,8 @@ fn five_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
     let bytes = encode_module(module).expect("five selected-witness rows encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let verified = terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,
@@ -1652,7 +1657,8 @@ fn six_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
     let bytes = encode_module(module).expect("six selected-witness rows encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let verified = terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,
@@ -1779,7 +1785,8 @@ fn seven_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
     let bytes = encode_module(module).expect("seven selected-witness rows encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let verified = terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,
@@ -1938,7 +1945,8 @@ fn fifteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
     let bytes = encode_module(module).expect("fifteen selected-witness rows encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let verified = terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,
@@ -2072,7 +2080,8 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
 
     let bytes = encode_module(module).expect("guarded caller semantics encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("guarded caller proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("guarded caller proof encodes");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -2518,7 +2527,7 @@ fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
         4
     );
     let bytes = encode_module(&omitted.semantic_module).unwrap();
-    let proof = encode_proof_bundle(&omitted.proof_bundle).unwrap();
+    let proof = encode_proof_section(&omitted.semantic_module, &omitted.proof_bundle).unwrap();
     let mut execution =
         TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
             .unwrap();
@@ -2601,7 +2610,8 @@ fn exact_payloadless_case_return_is_canonical_verified_and_executable() {
         .expect("the exact source producer has fixed fuel");
     assert_eq!(fixed.ceiling_units(), 2);
 
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof bundle encodes");
     let mut execution =
         TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
             .expect("the payloadless case artifact starts");
@@ -2729,7 +2739,8 @@ fn guarded_payloadless_case_return_retains_active_evidence_and_vacuous_siblings(
     assert_eq!(machine.blocks, baseline.semantic_module.machines[0].blocks);
     let module_bytes = encode_module(module).expect("encode guarded module");
     assert_eq!(decode_module(&module_bytes), Ok(module.clone()));
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode guarded proof");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode guarded proof");
     assert_eq!(
         decode_proof_bundle(&proof_bytes),
         Ok(lowered.proof_bundle.clone())

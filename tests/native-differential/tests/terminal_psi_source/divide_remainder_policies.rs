@@ -29,7 +29,8 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
     );
 
     let semantic = encode_module(&lowered.semantic_module).expect("exact-divide semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-divide proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("exact-divide proof");
     let module = decode_module(&semantic).expect("decode exact-divide semantics");
     assert_eq!(module.vocabulary_marker, VocabularyMarker::CURRENT);
     let mut missing_divide_proof = decode_proof_bundle(&proof).expect("decode exact-divide proof");
@@ -99,7 +100,8 @@ fn checked_source_signed_exact_divide_truncates_toward_zero() {
     let lowered = lower_machine(&checked, "terminal_exact_signed_divide_known_right")
         .expect("known signed exact division should lower");
     let semantic = encode_module(&lowered.semantic_module).expect("signed exact-divide semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed exact-divide proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed exact-divide proof");
     let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i64_type,
@@ -163,7 +165,8 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
     );
 
     let semantic = encode_module(&lowered.semantic_module).expect("exact-remainder semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact-remainder proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("exact-remainder proof");
     let module = decode_module(&semantic).expect("decode exact-remainder semantics");
     assert_eq!(module.vocabulary_marker, VocabularyMarker::CURRENT);
     let mut missing_remainder_proof =
@@ -235,7 +238,8 @@ fn checked_source_signed_exact_remainder_is_truncating() {
         .expect("known signed exact remainder should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed exact-remainder semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed exact-remainder proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed exact-remainder proof");
     let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i64_type,
@@ -331,7 +335,8 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-divide semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping-divide proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("wrapping-divide proof");
     let module = decode_module(&semantic).expect("decode wrapping-divide semantics");
     assert_eq!(module.vocabulary_marker, VocabularyMarker::CURRENT);
     let mut missing_divide_proof =
@@ -491,7 +496,8 @@ fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
         .expect("known signed wrapping division should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed wrapping-divide semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed wrapping-divide proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed wrapping-divide proof");
     let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i64_type,
@@ -593,7 +599,8 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-remainder semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping-remainder proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("wrapping-remainder proof");
     let module = decode_module(&semantic).expect("decode wrapping-remainder semantics");
     assert_eq!(module.vocabulary_marker, VocabularyMarker::CURRENT);
     let mut missing_remainder_proof =
@@ -695,8 +702,8 @@ fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative
         .expect("known signed wrapping remainder should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed wrapping-remainder semantics");
-    let proof =
-        encode_proof_bundle(&lowered.proof_bundle).expect("signed wrapping-remainder proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed wrapping-remainder proof");
     let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i64_type,
@@ -797,7 +804,8 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("saturating-divide semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("saturating-divide proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("saturating-divide proof");
     let module = decode_module(&semantic).expect("decode saturating-divide semantics");
     assert_eq!(module.vocabulary_marker, VocabularyMarker::CURRENT);
     let mut missing_divide_proof =
@@ -899,7 +907,8 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
         .expect("known signed saturating division should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed saturating-divide semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("signed saturating-divide proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed saturating-divide proof");
     let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i64_type,
@@ -1006,7 +1015,8 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("saturating-remainder semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("saturating-remainder proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("saturating-remainder proof");
     let module = decode_module(&semantic).expect("decode saturating-remainder semantics");
     assert_eq!(module.vocabulary_marker, VocabularyMarker::CURRENT);
     let mut missing_remainder_proof =
@@ -1108,8 +1118,8 @@ fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negati
         .expect("known signed saturating remainder should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed saturating-remainder semantics");
-    let proof =
-        encode_proof_bundle(&lowered.proof_bundle).expect("signed saturating-remainder proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("signed saturating-remainder proof");
     let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i64_type,
@@ -1188,7 +1198,7 @@ fn checked_source_signed_saturating_i64_ordinary_divisors_execute_on_the_host() 
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
         let semantic = encode_module(&lowered.semantic_module)
             .unwrap_or_else(|error| panic!("encode {machine} semantics: {error:?}"));
-        let proof = encode_proof_bundle(&lowered.proof_bundle)
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .unwrap_or_else(|error| panic!("encode {machine} proof: {error:?}"));
         let execution = interpret_terminal_artifact_measured(
             &semantic,
@@ -1296,7 +1306,8 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
         );
 
         let semantic = encode_module(&lowered.semantic_module).expect("guarded semantics");
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("guarded proof");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("guarded proof");
         verify_module(
             &decode_module(&semantic).expect("decode guarded semantics"),
             &decode_proof_bundle(&proof).expect("decode guarded proof"),
@@ -1354,7 +1365,8 @@ fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_on
         VocabularyMarker::CURRENT
     );
     let semantic = encode_module(&lowered.semantic_module).expect("negative-divisor semantics");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("negative-divisor proof");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("negative-divisor proof");
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: i32_type,
@@ -1427,7 +1439,8 @@ fn checked_source_negative_one_range_uses_policy_appropriate_dividend_evidence()
             VocabularyMarker::CURRENT
         );
         let semantic = encode_module(&lowered.semantic_module).expect("range semantics");
-        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range proof");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("range proof");
         let execution = interpret_terminal_artifact_measured(
             &semantic,
             &proof,

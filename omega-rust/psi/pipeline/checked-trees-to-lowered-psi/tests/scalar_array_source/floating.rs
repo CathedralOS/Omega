@@ -7,7 +7,9 @@ fn execute(source: &str, arguments: &[TerminalScalarValue]) -> Vec<TerminalScala
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
         .unwrap_or_else(|error| panic!("floating array must lower: {error:?}\n{source}"));
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let TerminalExecutionResult::ScalarArray(result) =
         interpret_terminal_artifact(&semantic, &proof, &AdmissionProfile::default(), arguments)
             .expect("decoded floating array execution")

@@ -390,7 +390,7 @@ pub(super) fn atomic_establishment_artifact(
             },
         }],
     };
-    let proof = terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = terminal_codec::encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let expected = CorpusExpected::BooleanPerArm {
         when_false: case.expected_false(),
@@ -842,7 +842,7 @@ pub(super) fn transition_artifact(
             },
         }],
     };
-    let proof = terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = terminal_codec::encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let expected = CorpusExpected::UnsignedPerArm {
         when_false: case.expected(false),
@@ -1545,7 +1545,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
         },
     };
     let semantic = terminal_codec::encode_module(&module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&proof).unwrap();
+    let proof = terminal_codec::encode_proof_section(&module, &proof).unwrap();
     for condition in [false, true] {
         let execution = interpret_terminal_artifact_measured(
             &semantic,

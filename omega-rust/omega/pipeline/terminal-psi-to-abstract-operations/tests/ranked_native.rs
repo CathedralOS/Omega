@@ -35,14 +35,17 @@ fn artifact(source: &str) -> (Vec<u8>, Vec<u8>, terminal_psi::TerminalModule) {
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode ranked semantics");
     let proof =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode ranked proof");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode ranked proof");
     (semantic, proof, lowered.semantic_module)
 }
 
 #[test]
 fn unsigned_countdown_tag_is_explicitly_rejected_at_native_entrance() {
     let module = legacy_fixture::legacy_countdown();
-    let proof = terminal_codec::encode_proof_bundle(&terminal_psi::ProofBundle::default()).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&module, &terminal_psi::ProofBundle::default())
+            .unwrap();
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
     assert!(matches!(

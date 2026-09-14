@@ -118,7 +118,7 @@ fn projected_execution(
     assert_eq!(decode_module(&semantic).unwrap(), *module);
     TerminalExecution::start_artifact_with_structural_inputs(
         &semantic,
-        &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        &encode_proof_section(module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[],
         TerminalStructuralInputs {
@@ -357,7 +357,7 @@ fn projected_case_membership_checks_nominal_type_through_host_aliases() {
         };
         let mut execution = TerminalExecution::start_artifact_with_structural_inputs(
             &encode_module(&module).unwrap(),
-            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
             TerminalStructuralInputs {
@@ -612,7 +612,7 @@ fn case_membership_round_trips_both_tags_and_preserves_repeated_reads() {
                 assert_eq!(decoded, module);
                 let measured = interpret_terminal_artifact_measured(
                     &semantic,
-                    &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+                    &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
                     &AdmissionProfile::default(),
                     &[],
                 )
@@ -722,7 +722,7 @@ fn ordinary_case_calls_move_affine_and_preserve_copy_or_shared_payloads() {
             module.machines.push(callee);
             let measured = interpret_terminal_artifact_measured(
                 &encode_module(&module).expect("complete case call encodes"),
-                &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+                &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
                 &AdmissionProfile::default(),
                 &[],
             )
@@ -775,7 +775,7 @@ fn case_membership_does_not_consume_the_returned_case_or_payload() {
     };
     let result = interpret_terminal_artifact_measured(
         &encode_module(&module).unwrap(),
-        &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )
@@ -913,7 +913,7 @@ fn case_membership_suspension_charges_each_observation_once() {
     let module = observed_constructor(2, 1, StructuralMultiplicity::Affine);
     let mut execution = TerminalExecution::start_artifact(
         &encode_module(&module).unwrap(),
-        &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )

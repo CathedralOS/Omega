@@ -2,7 +2,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, interpret_terminal_artifact_measured,
 };
@@ -68,7 +68,7 @@ fn source_subslice_crosses_helpers_and_preserves_original_view_and_continuation(
 fn execute(lowered: &lowered_psi::LoweredPsi) -> Vec<Vec<u8>> {
     let result = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )
@@ -294,9 +294,10 @@ fn subslice_arguments_preserve_scalar_and_nested_structural_boundary_results() {
         checked_trees_to_lowered_psi::lower_machine(&checked(source), "Root::enter").unwrap();
     let module =
         terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap()).unwrap();
-    let proof =
-        terminal_codec::decode_proof_bundle(&encode_proof_bundle(&lowered.proof_bundle).unwrap())
-            .unwrap();
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .unwrap();
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
     assert_eq!(
         module

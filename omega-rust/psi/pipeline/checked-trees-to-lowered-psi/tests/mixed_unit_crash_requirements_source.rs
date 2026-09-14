@@ -33,7 +33,9 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
         .expect("mixed crash arithmetic retains its scalar runtime requirements");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let evidence = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let evidence =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let module = terminal_codec::decode_module(&semantic).unwrap();
     let proof = terminal_codec::decode_proof_bundle(&evidence).unwrap();
     terminal_verifier::verify_module(

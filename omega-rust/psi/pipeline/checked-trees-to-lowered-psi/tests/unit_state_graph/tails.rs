@@ -73,7 +73,7 @@ fn cyclic_tail_operations_resume_once_per_iteration_from_serialized_proofs() {
         checked_trees_to_lowered_psi::lower_machine(&checked(&loop_source()), "Root::enter")
             .unwrap();
     let semantic = encode_module(&lowered.semantic_module).unwrap();
-    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let profile = AdmissionProfile::default();
     let unlimited = interpret_terminal_artifact_measured(&semantic, &proof, &profile, &[]).unwrap();
     let mut execution =
@@ -202,7 +202,7 @@ fn effects(source: &str) -> Vec<(Vec<u8>, i128)> {
         .expect("selected tail descriptors reach later states");
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )

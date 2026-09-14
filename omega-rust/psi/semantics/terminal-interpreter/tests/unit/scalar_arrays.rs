@@ -137,10 +137,10 @@ fn scalar_arrays_decode_and_return_exact_primitive_and_nested_empty_contents() {
             ],
         ),
     ];
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
     for (dimensions, scalar_type, values) in cases {
         let module = fixture(&dimensions, scalar_type, &values);
         let semantic = encode_module(&module).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         assert_eq!(decode_module(&semantic).unwrap(), module);
         let measured = interpret_terminal_artifact_measured(
             &semantic,
@@ -160,7 +160,7 @@ fn scalar_array_fuel_pauses_before_establishment_and_return_without_replaying() 
     for values in [vec![byte(7), byte(9)], vec![]] {
         let module = fixture(&[values.len() as u64], byte(0).scalar_type(), &values);
         let semantic = encode_module(&module).unwrap();
-        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         let mut execution =
             TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
                 .unwrap();
@@ -221,7 +221,7 @@ fn scalar_array_operand_order_changes_canonical_identity_and_actual_contents() {
     );
     let measured = interpret_terminal_artifact_measured(
         &encode_module(&changed).unwrap(),
-        &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        &encode_proof_section(&changed, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )
@@ -380,7 +380,7 @@ fn scalar_array_contents_survive_later_scalar_work_and_nested_local_arrays() {
         },
     ]);
     let semantic = encode_module(&module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let mut execution =
         TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .unwrap();
@@ -449,7 +449,7 @@ fn scalar_array_owned_unit_argument_preserves_caller_contents() {
     assert_eq!(
         interpret_terminal_artifact_measured(
             &encode_module(&module).unwrap(),
-            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
         )
@@ -554,11 +554,11 @@ fn internal_array_returns(dimensions: &[u64], return_prior_array: bool) -> Termi
 
 #[test]
 fn scalar_array_internal_returns_preserve_nested_payloads_and_caller_arrays_across_fuel() {
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
     for dimensions in [vec![2], vec![2, 2], vec![0], vec![1, 0], vec![0, 2]] {
         for return_prior_array in [false, true] {
             let module = internal_array_returns(&dimensions, return_prior_array);
             let semantic = encode_module(&module).unwrap();
+            let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
             assert_eq!(decode_module(&semantic).unwrap(), module);
             let count = dimensions.iter().product::<u64>();
             let result = expected(vec![
@@ -655,7 +655,7 @@ fn scalar_array_internal_returns_reject_forged_result_and_call_evidence() {
             assert!(
                 TerminalExecution::start_artifact(
                     &semantic,
-                    &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+                    &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
                     &AdmissionProfile::default(),
                     &[],
                 )
@@ -697,7 +697,7 @@ fn scalar_array_internal_returns_preserve_boolean_and_ieee_payload_bits() {
         assert_eq!(
             interpret_terminal_artifact_measured(
                 &encode_module(&module).unwrap(),
-                &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+                &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
                 &AdmissionProfile::default(),
                 &[],
             )
@@ -740,7 +740,7 @@ fn scalar_array_call_results_do_not_erase_callee_requirements() {
     assert_eq!(
         interpret_terminal_artifact_measured(
             &semantics,
-            &encode_proof_bundle(&proof).unwrap(),
+            &encode_proof_section(&module, &proof).unwrap(),
             &AdmissionProfile::default(),
             &[],
         )
@@ -751,7 +751,7 @@ fn scalar_array_call_results_do_not_erase_callee_requirements() {
     assert!(
         TerminalExecution::start_artifact(
             &semantics,
-            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
         )
@@ -819,7 +819,7 @@ fn scalar_array_call_results_keep_payload_through_unit_arguments() {
     assert_eq!(
         interpret_terminal_artifact_measured(
             &encode_module(&module).unwrap(),
-            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
         )

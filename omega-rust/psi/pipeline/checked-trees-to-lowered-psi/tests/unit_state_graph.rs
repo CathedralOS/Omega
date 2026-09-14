@@ -2,7 +2,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, interpret_terminal_artifact_measured,
 };
@@ -72,7 +72,7 @@ fn free_unit_graph_preserves_view_scalar_edges_effect_order_and_continuation() {
         .expect("free multistate helper belongs to the ordinary call closure");
     let result = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )

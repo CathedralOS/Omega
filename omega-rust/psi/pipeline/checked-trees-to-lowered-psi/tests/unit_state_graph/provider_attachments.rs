@@ -47,7 +47,9 @@ fn cyclic_provider_fields_reload_with_exact_roots_and_ordered_stores() {
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(SOURCE), "Counter::run")
         .expect("general cyclic receiver graph retains provider-field calls");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let module = terminal_codec::decode_module(&semantic).unwrap();
     assert_eq!(module, lowered.semantic_module);
     let entry = module

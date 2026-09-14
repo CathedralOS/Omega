@@ -4,7 +4,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
@@ -42,7 +42,7 @@ fn artifact(source: &str) -> (terminal_psi::TerminalModule, Vec<u8>, Vec<u8>) {
     let checked = lower_typed_trees(typed).unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter").unwrap();
     let semantic = encode_module(&lowered.semantic_module).unwrap();
-    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     (lowered.semantic_module, semantic, proof)
 }
 

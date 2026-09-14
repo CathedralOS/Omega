@@ -4,7 +4,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use terminal_codec::{
-    decode_module, decode_proof_bundle, encode_module, encode_proof_bundle,
+    decode_module, decode_proof_bundle, encode_module, encode_proof_section,
     proof_bundle_fingerprint, render_verified_proof_synopsis, semantic_fingerprint,
 };
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
@@ -970,7 +970,8 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
         .expect("the executable graph keeps fixed fuel");
     assert_eq!(fixed.ceiling_units(), stripped_fixed.ceiling_units());
 
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("terminal proof should encode");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("terminal proof should encode");
     let machine = lowered
         .semantic_module
         .machines
@@ -1042,7 +1043,8 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
     );
 
     let semantic = semantic_fingerprint(&lowered.semantic_module).expect("terminal identity");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("producer proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("producer proof encodes");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())
@@ -1093,7 +1095,7 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
     non_dense.evidence_producers[0].id =
         semantic_vocabulary::EvidenceIdentity::new(2).expect("test proof identity");
     assert_eq!(
-        encode_proof_bundle(&non_dense),
+        encode_proof_section(&lowered.semantic_module, &non_dense),
         Err(terminal_codec::ProofCodecError::NonCanonicalEvidenceProducerOrder)
     );
     assert!(matches!(
@@ -1110,7 +1112,7 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
         .requirement_identity
         .clear();
     assert_eq!(
-        encode_proof_bundle(&malformed_row),
+        encode_proof_section(&lowered.semantic_module, &malformed_row),
         Err(terminal_codec::ProofCodecError::InvalidEvidenceProducer)
     );
     assert!(matches!(
@@ -1126,7 +1128,7 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
     let row = duplicate_row.evidence_producers[0].rows[0].clone();
     duplicate_row.evidence_producers[0].rows.push(row);
     assert_eq!(
-        encode_proof_bundle(&duplicate_row),
+        encode_proof_section(&lowered.semantic_module, &duplicate_row),
         Err(terminal_codec::ProofCodecError::NonCanonicalEvidenceProducerRows)
     );
     assert!(matches!(
@@ -1472,7 +1474,8 @@ fn proof_output_is_canonical_verified_and_runtime_erased() {
 
     let bytes = encode_module(&lowered.semantic_module).expect("proof-output module encodes");
     assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof-output proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("proof-output proof encodes");
     let verified = terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -1575,7 +1578,8 @@ fn runtime_unit_proof_output_links_and_executes_its_ordinary_call() {
     ));
 
     let bytes = encode_module(&lowered.semantic_module).expect("runtime Unit module encodes");
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("runtime Unit proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("runtime Unit proof encodes");
     let verified = terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -2421,7 +2425,8 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
 
     let semantic_bytes =
         encode_module(&lowered.semantic_module).expect("static i32 module encodes");
-    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("static i32 proof encodes");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("static i32 proof encodes");
     let decoded = decode_module(&semantic_bytes).expect("static i32 module decodes");
     assert_eq!(decoded, lowered.semantic_module);
     let decoded_proof = decode_proof_bundle(&proof_bytes).expect("static i32 proof decodes");
@@ -2709,8 +2714,8 @@ fn static_requirement_bool_result_uses_one_ordinary_scalar_call_without_runtime_
 
     let semantic_bytes =
         encode_module(&lowered.semantic_module).expect("static bool module encodes");
-    let proof_bytes =
-        encode_proof_bundle(&lowered.proof_bundle).expect("static bool proof encodes");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("static bool proof encodes");
     let decoded = decode_module(&semantic_bytes).expect("static bool module decodes");
     let decoded_proof = decode_proof_bundle(&proof_bytes).expect("static bool proof decodes");
     assert_eq!(decoded, lowered.semantic_module);
@@ -2994,8 +2999,8 @@ fn plural_static_requirement_proof_outputs_preserve_order_identity_and_freshness
 
     let semantic_bytes =
         encode_module(&lowered.semantic_module).expect("encode plural static semantics");
-    let proof_bytes =
-        encode_proof_bundle(&lowered.proof_bundle).expect("encode plural static proof bundle");
+    let proof_bytes = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode plural static proof bundle");
     let decoded_semantic = decode_module(&semantic_bytes).expect("decode plural static semantics");
     let decoded_proof =
         decode_proof_bundle(&proof_bytes).expect("decode plural static proof bundle");
@@ -3246,8 +3251,8 @@ fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
     let bytes =
         encode_module(&lowered.semantic_module).expect("runtime proof-output module encodes");
     assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
-    let proof =
-        encode_proof_bundle(&lowered.proof_bundle).expect("runtime proof-output proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("runtime proof-output proof encodes");
     let verified = terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -3393,7 +3398,8 @@ fn multi_field_proof_output_is_complete_canonical_and_runtime_erased() {
 
     let bytes = encode_module(&lowered.semantic_module).expect("multi-field proof output encodes");
     assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("multi-field proof encodes");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("multi-field proof encodes");
     let verified = terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -3539,7 +3545,8 @@ fn empty_complete_evidence_conformance_remains_valid_provenance() {
         .expect("an empty closed conformance is still complete");
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
     assert!(lowered.proof_bundle.evidence_producers[0].rows.is_empty());
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("empty row set is canonical");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("empty row set is canonical");
     assert_eq!(
         decode_proof_bundle(&proof),
         Ok(lowered.proof_bundle.clone())

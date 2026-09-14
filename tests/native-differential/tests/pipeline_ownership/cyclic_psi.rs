@@ -58,7 +58,8 @@ fn countdown_input() -> (terminal_psi::TerminalModule, VerifiedPsiOptimizationIn
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode countdown semantics");
     let proof =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode countdown proof");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode countdown proof");
     let input = lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,

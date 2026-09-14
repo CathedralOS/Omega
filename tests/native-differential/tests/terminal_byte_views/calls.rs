@@ -35,7 +35,7 @@ pub(super) fn stage_call_text_with_settlements(
     settlements: &[abstract_operations_to_target_operations::AdmittedBoundarySettlement<'_>],
 ) -> StagedOptimizedFixedFrameTextSection {
     let semantic = terminal_codec::encode_module(module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(proof).unwrap();
+    let proof = terminal_codec::encode_proof_section(module, proof).unwrap();
     let selections = OptimizationSelections::new([]).unwrap();
     let optimized = optimize_artifact_sections(
         &semantic,

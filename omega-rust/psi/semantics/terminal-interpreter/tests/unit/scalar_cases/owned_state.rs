@@ -64,7 +64,7 @@ fn assert_payload_at_every_fuel_pause(module: &TerminalModule) {
     )
     .unwrap();
     let semantic = encode_module(module).unwrap();
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    let proof = encode_proof_section(module, &ProofBundle::default()).unwrap();
     for (first, second) in [(17, 83), (u64::MAX, 0)] {
         let start = || {
             TerminalExecution::start_artifact(

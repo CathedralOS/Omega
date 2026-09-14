@@ -184,7 +184,8 @@ fn selected_proof_closure_lowers_exact_recursive_component() {
         lowered.semantic_module
     );
     let proof_bytes =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof");
     assert_eq!(
         terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof"),
         lowered.proof_bundle
@@ -242,7 +243,8 @@ fn selected_singleton_proof_closure_uses_the_grouped_certificate_path() {
         lowered.semantic_module
     );
     let proof_bytes =
-        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof");
     assert_eq!(
         terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof"),
         lowered.proof_bundle

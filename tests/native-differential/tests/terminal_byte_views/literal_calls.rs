@@ -197,7 +197,9 @@ fn source_installed_provider_retains_literal_arguments_and_affine_results() {
     "#,
     );
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let providers = lowered
         .semantic_module
         .provider_candidates

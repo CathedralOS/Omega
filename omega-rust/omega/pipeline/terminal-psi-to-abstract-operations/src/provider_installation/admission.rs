@@ -15,7 +15,10 @@ pub(super) fn admit_provider_installation_with_projection(
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ArtifactLoweringError::SemanticDecode)
         .map_err(ProviderInstallationError::ArtifactReplay)?;
-    let proof = terminal_codec::decode_proof_bundle_for(&module, proof_bytes)
+    // Provider admission requires the sealed proof section: the seal must
+    // name this module's reconstructed identity, so a proof sealed for
+    // another artifact cannot underwrite this installation.
+    let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)
         .map_err(ProviderInstallationError::ArtifactReplay)?;
     let verified = terminal_verifier::verify_module(&module, &proof, profile)

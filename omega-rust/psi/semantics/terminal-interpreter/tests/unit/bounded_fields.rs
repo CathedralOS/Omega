@@ -40,7 +40,7 @@ fn bounded_integer_host_result_rejects_before_handler_or_custody() {
         let mut module = structural_boundary_effect_module();
         restrict(&mut module, nested);
         let semantic = encode_module(&module).unwrap();
-        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         let mut execution =
             TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
                 .unwrap();
@@ -69,7 +69,7 @@ fn bounded_integer_opaque_entry_rejects_even_without_a_field_read() {
         let mut module = boundary_borrows::borrowed_boundary_module(StructuralAccess::SharedBorrow);
         restrict(&mut module, nested);
         let semantic = encode_module(&module).unwrap();
-        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         assert!(
             TerminalExecution::start_artifact_with_structural_arguments(
                 &semantic,
@@ -94,7 +94,7 @@ fn explicit_bounded_entry_fields_validate_all_contents_before_startup() {
         let mut module = boundary_borrows::borrowed_boundary_module(StructuralAccess::SharedBorrow);
         restrict(&mut module, nested);
         let semantic = encode_module(&module).unwrap();
-        let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         let roots = [TerminalStructuralValue {
             opaque_identity: 71,
             structural_type: structural_type_id(1),

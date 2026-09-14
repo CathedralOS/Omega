@@ -15,12 +15,15 @@ fn reflexive_less_than_uses_one_semantic_parameter_in_the_ordinary_graph() {
     *right = *left;
     let module = conditional_immediate_module(machine.id, vec![machine]);
     let semantic = terminal_codec::encode_module(&module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
-        recursive_components: Vec::new(),
-        control_cycles: Vec::new(),
-        evidence_producers: Vec::new(),
-        evidence: Vec::new(),
-    })
+    let proof = terminal_codec::encode_proof_section(
+        &module,
+        &ProofBundle {
+            recursive_components: Vec::new(),
+            control_cycles: Vec::new(),
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        },
+    )
     .unwrap();
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

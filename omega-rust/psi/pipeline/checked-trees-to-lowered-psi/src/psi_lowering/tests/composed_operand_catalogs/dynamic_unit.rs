@@ -339,7 +339,9 @@ fn dynamic_boolean_result_executes_only_the_selected_ordinary_unit_leaf() {
         let lowered = roundtrip(&checked);
         let module = &lowered.semantic_module;
         let semantic = terminal_codec::encode_module(module).unwrap();
-        let evidence = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+        let evidence =
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .unwrap();
         let entry = module
             .machines
             .iter()

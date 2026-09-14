@@ -14,7 +14,9 @@ fn execute(source: &str, expected: &[u8]) {
         terminal_codec::decode_module(&semantic).unwrap(),
         lowered.semantic_module
     );
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let TerminalExecutionResult::ScalarArray(result) =
         interpret_terminal_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
             .unwrap_or_else(|error| {

@@ -4,7 +4,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue,
@@ -72,7 +72,7 @@ fn verified_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
         .expect("Unit expression call lowers");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
-    let evidence = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let evidence = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();
     let proof = decode_proof_bundle(&evidence).unwrap();
     assert_eq!(module, lowered.semantic_module);

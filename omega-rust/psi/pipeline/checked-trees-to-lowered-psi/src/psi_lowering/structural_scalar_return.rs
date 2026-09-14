@@ -1115,8 +1115,9 @@ mod trait_operator_tests {
         )
         .expect("verify exact operator closure");
         let bytes = terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
-        let proof_bytes = terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
-            .expect("encode proof bundle");
+        let proof_bytes =
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .expect("encode proof bundle");
         let structural_values = entry
             .structural_parameters
             .iter()

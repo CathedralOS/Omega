@@ -160,7 +160,9 @@ fn selected_callback_identity_preserves_its_normal_contract() {
         assert_eq!(contract.requires.len(), expected_count);
         assert_eq!(contract.ensures.len(), expected_count);
         let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-        let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+        let proof =
+            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .unwrap();
         let input = TerminalScalarValue::Integer {
             scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
             value: IntegerValue::Unsigned(7),

@@ -40,7 +40,7 @@ fn assert_source_with_scalars(
     assert_eq!(decode_module(artifact.semantic_bytes()).unwrap(), *module);
     let semantic = encode_module(module).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
-    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
     let verified = terminal_verifier::verify_module(
         module,

@@ -24,6 +24,14 @@ pub(crate) fn canonical_artifact(
         .unwrap()
 }
 
+/// Reseal a proof section's bundle against a mutated module. The seal binds a
+/// section to the exact module offered beside it, so fixtures that change a
+/// decoded module must restate the seal rather than replay stale bytes.
+pub(crate) fn reseal_proof(module: &TerminalModule, proof: &[u8]) -> Vec<u8> {
+    let bundle = terminal_codec::decode_proof_bundle(proof).unwrap();
+    terminal_codec::encode_proof_section(module, &bundle).unwrap()
+}
+
 /// Build certificates for exact integer operations in a fixture.
 ///
 /// Satisfiable operations use the same independently checked producer as Psi
@@ -208,7 +216,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
     let proof = operation_proof_bundle(&module);
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -227,7 +235,7 @@ pub(crate) fn conditional_u64_integer_equal_parameters_artifact() -> (Vec<u8>, V
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -242,7 +250,7 @@ pub(crate) fn conditional_u64_equal_zero_parameter_artifact() -> (Vec<u8>, Vec<u
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -257,7 +265,7 @@ pub(crate) fn conditional_u64_not_equal_zero_parameter_artifact() -> (Vec<u8>, V
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -272,7 +280,7 @@ pub(crate) fn conditional_u64_integer_less_than_parameters_artifact() -> (Vec<u8
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -287,7 +295,7 @@ pub(crate) fn conditional_i64_integer_less_than_parameters_artifact() -> (Vec<u8
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -302,7 +310,7 @@ pub(crate) fn conditional_i64_integer_less_or_equal_parameters_artifact() -> (Ve
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -317,7 +325,7 @@ pub(crate) fn conditional_u64_integer_less_or_equal_parameters_artifact() -> (Ve
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -332,7 +340,7 @@ pub(crate) fn conditional_u64_integer_not_equal_parameters_artifact() -> (Vec<u8
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -723,7 +731,7 @@ pub(crate) fn conditional_immediate_artifact_with_type(
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 
@@ -740,7 +748,7 @@ pub(crate) fn disconnected_conditional_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 

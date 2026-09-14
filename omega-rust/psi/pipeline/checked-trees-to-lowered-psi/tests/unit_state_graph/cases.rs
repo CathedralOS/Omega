@@ -10,7 +10,7 @@ fn output(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, u128)> {
         .expect("valid source graph lowers before checking exact output");
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
     )

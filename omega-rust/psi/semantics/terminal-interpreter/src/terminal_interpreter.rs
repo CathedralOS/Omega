@@ -449,7 +449,10 @@ pub fn admit_provider_installation_from_artifact(
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ProviderInstallationError::SemanticDecode)?;
-    let proof = terminal_codec::decode_proof_bundle(proof_bytes)
+    // The proof section must be sealed for this exact module: a section
+    // naming another subject, or a bare unsealed bundle, rejects here rather
+    // than reaching verification.
+    let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
         .map_err(ProviderInstallationError::ProofDecode)?;
     let verified = terminal_verifier::verify_module(&module, &proof, profile)
         .map_err(ProviderInstallationError::Verification)?;
@@ -826,7 +829,10 @@ impl TerminalExecution {
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        let proof = terminal_codec::decode_proof_bundle(proof_bytes)
+        // Only the subject-sealed proof section enters interpretation: the
+        // seal must name this module's reconstructed identity, so a proof
+        // produced for another source/model/profile cannot be replayed here.
+        let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
             .map_err(TerminalArtifactInterpretError::ProofDecode)?;
         let _verified =
             terminal_verifier::verify_module_for_interpretation(&module, &proof, profile)
@@ -860,7 +866,9 @@ impl TerminalExecution {
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        let proof = terminal_codec::decode_proof_bundle(proof_bytes)
+        // Same sealed-section requirement as the other artifact starts: an
+        // admitted installation is bound to this exact Terminal-Psi identity.
+        let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
             .map_err(TerminalArtifactInterpretError::ProofDecode)?;
         let _verified = terminal_verifier::verify_module(&module, &proof, profile)
             .map_err(TerminalArtifactInterpretError::Verification)?;

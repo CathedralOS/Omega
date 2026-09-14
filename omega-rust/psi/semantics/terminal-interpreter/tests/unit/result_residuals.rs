@@ -233,7 +233,7 @@ fn start(module: &TerminalModule, ordinary: bool) -> TerminalExecution {
     let proof = ProofBundle::default();
     verify_module(module, &proof, &AdmissionProfile::default())
         .expect("exact result residual complement independently verifies");
-    let proof = encode_proof_bundle(&proof).unwrap();
+    let proof = encode_proof_section(module, &proof).unwrap();
     let arguments = if ordinary {
         vec![TerminalStructuralValue {
             opaque_identity: 50,

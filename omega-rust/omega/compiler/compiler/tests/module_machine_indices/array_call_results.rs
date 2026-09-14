@@ -27,7 +27,9 @@ fn execute_source(
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read")
         .unwrap_or_else(|error| panic!("{source}: {error:?}"));
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     drop(checked);
     drop(lowered);
     assert_decoded_array(&semantics, &proof, &[], dimensions, expected, leaf);
@@ -203,7 +205,9 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
     }
     let checked = compile(&root, root_inputs(&root));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "computed_row").unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     drop(lowered);
     drop(checked);
@@ -298,6 +302,10 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
     }];
     module.entry = caller.id;
     module.machines.push(caller);
+    // The sealed proof names the exact semantic module, so the added caller
+    // machine requires resealing the same bundle against the mutated module.
+    let bundle = terminal_codec::decode_proof_bundle(&proof).unwrap();
+    let proof = terminal_codec::encode_proof_section(&module, &bundle).unwrap();
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let execution = terminal_interpreter::interpret_terminal_artifact(
         &semantic,

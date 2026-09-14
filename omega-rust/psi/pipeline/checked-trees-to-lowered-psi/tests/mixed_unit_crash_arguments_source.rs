@@ -124,7 +124,9 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
         .expect("mixed Unit crash predicate lowers through its authored signature");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let evidence = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let evidence =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let module = terminal_codec::decode_module(&semantic).unwrap();
     let proof = terminal_codec::decode_proof_bundle(&evidence).unwrap();
     terminal_verifier::verify_module(
@@ -523,7 +525,9 @@ fn execute(lowered: &lowered_psi::LoweredPsi, scalars: [bool; 2], flags: [bool; 
         .find(|machine| machine.id == module.entry)
         .unwrap();
     let semantic = terminal_codec::encode_module(module).unwrap();
-    let evidence = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let evidence =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
     let arguments = root
         .structural_parameters
         .iter()

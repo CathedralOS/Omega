@@ -68,13 +68,13 @@ fn selected_module(dimensions: &[u64], leaves: &[TerminalScalarValue]) -> Termin
 
 #[test]
 fn selected_array_calls_rejoin_and_resume_without_running_the_skipped_arm() {
-    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
     for dimensions in [vec![2], vec![2, 2], vec![0], vec![1, 0], vec![0, 2]] {
         let leaves = (0..dimensions.iter().product::<u64>())
             .map(|position| byte(7 + position as u8))
             .collect::<Vec<_>>();
         let module = selected_module(&dimensions, &leaves);
         let semantic = encode_module(&module).unwrap();
+        let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         assert_eq!(decode_module(&semantic).unwrap(), module);
         for selected in [false, true] {
             let arguments = [TerminalScalarValue::Boolean(selected)];

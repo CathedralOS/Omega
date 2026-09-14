@@ -272,7 +272,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
     let proof = operation_proof_bundle(&module);
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
 }
 

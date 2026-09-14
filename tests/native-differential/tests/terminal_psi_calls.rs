@@ -6,7 +6,7 @@ use semantic_vocabulary::{
     ScalarType, ValueId,
 };
 use target::NativeTarget;
-use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use terminal_interpreter::{
@@ -35,8 +35,6 @@ fn frontend_generated_scalar_terminals_are_product_valid() {
         ("signed-minimum.terminal", i128::from(i32::MIN)),
         ("signed-maximum.terminal", i128::from(i32::MAX)),
     ];
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("encode empty scalar proof");
-
     for (file_name, expected) in cases {
         let path = std::path::Path::new(&case_directory).join(file_name);
         let semantic = std::fs::read(&path).unwrap_or_else(|error| {
@@ -55,6 +53,8 @@ fn frontend_generated_scalar_terminals_are_product_valid() {
             &AdmissionProfile::default(),
         )
         .unwrap_or_else(|error| panic!("verify frontend scalar case {file_name}: {error:?}"));
+        let proof = encode_proof_section(&module, &ProofBundle::default())
+            .expect("encode empty scalar proof section");
         let measured = interpret_terminal_artifact_measured(
             &semantic,
             &proof,
@@ -112,7 +112,11 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
     );
     let measured = interpret_terminal_artifact_measured(
         &semantic,
-        &encode_proof_bundle(&ProofBundle::default()).expect("empty scalar call proof"),
+        &encode_proof_section(
+            &decode_module(&semantic).expect("decode scalar call fixture"),
+            &ProofBundle::default(),
+        )
+        .expect("empty scalar call proof"),
         &AdmissionProfile::default(),
         &[],
     )
@@ -128,8 +132,11 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
     let abstract_plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
-            proof_bytes: &encode_proof_bundle(&ProofBundle::default())
-                .expect("empty lowering proof"),
+            proof_bytes: &encode_proof_section(
+                &decode_module(&semantic).expect("decode scalar call fixture"),
+                &ProofBundle::default(),
+            )
+            .expect("empty lowering proof"),
             obligation_ledger_bytes: None,
         },
         &AdmissionProfile::default(),
@@ -207,7 +214,7 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
 fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
     let module = call_module();
     let semantic = encode_module(&module).expect("encode call semantics");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("encode empty proof");
+    let proof = encode_proof_section(&module, &ProofBundle::default()).expect("encode empty proof");
     let verified = verify_module(
         &module,
         &ProofBundle::default(),
@@ -317,7 +324,7 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
     };
 
     let semantic = encode_module(&module).expect("encode crash-capable call semantics");
-    let proof = encode_proof_bundle(&ProofBundle::default()).expect("encode empty proof");
+    let proof = encode_proof_section(&module, &ProofBundle::default()).expect("encode empty proof");
     let verified = verify_module(
         &module,
         &ProofBundle::default(),

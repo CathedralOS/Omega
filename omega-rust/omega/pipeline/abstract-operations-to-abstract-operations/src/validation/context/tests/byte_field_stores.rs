@@ -25,7 +25,11 @@ fn indexed_byte_field_rejoins_original_field_even_when_current_bounds_match() {
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
-            proof_bytes: &terminal_codec::encode_proof_bundle(&terminal.proof_bundle).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_section(
+                &terminal.semantic_module,
+                &terminal.proof_bundle,
+            )
+            .unwrap(),
             obligation_ledger_bytes: None,
         },
         &proof_admission::AdmissionProfile::default(),
@@ -98,7 +102,11 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
         let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
-                proof_bytes: &terminal_codec::encode_proof_bundle(&terminal.proof_bundle).unwrap(),
+                proof_bytes: &terminal_codec::encode_proof_section(
+                    &terminal.semantic_module,
+                    &terminal.proof_bundle,
+                )
+                .unwrap(),
                 obligation_ledger_bytes: None,
             },
             &proof_admission::AdmissionProfile::default(),
