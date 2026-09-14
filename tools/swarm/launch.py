@@ -529,7 +529,8 @@ def command_local(arguments, repository):
             raise SwarmError(f"{session['name']}: local prompt template left "
                              f"placeholders unresolved: {unresolved}")
         prompt_path = prompts_directory / f"{session['name']}.md"
-        prompt_path.write_text(prompt, encoding="utf-8", newline="\n")
+        with open(prompt_path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(prompt)
         if arguments.create_worktrees and state["state"] in (
                 "absent", "resumable_no_worktree"):
             worktree_arg = state["worktree"].relative_to(repository).as_posix()
@@ -668,7 +669,8 @@ def command_plan(arguments, repository):
             raise SwarmError(f"{session['name']}: prompt template left placeholders "
                              f"unresolved: {unresolved}")
         prompt_path = prompts_directory / f"{session['name']}.md"
-        prompt_path.write_text(prompt, encoding="utf-8", newline="\n")
+        with open(prompt_path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(prompt)
         planned.append({
             "name": session["name"],
             "item": session["item"],
@@ -894,7 +896,8 @@ def command_report(arguments, repository):
                     lines.append(f"- {key}: {value}")
         lines.append("")
     report_path = wave_directory / "report.md"
-    report_path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    with open(report_path, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("\n".join(lines))
     summary = report_summary(rows)
     record = {"command": "report", "wave": arguments.wave,
               "report": str(report_path.relative_to(repository)),
