@@ -841,9 +841,17 @@ Owners include
   grow-and-rebind to success, bound exit operand and applied completion
   carrying the acquired key and snapshot, stale-key retry reacquiring a fresh
   map, foreign session/invocation and cross-ledger rejection, and
-  contract-violating success cells retaining executed custody. Remaining: a
-  caller sequencing acquire → bind/execute/admit → apply into the nonreturning
-  transfer; a durable target-owned invocation-plan artifact still belongs to
+  contract-violating success cells retaining executed custody.
+  `os_handoff_cycle.rs` now lands the caller-side sequencing:
+  `drive_uefi_os_handoff_cycle` composes the bounded cycle in the only legal
+  order — acquire under the pending exit's custody (grow-and-retry spends no
+  attempt), register the sealed acquisition, bind the pending exit to that
+  exact key, execute and admit, then apply — and returns terminal resolution
+  or stage-exact live custody on every rejection. Witnessed on macOS arm64 by
+  external-roots tests (167/167): freshest-key ordering across a
+  grow-then-stale-key retry, exhaustion returning releasable provider custody,
+  and acquisition/admission/binding rejections re-driving or releasing intact.
+  Remaining: a durable target-owned invocation-plan artifact still belongs to
   `program-entry-plan`, and no authored Omega surface invokes this edge yet.
 
 - **AP-BRINGUP.** Complete one secondary-processor entry through the executable
