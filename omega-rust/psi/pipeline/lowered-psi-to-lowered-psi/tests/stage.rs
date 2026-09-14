@@ -45,6 +45,7 @@ fn unported_selections_fail_closed_instead_of_recording_identity() {
             PsiOptimization::CopyPropagation
                 | PsiOptimization::DeadPureScalarElimination
                 | PsiOptimization::GlobalValueNumbering
+                | PsiOptimization::SparseConditionalConstantPropagation
         ) {
             continue;
         }

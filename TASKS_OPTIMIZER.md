@@ -54,8 +54,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   names; global value numbering removes an unconditionally-total scalar
   operation that repeats a surviving operation with the same kind and resolved
   operands in a dominating position, substituting the canonical survivor at
-  direct scalar uses under the same retention rules; SCCP, control-flow cleanup
-  and proof-check elision remain open.
+  direct scalar uses under the same retention rules; sparse conditional
+  constant propagation folds a goal-free scalar leaf operation whose scalar
+  operands all resolve to known literals into the matching integer or Boolean
+  constant in place, keeping operation, result, and value identities while
+  ranked machines, static reach bindings, and proof-bearing closures stay
+  frozen; control-flow cleanup and proof-check elision remain open.
 
 ## Product pruning and rollout
 

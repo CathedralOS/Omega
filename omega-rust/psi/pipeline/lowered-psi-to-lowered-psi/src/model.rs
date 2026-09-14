@@ -58,6 +58,9 @@ pub enum PsiOptimizationStageError {
     InvalidCopyPropagationRewrite(terminal_verifier::CopyPropagationRewriteError),
     InvalidDeadScalarRewrite(terminal_verifier::DeadScalarRewriteError),
     InvalidGlobalValueNumberingRewrite(terminal_verifier::GlobalValueNumberingRewriteError),
+    InvalidSparseConditionalConstantPropagationRewrite(
+        terminal_verifier::SparseConditionalConstantPropagationRewriteError,
+    ),
     InvalidModule(ModuleError),
     InvalidSemantic(CodecError),
     InvalidProof(ProofCodecError),
@@ -79,6 +82,12 @@ impl std::fmt::Display for PsiOptimizationStageError {
                 write!(
                     formatter,
                     "invalid global value numbering rewrite: {error:?}"
+                )
+            }
+            Self::InvalidSparseConditionalConstantPropagationRewrite(error) => {
+                write!(
+                    formatter,
+                    "invalid sparse conditional constant propagation rewrite: {error:?}"
                 )
             }
             Self::InvalidModule(error) => write!(formatter, "invalid optimization input: {error}"),

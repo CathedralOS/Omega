@@ -7,6 +7,7 @@
 //! reduction policy. It deliberately does not own traversal, evidence
 //! availability, sufficient-form reduction, or provider realization.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::{
@@ -464,6 +465,164 @@ pub fn is_unconditionally_total_scalar(operation: &OperationKind) -> bool {
                     && schema.frontier() == ScalarLeafFrontierPolicy::PreserveLocal
             })
         })
+}
+
+/// The exact literal one goal-free scalar leaf denotes once every operand
+/// resolves to a literal. This is the value language of constant folding:
+/// integer and Boolean leaves only — no goal-free leaf produces a float, so a
+/// float literal can never be required here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScalarLeafLiteral {
+    Integer(IntegerValue),
+    Boolean(bool),
+}
+
+/// Evaluate one goal-free scalar leaf whose operands are already literals.
+///
+/// `literals` binds each value identity known to denote an exact literal: the
+/// results of literal operations and of leaves already folded under this same
+/// rule. `value_types` carries the declared scalar type of every value the
+/// operation may read. Literal denotations are seed values, not candidates,
+/// and every operand must resolve through `literals`; `None` leaves the
+/// operation unchanged in either case.
+pub fn constant_goal_free_scalar_leaf(
+    operation: &Operation,
+    literals: &BTreeMap<ValueId, ScalarLeafLiteral>,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+) -> Option<ScalarLeafLiteral> {
+    let row = operation_semantic_row(&operation.kind).ok()?;
+    let schema = row.goal_free_scalar_leaf()?;
+    let inputs = scalar_leaf_inputs(&operation.kind)?;
+    let result = operation.result.scalar_ref()?;
+    validate_result_shape(row.tag, schema.result, result.scalar_type).ok()?;
+    validate_operand_shape(row.tag, schema, inputs, result.scalar_type, value_types).ok()?;
+    let integer_literal = |value: ValueId| match literals.get(&value) {
+        Some(ScalarLeafLiteral::Integer(literal)) => Some(*literal),
+        _ => None,
+    };
+    let boolean_literal = |value: ValueId| match literals.get(&value) {
+        Some(ScalarLeafLiteral::Boolean(literal)) => Some(*literal),
+        _ => None,
+    };
+    let integer_type_of = |value: ValueId| match value_types.get(&value) {
+        Some(ScalarType::Integer(integer_type)) => Some(*integer_type),
+        _ => None,
+    };
+    let result_integer_type = || match result.scalar_type {
+        ScalarType::Integer(integer_type) => Some(integer_type),
+        _ => None,
+    };
+    let binary_integer = |left: ValueId, right: ValueId| {
+        Some((
+            integer_type_of(left)?,
+            integer_literal(left)?,
+            integer_literal(right)?,
+        ))
+    };
+    Some(match (schema.denotation, inputs) {
+        (ScalarLeafDenotation::BooleanNot, ScalarLeafInputs::Unary(operand)) => {
+            ScalarLeafLiteral::Boolean(!boolean_literal(operand)?)
+        }
+        (ScalarLeafDenotation::BooleanEqual, ScalarLeafInputs::Binary(left, right)) => {
+            ScalarLeafLiteral::Boolean(boolean_literal(left)? == boolean_literal(right)?)
+        }
+        (ScalarLeafDenotation::IntegerEqual, ScalarLeafInputs::Binary(left, right)) => {
+            let (operand_type, left, right) = binary_integer(left, right)?;
+            ScalarLeafLiteral::Boolean(operand_type.compare(left, right)? == Ordering::Equal)
+        }
+        (ScalarLeafDenotation::IntegerLessThan, ScalarLeafInputs::Binary(left, right)) => {
+            let (operand_type, left, right) = binary_integer(left, right)?;
+            ScalarLeafLiteral::Boolean(operand_type.compare(left, right)? == Ordering::Less)
+        }
+        (ScalarLeafDenotation::IntegerLessOrEqual, ScalarLeafInputs::Binary(left, right)) => {
+            let (operand_type, left, right) = binary_integer(left, right)?;
+            ScalarLeafLiteral::Boolean(operand_type.compare(left, right)? != Ordering::Greater)
+        }
+        (ScalarLeafDenotation::IntegerBitwiseNot, ScalarLeafInputs::Unary(operand)) => {
+            ScalarLeafLiteral::Integer(
+                result_integer_type()?.bitwise_not(integer_literal(operand)?)?,
+            )
+        }
+        (ScalarLeafDenotation::IntegerWiden, ScalarLeafInputs::Unary(operand)) => {
+            ScalarLeafLiteral::Integer(
+                integer_type_of(operand)?
+                    .widen_value_to(result_integer_type()?, integer_literal(operand)?)?,
+            )
+        }
+        (ScalarLeafDenotation::IntegerBitwiseAnd, ScalarLeafInputs::Binary(left, right)) => {
+            ScalarLeafLiteral::Integer(
+                result_integer_type()?
+                    .bitwise_and(integer_literal(left)?, integer_literal(right)?)?,
+            )
+        }
+        (ScalarLeafDenotation::IntegerBitwiseOr, ScalarLeafInputs::Binary(left, right)) => {
+            ScalarLeafLiteral::Integer(
+                result_integer_type()?
+                    .bitwise_or(integer_literal(left)?, integer_literal(right)?)?,
+            )
+        }
+        (ScalarLeafDenotation::IntegerBitwiseXor, ScalarLeafInputs::Binary(left, right)) => {
+            ScalarLeafLiteral::Integer(
+                result_integer_type()?
+                    .bitwise_xor(integer_literal(left)?, integer_literal(right)?)?,
+            )
+        }
+        (
+            ScalarLeafDenotation::WrappingIntegerShiftLeft,
+            ScalarLeafInputs::Binary(value, count),
+        ) => ScalarLeafLiteral::Integer(result_integer_type()?.wrapping_shift_left(
+            integer_literal(value)?,
+            integer_type_of(count)?,
+            integer_literal(count)?,
+        )?),
+        (
+            ScalarLeafDenotation::WrappingIntegerShiftRight,
+            ScalarLeafInputs::Binary(value, count),
+        ) => ScalarLeafLiteral::Integer(result_integer_type()?.wrapping_shift_right(
+            integer_literal(value)?,
+            integer_type_of(count)?,
+            integer_literal(count)?,
+        )?),
+        (ScalarLeafDenotation::WrappingIntegerAdd, ScalarLeafInputs::Binary(left, right)) => {
+            ScalarLeafLiteral::Integer(
+                result_integer_type()?
+                    .wrapping_add(integer_literal(left)?, integer_literal(right)?)?,
+            )
+        }
+        (ScalarLeafDenotation::SaturatingIntegerAdd, ScalarLeafInputs::Binary(left, right)) => {
+            ScalarLeafLiteral::Integer(
+                result_integer_type()?
+                    .saturating_add(integer_literal(left)?, integer_literal(right)?)?,
+            )
+        }
+        (ScalarLeafDenotation::WrappingIntegerSubtract, ScalarLeafInputs::Binary(left, right)) => {
+            ScalarLeafLiteral::Integer(
+                result_integer_type()?
+                    .wrapping_sub(integer_literal(left)?, integer_literal(right)?)?,
+            )
+        }
+        (
+            ScalarLeafDenotation::SaturatingIntegerSubtract,
+            ScalarLeafInputs::Binary(left, right),
+        ) => ScalarLeafLiteral::Integer(
+            result_integer_type()?
+                .saturating_sub(integer_literal(left)?, integer_literal(right)?)?,
+        ),
+        (ScalarLeafDenotation::WrappingIntegerMultiply, ScalarLeafInputs::Binary(left, right)) => {
+            ScalarLeafLiteral::Integer(
+                result_integer_type()?
+                    .wrapping_mul(integer_literal(left)?, integer_literal(right)?)?,
+            )
+        }
+        (
+            ScalarLeafDenotation::SaturatingIntegerMultiply,
+            ScalarLeafInputs::Binary(left, right),
+        ) => ScalarLeafLiteral::Integer(
+            result_integer_type()?
+                .saturating_mul(integer_literal(left)?, integer_literal(right)?)?,
+        ),
+        _ => return None,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -927,6 +1086,88 @@ mod tests {
             Err(OperationSemanticError::OperandShapeMismatch(
                 OperationSemanticTag::WrappingIntegerAdd,
             )),
+        );
+    }
+
+    #[test]
+    fn constant_leaf_folds_only_when_every_operand_is_literal() {
+        let left = ValueId::new(1).unwrap();
+        let right = ValueId::new(2).unwrap();
+        let result = ValueId::new(3).unwrap();
+        let add = Operation {
+            static_reach_binding: None,
+            id: OperationId::new(1).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: result,
+                scalar_type: i8_type(),
+            }),
+            kind: OperationKind::WrappingIntegerAdd { left, right },
+        };
+        let value_types = BTreeMap::from([(left, i8_type()), (right, i8_type())]);
+        // Partial knowledge is not a fold: the right operand is not yet literal.
+        let partial =
+            BTreeMap::from([(left, ScalarLeafLiteral::Integer(IntegerValue::Signed(126)))]);
+        assert_eq!(
+            constant_goal_free_scalar_leaf(&add, &partial, &value_types),
+            None
+        );
+        let literals = BTreeMap::from([
+            (left, ScalarLeafLiteral::Integer(IntegerValue::Signed(126))),
+            (right, ScalarLeafLiteral::Integer(IntegerValue::Signed(5))),
+        ]);
+        // 126 + 5 wraps within signed 8 bits to -125.
+        assert_eq!(
+            constant_goal_free_scalar_leaf(&add, &literals, &value_types),
+            Some(ScalarLeafLiteral::Integer(IntegerValue::Signed(-125))),
+        );
+    }
+
+    #[test]
+    fn constant_leaf_evaluates_comparisons_and_rejects_nonleaf_rows() {
+        let left = ValueId::new(1).unwrap();
+        let right = ValueId::new(2).unwrap();
+        let result = ValueId::new(3).unwrap();
+        let less = Operation {
+            static_reach_binding: None,
+            id: OperationId::new(2).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: result,
+                scalar_type: ScalarType::Boolean,
+            }),
+            kind: OperationKind::IntegerLessThan { left, right },
+        };
+        let value_types = BTreeMap::from([(left, i8_type()), (right, i8_type())]);
+        let literals = BTreeMap::from([
+            (left, ScalarLeafLiteral::Integer(IntegerValue::Signed(-4))),
+            (right, ScalarLeafLiteral::Integer(IntegerValue::Signed(-4))),
+        ]);
+        assert_eq!(
+            constant_goal_free_scalar_leaf(&less, &literals, &value_types),
+            Some(ScalarLeafLiteral::Boolean(false)),
+        );
+        // Literal rows are seeds, not candidates; non-leaf rows never fold.
+        let literal = Operation {
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Signed(7),
+            },
+            ..less.clone()
+        };
+        assert_eq!(
+            constant_goal_free_scalar_leaf(&literal, &literals, &value_types),
+            None
+        );
+        let read = Operation {
+            kind: OperationKind::PrimitiveScalarRead {
+                source: semantic_vocabulary::PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+            },
+            ..less
+        };
+        assert_eq!(
+            constant_goal_free_scalar_leaf(&read, &literals, &value_types),
+            None
         );
     }
 }
