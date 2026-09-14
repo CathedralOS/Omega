@@ -4,16 +4,21 @@
 //! Post-Terminal abstract-operation optimization over units reconstructed from
 //! Terminal Psi. This does not implement the portable pre-Terminal Psi phase.
 //! Empty selection is identity and precedes [`AnalysisManager`] construction.
+//!
+//! Start at [`optimize_abstract_operations`] in `abstract_optimization.rs`: it
+//! admits the artifact, builds the verified unit, runs the selected passes
+//! through [`pass_manager`] over the rules that [`rule_registry`] orders, and
+//! publishes the validated plan through [`publication`].
+mod abstract_optimization;
 mod analyses;
 mod pass_manager;
-mod phase;
 mod publication;
 mod ranked_rewrites;
-mod registry;
+mod rule_registry;
 mod rules;
 pub mod validation;
 
-pub use phase::{AbstractOptimizationError, optimize_abstract_operations};
+pub use abstract_optimization::{AbstractOptimizationError, optimize_abstract_operations};
 pub use publication::{
     AppliedDecisionCustodyAxis, OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan,
     publish_optimization_run,
@@ -47,7 +52,7 @@ pub(crate) use analyses::{
 };
 pub use pass_manager::*;
 pub use ranked_rewrites::*;
-pub use registry::{
+pub use rule_registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError, RuleScheduleKey,
 };

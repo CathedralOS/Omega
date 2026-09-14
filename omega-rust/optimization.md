@@ -45,7 +45,7 @@ propositions, proof projections, suspension frontiers, ranking evidence, and
 recorded source-call joins keep the exact identities they name. The
 execution record survives canonical Terminal encoding and independent decoding.
 
-The [post-Terminal abstract phase](omega/pipeline/abstract-operations-to-abstract-operations/src/phase.rs)
+The [post-Terminal abstract phase](omega/pipeline/abstract-operations-to-abstract-operations/src/abstract_optimization.rs)
 joins verified input construction, bounded execution, and independent projection
 publication. Its result exposes the current abstract program and replay evidence,
 not the executing session or analysis cache. Legacy `Psi` names still occur in
