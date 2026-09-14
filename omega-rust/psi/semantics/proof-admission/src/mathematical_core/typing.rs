@@ -1,8 +1,8 @@
 //! Typing and checking judgments for the Π/Σ fragment with stratified
 //! relevant/strict universes — predicative formation, explicit closed
 //! levels, no cumulativity, no self-typing universe — plus the inductive
-//! profile's two-element type and relevant identity type with their
-//! dependent eliminators.
+//! profile's two-element type, relevant identity type, and W-type with
+//! their dependent eliminators.
 
 use super::conversion::{Budget, convertible, weak_head_normalize};
 use super::substitution::{shift, substitute};
@@ -112,6 +112,40 @@ pub enum CoreError {
     /// A `J` motive whose codomain is not a universe at all leaves
     /// `C y p` without a type to check the base or the result against.
     IdentityMotiveCodomainNotAUniverse {
+        codomain: TermHandle,
+    },
+    /// `W A B` requires `A : Type u`: over a strict proposition a
+    /// well-founded tree has no relevant data to carry.
+    StrictWCarrier {
+        carrier: TermHandle,
+    },
+    /// A `W` branching family must land in a relevant universe
+    /// `Π(_ : A). Type v`. A strict codomain makes child positions
+    /// propositions, which the reference core's boxing rules own.
+    StrictWChildrenCodomain {
+        codomain: TermHandle,
+    },
+    /// A `W` branching family whose codomain is not a universe leaves
+    /// `B a` without a type for child positions.
+    WChildrenCodomainNotAUniverse {
+        codomain: TermHandle,
+    },
+    /// An `indW` tree must inhabit a `W` type; anything else leaves
+    /// the induction without a carrier or branching family.
+    NotAW {
+        tree: TermHandle,
+        actual_type: TermHandle,
+    },
+    /// An `indW` motive must be a family into a relevant universe
+    /// `Π(_ : W A B). Type w`. A strict codomain is not an admitted
+    /// elimination target: strict motives belong to the reference
+    /// core's boxing rules, not this eliminator.
+    StrictInductionMotiveCodomain {
+        codomain: TermHandle,
+    },
+    /// An `indW` motive whose codomain is not a universe at all leaves
+    /// `P t` without a type to check the step or the result against.
+    InductionMotiveCodomainNotAUniverse {
         codomain: TermHandle,
     },
     ArgumentTypeMismatch {
@@ -489,7 +523,223 @@ pub fn infer_type(
                 argument: proof,
             }))
         }
+        Term::W { carrier, children } => {
+            // `W A B : Type max(u, v)` — one shared formation rule,
+            // also run for every `sup` annotation.
+            let level = check_w_formation(arena, context, carrier, children, budget)?;
+            Ok(arena.insert(Term::Sort(Sort::Type(level))))
+        }
+        Term::Sup {
+            carrier,
+            children,
+            label,
+            function,
+        } => {
+            // `sup A B a k : W A B`. The annotation re-runs the
+            // formation rule — checked, never trusted — then the label
+            // and the child function check at their places in it:
+            // `k : Π(b : B a). W A B` with the `W` type shifted under
+            // the new `b` binder.
+            check_w_formation(arena, context, carrier, children, budget)?;
+            check_type(arena, context, label, carrier, budget)?;
+            let domain = arena.insert(Term::Apply {
+                function: children,
+                argument: label,
+            });
+            let w_type = arena.insert(Term::W { carrier, children });
+            let codomain = shift(arena, w_type, 0, 1);
+            let function_type = arena.insert(Term::Pi { domain, codomain });
+            check_type(arena, context, function, function_type, budget)?;
+            Ok(w_type)
+        }
+        Term::IndW { motive, step, tree } => {
+            // `indW(P, step, t) : P t` for `t : W A B`,
+            // `P : Π(_ : W A B). Type w`, and the induction step at
+            // `w_step_type`. The tree's inferred `W` type supplies the
+            // carrier and branching family — an elimination can never
+            // relocate to a different `W`. The motive's codomain must
+            // normalize to a relevant universe: strict targets belong
+            // to the reference core's boxing rules, and the level `w`
+            // is read off the checked codomain rather than confined to
+            // the tree's level.
+            let tree_type = infer_type(arena, context, tree, budget)?;
+            let tree_head = weak_head_normalize(arena, tree_type, budget)?;
+            let (carrier, children) = match arena.get(tree_head) {
+                Term::W { carrier, children } => (carrier, children),
+                _ => {
+                    return Err(CoreError::NotAW {
+                        tree,
+                        actual_type: tree_head,
+                    });
+                }
+            };
+            let motive_type = infer_type(arena, context, motive, budget)?;
+            let motive_head = weak_head_normalize(arena, motive_type, budget)?;
+            let codomain = match arena.get(motive_head) {
+                Term::Pi { domain, codomain } => {
+                    let domain_sort = infer_sort(arena, context, domain, budget)?;
+                    let shared_domain = arena.insert(Term::Sort(domain_sort));
+                    if !convertible(arena, context, domain, tree_head, shared_domain, budget)? {
+                        return Err(CoreError::TypeMismatch {
+                            expected: tree_head,
+                            actual: domain,
+                        });
+                    }
+                    codomain
+                }
+                _ => {
+                    return Err(CoreError::NotAFunction {
+                        function: motive,
+                        actual_type: motive_head,
+                    });
+                }
+            };
+            let codomain_head = weak_head_normalize(arena, codomain, budget)?;
+            match arena.get(codomain_head) {
+                Term::Sort(Sort::Type(_)) => {}
+                Term::Sort(Sort::Strict(_)) => {
+                    return Err(CoreError::StrictInductionMotiveCodomain { codomain });
+                }
+                _ => {
+                    return Err(CoreError::InductionMotiveCodomainNotAUniverse { codomain });
+                }
+            }
+            let step_type = w_step_type(arena, carrier, children, motive);
+            check_type(arena, context, step, step_type, budget)?;
+            Ok(arena.insert(Term::Apply {
+                function: motive,
+                argument: tree,
+            }))
+        }
     }
+}
+
+/// The `max(u, v)` level of a checked `W carrier children` formation:
+/// `carrier : Type u` relevant and `children` a `Π(_ : carrier). Type v`
+/// family into a relevant universe. `sup` annotations run through this
+/// same rule — checked, never trusted.
+fn check_w_formation(
+    arena: &mut TermArena,
+    context: &Context,
+    carrier: TermHandle,
+    children: TermHandle,
+    budget: &mut Budget,
+) -> Result<Level, CoreError> {
+    let carrier_sort = infer_sort(arena, context, carrier, budget)?;
+    let carrier_level = match carrier_sort {
+        Sort::Type(level) => level,
+        Sort::Strict(_) => return Err(CoreError::StrictWCarrier { carrier }),
+    };
+    let children_type = infer_type(arena, context, children, budget)?;
+    let children_head = weak_head_normalize(arena, children_type, budget)?;
+    let (domain, codomain) = match arena.get(children_head) {
+        Term::Pi { domain, codomain } => (domain, codomain),
+        _ => {
+            return Err(CoreError::NotAFunction {
+                function: children,
+                actual_type: children_head,
+            });
+        }
+    };
+    let domain_sort = infer_sort(arena, context, domain, budget)?;
+    let shared_domain = arena.insert(Term::Sort(domain_sort));
+    if !convertible(arena, context, domain, carrier, shared_domain, budget)? {
+        return Err(CoreError::TypeMismatch {
+            expected: carrier,
+            actual: domain,
+        });
+    }
+    let codomain_head = weak_head_normalize(arena, codomain, budget)?;
+    let children_level = match arena.get(codomain_head) {
+        Term::Sort(Sort::Type(level)) => level,
+        Term::Sort(Sort::Strict(_)) => {
+            return Err(CoreError::StrictWChildrenCodomain { codomain });
+        }
+        _ => {
+            return Err(CoreError::WChildrenCodomainNotAUniverse { codomain });
+        }
+    };
+    Ok(carrier_level.max(children_level))
+}
+
+/// The checked type of an `indW` induction step:
+/// `Π(a : A). Π(k : Π(b : B a). W A B). Π(_ : Π(b : B a). motive (k b)).
+/// motive (sup A B a k)` — an induction hypothesis for every child.
+///
+/// `carrier`, `children` and `motive` are terms in the ambient context;
+/// the builder shifts each under the binders it introduces. Depth 1
+/// lives under `a`; depth 2 under `a, k`, which is also where `k`'s own
+/// `b` binder leaves the `W A B` codomain; depth 3 under `a, k, ih` for
+/// the result, and under `a, k` plus the hypothesis's `b` for its
+/// codomain `motive (k b)`.
+pub(super) fn w_step_type(
+    arena: &mut TermArena,
+    carrier: TermHandle,
+    children: TermHandle,
+    motive: TermHandle,
+) -> TermHandle {
+    let children_at_one = shift(arena, children, 0, 1);
+    let bound_a = arena.insert(Term::Variable(0));
+    let children_domain = arena.insert(Term::Apply {
+        function: children_at_one,
+        argument: bound_a,
+    });
+    let carrier_at_two = shift(arena, carrier, 0, 2);
+    let children_at_two = shift(arena, children, 0, 2);
+    let w_at_two = arena.insert(Term::W {
+        carrier: carrier_at_two,
+        children: children_at_two,
+    });
+    let function_type = arena.insert(Term::Pi {
+        domain: children_domain,
+        codomain: w_at_two,
+    });
+    let bound_a = arena.insert(Term::Variable(1));
+    let hypothesis_domain = arena.insert(Term::Apply {
+        function: children_at_two,
+        argument: bound_a,
+    });
+    let motive_at_three = shift(arena, motive, 0, 3);
+    let bound_k = arena.insert(Term::Variable(1));
+    let bound_b = arena.insert(Term::Variable(0));
+    let child = arena.insert(Term::Apply {
+        function: bound_k,
+        argument: bound_b,
+    });
+    let hypothesis_codomain = arena.insert(Term::Apply {
+        function: motive_at_three,
+        argument: child,
+    });
+    let hypothesis = arena.insert(Term::Pi {
+        domain: hypothesis_domain,
+        codomain: hypothesis_codomain,
+    });
+    let carrier_at_three = shift(arena, carrier, 0, 3);
+    let children_at_three = shift(arena, children, 0, 3);
+    let bound_a = arena.insert(Term::Variable(2));
+    let bound_k = arena.insert(Term::Variable(1));
+    let sup = arena.insert(Term::Sup {
+        carrier: carrier_at_three,
+        children: children_at_three,
+        label: bound_a,
+        function: bound_k,
+    });
+    let result = arena.insert(Term::Apply {
+        function: motive_at_three,
+        argument: sup,
+    });
+    let inner = arena.insert(Term::Pi {
+        domain: hypothesis,
+        codomain: result,
+    });
+    let middle = arena.insert(Term::Pi {
+        domain: function_type,
+        codomain: inner,
+    });
+    arena.insert(Term::Pi {
+        domain: carrier,
+        codomain: middle,
+    })
 }
 
 /// Check `term` against `expected`. Both types live at the sort of
