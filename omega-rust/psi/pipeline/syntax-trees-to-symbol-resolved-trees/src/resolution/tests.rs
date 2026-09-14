@@ -1,8 +1,9 @@
 use super::{
-    Lowerer, lower_syntax_extension_against_resolved_base,
+    lower_syntax_extension_against_resolved_base,
     lower_syntax_extension_with_authored_selection_frontier, lower_syntax_trees,
     lower_syntax_trees_with_sources, lower_syntax_trees_with_sources_and_top_level_bindings,
 };
+use crate::lowerer::Lowerer;
 use source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
@@ -13,6 +14,7 @@ use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 mod const_argument_selection;
 mod const_value_resolution;
 mod field_type_values;
+mod initializer_selection;
 mod machine_header_extension;
 mod measure_resolution;
 mod module_constants;
