@@ -4,13 +4,14 @@ use super::policy_arguments::{argument_context, argument_type_reference, rejecte
 use super::policy_callables::{callable_identity, caller_binder_identity};
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::declarations::trait_requirement_identity_from_symbols;
-use crate::capture::semantics::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes;
+use crate::capture::semantics::types::signature_type_identity;
 use crate::record::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
     PackagePolicyConformanceRow,
 };
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
+use std::borrow::Cow;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{StaticMachineArgument, StaticSymbolApplication};
 use typed_trees::name::Identifier;
@@ -81,12 +82,15 @@ pub fn project_checked_conformance_policy(
                 .map(Identifier::generated),
         )
         .collect::<Vec<_>>();
-    let mut instantiated = compilation.clone();
+    // Reclosure above checks the retained selection against the original.
+    // Temporary references below need only local typed storage, not a mutable
+    // copy of its proof facts, build results, or source-consumption evidence.
+    let mut instantiated = Cow::Borrowed(&compilation.typed);
     let mut substitutions = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(application.arguments.iter()) {
         substitutions.push((
             parameter.symbol,
-            argument_type_reference(&mut instantiated, argument, &parameter.kind, 0)?,
+            argument_type_reference(instantiated.to_mut(), argument, &parameter.kind, 0)?,
         ));
     }
     let subject_reference = match declaration.subject {
@@ -97,7 +101,7 @@ pub fn project_checked_conformance_policy(
             }
             Some(
                 instantiated
-                    .typed
+                    .to_mut()
                     .type_reference_table
                     .insert(TypeReferenceNode::Named {
                         symbol: declaration.carrier_symbol,
@@ -109,13 +113,15 @@ pub fn project_checked_conformance_policy(
         }
     };
     let project_type = |reference| {
-        review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
+        signature_type_identity(
             &instantiated,
+            compilation.exact_toolchain_sources(),
             reference,
             &binders,
             lifetimes,
             &substitutions,
             &lifetime_substitutions,
+            false,
         )
     };
     let mut type_arguments = Vec::with_capacity(application.type_arguments.len());

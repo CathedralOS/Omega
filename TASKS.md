@@ -421,12 +421,16 @@ do not claim a faster compiler from a smaller helper alone.
   where possible, and preserve positive/negative crash-guard outcomes for
   parameters, locals and fields. Coordinate with live checking-stage work.
 
-- **REVIEW-TYPED-SCRATCH.** Package-evidence calling-signature and conformance
-  projectors clone `CheckedCompilation` to allocate temporary type references
+- **REVIEW-TYPED-SCRATCH.** Package-evidence calling-signature and static-telescope
+  projectors still clone `CheckedCompilation` for temporary type references
   (`src/capture/calling/application/signature/` and
-  `src/capture/semantics/conformances/`). Give projection-local typed storage
-  its own ownership while retaining original source/selection evidence for
-  identity reconstruction. Do not expose a second mutable checked-result API.
+  `src/capture/semantics/signatures/`). Give them projection-local typed storage,
+  retaining original source/selection evidence for identity reconstruction.
+  The shared `semantics/types/identity.rs` projector now accepts typed trees and
+  exact source commitments separately; conformance and callback-layout capture
+  use that input directly. Keep proof-expression source associations on the
+  original checked input when moving signature storage. Do not expose a second
+  mutable checked-result API.
   Acceptance: the projectors no longer mutate compilation results; remove
   `CheckedCompilation::DerefMut`, preserve exact review identities and negative
   corruption controls, and check package-evidence, package-manager and the CLI

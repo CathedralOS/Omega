@@ -76,6 +76,7 @@ ensures result == tag<Card, FieldOrder<Card, Wrapper<Card>>>();
     };
     let first_application = application(&first);
     let second_application = application(&second);
+    let original = first.clone();
     assert_eq!(
         first_application.type_arguments,
         second_application.type_arguments
@@ -100,6 +101,21 @@ ensures result == tag<Card, FieldOrder<Card, Wrapper<Card>>>();
     );
     assert_policy_round_trip(&first_policy);
     assert_policy_round_trip(&second_policy);
+    let mut malformed = first_application.clone();
+    malformed.type_arguments.clear();
+    assert!(
+        project_checked_conformance_policy(&first, &malformed, &[]).is_err(),
+        "a retained selection must still rejoin the original checked declaration",
+    );
+    let repeated = project_checked_conformance_policy(&first, &first_application, &[]).unwrap();
+    assert_eq!(
+        first_policy.canonical_bytes().unwrap(),
+        repeated.canonical_bytes().unwrap()
+    );
+    assert_eq!(
+        first, original,
+        "projection must not mutate checked trees or custody"
+    );
 }
 
 #[test]
@@ -138,6 +154,40 @@ fn private_named_callback_slot_projects_exact_policy_without_public_exposure() {
     assert_eq!(policy.trait_arguments().len(), 1);
     assert!(policy.rows().is_empty());
     assert_policy_round_trip(&policy);
+}
+
+#[test]
+fn named_scalar_const_conformance_projects_without_checked_result_scratch() {
+    let (_source, checked) = compile_source(
+        r#"
+pub trait Ranked {}
+pub data Card {}
+pub data Limits {}
+pub const Limits::Seven: u64 = 7;
+pub FieldOrder<Element, const Size: u64>: Element satisfies Ranked {}
+pub machine tag<Element, Order: Element satisfies Ranked>() -> u64 { 0 }
+boundary machine trusted() -> u64
+ensures result == tag<Card, FieldOrder<Card, Limits::Seven>>();
+"#,
+        0x65,
+    );
+    let [occurrence] = checked
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications
+        .as_slice()
+    else {
+        panic!("one named-const conformance occurrence")
+    };
+    let original = checked.clone();
+    let policy =
+        project_checked_conformance_policy(&checked, &occurrence.application, &[]).unwrap();
+    assert_eq!(policy.type_arguments().len(), 1);
+    assert_eq!(policy.const_arguments().len(), 1);
+    assert_policy_round_trip(&policy);
+    package_evidence::project_checked_package_review(&checked)
+        .expect("ordinary contract review must also project the selected conformance");
+    assert_eq!(checked, original);
 }
 
 #[test]

@@ -11,6 +11,7 @@ pub(crate) use identity::{
     review_signature_const_argument_identity, review_signature_type_identity_with_binders,
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
     review_type_identity_with_binders, review_type_identity_with_binders_and_substitutions,
+    signature_type_identity,
 };
 pub(crate) use properties::project_data_properties;
 pub(crate) use validation::missing_exact_toolchain_type_owner;

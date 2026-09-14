@@ -6,6 +6,9 @@ use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn review_type_identity_with_binders(
     compilation: &CheckedCompilation,
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -90,7 +93,8 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
     lifetime_substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     signature_type_identity(
-        compilation,
+        &compilation.typed,
+        compilation.exact_toolchain_sources(),
         type_reference,
         binders,
         lifetime_binders,
@@ -110,7 +114,8 @@ pub(crate) fn review_signature_const_argument_identity(
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     signature_type_identity(
-        compilation,
+        &compilation.typed,
+        compilation.exact_toolchain_sources(),
         type_reference,
         binders,
         lifetime_binders,
@@ -120,8 +125,15 @@ pub(crate) fn review_signature_const_argument_identity(
     )
 }
 
-fn signature_type_identity(
-    compilation: &CheckedCompilation,
+/// Normalize types in either the checked input or projection-local trees.
+/// Scratch trees retain the input's symbol/source identities; they do not carry
+/// proof facts or selected-execution authority. Source commitments are borrowed
+/// from the original compilation, never regenerated from temporary type nodes.
+/// A const-argument root is permitted only after the caller establishes its
+/// exact declared const telescope slot, as in the checked-input wrapper above.
+pub(crate) fn signature_type_identity(
+    program: &typed_trees::TypedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
@@ -130,22 +142,23 @@ fn signature_type_identity(
     const_argument: bool,
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     super::validation::validate_package_type_identity_input_inner(
-        &compilation.typed,
+        program,
         type_reference,
         binders,
         const_argument,
     )?;
-    let runtime = compilation
+    let runtime = program
         .package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
             type_reference,
             binders,
             substitutions,
-            compilation.exact_toolchain_sources(),
+            exact_toolchain_sources,
         )
         .ok_or_else(missing_exact_toolchain_type_owner)?
         .into_string();
     let lifetime = review_lifetime_topology_with_substitutions(
-        compilation,
+        program,
+        exact_toolchain_sources,
         type_reference,
         lifetime_binders,
         substitutions,

@@ -1,19 +1,23 @@
-use super::super::declarations::nominal_identity;
+use super::super::declarations::nominal_identity_from_symbols;
 use super::super::encoding::{canonical_digest_label, framed_identity};
 use crate::record::PackageReviewNominalOwner;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn review_domain_lifetime_label(
-    compilation: &CheckedCompilation,
+    program: &typed_trees::TypedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     domain: &typed_trees::types::DomainConstraint,
 ) -> Result<String, Vec<Diagnostic>> {
     use typed_trees::types::{DomainConstraintSubject, OmegaLayoutGrammar};
 
     match domain.subject {
         DomainConstraintSubject::Declared => {
-            let identity = nominal_identity(compilation, domain.symbol)?;
+            let identity = nominal_identity_from_symbols(
+                &program.symbols,
+                domain.symbol,
+                exact_toolchain_sources,
+            )?;
             let owner = match identity.owner {
                 PackageReviewNominalOwner::Package(package) => {
                     canonical_digest_label("package", package.digest())
@@ -66,7 +70,8 @@ pub(crate) fn review_domain_lifetime_label(
 }
 
 pub(crate) fn review_lifetime_topology_with_substitutions(
-    compilation: &CheckedCompilation,
+    program: &typed_trees::TypedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     type_reference: typed_trees::types::TypeReferenceHandle,
     lifetime_binders: &[typed_trees::name::Identifier],
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
@@ -75,10 +80,7 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
 ) -> Result<String, Vec<Diagnostic>> {
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
-    let topology = match compilation
-        .type_reference_table
-        .type_reference(type_reference)
-    {
+    let topology = match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
             referee, lifetime, ..
         } => {
@@ -99,7 +101,8 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
                 &[
                     lifetime,
                     review_lifetime_topology_with_substitutions(
-                        compilation,
+                        program,
+                        exact_toolchain_sources,
                         *referee,
                         lifetime_binders,
                         substitutions,
@@ -113,20 +116,25 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
             base_type,
             constraints,
         } => {
-            let mut constraint_topologies = compilation
+            let mut constraint_topologies = program
                 .type_reference_table
                 .constraints(*constraints)
                 .iter()
                 .filter_map(|constraint| match constraint {
                     TypeConstraintNode::Domain(domain) if !domain.arguments.is_empty() => {
                         Some((|| {
-                            let label = review_domain_lifetime_label(compilation, domain)?;
+                            let label = review_domain_lifetime_label(
+                                program,
+                                exact_toolchain_sources,
+                                domain,
+                            )?;
                             let arguments = domain
                                 .arguments
                                 .iter()
                                 .map(|argument| {
                                     review_lifetime_topology_with_substitutions(
-                                        compilation,
+                                        program,
+                                        exact_toolchain_sources,
                                         *argument,
                                         lifetime_binders,
                                         substitutions,
@@ -144,7 +152,8 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
             constraint_topologies.sort();
             constraint_topologies.dedup();
             let mut children = vec![review_lifetime_topology_with_substitutions(
-                compilation,
+                program,
+                exact_toolchain_sources,
                 *base_type,
                 lifetime_binders,
                 substitutions,
@@ -157,7 +166,8 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
         TypeReferenceNode::FixedArray { element_type, .. } => framed_identity(
             "array",
             &[review_lifetime_topology_with_substitutions(
-                compilation,
+                program,
+                exact_toolchain_sources,
                 *element_type,
                 lifetime_binders,
                 substitutions,
@@ -168,7 +178,8 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
         TypeReferenceNode::Slice { element_type } => framed_identity(
             "slice",
             &[review_lifetime_topology_with_substitutions(
-                compilation,
+                program,
+                exact_toolchain_sources,
                 *element_type,
                 lifetime_binders,
                 substitutions,
@@ -194,13 +205,14 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             children.extend(
-                compilation
+                program
                     .type_reference_table
                     .type_reference_handles(*arguments)
                     .iter()
                     .map(|argument| {
                         review_lifetime_topology_with_substitutions(
-                            compilation,
+                            program,
+                            exact_toolchain_sources,
                             *argument,
                             lifetime_binders,
                             substitutions,
@@ -227,7 +239,8 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
             }
             active_substitutions.push(*symbol);
             let topology = review_lifetime_topology_with_substitutions(
-                compilation,
+                program,
+                exact_toolchain_sources,
                 *replacement,
                 lifetime_binders,
                 substitutions,

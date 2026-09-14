@@ -524,7 +524,7 @@ impl std::ops::Deref for CheckedCompilation {
     }
 }
 
-// Review signature and conformance instantiation still use compilation clones
+// Review signature instantiation still uses compilation clones
 // as temporary type storage. Retire this when those projectors own their scratch
 // trees independently of compilation evidence. Mutation never reseals evidence.
 impl std::ops::DerefMut for CheckedCompilation {

@@ -4,7 +4,7 @@ mod policy_requirements;
 mod provider_schema;
 mod requirements;
 
-pub(crate) use identity::nominal_identity;
+pub(crate) use identity::{nominal_identity, nominal_identity_from_symbols};
 #[cfg(test)]
 pub(crate) use ownership::nominal_owner_from_symbols;
 pub(crate) use ownership::{
