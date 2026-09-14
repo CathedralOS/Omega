@@ -11,6 +11,7 @@ mod dead_scalar_elimination;
 mod global_value_numbering;
 mod model;
 mod retained;
+mod sparse_conditional_constant_propagation;
 mod validation;
 
 use optimization::{PsiOptimization, PsiOptimizationSelections};
@@ -33,6 +34,9 @@ pub fn run_psi_optimization(
     let (input_semantic, input_proof) = validate_carrier(&lowered)?;
     for selected in selections.as_slice() {
         match selected {
+            PsiOptimization::SparseConditionalConstantPropagation => {
+                lowered = sparse_conditional_constant_propagation::propagate(lowered)?;
+            }
             PsiOptimization::CopyPropagation => {
                 lowered = copy_propagation::propagate(lowered)?;
             }

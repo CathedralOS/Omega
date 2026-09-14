@@ -331,6 +331,105 @@ pub fn copy_fixture() -> LoweredPsi {
     )])
 }
 
+/// Sparse-conditional-constant-propagation fixture. One machine, one diamond:
+///
+/// ```text
+/// b1 (entry): v10 = 2; v11 = 3; v12 = v10 + v11; v13 = v12 * v11;
+///             v14 = v12 < v13; v15 = !v14; cond v15 ──▶ b2 / b3
+/// b2: v20 = v1 + v12 ──[v20]──▶ ┐
+/// b3: v30 = v1 + v13 ──[v30]──▶ b4(v41) → return
+/// ```
+///
+/// `v10`/`v11` seed the literal map, so `v12` folds to 5, `v13` folds
+/// transitively to 15 through the folded `v12`, `v14` folds to `true`, and
+/// `v15` folds to `false` — yet the conditional keeps reading `v15`: branch
+/// resolution belongs to the control-flow rule, not this one. `v20`/`v30` mix
+/// the literal `v12`/`v13` with the opaque machine parameter `v1` and survive
+/// unfolded. Dead producers a fold leaves unreferenced survive as well: their
+/// removal belongs to the dead-scalar rule.
+pub fn sccp_fixture() -> LoweredPsi {
+    let (b1, b2, b3, b4) = (block_id(1), block_id(2), block_id(3), block_id(4));
+    let v1 = value(1);
+    let (v10, v11, v12, v13, v14, v15) = (
+        value(10),
+        value(11),
+        value(12),
+        value(13),
+        value(14),
+        value(15),
+    );
+    let (v20, v30, v41) = (value(20), value(30), value(41));
+    lowered(vec![machine(
+        1,
+        vec![i32(1)],
+        TerminalMachineResult::Scalar(i32(9)),
+        b1,
+        vec![
+            block(
+                1,
+                Vec::new(),
+                vec![
+                    integer_constant(10, i32(10), 2),
+                    integer_constant(11, i32(11), 3),
+                    operation(
+                        12,
+                        i32(12),
+                        OperationKind::WrappingIntegerAdd {
+                            left: v10,
+                            right: v11,
+                        },
+                    ),
+                    operation(
+                        13,
+                        i32(13),
+                        OperationKind::WrappingIntegerMultiply {
+                            left: v12,
+                            right: v11,
+                        },
+                    ),
+                    operation(
+                        14,
+                        boolean(14),
+                        OperationKind::IntegerLessThan {
+                            left: v12,
+                            right: v13,
+                        },
+                    ),
+                    operation(15, boolean(15), OperationKind::BooleanNot { operand: v14 }),
+                ],
+                conditional(v15, successor(2, b2, vec![]), successor(3, b3, vec![])),
+            ),
+            block(
+                2,
+                Vec::new(),
+                vec![operation(
+                    20,
+                    i32(20),
+                    OperationKind::WrappingIntegerAdd {
+                        left: v1,
+                        right: v12,
+                    },
+                )],
+                jump(4, b4, vec![v20]),
+            ),
+            block(
+                3,
+                Vec::new(),
+                vec![operation(
+                    30,
+                    i32(30),
+                    OperationKind::WrappingIntegerAdd {
+                        left: v1,
+                        right: v13,
+                    },
+                )],
+                jump(5, b4, vec![v30]),
+            ),
+            block(4, vec![i32(41)], Vec::new(), return_value(6, v41)),
+        ],
+    )])
+}
+
 /// Dead-scalar fixture sharing the copy fixture's diamond shape:
 ///
 /// ```text

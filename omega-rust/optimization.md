@@ -26,15 +26,21 @@ consumes complete unsealed `LoweredPsi`, validates both sides, and returns the
 only optimization-stage result accepted by Terminal publication. Its
 [Psi-local catalog](psi/representations/optimization/src/optimization_selections/catalog.rs)
 does not import native target vocabulary. Identity execution, the admitted
-copy-propagation, global-value-numbering, and dead-pure-scalar passes run here;
-other named passes reject until ported. Copy propagation collapses a scalar
-block parameter bound to the same resolved value on every inventoried incoming
+copy-propagation, global-value-numbering, constant-propagation, and
+dead-pure-scalar passes run here; other named passes reject until ported.
+Copy propagation collapses a scalar block parameter bound to the same
+resolved value on every inventoried incoming
 edge, substituting the resolved source at direct scalar uses and dropping the
 matching edge-argument positions. Global value numbering removes an
 unconditionally-total scalar operation that repeats a surviving operation with
 the same kind and resolved operands in a dominating position — earlier in its
 own block or in a block that dominates it — and substitutes the canonical
-survivor, the first match in reverse postorder, at every direct scalar use;
+survivor, the first match in reverse postorder, at every direct scalar use.
+Sparse conditional constant propagation folds a goal-free scalar leaf
+operation whose scalar operands all resolve to known literals into the
+matching integer or Boolean constant in place, iterating to a fixed point
+while keeping every operation, result, and value identity; ranked machines,
+static reach bindings, and proof-bearing closures stay frozen, and
 propositions, proof projections, suspension frontiers, ranking evidence, and
 recorded source-call joins keep the exact identities they name. The
 execution record survives canonical Terminal encoding and independent decoding.

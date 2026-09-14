@@ -266,7 +266,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-semantics/src/lib.rs",
-        sha256: Some("ced035840ecd0343ccd015ff5a54d3eea2324e3be0240f98158daa1df7866533"),
+        sha256: Some("e6955a563081f8a5b1f95c327ea5304b4a993f3ad5949bdd863514fa55009bfb"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -331,7 +331,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/optimization.rs",
-        sha256: Some("5399c8034da29c7f87ffa3a3c792bb8149a9522a864def900baa5ab68ec8ccd8"),
+        sha256: Some("b7e02833bcca65dfa6791629a8559c84ea222afacb63c037bb4165c887090de8"),
         inventory_machinery: false,
     },
     ImplementationSite {

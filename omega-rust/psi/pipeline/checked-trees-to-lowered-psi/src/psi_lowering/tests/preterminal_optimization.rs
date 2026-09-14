@@ -53,6 +53,7 @@ fn every_unported_nonempty_selection_fails_closed() {
             PsiOptimization::CopyPropagation
                 | PsiOptimization::GlobalValueNumbering
                 | PsiOptimization::DeadPureScalarElimination
+                | PsiOptimization::SparseConditionalConstantPropagation
         ) {
             continue;
         }
@@ -171,6 +172,72 @@ fn selected_dead_scalar_elimination_removes_a_chain_before_portable_publication(
     assert_eq!(
         actual, expected,
         "fresh interpretation consumes only published bytes"
+    );
+}
+
+#[test]
+fn selected_sccp_folds_literal_leaves_before_portable_publication() {
+    let lowered = dead_scalar_fixture();
+    let input =
+        run_psi_optimization(lowered.clone(), PsiOptimizationSelections::default()).unwrap();
+    let original = finalize_terminal_artifact(&input).unwrap();
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::SparseConditionalConstantPropagation])
+            .unwrap(),
+    )
+    .expect("selected constant folding executes");
+    let operations = &optimized.lowered().semantic_module.machines[0].blocks[0].operations;
+    assert_eq!(
+        operations.len(),
+        lowered.semantic_module.machines[0].blocks[0]
+            .operations
+            .len(),
+        "folding rewrites in place: every operation row survives"
+    );
+    assert!(
+        operations.iter().any(|operation| matches!(
+            operation.kind,
+            OperationKind::BooleanConstant { value: false }
+        ) && operation
+            .result
+            .scalar()
+            .is_some_and(|result| result.id == ValueId::new(2002).unwrap())),
+        "the BooleanNot over a literal folds to its BooleanConstant denotation"
+    );
+    assert_eq!(optimized.lowered().proof_bundle, lowered.proof_bundle);
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+    terminal_verifier::validate_sparse_conditional_constant_propagation(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the executed rewrite");
+    let published = finalize_terminal_artifact(&optimized).unwrap();
+    assert_eq!(
+        published.manifest().semantic(),
+        optimized.execution().output_semantic()
+    );
+    let profile = proof_admission::AdmissionProfile::default();
+    let expected = terminal_interpreter::interpret_terminal_artifact(
+        original.semantic_bytes(),
+        original.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .unwrap();
+    let actual = terminal_interpreter::interpret_terminal_artifact(
+        published.semantic_bytes(),
+        published.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .unwrap();
+    assert_eq!(
+        actual, expected,
+        "the folded artifact interprets identically from published bytes"
     );
 }
 
