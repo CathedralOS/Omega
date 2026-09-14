@@ -392,22 +392,11 @@ fn reconstruct_machine_semantics_with_crash_facts(
     let mut operation_obligations = Vec::new();
     let mut crash_sites = Vec::new();
     let mut edge_axioms = BTreeMap::new();
-    let mut ignored_backedges = machine
-        .ranked_scc
-        .iter()
-        .filter_map(|ranking| ranking.as_unsigned_countdown())
-        .flat_map(|component| component.covered_cyclic_edges.iter().map(|row| row.edge))
-        .collect::<BTreeSet<_>>();
-    let mut iteration_entries = if machine
-        .ranked_scc
-        .as_ref()
-        .is_none_or(|ranking| ranking.as_unsigned_countdown().is_none())
-    {
+    let mut ignored_backedges = BTreeSet::new();
+    let mut iteration_entries = {
         let feedback = crate::control_graph::feedback_edges(machine);
         ignored_backedges.extend(feedback.keys().copied());
         feedback.values().copied().collect::<BTreeSet<_>>()
-    } else {
-        BTreeSet::new()
     };
     if !crash_facts
         && module
@@ -415,9 +404,9 @@ fn reconstruct_machine_semantics_with_crash_facts(
             .iter()
             .any(|invariant| invariant.machine == machine.id)
     {
-        // Legacy countdown schedules cut their declared backedge too. An
-        // externally supplied assertion cannot make that target inherit first-
-        // arrival facts merely because the producer never proposes such rows.
+        // Cut targets cannot inherit first-arrival facts merely because a
+        // producer proposes no assertion rows for them: every actual arrival
+        // at a cut target is an arbitrary iteration.
         for block in &machine.blocks {
             match &block.terminator {
                 Terminator::Jump { edge, target, .. } if ignored_backedges.contains(edge) => {
@@ -520,10 +509,10 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 &mut operation_obligations,
             );
         }
-        if matches!(
-            machine.ranked_scc,
-            Some(terminal_psi::TerminalRankedScc::Natural(_))
-        ) {
+        // Every retained ranked component needs per-edge reconstructed
+        // premises: each measured edge must answer its decrease question
+        // against the same source-free facts the verifier will replay.
+        if machine.ranked_scc.is_some() {
             match &block.terminator {
                 Terminator::Jump { edge, .. } => {
                     edge_axioms.insert(*edge, axioms.clone());

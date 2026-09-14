@@ -86,6 +86,45 @@ fn countdown_unit() -> (
     (module, verified)
 }
 
+/// The countdown idiom inside the ordinary Natural record: the strict edge's
+/// target is the loop header, its source is the decrement block, and the
+/// header's rank row binds the rank parameter.
+fn natural_countdown_parts(
+    module: &terminal_psi::TerminalModule,
+) -> (
+    semantic_vocabulary::BlockId,
+    semantic_vocabulary::BlockId,
+    semantic_vocabulary::EdgeId,
+    semantic_vocabulary::ValueId,
+    semantic_vocabulary::IntegerType,
+) {
+    let terminal_psi::TerminalRankedScc::Natural(components) = module.machines[0]
+        .ranked_scc
+        .as_ref()
+        .expect("source countdown rank");
+    let [component] = components.as_slice() else {
+        panic!("one natural component")
+    };
+    let strict = component
+        .edges
+        .iter()
+        .find(|edge| edge.comparison == terminal_psi::TerminalNaturalRankComparison::Strict)
+        .expect("countdown strict backedge");
+    let rank = component
+        .ranks
+        .iter()
+        .find(|rank| rank.block == strict.target)
+        .expect("header rank row")
+        .value;
+    (
+        strict.target,
+        strict.source,
+        strict.edge,
+        rank,
+        component.rank_type,
+    )
+}
+
 #[test]
 fn source_countdown_reaches_all_loop_prerequisite_analyses_without_rewrites() {
     let (module, verified) = countdown_unit();
@@ -99,24 +138,17 @@ fn source_countdown_reaches_all_loop_prerequisite_analyses_without_rewrites() {
         .expect("verified context admits only its exact ranked cycle");
     let unit = session.unit();
     assert_eq!(unit.functions[0].blocks.len(), 4);
-    let ranked = module.machines[0]
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranked| ranked.as_unsigned_countdown())
-        .expect("source countdown rank");
-    let decrement = ranked.covered_cyclic_edges[0].source;
+    let (header, decrement, backedge, rank, _) = natural_countdown_parts(&module);
     let [component] = session.cycle_components().components() else {
         panic!("one optimizer cycle component")
     };
     assert_eq!(component.id.machine, module.entry);
-    assert_eq!(component.members, vec![ranked.header, decrement]);
+    assert_eq!(component.members, vec![header, decrement]);
     assert_eq!(component.id.internal_edges.len(), 2);
     assert_eq!(component.entries.len(), 1);
     assert_eq!(component.exits.len(), 1);
     assert!(component.id.internal_edges.iter().any(|edge| {
-        edge.edge == ranked.covered_cyclic_edges[0].edge
-            && edge.source == decrement
-            && edge.target == ranked.header
+        edge.edge == backedge && edge.source == decrement && edge.target == header
     }));
     let mut analyses = AnalysisManager::new(unit);
 
@@ -135,8 +167,8 @@ fn source_countdown_reaches_all_loop_prerequisite_analyses_without_rewrites() {
         panic!("dominator product")
     };
     for (block, set) in &dominators.functions[0].1 {
-        if *block == ranked.header || *block == decrement {
-            assert!(set.contains(&ranked.header));
+        if *block == header || *block == decrement {
+            assert!(set.contains(&header));
         }
     }
 
@@ -146,11 +178,7 @@ fn source_countdown_reaches_all_loop_prerequisite_analyses_without_rewrites() {
     else {
         panic!("SCC product")
     };
-    assert!(
-        components.functions[0]
-            .1
-            .contains(&vec![ranked.header, decrement])
-    );
+    assert!(components.functions[0].1.contains(&vec![header, decrement]));
 
     let AnalysisProduct::LoopForest(loops) = analyses
         .require(unit, AnalysisKind::LoopForest)
@@ -159,8 +187,8 @@ fn source_countdown_reaches_all_loop_prerequisite_analyses_without_rewrites() {
         panic!("loop product")
     };
     assert!(loops.functions[0].1.iter().any(|region| {
-        region.header == Some(ranked.header)
-            && region.blocks == vec![ranked.header, decrement]
+        region.header == Some(header)
+            && region.blocks == vec![header, decrement]
             && !region.irreducible
     }));
 
@@ -172,11 +200,8 @@ fn source_countdown_reaches_all_loop_prerequisite_analyses_without_rewrites() {
     };
     assert!(liveness.blocks.iter().any(|block| {
         block.machine == module.entry
-            && block.block == ranked.header
-            && block
-                .nodes
-                .iter()
-                .any(|node| node.entry.contains(&ranked.rank_parameter))
+            && block.block == header
+            && block.nodes.iter().any(|node| node.entry.contains(&rank))
     }));
 }
 
@@ -399,12 +424,7 @@ fn ranked_countdown_certificate_replay_rejects_every_evidence_axis() {
 #[test]
 fn ranked_context_rejects_topology_and_frozen_body_corruption() {
     let (module, verified) = countdown_unit();
-    let ranked = module.machines[0]
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranked| ranked.as_unsigned_countdown())
-        .unwrap();
-    let decrement = ranked.covered_cyclic_edges[0].source;
+    let (header, decrement, _, _, _) = natural_countdown_parts(&module);
     let preheader = module.machines[0].entry;
     let (input, original) = verified.into_parts();
 
@@ -430,7 +450,7 @@ fn ranked_context_rejects_topology_and_frozen_body_corruption() {
     let block = frozen.functions[0]
         .blocks
         .iter_mut()
-        .find(|block| block.id == ranked.header)
+        .find(|block| block.id == header)
         .unwrap();
     block.nodes[0].fuel[0].units += 1;
     assert!(matches!(
@@ -438,6 +458,6 @@ fn ranked_context_rejects_topology_and_frozen_body_corruption() {
         Err(OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
             machine,
             block,
-        }) if machine == module.entry && block == ranked.header
+        }) if machine == module.entry && block == header
     ));
 }

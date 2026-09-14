@@ -340,10 +340,10 @@ rows! {
     COMP_RANKED_SCC => (
         "composition:ranked-scc-validation",
         CycleComposition,
-        "a machine's ranked strongly-connected-component declaration",
-        "the ranked structure validates against canonical cycle membership; ranked machines keep separate authority for crash facts",
+        "a machine's natural-cycle ranking declaration over canonical cyclic components",
+        "the ranking validates exact component and edge coverage, successor-rank substitution, and strict descent on every cycle; ranked machines keep separate authority for crash facts",
         &["formation:control-flow-validation", "terminator:crash"],
-        &[tv!( "validation/ranked_scc.rs"), tv!( "validation/control_flow/unranked_cycles.rs")]
+        &[tv!( "control_cycles/validation.rs"), tv!( "validation/control_flow/unranked_cycles.rs")]
     );
     COMP_CYCLE_QUESTION => (
         "composition:cycle-question",

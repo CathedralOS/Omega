@@ -17,9 +17,7 @@ use semantic_vocabulary::{
     PropositionError, PropositionId, ScalarTerm, ScalarType, StructuralCaseSubject,
 };
 use sha2::{Digest, Sha256};
-pub use synopsis::{
-    render_verified_native_ranked_countdown_synopsis, render_verified_proof_synopsis,
-};
+pub use synopsis::render_verified_proof_synopsis;
 use terminal_psi::{
     ControlCycleEvidence, SemanticFingerprint, TerminalModule, TerminalPsiIdentity,
     VocabularyMarker,

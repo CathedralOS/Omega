@@ -93,8 +93,7 @@ pub use program_local_root_catalog::{
 pub use proof_bundle::{
     ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, decode_proof_bundle_for,
     decode_proof_section, decode_proof_section_for, encode_proof_bundle, encode_proof_section,
-    proof_bundle_fingerprint, render_verified_native_ranked_countdown_synopsis,
-    render_verified_proof_synopsis,
+    proof_bundle_fingerprint, render_verified_proof_synopsis,
 };
 pub use proof_sidecar::{
     PSI_TERMINAL_VERIFIED_GUARANTEE, PccDependency, PccGuarantee, PccIncompleteness,

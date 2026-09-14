@@ -65,16 +65,6 @@ fn slice_ranked_writer_retains_its_witness_through_serialized_execution() {
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
         Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
     ));
-    assert!(matches!(
-        terminal_verifier::verify_module_for_native_ranked_countdown(
-            &lowered.semantic_module,
-            &lowered.proof_bundle,
-            &AdmissionProfile::default()
-        ),
-        Err(terminal_verifier::VerificationError::Module(
-            terminal_verifier::ModuleError::NonExecutableRankedScc(_)
-        ))
-    ));
     let executed = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),

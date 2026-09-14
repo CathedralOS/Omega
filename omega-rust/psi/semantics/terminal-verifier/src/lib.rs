@@ -10,8 +10,8 @@ mod control_cycles;
 mod control_graph;
 pub mod trusted_surface;
 pub use control_cycles::{
-    AcceptedControlCycle, ReconstructedControlCycleObligation, control_cycle_identity,
-    control_cycle_members, reconstruct_control_cycle_obligations,
+    AcceptedControlCycle, ReconstructedControlCycleObligation, control_cycle_components,
+    control_cycle_identity, control_cycle_members, reconstruct_control_cycle_obligations,
 };
 mod optimization;
 mod proof_recursion;

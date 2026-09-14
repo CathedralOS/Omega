@@ -138,12 +138,6 @@ fn natural_ranked_unit_callee_preserves_ordinary_projected_calls() {
             machine.ranked_scc,
             Some(terminal_psi::TerminalRankedScc::Natural(_))
         )));
-        assert!(module.machines.iter().all(|machine| {
-            machine
-                .ranked_scc
-                .as_ref()
-                .is_none_or(|rank| rank.as_unsigned_countdown().is_none())
-        }));
         for machine in &module.machines {
             if let Some(terminal_psi::TerminalRankedScc::Natural(components)) = &machine.ranked_scc
             {

@@ -803,33 +803,40 @@ fn lower_ranked_structural_unit_countdown(
             scalar_type: rank_scalar_type,
         }],
         structural_parameters: structural_parameters.clone(),
-        ranked_scc: Some(TerminalRankedScc::UnsignedCountdown(
-            terminal_psi::TerminalUnsignedCountdownScc {
-                header,
-                rank_parameter: rank,
-                rank_type,
-                lower_bound: IntegerValue::Unsigned(ranked.rank_lower_bound),
-                upper_bound: IntegerValue::Unsigned(ranked.rank_upper_bound),
-                covered_cyclic_edges: vec![TerminalRankedSccEdge {
+        // The countdown rides the common Natural carrier: the header's rank
+        // parameter is preserved into the decrement block and the covered
+        // backedge carries the strict `rank - 1 < rank` descent. Certificate
+        // production below and independent verification share the same
+        // reconstructed control-cycle question as every other ranked cycle.
+        ranked_scc: Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+            rank_type,
+            ranks: vec![
+                TerminalBlockNaturalRank {
+                    block: header,
+                    value: rank,
+                },
+                TerminalBlockNaturalRank {
+                    block: decrement,
+                    value: rank,
+                },
+            ],
+            edges: vec![
+                TerminalNaturalRankEdge {
+                    edge: guard_edge,
+                    source: header,
+                    target: decrement,
+                    successor_rank: rank,
+                    comparison: TerminalNaturalRankComparison::Preserving,
+                },
+                TerminalNaturalRankEdge {
                     edge: backedge,
                     source: decrement,
                     target: header,
-                    guard: TerminalRankedGuard::UnsignedParameterPositive {
-                        block: header,
-                        edge: guard_edge,
-                        condition,
-                        parameter: rank,
-                    },
-                    successor_argument:
-                        TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                            argument_index: ranked.rank_scalar_parameter_index,
-                            argument: next,
-                            source_parameter: rank,
-                            target_parameter: rank,
-                        },
-                }],
-            },
-        )),
+                    successor_rank: next,
+                    comparison: TerminalNaturalRankComparison::Strict,
+                },
+            ],
+        }])),
         result: TerminalMachineResult::Unit,
         structural_places: structural_parameters
             .iter()

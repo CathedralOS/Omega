@@ -1359,13 +1359,44 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("one ranked machine")
     };
-    let ranked = machine
+    let ranked = match machine
         .ranked_scc
         .as_ref()
-        .and_then(|ranked| ranked.as_unsigned_countdown())
-        .expect("ranked Terminal identity");
+        .expect("ranked Terminal identity")
+    {
+        terminal_psi::TerminalRankedScc::Natural(components) => {
+            let [component] = components.as_slice() else {
+                panic!("one natural component")
+            };
+            component
+        }
+    };
     assert_eq!(machine.entry, block_id(1));
-    assert_eq!(ranked.header, block_id(2));
+    assert_eq!(
+        ranked
+            .ranks
+            .iter()
+            .map(|rank| rank.block)
+            .collect::<Vec<_>>(),
+        vec![block_id(2), block_id(3)]
+    );
+    assert_eq!(
+        ranked
+            .edges
+            .iter()
+            .map(|edge| (edge.edge, edge.comparison))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                edge_id(2),
+                terminal_psi::TerminalNaturalRankComparison::Preserving
+            ),
+            (
+                edge_id(4),
+                terminal_psi::TerminalNaturalRankComparison::Strict
+            ),
+        ]
+    );
     assert_eq!(machine.blocks.len(), 4);
     assert!(matches!(
         machine.blocks[1].operations.as_slice(),
@@ -1405,23 +1436,26 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("ranked proof closes for interpreter admission");
-    let fixed_fuel_verified = terminal_verifier::verify_module_for_fixed_fuel(
+    let fixed_fuel_verified = terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
         &proof_admission::AdmissionProfile::default(),
     )
-    .expect("ranked proof closes for fixed-fuel admission");
-    let fixed_fuel =
-        terminal_fixed_fuel::derive_ranked_countdown_entry_fuel(&fixed_fuel_verified, machine.id)
-            .expect("ranked countdown has an all-input ceiling");
-    assert_eq!(fixed_fuel.ceiling_units(), 25_769_803_775);
-    terminal_fixed_fuel::validate_ranked_countdown_entry_fuel(&fixed_fuel_verified, &fixed_fuel)
+    .expect("ranked proof closes under ordinary verification");
+    let fixed_fuel = terminal_fixed_fuel::derive_fixed_entry_fuel(&fixed_fuel_verified, machine.id)
+        .expect("the natural cycle has an all-input ceiling");
+    // Generic component bound: each of the two member blocks visits at most
+    // `u32::MAX + 1` times at 3 units per visit, plus the preheader and exit
+    // blocks' single-unit edges.
+    assert_eq!(
+        fixed_fuel.ceiling_units(),
+        6 * (u64::from(u32::MAX) + 1) + 2
+    );
+    terminal_fixed_fuel::validate_fixed_entry_fuel(&fixed_fuel_verified, &fixed_fuel)
         .expect("ranked fixed-fuel theorem replays");
-    let ranked_segments = terminal_fixed_fuel::derive_ranked_countdown_safe_point_segments(
-        &fixed_fuel_verified,
-        machine.id,
-    )
-    .expect("ranked countdown has a complete safe-point partition");
+    let ranked_segments =
+        terminal_fixed_fuel::derive_fixed_safe_point_segments(&fixed_fuel_verified, machine.id)
+            .expect("the natural cycle has a complete safe-point partition");
     assert_eq!(ranked_segments.len(), 5);
     assert_eq!(
         ranked_segments
@@ -1446,14 +1480,14 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
             && segment.machine() == machine.id
             && segment.relevant_preconditions().is_empty()
     }));
-    terminal_fixed_fuel::validate_ranked_countdown_safe_point_segments(
+    terminal_fixed_fuel::validate_fixed_safe_point_segments(
         &fixed_fuel_verified,
         machine.id,
         &ranked_segments,
     )
     .expect("ranked safe-point partition replays as one canonical sequence");
     assert_eq!(
-        terminal_fixed_fuel::validate_ranked_countdown_safe_point_segments(
+        terminal_fixed_fuel::validate_fixed_safe_point_segments(
             &fixed_fuel_verified,
             machine.id,
             &ranked_segments[..4],
@@ -1464,7 +1498,7 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     let mut reordered_ranked_segments = ranked_segments.clone();
     reordered_ranked_segments.swap(1, 2);
     assert_eq!(
-        terminal_fixed_fuel::validate_ranked_countdown_safe_point_segments(
+        terminal_fixed_fuel::validate_fixed_safe_point_segments(
             &fixed_fuel_verified,
             machine.id,
             &reordered_ranked_segments,
@@ -1475,7 +1509,7 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     let mut duplicated_ranked_segments = ranked_segments.clone();
     duplicated_ranked_segments[4] = ranked_segments[3].clone();
     assert_eq!(
-        terminal_fixed_fuel::validate_ranked_countdown_safe_point_segments(
+        terminal_fixed_fuel::validate_fixed_safe_point_segments(
             &fixed_fuel_verified,
             machine.id,
             &duplicated_ranked_segments,
@@ -1483,13 +1517,12 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         Err(terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
         "a duplicated ranked endpoint cannot replace the return row"
     );
-    let retained_ranked_segments =
-        terminal_fixed_fuel::retain_validated_ranked_countdown_safe_point_segments(
-            &fixed_fuel_verified,
-            machine.id,
-            ranked_segments.clone(),
-        )
-        .expect("the exact ranked partition is retainable");
+    let retained_ranked_segments = terminal_fixed_fuel::retain_validated_fixed_safe_point_segments(
+        &fixed_fuel_verified,
+        machine.id,
+        ranked_segments.clone(),
+    )
+    .expect("the exact ranked partition is retainable");
     assert_eq!(
         retained_ranked_segments.terminal_psi(),
         fixed_fuel.terminal_psi()
@@ -1500,13 +1533,13 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         retained_ranked_segments.certificates(),
         ranked_segments.as_slice()
     );
-    terminal_fixed_fuel::validate_retained_ranked_countdown_safe_point_segments(
+    terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
         &fixed_fuel_verified,
         &retained_ranked_segments,
     )
     .expect("the retained ranked partition independently replays");
     let directly_retained_ranked_segments =
-        terminal_fixed_fuel::derive_validated_ranked_countdown_safe_point_segments(
+        terminal_fixed_fuel::derive_validated_fixed_safe_point_segments(
             &fixed_fuel_verified,
             machine.id,
         )
@@ -1515,45 +1548,38 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         directly_retained_ranked_segments.certificates(),
         ranked_segments.as_slice()
     );
-    terminal_fixed_fuel::validate_retained_ranked_countdown_safe_point_segments(
+    terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
         &fixed_fuel_verified,
         &directly_retained_ranked_segments,
     )
     .expect("the directly retained ranked partition independently replays");
-    let native_verified = terminal_verifier::verify_module_for_native_ranked_countdown(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("ranked proof closes for native authority");
-    let synopsis =
-        terminal_codec::render_verified_native_ranked_countdown_synopsis(&native_verified)
-            .expect("verified ranked countdown has a review synopsis");
+    let synopsis = terminal_codec::render_verified_proof_synopsis(&fixed_fuel_verified)
+        .expect("verified natural cycle has a review synopsis");
     assert_eq!(
         synopsis,
-        terminal_codec::render_verified_native_ranked_countdown_synopsis(&native_verified)
+        terminal_codec::render_verified_proof_synopsis(&fixed_fuel_verified)
             .expect("ranked synopsis is deterministic")
     );
     assert!(synopsis.starts_with("proof-bundle "));
     assert!(synopsis.contains("obligation 1 goal "));
-    assert!(synopsis.contains(
-        "ranked-countdown machine 1 header 2 rank 2 type Fixed-Unsigned-32 lower Unsigned(0) upper Unsigned(4294967295)"
-    ));
-    assert!(synopsis.contains("  ranking-rule closed-unsigned-countdown verifier-reconstructed"));
-    assert!(synopsis.contains("  covered-edge 4 source 3 target 2"));
+    assert!(synopsis.contains("control-cycle "));
+    assert!(synopsis.contains("machine 1"));
+    assert!(synopsis.contains("  rank block 2 value 2"));
+    assert!(synopsis.contains("  rank block 3 value 2"));
     assert!(
-        synopsis.contains("    guard unsigned-positive block 2 edge 2 condition 4 parameter 2")
+        synopsis.contains("  rank-edge 2 source 2 target 3 successor-rank 2 comparison Preserving")
     );
-    assert!(synopsis.contains(
-        "    successor unsigned-minus-one argument-index 0 argument 6 source-parameter 2 target-parameter 2"
-    ));
+    assert!(
+        synopsis.contains("  rank-edge 4 source 3 target 2 successor-rank 6 comparison Strict")
+    );
     assert!(synopsis.contains("trust-node implementation:rust-terminal-verifier"));
-    assert!(!synopsis.contains("RecursiveComponentCertificate"));
     assert_eq!(lowered.proof_bundle.evidence.len(), 1);
-    assert!(matches!(
-        terminal_verifier::validate_module(&lowered.semantic_module),
-        Err(terminal_verifier::ModuleError::NonExecutableRankedScc(_))
-    ));
+    // Ordinary executable validation no longer consults a countdown shape:
+    // the natural-cycle record validates like every other eligible cycle.
+    assert_eq!(
+        terminal_verifier::validate_module(&lowered.semantic_module).map(|_| ()),
+        Ok(())
+    );
     let bytes = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("ranked semantic identity should encode");
     let decoded = terminal_codec::decode_module(&bytes).expect("ranked identity decodes");
@@ -1563,32 +1589,29 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
             .expect("ranked proof identity should encode");
     let decoded_proof = terminal_codec::decode_proof_bundle(&proof_bytes)
         .expect("ranked proof identity decodes canonically");
-    let decoded_fixed_fuel_verified = terminal_verifier::verify_module_for_fixed_fuel(
+    let decoded_fixed_fuel_verified = terminal_verifier::verify_module(
         &decoded,
         &decoded_proof,
         &proof_admission::AdmissionProfile::default(),
     )
-    .expect("decoded ranked proof closes for fixed fuel");
-    terminal_fixed_fuel::validate_ranked_countdown_entry_fuel(
-        &decoded_fixed_fuel_verified,
-        &fixed_fuel,
-    )
-    .expect("ranked certificate binds the canonical round trip");
-    terminal_fixed_fuel::validate_retained_ranked_countdown_safe_point_segments(
+    .expect("decoded ranked proof closes under ordinary verification");
+    terminal_fixed_fuel::validate_fixed_entry_fuel(&decoded_fixed_fuel_verified, &fixed_fuel)
+        .expect("ranked certificate binds the canonical round trip");
+    terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
         &decoded_fixed_fuel_verified,
         &retained_ranked_segments,
     )
     .expect("ranked segment catalog binds the canonical round trip");
     let mut drifted_identity = decoded.clone();
     drifted_identity.structural_types[0].identity = "test::OtherToken".to_owned();
-    let drifted_fixed_fuel_verified = terminal_verifier::verify_module_for_fixed_fuel(
+    let drifted_fixed_fuel_verified = terminal_verifier::verify_module(
         &drifted_identity,
         &decoded_proof,
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("identity-drifted ranked structure remains independently valid");
     assert_eq!(
-        terminal_fixed_fuel::validate_retained_ranked_countdown_safe_point_segments(
+        terminal_fixed_fuel::validate_retained_fixed_safe_point_segments(
             &drifted_fixed_fuel_verified,
             &retained_ranked_segments,
         ),
@@ -1596,37 +1619,33 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         "a different terminal semantic identity cannot replay ranked segments"
     );
     let lowered = lower_machine(&checked, "Root::countdown")
-        .expect("public lowering admits the interpreter-only ranked slice");
+        .expect("public lowering admits the certified ranked slice");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("ranked semantic section encodes");
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .expect("ranked proof section encodes");
-    let decoded_native = terminal_verifier::verify_module_for_native_ranked_countdown(
+    let decoded_verified = terminal_verifier::verify_module(
         &decoded,
         &decoded_proof,
         &proof_admission::AdmissionProfile::default(),
     )
-    .expect("decoded ranked proof closes for native authority");
+    .expect("decoded ranked proof closes under ordinary verification");
     assert_eq!(
         synopsis,
-        terminal_codec::render_verified_native_ranked_countdown_synopsis(&decoded_native)
+        terminal_codec::render_verified_proof_synopsis(&decoded_verified)
             .expect("round-tripped ranked synopsis")
     );
+    // Redirecting the recorded successor rank changes the reconstructed
+    // question: the retained certificate is stale for the mutated component.
     let mut mutated_component = decoded.clone();
-    let edge = &mut mutated_component.machines[0]
+    let terminal_psi::TerminalRankedScc::Natural(components) = mutated_component.machines[0]
         .ranked_scc
         .as_mut()
-        .and_then(|ranked| ranked.as_unsigned_countdown_mut())
-        .expect("ranked component")
-        .covered_cyclic_edges[0];
-    let terminal_psi::TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-        argument_index,
-        ..
-    } = &mut edge.successor_argument;
-    *argument_index = 1;
+        .expect("ranked component");
+    components[0].edges[1].successor_rank = semantic_vocabulary::ValueId::new(2).unwrap();
     assert!(
-        terminal_verifier::verify_module_for_native_ranked_countdown(
+        terminal_verifier::verify_module(
             &mutated_component,
             &decoded_proof,
             &proof_admission::AdmissionProfile::default(),
@@ -1635,15 +1654,15 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         "mutated ranked custody must reject before it can be rendered"
     );
     let mut missing_proof = decoded_proof.clone();
-    missing_proof.evidence.clear();
+    missing_proof.control_cycles.clear();
     assert!(
-        terminal_verifier::verify_module_for_native_ranked_countdown(
+        terminal_verifier::verify_module(
             &decoded,
             &missing_proof,
             &proof_admission::AdmissionProfile::default(),
         )
         .is_err(),
-        "missing decrease evidence must reject before it can be rendered"
+        "missing cycle evidence must reject before it can be rendered"
     );
     let machine = &lowered.semantic_module.machines[0];
     let structural_parameter = &machine.structural_parameters[0];
@@ -1804,21 +1823,36 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
             }
         "#,
     );
+    // Both lowering entries emit the same Natural countdown carrier; the
+    // u64 rank bound overflows the u64 fuel ceiling either way.
     let general = lower_machine(&checked, "Root::countdown")
         .expect("ordinary owned state parameters use the general Natural graph");
-    let verified_general = terminal_verifier::verify_module_for_fixed_fuel(
+    let verified_general = terminal_verifier::verify_module(
         &general.semantic_module,
         &general.proof_bundle,
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("general Natural graph verifies independently");
+    assert!(matches!(
+        terminal_fixed_fuel::derive_fixed_entry_fuel(
+            &verified_general,
+            general.semantic_module.entry
+        ),
+        Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
+    ));
+    // Safe-point segments charge single edge traversals, not the cyclic
+    // component bound, so the u64 rank maximum does not overflow them.
+    let general_segments = terminal_fixed_fuel::derive_fixed_safe_point_segments(
+        &verified_general,
+        general.semantic_module.entry,
+    )
+    .expect("per-edge safe-point segments stay within the u64 schedule");
     assert!(
-        matches!(terminal_fixed_fuel::derive_ranked_countdown_entry_fuel(
-        &verified_general, general.semantic_module.entry),
-        Err(terminal_fixed_fuel::FixedFuelError::NotRankedCountdown(machine)) if machine == general.semantic_module.entry)
+        general_segments
+            .iter()
+            .all(|segment| segment.ceiling_units() <= 3)
     );
 
-    // The legacy unsigned-countdown estimator still owes its exact overflow fence.
     let plan = checked
         .facts
         .flow
@@ -1826,27 +1860,17 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
         .machines
         .iter()
         .find(|plan| plan.ranked_scc.is_some())
-        .expect("retained unsigned countdown plan");
+        .expect("retained natural countdown plan");
     let lowered = lower_structural_unit_control_machine(&checked, plan)
-        .expect("unsigned countdown representation should lower");
-    let verified = terminal_verifier::verify_module_for_fixed_fuel(
+        .expect("natural countdown representation should lower");
+    let verified = terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
         &proof_admission::AdmissionProfile::default(),
     )
-    .expect("unsigned countdown proof closes for fixed-fuel admission");
+    .expect("natural countdown proof closes under ordinary verification");
     assert!(matches!(
-        terminal_fixed_fuel::derive_ranked_countdown_entry_fuel(
-            &verified,
-            lowered.semantic_module.entry
-        ),
-        Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
-    ));
-    assert!(matches!(
-        terminal_fixed_fuel::derive_ranked_countdown_safe_point_segments(
-            &verified,
-            lowered.semantic_module.entry,
-        ),
+        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
         Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
     ));
 }

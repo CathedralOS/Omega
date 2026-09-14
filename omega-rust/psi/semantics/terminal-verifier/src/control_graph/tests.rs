@@ -234,9 +234,9 @@ fn irreducible_entries_and_entry_backedges_do_not_invent_dominance() {
 }
 
 #[test]
-fn validated_countdown_header_backedge_preserves_acyclic_dominance() {
-    // The unsigned-countdown validator requires an entry jump to the header
-    // and exactly one retained edge from a different block back to that header.
+fn cyclic_header_backedge_preserves_acyclic_dominance() {
+    // A counted-loop shape enters the header directly and retains exactly one
+    // edge from a different block back to that header.
     let full = machine(
         &[600, 17, 903, 41, 201, 3],
         &[vec![1], vec![2, 5], vec![3, 4], vec![1], vec![5], vec![]],

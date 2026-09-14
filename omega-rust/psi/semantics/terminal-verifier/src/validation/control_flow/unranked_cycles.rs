@@ -14,11 +14,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             && result.projected_qualifications.is_empty()
             && super::super::scalar_case::plain_type(module, result.structural_type)
     });
-    if machine
-        .ranked_scc
-        .as_ref()
-        .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
-        || (machine.result.structural().is_some() && !scalar_case_result)
+    if (machine.result.structural().is_some() && !scalar_case_result)
         || !machine.entry_claims.is_empty()
         || !machine.content_entry_claims.is_empty()
         || !machine.content_identity_reshuffles.is_empty()

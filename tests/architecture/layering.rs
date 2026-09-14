@@ -4404,9 +4404,13 @@ fn native_publication_has_no_countdown_execution_fork() {
         "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
     ))
     .unwrap();
-    assert!(native.contains("UnsupportedUnsignedCountdownNativeCustody"));
     assert!(native.contains("terminal_verifier::verify_module("));
-    assert!(!native.contains("NativeArtifactOperationPlan"));
+    for forbidden in ["UnsignedCountdown", "NativeArtifactOperationPlan"] {
+        assert!(
+            !native.contains(forbidden),
+            "native admission retains {forbidden}"
+        );
+    }
     let image = root.join("omega-rust/omega/backend/images/image-emission");
     let manifest = std::fs::read_to_string(image.join("Cargo.toml")).unwrap();
     assert!(
@@ -4435,6 +4439,8 @@ fn native_publication_has_no_countdown_execution_fork() {
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/ranked_countdown.rs",
         "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked.rs",
         "omega-rust/omega/backend/machine-emission/src/ranked_countdown.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/ranked_scc.rs",
+        "omega-rust/psi/semantics/terminal-fixed-fuel/src/fuel_certification/ranked_countdown.rs",
     ] {
         assert!(!root.join(path).exists(), "retired countdown route: {path}");
     }

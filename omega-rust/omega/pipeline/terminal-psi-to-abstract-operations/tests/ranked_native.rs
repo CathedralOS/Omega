@@ -41,13 +41,15 @@ fn artifact(source: &str) -> (Vec<u8>, Vec<u8>, terminal_psi::TerminalModule) {
 }
 
 #[test]
-fn unsigned_countdown_tag_is_explicitly_rejected_at_native_entrance() {
+fn natural_countdown_without_certificate_is_rejected_at_native_entrance() {
     let module = legacy_fixture::legacy_countdown();
     let proof =
         terminal_codec::encode_proof_section(&module, &terminal_psi::ProofBundle::default())
             .unwrap();
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
+    // No shape route remains: the native entrance demands the reconstructed
+    // control-cycle certificate like every other ranked component.
     assert!(matches!(
         lower_artifact_for_native_realization(
             terminal_psi_to_abstract_operations::ArtifactSections {
@@ -58,7 +60,7 @@ fn unsigned_countdown_tag_is_explicitly_rejected_at_native_entrance() {
             &profile
         )
         .and_then(|admitted| admitted.try_into_native_input()),
-        Err(ArtifactLoweringError::UnsupportedUnsignedCountdownNativeCustody)
+        Err(ArtifactLoweringError::Verification(_))
     ));
     assert!(
         lower_artifact(

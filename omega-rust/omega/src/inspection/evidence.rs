@@ -2,12 +2,10 @@
 
 use proof_admission::AdmissionProfile;
 use terminal_fixed_fuel::{
-    FixedEntryFuelCertificate, FixedFuelError, derive_fixed_entry_fuel,
-    derive_ranked_countdown_entry_fuel, validate_fixed_entry_fuel,
-    validate_ranked_countdown_entry_fuel,
+    FixedEntryFuelCertificate, FixedFuelError, derive_fixed_entry_fuel, validate_fixed_entry_fuel,
 };
-use terminal_psi::{ProofBundle, TerminalModule, TerminalRankedScc};
-use terminal_verifier::{VerificationError, verify_module, verify_module_for_fixed_fuel};
+use terminal_psi::{ProofBundle, TerminalModule};
+use terminal_verifier::{VerificationError, verify_module};
 
 #[derive(Debug)]
 pub enum FixedFuel {
@@ -35,29 +33,14 @@ pub(super) fn inspect(
     proof: &ProofBundle,
 ) -> Result<FixedFuel, InspectionError> {
     let profile = AdmissionProfile::default();
-    // The legacy countdown has a distinct verification entrance. Natural
-    // certificates and unranked graphs use ordinary verification; failure
-    // never retries through a different authority or drops proof evidence.
-    if module.machines.iter().any(|machine| {
-        matches!(
-            machine.ranked_scc,
-            Some(TerminalRankedScc::UnsignedCountdown(_))
-        )
-    }) {
-        let verified = verify_module_for_fixed_fuel(module, proof, &profile)
-            .map_err(InspectionError::Verification)?;
-        retain_bound(
-            derive_ranked_countdown_entry_fuel(&verified, module.entry),
-            |certificate| validate_ranked_countdown_entry_fuel(&verified, certificate),
-        )
-    } else {
-        let verified =
-            verify_module(module, proof, &profile).map_err(InspectionError::Verification)?;
-        retain_bound(
-            derive_fixed_entry_fuel(&verified, module.entry),
-            |certificate| validate_fixed_entry_fuel(&verified, certificate),
-        )
-    }
+    // Natural certificates and unranked graphs share the ordinary verification
+    // entrance; failure never retries through a different authority or drops
+    // proof evidence.
+    let verified = verify_module(module, proof, &profile).map_err(InspectionError::Verification)?;
+    retain_bound(
+        derive_fixed_entry_fuel(&verified, module.entry),
+        |certificate| validate_fixed_entry_fuel(&verified, certificate),
+    )
 }
 
 fn retain_bound(
@@ -74,7 +57,6 @@ fn retain_bound(
             | FixedFuelError::CallCycle(_)
             | FixedFuelError::BranchingNotYetSupported(_)
             | FixedFuelError::NoTerminalPath(_)
-            | FixedFuelError::NotRankedCountdown(_)
             | FixedFuelError::BoundOverflow),
         ) => Ok(FixedFuel::Unavailable(error)),
         // Missing identities, malformed semantics, and inconsistent replay are
@@ -97,7 +79,6 @@ mod tests {
             FixedFuelError::CallCycle(machine),
             FixedFuelError::BranchingNotYetSupported(block),
             FixedFuelError::NoTerminalPath(machine),
-            FixedFuelError::NotRankedCountdown(machine),
             FixedFuelError::BoundOverflow,
         ] {
             let result = retain_bound(Err(reason.clone()), |_| panic!("no certificate to replay"));

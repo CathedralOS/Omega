@@ -53,7 +53,7 @@ mod primitive_storage;
 mod proof_recursion;
 mod propositions;
 mod quotient_correspondence;
-mod ranked_scc;
+
 mod reach_applications;
 mod references;
 pub use reach_applications::has_schema_application_in_call_closure;
@@ -161,8 +161,8 @@ pub fn validate_module(
 /// interpreter.
 ///
 /// This is deliberately a different carrier from [`ValidatedTerminalModule`]:
-/// ranked countdowns are not thereby authorized for fixed-fuel derivation,
-/// Omega lowering, or native installation.
+/// natural-cycle machines are not thereby authorized for fixed-fuel
+/// derivation, Omega lowering, or native installation.
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatedInterpretableTerminalModule<'module> {
     validated: ValidatedTerminalModule<'module>,
@@ -198,9 +198,9 @@ pub fn validate_module_for_interpretation(
 /// optimizer analysis.
 ///
 /// This carrier is deliberately distinct from ordinary execution,
-/// interpretation, fixed-fuel, and native-ranked validation. It currently
-/// adds only the already-validated exact unsigned-countdown representation to
-/// the ordinary acyclic subset.
+/// interpretation, and fixed-fuel validation. It admits the natural-cycle
+/// ranking representation whose obligations are reconstructed for the common
+/// proof-admission kernel.
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatedOptimizableTerminalModule<'module> {
     validated: ValidatedTerminalModule<'module>,
@@ -223,13 +223,6 @@ pub fn validate_module_for_optimization(
     Ok(ValidatedOptimizableTerminalModule {
         validated: ValidatedTerminalModule { module },
     })
-}
-
-pub(crate) fn validate_module_for_native_ranked_countdown(
-    module: &TerminalModule,
-) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
-    validate_module_with_policy(module, ValidationPolicy::NativeRankedCountdown)?;
-    Ok(ValidatedTerminalModule { module })
 }
 
 /// Validate a Terminal-Psi module and expose the exact deterministic ownership
@@ -258,18 +251,11 @@ pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
                 .iter()
                 .map(|block| (block.id, block))
                 .collect::<BTreeMap<_, _>>();
-            let ranked_backedges = machine
-                .ranked_scc
-                .iter()
-                .filter_map(|ranking| ranking.as_unsigned_countdown())
-                .flat_map(|component| component.covered_cyclic_edges.iter().map(|row| row.edge))
-                .collect::<BTreeSet<_>>();
             frontier::validate_structural_frontier(
                 module,
                 machine,
                 &machines,
                 &blocks,
-                &ranked_backedges,
                 &crate::control_graph::dominators(machine),
             )
         })
@@ -869,7 +855,6 @@ enum ValidationPolicy {
     Execution,
     Interpretation,
     Optimization,
-    NativeRankedCountdown,
     Representation,
 }
 
@@ -931,7 +916,7 @@ fn validate_module_with_policy(
     dynamic_dispatch::validate_dynamic_dispatches(module, &machines)?;
     validate_evidence_contract_lanes(module, &machines)?;
     for machine in &module.machines {
-        machine::validate_machine(module, machine, &machines, &mut registry, policy)?;
+        machine::validate_machine(module, machine, &machines, &mut registry)?;
     }
     scalar_qualifications::validate(module)?;
     scalar_block_invariants::validate(module, &machines, &mut registry)?;
@@ -942,139 +927,8 @@ fn validate_module_with_policy(
     }
     root_service_reach::validate_root_service_reach_exact(module)?;
 
-    match policy {
-        ValidationPolicy::Interpretation | ValidationPolicy::Optimization => {
-            validate_interpretable_ranked_countdown_module(module)?;
-        }
-        ValidationPolicy::NativeRankedCountdown => {
-            validate_native_ranked_countdown_module(module)?;
-        }
-        ValidationPolicy::Execution | ValidationPolicy::Representation => {}
-    }
-
     crash::validate_site_guard_truth(module)?;
     Ok(registry)
-}
-
-fn validate_native_ranked_countdown_module(module: &TerminalModule) -> Result<(), ModuleError> {
-    validate_interpretable_ranked_countdown_module(module)?;
-    let Some(machine) = module
-        .machines
-        .iter()
-        .find(|machine| machine.ranked_scc.is_some())
-    else {
-        return Err(ModuleError::NonExecutableRankedScc(module.entry));
-    };
-    let component = machine
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranking| ranking.as_unsigned_countdown())
-        .ok_or(ModuleError::NonExecutableRankedScc(machine.id))?;
-    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32)
-        .expect("the fixed unsigned 32-bit carrier is valid");
-    let [structural_parameter] = machine.structural_parameters.as_slice() else {
-        return Err(ModuleError::NonExecutableRankedScc(machine.id));
-    };
-    let [structural_place] = machine.structural_places.as_slice() else {
-        return Err(ModuleError::NonExecutableRankedScc(machine.id));
-    };
-    let affine_owned = !structural_parameter.is_self
-        && structural_parameter.multiplicity == StructuralMultiplicity::Affine
-        && structural_parameter.access == StructuralAccess::Owned;
-    let persistent_receiver = structural_parameter.is_self
-        && structural_parameter.access == StructuralAccess::MutableBorrow;
-    if component.rank_type != u32_type
-        || machine.parameters[0].scalar_type != ScalarType::Integer(u32_type)
-        || structural_parameter.position != 0
-        || (!affine_owned && !persistent_receiver)
-        || !structural_parameter.qualifications.is_empty()
-        || structural_place.id != structural_parameter.place
-        || structural_place.kind
-            != (StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: structural_parameter.is_self,
-            })
-        || !machine.entry_claims.is_empty()
-        || !machine.content_entry_claims.is_empty()
-    {
-        return Err(ModuleError::NonExecutableRankedScc(machine.id));
-    }
-    Ok(())
-}
-
-fn validate_interpretable_ranked_countdown_module(
-    module: &TerminalModule,
-) -> Result<(), ModuleError> {
-    let ranked = module
-        .machines
-        .iter()
-        .filter(|machine| {
-            machine
-                .ranked_scc
-                .as_ref()
-                .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
-        })
-        .collect::<Vec<_>>();
-    let Some(machine) = ranked.first().copied() else {
-        return Ok(());
-    };
-    let reject = || ModuleError::NonExecutableRankedScc(machine.id);
-    if ranked.len() != 1
-        || module.machines.len() != 1
-        || !module.boundary_machines.is_empty()
-        || !module.provider_candidates.is_empty()
-        || machine.result != TerminalMachineResult::Unit
-        || machine.parameters.len() != 1
-        || machine.blocks.len() != 4
-    {
-        return Err(reject());
-    }
-
-    let component = machine
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranking| ranking.as_unsigned_countdown())
-        .expect("ranked countdown machine");
-    let header = machine
-        .blocks
-        .iter()
-        .find(|block| block.id == component.header)
-        .ok_or_else(reject)?;
-    let row = component.covered_cyclic_edges.first().ok_or_else(reject)?;
-    let decrement = machine
-        .blocks
-        .iter()
-        .find(|block| block.id == row.source)
-        .ok_or_else(reject)?;
-    let Terminator::Conditional {
-        when_false: exit, ..
-    } = &header.terminator
-    else {
-        return Err(reject());
-    };
-    let done = machine
-        .blocks
-        .iter()
-        .find(|block| block.id == exit.target)
-        .ok_or_else(reject)?;
-    let entry = machine
-        .blocks
-        .iter()
-        .find(|block| block.id == machine.entry)
-        .ok_or_else(reject)?;
-
-    if !entry.operations.is_empty()
-        || header.parameters.len() != 1
-        || header.operations.len() != 2
-        || !decrement.parameters.is_empty()
-        || decrement.operations.len() != 2
-        || !done.parameters.is_empty()
-        || !done.operations.is_empty()
-        || !matches!(done.terminator, Terminator::ReturnUnit { .. })
-    {
-        return Err(reject());
-    }
-    Ok(())
 }
 
 #[derive(Default)]

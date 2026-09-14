@@ -33,16 +33,6 @@ pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringEr
     if !module.scalar_block_invariants.is_empty() {
         return Ok(());
     }
-    // The legacy countdown has its own interpretation-only admission route;
-    // this inference uses ordinary cyclic control, ranked or unranked.
-    if module.machines.iter().any(|machine| {
-        machine
-            .ranked_scc
-            .as_ref()
-            .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
-    }) {
-        return Ok(());
-    }
     let original = terminal_verifier::reconstruct_terminal_obligations(module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     let mut remaining = 4096usize;

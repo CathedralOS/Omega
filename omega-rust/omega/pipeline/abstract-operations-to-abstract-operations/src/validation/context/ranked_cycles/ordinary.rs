@@ -11,13 +11,6 @@ pub(super) fn rederive_components(
         let invalid = || OptimizationUnitValidationError::RankedCycleTopologyMismatch {
             machine: machine.id,
         };
-        if !matches!(
-            machine.ranked_scc,
-            None | Some(terminal_psi::TerminalRankedScc::Natural(_))
-        ) {
-            // The legacy countdown entrance remains a separate, entry-only contract.
-            return Err(invalid());
-        }
         // VerifiedPsiOptimizationInput authenticates this Terminal body and its
         // safety evidence, including grouped Natural evidence when present.
         // Reconstruct topology independently of current IR; unranked components

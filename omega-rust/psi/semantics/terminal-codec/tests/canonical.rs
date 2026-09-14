@@ -52,8 +52,7 @@ use terminal_psi::{
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
     TerminalPlacedViewInput, TerminalProofRankingRelation, TerminalProofRecursiveCallSite,
     TerminalProofRecursiveComponent, TerminalProofRecursiveEdge, TerminalProofRecursiveField,
-    TerminalProofRecursiveMember, TerminalProofRecursiveType, TerminalRankedGuard,
-    TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument,
+    TerminalProofRecursiveMember, TerminalProofRecursiveType, TerminalRankedScc,
     TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
     TerminalSuspensionLiveValue, TerminalSuspensionPlace, TerminalSuspensionStorage,
     TerminalSuspensionValueType, Terminator, ValueDeclaration, VocabularyMarker,
@@ -274,14 +273,10 @@ fn ranked_countdown_round_trips_in_current_terminal_identity() {
 #[test]
 fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverage() {
     let mut module = ranked_countdown_fixture();
-    let countdown_identity = semantic_fingerprint(&module).unwrap();
-    let rank_type = module.machines[0]
-        .ranked_scc
-        .as_ref()
-        .unwrap()
-        .as_unsigned_countdown()
-        .unwrap()
-        .rank_type;
+    let mut unranked = module.clone();
+    unranked.machines[0].ranked_scc = None;
+    let unranked_identity = semantic_fingerprint(&unranked).unwrap();
+    let rank_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     let cycle = terminal_psi::TerminalNaturalCycle {
         rank_type,
         ranks: vec![
@@ -315,7 +310,7 @@ fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverag
     let bytes = encode_module(&module).expect("natural ranking representation encodes");
     assert_eq!(&bytes[8..12], &[97, 0, 107, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_ne!(semantic_fingerprint(&module).unwrap(), countdown_identity);
+    assert_ne!(semantic_fingerprint(&module).unwrap(), unranked_identity);
     let mut stale = bytes;
     stale[8..10].copy_from_slice(&78_u16.to_le_bytes());
     assert_eq!(
@@ -4543,32 +4538,37 @@ fn ranked_countdown_fixture() -> TerminalModule {
         id: initial,
         scalar_type: scalar,
     }];
-    machine.ranked_scc = Some(TerminalRankedScc::UnsignedCountdown(
-        terminal_psi::TerminalUnsignedCountdownScc {
-            header,
-            rank_parameter: rank,
+    machine.ranked_scc = Some(TerminalRankedScc::Natural(vec![
+        terminal_psi::TerminalNaturalCycle {
             rank_type: integer,
-            lower_bound: IntegerValue::Unsigned(0),
-            upper_bound: IntegerValue::Unsigned(u128::from(u32::MAX)),
-            covered_cyclic_edges: vec![TerminalRankedSccEdge {
-                edge: backedge,
-                source: decrement,
-                target: header,
-                guard: TerminalRankedGuard::UnsignedParameterPositive {
+            ranks: vec![
+                terminal_psi::TerminalBlockNaturalRank {
                     block: header,
+                    value: rank,
+                },
+                terminal_psi::TerminalBlockNaturalRank {
+                    block: decrement,
+                    value: rank,
+                },
+            ],
+            edges: vec![
+                terminal_psi::TerminalNaturalRankEdge {
                     edge: guard_edge,
-                    condition,
-                    parameter: rank,
+                    source: header,
+                    target: decrement,
+                    successor_rank: rank,
+                    comparison: terminal_psi::TerminalNaturalRankComparison::Preserving,
                 },
-                successor_argument: TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                    argument_index: 0,
-                    argument: next,
-                    source_parameter: rank,
-                    target_parameter: rank,
+                terminal_psi::TerminalNaturalRankEdge {
+                    edge: backedge,
+                    source: decrement,
+                    target: header,
+                    successor_rank: next,
+                    comparison: terminal_psi::TerminalNaturalRankComparison::Strict,
                 },
-            }],
+            ],
         },
-    ));
+    ]));
     machine.entry = preheader;
     machine.blocks = vec![
         Block {

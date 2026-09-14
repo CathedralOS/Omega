@@ -172,7 +172,6 @@ pub(super) fn validate_structural_frontier(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
-    representation_backedges: &BTreeSet<EdgeId>,
     dominators: &crate::control_graph::DominatorTree,
 ) -> Result<VerifiedMachineStructuralFrontiers, ModuleError> {
     let mut snapshots = VerifiedMachineStructuralFrontiers {
@@ -233,7 +232,7 @@ pub(super) fn validate_structural_frontier(
     };
 
     let parameter_order = block_parameters::disposal_order(machine, dominators);
-    let order = traversal::block_order(machine.entry, blocks, representation_backedges);
+    let order = traversal::block_order(machine.entry, blocks);
     let mut incoming = BTreeMap::<BlockId, Vec<StructuralOwnershipFrontier>>::new();
     incoming.insert(machine.entry, vec![entry]);
     for block_id in order {
@@ -607,9 +606,7 @@ pub(super) fn validate_structural_frontier(
                 )?;
                 block_parameters::establish(&mut frontier, *edge, blocks[target])?;
                 snapshots.edge_exits.insert(*edge, frontier.snapshot());
-                if !representation_backedges.contains(edge) {
-                    incoming.entry(*target).or_default().push(frontier);
-                }
+                incoming.entry(*target).or_default().push(frontier);
             }
             Terminator::Conditional {
                 when_true,
@@ -642,12 +639,10 @@ pub(super) fn validate_structural_frontier(
                 snapshots
                     .edge_exits
                     .insert(when_true.edge, true_frontier.snapshot());
-                if !representation_backedges.contains(&when_true.edge) {
-                    incoming
-                        .entry(when_true.target)
-                        .or_default()
-                        .push(true_frontier);
-                }
+                incoming
+                    .entry(when_true.target)
+                    .or_default()
+                    .push(true_frontier);
                 block_parameters::consume(
                     module,
                     machine,
@@ -673,12 +668,10 @@ pub(super) fn validate_structural_frontier(
                 snapshots
                     .edge_exits
                     .insert(when_false.edge, frontier.snapshot());
-                if !representation_backedges.contains(&when_false.edge) {
-                    incoming
-                        .entry(when_false.target)
-                        .or_default()
-                        .push(frontier);
-                }
+                incoming
+                    .entry(when_false.target)
+                    .or_default()
+                    .push(frontier);
             }
             Terminator::StructuralCase { source, cases } => {
                 let owned_subject = machine
@@ -728,9 +721,7 @@ pub(super) fn validate_structural_frontier(
                     snapshots
                         .edge_exits
                         .insert(case.edge, case_frontier.snapshot());
-                    if !representation_backedges.contains(&case.edge) {
-                        incoming.entry(case.target).or_default().push(case_frontier);
-                    }
+                    incoming.entry(case.target).or_default().push(case_frontier);
                 }
             }
             Terminator::ReturnUnit {
@@ -1105,23 +1096,6 @@ pub(super) fn validate_structural_frontier(
             .expect("frontier traversal visits every reachable block");
         for frontier in frontiers {
             require_snapshot_match(block, established, &frontier.snapshot())?;
-        }
-    }
-    if let Some(component) = machine
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranking| ranking.as_unsigned_countdown())
-    {
-        for row in &component.covered_cyclic_edges {
-            let established = snapshots
-                .block_entries
-                .get(&row.target)
-                .expect("ranked validation established the backedge target block");
-            let preserved = snapshots
-                .edge_exits
-                .get(&row.edge)
-                .expect("frontier replay visited the ranked backedge");
-            require_snapshot_match(row.target, established, preserved)?;
         }
     }
     Ok(snapshots)

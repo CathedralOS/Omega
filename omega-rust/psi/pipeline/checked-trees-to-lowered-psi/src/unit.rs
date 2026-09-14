@@ -41,10 +41,11 @@ use terminal_psi::{
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
-    TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator, ValueDeclaration,
-    VocabularyMarker, program_local_root_introduction_compatibility_report_identity,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalBlockNaturalRank,
+    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalNaturalCycle,
+    TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,
+    ValueDeclaration, VocabularyMarker,
+    program_local_root_introduction_compatibility_report_identity,
 };
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 

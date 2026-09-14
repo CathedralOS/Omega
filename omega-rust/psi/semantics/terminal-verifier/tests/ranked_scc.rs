@@ -1,27 +1,27 @@
 use proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness, ProofNode,
-    ProofRule, ProofSystemMarker,
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness, PrimitiveJudgment,
+    ProofNode, ProofRule, ProofSystemMarker, RecursiveComponentCertificate,
+    RecursiveEdgeCertificate,
 };
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, ContractId, CycleComponentId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, RankingRelationId,
+    ScalarTerm, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    Block, MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
-    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    Block, ControlCycleEvidence, MachineContract, Operation, OperationKind, OperationResult,
+    ServiceDeclaration, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
-    TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    TerminalBlockNaturalRank, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+    TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, VerificationError,
-    reconstruct_interpretable_operation_obligations, validate_module,
-    validate_module_for_interpretation, validate_module_for_optimization,
+    reconstruct_control_cycle_obligations, reconstruct_interpretable_operation_obligations,
+    validate_module, validate_module_for_interpretation, validate_module_for_optimization,
     validate_module_representation, verify_module, verify_module_for_fixed_fuel,
-    verify_module_for_interpretation, verify_module_for_native_ranked_countdown,
-    verify_module_for_optimization,
+    verify_module_for_interpretation, verify_module_for_optimization,
 };
 
 fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
@@ -91,33 +91,38 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                 scalar_type: scalar,
             }],
             structural_parameters: Vec::new(),
-            ranked_scc: Some(TerminalRankedScc::UnsignedCountdown(
-                terminal_psi::TerminalUnsignedCountdownScc {
-                    header,
-                    rank_parameter: rank,
-                    rank_type: integer,
-                    lower_bound: IntegerValue::Unsigned(0),
-                    upper_bound: integer.maximum_value(),
-                    covered_cyclic_edges: vec![TerminalRankedSccEdge {
+            // The countdown idiom is carried by the common Natural record:
+            // the header's rank is preserved across the guarded forward edge
+            // and strictly decreases across the covered backedge.
+            ranked_scc: Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type: integer,
+                ranks: vec![
+                    TerminalBlockNaturalRank {
+                        block: header,
+                        value: rank,
+                    },
+                    TerminalBlockNaturalRank {
+                        block: decrement,
+                        value: rank,
+                    },
+                ],
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: guard_edge,
+                        source: header,
+                        target: decrement,
+                        successor_rank: rank,
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
                         edge: backedge,
                         source: decrement,
                         target: header,
-                        guard: TerminalRankedGuard::UnsignedParameterPositive {
-                            block: header,
-                            edge: guard_edge,
-                            condition,
-                            parameter: rank,
-                        },
-                        successor_argument:
-                            TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                                argument_index: 0,
-                                argument: next,
-                                source_parameter: rank,
-                                target_parameter: rank,
-                            },
-                    }],
-                },
-            )),
+                        successor_rank: next,
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -401,8 +406,122 @@ fn ranked_countdown_proof(module: &TerminalModule) -> ProofBundle {
             }),
         }],
         recursive_components: Vec::new(),
-        control_cycles: Vec::new(),
+        control_cycles: vec![countdown_cycle_evidence(module)],
         evidence_producers: Vec::new(),
+    }
+}
+
+/// Certificate for the verifier-reconstructed natural-order question the
+/// retained countdown claims: forward edges preserve the header's rank and the
+/// covered backedge carries the strict `rank - 1 < rank` descent.
+fn countdown_cycle_evidence(module: &TerminalModule) -> ControlCycleEvidence {
+    let questions = reconstruct_control_cycle_obligations(module)
+        .expect("ranked countdown cycle question reconstructs");
+    let [question] = questions.as_slice() else {
+        panic!("ranked countdown reconstructs exactly one cycle question")
+    };
+    let obligation = &question.obligation;
+    let scalar_type = module.machines[0].parameters[0].scalar_type;
+    let ScalarType::Integer(integer_type) = scalar_type else {
+        unreachable!("ranked countdown parameter is an integer")
+    };
+    let one = ScalarTerm::value(id(5, ValueId::new), scalar_type);
+    let zero_literal = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(0))
+        .expect("ranked countdown literal zero");
+    let one_literal = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1))
+        .expect("ranked countdown literal one");
+    let axiom = |axioms: &[Proposition], conclusion: Proposition| -> ProofNode {
+        let index = axioms
+            .iter()
+            .position(|axiom| *axiom == conclusion)
+            .expect("countdown cycle premise is reconstructed as a semantic axiom");
+        ProofNode {
+            conclusion,
+            rule: ProofRule::SemanticAxiom { index },
+        }
+    };
+    let mut envelope = 20_u64;
+    let mut wrap = |proof: ProofNode| {
+        envelope += 1;
+        EvidenceRoute::CertificateDerived(CertificateEnvelope {
+            identity: id(envelope, EvidenceIdentity::new),
+            proof_system_marker: ProofSystemMarker::CURRENT,
+            proof,
+        })
+    };
+    let well_foundedness = wrap(ProofNode {
+        conclusion: obligation.well_foundedness.obligation.proposition.clone(),
+        rule: ProofRule::SemanticAxiom { index: 0 },
+    });
+    let edges = obligation
+        .edges
+        .iter()
+        .map(|edge| {
+            let decrease = &edge.decrease;
+            let proof = match &decrease.obligation.proposition {
+                Proposition::LessOrEqual(left, right) if left == right => ProofNode {
+                    conclusion: decrease.obligation.proposition.clone(),
+                    rule: ProofRule::IntegerOrderWeakening {
+                        relation: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(left.clone(), right.clone()),
+                            rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                        }),
+                    },
+                },
+                Proposition::LessThan(after, before) => ProofNode {
+                    conclusion: decrease.obligation.proposition.clone(),
+                    rule: ProofRule::IntegerSubtractOrder {
+                        difference: Box::new(axiom(
+                            &decrease.semantic_axioms,
+                            Proposition::Equal(
+                                after.clone(),
+                                ScalarTerm::exact_integer_subtract(
+                                    integer_type,
+                                    before.clone(),
+                                    one.clone(),
+                                )
+                                .expect("ranked countdown subtraction term"),
+                            ),
+                        )),
+                        positive: Box::new(ProofNode {
+                            conclusion: Proposition::LessThan(zero_literal.clone(), one.clone()),
+                            rule: ProofRule::IntegerOrderSubstitution {
+                                relation: Box::new(ProofNode {
+                                    conclusion: Proposition::LessThan(
+                                        zero_literal.clone(),
+                                        one_literal.clone(),
+                                    ),
+                                    rule: ProofRule::Primitive(
+                                        PrimitiveJudgment::ClosedIntegerRelation,
+                                    ),
+                                }),
+                                equality: Box::new(axiom(
+                                    &decrease.semantic_axioms,
+                                    Proposition::Equal(one.clone(), one_literal.clone()),
+                                )),
+                                endpoint: 1,
+                            },
+                        }),
+                    },
+                },
+                other => panic!("unexpected countdown decrease question {other:?}"),
+            };
+            RecursiveEdgeCertificate {
+                obligation: decrease.obligation.id,
+                evidence: wrap(proof),
+            }
+        })
+        .collect();
+    ControlCycleEvidence {
+        component: question.component,
+        certificate: RecursiveComponentCertificate {
+            identity: id(19, EvidenceIdentity::new),
+            ranking_relation: obligation
+                .ranking_relation
+                .expect("ranked countdown reconstructs its natural relation"),
+            well_foundedness,
+            edges,
+        },
     }
 }
 
@@ -449,7 +568,7 @@ fn add_loop_preserved_affine_parameter(module: &mut TerminalModule) -> PlaceId {
 }
 
 #[test]
-fn ranked_countdown_with_borrowed_subslice_is_representation_only() {
+fn ranked_countdown_with_borrowed_subslice_needs_ordinary_evidence() {
     let mut module = ranked_countdown_with_width(64);
     validate_module_for_interpretation(&module).expect("unchanged countdown is executable");
     let structural_type = id(1, StructuralTypeId::new);
@@ -490,8 +609,8 @@ fn ranked_countdown_with_borrowed_subslice_is_representation_only() {
         },
     ]);
     // An initial countdown of two would revisit this same producer twice.
-    // The retained graph is valid, but the current interpreter whitelist
-    // allows only the exact zero/guard and one/decrement operation pairs.
+    // The retained graph remains valid under the ordinary cycle-operation
+    // eligibility fence; only its own proof obligations gate verification.
     machine.blocks[2].operations.extend([
         Operation {
             static_reach_binding: None,
@@ -525,16 +644,20 @@ fn ranked_countdown_with_borrowed_subslice_is_representation_only() {
     ]);
     validate_module_representation(&module)
         .expect("valid source, result, dominance and unchanged owned frontier");
-    assert!(matches!(validate_module_for_interpretation(&module),
-        Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry));
-    assert!(
-        matches!(verify_module_for_interpretation(&module, &ProofBundle::default(), &AdmissionProfile::default()),
-        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine))) if machine == module.entry)
-    );
+    validate_module_for_interpretation(&module)
+        .expect("borrowed subslice work is interpreter-eligible cycle work");
+    assert!(matches!(
+        verify_module_for_interpretation(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(VerificationError::MissingEvidence(_))
+    ));
 }
 
 #[test]
-fn ranked_countdown_has_distinct_interpreter_only_authority() {
+fn ranked_countdown_requires_certificate_under_every_authority() {
     let module = ranked_countdown();
     assert_eq!(validate_module_representation(&module), Ok(()));
     let interpretable = validate_module_for_interpretation(&module)
@@ -575,27 +698,120 @@ fn ranked_countdown_has_distinct_interpreter_only_authority() {
         Err(VerificationError::MissingEvidence(obligation))
             if obligation == id(1, ObligationId::new)
     ));
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry
-    ));
+    // Ordinary executable validation no longer consults a countdown shape:
+    // the same natural-cycle record validates, and verification then demands
+    // the certificate evidence like every other authority.
+    assert_eq!(validate_module(&module).map(|_| ()), Ok(()));
     assert!(matches!(
         verify_module(
             &module,
             &ProofBundle::default(),
             &AdmissionProfile::default()
         ),
-        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
-            if machine == module.entry
+        Err(VerificationError::MissingEvidence(obligation))
+            if obligation == id(1, ObligationId::new)
     ));
 }
 
 #[test]
-fn native_ranked_countdown_authority_retains_proof_and_structural_frontiers() {
+fn ranked_countdown_rejects_absent_substituted_or_altered_cycle_evidence() {
+    let module = ranked_countdown();
+    let proof = ranked_countdown_proof(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default())
+        .expect("the certificate-backed countdown verifies for the interpreter");
+
+    // Certificate absent: shape authority alone no longer admits the cycle.
+    let mut missing = proof.clone();
+    missing.control_cycles.clear();
+    assert!(matches!(
+        verify_module_for_interpretation(&module, &missing, &AdmissionProfile::default()),
+        Err(VerificationError::MissingControlCycleEvidence(_))
+    ));
+
+    // Substituted component identity cannot answer the reconstructed question.
+    let mut substituted = proof.clone();
+    substituted.control_cycles[0].component = id(77, CycleComponentId::new);
+    assert!(matches!(
+        verify_module_for_interpretation(&module, &substituted, &AdmissionProfile::default()),
+        Err(VerificationError::MissingControlCycleEvidence(_))
+    ));
+
+    // An edge certificate naming a different obligation is rejected, not
+    // silently attached to the reconstructed decrease.
+    let mut wrong_obligation = proof.clone();
+    wrong_obligation.control_cycles[0].certificate.edges[1].obligation = id(99, ObligationId::new);
+    assert!(matches!(
+        verify_module_for_interpretation(&module, &wrong_obligation, &AdmissionProfile::default()),
+        Err(VerificationError::RejectedControlCycle { .. })
+    ));
+
+    // The preserving edge's reflexivity proof cannot stand in for the strict
+    // `rank - 1 < rank` descent.
+    let mut altered = proof.clone();
+    altered.control_cycles[0].certificate.edges[1].evidence =
+        altered.control_cycles[0].certificate.edges[0]
+            .evidence
+            .clone();
+    assert!(matches!(
+        verify_module_for_interpretation(&module, &altered, &AdmissionProfile::default()),
+        Err(VerificationError::RejectedControlCycle { .. })
+    ));
+
+    // A substituted ranking relation is a different component claim.
+    let mut wrong_relation = proof.clone();
+    wrong_relation.control_cycles[0]
+        .certificate
+        .ranking_relation = id(65, RankingRelationId::new);
+    assert!(matches!(
+        verify_module_for_interpretation(&module, &wrong_relation, &AdmissionProfile::default()),
+        Err(VerificationError::RejectedControlCycle { .. })
+    ));
+}
+
+#[test]
+fn ranked_countdown_rejects_evidence_stale_for_the_reconstructed_component() {
+    let module = ranked_countdown();
+    let proof = ranked_countdown_proof(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default())
+        .expect("the certificate-backed countdown verifies");
+
+    // Renumbering the guard edge changes the reconstructed component identity;
+    // the retained certificate is stale for the new question.
+    let mut renumbered = module.clone();
+    let machine = &mut renumbered.machines[0];
+    let moved_guard_edge = id(42, EdgeId::new);
+    let TerminalRankedScc::Natural(components) =
+        machine.ranked_scc.as_mut().expect("countdown fixture");
+    let mut guard_row = components[0].edges.remove(0);
+    guard_row.edge = moved_guard_edge;
+    components[0].edges.push(guard_row);
+    let Terminator::Conditional { when_true, .. } = &mut machine.blocks[1].terminator else {
+        unreachable!("countdown header selects the cycle path")
+    };
+    when_true.edge = moved_guard_edge;
+    assert_eq!(validate_module_representation(&renumbered), Ok(()));
+    assert!(matches!(
+        verify_module_for_interpretation(&renumbered, &proof, &AdmissionProfile::default()),
+        Err(VerificationError::MissingControlCycleEvidence(_))
+    ));
+
+    // The stale evidence cannot be replayed under a fresh bundle either: the
+    // reconstructed obligation ids commit to the new edge identities.
+    let fresh = ranked_countdown_proof(&renumbered);
+    assert_ne!(
+        fresh.control_cycles[0].component, proof.control_cycles[0].component,
+        "renumbered edge changes the reconstructed component identity"
+    );
+    verify_module_for_interpretation(&renumbered, &fresh, &AdmissionProfile::default())
+        .expect("a fresh certificate answers the renumbered component");
+}
+
+#[test]
+fn ranked_countdown_optimizer_authority_retains_proof_and_structural_frontiers() {
     let mut module = ranked_countdown();
     let place = add_loop_preserved_affine_parameter(&mut module);
     assert!(matches!(
-        verify_module_for_native_ranked_countdown(
+        verify_module_for_optimization(
             &module,
             &ProofBundle::default(),
             &AdmissionProfile::default()
@@ -605,11 +821,8 @@ fn native_ranked_countdown_authority_retains_proof_and_structural_frontiers() {
     ));
     let proof = ranked_countdown_proof(&module);
 
-    let native =
-        verify_module_for_native_ranked_countdown(&module, &proof, &AdmissionProfile::default())
-            .expect("exact structural Unit u32 countdown has native authority");
     let optimizable = verify_module_for_optimization(&module, &proof, &AdmissionProfile::default())
-        .expect("exact countdown has separate target-neutral optimizer authority");
+        .expect("the certified countdown has optimizer authority");
     assert_eq!(optimizable.module(), &module);
     assert_eq!(optimizable.proof_bundle(), &proof);
     assert_eq!(
@@ -617,22 +830,12 @@ fn native_ranked_countdown_authority_retains_proof_and_structural_frontiers() {
         1
     );
     assert_eq!(optimizable.accepted_facts().len(), 1);
-    assert_eq!(native.module(), &module);
-    assert_eq!(native.module(), &module);
-    assert_eq!(native.proof_bundle(), &proof);
-    assert_eq!(native.reconstructed_obligations().obligations().len(), 1);
-    assert_eq!(native.accepted_facts().len(), 1);
-    let header = module.machines[0]
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranked| ranked.as_unsigned_countdown())
-        .unwrap()
-        .header;
-    let header_frontier = native
+    let header = id(2, BlockId::new);
+    let header_frontier = optimizable
         .structural_frontiers()
         .machine(module.entry)
         .and_then(|frontiers| frontiers.block_entry(header))
-        .expect("native authority retains the ranked header frontier");
+        .expect("optimizer authority retains the ranked header frontier");
     assert!(
         header_frontier
             .owned_places()
@@ -644,69 +847,12 @@ fn native_ranked_countdown_authority_retains_proof_and_structural_frontiers() {
         .expect("interpreter authority remains independently constructible");
     verify_module_for_fixed_fuel(&module, &proof, &AdmissionProfile::default())
         .expect("fixed-fuel authority remains independently constructible");
-    assert!(matches!(
-        verify_module(&module, &proof, &AdmissionProfile::default()),
-        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
-            if machine == module.entry
-    ));
+    verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("the certified countdown carries ordinary executable authority");
 }
 
 #[test]
-fn native_ranked_countdown_authority_rejects_wider_rank_carriers() {
-    let mut module = ranked_countdown_with_width(64);
-    add_loop_preserved_affine_parameter(&mut module);
-    let proof = ranked_countdown_proof(&module);
-
-    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default())
-        .expect("the reference interpreter retains its wider countdown slice");
-    verify_module_for_fixed_fuel(&module, &proof, &AdmissionProfile::default())
-        .expect("fixed-fuel verification remains separate from representable ceiling derivation");
-    assert!(matches!(
-        verify_module_for_native_ranked_countdown(
-            &module,
-            &proof,
-            &AdmissionProfile::default()
-        ),
-        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
-            if machine == module.entry
-    ));
-}
-
-#[test]
-fn native_ranked_countdown_authority_requires_exactly_one_structural_token() {
-    let module = ranked_countdown();
-    let proof = ranked_countdown_proof(&module);
-    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default())
-        .expect("the interpreter permits an empty structural frontier");
-    assert!(matches!(
-        verify_module_for_native_ranked_countdown(
-            &module,
-            &proof,
-            &AdmissionProfile::default()
-        ),
-        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
-            if machine == module.entry
-    ));
-
-    let mut extra = ranked_countdown();
-    add_loop_preserved_affine_parameter(&mut extra);
-    add_loop_preserved_affine_parameter(&mut extra);
-    let proof = ranked_countdown_proof(&extra);
-    verify_module_for_interpretation(&extra, &proof, &AdmissionProfile::default())
-        .expect("the interpreter keeps its broader preserved-frontier policy");
-    assert!(matches!(
-        verify_module_for_native_ranked_countdown(
-            &extra,
-            &proof,
-            &AdmissionProfile::default()
-        ),
-        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
-            if machine == extra.entry
-    ));
-}
-
-#[test]
-fn interpreter_ranked_countdown_rejects_extra_mixed_work() {
+fn ranked_countdown_admits_extra_pure_scalar_work() {
     let mut module = ranked_countdown();
     let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     module.machines[0].blocks[0].operations.push(Operation {
@@ -722,10 +868,14 @@ fn interpreter_ranked_countdown_rejects_extra_mixed_work() {
         },
     });
     assert_eq!(validate_module_representation(&module), Ok(()));
-    assert!(matches!(
-        validate_module_for_interpretation(&module),
-        Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry
-    ));
+    validate_module_for_interpretation(&module)
+        .expect("ordinary pure scalar work beside the cycle is eligible");
+    verify_module_for_interpretation(
+        &module,
+        &ranked_countdown_proof(&module),
+        &AdmissionProfile::default(),
+    )
+    .expect("the retained certificate still answers the unchanged question");
 }
 
 #[test]
@@ -735,10 +885,7 @@ fn ranked_countdown_preserves_a_nonempty_structural_frontier() {
     assert_eq!(validate_module_representation(&module), Ok(()));
     validate_module_for_interpretation(&module)
         .expect("interpreter accepts a preserved affine countdown frontier");
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry
-    ));
+    assert_eq!(validate_module(&module).map(|_| ()), Ok(()));
 }
 
 #[test]
@@ -746,12 +893,7 @@ fn ranked_countdown_rejects_a_cycle_body_that_changes_structural_custody() {
     let mut module = ranked_countdown();
     let place = add_loop_preserved_affine_parameter(&mut module);
     let machine = &mut module.machines[0];
-    let header = machine
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranked| ranked.as_unsigned_countdown())
-        .unwrap()
-        .header;
+    let header = id(2, BlockId::new);
     let Terminator::Conditional { when_true, .. } = &mut machine.blocks[1].terminator else {
         panic!("countdown header must select the cycle path")
     };
@@ -768,18 +910,18 @@ fn ranked_countdown_rejects_false_arithmetic_without_inventing_a_missing_rank() 
     let mut uncovered = module.clone();
     uncovered.machines[0].ranked_scc = None;
     assert_eq!(validate_module_representation(&uncovered), Ok(()));
+    // Without rank evidence the decrement obligation still demands proof;
+    // no termination question is reconstructed for the unranked cycle.
     assert!(matches!(
-        verify_module_for_native_ranked_countdown(&uncovered, &ProofBundle::default(), &AdmissionProfile::default()),
-        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine))) if machine == uncovered.entry
+        verify_module_for_interpretation(&uncovered, &ProofBundle::default(), &AdmissionProfile::default()),
+        Err(VerificationError::MissingEvidence(obligation))
+            if obligation == id(1, ObligationId::new)
     ));
 
+    // Forwarding the unchanged rank instead of `rank - 1` contradicts the
+    // recorded strict successor and fails representation validation.
     let mut forwards_original = module.clone();
-    let rank = forwards_original.machines[0]
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranked| ranked.as_unsigned_countdown())
-        .unwrap()
-        .rank_parameter;
+    let rank = id(2, ValueId::new);
     let decrement = &mut forwards_original.machines[0].blocks[2];
     let Terminator::Jump { arguments, .. } = &mut decrement.terminator else {
         panic!("decrement backedge")
@@ -790,13 +932,19 @@ fn ranked_countdown_rejects_false_arithmetic_without_inventing_a_missing_rank() 
         Err(ModuleError::InvalidRankedScc(_))
     ));
 
+    // Widening the guard literal keeps the record representable, but the
+    // reconstructed premises no longer answer the retained certificate: the
+    // decrement evidence cites the original `1 <= rank` guard axiom.
+    let proof = ranked_countdown_proof(&module);
     let mut wrong_guard = module;
     wrong_guard.machines[0].blocks[1].operations[0].kind = OperationKind::IntegerConstant {
         value: IntegerValue::Unsigned(1),
     };
+    assert_eq!(validate_module_representation(&wrong_guard), Ok(()));
     assert!(matches!(
-        validate_module_representation(&wrong_guard),
-        Err(ModuleError::InvalidRankedScc(_))
+        verify_module_for_interpretation(&wrong_guard, &proof, &AdmissionProfile::default()),
+        Err(VerificationError::RejectedEvidence { .. }
+            | VerificationError::RejectedControlCycle { .. })
     ));
 }
 

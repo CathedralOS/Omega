@@ -70,14 +70,6 @@ pub(super) fn lower_decoded_native_module(
     proof: &terminal_verifier::ProofBundle,
     profile: &proof_admission::AdmissionProfile,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    if module.machines.iter().any(|machine| {
-        machine
-            .ranked_scc
-            .as_ref()
-            .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
-    }) {
-        return Err(ArtifactLoweringError::UnsupportedUnsignedCountdownNativeCustody);
-    }
     let verified = terminal_verifier::verify_module(module, proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     let plan = lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)?;

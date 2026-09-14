@@ -24,18 +24,14 @@ fn source_countdown_yields_one_revision_bound_exact_trip_count() {
     let [summary] = analysis.loops() else {
         panic!("one counted loop")
     };
-    let ranked = module.machines[0]
-        .ranked_scc
-        .as_ref()
-        .and_then(|ranked| ranked.as_unsigned_countdown())
-        .unwrap();
+    let (header, _, _, rank, rank_type) = natural_countdown_parts(&module);
     assert_eq!(analysis.snapshot().revision, session.unit().identity);
     assert_eq!(analysis.snapshot().terminal_psi, session.unit().psi);
     assert_eq!(
         summary.certificate.component,
         session.cycle_components().components()[0].id
     );
-    assert_eq!(summary.certificate.header, ranked.header);
+    assert_eq!(summary.certificate.header, header);
     let [(machine, regions)] = ordinary_loops.functions.as_slice() else {
         panic!("one ordinary loop-forest function")
     };
@@ -44,7 +40,7 @@ fn source_countdown_yields_one_revision_bound_exact_trip_count() {
         panic!("one ordinary loop region")
     };
     assert_eq!(&summary.region, ordinary_region);
-    assert_eq!(summary.region.header, Some(ranked.header));
+    assert_eq!(summary.region.header, Some(header));
     assert_eq!(
         summary.region.blocks,
         session.cycle_components().components()[0].members
@@ -58,8 +54,8 @@ fn source_countdown_yields_one_revision_bound_exact_trip_count() {
         summary.exit_edge,
         session.cycle_components().components()[0].exits[0]
     );
-    assert_eq!(summary.trip_count.scalar_type, ranked.rank_type);
-    assert_ne!(summary.trip_count.initial_value, ranked.rank_parameter);
+    assert_eq!(summary.trip_count.scalar_type, rank_type);
+    assert_ne!(summary.trip_count.initial_value, rank);
 }
 
 #[test]

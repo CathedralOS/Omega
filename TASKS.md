@@ -1458,19 +1458,34 @@ Owners include
   forms. Acceptance also checks a well-founded denotation against a generated
   loop: measure decrease must not certify an incorrect accumulator update.
 
-  Witnessed at `ecc041a1c7`: `TerminalRankedScc::UnsignedCountdown` is the
+  Witnessed at `ecc041a1c7`: `TerminalRankedScc::UnsignedCountdown` was the
   remaining shape-selected trusted route. A structural-unit countdown
   (`transition remaining > 0 { true -> countdown(token, remaining - 1) … }`
-  whose owned `Token` the composed builders reject) verifies with an empty
+  whose owned `Token` the composed builders reject) verified with an empty
   `proof_bundle.control_cycles`: `terminal-verifier/src/control_cycles/reconstruction.rs`
-  reconstructs obligations only for `Natural`, so `validation/ranked_scc.rs`
-  shape recognition alone discharges the ranking and `fixed_fuel` inherits it.
-  The same machine with a plain-owned token takes the composed route and
-  carries a `RecursiveComponentCertificate`. Next slice: emit `Natural` from
-  `checked-trees-to-lowered-psi/src/unit/structural_unit_control.rs` through
-  `control_cycle_proofs`, then delete the countdown variant, its codec, its
-  validator, and its fixed-fuel/liveness readers; acceptance is the countdown
-  program rejecting when its certificate is absent or its decrease is altered.
+  reconstructed obligations only for `Natural`, so `validation/ranked_scc.rs`
+  shape recognition alone discharged the ranking and `fixed_fuel` inherited it.
+  The same machine with a plain-owned token took the composed route and
+  carried a `RecursiveComponentCertificate`.
+
+  Closed: `checked-trees-to-lowered-psi/src/unit/structural_unit_control.rs`
+  now emits `TerminalRankedScc::Natural` rows through `control_cycle_proofs`
+  for countdown-shaped machines, `finalize_operation_proofs` runs one common
+  validate-then-reconstruct route for every machine, and the `UnsignedCountdown`
+  variant, its codec tag (tag 1 is a rejected tombstone), its validator
+  (`terminal-verifier/src/validation/ranked_scc.rs`), the fixed-fuel
+  `fuel_certification/ranked_countdown.rs` reader, the abstract-operations
+  `lowering/ranked_countdown.rs`, the `machine-emission` countdown path, and the
+  `NativeArtifactOperationPlan` execution fork are deleted. Native publication
+  goes through `terminal_verifier::verify_module` alone (see
+  `native_publication_has_no_countdown_execution_fork`). The optimizer's
+  `countdown_ranking` validation context survives only as an optional
+  recognizer that projects the unsigned-countdown idiom out of
+  verifier-admitted `Natural` components; it confers no trust by itself.
+  Acceptance is met: the countdown program rejects when its certificate is
+  absent or its decrease, successor rank, component roster, or topology is
+  altered, and safe-point/entry fuel derives from the shared
+  `Natural`-component bound (`rank_maximum + 1` member-block visits).
 
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Bind every proof to an exact semantic
   subject and observation profile through ledgers, artifact seals, deployment,
