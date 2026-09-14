@@ -52,11 +52,12 @@ pub(super) fn append_operation(
     machine: &TerminalMachine,
     operation: &Operation,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
-    value_types: &BTreeMap<ValueId, ScalarType>,
+    context: &super::machine_context::MachineReconstructionContext<'_>,
     purpose: OperationFactPurpose,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
+    let value_types = &context.value_types;
     // Private crash questions retain their own entry-origin discipline. A
     // current-value capture cannot manufacture an invocation-entry observation.
     let capture_snapshots = matches!(purpose, OperationFactPurpose::ProofObligations);
@@ -288,7 +289,7 @@ pub(super) fn append_operation(
             axioms.push(Proposition::LessOrEqual(value, endpoint(bounds.maximum())));
         }
         if let Some(equation) =
-            byte_extent::length_equation(module, machine, operation, &observation)?
+            byte_extent::length_equation(module, machine, operation, &observation, context)?
         {
             axioms.push(equation);
         }

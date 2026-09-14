@@ -130,7 +130,8 @@ pub(super) fn validate_successor(
     target: &terminal_psi::Block,
     arguments: &[StructuralArgument],
     available: &BTreeSet<PlaceId>,
-    dominating_blocks: &BTreeSet<BlockId>,
+    dominators: &crate::control_graph::DominatorTree,
+    source_block: BlockId,
     allow_projected: bool,
 ) -> Result<(), ModuleError> {
     if arguments.len() != target.structural_parameters.len() {
@@ -198,7 +199,7 @@ pub(super) fn validate_successor(
             (super::scalar_case::plain_return_source(module, machine, argument.place)
                 || super::record::plain_return_source(module, machine, argument.place))
                 && machine.blocks.iter().any(|block| {
-                    dominating_blocks.contains(&block.id)
+                    dominators.dominates(block.id, source_block)
                         && block.operations.iter().any(|operation| {
                             operation.result.structural().is_some_and(|result| {
                                 result.place == argument.place

@@ -96,9 +96,16 @@ pub(crate) fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> 
 /// dominated uses.
 pub(crate) fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
     let outgoing = successors(machine);
-    let mut entered = BTreeSet::from([machine.entry]);
+    reverse_postorder_from_successors(machine.entry, &outgoing)
+}
+
+fn reverse_postorder_from_successors(
+    entry: BlockId,
+    outgoing: &BTreeMap<BlockId, Vec<(EdgeId, BlockId)>>,
+) -> Vec<BlockId> {
+    let mut entered = BTreeSet::from([entry]);
     let mut finished = Vec::new();
-    let mut pending = vec![(machine.entry, 0usize)];
+    let mut pending = vec![(entry, 0usize)];
     while let Some((block, position)) = pending.last_mut() {
         let Some((_, target)) = outgoing[block].get(*position).copied() else {
             finished.push(*block);
@@ -114,61 +121,130 @@ pub(crate) fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
     finished
 }
 
+/// One interval per block replaces the expanded set of all its ancestors.
+/// Block identities are sparse; only the private reverse-postorder positions
+/// index contiguous working storage.
+pub(crate) struct DominatorTree {
+    positions: BTreeMap<BlockId, usize>,
+    nodes: Vec<DominatorNode>,
+}
+
+struct DominatorNode {
+    traversal_start: usize,
+    traversal_end: usize,
+    depth: usize,
+}
+
+impl DominatorTree {
+    pub(crate) fn dominates(&self, definition: BlockId, use_block: BlockId) -> bool {
+        let (Some(&definition), Some(&use_block)) = (
+            self.positions.get(&definition),
+            self.positions.get(&use_block),
+        ) else {
+            return false;
+        };
+        let definition = &self.nodes[definition];
+        let use_block = &self.nodes[use_block];
+        definition.traversal_start <= use_block.traversal_start
+            && use_block.traversal_start < definition.traversal_end
+    }
+
+    /// Number of dominators including the block itself; the entry has depth 1.
+    pub(crate) fn depth(&self, block: BlockId) -> Option<usize> {
+        self.positions
+            .get(&block)
+            .map(|&position| self.nodes[position].depth)
+    }
+}
+
 /// A cyclic block definition is available only when it dominates the use in
-/// the full graph, not merely the first traversal with backedges removed.
-pub(crate) fn dominators(machine: &TerminalMachine) -> BTreeMap<BlockId, BTreeSet<BlockId>> {
-    let successors = successors(machine);
-    let all_blocks = successors.keys().copied().collect::<BTreeSet<_>>();
-    let mut predecessors = all_blocks
+/// the full graph, not merely a traversal with backedges removed. Entry,
+/// targets, unique identities and reachability must already be validated.
+pub(crate) fn dominators(machine: &TerminalMachine) -> DominatorTree {
+    let outgoing = successors(machine);
+    let ordered = reverse_postorder_from_successors(machine.entry, &outgoing);
+    let positions = ordered
         .iter()
-        .map(|block| (*block, BTreeSet::new()))
+        .enumerate()
+        .map(|(position, block)| (*block, position))
         .collect::<BTreeMap<_, _>>();
-    for (block, edges) in &successors {
+    let mut predecessors = vec![Vec::new(); ordered.len()];
+    for (block, edges) in &outgoing {
         for (_, target) in edges {
-            predecessors
-                .get_mut(target)
-                .expect("validated target")
-                .insert(*block);
+            predecessors[positions[target]].push(positions[block]);
         }
     }
-    let mut dominators = all_blocks
-        .iter()
-        .map(|block| {
-            (
-                *block,
-                if *block == machine.entry {
-                    BTreeSet::from([*block])
-                } else {
-                    all_blocks.clone()
-                },
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
+
+    // Reverse-postorder fixed point. Known parent links always move toward
+    // smaller positions, so intersecting two chains terminates even while
+    // cyclic and irreducible predecessors still refine the provisional tree.
+    let mut immediate = vec![usize::MAX; ordered.len()];
+    immediate[0] = 0;
     loop {
         let mut changed = false;
-        for block in all_blocks
-            .iter()
-            .copied()
-            .filter(|block| *block != machine.entry)
-        {
-            let mut incoming = predecessors[&block].iter();
-            let first = incoming
-                .next()
-                .expect("reachable non-entry block has a predecessor");
-            let mut common = dominators[first].clone();
-            for predecessor in incoming {
-                common.retain(|candidate| dominators[predecessor].contains(candidate));
+        for position in 1..ordered.len() {
+            let mut common = usize::MAX;
+            for &predecessor in &predecessors[position] {
+                if immediate[predecessor] == usize::MAX {
+                    continue;
+                }
+                common = if common == usize::MAX {
+                    predecessor
+                } else {
+                    intersect_dominator_chains(common, predecessor, &immediate)
+                };
             }
-            common.insert(block);
-            if dominators[&block] != common {
-                dominators.insert(block, common);
+            // The DFS tree supplies an earlier predecessor for every
+            // reachable non-entry block, including on the first sweep.
+            debug_assert!(common < position);
+            if immediate[position] != common {
+                immediate[position] = common;
                 changed = true;
             }
         }
         if !changed {
-            return dominators;
+            break;
         }
     }
+
+    let mut children = vec![Vec::new(); ordered.len()];
+    for position in 1..ordered.len() {
+        children[immediate[position]].push(position);
+    }
+    let mut nodes = (0..ordered.len())
+        .map(|_| DominatorNode {
+            traversal_start: 0,
+            traversal_end: 0,
+            depth: 0,
+        })
+        .collect::<Vec<_>>();
+    nodes[0].depth = 1;
+    let mut next_start = 1;
+    let mut pending = vec![(0, 0)];
+    while let Some((position, child_position)) = pending.last_mut() {
+        let Some(&child) = children[*position].get(*child_position) else {
+            nodes[*position].traversal_end = next_start;
+            pending.pop();
+            continue;
+        };
+        *child_position += 1;
+        nodes[child].depth = nodes[*position].depth + 1;
+        nodes[child].traversal_start = next_start;
+        next_start += 1;
+        pending.push((child, 0));
+    }
+    DominatorTree { positions, nodes }
+}
+
+fn intersect_dominator_chains(mut first: usize, mut second: usize, immediate: &[usize]) -> usize {
+    while first != second {
+        if first > second {
+            first = immediate[first];
+        } else {
+            second = immediate[second];
+        }
+    }
+    first
 }
 
 /// Removing DFS ancestor edges makes the remaining graph acyclic. Their
@@ -197,3 +273,6 @@ pub(crate) fn feedback_edges(machine: &TerminalMachine) -> BTreeMap<EdgeId, Bloc
     }
     feedback
 }
+
+#[cfg(test)]
+mod tests;

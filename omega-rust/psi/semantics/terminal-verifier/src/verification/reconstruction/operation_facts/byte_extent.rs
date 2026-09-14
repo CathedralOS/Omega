@@ -18,6 +18,7 @@ pub(super) fn length_equation(
     machine: &TerminalMachine,
     current: &Operation,
     observation: &StructuralEffectObservation,
+    context: &super::super::machine_context::MachineReconstructionContext<'_>,
 ) -> Result<Option<Proposition>, ModuleError> {
     let StructuralEffectObservation::ByteSequenceLengthRead { source, .. } = observation else {
         return Ok(None);
@@ -52,7 +53,13 @@ pub(super) fn length_equation(
     }
     if let StructuralPlaceKind::BlockParameter { block, position } = place_kind {
         return Ok(block_length_equation(
-            module, machine, current, *source, block, position,
+            module,
+            machine,
+            current,
+            *source,
+            block,
+            position,
+            context.dominators(),
         ));
     }
     let StructuralPlaceKind::OperationResult { producer, .. } = place_kind else {
@@ -87,6 +94,7 @@ fn block_length_equation(
     source: semantic_vocabulary::PlaceId,
     block: semantic_vocabulary::BlockId,
     position: u32,
+    dominators: &crate::control_graph::DominatorTree,
 ) -> Option<Proposition> {
     let destination = machine
         .blocks
@@ -98,11 +106,10 @@ fn block_length_equation(
         return None;
     }
     let current_position = operation_position(machine, current.id)?;
-    let dominators = crate::control_graph::dominators(machine);
-    let current_dominators = dominators.get(&machine.blocks[current_position.0].id)?;
+    let current_block = machine.blocks[current_position.0].id;
     let mut candidates = Vec::new();
     for (block_position, candidate_block) in machine.blocks.iter().enumerate() {
-        if !current_dominators.contains(&candidate_block.id) {
+        if !dominators.dominates(candidate_block.id, current_block) {
             continue;
         }
         for (operation_position, producer) in candidate_block.operations.iter().enumerate() {
@@ -118,7 +125,7 @@ fn block_length_equation(
     candidates.sort_by_key(|(block_position, operation_position, _)| {
         let block = machine.blocks[*block_position].id;
         (
-            std::cmp::Reverse(dominators[&block].len()),
+            std::cmp::Reverse(dominators.depth(block).unwrap_or(0)),
             block,
             std::cmp::Reverse(*operation_position),
         )

@@ -270,6 +270,7 @@ pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
                 &machines,
                 &blocks,
                 &ranked_backedges,
+                &crate::control_graph::dominators(machine),
             )
         })
         .collect::<Result<Vec<_>, _>>()?;

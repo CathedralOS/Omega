@@ -13,7 +13,7 @@ pub(super) fn validate_control_flow(
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     value_types: &BTreeMap<ValueId, ScalarType>,
     representation_backedges: &BTreeSet<EdgeId>,
-) -> Result<(), ModuleError> {
+) -> Result<crate::control_graph::DominatorTree, ModuleError> {
     // Ordinary scalar operators, storage and boundary presentation currently
     // consume bare carriers. Reuse their complete operand checks with a bare
     // namespace; direct calls instead transport their full checked signature.
@@ -193,43 +193,9 @@ pub(super) fn validate_control_flow(
             }
         }
     }
-    let dominators = if cyclic {
-        crate::control_graph::dominators(machine)
-    } else {
-        let mut dominators = BTreeMap::<BlockId, BTreeSet<BlockId>>::new();
-        for block in &order {
-            let incoming = predecessors
-                .get(block)
-                .expect("every block has predecessors");
-            let mut set = if *block == machine.entry {
-                BTreeSet::new()
-            } else {
-                let mut incoming = incoming.iter();
-                let first = incoming
-                    .next()
-                    .expect("reachable non-entry block has a predecessor");
-                let mut intersection = dominators
-                    .get(first)
-                    .expect("topological predecessor has dominators")
-                    .clone();
-                for predecessor in incoming {
-                    intersection = intersection
-                        .intersection(
-                            dominators
-                                .get(predecessor)
-                                .expect("topological predecessor has dominators"),
-                        )
-                        .copied()
-                        .collect();
-                }
-                intersection
-            };
-            set.insert(*block);
-            dominators.insert(*block, set);
-        }
-
-        dominators
-    };
+    // Availability is a property of the complete graph, including backedges.
+    // Retain the same analysis for the following ownership and ranking checks.
+    let dominators = crate::control_graph::dominators(machine);
 
     let mutable_views = super::block_views::mutable_availability(module, machine);
     for block_id in order {
@@ -237,30 +203,31 @@ pub(super) fn validate_control_flow(
             .get(&block_id)
             .copied()
             .expect("validation order contains known blocks");
-        let block_dominators = dominators
-            .get(&block_id)
-            .expect("every ordered block has dominators");
         let mut defined = globally_defined.clone();
         defined.extend(block.parameters.iter().map(|parameter| parameter.id));
         defined.extend(definition_blocks.iter().filter_map(|(value, definition)| {
-            (*definition != block_id && block_dominators.contains(definition)).then_some(*value)
+            (*definition != block_id && dominators.dominates(*definition, block_id))
+                .then_some(*value)
         }));
         let mut available_structural = structural_definitions
             .iter()
             .filter_map(|(place, definition)| {
-                (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
+                (*definition != block_id && dominators.dominates(*definition, block_id))
+                    .then_some(*place)
             })
             .collect::<BTreeSet<_>>();
         let mut available_primitives = primitive_local_definitions
             .iter()
             .filter_map(|(place, definition)| {
-                (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
+                (*definition != block_id && dominators.dominates(*definition, block_id))
+                    .then_some(*place)
             })
             .collect::<BTreeSet<_>>();
         let mut available_arrays = scalar_array_definitions
             .iter()
             .filter_map(|(place, definition)| {
-                (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
+                (*definition != block_id && dominators.dominates(*definition, block_id))
+                    .then_some(*place)
             })
             .collect::<BTreeSet<_>>();
         available_structural.extend(
@@ -360,7 +327,8 @@ pub(super) fn validate_control_flow(
                     blocks[target],
                     structural_arguments,
                     &available_structural,
-                    block_dominators,
+                    &dominators,
+                    block_id,
                     true,
                 )?;
             }
@@ -386,7 +354,8 @@ pub(super) fn validate_control_flow(
                         blocks[&successor.target],
                         &successor.structural_arguments,
                         &available_structural,
-                        block_dominators,
+                        &dominators,
+                        block_id,
                         false,
                     )?;
                     validate_successor_bindings(
@@ -422,7 +391,8 @@ pub(super) fn validate_control_flow(
                         blocks[&successor.target],
                         &[],
                         &available_structural,
-                        block_dominators,
+                        &dominators,
+                        block_id,
                         false,
                     )?;
                 }
@@ -451,7 +421,7 @@ pub(super) fn validate_control_flow(
                     })
                 });
                 if source_definition.is_some_and(|definition| {
-                    definition != block.id && !block_dominators.contains(&definition)
+                    definition != block.id && !dominators.dominates(definition, block_id)
                 }) {
                     return Err(ModuleError::StructuralCaseSourceUnknown {
                         machine: machine.id,
@@ -577,7 +547,7 @@ pub(super) fn validate_control_flow(
             }
         }
     }
-    Ok(())
+    Ok(dominators)
 }
 
 fn validate_structural_case_successors(

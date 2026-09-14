@@ -13,6 +13,8 @@ pub(super) struct MachineReconstructionContext<'a> {
     pub(super) reconstruct_path_facts: bool,
     pub(super) value_types: BTreeMap<ValueId, ScalarType>,
     pub(super) blocks: BTreeMap<BlockId, &'a Block>,
+    machine: &'a TerminalMachine,
+    dominators: std::cell::OnceCell<crate::control_graph::DominatorTree>,
 }
 
 impl<'a> MachineReconstructionContext<'a> {
@@ -80,7 +82,16 @@ impl<'a> MachineReconstructionContext<'a> {
             reconstruct_path_facts,
             value_types,
             blocks,
+            machine,
+            dominators: std::cell::OnceCell::new(),
         }
+    }
+
+    /// Reuse full-graph dominance only when an observation needs it. Pure scalar
+    /// reconstruction pays no additional graph-analysis cost.
+    pub(super) fn dominators(&self) -> &crate::control_graph::DominatorTree {
+        self.dominators
+            .get_or_init(|| crate::control_graph::dominators(self.machine))
     }
 
     pub(super) fn value_term(&self, id: ValueId) -> ScalarTerm {

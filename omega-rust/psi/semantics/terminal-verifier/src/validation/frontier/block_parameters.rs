@@ -120,7 +120,10 @@ pub(super) fn establish(
     Ok(())
 }
 
-pub(super) fn disposal_order(machine: &TerminalMachine) -> Vec<&StructuralParameterDeclaration> {
+pub(super) fn disposal_order<'machine>(
+    machine: &'machine TerminalMachine,
+    dominators: &crate::control_graph::DominatorTree,
+) -> Vec<&'machine StructuralParameterDeclaration> {
     let mut parameters = machine.structural_parameters.iter().collect::<Vec<_>>();
     if machine
         .blocks
@@ -129,7 +132,6 @@ pub(super) fn disposal_order(machine: &TerminalMachine) -> Vec<&StructuralParame
     {
         return parameters;
     }
-    let dominators = crate::control_graph::dominators(machine);
     let mut blocks = machine
         .blocks
         .iter()
@@ -137,7 +139,7 @@ pub(super) fn disposal_order(machine: &TerminalMachine) -> Vec<&StructuralParame
         .collect::<Vec<_>>();
     // Simultaneously live block roots have comparable dominating definitions.
     // Their establishment order follows dominance, never serialized block IDs.
-    blocks.sort_by_key(|block| dominators.get(&block.id).map_or(0, BTreeSet::len));
+    blocks.sort_by_key(|block| dominators.depth(block.id).unwrap_or(0));
     parameters.extend(
         blocks
             .into_iter()

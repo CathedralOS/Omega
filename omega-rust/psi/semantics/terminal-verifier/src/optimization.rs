@@ -469,12 +469,9 @@ pub fn validate_global_value_numbering(
                     representative.get(&value).copied().unwrap_or(value)
                 });
                 let result = operation.result.expect_scalar();
-                let block_dominators = dominators
-                    .get(&block_id)
-                    .ok_or(GlobalValueNumberingRewriteError::ChangedProgramStructure)?;
                 let Some((_, _, survivor)) = leaders.iter().find(|(leader_kind, block, leader)| {
                     *leader_kind == kind
-                        && block_dominators.contains(block)
+                        && dominators.dominates(*block, block_id)
                         && leader.scalar_type == result.scalar_type
                         && leader.qualifications == result.qualifications
                 }) else {
