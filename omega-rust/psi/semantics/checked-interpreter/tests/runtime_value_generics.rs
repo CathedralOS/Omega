@@ -1,0 +1,77 @@
+use checked_interpreter::interpret_entry;
+
+fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("probe tokens");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("probe syntax");
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("probe symbols");
+    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("probe types");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    interpret_entry(&checked, "main", &[])
+}
+
+#[test]
+fn runtime_subject_reaches_the_specialized_callee() {
+    let outcome = execute(
+        "machine pick<Count: u32>(base: u32) -> i64 { Count as i64 } \
+         machine main() -> i64 { let n: u32 = 3; pick<n>(7) }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 3);
+}
+
+#[test]
+fn reassigned_source_captures_the_current_value() {
+    let outcome = execute(
+        "machine pick<Count: u32>(base: u32) -> i64 { Count as i64 } \
+         machine main() -> i64 { let mut n: u32 = 3; n = 5; pick<n>(7) }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 5);
+}
+
+#[test]
+fn runtime_subject_discharges_a_requires_contract() {
+    let outcome = execute(
+        "machine pick<Count: u32>(base: u32) -> i64
+         requires
+             Count <= 10;
+         { Count as i64 } \
+         machine main() -> i64 { let n: u32 = 3; pick<n>(7) }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 3);
+}
+
+#[test]
+fn forwarded_subject_reaches_the_nested_callee() {
+    let outcome = execute(
+        "machine pick<Count: u32>(base: u32) -> i64 { Count as i64 } \
+         machine forward<K: u32>(base: u32) -> i64 { pick<K>(base) } \
+         machine main() -> i64 { let n: u32 = 3; forward<n>(7) }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 3);
+}
+
+#[test]
+fn distinct_runtime_subjects_share_one_machine_body() {
+    // Both calls target the same carrier specialization; each replays its own
+    // captured subject.
+    let outcome = execute(
+        "machine pick<Count: u32>(base: u32) -> i64 { Count as i64 } \
+         machine main() -> i64 { \
+             let n: u32 = 3; \
+             let m: u32 = 4; \
+             let a: i64 = pick<n>(7); \
+             let b: i64 = pick<m>(7); \
+             match a == 3i64 && b == 4i64 { true -> 7i64, false -> 0i64 } \
+         }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}

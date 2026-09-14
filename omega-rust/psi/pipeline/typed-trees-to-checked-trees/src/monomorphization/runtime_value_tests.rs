@@ -267,6 +267,118 @@ fn runtime_value_in_a_static_length_position_rejects() {
 }
 
 #[test]
+fn runtime_value_requires_rebases_onto_the_realized_parameter() {
+    // `requires Count <= 10` is a caller obligation on the captured subject,
+    // not a static use of the binder: the clone's contract must read the
+    // realized trailing parameter so each rewritten call site owes the fact
+    // on its own appended argument.
+    let mut program = typed(
+        "machine pick<Count: u32>(base: u32) -> u32
+         requires
+             Count <= 10;
+         { Count }
+         machine main() -> u32 { let n: u32 = 3; pick<n>(7) }",
+    );
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+        .expect("a requires contract on a runtime subject specializes");
+    let [receipt] = program.machine_specializations.as_slice() else {
+        panic!("one specialization for the runtime tuple");
+    };
+    let instance = instance(&program, receipt);
+    let entry = &program.machine_states(instance)[0];
+    let realized = program.state_parameters(entry)[1].symbol;
+    let mut names = Vec::new();
+    for contract in program.machine_contracts(instance) {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            collect_expression_tree(&program, *expression, &mut names);
+        }
+    }
+    assert!(names.iter().any(|handle| {
+        matches!(
+            program.expression_table.expression(*handle),
+            ExpressionNode::Name(path) if path.symbol == realized
+        )
+    }));
+}
+
+#[test]
+fn runtime_value_requires_accepts_a_guarded_or_known_subject() {
+    for source in [
+        // A literal initializer establishes the subject's bound outright.
+        "machine pick<Count: u32>(base: u32) -> u32
+         requires
+             Count <= 10;
+         { Count }
+         machine main() -> u32 { let n: u32 = 3; pick<n>(7) }",
+        // A dominating transition guard establishes it on the same subject.
+        "machine pick<Count: u32>(base: u32) -> u32
+         requires
+             Count == 3;
+         { Count }
+         data Main {}
+         machine Main::run(n: u32) -> u32 {
+             transition n == 3 {
+                 true -> allowed(n)
+                 false -> denied()
+             }
+             state allowed(&mut self, n: u32) -> u32 { pick<n>(7) }
+             state denied(&mut self) -> u32 { 0 }
+         }",
+    ] {
+        crate::lower_typed_trees(typed(source))
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn runtime_value_requires_rejects_unestablished_and_stale_subjects() {
+    for source in [
+        // The subject's declared carrier alone does not establish the bound.
+        "machine pick<Count: u32>(base: u32) -> u32
+         requires
+             Count <= 10;
+         { Count }
+         machine main(n: u32) -> u32 { pick<n>(7) }",
+        // Reassignment before the call replaces the captured subject: the
+        // earlier `3` initializer cannot stand in for the current `99`.
+        "machine pick<Count: u32>(base: u32) -> u32
+         requires
+             Count <= 10;
+         { Count }
+         data Main {}
+         machine Main::run() -> u32 { let mut n: u32 = 3; n = 99; pick<n>(7) }",
+        // A mismatched guard does not prove the subject's equality.
+        "machine pick<Count: u32>(base: u32) -> u32
+         requires
+             Count == 3;
+         { Count }
+         data Main {}
+         machine Main::run(n: u32) -> u32 {
+             transition n == 4 {
+                 true -> allowed(n)
+                 false -> denied()
+             }
+             state allowed(&mut self, n: u32) -> u32 { pick<n>(7) }
+             state denied(&mut self) -> u32 { 0 }
+         }",
+    ] {
+        let error = crate::lower_typed_trees(typed(source))
+            .expect_err("an unestablished subject must still owe the requirement");
+        assert!(
+            error.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("cannot prove requires contract")
+            }),
+            "{source}: {error:#?}"
+        );
+    }
+}
+
+#[test]
 fn mixed_static_and_runtime_value_slots_keep_telescope_order() {
     let mut program = typed(
         "machine pick<Skip: u32, Keep: u32>(base: u32) -> u32 { Keep + Skip }

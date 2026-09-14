@@ -2660,6 +2660,12 @@ fn clone_specialized_machine(
         .to_vec()
     {
         let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map);
+        // A machine-level contract reads entry-state parameters, so a
+        // runtime-bound `Value` binder inside its fact expressions denotes the
+        // entry state's realized trailing parameter.
+        if let Some(realized) = state_realized_parameters.first() {
+            remap_contract_value_subjects(program, &contract, realized);
+        }
         program.push_machine_contract(&mut cloned, contract);
     }
 
@@ -2747,6 +2753,14 @@ fn clone_specialized_machine(
             .to_vec()
         {
             let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map);
+            // A state-level contract reads this state's parameters; a
+            // runtime-bound `Value` binder inside its fact expressions denotes
+            // this state's realized trailing parameter.
+            remap_contract_value_subjects(
+                program,
+                &contract,
+                &state_realized_parameters[state_index],
+            );
             program.push_state_contract(&mut state, contract);
         }
         program.push_machine_state(&mut cloned, state);
@@ -3168,6 +3182,41 @@ fn copy_signature_contract(
         }
     }
     copied
+}
+
+/// Retarget a copied contract's fact value expressions from each runtime-bound
+/// `Value` binder to the owning scope's realized trailing parameter. A binder
+/// occurrence inside a fact expression is an ordinary value read, not a static
+/// position: `requires Count <= 10` on the clone becomes a precondition on the
+/// parameter the rewritten call site fills with the captured subject, so the
+/// ordinary call-requires machinery re-derives the obligation on that subject
+/// (including under a caller guard). Type-position occurrences — parameter
+/// type references, membership domain arguments — are untouched and still
+/// reject under `reject_runtime_bound_static_occurrences`.
+fn remap_contract_value_subjects(
+    program: &mut TypedTrees,
+    contract: &typed_trees::signature::SignatureContract,
+    realized: &[(SymbolHandle, SymbolHandle)],
+) {
+    if realized.is_empty() {
+        return;
+    }
+    let roots: Vec<ExpressionHandle> = program
+        .proof_facts
+        .span_or_empty(contract.facts)
+        .iter()
+        .flat_map(|fact| match fact {
+            ProofFact::Expression(expression) => vec![*expression],
+            ProofFact::Membership(membership) => vec![membership.value],
+            ProofFact::Proposition(application) => program
+                .expression_table
+                .expression_handles(application.arguments)
+                .to_vec(),
+        })
+        .collect();
+    for root in roots {
+        program.expression_table.remap_symbols_in(root, realized);
+    }
 }
 
 fn substitute_cloned_type_parameters(

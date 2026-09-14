@@ -129,6 +129,12 @@ pub(crate) const RUNTIME_CONST_CONTAINER_METHODS_EXIT: &str =
     "generics/runtime_const_container_methods_exit";
 pub(crate) const RUNTIME_GENERIC_TWO_INSTANTIATIONS_EXIT: &str =
     "generics/runtime_generic_two_instantiations_exit";
+pub(crate) const VALUE_GENERIC_RUNTIME_ARGUMENT: &str = "generics/value_generic_runtime_argument";
+pub(crate) const CONST_GENERIC_RUNTIME_ARGUMENT: &str = "generics/const_generic_runtime_argument";
+pub(crate) const VALUE_GENERIC_RUNTIME_REQUIRES_UNPROVEN: &str =
+    "generics/value_generic_runtime_requires_unproven";
+pub(crate) const VALUE_GENERIC_RUNTIME_STATIC_BOUND: &str =
+    "generics/value_generic_runtime_static_bound";
 pub(crate) const RUNTIME_MIN_MAX_GUARD_SUBJECT_HOIST_EXIT: &str =
     "calls/runtime_min_max_guard_subject_hoist_exit";
 pub(crate) const RUNTIME_INDEXED_GUARD_TRUE_FALSE_PAIR_EXIT: &str =
@@ -226,6 +232,7 @@ pub(crate) const CLOSED_INDEXED_FAIL_CANARIES: &[&str] = &[
 ];
 
 pub(crate) const PASS_CANARIES: &[&str] = &[
+    VALUE_GENERIC_RUNTIME_ARGUMENT,
     RUNTIME_DECREASES_U64_MEASURE_EXIT,
     RUNTIME_WRAPPING_OPERAND_TRUNCATION_EXIT,
     RUNTIME_FLOAT_COMPARE_BOOL_EXIT,
@@ -315,4 +322,7 @@ pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     STD_UNITS_IMPLICIT_CROSS_INDEX,
     OPEN_INDEX_UNLICENSED_ALGEBRA,
     OPEN_INDEX_UNESTABLISHED_EQUALITY,
+    CONST_GENERIC_RUNTIME_ARGUMENT,
+    VALUE_GENERIC_RUNTIME_REQUIRES_UNPROVEN,
+    VALUE_GENERIC_RUNTIME_STATIC_BOUND,
 ];

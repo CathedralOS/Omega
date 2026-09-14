@@ -3,7 +3,11 @@
 // parameter and each rewritten call site appends its exact subject as an
 // argument. Statically known arguments keep the const substitution path, so
 // both tuples of one template coexist. A generic caller also forwards its own
-// runtime-bound binder as an ordinary argument.
+// runtime-bound binder as an ordinary argument. A contract that mentions the
+// binder denotes that realized parameter, so each call site owes the
+// obligation on its own captured subject — established here by a literal
+// initializer, a reassigned current value, and a dominating transition
+// guard.
 
 machine prefix_count<Count: u32>(base: u32) -> u32 {
     Count
@@ -14,9 +18,28 @@ machine forward<K: u32>(base: u32) -> u32 {
     inner
 }
 
+machine bounded<Count: u32>(base: u32) -> u32
+requires
+    Count <= 10;
+{
+    Count
+}
+
 machine Main::main(&mut self) {
     let n: u32 = 3;
     let direct: u32 = prefix_count<n>(7);
     let forwarded: u32 = forward<n>(7);
     let closed: u32 = prefix_count<4>(7);
+    let obliged: u32 = bounded<n>(7);
+    let mut reassigned: u32 = 3;
+    reassigned = 4;
+    let current: u32 = bounded<reassigned>(7);
+    transition n <= 10 {
+        true -> allowed(n)
+        false -> denied()
+    }
+    state allowed(&mut self, n: u32) {
+        let guarded: u32 = bounded<n>(7);
+    }
+    state denied(&mut self) {}
 }
