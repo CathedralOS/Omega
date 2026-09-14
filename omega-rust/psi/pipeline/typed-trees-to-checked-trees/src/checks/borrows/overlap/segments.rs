@@ -1,13 +1,16 @@
 use super::indexes::{
-    EvaluatedIndexExtent, NormalizedBound, SelectorLocation, SelectorSnapshotEvaluation,
-    bound_equal, bound_is_at_or_before, bound_is_strictly_before,
-    index_expression_extent_with_selectors, index_expression_may_contain_fixed_with_selectors,
+    CompatibilityReplayDrift, EvaluatedIndexExtent, NormalizedBound, SelectorLocation,
+    SelectorSessionClosure, SelectorSnapshotEvaluation, bound_equal, bound_is_at_or_before,
+    bound_is_strictly_before, index_expression_extent_with_selectors,
+    index_expression_may_contain_fixed_with_selectors,
     index_expression_may_overlap_fixed_range_with_selectors,
     index_expressions_may_overlap_with_selectors,
 };
+use super::premises::StatedOrderingPremise;
 use crate::flow::place_segment_has_unresolved_identity;
 use checked_trees::{
-    BorrowCompatibilityPlaceSide, BorrowCompatibilitySelectorSnapshot, CapturedPlaceContainment,
+    BorrowCompatibilityPlaceSide, BorrowCompatibilityPremise, BorrowCompatibilitySelectorSnapshot,
+    CapturedPlaceContainment,
 };
 
 /// One segment containment traversal. Evaluated `Index` extents are cached by
@@ -83,7 +86,7 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
             right_expression,
             Self::segment_location(BorrowCompatibilityPlaceSide::Active, segment_index),
         );
-        index_extents_equal(left_extent, right_extent)
+        index_extents_equal(left_extent, right_extent, self.selectors)
     }
 
     /// Whether `container` is provably a prefix selector of `contained`:
@@ -148,7 +151,7 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
             ) => {
                 let container_extent = self.index_extent(container_expression, container_location);
                 let contained_extent = self.index_extent(contained_expression, contained_location);
-                index_extent_contains(container_extent, contained_extent)
+                index_extent_contains(container_extent, contained_extent, self.selectors)
             }
             (
                 facts::PlaceSegment::Index {
@@ -164,9 +167,11 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
                         start,
                         end,
                         Some(NormalizedBound::Integer(index)),
+                        self.selectors,
                     ),
-                    EvaluatedIndexExtent::Point(point) => point
-                        .is_some_and(|point| bound_equal(point, NormalizedBound::Integer(index))),
+                    EvaluatedIndexExtent::Point(point) => point.is_some_and(|point| {
+                        bound_equal(point, NormalizedBound::Integer(index), self.selectors)
+                    }),
                 }
             }
             (
@@ -189,6 +194,7 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
                                 container_end,
                                 Some(NormalizedBound::Integer(start)),
                                 Some(NormalizedBound::Integer(end)),
+                                self.selectors,
                             )
                     }
                     // A single selected element cannot contain a window.
@@ -205,8 +211,9 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
                     return false;
                 };
                 match self.index_extent(contained_expression, contained_location) {
-                    EvaluatedIndexExtent::Point(point) => point
-                        .is_some_and(|point| bound_equal(NormalizedBound::Integer(index), point)),
+                    EvaluatedIndexExtent::Point(point) => point.is_some_and(|point| {
+                        bound_equal(NormalizedBound::Integer(index), point, self.selectors)
+                    }),
                     // A fixed element cannot contain a whole window.
                     EvaluatedIndexExtent::Window { .. } => false,
                 }
@@ -232,6 +239,7 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
                         Some(NormalizedBound::Integer(end)),
                         contained_start,
                         contained_end,
+                        self.selectors,
                     ),
                 }
             }
@@ -243,7 +251,11 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
 /// Whether one evaluated `Index` extent provably contains another: a window
 /// contains a nested window or a bounded point, while a point only contains
 /// an equal point. Unknown bounds stay unproven in both directions.
-fn index_extent_contains(container: EvaluatedIndexExtent, contained: EvaluatedIndexExtent) -> bool {
+fn index_extent_contains(
+    container: EvaluatedIndexExtent,
+    contained: EvaluatedIndexExtent,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
     match (container, contained) {
         (
             EvaluatedIndexExtent::Window {
@@ -259,13 +271,14 @@ fn index_extent_contains(container: EvaluatedIndexExtent, contained: EvaluatedIn
             container_end,
             contained_start,
             contained_end,
+            selectors,
         ),
         (EvaluatedIndexExtent::Window { start, end }, EvaluatedIndexExtent::Point(point)) => {
-            index_window_contains_point(start, end, point)
+            index_window_contains_point(start, end, point, selectors)
         }
         (EvaluatedIndexExtent::Point(container), EvaluatedIndexExtent::Point(contained)) => {
             matches!((container, contained),
-                (Some(container), Some(contained)) if bound_equal(container, contained))
+                (Some(container), Some(contained)) if bound_equal(container, contained, selectors))
         }
         // A single selected element cannot contain a whole window.
         (EvaluatedIndexExtent::Point(_), EvaluatedIndexExtent::Window { .. }) => false,
@@ -276,10 +289,14 @@ fn index_extent_contains(container: EvaluatedIndexExtent, contained: EvaluatedIn
 /// pairwise-equal window bounds. Unlike containment, equality does not require
 /// the window to be provably non-empty -- two equally unknown-empty windows
 /// still denote the same extent.
-fn index_extents_equal(left: EvaluatedIndexExtent, right: EvaluatedIndexExtent) -> bool {
+fn index_extents_equal(
+    left: EvaluatedIndexExtent,
+    right: EvaluatedIndexExtent,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
     match (left, right) {
         (EvaluatedIndexExtent::Point(left), EvaluatedIndexExtent::Point(right)) => {
-            matches!((left, right), (Some(left), Some(right)) if bound_equal(left, right))
+            matches!((left, right), (Some(left), Some(right)) if bound_equal(left, right, selectors))
         }
         (
             EvaluatedIndexExtent::Window {
@@ -293,7 +310,8 @@ fn index_extents_equal(left: EvaluatedIndexExtent, right: EvaluatedIndexExtent) 
         ) => {
             matches!((left_start, left_end, right_start, right_end),
                 (Some(left_start), Some(left_end), Some(right_start), Some(right_end))
-                    if bound_equal(left_start, right_start) && bound_equal(left_end, right_end))
+                    if bound_equal(left_start, right_start, selectors)
+                        && bound_equal(left_end, right_end, selectors))
         }
         _ => false,
     }
@@ -305,10 +323,12 @@ fn index_window_contains_point(
     container_start: Option<NormalizedBound>,
     container_end: Option<NormalizedBound>,
     point: Option<NormalizedBound>,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
     matches!((container_start, container_end, point),
         (Some(start), Some(end), Some(point))
-            if bound_is_at_or_before(start, point) && bound_is_strictly_before(point, end))
+            if bound_is_at_or_before(start, point, selectors)
+                && bound_is_strictly_before(point, end, selectors))
 }
 
 /// `[container_start, container_end)` contains `[contained_start,
@@ -320,12 +340,13 @@ fn index_window_contains_window(
     container_end: Option<NormalizedBound>,
     contained_start: Option<NormalizedBound>,
     contained_end: Option<NormalizedBound>,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
     matches!((container_start, container_end, contained_start, contained_end),
         (Some(container_start), Some(container_end), Some(contained_start), Some(contained_end))
-            if bound_is_strictly_before(contained_start, contained_end)
-                && bound_is_at_or_before(container_start, contained_start)
-                && bound_is_at_or_before(contained_end, container_end))
+            if bound_is_strictly_before(contained_start, contained_end, selectors)
+                && bound_is_at_or_before(container_start, contained_start, selectors)
+                && bound_is_at_or_before(contained_end, container_end, selectors))
 }
 
 fn place_segments_containment_evaluated(
@@ -421,7 +442,7 @@ pub(super) fn place_segments_may_overlap(
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> bool {
-    let mut selectors = SelectorSnapshotEvaluation::capture();
+    let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
     place_segments_may_overlap_evaluated(program, left, right, &mut selectors)
 }
 
@@ -431,7 +452,7 @@ fn place_segments_containment(
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> CapturedPlaceContainment {
-    let mut selectors = SelectorSnapshotEvaluation::capture();
+    let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
     place_segments_containment_evaluated(program, left, right, &mut selectors)
 }
 
@@ -444,12 +465,9 @@ pub(super) fn place_segments_compatibility_with_snapshot(
     program: &typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
-) -> (
-    bool,
-    CapturedPlaceContainment,
-    Vec<BorrowCompatibilitySelectorSnapshot>,
-) {
-    let mut selectors = SelectorSnapshotEvaluation::capture();
+    premises: &[StatedOrderingPremise],
+) -> (bool, CapturedPlaceContainment, SelectorSessionClosure) {
+    let mut selectors = SelectorSnapshotEvaluation::capture(premises);
     let may_overlap = place_segments_may_overlap_evaluated(program, left, right, &mut selectors);
     let containment = if may_overlap {
         place_segments_containment_evaluated(program, left, right, &mut selectors)
@@ -473,8 +491,10 @@ pub(super) fn place_segments_compatibility_from_snapshot(
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
     snapshot: &[BorrowCompatibilitySelectorSnapshot],
-) -> Option<(bool, CapturedPlaceContainment)> {
-    let mut selectors = SelectorSnapshotEvaluation::replay(snapshot);
+    premises: &[StatedOrderingPremise],
+    recorded_premises: &[BorrowCompatibilityPremise],
+) -> Result<(bool, CapturedPlaceContainment), CompatibilityReplayDrift> {
+    let mut selectors = SelectorSnapshotEvaluation::replay(snapshot, premises, recorded_premises);
     let may_overlap = place_segments_may_overlap_evaluated(program, left, right, &mut selectors);
     let containment = if may_overlap {
         place_segments_containment_evaluated(program, left, right, &mut selectors)
@@ -1010,8 +1030,9 @@ mod tests {
         let left = [index(cut)];
         let right = [index(mid)];
 
-        let (may_overlap, containment, snapshot) =
-            place_segments_compatibility_with_snapshot(&program, &left, &right);
+        let (may_overlap, containment, closure) =
+            place_segments_compatibility_with_snapshot(&program, &left, &right, &[]);
+        let snapshot = closure.snapshot;
         assert!(may_overlap);
         assert_eq!(containment, CapturedPlaceContainment::Same);
         assert_eq!(
@@ -1034,20 +1055,41 @@ mod tests {
             "both point bounds are frozen at their exact selector positions"
         );
         assert_eq!(
-            place_segments_compatibility_from_snapshot(&program, &left, &right, &snapshot),
-            Some((may_overlap, containment))
+            place_segments_compatibility_from_snapshot(
+                &program,
+                &left,
+                &right,
+                &snapshot,
+                &[],
+                &[]
+            ),
+            Ok((may_overlap, containment))
         );
 
         // A dropped or reordered row cannot replay the same verdicts.
         assert_eq!(
-            place_segments_compatibility_from_snapshot(&program, &left, &right, &snapshot[..1]),
-            None
+            place_segments_compatibility_from_snapshot(
+                &program,
+                &left,
+                &right,
+                &snapshot[..1],
+                &[],
+                &[],
+            ),
+            Err(CompatibilityReplayDrift::SelectorSnapshot)
         );
         let mut reordered = snapshot.clone();
         reordered.swap(0, 1);
         assert_eq!(
-            place_segments_compatibility_from_snapshot(&program, &left, &right, &reordered),
-            None
+            place_segments_compatibility_from_snapshot(
+                &program,
+                &left,
+                &right,
+                &reordered,
+                &[],
+                &[],
+            ),
+            Err(CompatibilityReplayDrift::SelectorSnapshot)
         );
     }
 }

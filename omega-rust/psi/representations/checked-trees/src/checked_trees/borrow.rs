@@ -51,13 +51,46 @@ pub struct BorrowCompatibilityConclusion {
 
 /// Checked derivation class for automatic borrow compatibility.
 ///
-/// `Structural` deliberately carries no premise handles: this certificate is
-/// emitted only by the ordinary structural loan/loan judgment. It is not a
-/// proposition proof and does not claim Terminal replay authority.
+/// `Structural` conclusions replay from the captured places and the frozen
+/// selector snapshot alone. `Premised` conclusions additionally consulted at
+/// least one stated requires premise; the exact consumed tokens are retained
+/// in `premises` and replayed positionally. Neither class is a proposition
+/// proof, and neither claims Terminal replay authority by itself.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum BorrowCompatibilityDerivation {
     #[default]
     Structural,
+    Premised,
+}
+
+/// The normalized relation one stated ordering premise asserts or proves.
+///
+/// The same vocabulary names the premise's stated relation and each bound
+/// query the relational judgment asks of it: `LessOrEqual` for `<=`,
+/// `StrictlyBefore` for `<`, and `Equal` for `==` over integer bounds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowCompatibilityPremiseRelation {
+    LessOrEqual,
+    StrictlyBefore,
+    Equal,
+}
+
+/// One exact stated ordering premise consumed by a `Premised` derivation.
+///
+/// `fact` identifies the `ContractProofFact` requires row the relation was
+/// decomposed from; `left`/`right` are that row's normalized immutable-bound
+/// operands. Replay re-derives the available premise set from the owning
+/// signature's contracts and consumes recorded tokens positionally, so a
+/// token the current contracts do not reproduce is drift, not evidence. A
+/// premise establishes only a relational fact over already-formed places: it
+/// cannot create a loan, extend a lifetime, widen access, or substitute for
+/// resource accounting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BorrowCompatibilityPremise {
+    pub fact: Handle<crate::ContractProofFact>,
+    pub relation: BorrowCompatibilityPremiseRelation,
+    pub left: BorrowCompatibilitySelectorValue,
+    pub right: BorrowCompatibilitySelectorValue,
 }
 
 /// Exact source coordinate at which the second loan was formed while the
@@ -120,6 +153,8 @@ pub struct BorrowCompatibilitySelectorSnapshot {
 /// Both resource handles and frozen places are retained. Later checked-tree
 /// review can therefore rejoin the row to the exact state-owned loan rows;
 /// this row neither creates borrow authority nor changes admission semantics.
+/// `premises` holds the exact stated requires tokens a `Premised` derivation
+/// consumed, in consult order; a `Structural` row retains none.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedBorrowCompatibilityCertificate {
     pub formation: BorrowCompatibilityFormation,
@@ -128,6 +163,7 @@ pub struct CheckedBorrowCompatibilityCertificate {
     pub forming_place: CapturedPlace,
     pub active_place: CapturedPlace,
     pub selector_snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
+    pub premises: Vec<BorrowCompatibilityPremise>,
     pub conclusion: BorrowCompatibilityConclusion,
     pub derivation: BorrowCompatibilityDerivation,
 }
