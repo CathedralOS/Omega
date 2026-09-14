@@ -205,22 +205,47 @@ impl MemberSelectionKey {
     }
 }
 
+/// The member's role in the declaring type's shape — the distinction a
+/// visitation callback reads on its `FieldInfo` argument to tell an
+/// active-case report from a field borrow. Cases carry the enclosing sum as
+/// their nominal subject; payloads carry their owning case's identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberKind {
+    /// A record or common field.
+    Field,
+    /// A sum case, visited through the active-case callback.
+    Case,
+    /// A case payload member.
+    PayloadField,
+}
+
 /// One in-scope member of a projection, derived from the authorized schema
 /// graph by the receiver and re-derived from the typed trees by replay. The
 /// two derivations must agree; a snapshot replaying cleanly is the witness.
+///
+/// `pub(super)` so the visitation slice reuses this exact member record —
+/// its `FieldInfo` contexts and carrier checks must not drift from what a
+/// selection selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct ScopedMember {
-    member_identity: String,
-    name: String,
-    qualified_type: Option<String>,
-    owner_case_identity: Option<String>,
-    erased: bool,
+pub(super) struct ScopedMember {
+    pub(super) member_identity: String,
+    pub(super) name: String,
+    pub(super) kind: MemberKind,
+    /// Authored declaration order within the member's owning scope (the
+    /// top-level sequence for record fields and cases, the case's payload
+    /// sequence for payload members).
+    pub(super) declaration_position: u32,
+    /// Optional authored stable number.
+    pub(super) stable_number: Option<u64>,
+    pub(super) qualified_type: Option<String>,
+    pub(super) owner_case_identity: Option<String>,
+    pub(super) erased: bool,
     /// First nominal owner identity in the member type's discovery order —
     /// the carrier a selected operation must cover. A self-edge resolves to
     /// the subject's own declaration; a case member's carrier is the
     /// enclosing sum itself. `None` for member types with no nominal
     /// subject, which admit only exclusions.
-    head_nominal_identity: Option<String>,
+    pub(super) head_nominal_identity: Option<String>,
 }
 
 impl ScopedMember {
@@ -257,7 +282,7 @@ impl ScopedMember {
 
 /// Whether a frozen record names exactly this member — the full-key match
 /// replay uses when re-binding records to re-derived members.
-fn record_matches(record: &SelectionRecord, member: &ScopedMember) -> bool {
+pub(super) fn record_matches(record: &SelectionRecord, member: &ScopedMember) -> bool {
     record.member_identity == member.member_identity
         && record.qualified_type == member.qualified_type
         && record.owner_case_identity == member.owner_case_identity
@@ -267,7 +292,7 @@ fn record_matches(record: &SelectionRecord, member: &ScopedMember) -> bool {
 /// Apply the frozen projection to a candidate member set. Shared by the
 /// receiver (graph-derived members) and replay (tree-derived members) so the
 /// two sides cannot drift on what "in scope" means.
-fn project(
+pub(super) fn project(
     members: &[ScopedMember],
     projection: &SelectionProjection,
 ) -> Result<Vec<ScopedMember>, String> {
@@ -314,16 +339,21 @@ fn project(
 /// in authored order: each field, each case, then each case's payload
 /// members. This is the producer walk; replay's `expected_members` is its
 /// independent tree-derived counterpart.
-fn graph_members(graph: &SemanticSchemaGraph) -> Result<Vec<ScopedMember>, String> {
+pub(super) fn graph_members(graph: &SemanticSchemaGraph) -> Result<Vec<ScopedMember>, String> {
     let declaration = graph.declaration();
     let mut members = Vec::new();
     for handle in &declaration.members {
         match graph.node(*handle) {
-            SchemaNode::Field(field) => members.push(graph_field_member(graph, field, None)?),
+            SchemaNode::Field(field) => {
+                members.push(graph_field_member(graph, field, MemberKind::Field, None)?)
+            }
             SchemaNode::Case(case) => {
                 members.push(ScopedMember {
                     member_identity: case.member_identity.clone(),
                     name: case.name.clone(),
+                    kind: MemberKind::Case,
+                    declaration_position: case.declaration_position,
+                    stable_number: case.stable_number,
                     qualified_type: None,
                     owner_case_identity: None,
                     erased: false,
@@ -339,6 +369,7 @@ fn graph_members(graph: &SemanticSchemaGraph) -> Result<Vec<ScopedMember>, Strin
                     members.push(graph_field_member(
                         graph,
                         field,
+                        MemberKind::PayloadField,
                         Some(case.member_identity.clone()),
                     )?);
                 }
@@ -352,6 +383,7 @@ fn graph_members(graph: &SemanticSchemaGraph) -> Result<Vec<ScopedMember>, Strin
 fn graph_field_member(
     graph: &SemanticSchemaGraph,
     field: &FieldDescription,
+    kind: MemberKind,
     owner_case_identity: Option<String>,
 ) -> Result<ScopedMember, String> {
     // The head nominal in discovery order is the carrier a selected
@@ -374,6 +406,9 @@ fn graph_field_member(
     Ok(ScopedMember {
         member_identity: field.member_identity.clone(),
         name: field.name.clone(),
+        kind,
+        declaration_position: field.declaration_position,
+        stable_number: field.stable_number,
         qualified_type: Some(field.qualified_type.clone()),
         owner_case_identity,
         erased: field.erased,
@@ -384,7 +419,7 @@ fn graph_field_member(
 /// Re-derive the member set of `data` from the typed trees, in the same
 /// authored order `graph_members` produces — the independent counterpart
 /// replay checks frozen records against.
-fn expected_members(
+pub(super) fn expected_members(
     typed: &TypedTrees,
     data: &DataDefinition,
     owner_identity: &str,
@@ -405,6 +440,9 @@ fn expected_members(
                 members.push(ScopedMember {
                     member_identity: description.member_identity,
                     name: description.name,
+                    kind: MemberKind::Field,
+                    declaration_position: description.declaration_position,
+                    stable_number: description.stable_number,
                     qualified_type: Some(description.qualified_type),
                     owner_case_identity: None,
                     erased: description.erased,
@@ -423,6 +461,9 @@ fn expected_members(
                 members.push(ScopedMember {
                     member_identity: case_identity.clone(),
                     name: variant.name.as_str().to_owned(),
+                    kind: MemberKind::Case,
+                    declaration_position: position as u32,
+                    stable_number: variant.identity,
                     qualified_type: None,
                     owner_case_identity: None,
                     erased: false,
@@ -442,6 +483,9 @@ fn expected_members(
                     members.push(ScopedMember {
                         member_identity: description.member_identity,
                         name: description.name,
+                        kind: MemberKind::PayloadField,
+                        declaration_position: description.declaration_position,
+                        stable_number: description.stable_number,
                         qualified_type: Some(description.qualified_type),
                         owner_case_identity: Some(case_identity.clone()),
                         erased: description.erased,
@@ -459,12 +503,12 @@ fn expected_members(
 /// The requirement claim resolved against the checking program: the exact
 /// trait definition and the pinned requirement signature when present.
 /// Checks below compare handles directly once resolution has happened.
-struct ResolvedRequirement<'program> {
+pub(super) struct ResolvedRequirement<'program> {
     definition: &'program TraitDefinition,
     requirement_symbol: Option<SymbolHandle>,
 }
 
-fn resolve_requirement<'program>(
+pub(super) fn resolve_requirement<'program>(
     typed: &'program TypedTrees,
     requirement: &SelectionRequirement,
 ) -> Result<ResolvedRequirement<'program>, String> {
@@ -604,7 +648,7 @@ fn machine_binds_attached_requirement(
         })
 }
 
-fn check_conformance_refines(
+pub(super) fn check_conformance_refines(
     typed: &TypedTrees,
     conformance_identity: &str,
     requirement: &ResolvedRequirement,
@@ -658,7 +702,7 @@ fn check_conformance_refines(
     Ok(())
 }
 
-fn check_machine_refines(
+pub(super) fn check_machine_refines(
     typed: &TypedTrees,
     machine_identity: &str,
     requirement: &ResolvedRequirement,
@@ -950,6 +994,12 @@ impl SelectionSnapshot {
     /// Canonical identity of the bound schema subject's declaration.
     pub fn subject_owner_identity(&self) -> &str {
         &self.subject_owner_identity
+    }
+
+    /// The generated concrete application's identity when the subject is a
+    /// generic instance; `None` for the declared form.
+    pub fn subject_application_identity(&self) -> Option<&str> {
+        self.subject_application_identity.as_deref()
     }
 
     /// The query authority the selection was produced under — a frozen claim

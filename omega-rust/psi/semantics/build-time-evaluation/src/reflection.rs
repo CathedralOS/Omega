@@ -31,12 +31,19 @@
 //!   `replay_selection_snapshot` re-binds the subject and re-checks every
 //!   member/type/requirement correspondence from the typed trees.
 //!
-//! `reflect::visit_runtime_fields` per-member calls and recursive derivations
-//! are later slices on the same contract; none of them are required to read
-//! or extend these graph and snapshot shapes.
+//! - `visitation` is the checked-call surface of
+//!   `reflect::visit_runtime_fields`. `RuntimeVisitationPlan::compose`
+//!   expands a replayed `SelectionSnapshot` into one checked call per
+//!   selected member in canonical order, each carrying the `FieldInfo`
+//!   context record the callback receives; `replay_runtime_visitation_plan`
+//!   recomputes the entire expansion from the typed trees so a forged or
+//!   stale plan cannot stand in for the checked sequence. The runtime
+//!   adapter that issues the field subloans and dispatches the active case
+//!   is a later slice on this contract, as are recursive derivations.
 
 mod schema_graph;
 mod selection;
+mod visitation;
 
 pub use schema_graph::{
     CaseDescription, DeclarationDescription, FieldDescription, NominalReferenceDescription,
@@ -44,7 +51,11 @@ pub use schema_graph::{
     TypeParameterDescription, construct_semantic_schema_graph, replay_semantic_schema_graph,
 };
 pub use selection::{
-    MemberSelectionKey, ScopedSelectionReceiver, SelectionChoice, SelectionCoverage,
+    MemberKind, MemberSelectionKey, ScopedSelectionReceiver, SelectionChoice, SelectionCoverage,
     SelectionProjection, SelectionRecord, SelectionRequirement, SelectionSnapshot,
     replay_selection_snapshot,
+};
+pub use visitation::{
+    FieldInfo, RuntimeVisitationPlan, VisitationCall, VisitationOperation,
+    replay_runtime_visitation_plan,
 };
