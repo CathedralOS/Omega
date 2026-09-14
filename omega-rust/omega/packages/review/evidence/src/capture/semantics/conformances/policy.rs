@@ -2,6 +2,7 @@
 
 use super::policy_arguments::{argument_context, argument_type_reference, rejected};
 use super::policy_callables::{callable_identity, caller_binder_identity};
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::declarations::trait_requirement_identity_from_symbols;
 use crate::capture::semantics::types::signature_type_identity;
@@ -9,7 +10,6 @@ use crate::record::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
     PackagePolicyConformanceRow,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use std::borrow::Cow;
 use typed_trees::data::TypeParameterKind;
@@ -25,11 +25,12 @@ use typed_trees::types::TypeReferenceNode;
 /// eligible: callback layout slots need not be part of the public API.
 /// Lifetime ordinals refer to the explicitly supplied containing telescope;
 /// the containing policy must retain that context. An unbound name is rejected.
-pub fn project_checked_conformance_policy(
-    compilation: &CheckedCompilation,
+pub fn project_checked_conformance_policy<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
     application: &ClosedConformanceApplication,
     lifetime_binders: &[Identifier],
 ) -> Result<PackagePolicyClosedConformanceApplication, Vec<Diagnostic>> {
+    let compilation = &input.into();
     let declaration = compilation
         .conformances()
         .iter()
@@ -115,7 +116,7 @@ pub fn project_checked_conformance_policy(
     let project_type = |reference| {
         signature_type_identity(
             &instantiated,
-            compilation.exact_toolchain_sources(),
+            compilation.custody.exact_toolchain_sources(),
             reference,
             &binders,
             lifetimes,
@@ -218,7 +219,7 @@ pub fn project_checked_conformance_policy(
 }
 
 fn validate_retained_application(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     application: &ClosedConformanceApplication,
 ) -> Result<(), Vec<Diagnostic>> {
     let selected = StaticMachineArgument {

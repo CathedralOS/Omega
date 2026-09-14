@@ -1,13 +1,13 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::capture::source::locations::canonical_source_span_location;
 use crate::record::PackageReviewSourceLocationRole;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_machine_operational_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let mut locations = project_operational_keyword_locations(
@@ -32,7 +32,7 @@ pub(crate) fn project_machine_operational_source_locations(
 }
 
 pub(crate) fn validate_machine_operational(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     validate_operational_keyword_custody(
@@ -55,7 +55,7 @@ pub(crate) fn validate_machine_operational(
 }
 
 fn validate_machine_operational_interfaces(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     let suspension = compilation
@@ -100,7 +100,7 @@ fn validate_machine_operational_interfaces(
 }
 
 pub(crate) fn project_signature_operational_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     owner: SymbolHandle,
     signature: &typed_trees::signature::StateSignature,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
@@ -144,7 +144,7 @@ pub(crate) fn project_signature_operational_source_locations(
 }
 
 fn project_operational_keyword_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     owner_name: &str,
     clause: &str,
     authored: bool,
@@ -167,7 +167,7 @@ fn project_operational_keyword_locations(
 }
 
 fn validate_operational_keyword_custody(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     owner_name: &str,
     clause: &str,
     authored: bool,

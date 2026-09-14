@@ -25,19 +25,20 @@ pub machine caller() reaches FilesystemHost {
 "#,
     );
 
-    let candidate = compile_to_checked(CheckedCompileRequest {
+    let candidate = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("an explicit empty boundary body remains executable");
     let accepted = candidate
+        .custody
         .candidate_service_binding(
             AcceptedSemanticBindingRole::FilesystemHostService,
             package_identity(),
             "FilesystemHost",
         )
         .expect("derive exact filesystem authority candidate");
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(
             package_inputs(&package.0)
                 .with_accepted_semantic_bindings(vec![accepted])
@@ -79,7 +80,7 @@ fn package_review_rejects_impossible_supply_body_combinations() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })

@@ -47,13 +47,14 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
         )],
     )
     .unwrap();
-    let candidate = compile_to_checked(CheckedCompileRequest {
+    let candidate = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(inputs.clone()),
         ..CheckedCompileRequest::new(&root.0.join("main.omg"), None)
     })
     .expect("ordinary UEFI semantic-only candidate");
     let role = AcceptedSemanticBindingRole::UefiX64ProgramEntry;
     let binding = candidate
+        .custody
         .candidate_service_binding(role, standard_package, "UefiApplication")
         .unwrap();
     let definition = candidate
@@ -76,7 +77,7 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
             TerminalAuthorityDisposition::from_classes([]),
         )])
         .unwrap();
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(
             inputs
                 .with_accepted_semantic_bindings(vec![binding.clone()])

@@ -14,14 +14,14 @@ mod lifetime_tests;
 
 use super::casts::project_contract_cast;
 use super::names::project_contract_name_expression;
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::PackageReviewContractExpression;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_contract_expression(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     expression: typed_trees::expression::ExpressionHandle,
@@ -41,7 +41,7 @@ pub(crate) fn project_contract_expression(
 }
 
 pub(crate) fn project_contract_expression_with_substitutions(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     expression: typed_trees::expression::ExpressionHandle,

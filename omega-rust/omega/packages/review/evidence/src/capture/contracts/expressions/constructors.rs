@@ -1,11 +1,11 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackageReviewConstructorField, PackageReviewContractExpression};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn project_contract_constructor_expression(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     literal: &typed_trees::expression::TableStructLiteral,
     child: &impl Fn(
@@ -28,7 +28,7 @@ pub(crate) fn project_contract_constructor_expression(
         ))]);
     };
     let data_identity = nominal_identity(compilation, data.symbol)?;
-    let reviewed_package = compilation.package_identity().ok_or_else(|| {
+    let reviewed_package = compilation.custody.package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
             "package review requires package-aware checked compilation",
         )]

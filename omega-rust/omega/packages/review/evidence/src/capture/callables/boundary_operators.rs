@@ -1,10 +1,10 @@
 use super::external_supply::external_binding_matches_provider_binding;
+use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewExternalBinding;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -43,12 +43,12 @@ pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
 }
 
 pub(super) fn validate_selected_boundary_operator_checked_adapter(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Result<(), Vec<Diagnostic>> {
-    let plans = compilation.selected_provider_plans().plans();
-    let provenance = compilation.selected_provider_provenance();
+    let plans = compilation.custody.selected_provider_plans().plans();
+    let provenance = compilation.custody.selected_provider_provenance();
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected boundary-operator provider plans are not aligned with retained declaration provenance",
@@ -145,13 +145,13 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
 }
 
 pub(super) fn validate_selected_boundary_operator_external_supply(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     operator: &typed_trees::operator::OperatorDefinition,
     binding: &PackageReviewExternalBinding,
 ) -> Result<(), Vec<Diagnostic>> {
-    let plans = compilation.selected_provider_plans().plans();
-    let provenance = compilation.selected_provider_provenance();
+    let plans = compilation.custody.selected_provider_plans().plans();
+    let provenance = compilation.custody.selected_provider_provenance();
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected boundary-operator provider plans are not aligned with retained declaration provenance",

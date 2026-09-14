@@ -1,15 +1,15 @@
 //! All authored executable supplies, independently of public visibility or use.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::callables::project_checked_external_supply_policy;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::PackagePolicyExternalExecutableSupply;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyExternalExecutableSupply>, Vec<Diagnostic>> {
     let mut rows = Vec::new();

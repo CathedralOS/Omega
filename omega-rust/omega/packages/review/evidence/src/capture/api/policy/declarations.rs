@@ -1,15 +1,15 @@
 //! Non-trait public declaration policy with source-owned static telescopes.
 
 use super::{signatures, values};
+use crate::capture::PackageReviewInput;
 use crate::capture::api;
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::*;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn data(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyDataShape>, Vec<Diagnostic>> {
     api::data::projection::project_public_data(compilation, package)?
@@ -49,7 +49,7 @@ pub(super) fn data(
 }
 
 pub(super) fn domains(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyDomainShape>, Vec<Diagnostic>> {
     api::domains::projection::project_public_domains(compilation, package)?
@@ -89,7 +89,7 @@ pub(super) fn domains(
 }
 
 pub(crate) fn conformances(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyConformanceShape>, Vec<Diagnostic>> {
     api::conformances::project_public_conformances(compilation, package)?
@@ -124,7 +124,7 @@ pub(crate) fn conformances(
 }
 
 pub(super) fn operators(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyOperatorShape>, Vec<Diagnostic>> {
     api::operators::project_public_operators(compilation, package)?

@@ -2,12 +2,12 @@ mod conformance;
 mod const_values;
 
 use super::names::portable_parameter_position;
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::lifetimes::substituted_lifetime_binder_ordinal;
 use crate::capture::semantics::types::missing_exact_toolchain_type_owner;
 use crate::record::{PackageReviewContractStaticArgument, PackageReviewTypeIdentity};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -43,7 +43,7 @@ pub(crate) fn contract_call_static_parameter_kind(
 }
 
 pub(crate) fn contract_call_static_parameter_kinds(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     target: SymbolHandle,
     supplied_count: usize,
@@ -121,7 +121,7 @@ pub(crate) fn contract_call_static_parameter_kinds(
 }
 
 pub(crate) fn project_contract_static_argument(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
@@ -160,7 +160,7 @@ pub(crate) fn project_contract_static_argument(
 }
 
 pub(crate) fn require_exact_named_const_static_argument_selections(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     arguments: &[typed_trees::expression::StaticMachineArgument],
@@ -170,7 +170,7 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
     };
 
     fn collect_argument_consts(
-        compilation: &CheckedCompilation,
+        compilation: &PackageReviewInput<'_>,
         arguments: &[typed_trees::expression::StaticMachineArgument],
         selected: &mut Vec<SymbolHandle>,
     ) {
@@ -231,7 +231,7 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
 }
 
 pub(crate) fn project_static_argument(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     subject_kind: &str,
     subject_name: &str,
     binders: &[(SymbolHandle, String)],
@@ -294,7 +294,7 @@ pub(crate) fn project_static_argument(
         let base = compilation
             .package_qualified_nominal_type_identity_with_toolchain_sources(
                 argument.symbol,
-                compilation.exact_toolchain_sources(),
+                compilation.custody.exact_toolchain_sources(),
             )
             .ok_or_else(missing_exact_toolchain_type_owner)?;
         let arguments = application
@@ -408,7 +408,7 @@ pub(crate) fn project_static_argument(
         let identity = compilation
             .package_qualified_nominal_type_identity_with_toolchain_sources(
                 argument.symbol,
-                compilation.exact_toolchain_sources(),
+                compilation.custody.exact_toolchain_sources(),
             )
             .ok_or_else(missing_exact_toolchain_type_owner)?;
         return Ok(PackageReviewContractStaticArgument::Type(

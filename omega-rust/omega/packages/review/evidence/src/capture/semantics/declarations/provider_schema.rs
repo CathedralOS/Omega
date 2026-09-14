@@ -1,6 +1,6 @@
 //! Exact declaring-schema joins for selected provider requirements.
 
-use compiler::CheckedCompilation;
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 /// retains its own declaring schema; only exact reachable symbols establish
 /// that association. Repeated paths to the same declaration do not add owners.
 pub(crate) fn provider_requirement_schema(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     schema: ProviderSchemaDeclaration,
     requirement: SymbolHandle,
 ) -> Result<ProviderSchemaDeclaration, Vec<Diagnostic>> {

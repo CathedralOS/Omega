@@ -1,16 +1,16 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;
 use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity,
 };
 use crate::record::*;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
     providers: &PackagePolicySelectedProviders,
     original_indices: &[usize],
@@ -23,6 +23,7 @@ pub(super) fn project(
     let mut rows = Vec::new();
     for checked in checked.rows {
         let matches = compilation
+            .custody
             .selected_provider_provenance()
             .iter()
             .enumerate()

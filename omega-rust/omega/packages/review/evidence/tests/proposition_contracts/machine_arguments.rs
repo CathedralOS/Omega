@@ -29,7 +29,7 @@ ensures result == apply<{selected}>(0);
     package.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -110,7 +110,7 @@ requires apply<{binder}>(value) == apply<{binder}>(value)
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -185,7 +185,7 @@ ensures result == inspect<identity<sample>>();
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })

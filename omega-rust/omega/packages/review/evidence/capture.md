@@ -6,6 +6,21 @@ meaning. This note maps that contract to current compiler custody. Start at
 of compiler state. Canonical support and private bounds live in
 [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md).
 
+## Immutable custody and supplied semantics
+
+[PackageReviewInput](src/capture/input.rs) borrows a semantic candidate and the
+original compilation's immutable source/selection custody separately. Normal
+entrances accept `&CheckedCompilation` directly; adversarial reconstruction can
+explicitly supply raw trees without manufacturing or modifying a checked result.
+Every projection remains inert review data, not execution or package admission.
+Checks read the candidate's types and facts and rejoin retained custody; dispatch
+source restoration likewise validates the candidate against the original edits.
+
+Signature instantiation owns temporary `TypedTrees`, never a mutable compilation.
+Temporary parameter spans are read there; proof-expression associations, original
+signature scopes, and source commitments stay on the review input. A scratch
+type handle cannot be interpreted against an unrelated source or proof arena.
+
 ## Source roles
 
 [Source capture](src/capture/source) retains exact symbols and authored spans

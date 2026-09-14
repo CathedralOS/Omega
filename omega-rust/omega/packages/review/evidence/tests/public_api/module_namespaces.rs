@@ -15,7 +15,7 @@ fn module_nominals_have_distinct_canonical_rows_across_package_relocation() {
                 &format!("module {module}; pub data Point {{ value: u64; }}"),
             );
         }
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })

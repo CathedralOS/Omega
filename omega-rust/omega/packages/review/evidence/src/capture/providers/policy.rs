@@ -5,6 +5,7 @@ mod families;
 mod replay;
 mod rows;
 
+use crate::capture::PackageReviewInput;
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity,
@@ -14,7 +15,6 @@ use crate::record::{
     PackagePolicyProviderPlan, PackagePolicySelectedProviders,
     PackageReviewProviderGrantSelectorKind,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::SelectedProviderReviewProvenance;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -22,23 +22,25 @@ use target::TargetProfile;
 
 /// Retain the root activation's complete selected provider meaning without
 /// evaluator, calling, native, or admission receipts. This grants no authority.
-pub fn project_checked_selected_provider_policy(
-    compilation: &CheckedCompilation,
+pub fn project_checked_selected_provider_policy<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicySelectedProviders, Vec<Diagnostic>> {
+    let compilation = &input.into();
     project_with_indices(compilation, target, package).map(|(policy, _)| policy)
 }
 
 /// The second result maps canonical policy positions to checked provenance positions.
 /// It is capture-local custody, never serialized policy.
 pub(super) fn project_with_indices(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
     replay::validate(compilation, target, package)?;
     let mut plans = compilation
+        .custody
         .selected_provider_provenance()
         .iter()
         .enumerate()
@@ -55,6 +57,7 @@ pub(super) fn project_with_indices(
         .count();
     if projected_installation_reaches
         != compilation
+            .custody
             .selected_provider_plans()
             .installation_reach_resolutions()
             .len()
@@ -64,7 +67,7 @@ pub(super) fn project_with_indices(
         ));
     }
     let projected_grants: usize = plans.iter().map(|(_, plan)| plan.grants.len()).sum();
-    if projected_grants != compilation.selected_provider_grants().len() {
+    if projected_grants != compilation.custody.selected_provider_grants().len() {
         return Err(rejected(
             "an authored provider grant has no unique selected plan",
         ));
@@ -81,7 +84,7 @@ pub(super) fn project_with_indices(
 }
 
 fn project_plan(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     target: TargetProfile,
     retained: &SelectedProviderReviewProvenance,
 ) -> Result<PackagePolicyProviderPlan, Vec<Diagnostic>> {
@@ -133,6 +136,7 @@ fn project_plan(
     let mut rows = rows::project(compilation, target, retained)?;
     rows.sort_by(|left, right| left.requirement.cmp(&right.requirement));
     let mut grants = compilation
+        .custody
         .selected_provider_grants()
         .iter()
         .filter(|grant| grant.grant.replays_selected_plan(plan))
@@ -165,7 +169,7 @@ fn project_plan(
 }
 
 fn normalized_plan_name(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     retained: &SelectedProviderReviewProvenance,
 ) -> Result<String, Vec<Diagnostic>> {
     let plan = &retained.plan;

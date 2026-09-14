@@ -17,10 +17,7 @@ use package_evidence::record::*;
 use support::*;
 use target::TargetProfile;
 
-fn project(
-    checked: &CheckedCompilation,
-    target: TargetProfile,
-) -> PackagePolicyTerminalPermissions {
+fn project(checked: &ReviewFixture, target: TargetProfile) -> PackagePolicyTerminalPermissions {
     let policy = project_checked_terminal_permission_policy(checked, target, package_identity())
         .expect("exact checked terminal permission policy");
     assert_eq!(policy.package(), package_identity());
@@ -49,6 +46,7 @@ fn explicit_empty_permission_is_distinct_from_absence_for_unused_requirement_onl
     assert!(
         fixture
             .candidate
+            .custody
             .selected_provider_plans()
             .plans()
             .is_empty()
@@ -57,6 +55,7 @@ fn explicit_empty_permission_is_distinct_from_absence_for_unused_requirement_onl
     let explicit_checked = fixture.check(Some(TerminalAuthorityDisposition::from_classes([])));
     assert!(
         explicit_checked
+            .custody
             .selected_provider_plans()
             .plans()
             .is_empty()

@@ -1,4 +1,5 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity,
 };
@@ -6,18 +7,17 @@ use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::ProviderSelectionProvenance;
 use provider_planning::{ProviderSelection, ProviderSelectionSubject};
 use target::TargetProfile;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     target: TargetProfile,
     plans: &[(usize, PackagePolicyProviderPlan)],
 ) -> Result<Vec<PackagePolicyProviderFamily>, Vec<Diagnostic>> {
-    let provenance = compilation.selected_provider_provenance();
+    let provenance = compilation.custody.selected_provider_provenance();
     let mut seeds: Vec<(PackageReviewProviderSelectionAuthority, &ProviderSelection)> = Vec::new();
     for retained in provenance {
         let Some((authority, declarations)) = authored(&retained.selected_by) else {

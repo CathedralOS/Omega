@@ -80,9 +80,10 @@ pub machine Other::check(&self) {}
     };
     let expected = symbol("Owner::value");
     let selected = symbol("Owner::check::value");
-    assert!(attached_field(&checked, &context, expected, selected));
+    let input = (&checked).into();
+    assert!(attached_field(&input, &context, expected, selected));
     assert!(!attached_field(
-        &checked,
+        &input,
         &context,
         expected,
         symbol("Other::check::value")
@@ -90,13 +91,13 @@ pub machine Other::check(&self) {}
     // Same owner and valid field declarations are insufficient: the other
     // seeded field points at a different exact source span in the same file.
     assert!(!attached_field(
-        &checked,
+        &input,
         &context,
         expected,
         symbol("Owner::check::other")
     ));
     assert!(!attached_field(
-        &checked,
+        &input,
         &context,
         symbol("Owner::other"),
         selected

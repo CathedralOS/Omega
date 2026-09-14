@@ -1,25 +1,26 @@
 //! Complete supplied permission meaning, independent of provider demand.
 
 use super::declarations::{rejected, resolve_services};
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::services;
 use crate::record::{
     PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 /// Capture supplied permissions and their complete checked service context.
 /// This neither accepts permissions nor replaces native permission matching.
-pub fn project_checked_terminal_permission_policy(
-    compilation: &CheckedCompilation,
+pub fn project_checked_terminal_permission_policy<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyTerminalPermissions, Vec<Diagnostic>> {
-    if compilation.package_identity() != Some(package)
-        || compilation.selected_target_profile() != Some(target)
-        || compilation.selected_native_target() != Some(target.native_target())
+    let compilation = &input.into();
+    if compilation.custody.package_identity() != Some(package)
+        || compilation.custody.selected_target_profile() != Some(target)
+        || compilation.custody.selected_native_target() != Some(target.native_target())
     {
         return Err(rejected(
             "policy package or target differs from the checked root activation",

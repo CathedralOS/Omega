@@ -4,12 +4,12 @@ mod authority;
 mod calling;
 mod signature;
 
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity, provider_requirement_identity,
     provider_requirement_schema,
 };
 use crate::record::PackagePolicyServiceMethod;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ServiceMethod;
 use provider_planning::ProviderSchemaDeclaration;
@@ -18,7 +18,7 @@ use symbols::SymbolHandle;
 pub(crate) use crate::capture::calling::application::signature::declaration_parameters;
 
 pub(crate) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
@@ -37,7 +37,7 @@ pub(crate) fn project(
 /// Review an accepted service declaration without inventing a provider or a
 /// closed generic calling application.
 pub(crate) fn project_declaration(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     schema: SymbolHandle,
     requirement: SymbolHandle,
     method: &ServiceMethod,
@@ -53,7 +53,7 @@ pub(crate) fn project_declaration(
 }
 
 fn project_inner(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,

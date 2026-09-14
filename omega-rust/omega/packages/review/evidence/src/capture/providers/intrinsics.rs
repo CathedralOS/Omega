@@ -1,5 +1,5 @@
+use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewCompilerIntrinsicExecution;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
@@ -10,7 +10,7 @@ use selected_dispatch::{
 use symbols::SymbolHandle;
 
 pub(crate) fn project_compiler_intrinsic_execution(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     schema: ProviderSchemaDeclaration,
@@ -33,10 +33,10 @@ pub(crate) fn project_compiler_intrinsic_execution(
             requirement_symbol,
             realization_symbol,
             selected_target,
-            compilation.resolved_semantic_binding(
+            compilation.custody.resolved_semantic_binding(
                 package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             ),
-            compilation.resolved_semantic_binding(
+            compilation.custody.resolved_semantic_binding(
                 package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
             ),
         )

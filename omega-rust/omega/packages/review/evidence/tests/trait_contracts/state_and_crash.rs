@@ -18,7 +18,7 @@ pub trait Bounds {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -73,7 +73,7 @@ fn public_trait_crash_ceilings_are_exact_canonical_checked_routes() {
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -149,7 +149,7 @@ fn public_trait_crash_projection_rejects_missing_or_duplicate_checked_capsules()
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -157,6 +157,8 @@ fn public_trait_crash_projection_rejects_missing_or_duplicate_checked_capsules()
 
     let mut missing = checked.clone();
     missing.facts.contract_plans.crash_capsules.clear();
+    assert_eq!(missing.custody, checked.custody);
+    assert!(!checked.facts.contract_plans.crash_capsules.is_empty());
     let diagnostics = project_checked_package_review(&missing)
         .expect_err("missing checked crash capsule must reject");
     assert!(diagnostics.iter().any(|diagnostic| {

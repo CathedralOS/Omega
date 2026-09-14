@@ -1,11 +1,11 @@
 use super::review_signature_type_identity_with_binders;
+use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewDataField;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_data_field(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     field: &typed_trees::data::DataField,
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],

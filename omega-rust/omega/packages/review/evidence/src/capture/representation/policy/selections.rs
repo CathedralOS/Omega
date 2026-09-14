@@ -1,6 +1,7 @@
 //! Reharvest the complete authoritative activation before projecting any choice.
 
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::representation::physical_contract::{
     project_representation_copy_disposition, project_representation_lifecycle,
     project_representation_origin,
@@ -8,15 +9,14 @@ use crate::capture::representation::physical_contract::{
 use crate::capture::semantics::conformances::project_checked_conformance_policy;
 use crate::capture::semantics::declarations::{nominal_identity, nominal_owner};
 use crate::record::{PackagePolicyRepresentationSelection, PackageReviewNominalOwner};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn rederive_selections(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
 ) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
-    let selected = compilation.selected_build_machine_symbol();
+    let selected = compilation.custody.selected_build_machine_symbol();
     if let Some(symbol) = selected {
         let machines = compilation
             .machines()
@@ -41,7 +41,7 @@ pub(crate) fn rederive_selections(
     let derived = representation_planning::rederive_opaque_representation_selections(
         &compilation.typed,
         selected,
-        compilation.opaque_representation_selections(),
+        compilation.custody.opaque_representation_selections(),
     )?;
     if derived
         .iter()
@@ -55,7 +55,7 @@ pub(crate) fn rederive_selections(
 }
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
     selections: &[OpaqueRepresentationSelection],
 ) -> Result<Vec<PackagePolicyRepresentationSelection>, Vec<Diagnostic>> {

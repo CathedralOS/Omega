@@ -5,17 +5,17 @@ use super::super::semantics::declarations::{
 use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::super::source::parameters::collect_type_parameter_source_locations;
+use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewEvidenceInterface,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use typed_trees::trait_definition::{ConformanceImplementation, ConformanceSubject};
 
 pub(crate) fn project_public_conformances(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewConformanceShape>>, Vec<Diagnostic>> {
     let mut projected = Vec::new();

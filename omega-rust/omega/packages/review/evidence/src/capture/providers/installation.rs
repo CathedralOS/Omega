@@ -1,7 +1,7 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::behavior::project_service_row;
 use crate::capture::semantics::declarations::provider_requirement_schema;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewSelectedInstallationReach};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 use language_semantics::ServiceReachRowId;
@@ -9,7 +9,7 @@ use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_selected_installation_reach(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     plan: &ProviderPlan,
     schema: ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
@@ -81,6 +81,7 @@ pub(crate) fn project_selected_installation_reach(
     };
 
     let retained = compilation
+        .custody
         .selected_provider_plans()
         .installation_reach_resolutions()
         .iter()
@@ -158,7 +159,7 @@ pub(crate) fn project_selected_installation_reach(
 }
 
 fn exact_service_names(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     row: ServiceReachRowId,
 ) -> Result<Vec<String>, Vec<Diagnostic>> {
     let services = compilation.facts.service_reaches.rows.services(row);

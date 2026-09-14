@@ -64,7 +64,7 @@ boundary trait TransferEntry: Calling<TransferPolicy> {
 }
 "#;
 
-fn fixture(foreign_types: bool) -> (TempPackage, Option<TempPackage>, CheckedCompilation) {
+fn fixture(foreign_types: bool) -> (TempPackage, Option<TempPackage>, ReviewFixture) {
     let package = TempPackage::new();
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -133,7 +133,7 @@ machine build(builder: &mut Build) {{
         dependency_bindings,
     )
     .unwrap();
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(inputs),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -141,8 +141,9 @@ machine build(builder: &mut Build) {{
     (package, dependency, checked)
 }
 
-fn project(checked: &CheckedCompilation) -> PackagePolicyCallingPlan {
+fn project(checked: &ReviewFixture) -> PackagePolicyCallingPlan {
     let realization = checked
+        .custody
         .boundary_calling_plan_realizations()
         .iter()
         .find(|realization| checked.symbols.name(realization.boundary_trait) == "TransferEntry")
@@ -165,7 +166,7 @@ fn project(checked: &CheckedCompilation) -> PackagePolicyCallingPlan {
 #[test]
 fn opaque_calling_policy_retains_exact_occurrences_and_excludes_unused_selections() {
     let (_package, _dependency, checked) = fixture(false);
-    assert_eq!(checked.opaque_representation_selections().len(), 2);
+    assert_eq!(checked.custody.opaque_representation_selections().len(), 2);
     let policy = project(&checked);
     let [use_] = policy.opaque_uses() else {
         panic!("only the used selection contributes a calling row")
@@ -226,11 +227,13 @@ fn opaque_calling_policy_retains_exact_occurrences_and_excludes_unused_selection
     // use's old compact or strong application coordinate.
     let mut changed = checked.clone();
     let selected = checked
+        .custody
         .opaque_representation_selections()
         .iter()
         .find(|selection| checked.symbols.name(selection.opaque()) == "TransferToken")
         .unwrap();
     let foreign_carrier = checked
+        .custody
         .opaque_representation_selections()
         .iter()
         .find(|selection| checked.symbols.name(selection.opaque()) == "UnusedToken")
@@ -248,6 +251,7 @@ fn opaque_calling_policy_retains_exact_occurrences_and_excludes_unused_selection
         .unwrap()
         .carrier_symbol = foreign_carrier;
     let realization = changed
+        .custody
         .boundary_calling_plan_realizations()
         .iter()
         .find(|realization| changed.symbols.name(realization.boundary_trait) == "TransferEntry")

@@ -11,6 +11,7 @@ use super::external_supply::{
     project_evaluated_binding, project_external_binding,
     project_external_executable_supply_with_source, validate_external_binding_payload,
 };
+use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackageReviewCallableConformance, PackageReviewExternalBinding,
@@ -18,7 +19,6 @@ use crate::record::{
     PackageReviewExternalRequirement, PackageReviewNominalIdentity,
     PackageReviewOperatorRealization,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
@@ -29,7 +29,7 @@ enum ExpectedExternalCarrier {
 }
 
 pub(super) fn project_callable_conformances(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     callable_identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
@@ -88,7 +88,7 @@ pub(super) fn project_callable_conformances(
                     if conformance.external_binding.is_none()
                         && conformance.via_expression.is_valid() =>
                 {
-                    let Some(row) = compilation.evaluated_via_bindings().exact(
+                    let Some(row) = compilation.custody.evaluated_via_bindings().exact(
                         machine.symbol,
                         conformance.symbol,
                         conformance.requirement_symbol,

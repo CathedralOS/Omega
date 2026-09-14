@@ -1,17 +1,17 @@
 //! Exact projection of checked semantic-dependency evidence.
 
 use super::super::semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedSemanticDependencyRow;
 use crate::record::{
     PackageReviewSemanticDependency, PackageReviewSemanticDependencyExposure,
     PackageReviewSemanticDependencyKind,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_semantic_dependencies(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedSemanticDependencyRow>, Vec<Diagnostic>> {
     let derived = typed_trees_to_checked_trees::derive_checked_semantic_dependencies(

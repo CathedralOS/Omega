@@ -29,9 +29,9 @@ fn inherited_service_keeps_selecting_schema_and_declaring_requirement_owners() {
         .find(|plan| plan.schema_declaration().path() == "SelectedHost")
         .unwrap_or_else(|| panic!(
             "explicit SelectedHost selection must survive capture; checked schemas: {:?}; policy schemas: {:?}; provenance: {:?}",
-            fixture.checked.selected_provider_plans().plans().iter().map(|plan| (&plan.name, &plan.schema.trait_name)).collect::<Vec<_>>(),
+            fixture.checked.custody.selected_provider_plans().plans().iter().map(|plan| (&plan.name, &plan.schema.trait_name)).collect::<Vec<_>>(),
             policy.plans().iter().map(|plan| (plan.plan_name(), plan.schema_declaration().path())).collect::<Vec<_>>(),
-            fixture.checked.selected_provider_provenance(),
+            fixture.checked.custody.selected_provider_provenance(),
         ));
     let [method] = plan.methods() else {
         panic!("one inherited service method")
@@ -58,6 +58,7 @@ fn inherited_service_keeps_selecting_schema_and_declaring_requirement_owners() {
     assert!(method.termination_premises().is_empty());
     let checked_plan = fixture
         .checked
+        .custody
         .selected_provider_plans()
         .plans()
         .iter()
@@ -89,6 +90,7 @@ fn inherited_service_keeps_selecting_schema_and_declaring_requirement_owners() {
     );
     let realization = fixture
         .checked
+        .custody
         .boundary_calling_plan_realizations()
         .iter()
         .find(|realization| {

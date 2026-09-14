@@ -9,7 +9,7 @@ pub(super) const FILESYSTEM: &str = r#"pub boundary trait FilesystemHost {
 "#;
 
 pub(super) struct Fixture {
-    pub candidate: CheckedCompilation,
+    pub candidate: ReviewFixture,
     pub target: TargetProfile,
     pub owner: PackageKeyIdentity,
     pub accepted: AcceptedSemanticBinding,
@@ -102,7 +102,7 @@ machine build(builder: &mut Build) {
         let inputs =
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
                 .unwrap();
-        let candidate = compile_to_checked(CheckedCompileRequest {
+        let candidate = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(inputs.clone()),
             ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target.target_name()))
         })
@@ -131,6 +131,7 @@ machine build(builder: &mut Build) {
             .clone();
         let accepted = if console {
             let plan = candidate
+                .custody
                 .selected_provider_plans()
                 .plans()
                 .iter()
@@ -146,6 +147,7 @@ machine build(builder: &mut Build) {
             .unwrap()
         } else {
             candidate
+                .custody
                 .candidate_service_binding(
                     AcceptedSemanticBindingRole::FilesystemHostService,
                     owner,
@@ -165,7 +167,7 @@ machine build(builder: &mut Build) {
         }
     }
 
-    pub fn check(&self, permitted: Option<TerminalAuthorityDisposition>) -> CheckedCompilation {
+    pub fn check(&self, permitted: Option<TerminalAuthorityDisposition>) -> ReviewFixture {
         self.check_binding(self.binding(permitted))
             .unwrap_or_else(|diagnostics| {
                 panic!("accepted terminal permission source should check: {diagnostics:#?}")
@@ -196,8 +198,8 @@ machine build(builder: &mut Build) {
     pub fn check_binding(
         &self,
         accepted: AcceptedSemanticBinding,
-    ) -> Result<CheckedCompilation, Vec<diagnostics::Diagnostic>> {
-        compile_to_checked(CheckedCompileRequest {
+    ) -> Result<ReviewFixture, Vec<diagnostics::Diagnostic>> {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(
                 self.inputs
                     .clone()

@@ -9,15 +9,15 @@ use super::super::members::{
     require_exact_checked_contract_nominal_member,
 };
 use super::super::names::contract_parameter_field_symbol;
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::PackageReviewContractExpression;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 
 pub(super) fn project_member_expression(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: ExpressionHandle,
     member: &TableMemberExpression,
@@ -145,7 +145,7 @@ pub(super) fn project_member_expression(
 }
 
 fn project_checked_or_computed_member(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: ExpressionHandle,
     member: &TableMemberExpression,

@@ -25,10 +25,10 @@ fn normalized_import_preserves_meaning_while_evaluation_receipts_change() {
         indirect_policy.canonical_bytes().unwrap()
     );
     assert_ne!(
-        first.checked.evaluated_via_bindings().rows()[0]
+        first.checked.custody.evaluated_via_bindings().rows()[0]
             .evaluated()
             .receipt(),
-        indirect.checked.evaluated_via_bindings().rows()[0]
+        indirect.checked.custody.evaluated_via_bindings().rows()[0]
             .evaluated()
             .receipt(),
         "the source change must exercise actual receipt exclusion",

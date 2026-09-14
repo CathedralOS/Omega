@@ -1,4 +1,5 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::{
     expressions::projection::project_contract_expression, facts::ContractProjectionContext,
 };
@@ -8,7 +9,6 @@ use crate::record::{
     PackagePolicyInferredCrash, PackageReviewCrashInterface,
 };
 use checked_trees::RealizedMachineContractEnvelope;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
@@ -20,7 +20,7 @@ use typed_trees::{
 };
 
 pub(crate) fn crash(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &Machine,
     entry: &State,
     binders: &[(SymbolHandle, String)],
@@ -135,7 +135,7 @@ pub(crate) fn crash(
 }
 
 pub(crate) fn crash_routes(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     contracts: &[typed_trees::signature::SignatureContract],
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],

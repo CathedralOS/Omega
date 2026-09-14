@@ -1,3 +1,4 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
@@ -6,7 +7,6 @@ use crate::record::{
     PackageReviewExternalExecutableSupply, PackageReviewForeignLocator,
     PackageReviewSourceLocationRole,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(super) fn project_external_executable_supply_with_source(
@@ -31,7 +31,7 @@ pub(super) fn project_external_executable_supply_with_source(
 }
 
 pub(super) fn project_evaluated_binding(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     row: &provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
     match row.evaluated() {
@@ -45,7 +45,7 @@ pub(super) fn project_evaluated_binding(
 }
 
 fn project_evaluated_import(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     row: &provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
     evaluated: &effects::provider_plan::EvaluatedForeignImport,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
@@ -114,7 +114,7 @@ fn project_evaluated_import(
 }
 
 fn project_evaluated_syscall(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     row: &provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
     evaluated: &effects::provider_plan::EvaluatedForeignSyscall,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
@@ -152,7 +152,7 @@ fn project_evaluated_syscall(
 }
 
 pub(super) fn validate_external_binding_payload(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     identity: &language_semantics::ExternalBindingIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -237,7 +237,7 @@ pub(super) fn project_external_binding(
 }
 
 pub(super) fn external_binding_matches_provider_binding(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     binding: &PackageReviewExternalBinding,
     selected: &effects::provider_plan::ProviderBinding,
@@ -259,7 +259,7 @@ pub(super) fn external_binding_matches_provider_binding(
             .machine_trait_conformances(machine)
             .first()
             .and_then(|conformance| {
-                compilation.evaluated_via_bindings().exact(
+                compilation.custody.evaluated_via_bindings().exact(
                     machine.symbol,
                     conformance.symbol,
                     conformance.requirement_symbol,
@@ -281,7 +281,7 @@ pub(super) fn external_binding_matches_provider_binding(
             .machine_trait_conformances(machine)
             .first()
             .and_then(|conformance| {
-                compilation.evaluated_via_bindings().exact(
+                compilation.custody.evaluated_via_bindings().exact(
                     machine.symbol,
                     conformance.symbol,
                     conformance.requirement_symbol,

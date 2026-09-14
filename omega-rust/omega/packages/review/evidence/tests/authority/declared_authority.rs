@@ -40,12 +40,13 @@ crashes Abort
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("package fixture should check");
     let observations = checked
+        .custody
         .build_observation_summary()
         .expect("selected build machine publishes build observation evidence");
     assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
@@ -296,7 +297,7 @@ crashes Abort
     );
     assert_eq!(
         grant.selected_plan_digest(),
-        checked.selected_provider_plans().plans()[0]
+        checked.custody.selected_provider_plans().plans()[0]
             .identity_digest()
             .as_bytes()
     );
@@ -408,7 +409,7 @@ reaches MachineControl + PortIo
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -448,7 +449,7 @@ machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "h
         ),
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -467,7 +468,7 @@ machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "h
     );
     assert_eq!(
         grant.selected_plan_digest(),
-        checked.selected_provider_plans().plans()[0]
+        checked.custody.selected_provider_plans().plans()[0]
             .identity_digest()
             .as_bytes()
     );
@@ -480,7 +481,7 @@ machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "h
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let unchecked_grant = compile_to_checked(CheckedCompileRequest {
+    let unchecked_grant = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -514,7 +515,7 @@ fn review_projects_exact_accepted_boundary_contracts() {
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })

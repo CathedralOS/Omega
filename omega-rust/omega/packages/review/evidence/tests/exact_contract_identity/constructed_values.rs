@@ -28,7 +28,7 @@ requires has_outcome(Outcome::{case} {{ {case_fields} }})
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -126,7 +126,7 @@ requires hidden(Hidden { value: 1u64 })
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&private.0)),
         ..CheckedCompileRequest::new(&private.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -157,7 +157,7 @@ requires
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -235,7 +235,7 @@ requires
 { }
 "#,
     );
-    let changed = compile_to_checked(CheckedCompileRequest {
+    let changed = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -269,7 +269,7 @@ pub proposition zero_is_none<{binder}>() =
     };
     let project = |source: String| {
         package.write("main.omg", &source);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -308,7 +308,7 @@ pub proposition hidden_zero() =
     zero_value<Hidden>() == zero_value<Hidden>();
 "#,
     );
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })

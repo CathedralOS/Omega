@@ -35,7 +35,7 @@ fn procedure_source() -> String {
         .to_owned()
 }
 
-fn checked(source: &str) -> (TempPackage, CheckedCompilation) {
+fn checked(source: &str) -> (TempPackage, ReviewFixture) {
     let package = TempPackage::new();
     package.write("main.omg", source);
     package.write(
@@ -46,7 +46,7 @@ fn checked(source: &str) -> (TempPackage, CheckedCompilation) {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -54,16 +54,14 @@ fn checked(source: &str) -> (TempPackage, CheckedCompilation) {
     (package, checked)
 }
 
-fn realization<'a>(
-    checked: &'a CheckedCompilation,
-    owner: &str,
-) -> &'a BoundaryCallingPlanRealization {
+fn realization<'a>(checked: &'a ReviewFixture, owner: &str) -> &'a BoundaryCallingPlanRealization {
     let declaration = checked
         .traits()
         .iter()
         .find(|declaration| declaration.name.as_str() == owner)
         .unwrap();
     let matches = checked
+        .custody
         .boundary_calling_plan_realizations()
         .iter()
         .filter(|realization| realization.boundary_trait == declaration.symbol)
@@ -99,6 +97,7 @@ fn equal_physical_overloads_keep_distinct_semantic_calling_policy() {
         .find(|declaration| declaration.name.as_str() == "HookProcedure")
         .unwrap();
     let policies = checked
+        .custody
         .boundary_calling_plan_realizations()
         .iter()
         .filter(|realization| realization.boundary_trait == declaration.symbol)

@@ -23,7 +23,7 @@ ensures result == tag<{selected_type}>();
     package.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -91,7 +91,7 @@ ensures result == constant<{selected_value}>();
     package.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -160,7 +160,7 @@ ensures result == constant<LIMIT, OTHER>();
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -295,7 +295,7 @@ ensures result == selected<ENABLED>();
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -437,7 +437,7 @@ ensures result == selected<SELECTED, ACTIVE>();
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -573,7 +573,7 @@ ensures result == constant<LIMIT>();
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -646,7 +646,7 @@ requires constant<{selected_const}>() == constant<{selected_const}>()
         package.write("build.omg", build);
     }
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -730,7 +730,7 @@ ensures result == tag<Wrapper<{nested_type}>>();
     package.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -814,7 +814,7 @@ ensures result == tag<Card, {selected}<Card>>();
     original.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -913,7 +913,7 @@ ensures result == tag<Card, FieldOrder<Card, {rank}>>();
     original.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -1003,7 +1003,7 @@ ensures result == tag<Card, FieldOrder<Card, RANK, MARKER>>();
     original.write("build.omg", build);
     changed.write("build.omg", build);
     let compile = |package: &TempPackage| {
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -1162,7 +1162,7 @@ ensures result == tag<Card, FieldOrder<Card, {selected}>>();
         package.write("build.omg", build);
     }
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -1241,7 +1241,7 @@ ensures result == tag<Card, FieldOrder<Card, 7>>();
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -1293,7 +1293,7 @@ ensures result == tag<Card, Slot<Card>>();
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -1330,7 +1330,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
 "#,
     );
     let compile = || {
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })

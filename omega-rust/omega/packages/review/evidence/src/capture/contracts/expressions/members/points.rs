@@ -1,9 +1,9 @@
 //! Declaration projection follows the checked precondition's entry scope.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::facts::exactly_one;
 use checked_trees::{ContractProofFactKind, ContractProofFactOwner};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, ProgramPoint};
 
@@ -11,7 +11,7 @@ use facts::{FactOrigin, ProgramPoint};
 /// A resolved attachment root must be the exact containing machine whose
 /// checked parameter roster owns that formal.
 pub(crate) fn checked_self_parameter_symbol(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<symbols::SymbolHandle> {
@@ -80,7 +80,7 @@ pub(crate) fn checked_self_parameter_symbol(
 }
 
 pub(super) fn contract_point(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> Result<(ProgramPoint, Option<FactOrigin>), Vec<Diagnostic>> {

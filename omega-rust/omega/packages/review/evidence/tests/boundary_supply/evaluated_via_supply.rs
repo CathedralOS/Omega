@@ -2,7 +2,7 @@ use crate::support::*;
 use compiler::CheckedCompileRequest;
 
 fn assert_external_policy_round_trip(
-    checked: &CheckedCompilation,
+    checked: &ReviewFixture,
     supply: &package_evidence::record::PackageReviewExternalExecutableSupply,
 ) {
     let machine = checked
@@ -20,8 +20,8 @@ fn assert_external_policy_round_trip(
     assert_eq!(policy.callable().owner(), supply.callable().owner());
     let surfaces = package_evidence::project_checked_callable_policy(
         checked,
-        checked.selected_target_profile().unwrap(),
-        checked.package_identity().unwrap(),
+        checked.custody.selected_target_profile().unwrap(),
+        checked.custody.package_identity().unwrap(),
     )
     .unwrap();
     assert!(
@@ -96,11 +96,11 @@ machine ordinal_leaf()
 const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
 
-fn checked_fixture() -> CheckedCompilation {
+fn checked_fixture() -> ReviewFixture {
     let package = TempPackage::new();
     package.write("main.omg", SOURCE);
     package.write("build.omg", BUILD);
-    compile_to_checked(CheckedCompileRequest {
+    compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -119,7 +119,7 @@ fn checked_fixture() -> CheckedCompilation {
 #[test]
 fn review_projects_all_package_owned_evaluated_via_leaves_with_exact_receipts() {
     let checked = checked_fixture();
-    assert_eq!(checked.evaluated_via_bindings().rows().len(), 2);
+    assert_eq!(checked.custody.evaluated_via_bindings().rows().len(), 2);
 
     let review = project_checked_package_review(&checked)
         .expect("ordinary evaluated-via supply should project exactly");
@@ -272,7 +272,7 @@ pub machine exit_leaf(code: i32)
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("linux_x86_64"))
     })

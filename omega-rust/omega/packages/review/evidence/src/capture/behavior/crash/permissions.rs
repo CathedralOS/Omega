@@ -1,10 +1,10 @@
 //! Projection of crash predicates and permission-frontier claims.
 
 use super::super::super::semantics::declarations::nominal_identity;
+use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewCrashPredicate, PackageReviewPermissionClaim, PackageReviewPermissionSource,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(super) fn project_crash_predicates(
@@ -28,7 +28,7 @@ pub(super) fn project_crash_predicate(
 }
 
 pub(super) fn project_permission_claim(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     claim: language_semantics::PermissionClaimIdentity,
 ) -> Result<PackageReviewPermissionClaim, Vec<Diagnostic>> {
     let language_semantics::PermissionClaimIdentity::Established {

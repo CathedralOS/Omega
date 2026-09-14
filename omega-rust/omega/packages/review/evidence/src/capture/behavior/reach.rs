@@ -1,14 +1,14 @@
 use super::super::semantics::declarations::{
     nominal_identity, nominal_owner, trait_requirement_identity,
 };
+use crate::capture::PackageReviewInput;
 use crate::record::{PackageReviewInstallationReach, PackageReviewNominalIdentity};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_installation_reaches(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     requirements: &[flow_effects::InstallationReachRequirement],
 ) -> Result<Vec<PackageReviewInstallationReach>, Vec<Diagnostic>> {
     let mut projected = requirements
@@ -29,7 +29,7 @@ pub(crate) fn project_installation_reaches(
 }
 
 fn installation_requirement_identity(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let trait_matches = compilation
@@ -79,7 +79,7 @@ fn installation_requirement_identity(
 }
 
 pub(crate) fn project_service_row(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     row: language_semantics::ServiceReachRowId,
 ) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
     let services = compilation.facts.service_reaches.rows.services(row);

@@ -1,18 +1,18 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyProviderBinding,
     PackagePolicyProviderEvaluatedSyscall, PackageReviewForeignLocator,
     PackageReviewNominalIdentity,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use provider_planning::evaluated_via_bindings::{EvaluatedViaBinding, EvaluatedViaBindingRow};
 use symbols::SymbolHandle;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     binding: &ProviderBinding,
     requirement: SymbolHandle,
     realization: SymbolHandle,
@@ -93,11 +93,11 @@ pub(super) fn project(
     })
 }
 
-fn evaluated_row(
-    compilation: &CheckedCompilation,
+fn evaluated_row<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     requirement: SymbolHandle,
     realization: SymbolHandle,
-) -> Result<Option<&EvaluatedViaBindingRow>, Vec<Diagnostic>> {
+) -> Result<Option<&'a EvaluatedViaBindingRow>, Vec<Diagnostic>> {
     let machines = compilation
         .machines()
         .iter()
@@ -116,6 +116,7 @@ fn evaluated_row(
     match conformances.as_slice() {
         [] => Ok(None),
         [conformance] => compilation
+            .custody
             .evaluated_via_bindings()
             .exact(realization, conformance.symbol, requirement)
             .map(Some)
@@ -127,7 +128,7 @@ fn evaluated_row(
 }
 
 fn producer(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     row: &EvaluatedViaBindingRow,
 ) -> Result<PackagePolicyEvaluatedBindingProducer, Vec<Diagnostic>> {
     let receipt = match row.evaluated() {
@@ -142,7 +143,7 @@ fn producer(
 }
 
 fn table_declaration(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     realization: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let machines = compilation

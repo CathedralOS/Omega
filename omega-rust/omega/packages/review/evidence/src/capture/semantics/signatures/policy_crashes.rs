@@ -1,17 +1,17 @@
 //! Exact authored crash guards in policy-only nested static signatures.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::{
     PackagePolicyCrashGuard, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateSignature;
 
 pub(crate) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     owner: SymbolHandle,
     signature: &StateSignature,
     context: &ContractProjectionContext<'_>,

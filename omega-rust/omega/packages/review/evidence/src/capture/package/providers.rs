@@ -9,12 +9,12 @@ use super::super::providers::symbolic_demands::{
     ProjectedBoundaryApplicationDemands, project_boundary_application_demands,
 };
 use super::super::semantics::declarations::{nominal_identity, provider_requirement_identity};
+use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
     CheckedPackageProviderRowIdentity, PackageReviewProviderGrantSelectorKind,
     PackageReviewSelectedProviderGrant,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 
@@ -26,20 +26,20 @@ pub(super) struct ProjectedProviders {
 }
 
 pub(super) fn project_selected_providers(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     target: TargetProfile,
     package: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<ProjectedProviders, Vec<Diagnostic>> {
-    let selected_plans = compilation.selected_provider_plans().plans();
-    let selected_provider_provenance = compilation.selected_provider_provenance();
+    let selected_plans = compilation.custody.selected_provider_plans().plans();
+    let selected_provider_provenance = compilation.custody.selected_provider_provenance();
     if selected_plans.len() != selected_provider_provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected-provider review provenance is not aligned with the canonical selected plan set",
         )]);
     }
-    let selected_provider_grants = compilation.selected_provider_grants();
+    let selected_provider_grants = compilation.custody.selected_provider_grants();
     if !selected_provider_grants.is_empty() {
-        let Some(build_machine) = compilation.selected_build_machine_symbol() else {
+        let Some(build_machine) = compilation.custody.selected_build_machine_symbol() else {
             return Err(vec![Diagnostic::error(
                 "selected-provider grants have no exact selected build machine",
             )]);
@@ -230,6 +230,7 @@ pub(super) fn project_selected_providers(
 
     if projected_installation_reaches
         != compilation
+            .custody
             .selected_provider_plans()
             .installation_reach_resolutions()
             .len()
@@ -251,7 +252,7 @@ pub(super) fn project_selected_providers(
 }
 
 fn validate_selected_requirement_lifetime_partition(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     requirement: symbols::SymbolHandle,

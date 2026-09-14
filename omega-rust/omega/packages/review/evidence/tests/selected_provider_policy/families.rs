@@ -11,7 +11,7 @@ machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "h
 }
 "#;
     let granted = Fixture::local(source, granted_build, TargetProfile::WindowsX64);
-    assert_eq!(granted.checked.selected_provider_grants().len(), 1);
+    assert_eq!(granted.checked.custody.selected_provider_grants().len(), 1);
     let policy = project(&granted);
     let [plan] = policy.plans() else {
         panic!("one unused selected plan")
@@ -25,6 +25,7 @@ machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "h
     assert!(
         granted
             .checked
+            .custody
             .boundary_calling_plan_realizations()
             .is_empty()
     );

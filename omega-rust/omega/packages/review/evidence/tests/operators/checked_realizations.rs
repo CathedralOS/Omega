@@ -16,7 +16,7 @@ pub machine handle(value: u32) -> u32 satisfies Handler<u32>::handle { value }
 "#,
     );
     satisfying.write("build.omg", build);
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&satisfying.0)),
         ..CheckedCompileRequest::new(&satisfying.0.join("main.omg"), Some(target))
     })
@@ -43,7 +43,7 @@ pub machine handle() satisfies Hidden::handle { }
 "#,
     );
     hidden.write("build.omg", build);
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&hidden.0)),
         ..CheckedCompileRequest::new(&hidden.0.join("main.omg"), Some(target))
     })
@@ -71,7 +71,7 @@ crashes Abort
 "#,
     );
     generic.write("build.omg", build);
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&generic.0)),
         ..CheckedCompileRequest::new(&generic.0.join("main.omg"), Some(target))
     })
@@ -122,7 +122,7 @@ satisfies CheckedMath::identity
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -171,7 +171,7 @@ satisfies CheckedMath::identity as {alias}
             ),
         );
         package.write("build.omg", build);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -257,7 +257,7 @@ satisfies CheckedMath::subtract
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })

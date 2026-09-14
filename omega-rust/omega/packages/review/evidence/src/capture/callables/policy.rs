@@ -1,6 +1,7 @@
 //! Complete checked callable policy for one root activation and target.
 
 use super::surface;
+use crate::capture::PackageReviewInput;
 use crate::capture::behavior::policy as behavior;
 use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::capture::semantics::declarations::nominal_identity;
@@ -8,7 +9,6 @@ use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCallables,
     PackageReviewCallableRole, PackageReviewNominalOwner,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -16,21 +16,24 @@ use target::TargetProfile;
 
 /// Capture semantics only; this neither accepts assumptions nor reconstitutes
 /// compiler certificates, build replay, or native authority.
-pub fn project_checked_callable_policy(
-    compilation: &CheckedCompilation,
+pub fn project_checked_callable_policy<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyCallables, Vec<Diagnostic>> {
-    if compilation.package_identity() != Some(package)
-        || compilation.selected_target_profile() != Some(target)
-        || compilation.selected_native_target() != Some(target.native_target())
+    let compilation = &input.into();
+    if compilation.custody.package_identity() != Some(package)
+        || compilation.custody.selected_target_profile() != Some(target)
+        || compilation.custody.selected_native_target() != Some(target.native_target())
     {
         return Err(rejected(
             "package or target differs from the checked root activation",
         ));
     }
-    let build = compilation.selected_build_machine_symbol();
-    let source = compilation.pre_selected_dispatch_source_trees()?;
+    let build = compilation.custody.selected_build_machine_symbol();
+    let source = compilation
+        .custody
+        .pre_selected_dispatch_source_trees(&compilation.typed)?;
     crate::capture::behavior::policy::validate_call_receiver_roots(&source, &compilation.facts)?;
     let mutation_resolver = validation::CallFrameResolver::new(&source)
         .ok_or_else(|| rejected("pre-selected-dispatch source has no exact call resolver"))?;

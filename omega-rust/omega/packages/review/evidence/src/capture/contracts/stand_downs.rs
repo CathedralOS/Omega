@@ -1,6 +1,7 @@
 //! Exact package projection of compiler-retained contract-entailment stand-downs.
 
 use super::facts::exact_contract_entailment_stand_down_contract;
+use crate::capture::PackageReviewInput;
 use crate::capture::callables::project_contract_entailment_open_contract;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::source::ProjectedReviewRow;
@@ -10,18 +11,18 @@ use crate::record::{
     PackageReviewContractEntailmentOpenObligation, PackageReviewContractEntailmentOpenReason,
     PackageReviewContractKind,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(in crate::capture) fn project_package_contract_entailment_open_obligations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewContractEntailmentOpenObligation>>, Vec<Diagnostic>>
 {
     let mut projected = Vec::new();
     for stand_down in compilation
+        .custody
         .contract_entailment_stand_downs()
         .iter()
         .filter(|stand_down| {
@@ -135,7 +136,7 @@ pub(in crate::capture) fn project_package_contract_entailment_open_obligations(
 }
 
 pub(in crate::capture) fn project_package_contract_entailment_assumption_discharges(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
     open_obligations: &[ProjectedReviewRow<PackageReviewContractEntailmentOpenObligation>],
 ) -> Result<

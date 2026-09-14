@@ -5,7 +5,7 @@ fn evidence_call_fixture(
     target: &str,
     callee_binding: &str,
     caller_binding: &str,
-) -> (TempPackage, CheckedCompilation) {
+) -> (TempPackage, ReviewFixture) {
     let package = TempPackage::new();
     package.write(
         "main.omg",
@@ -29,7 +29,7 @@ requires observes(value; {caller_binding})
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -57,11 +57,7 @@ fn evidence_call_expression(
         .expect("evidence-bearing call contract")
 }
 
-fn assert_tamper_rejected(
-    target: &str,
-    tamper: impl FnOnce(&mut CheckedCompilation),
-    expected: &str,
-) {
+fn assert_tamper_rejected(target: &str, tamper: impl FnOnce(&mut ReviewFixture), expected: &str) {
     let (_package, mut checked) = evidence_call_fixture(target, "required", "incoming");
     tamper(&mut checked);
     let diagnostics = project_checked_package_review(&checked)

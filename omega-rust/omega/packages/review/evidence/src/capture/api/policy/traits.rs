@@ -1,21 +1,21 @@
 //! Exact public trait requirements with policy-owned behavioral signatures.
 
 use super::{rejected, signatures, values};
+use crate::capture::PackageReviewInput;
 use crate::capture::api;
 use crate::capture::contracts::facts::{
     ContractProjectionContext, project_trait_requirement_contracts,
 };
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::semantics::signatures::policy_crashes;
-use crate::capture::semantics::types::review_signature_type_identity_with_binders;
+use crate::capture::semantics::types::signature_type_identity;
 use crate::record::*;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyTraitShape>, Vec<Diagnostic>> {
     api::traits::project_public_traits(compilation, package)?
@@ -75,7 +75,7 @@ pub(super) fn project(
 }
 
 fn project_requirement(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     owner: SymbolHandle,
     source: &typed_trees::signature::StateSignature,
     row: PackageReviewTraitRequirement,
@@ -111,17 +111,21 @@ fn project_requirement(
     )?)?;
     let contracts = project_trait_requirement_contracts(compilation, source, &context, &binders)?;
     let parameters = prepared
-        .compilation
+        .typed
         .state_signature_parameters(&prepared.signature)
         .iter()
         .map(|parameter| {
             Ok(PackageReviewTraitRequirementParameter {
                 name: parameter.name.as_str().to_owned(),
-                type_identity: review_signature_type_identity_with_binders(
-                    &prepared.compilation,
+                type_identity: signature_type_identity(
+                    &prepared.typed,
+                    compilation.custody.exact_toolchain_sources(),
                     parameter.type_reference,
                     &binders,
                     &prepared.lifetimes,
+                    &[],
+                    &[],
+                    false,
                 )?,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
@@ -133,11 +137,15 @@ fn project_requirement(
         .return_type
         .is_valid()
         .then(|| {
-            review_signature_type_identity_with_binders(
-                &prepared.compilation,
+            signature_type_identity(
+                &prepared.typed,
+                compilation.custody.exact_toolchain_sources(),
                 prepared.signature.return_type,
                 &binders,
                 &prepared.lifetimes,
+                &[],
+                &[],
+                false,
             )
         })
         .transpose()?;

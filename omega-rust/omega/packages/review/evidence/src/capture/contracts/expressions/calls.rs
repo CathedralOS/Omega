@@ -1,15 +1,15 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{
     PackageReviewByteSequencePredicate, PackageReviewCollectionViewOperation,
     PackageReviewContractCallTarget,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn resolved_contract_call_symbol(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<SymbolHandle> {
     call.target_symbol
@@ -22,7 +22,7 @@ pub(crate) fn resolved_contract_call_symbol(
 }
 
 pub(crate) fn contract_call_value_receiver(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     call: &typed_trees::expression::TableCallExpression,
     target: Option<SymbolHandle>,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
@@ -56,7 +56,7 @@ pub(crate) fn contract_call_value_receiver(
 }
 
 fn contract_call_target_has_self_parameter(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     target: SymbolHandle,
 ) -> Option<bool> {
     let candidates = contract_call_target_parameter_sets(compilation, target);
@@ -66,10 +66,10 @@ fn contract_call_target_has_self_parameter(
     Some(parameters.iter().any(|parameter| parameter.is_self))
 }
 
-fn contract_call_target_parameter_sets(
-    compilation: &CheckedCompilation,
+fn contract_call_target_parameter_sets<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     target: SymbolHandle,
-) -> Vec<&[typed_trees::signature::StateParameter]> {
+) -> Vec<&'a [typed_trees::signature::StateParameter]> {
     let mut candidates = compilation
         .machines()
         .iter()
@@ -104,7 +104,7 @@ fn contract_call_target_parameter_sets(
 }
 
 pub(crate) fn require_exact_contract_call_reference_arguments(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     target: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -150,7 +150,7 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
 }
 
 pub(crate) fn exact_fact_call_projection<'compilation>(
-    compilation: &'compilation CheckedCompilation,
+    compilation: &'compilation PackageReviewInput<'compilation>,
     context: &ContractProjectionContext<'_>,
     projection_expression: typed_trees::expression::ExpressionHandle,
     call_expression: typed_trees::expression::ExpressionHandle,
@@ -240,7 +240,7 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
 }
 
 pub(crate) fn exact_checked_contract_call_target(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,

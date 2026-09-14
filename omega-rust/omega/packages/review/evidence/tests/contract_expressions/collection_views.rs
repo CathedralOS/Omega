@@ -1,7 +1,7 @@
 use crate::support::*;
 use compiler::CheckedCompileRequest;
 
-fn compile_collection_view(expression: &str) -> CheckedCompilation {
+fn compile_collection_view(expression: &str) -> ReviewFixture {
     let package = TempPackage::new();
     package.write(
         "main.omg",
@@ -17,7 +17,7 @@ requires valid_utf8({expression})
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    compile_to_checked(CheckedCompileRequest {
+    compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -25,7 +25,7 @@ requires valid_utf8({expression})
 }
 
 fn projected_collection_view(
-    checked: &CheckedCompilation,
+    checked: &ReviewFixture,
 ) -> (
     PackageReviewContractExpression,
     PackageReviewCollectionViewOperation,
@@ -62,7 +62,7 @@ fn projected_collection_view(
 }
 
 fn collection_view_expression(
-    checked: &CheckedCompilation,
+    checked: &ReviewFixture,
 ) -> typed_trees::expression::ExpressionHandle {
     let matching = checked
         .facts
@@ -126,7 +126,7 @@ fn review_projects_each_collection_view_as_closed_intrinsic_identity() {
 
 #[test]
 fn collection_view_review_rejects_checked_identity_and_custody_tamper() {
-    let assert_rejects = |checked: &CheckedCompilation, expected: &str| {
+    let assert_rejects = |checked: &ReviewFixture, expected: &str| {
         let diagnostics = project_checked_package_review(checked)
             .expect_err("tampered collection-view identity must reject");
         assert!(
@@ -229,7 +229,7 @@ pub proposition calls_package(value: &Wrapper) = as_slice(value);
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })

@@ -53,7 +53,8 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
     );
     let source = fixture
         .checked
-        .pre_selected_dispatch_source_trees()
+        .custody
+        .pre_selected_dispatch_source_trees(&fixture.checked.typed)
         .expect("verified dispatch source");
     let (call_handle, original_call) = source
         .expression_table
@@ -75,7 +76,10 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
         typed_trees::expression::ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(8),
         );
-    let observed = altered.pre_selected_dispatch_source_trees().unwrap();
+    let observed = altered
+        .custody
+        .pre_selected_dispatch_source_trees(&altered.typed)
+        .unwrap();
     assert_eq!(
         observed.expression_table.expression(argument),
         altered.expression_table.expression(argument),
@@ -150,7 +154,8 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
     member.member = typed_trees::name::Identifier::generated("other");
     member.member_symbol = other;
     altered
-        .pre_selected_dispatch_source_trees()
+        .custody
+        .pre_selected_dispatch_source_trees(&altered.typed)
         .expect("unrelated source write is not overwritten by restoration");
     assert!(
         project_checked_callable_policy(&altered, fixture.target, package_identity()).is_err(),
@@ -191,7 +196,8 @@ pub machine Board::read(&mut self) -> f32 reaches ClockHost invokes ClockHost; {
         );
         let source = fixture
             .checked
-            .pre_selected_dispatch_source_trees()
+            .custody
+            .pre_selected_dispatch_source_trees(&fixture.checked.typed)
             .expect("source review restores both nested dispatch edits");
         let operator = source
             .operators()
@@ -344,7 +350,10 @@ pub machine Board::read(&mut self) -> f32 reaches ClockHost invokes ClockHost; {
                 .with_landing(numerics::literals::FloatFormat::F32),
         );
         assert!(
-            altered.pre_selected_dispatch_source_trees().is_err(),
+            altered
+                .custody
+                .pre_selected_dispatch_source_trees(&altered.typed)
+                .is_err(),
             "nested operand changes invalidate the restored source graph: {expression}"
         );
     }

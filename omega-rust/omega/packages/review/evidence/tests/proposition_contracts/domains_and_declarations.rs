@@ -21,7 +21,7 @@ requires value in u64::Trusted
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -79,7 +79,7 @@ requires value in u64::Hidden
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&hidden.0)),
         ..CheckedCompileRequest::new(&hidden.0.join("main.omg"), Some(target))
     })
@@ -123,7 +123,7 @@ requires equivalent<Compared>(left, right)
     renamed.write("build.omg", build);
 
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -194,7 +194,7 @@ proposition hidden();
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -291,7 +291,7 @@ fn review_projects_unused_public_consts_with_exact_type_and_value_identity() {
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", build);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })

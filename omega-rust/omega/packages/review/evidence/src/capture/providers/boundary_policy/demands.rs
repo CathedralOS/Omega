@@ -1,16 +1,16 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;
 use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{
     PackagePolicyBoundaryApplicationDemand, PackageReviewSymbolicBoundaryApplicationArgument,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyBoundaryApplicationDemand>, Vec<Diagnostic>> {
     // Reuse the complete authored-use, binder-category and source-owner joins.

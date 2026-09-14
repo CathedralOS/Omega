@@ -1,6 +1,6 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::record::PackageReviewSourceLocationRole;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 fn proof_fact_handle_at(
@@ -18,7 +18,7 @@ fn proof_fact_handle_at(
 }
 
 pub(crate) fn project_required_proof_fact_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     subject: &str,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
@@ -40,7 +40,7 @@ pub(crate) fn project_required_proof_fact_source_locations(
 }
 
 pub(crate) fn project_contract_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     contracts: &[typed_trees::signature::SignatureContract],
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let mut locations = Vec::new();

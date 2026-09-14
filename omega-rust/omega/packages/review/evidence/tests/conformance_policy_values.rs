@@ -9,14 +9,14 @@ use support::*;
 use typed_trees::name::Identifier;
 use typed_trees::typed_trees::ClosedConformanceConstArgument;
 
-fn checked(source: &str) -> (TempPackage, CheckedCompilation) {
+fn checked(source: &str) -> (TempPackage, ReviewFixture) {
     let package = TempPackage::new();
     package.write("main.omg", source);
     package.write(
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })

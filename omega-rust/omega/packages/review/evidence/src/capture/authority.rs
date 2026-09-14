@@ -1,4 +1,5 @@
 use super::semantics::declarations::nominal_identity;
+use crate::capture::PackageReviewInput;
 use crate::capture::source::{
     ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
 };
@@ -7,12 +8,11 @@ use crate::record::{
     PackageReviewDangerousAuthorityClass, PackageReviewDangerousAuthoritySlack,
     PackageReviewNominalIdentity, PackageReviewSynchronousInvocation,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
 
 pub(crate) fn project_dangerous_authorities(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     callables: &[ProjectedReviewRow<CheckedPackageCallableReview>],
 ) -> Result<Vec<ProjectedDangerousAuthorityRow>, Vec<Diagnostic>> {
     let mut exposed_services = BTreeSet::new();
@@ -76,7 +76,7 @@ pub(crate) fn project_dangerous_authorities(
 }
 
 pub(crate) fn project_dangerous_authority_slack(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     callables: &[ProjectedReviewRow<CheckedPackageCallableReview>],
 ) -> Result<Vec<ProjectedDangerousAuthoritySlackRow>, Vec<Diagnostic>> {
     let mut catalog = Vec::new();
@@ -168,10 +168,11 @@ pub(crate) fn callable_exposes_service(
 /// service names, source paths, and toolchain provenance cannot manufacture a
 /// physical authority class.
 pub(crate) fn dangerous_authority_class(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     definition: &language_semantics::ServiceReachDefinition,
 ) -> Option<PackageReviewDangerousAuthorityClass> {
     if compilation
+        .custody
         .resolved_semantic_binding(
             package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         )
@@ -180,6 +181,7 @@ pub(crate) fn dangerous_authority_class(
         return Some(PackageReviewDangerousAuthorityClass::Process);
     }
     if compilation
+        .custody
         .resolved_semantic_binding(
             package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
         )

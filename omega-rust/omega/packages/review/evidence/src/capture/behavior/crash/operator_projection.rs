@@ -7,11 +7,11 @@
 //! discharged — so projection must not synthesize routes for it or drop the
 //! site.
 
+use crate::capture::PackageReviewInput;
 use crate::record::{PackageReviewCrashRoute, PackageReviewCrashRouteGuard};
-use compiler::CheckedCompilation;
 
 pub(super) fn project_operator_crash_routes(
-    _compilation: &CheckedCompilation,
+    _compilation: &PackageReviewInput<'_>,
     routes: &[checked_trees::CrashRouteBucket],
 ) -> Vec<PackageReviewCrashRoute> {
     let mut projected = routes

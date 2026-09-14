@@ -2,7 +2,7 @@ use super::*;
 use compiler::CheckedCompileRequest;
 
 pub(super) struct Fixture {
-    pub checked: CheckedCompilation,
+    pub checked: ReviewFixture,
     pub target: TargetProfile,
     _root: TempPackage,
     _dependency: Option<TempPackage>,
@@ -62,7 +62,7 @@ impl Fixture {
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
                 .unwrap();
         let target = TargetProfile::WindowsX64;
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(inputs),
             ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target.target_name()))
         })

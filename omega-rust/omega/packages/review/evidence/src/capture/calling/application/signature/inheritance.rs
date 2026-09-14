@@ -1,7 +1,7 @@
 use super::{rejected, types};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 use typed_trees::name::Identifier;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::TypeReferenceHandle;
@@ -15,7 +15,7 @@ pub(super) struct Application {
 }
 
 pub(super) fn collect(
-    compilation: &mut CheckedCompilation,
+    compilation: &mut TypedTrees,
     application: Application,
     requirement: SymbolHandle,
     active: &mut Vec<SymbolHandle>,

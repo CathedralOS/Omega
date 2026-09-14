@@ -1,3 +1,4 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
@@ -9,12 +10,11 @@ use crate::record::{
     PackageReviewContractFact, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
     PackageReviewSourceLocationRole,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_public_propositions(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewPropositionShape>>, Vec<Diagnostic>> {
     use typed_trees::proposition::{PropositionBody, PropositionFormula};

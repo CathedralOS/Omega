@@ -10,15 +10,15 @@ use super::super::static_arguments::{
     require_exact_conformance_static_argument_selections,
     require_exact_named_const_static_argument_selections,
 };
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{PackageReviewContractCallTarget, PackageReviewContractExpression};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 
 pub(super) fn project_call_expression(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     expression: ExpressionHandle,

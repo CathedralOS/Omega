@@ -6,6 +6,7 @@ use super::{
     OrdinaryPackageExternalExecutableSupplyObligation, OrdinaryPackageObligationResultSet,
     OrdinaryPackageTerminalAuthorityPermissionObligation,
 };
+use crate::PackageReviewInput;
 use crate::ledger::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError,
     ordinary_package_obligation_ledger_from_compiler_rows,
@@ -291,8 +292,8 @@ pub struct ReconstructedPackageReview {
 }
 
 /// Reconstruct the result set from one checked package compilation.
-pub fn reconstruct_ordinary_package_obligation_results(
-    compilation: &compiler::CheckedCompilation,
+pub fn reconstruct_ordinary_package_obligation_results<'a>(
+    compilation: impl Into<PackageReviewInput<'a>>,
 ) -> Result<OrdinaryPackageObligationResultSet, Vec<diagnostics::Diagnostic>> {
     reconstruct_package_review(compilation).map(|review| review.results)
 }
@@ -301,18 +302,19 @@ pub fn reconstruct_ordinary_package_obligation_results(
 /// recheck compiler-issued discharge certificates. Callers retain these fresh
 /// products instead of reconstructing the same compilation for each output.
 ///
-/// This takes checked semantics, never caller-supplied projections or rows.
+/// This takes semantic review inputs, never caller-supplied projections or rows.
 /// Validation of supplied evidence still independently reconstructs locally.
-pub fn reconstruct_package_review(
-    compilation: &compiler::CheckedCompilation,
+pub fn reconstruct_package_review<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
 ) -> Result<ReconstructedPackageReview, Vec<diagnostics::Diagnostic>> {
+    let compilation = &input.into();
     let projection = crate::project_checked_package_review(compilation)?;
     let canonical_rows = projection.canonical_rows().map_err(|error| {
         vec![diagnostics::Diagnostic::error(format!(
             "ordinary package obligation result reconstruction failed to encode canonical rows: {error}"
         ))]
     })?;
-    let dependency_closure = compilation.dependency_closure().cloned().ok_or_else(|| {
+    let dependency_closure = compilation.custody.dependency_closure().cloned().ok_or_else(|| {
         vec![diagnostics::Diagnostic::error(
             "ordinary package obligation result reconstruction requires package dependency closure",
         )]
@@ -351,7 +353,7 @@ pub fn reconstruct_package_review(
 }
 
 fn apply_contract_entailment_assumption_discharges(
-    compilation: &compiler::CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     projection: &CheckedPackageReviewProjection,
     ledger: &OrdinaryPackageObligationLedger,
     results: &mut OrdinaryPackageObligationResultSet,
@@ -516,9 +518,9 @@ fn apply_contract_entailment_assumption_discharges(
 }
 
 /// Require exact equality to a fresh local reconstruction.
-pub fn validate_ordinary_package_obligation_results(
+pub fn validate_ordinary_package_obligation_results<'a>(
     results: &OrdinaryPackageObligationResultSet,
-    compilation: &compiler::CheckedCompilation,
+    compilation: impl Into<PackageReviewInput<'a>>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let expected = reconstruct_ordinary_package_obligation_results(compilation)?;
     if results == &expected {

@@ -11,12 +11,12 @@ pub use policy::project_checked_terminal_permission_policy;
 
 use super::source::ProjectedReviewRow;
 use super::source::locations::project_nested_declaration_source_location;
+use crate::capture::PackageReviewInput;
 use crate::record::{PackageReviewSourceLocationRole, PackageReviewTerminalAuthorityPermission};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn project_terminal_authority_permissions(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewTerminalAuthorityPermission>>, Vec<Diagnostic>> {
     let mut projected = Vec::new();
     for service in declarations::resolve_services(compilation)? {

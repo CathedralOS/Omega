@@ -9,13 +9,13 @@ mod traits;
 use crate::capture::semantics::signatures::policy as signatures;
 use signatures::values;
 
+use crate::capture::PackageReviewInput;
 use crate::record::PackagePolicyPublicApi;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyPublicApi, Vec<Diagnostic>> {
     Ok(PackagePolicyPublicApi {

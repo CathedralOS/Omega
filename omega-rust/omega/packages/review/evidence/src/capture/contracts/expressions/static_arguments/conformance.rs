@@ -1,6 +1,6 @@
 //! Exact checked occurrence join for closed conformance static arguments.
 
-use compiler::CheckedCompilation;
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -10,7 +10,7 @@ use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractStaticArgument;
 
 pub(crate) fn require_exact_conformance_static_argument_selections(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     arguments: &[typed_trees::expression::StaticMachineArgument],
@@ -72,7 +72,7 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn project_contract_conformance_application(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,

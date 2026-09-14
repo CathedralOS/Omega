@@ -34,7 +34,7 @@ data Main { bytes:[u8;length()]; }
 "#;
 
 #[test]
-fn checked_identity_includes_intent_and_cloned_program_mutation_is_isolated() {
+fn checked_identity_includes_intent_and_extracted_program_mutation_is_isolated() {
     let checked = compile("const ANSWER: u32 = 42;");
     let mut changed = checked.clone();
     assert!(std::sync::Arc::ptr_eq(
@@ -50,17 +50,6 @@ fn checked_identity_includes_intent_and_cloned_program_mutation_is_isolated() {
     assert_ne!(
         changed, checked,
         "checked identity must retain application intent"
-    );
-
-    let mut projected = checked.clone();
-    projected.typed = typed_trees::TypedTrees::default();
-    assert!(!std::sync::Arc::ptr_eq(
-        &checked.execution.settled.program,
-        &projected.execution.settled.program,
-    ));
-    assert_ne!(
-        &*projected, &*checked,
-        "review scratch must detach before mutation"
     );
 
     let mut extracted = checked.clone().into_program();

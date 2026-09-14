@@ -2,18 +2,18 @@
 
 use super::super::atomic_loads::project_contract_atomic_load;
 use super::super::constructors::project_contract_constructor_expression;
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes;
 use crate::record::{
     PackageReviewContractExpression, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn project_value_form(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     node: &ExpressionNode,

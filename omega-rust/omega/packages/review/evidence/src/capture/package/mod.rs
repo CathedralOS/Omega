@@ -17,8 +17,8 @@ use self::surface::project_package_surface;
 use self::validation::validate_review_compilation;
 use super::authority::{project_dangerous_authorities, project_dangerous_authority_slack};
 use super::terminal_authority_permissions::project_terminal_authority_permissions;
+use crate::capture::PackageReviewInput;
 use crate::record::CheckedPackageReviewProjection;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 /// Project the exact checked authority facts that are already safely joined.
@@ -29,9 +29,10 @@ use diagnostics::Diagnostic;
 /// Truly source-free nominals remain explicit `Unresolved` review rows; a later
 /// admission certificate must reject them rather than treating them as empty
 /// authority.
-pub fn project_checked_package_review(
-    compilation: &CheckedCompilation,
+pub fn project_checked_package_review<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
 ) -> Result<CheckedPackageReviewProjection, Vec<Diagnostic>> {
+    let compilation = &input.into();
     let (package, target) = validate_review_compilation(compilation)?;
     let surface = project_package_surface(compilation, package)?;
     let callables = project_package_callables(compilation, package)?;

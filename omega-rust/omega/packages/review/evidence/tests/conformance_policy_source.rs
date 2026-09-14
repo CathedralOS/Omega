@@ -11,7 +11,7 @@ use support::*;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees_to_checked_trees::close_conformance_application;
 
-fn compile_source(source: &str, digest: u8) -> (TempPackage, CheckedCompilation) {
+fn compile_source(source: &str, digest: u8) -> (TempPackage, ReviewFixture) {
     let package = TempPackage::new();
     package.write("main.omg", source);
     package.write(
@@ -29,7 +29,7 @@ fn compile_source(source: &str, digest: u8) -> (TempPackage, CheckedCompilation)
         Vec::new(),
     )
     .unwrap();
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(inputs),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -63,7 +63,7 @@ ensures result == tag<Card, FieldOrder<Card, Wrapper<Card>>>();
 "#;
     let (_first_source, first) = compile_source(SOURCE, 0x61);
     let (_second_source, second) = compile_source(SOURCE, 0x62);
-    let application = |checked: &CheckedCompilation| {
+    let application = |checked: &ReviewFixture| {
         let [occurrence] = checked
             .facts
             .proof

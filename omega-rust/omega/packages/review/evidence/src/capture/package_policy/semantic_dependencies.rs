@@ -1,15 +1,15 @@
 //! Retained semantic edges with package-grouped private implementation consumers.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::*;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
     callables: &PackagePolicyCallables,
 ) -> Result<Vec<PackagePolicySemanticDependency>, Vec<Diagnostic>> {
@@ -42,7 +42,7 @@ pub(super) fn project(
                 machine.supply_mode,
                 language_semantics::MachineSupplyMode::ExternalRealization { .. }
             )
-            || compilation.selected_build_machine_symbol() == Some(machine.symbol)
+            || compilation.custody.selected_build_machine_symbol() == Some(machine.symbol)
         {
             let identity = policy_callable_identity(compilation, machine.symbol)?;
             if !callables

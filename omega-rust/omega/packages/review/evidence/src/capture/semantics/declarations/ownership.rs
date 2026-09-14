@@ -1,7 +1,7 @@
+use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
@@ -21,13 +21,13 @@ pub(crate) fn reviewed_package_owns(
 }
 
 pub(crate) fn nominal_owner(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
     nominal_owner_from_symbols(
         &compilation.typed.symbols,
         symbol,
-        compilation.exact_toolchain_sources(),
+        compilation.custody.exact_toolchain_sources(),
     )
 }
 

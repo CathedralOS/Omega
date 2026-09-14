@@ -1,10 +1,10 @@
 use super::super::semantics::declarations::nominal_identity;
+use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewCapabilityFlow;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn project_capability_flow(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     flow: &flow_effects::CapabilityFlowFact,
 ) -> Result<PackageReviewCapabilityFlow, Vec<Diagnostic>> {
     Ok(PackageReviewCapabilityFlow {

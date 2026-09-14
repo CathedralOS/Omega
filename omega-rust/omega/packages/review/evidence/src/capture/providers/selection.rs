@@ -1,9 +1,9 @@
 use super::super::source::locations::{canonical_source_location, canonical_source_span_location};
+use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageProviderReview, PackageReviewCanonicalRowSource, PackageReviewNominalIdentity,
     PackageReviewNominalOwner, PackageReviewSourceLocationRole, PackageReviewSyntheticSourceKind,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -31,11 +31,11 @@ pub(crate) fn validate_selected_provider_declaration_owner(
 }
 
 pub(crate) fn selected_provider_row_source(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     selected_providers: &[CheckedPackageProviderReview],
 ) -> Result<PackageReviewCanonicalRowSource, Vec<Diagnostic>> {
-    let selected_plans = compilation.selected_provider_plans().plans();
-    let provenance = compilation.selected_provider_provenance();
+    let selected_plans = compilation.custody.selected_provider_plans().plans();
+    let provenance = compilation.custody.selected_provider_provenance();
     if selected_plans.len() != selected_providers.len() || selected_plans.len() != provenance.len()
     {
         return Err(vec![Diagnostic::error(
@@ -108,7 +108,7 @@ pub(crate) fn selected_provider_row_source(
             )?);
         }
     }
-    for grant in compilation.selected_provider_grants() {
+    for grant in compilation.custody.selected_provider_grants() {
         locations.push(canonical_source_span_location(
             compilation,
             grant.source_span,

@@ -22,7 +22,7 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -96,7 +96,7 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -146,7 +146,7 @@ machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -205,7 +205,7 @@ machine FloatProvider::minimum(left: f32, right: f32) -> f32
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", build);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -232,7 +232,7 @@ machine FloatProvider::minimum<T>(left: f32, right: f32) -> f32
 "#,
     );
     package.write("build.omg", build);
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -271,7 +271,7 @@ pub machine FloatProvider::maximum(left: f32, right: f32) -> f32
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -334,7 +334,7 @@ pub machine invoke_leaf()
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -394,14 +394,14 @@ pub machine invoke_leaf()
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("external tamper fixture should check");
 
     fn replace_external_binding(
-        checked: &mut CheckedCompilation,
+        checked: &mut ReviewFixture,
         identity: language_semantics::ExternalBindingIdentity,
     ) {
         let mechanism = identity.mechanism();

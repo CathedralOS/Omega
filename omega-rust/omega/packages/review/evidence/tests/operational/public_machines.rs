@@ -11,7 +11,7 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -108,7 +108,7 @@ invokes waiting;
     for (label, source, expected_messages) in cases {
         let package = TempPackage::new();
         package.write("main.omg", source);
-        let diagnostics = compile_to_checked(CheckedCompileRequest {
+        let diagnostics = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), None)
         })
@@ -158,7 +158,7 @@ invokes Host;
     invoking.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })

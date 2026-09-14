@@ -13,7 +13,7 @@ fn project(package: &TempPackage, combat_damage: u64) -> CheckedPackageReviewPro
             &format!("module {module}; pub const DAMAGE: u64 = {value};"),
         );
     }
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -98,7 +98,7 @@ fn public_float_identity_retains_format_bits_and_exact_package_owner() {
             "settings.omg",
             &format!("module settings; pub const SCALE: {carrier} = {literal};"),
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })

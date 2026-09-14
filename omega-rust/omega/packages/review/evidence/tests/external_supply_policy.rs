@@ -44,7 +44,7 @@ fn project_with_foreign(
     } else {
         package_inputs(&package.0)
     };
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(inputs),
         ..CheckedCompileRequest::new(
             &package.0.join("main.omg"),

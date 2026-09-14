@@ -21,6 +21,7 @@ use self::physical_contract::{
 };
 use super::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use super::semantics::types::review_type_identity_with_binders;
+use crate::capture::PackageReviewInput;
 use crate::capture::source::locations::project_nested_declaration_source_location;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
@@ -32,12 +33,11 @@ use crate::record::{
     PackageReviewOpaqueRepresentationPathElement, PackageReviewRepresentationTcb,
     PackageReviewRepresentationTcbKind, PackageReviewSourceLocationRole,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_representation_tcb(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
     public_conformances: &[ProjectedReviewRow<PackageReviewConformanceShape>],
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewRepresentationTcb>>, Vec<Diagnostic>> {
@@ -59,16 +59,19 @@ pub(crate) fn project_representation_tcb(
         });
     }
 
-    let selections =
-        if let Some(first_selection) = compilation.opaque_representation_selections().first() {
-            representation_planning::rederive_opaque_representation_selections(
-                &compilation.typed,
-                Some(first_selection.selecting_machine()),
-                compilation.opaque_representation_selections(),
-            )?
-        } else {
-            Vec::new()
-        };
+    let selections = if let Some(first_selection) = compilation
+        .custody
+        .opaque_representation_selections()
+        .first()
+    {
+        representation_planning::rederive_opaque_representation_selections(
+            &compilation.typed,
+            Some(first_selection.selecting_machine()),
+            compilation.custody.opaque_representation_selections(),
+        )?
+    } else {
+        Vec::new()
+    };
 
     if let Some(first_selection) = selections.first() {
         let selecting_machine = nominal_identity(compilation, first_selection.selecting_machine())?;
@@ -153,7 +156,7 @@ pub(crate) fn project_representation_tcb(
         }
     }
 
-    for realization in compilation.boundary_calling_plan_realizations() {
+    for realization in compilation.custody.boundary_calling_plan_realizations() {
         let uses = realization
             .materialized_signature()
             .opaque_representation_uses();
@@ -181,11 +184,14 @@ pub(crate) fn project_representation_tcb(
             .with_source_span(realization.relationship_span)]);
         }
         if realization.materialized_signature().native_target()
-            != compilation.selected_native_target().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "representation demand has no selected native target",
-                )]
-            })?
+            != compilation
+                .custody
+                .selected_native_target()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "representation demand has no selected native target",
+                    )]
+                })?
         {
             return Err(vec![
                 Diagnostic::error(

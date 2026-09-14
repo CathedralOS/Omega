@@ -11,6 +11,7 @@ use super::super::source::parameters::{
 };
 use super::super::source::service_reach::project_machine_service_reach_source_locations;
 use super::super::source::suspension::project_machine_operational_source_locations;
+use crate::capture::PackageReviewInput;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
     CheckedPackageCallableReview, PackageReviewCallableRole,
@@ -18,7 +19,6 @@ use crate::record::{
     PackageReviewContractEntailmentOpenObligation, PackageReviewExternalExecutableSupply,
     PackageReviewNominalOwner, PackageReviewSourceLocationRole,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -34,10 +34,10 @@ pub(super) struct ProjectedPackageCallables {
 }
 
 pub(super) fn project_package_callables(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<ProjectedPackageCallables, Vec<Diagnostic>> {
-    let build_machine = compilation.selected_build_machine_symbol();
+    let build_machine = compilation.custody.selected_build_machine_symbol();
     let mut callables = Vec::new();
     let mut external_executable_supply = Vec::new();
     let mut projected_build_machine = false;
@@ -171,7 +171,7 @@ pub(super) fn project_package_callables(
 }
 
 fn project_private_external_supply(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
     build_machine: Option<symbols::SymbolHandle>,
     projected: &mut Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,

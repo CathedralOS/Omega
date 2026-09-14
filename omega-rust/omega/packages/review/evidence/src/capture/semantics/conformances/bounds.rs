@@ -1,13 +1,13 @@
 use super::application::project_selected_conformance_application;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::PackageReviewConformanceBound;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_conformance_bounds(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     bounds: &[typed_trees::machine::GenericConformanceBound],
     parameters: &[typed_trees::data::TypeParameter],
     binders: &[(SymbolHandle, String)],

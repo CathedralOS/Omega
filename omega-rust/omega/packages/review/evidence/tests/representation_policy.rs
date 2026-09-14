@@ -17,10 +17,7 @@ use package_evidence::{project_checked_calling_policy, project_checked_represent
 use source::Fixture;
 use support::*;
 
-fn project(
-    checked: &CheckedCompilation,
-    package: PackageKeyIdentity,
-) -> PackagePolicyRepresentation {
+fn project(checked: &ReviewFixture, package: PackageKeyIdentity) -> PackagePolicyRepresentation {
     let policy = project_checked_representation_policy(checked, package)
         .expect("complete source-derived representation policy");
     assert_eq!(policy.package(), package);
@@ -49,6 +46,7 @@ fn producer_availability_does_not_fabricate_selection_or_demand() {
     assert!(
         fixture
             .checked
+            .custody
             .opaque_representation_selections()
             .is_empty()
     );
@@ -75,10 +73,18 @@ fn producer_availability_does_not_fabricate_selection_or_demand() {
 #[test]
 fn unused_placement_and_semantic_copy_selections_both_remain_visible() {
     let fixture = Fixture::new(true, false, false);
-    assert_eq!(fixture.checked.opaque_representation_selections().len(), 2);
+    assert_eq!(
+        fixture
+            .checked
+            .custody
+            .opaque_representation_selections()
+            .len(),
+        2
+    );
     assert!(
         fixture
             .checked
+            .custody
             .boundary_calling_plan_realizations()
             .is_empty()
     );
@@ -154,6 +160,7 @@ fn used_selection_retains_the_complete_calling_application() {
     assert_eq!(demand.opaque().path(), "Token");
     let realization = fixture
         .checked
+        .custody
         .boundary_calling_plan_realizations()
         .iter()
         .find(|realization| {
@@ -231,6 +238,7 @@ fn foreign_demands_rejoin_exact_independently_compiled_producer_rows() {
     }));
     let instance = fixture
         .checked
+        .custody
         .source_consumption_commitment()
         .expect("package-aware review compilation retains a source commitment");
     assert_eq!(
@@ -264,6 +272,7 @@ fn foreign_demand_rejects_producer_source_instance_mismatch() {
     let producer = project(&fixture.checked, source::foreign_identity());
     let reviewed = fixture
         .checked
+        .custody
         .source_consumption_commitment()
         .expect("package-aware review compilation retains a source commitment");
     assert!(matches!(

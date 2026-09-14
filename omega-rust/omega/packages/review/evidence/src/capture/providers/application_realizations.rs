@@ -10,13 +10,13 @@ mod compiler_intrinsics;
 use super::super::semantics::declarations::nominal_identity;
 use super::super::semantics::types::review_type_identity_with_binders;
 use super::super::source::locations::canonical_source_span_location;
+use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
     PackageReviewBoundaryApplicationArgument, PackageReviewBoundaryApplicationRealization,
     PackageReviewCanonicalRowSource, PackageReviewSourceLocation, PackageReviewSourceLocationOwner,
     PackageReviewSourceLocationRole,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -31,12 +31,12 @@ pub(super) struct StagedRealization {
 }
 
 pub(crate) fn project_boundary_application_realizations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<ProjectedBoundaryApplicationRealizations, Vec<Diagnostic>> {
     let derived = selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
         compilation,
-        compilation.selected_provider_plans(),
+        compilation.custody.selected_provider_plans(),
     )?;
     let mut staged: Vec<StagedRealization> = Vec::new();
 
@@ -121,13 +121,13 @@ pub(crate) fn project_boundary_application_realizations(
 }
 
 fn project_specialized_checked_body_applications(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
     staged: &mut Vec<StagedRealization>,
 ) -> Result<(), Vec<Diagnostic>> {
     let derived = selected_dispatch::derive_checked_specialized_operator_application_realizations(
         compilation,
-        compilation.selected_provider_plans(),
+        compilation.custody.selected_provider_plans(),
     )?;
     for realization in derived {
         let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
@@ -207,7 +207,7 @@ fn project_specialized_checked_body_applications(
 }
 
 fn project_exact_application(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     requirement: symbols::SymbolHandle,
     arguments: &[checked_trees::CheckedBoundaryOperatorApplicationArgument],
 ) -> Result<PackageReviewBoundaryApplication, Vec<Diagnostic>> {
@@ -278,7 +278,7 @@ fn project_exact_application(
 }
 
 fn expression_is_owned_by_package(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
     requirement_operator: symbols::SymbolHandle,
@@ -360,7 +360,7 @@ pub(super) fn stage_realization(
 }
 
 pub(super) fn authored_application_source_span(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
     requirement_operator: symbols::SymbolHandle,

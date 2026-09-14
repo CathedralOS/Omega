@@ -1,11 +1,11 @@
 use super::super::semantics::declarations::nominal_identity;
 use super::selection::validate_selected_provider_declaration_owner;
+use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, PackageReviewProviderFamilyCoverage,
     PackageReviewProviderSelectionAuthority,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::{ProviderSelection, ProviderSelectionSubject};
 
@@ -67,12 +67,12 @@ fn validate_retained_static_parameter_count(
 }
 
 pub(crate) fn project_selected_provider_families(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     target: target::TargetProfile,
     selected_providers: &[CheckedPackageProviderReview],
 ) -> Result<Vec<CheckedPackageProviderFamilyReview>, Vec<Diagnostic>> {
-    let selected_plans = compilation.selected_provider_plans().plans();
-    let provenance = compilation.selected_provider_provenance();
+    let selected_plans = compilation.custody.selected_provider_plans().plans();
+    let provenance = compilation.custody.selected_provider_provenance();
     if selected_plans.len() != selected_providers.len() || selected_plans.len() != provenance.len()
     {
         return Err(vec![Diagnostic::error(

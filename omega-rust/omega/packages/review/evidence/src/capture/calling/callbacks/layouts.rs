@@ -1,4 +1,5 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::project_checked_conformance_policy;
@@ -6,7 +7,6 @@ use crate::record::{
     PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
     PackagePolicyCallbackLayoutApplication,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use layout::TargetClosedPlanLaidDataLayoutIdentity;
 use provider_planning::calling_policy_plans::BoundaryCallbackLayoutEntry;
@@ -16,7 +16,7 @@ use typed_trees::typed_trees::PlanLaidLayout;
 use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     entry: &BoundaryCallbackLayoutEntry,
     lifetime_binders: &[Identifier],
 ) -> Result<PackagePolicyCallbackLayout, Vec<Diagnostic>> {
@@ -71,7 +71,7 @@ pub(super) fn project(
 }
 
 fn plan<'a>(
-    compilation: &'a CheckedCompilation,
+    compilation: &'a PackageReviewInput<'a>,
     layout: &TargetClosedPlanLaidDataLayoutIdentity,
 ) -> Result<&'a PlanLaidLayout, Vec<Diagnostic>> {
     let matches = compilation
@@ -93,7 +93,7 @@ fn plan<'a>(
 }
 
 fn application(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     layout: &TargetClosedPlanLaidDataLayoutIdentity,
     lifetime_binders: &[Identifier],
 ) -> Result<PackagePolicyCallbackLayoutApplication, Vec<Diagnostic>> {
@@ -121,7 +121,7 @@ fn application(
         policy: nominal_identity(compilation, plan.policy_symbol)?,
         schema: signature_type_identity(
             &projected,
-            compilation.exact_toolchain_sources(),
+            compilation.custody.exact_toolchain_sources(),
             reference,
             &[],
             lifetime_binders,

@@ -40,7 +40,7 @@ fn unused_service_nested_machine_signature_retains_result_absence() {
 fn unused_generic_service_retains_type_const_lifetime_and_machine_contracts() {
     let fixture = fixtures::Fixture::filesystem(GENERIC, false, "FilesystemHost", "read");
     let checked = fixture.check(Some(read_permission()));
-    assert!(checked.selected_provider_plans().plans().is_empty());
+    assert!(checked.custody.selected_provider_plans().plans().is_empty());
     let policy = project(&checked, fixture.target);
     let service = &policy.services()[0];
     assert_eq!(service.lifetime_parameter_count(), 1);

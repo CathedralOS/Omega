@@ -1,18 +1,18 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use crate::record::{
     PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentKind,
     PackageReviewDomainEstablishmentRoute,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_domain_alias_expansion(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     domain_symbol: SymbolHandle,
 ) -> Result<Vec<PackageReviewDomainAliasAtom>, Vec<Diagnostic>> {
     fn expand(
-        compilation: &CheckedCompilation,
+        compilation: &PackageReviewInput<'_>,
         domain_symbol: SymbolHandle,
         stack: &mut Vec<SymbolHandle>,
         atoms: &mut Vec<PackageReviewDomainAliasAtom>,
@@ -83,7 +83,7 @@ pub(crate) fn project_domain_alias_expansion(
 }
 
 pub(crate) fn project_domain_establishment_route(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     route: language_semantics::DomainEstablishmentRoute,
 ) -> Result<PackageReviewDomainEstablishmentRoute, Vec<Diagnostic>> {
     let (kind, trait_symbol, requirement_symbol, expects_boundary) = match route {

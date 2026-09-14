@@ -1,4 +1,5 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::{
     api::operators::project_operator_coordinate,
     semantics::{
@@ -9,13 +10,12 @@ use crate::capture::{
     },
 };
 use crate::record::*;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::machine::{Machine, SatisfiedDeclaration, TraitConformance};
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &Machine,
     conformance: &TraitConformance,
     binders: &[(SymbolHandle, String)],

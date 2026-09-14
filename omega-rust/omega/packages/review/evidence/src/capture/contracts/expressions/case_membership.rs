@@ -7,12 +7,12 @@
 //! structural equality in proof facts retains its authored operator and does not
 //! require exporting a generated Boolean expansion into the review format.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::PackageReviewNominalIdentity;
 use checked_trees::ContractProofFactOwner;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
 use typed_trees::AuthoredDeclarationSelectionKind;
@@ -22,7 +22,7 @@ use typed_trees::expression::{
 };
 
 pub(super) fn is_case_membership(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,
 ) -> bool {
@@ -45,7 +45,7 @@ pub(super) fn is_case_membership(
 }
 
 pub(super) fn checked_case_classifier(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,

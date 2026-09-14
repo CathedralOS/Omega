@@ -1,4 +1,5 @@
 use super::value_forms::project_value_form;
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::{ContractProjectionContext, project_contracts};
 use crate::record::{
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractStaticArgument,
@@ -65,7 +66,8 @@ requires tag<View<'a, u64>>() == tag<View<'a, u64>>()
 
 #[test]
 fn value_dispatch_contract_projection_rejects_without_a_canonical_schema() {
-    let (_source, mut checked) = checked_source();
+    let (_source, custody) = checked_source();
+    let mut checked = custody.clone().into_program();
     let machine_symbol = checked.machines()[0].symbol;
     let subject = checked
         .typed
@@ -93,9 +95,15 @@ fn value_dispatch_contract_projection_rejects_without_a_canonical_schema() {
         lifetime_substitutions: &[],
         selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
-    let diagnostics =
-        super::project_contract_expression(&checked, &context, &[], expression, None, 0)
-            .expect_err("unsupported dispatch must not become an empty or selected-arm contract");
+    let diagnostics = super::project_contract_expression(
+        &PackageReviewInput::supplied(&checked, &custody),
+        &context,
+        &[],
+        expression,
+        None,
+        0,
+    )
+    .expect_err("unsupported dispatch must not become an empty or selected-arm contract");
     assert!(
         diagnostics[0]
             .message
@@ -138,11 +146,15 @@ fn original_contract_expressions_use_scoped_lifetime_ordinals() {
             lifetime_substitutions: &substitutions,
             selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
         };
-        let contracts =
-            project_contracts(&checked, checked.machine_contracts(machine), &context, &[])
-                .expect("original checked expressions retain exact call and proof custody");
+        let contracts = project_contracts(
+            &(&checked).into(),
+            checked.machine_contracts(machine),
+            &context,
+            &[],
+        )
+        .expect("original checked expressions retain exact call and proof custody");
         let zero = project_value_form(
-            &checked,
+            &(&checked).into(),
             &context,
             &[],
             &ExpressionNode::ZeroValue(reference_type),

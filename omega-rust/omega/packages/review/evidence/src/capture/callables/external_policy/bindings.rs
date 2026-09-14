@@ -2,14 +2,14 @@ use super::super::external_supply::{
     project_evaluated_binding, project_external_binding, validate_external_binding_payload,
 };
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewExternalBinding;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use typed_trees::machine::{Machine, TraitConformance};
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &Machine,
     conformance: &TraitConformance,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
@@ -44,6 +44,7 @@ pub(super) fn project(
             if conformance.external_binding.is_none() && conformance.via_expression.is_valid() =>
         {
             let row = compilation
+                .custody
                 .evaluated_via_bindings()
                 .exact(
                     machine.symbol,

@@ -2,16 +2,16 @@ use super::super::semantics::signatures::parameters::project_machine_parameter_c
 use super::super::semantics::types::{
     project_data_properties, review_signature_type_identity_with_binders,
 };
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::conformances::project_conformance_bounds;
 use crate::record::{
     PackageReviewExternalCallableParameter, PackageReviewExternalCallableSignature,
     PackageReviewExternalStaticParameter,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(super) fn project_external_callable_signature(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     binders: &[(symbols::SymbolHandle, String)],
 ) -> Result<PackageReviewExternalCallableSignature, Vec<Diagnostic>> {
