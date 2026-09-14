@@ -1529,8 +1529,12 @@ Owners include
   own declaration and opaque/conformance/carrier availability rows, bound to the
   producer review's immutable source instance, with strong selected-application
   equality enforced against the producer's own selection at actual exchanges
-  (`PackagePolicyRepresentation::rejoin_foreign_demands`); remaining:
-  physical movement and lifecycle planning, including transitive
+  (`PackagePolicyRepresentation::rejoin_foreign_demands`), witnessed through
+  the package-manager review path by the two-package canaries in
+  `package-manager/tests/opaque_boundary_agreement.rs` (agreement rejoins the
+  consumer's `Token` demand to the producer's `Carrier`/`TokenRepresentation`;
+  a consumer-local application rejects with `SelectedApplicationMismatch`);
+  remaining: physical movement and lifecycle planning, including transitive
   inert-carrier proof and multiplicity checks. Equal size/alignment or compact
   fingerprints cannot establish agreement. External compatibility and
   native-foreign binding materialization now consume the same authoritative
