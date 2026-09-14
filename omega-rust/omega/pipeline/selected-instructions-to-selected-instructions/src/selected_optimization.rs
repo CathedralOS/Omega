@@ -1,6 +1,11 @@
 //! Optimizer module role: executable entrance. Selected CFG to selected CFG.
 
-use crate::*;
+use crate::{
+    SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
+    SelectedInstructionOptimizationOutput, StagedOptimizedLiveRanges,
+    run_selected_lowering_optimizations, stage_optimized_allocation_legality_for_frameless_leaf,
+    stage_optimized_live_ranges, stage_optimized_liveness,
+};
 use optimization_core::OptimizationExecutionPhase;
 use target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 
