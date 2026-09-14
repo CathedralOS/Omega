@@ -18,6 +18,11 @@ pub(super) enum RankOrder {
     /// `Nat::BoundedDistance`: the component's rank is the distance from the
     /// ranked (lower) subject up to the paired upper subject.
     BoundedDistance(PrimitiveType),
+    /// `Slice::Length`: the component's rank is the ranked slice subject's
+    /// length. Element types differ per member, but the produced natural
+    /// coordinate is one shared order; each call edge still re-proves the
+    /// actual's exact length arrival.
+    SliceLength,
     Lexicographic {
         measure_index: usize,
         data: SymbolHandle,
@@ -79,6 +84,26 @@ impl RankProjection {
             return None;
         };
         let (argument_position, parameter) = entry_parameter(program, entry, *subject)?;
+        if witness.ranking_view == RankingViewId::SLICE_LENGTH
+            && Some(witness.view_path.as_str()) == witness.ranking_view.canonical_path()
+        {
+            // The ranked subject is the collection itself, never a scalar
+            // carrier; the view produces its length coordinate.
+            if !witness.view_arguments.is_empty()
+                || !custody.view_arguments.is_empty()
+                || !slice_carrier(program, parameter)
+            {
+                return None;
+            }
+            return Some(Self {
+                order: RankOrder::SliceLength,
+                parameter: parameter.symbol,
+                argument_position,
+                subject: *subject,
+                paired_subject: ExpressionHandle::invalid(),
+                range: custody.rank_range.unwrap_or_default(),
+            });
+        }
         if matches!(
             witness.ranking_view,
             RankingViewId::NAT_DESCENDING | RankingViewId::NAT_INCREASING_TO
@@ -289,6 +314,23 @@ fn entry_parameter<'program>(
         return None;
     }
     Some(found)
+}
+
+/// The slice carrier under any reference or constrained shells. A ranked
+/// subject without an exact slice base cannot carry a length projection.
+fn slice_carrier(program: &TypedTrees, parameter: &StateParameter) -> bool {
+    let mut reference = parameter.type_reference;
+    let mut visited = Vec::new();
+    while reference.is_valid() && !visited.contains(&reference) {
+        visited.push(reference);
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Slice { .. } => return true,
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// The unsigned primitive carrier under any constrained shells. A ranked

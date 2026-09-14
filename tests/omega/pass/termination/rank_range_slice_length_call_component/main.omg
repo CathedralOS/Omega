@@ -1,0 +1,40 @@
+// A two-machine call component ranked by `Slice::Length`: each member keeps
+// its own exact slice subject, and every in-component call re-proves the
+// authored rank range with pinned endpoints. The tail slice arrives through
+// the callee's own formal, so a positional or spelling difference cannot
+// substitute for the exact length mapping.
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) -> u64 {
+    let view: &[Entry] = self.entries.as_slice();
+
+    transition {
+        _ -> self.scan_a(view, 4)
+    }
+}
+
+machine Main::scan_a(&mut self, entries: &[Entry], capacity: u64)
+requires entries.len <= capacity;
+terminates by entries -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition entries.len > 0 {
+        true -> self.scan_b(entries[1..], capacity)
+        false -> 0
+    }
+}
+
+machine Main::scan_b(&mut self, entries: &[Entry], capacity: u64)
+requires entries.len <= capacity;
+terminates by entries -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition entries.len > 0 {
+        true -> self.scan_a(entries[1..], capacity)
+        false -> 0
+    }
+}

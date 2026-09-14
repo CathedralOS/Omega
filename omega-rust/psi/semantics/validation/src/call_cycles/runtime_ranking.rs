@@ -120,6 +120,7 @@ pub(super) fn check_component(
                 if prefix::preserves_rank(
                     program,
                     machine,
+                    state,
                     &ranks[position],
                     statement,
                     frames.as_ref(),
@@ -129,12 +130,12 @@ pub(super) fn check_component(
                 match statement {
                     StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => continue,
                     StatementNode::LocalData(local)
-                        if expression_is_inert(program, machine.symbol, local.initial_value) =>
+                        if expression_is_inert(program, machine, state, local.initial_value) =>
                     {
                         continue;
                     }
                     StatementNode::Expression(expression)
-                        if expression_is_inert(program, machine.symbol, *expression) =>
+                        if expression_is_inert(program, machine, state, *expression) =>
                     {
                         continue;
                     }
@@ -153,7 +154,7 @@ pub(super) fn check_component(
             let guard = match transition.guard {
                 TransitionGuardNode::Always => ExpressionHandle::invalid(),
                 TransitionGuardNode::When(guard)
-                    if expression_is_inert(program, machine.symbol, guard) =>
+                    if expression_is_inert(program, machine, state, guard) =>
                 {
                     guard
                 }
@@ -186,7 +187,7 @@ pub(super) fn check_component(
                     let arguments = program.statement_table.expression_handles(*arguments);
                     if !arguments
                         .iter()
-                        .all(|argument| expression_is_inert(program, machine.symbol, *argument))
+                        .all(|argument| expression_is_inert(program, machine, state, *argument))
                     {
                         return Err("a call argument has effects or non-builtin operator meaning");
                     }
@@ -213,6 +214,7 @@ pub(super) fn check_component(
                         projection::RankOrder::Natural(_)
                             | projection::RankOrder::IncreasingTo(_)
                             | projection::RankOrder::BoundedDistance(_)
+                            | projection::RankOrder::SliceLength
                     ) {
                         match prove_ranking_range_call(
                             program,
@@ -267,7 +269,7 @@ pub(super) fn check_component(
                     }
                 }
                 TransitionTargetNode::Value(value)
-                    if expression_is_inert(program, machine.symbol, *value) => {}
+                    if expression_is_inert(program, machine, state, *value) => {}
                 TransitionTargetNode::Terminal => {}
                 _ => return Err("a non-tail call or unknown effect prevents ranking admission"),
             }
@@ -327,13 +329,14 @@ fn target_machine(program: &TypedTrees, symbol: SymbolHandle) -> Option<usize> {
 
 fn expression_is_inert(
     program: &TypedTrees,
-    machine: SymbolHandle,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
     if !expression.is_valid() {
         return true;
     }
-    let inert = |expression| expression_is_inert(program, machine, expression);
+    let inert = |expression| expression_is_inert(program, machine, state, expression);
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             inert(dispatch.subject)
@@ -358,7 +361,7 @@ fn expression_is_inert(
         | ExpressionNode::ZeroValue(_) => true,
         ExpressionNode::Member(member) => inert(member.receiver),
         ExpressionNode::Binary(binary) => {
-            meaning::binary_is_builtin(program, machine, expression, binary)
+            meaning::binary_is_builtin(program, machine.symbol, expression, binary)
                 && inert(binary.left)
                 && inert(binary.right)
         }
@@ -374,8 +377,27 @@ fn expression_is_inert(
             .expression_handles(*items)
             .iter()
             .all(|item| inert(*item)),
-        // A borrow can expose the ranked value; a call or indexed operation
-        // can have selected behavior not described by this pure rank slice.
+        // A builtin subslice is a pure rewindowing of its collection. Only an
+        // authored or selected index operation could hide an effect here, and
+        // its scalar bounds traverse the same inert check.
+        ExpressionNode::Indexed(indexed)
+            if crate::places::has_builtin_subslice_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) =>
+        {
+            let endpoints_inert = match program.expression_table.expression(indexed.index) {
+                ExpressionNode::Range(range) => [range.start, range.end]
+                    .into_iter()
+                    .all(|endpoint| !endpoint.is_valid() || inert(endpoint)),
+                _ => false,
+            };
+            inert(indexed.collection) && endpoints_inert
+        }
+        // A borrow can expose the ranked value; a call or an unadmitted indexed
+        // operation can have selected behavior this pure rank slice cannot see.
         ExpressionNode::Borrow(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Indexed(_)

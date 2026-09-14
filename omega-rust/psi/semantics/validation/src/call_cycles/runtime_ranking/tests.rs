@@ -7,6 +7,7 @@ mod distance;
 mod increasing;
 mod meaning;
 mod ranges;
+mod slice;
 
 fn typed(body: &str) -> TypedTrees {
     typed_with_operator(body, "")
