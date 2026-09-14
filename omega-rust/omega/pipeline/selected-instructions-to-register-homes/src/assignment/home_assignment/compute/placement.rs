@@ -131,10 +131,12 @@ pub(crate) fn compute_function(
 /// that keeps all of them feasible: stranding a neighbor manufactures a
 /// `NoCompatibleHome` that the neighbor's own placement could still avoid,
 /// and no coalesce or lower view id outranks that feasibility. Among the
-/// feasible-keeping views an assigned copy partner's home wins first, then
-/// the view the most still-unassigned partners can still take — a partner
-/// constrained with this domain can never share its home, so its candidacy
-/// is not a coalescing vote — then the plain first candidate.
+/// feasible-keeping views the choice is lexicographic: the view satisfying
+/// the most copy edges whose partner is already assigned wins first — each
+/// such edge is a coalesce no later assignment can undo — then the view the
+/// most still-unassigned partners can still take; a partner constrained with
+/// this domain can never share its home, so its candidacy is not a vote.
+/// The plain first candidate remains when nothing coalesces.
 fn preferred_view(
     function: usize,
     domain_index: usize,
@@ -167,37 +169,35 @@ fn preferred_view(
     } else {
         &keeping
     };
-    Ok(pool
-        .iter()
-        .copied()
-        .find(|view| {
-            affinities.iter().any(|affinity| {
-                affinity_partner(domain, *affinity)
-                    .is_some_and(|partner| homes.get(&partner) == Some(view))
-            })
-        })
-        .or_else(|| {
-            let mut leading = None::<(usize, RegisterViewId)>;
-            for &view in pool {
-                let votes = affinities
-                    .iter()
-                    .filter(|affinity| {
-                        affinity_partner(domain, **affinity).is_some_and(|partner| {
-                            domain_of.get(&partner).is_some_and(|&partner_domain| {
-                                partner_domain != domain_index
-                                    && unassigned.contains(&partner_domain)
-                                    && !conflicts.constrained(partner_domain, domain_index)
-                                    && viable[partner_domain].binary_search(&view).is_ok()
-                            })
-                        })
-                    })
-                    .count();
-                if votes > 0 && leading.is_none_or(|(most, _)| votes > most) {
-                    leading = Some((votes, view));
-                }
+    let mut leading = None::<(usize, usize, RegisterViewId)>;
+    for &view in pool {
+        let mut guaranteed = 0usize;
+        let mut votes = 0usize;
+        for affinity in affinities {
+            let Some(partner) = affinity_partner(domain, *affinity) else {
+                continue;
+            };
+            if homes.get(&partner) == Some(&view) {
+                guaranteed += 1;
+            } else if domain_of.get(&partner).is_some_and(|&partner_domain| {
+                partner_domain != domain_index
+                    && unassigned.contains(&partner_domain)
+                    && !conflicts.constrained(partner_domain, domain_index)
+                    && viable[partner_domain].binary_search(&view).is_ok()
+            }) {
+                votes += 1;
             }
-            leading.map(|(_, view)| view)
-        })
+        }
+        if (guaranteed, votes) > (0, 0)
+            && leading.is_none_or(|(best_guaranteed, best_votes, _)| {
+                (guaranteed, votes) > (best_guaranteed, best_votes)
+            })
+        {
+            leading = Some((guaranteed, votes, view));
+        }
+    }
+    Ok(leading
+        .map(|(_, _, view)| view)
         .or_else(|| pool.first().copied()))
 }
 
