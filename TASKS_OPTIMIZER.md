@@ -303,9 +303,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   across later calls reports and independently replays callee-saved
   requirements on `linux_x64` and `linux_arm64`
   (`tests/native-differential/.../fixtures/scalar_call_preserving.rs`,
-  `.../register_allocation/callee_saved_requirements/`). Remaining:
-  structural-argument calls, the Windows x64, UEFI, and macOS preservation
-  conventions, and reload intervals that survive an intervening call
+  `.../register_allocation/callee_saved_requirements/`). The same callers now
+  report, store, and replay convention-specific preservation on all five
+  native targets: System-V, Microsoft x64 (Windows and UEFI), AAPCS64, and
+  Darwin AAPCS64, including roster distinctions (Microsoft x64 adds rdi/rsi
+  and xmm6-15; Darwin moves x18 from caller-saved to fixed), clobber-candidate
+  exclusion at call points, exact callee-save slot geometry, and per-target
+  frame-layout corruption replay
+  (`.../register_allocation/callee_saved_requirements/`,
+  `.../register_allocation/callee_save_storage/`,
+  `.../register_allocation/runtime_scalar_call_chain/`). Remaining:
+  structural-argument calls and reload intervals that survive an intervening
+  call
   (`selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs`
   excludes them).
 

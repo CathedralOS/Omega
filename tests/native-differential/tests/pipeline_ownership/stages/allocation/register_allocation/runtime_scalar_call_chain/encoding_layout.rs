@@ -77,7 +77,13 @@ fn staged_frame(
 
 #[test]
 fn selected_call_template_and_layout_corruption_fail_independent_replay() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let (homes, post, encoding) = staged_call_encoding(target);
         let selected_stage = homes
             .legality_stage()

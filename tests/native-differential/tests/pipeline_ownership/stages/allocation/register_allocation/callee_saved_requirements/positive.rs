@@ -10,8 +10,20 @@ fn scalar_calls_report_exact_callee_saved_writes_and_replay_deterministically() 
             FrameAbiPreservationConvention::SystemVAMD64,
         ),
         (
+            NativeTarget::windows_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+        ),
+        (
+            NativeTarget::uefi_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+        ),
+        (
             NativeTarget::linux_arm64(),
             FrameAbiPreservationConvention::Aapcs64,
+        ),
+        (
+            NativeTarget::macos_arm64(),
+            FrameAbiPreservationConvention::DarwinAapcs64,
         ),
     ] {
         let source = call_homes(target);
@@ -75,8 +87,20 @@ fn general_scalar_calls_report_exact_callee_saved_writes_and_replay_deterministi
             FrameAbiPreservationConvention::SystemVAMD64,
         ),
         (
+            NativeTarget::windows_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+        ),
+        (
+            NativeTarget::uefi_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+        ),
+        (
             NativeTarget::linux_arm64(),
             FrameAbiPreservationConvention::Aapcs64,
+        ),
+        (
+            NativeTarget::macos_arm64(),
+            FrameAbiPreservationConvention::DarwinAapcs64,
         ),
     ] {
         let source = preserving_call_homes(target);
@@ -123,6 +147,97 @@ fn general_scalar_calls_report_exact_callee_saved_writes_and_replay_deterministi
             validate_allocated_callee_saved_requirements(&source, first.plan().clone()).unwrap();
         assert_eq!(replayed, first);
     }
+}
+
+#[test]
+fn preservation_rosters_follow_the_selected_convention_on_call_fixtures() {
+    // The reported roster is the selected convention's own set, not a shared
+    // constant: Microsoft x64 adds rdi/rsi and xmm6-15 to the System-V callee
+    // set, while Darwin shares the AAPCS64 callee set but moves x18 from
+    // caller-saved into the fixed platform reservation.
+    let staged = |target| {
+        let source = call_homes(target);
+        let environment = source
+            .legality_stage()
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .register_environment()
+            .clone();
+        (stage(&source, wide_budget()).unwrap(), environment)
+    };
+    let (system_v, system_v_environment) = staged(NativeTarget::linux_x64());
+    let (microsoft, microsoft_environment) = staged(NativeTarget::windows_x64());
+    let (uefi, uefi_environment) = staged(NativeTarget::uefi_x64());
+    let (aapcs, aapcs_environment) = staged(NativeTarget::linux_arm64());
+    let (darwin, darwin_environment) = staged(NativeTarget::macos_arm64());
+
+    for (validated, environment) in [
+        (&system_v, &system_v_environment),
+        (&microsoft, &microsoft_environment),
+        (&uefi, &uefi_environment),
+        (&aapcs, &aapcs_environment),
+        (&darwin, &darwin_environment),
+    ] {
+        let selected = selected_abi_preservation(environment).unwrap();
+        assert_eq!(
+            validated.plan().callee_saved_units,
+            selected.convention.callee_saved
+        );
+    }
+
+    let callee_set = |validated: &ValidatedAllocatedCalleeSavedRequirements| {
+        validated
+            .plan()
+            .callee_saved_units
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+    };
+    let view_units = |environment: &ValidatedTargetRegisterEnvironment, name: &str| {
+        environment
+            .physical()
+            .model()
+            .view_named(name)
+            .unwrap()
+            .units
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+    };
+
+    let system_v_callee = callee_set(&system_v);
+    let microsoft_callee = callee_set(&microsoft);
+    assert!(system_v_callee.is_subset(&microsoft_callee));
+    assert!(system_v_callee.len() < microsoft_callee.len());
+    assert_eq!(callee_set(&uefi), microsoft_callee);
+    for name in ["rsi", "rdi"] {
+        let units = view_units(&microsoft_environment, name);
+        assert!(units.is_subset(&microsoft_callee));
+        assert!(!units.is_subset(&system_v_callee));
+    }
+
+    assert_eq!(callee_set(&aapcs), callee_set(&darwin));
+    assert_ne!(aapcs.receipt().abi(), darwin.receipt().abi());
+    let x18 = view_units(&darwin_environment, "x18");
+    let aapcs_convention = selected_abi_preservation(&aapcs_environment)
+        .unwrap()
+        .convention;
+    let darwin_convention = selected_abi_preservation(&darwin_environment)
+        .unwrap()
+        .convention;
+    assert!(
+        x18.iter()
+            .all(|unit| aapcs_convention.caller_saved.contains(unit))
+    );
+    assert!(
+        x18.iter()
+            .all(|unit| darwin_convention.fixed.contains(unit))
+    );
+    assert!(
+        x18.iter()
+            .all(|unit| !darwin_convention.caller_saved.contains(unit))
+    );
 }
 
 #[test]
