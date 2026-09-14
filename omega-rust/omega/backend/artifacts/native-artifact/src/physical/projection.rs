@@ -262,6 +262,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
         | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
         | AbstractOperation::EstablishRecord { psi_operation, .. }
+        | AbstractOperation::AtomicEvent { psi_operation, .. }
         | AbstractOperation::CallUnit { psi_operation, .. }
         | AbstractOperation::CallUnitWithDynamicArguments { psi_operation, .. }
         | AbstractOperation::CallStructuralScalar { psi_operation, .. }

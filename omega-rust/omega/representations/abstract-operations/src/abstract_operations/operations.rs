@@ -1,10 +1,10 @@
 //! Executable abstract vocabulary, including moves, drops, calls and control.
 
 use crate::{
-    AbstractBoundaryResult, AbstractDynamicDescriptorArgument, AbstractParameterDynamicDispatch,
-    AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
-    AbstractStoredDynamicDispatch, AbstractStructuralCaseSuccessor, AbstractSuccessor,
-    CompletionClaimSource, ValueBinding,
+    AbstractAtomicEvent, AbstractBoundaryResult, AbstractDynamicDescriptorArgument,
+    AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
+    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
+    AbstractStructuralCaseSuccessor, AbstractSuccessor, CompletionClaimSource, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -123,6 +123,18 @@ pub enum AbstractOperation {
         path: Vec<StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
         value: AbstractResult,
+    },
+    /// One normalized atomic memory event with its proof-static ordering
+    /// retained as checkable evidence. `event.ordering_is_legal()` and
+    /// `event.custody_is_consistent()` replay the source-admitted legality
+    /// and result-custody relations so optimization and target refinement
+    /// verify the concurrency contract rather than trusting producer
+    /// assertion. Terminal Psi does not yet emit normalized atomic events;
+    /// consumers must keep rejecting this operation until its producer and
+    /// checked target realization land.
+    AtomicEvent {
+        psi_operation: OperationId,
+        event: AbstractAtomicEvent,
     },
     /// Atomically establish one exact scalar case of a declared structural sum.
     /// Target realization remains deliberately separate from retention in the

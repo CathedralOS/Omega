@@ -158,6 +158,23 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::ExactIntegerShiftRight {
             result, value_type, ..
         } => Some((*result, ScalarType::Integer(*value_type))),
+        O::AtomicEvent { event, .. } => {
+            use abstract_operations::AbstractAtomicEvent as E;
+            // The instruction-observed prior is the scalar definition a
+            // read-modify-write, swap, or decisive compare-exchange produces;
+            // a load defines its observed result. Store and fence define no
+            // value, and a single-attempt event defines a structural outcome
+            // rather than a scalar.
+            match event {
+                E::Load { result, .. } => Some((result.value, result.scalar_type)),
+                E::ReadModifyWrite { prior, .. }
+                | E::Swap { prior, .. }
+                | E::CompareExchange {
+                    observed: prior, ..
+                } => Some((prior.value, prior.scalar_type)),
+                E::Store { .. } | E::CompareExchangeOnce { .. } | E::Fence { .. } => None,
+            }
+        }
         _ => None,
     }
 }
@@ -242,6 +259,27 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             .chain(when_false.bindings.iter().map(|binding| binding.argument))
             .collect(),
         O::Return { value, .. } => vec![*value],
+        O::AtomicEvent { event, .. } => {
+            use abstract_operations::AbstractAtomicEvent as E;
+            // Operands are real scalar uses: an atomic event reads its
+            // stored value, RMW operand, or comparison/replacement pair.
+            // The observed prior and results are definitions, not uses.
+            match event {
+                E::Store { value, .. } | E::Swap { value, .. } => vec![*value],
+                E::ReadModifyWrite { operand, .. } => vec![*operand],
+                E::CompareExchange {
+                    expected,
+                    replacement,
+                    ..
+                }
+                | E::CompareExchangeOnce {
+                    expected,
+                    replacement,
+                    ..
+                } => vec![*expected, *replacement],
+                E::Load { .. } | E::Fence { .. } => Vec::new(),
+            }
+        }
         _ => Vec::new(),
     }
 }

@@ -128,6 +128,20 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
                 }
             }
         }
+        O::AtomicEvent { event, .. } => {
+            // The accessed atomic location joins place custody; a fence
+            // accesses no place. A single-attempt compare-exchange also
+            // establishes its structural outcome place.
+            if let Some(place) = event.place() {
+                places.insert(place);
+            }
+            if let abstract_operations::AbstractAtomicEvent::CompareExchangeOnce {
+                outcome, ..
+            } = event
+            {
+                places.insert(outcome.place);
+            }
+        }
         _ => {}
     }
 }
@@ -182,6 +196,16 @@ pub(super) fn collect_operation_structural_places(
         | AbstractOperation::EstablishTrivialAffineLocal { place, .. } => {
             structural_places.push(*place);
         }
+        AbstractOperation::AtomicEvent {
+            psi_operation,
+            event: abstract_operations::AbstractAtomicEvent::CompareExchangeOnce { outcome, .. },
+        } => structural_places.push(StructuralPlaceDeclaration {
+            id: outcome.place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: *psi_operation,
+                structural_type: outcome.structural_type,
+            },
+        }),
         _ => {}
     }
 }

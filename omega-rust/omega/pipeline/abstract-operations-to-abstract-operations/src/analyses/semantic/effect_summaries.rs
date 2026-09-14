@@ -393,6 +393,20 @@ fn operation_effect(
         | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),
+        O::AtomicEvent { event, .. } => {
+            // Atomic memory is shared across activations: every atomic
+            // event is observable, so none may be erased, reordered into
+            // pure scalar computation, or folded by a scalar-only pass.
+            // A place-carrying event touches structural state; a fence
+            // accesses no place but remains an ordering event.
+            (
+                EffectClass::StructuralState,
+                Yes,
+                if event.place().is_some() { Yes } else { No },
+                No,
+                No,
+            )
+        }
         O::CallUnit { .. }
         | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }

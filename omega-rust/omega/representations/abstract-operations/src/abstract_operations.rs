@@ -27,6 +27,8 @@ pub mod ownership;
 mod structural_type_catalog;
 pub use ownership::*;
 pub use structural_type_catalog::StructuralTypeCatalog;
+pub mod atomic;
+pub use atomic::*;
 pub mod calls;
 pub use calls::*;
 pub mod control_flow;

@@ -9,5 +9,6 @@ name = "abstract_operations"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../../../psi/foundation/language-core" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }

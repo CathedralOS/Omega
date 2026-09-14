@@ -275,6 +275,28 @@ fn runtime_atomic_compare_exchange_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Checked-only atomic canary: the complete proof-static ordering surface of
+/// the normalized atomic operations is admitted as checked source data —
+/// GlobalOrder on load, store, fetch, swap, and compare-exchange success,
+/// ReceivePublish on a read-modify-write, and a read-only Receive failure
+/// ordering beneath GlobalOrder success. Terminal Psi does not yet emit
+/// normalized atomic events, so the assertion deliberately ends at checked
+/// compilation rather than a native executable.
+#[test]
+fn atomic_global_order_operations_canary_checks() {
+    let canary = pass_canary(fixture_roster::ATOMIC_GLOBAL_ORDER_OPERATIONS);
+    check_canary(&canary).unwrap_or_else(|diagnostics| {
+        panic!(
+            "atomic global-order operations canary should check: {}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+}
+
 // std Console BYTE OPS natively (the ByteRead ruling: Eof = ordinal 0 = the
 // composite's pre-zeroed slot; no sentinel). One compile, two runs: empty
 // stdin takes the Eof-first arm (exit 70 -- the differential's leg), piped

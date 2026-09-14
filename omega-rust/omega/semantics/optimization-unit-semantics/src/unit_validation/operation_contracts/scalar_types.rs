@@ -49,6 +49,43 @@ pub(crate) fn operation_scalar_types_match(
             scalar(value.value) == Some(value.scalar_type)
         }
         O::StructuralCaseMembership { result, .. } => result.scalar_type == ScalarType::Boolean,
+        O::AtomicEvent { event, .. } => {
+            use abstract_operations::AbstractAtomicEvent as E;
+            // Independent recheck, not producer trust: replay the retained
+            // ordering legality and result custody, then require every
+            // scalar operand and the instruction-observed prior to agree on
+            // the resident type the event carries.
+            event.ordering_is_legal()
+                && event.custody_is_consistent()
+                && match event {
+                    E::Load { result, .. } => scalar(result.value) == Some(result.scalar_type),
+                    E::Store { value, .. } => scalar(*value).is_some(),
+                    E::ReadModifyWrite { operand, prior, .. } => {
+                        scalar(*operand) == Some(prior.scalar_type)
+                            && scalar(prior.value) == Some(prior.scalar_type)
+                    }
+                    E::Swap { value, prior, .. } => {
+                        scalar(*value) == Some(prior.scalar_type)
+                            && scalar(prior.value) == Some(prior.scalar_type)
+                    }
+                    E::CompareExchange {
+                        expected,
+                        replacement,
+                        observed,
+                        ..
+                    } => {
+                        scalar(*expected) == Some(observed.scalar_type)
+                            && scalar(*replacement) == Some(observed.scalar_type)
+                            && scalar(observed.value) == Some(observed.scalar_type)
+                    }
+                    E::CompareExchangeOnce {
+                        expected,
+                        replacement,
+                        ..
+                    } => scalar(*expected).is_some() && scalar(*expected) == scalar(*replacement),
+                    E::Fence { .. } => true,
+                }
+        }
         O::PrimitiveScalarRead { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishScalarCase { .. }
