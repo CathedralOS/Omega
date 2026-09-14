@@ -2,8 +2,9 @@
 //!
 //! The orchestrator retains exact transitive closure and publication order;
 //! `call_catalog` closes operation/scalar/provider dependencies before allocation;
-//! call-closure custody, semantic catalogs, and parameter
-//! transfer validation live in separate subordinate modules.
+//! `admission` retains checked bodies and validates source/call custody;
+//! `signatures` allocates each machine's formals, claims and requirements.
+//! Emission borrows those records in the single shared namespace.
 
 use super::*;
 use crate::psi_lowering::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -11,6 +12,7 @@ use crate::psi_lowering::operation_emission::calls::CallEmissionContext;
 use crate::psi_lowering::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
+mod admission;
 pub(crate) mod argument_evaluation;
 mod argument_schedule;
 pub(crate) mod bodies;
@@ -32,12 +34,12 @@ mod scalar_completion;
 mod scalar_structural_calls;
 mod selected_operator;
 pub(super) mod shared_closure;
+mod signatures;
 mod structural_calls;
 mod structural_completion;
 pub(crate) mod structural_values;
 
 use bodies::UnitBody;
-use parameters::lower_unit_scalar_parameter_types;
 pub(super) use parameters::validate_direct_unit_parameter_custody;
 pub(super) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
@@ -59,7 +61,6 @@ use catalog::{
     lower_program_local_root_introductions, lower_provider_candidate_service_ceiling,
     require_valid_service_row,
 };
-use claims::lower_unit_entry_claims;
 pub(super) use composed_control::dynamic_result::{
     emit_call_leaf as emit_dynamic_control_leaf,
     lower_control_catalogs as lower_dynamic_control_catalogs,
@@ -76,10 +77,7 @@ pub(super) use parameters::{
 pub(super) use provider_attachments::lower_provider_attachment_places;
 use provider_attachments::validate_provider_attachment_requirements;
 use providers::{ProviderBody, checked_unit_provider_candidates};
-use selected_operator::{
-    lower_selected_structural_scalar_realizations, validate_selected_operator_scalar_call,
-    validate_selected_operator_structural_call, validate_selected_operator_structural_scalar_call,
-};
+use selected_operator::lower_selected_structural_scalar_realizations;
 
 fn lower_boundary_result(
     result: &CheckedBoundaryMachineResultPlan,
@@ -419,466 +417,14 @@ fn assemble_unit_closure(
             )?;
         }
     }
-    let mut composed_bodies = Vec::new();
-    for machine_symbol in &closure {
-        let body = UnitBody::find(plans, *machine_symbol)?;
-        if let UnitBody::Composed(plan) = body {
-            let admitted = composed_control::admit_callable(checked, plan)?;
-            for (boundary, _) in admitted.boundaries() {
-                retain_exact_unit_boundary(
-                    checked,
-                    plans,
-                    &mut boundaries,
-                    boundary.machine,
-                    boundary.state,
-                    boundary.contract_report_fingerprint,
-                    boundary.service_reach,
-                    boundary.result.clone(),
-                )?;
-            }
-            composed_bodies.push((*machine_symbol, admitted));
-            continue;
-        }
-        let machine = body.ordinary()?;
-        if machine.contract_report_fingerprint == 0 {
-            return unsupported("Unit closure contains a null checked contract fingerprint");
-        }
-        let contract = checked
-            .facts
-            .contract_plans
-            .for_machine(machine.machine)
-            .ok_or(LoweringError::Unsupported(
-                "Unit closure is missing its canonical checked contract",
-            ))?;
-        if machine.contract_report_fingerprint != contract.report_fingerprint
-            || machine.contract_commitment != contract.commitment
-        {
-            return unsupported(
-                "Unit closure contract compatibility coordinate or strong commitment drifted",
-            );
-        }
-        validate_unit_operation_sequence(checked, machine)?;
-        reference_results::validate_releases(checked, machine)?;
-        // The nominal-cleanup owner validates a synthetic empty completion for
-        // its entry, then installs the actual scalar result and full contract.
-        // Ordinary entries and every transitive helper retain authored results.
-        let synthetic_cleanup_entry = requirements_owner == RuntimeRequirementOwner::NominalCleanup
-            && machine.machine == entry
-            && machine.structural_result.is_none()
-            && machine.scalar_result.is_none()
-            && machine.scalar_control.is_none()
-            && matches!(machine.operations.as_slice(), [CheckedUnitEffectOperationPlan::Complete { statement_index: 0, trivial_affine_local_discard_ordinals, trivial_affine_discards }] if trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty());
-        if !synthetic_cleanup_entry {
-            if machine.scalar_result.is_some() || machine.scalar_control.is_some() {
-                scalar_completion::validate(checked, machine)?;
-            } else {
-                structural_completion::validate(checked, machine)?;
-            }
-        }
-        crate::psi_lowering::structural_scalar_store_source::validate(checked, machine)?;
-        crate::psi_lowering::call_source_custody::validate_store_and_initializer_calls(
-            checked, machine,
-        )?;
-        for (operation_index, operation) in machine.operations.iter().enumerate() {
-            provider_attachments::validate_call_source(
-                checked,
-                machine.machine,
-                machine.state,
-                operation,
-                &machine.provider_attachment_requirements,
-            )?;
-            crate::psi_lowering::call_source_custody::validate_operation(
-                checked,
-                machine.machine,
-                machine.state,
-                operation,
-                &machine.structural_parameters,
-            )?;
-            structural_calls::validate_custody(checked, machine.machine, machine.state, operation)?;
-            match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                    structural_values::source_custody::validate(
-                        checked,
-                        machine.machine,
-                        machine.state,
-                        operation,
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::EstablishReference { .. } => {
-                    reference_results::validate_establishment(checked, machine, operation)?;
-                }
-                CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
-                CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                    source,
-                    result,
-                    elements,
-                } => {
-                    scalar_arrays::validate(checked, machine, *source, result, elements)?;
-                }
-                CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
-                    structural_calls::validate_cleanup(checked, machine, operation_index)?;
-                }
-                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                    if !UnitBody::contains(plans, *target_machine) =>
-                {
-                    structural_calls::validate(checked, machine, operation)?;
-                }
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    service_reach,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::StructuralCall {
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    service_reach,
-                    ..
-                } => {
-                    let body = UnitBody::find(plans, *target_machine)?;
-                    structural_calls::validate_body_result(checked, operation, body.result()?)?;
-                    let target = body.entry()?;
-                    if target.state != *target_state
-                        || target.contract_report_fingerprint != *target_contract_report_fingerprint
-                        || !checked_unit_target_reach_matches(
-                            *service_reach,
-                            target.contract_service_reach,
-                        )
-                    {
-                        return unsupported(
-                            "Unit call does not match the exact checked target state, contract, and reach",
-                        );
-                    }
-                    primitive_locals::unit_calls::validate(
-                        checked,
-                        machine,
-                        operation,
-                        target.structural_parameters,
-                    )?;
-                    crate::psi_lowering::call_source_custody::projected_receivers::validate(
-                        checked,
-                        machine.machine,
-                        machine.state,
-                        &machine.operations,
-                        &machine.structural_parameters,
-                        operation,
-                        target.structural_parameters,
-                    )?;
-                    structural_calls::validate_consumer(
-                        checked,
-                        machine,
-                        operation,
-                        target.structural_parameters,
-                        target.entry_claims,
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::ScalarCall {
-                    coordinate,
-                    result,
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    target_contract_commitment,
-                    service_reach,
-                    scalar_arguments,
-                    structural_arguments,
-                    claim_transfers,
-                } => {
-                    let source_call = retain_exact_flow_call(
-                        checked,
-                        machine.machine,
-                        machine.state,
-                        *coordinate,
-                        *target_state,
-                    )?;
-                    let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
-                    match &target {
-                        CheckedScalarCallee::Boundary(_) | CheckedScalarCallee::Structural(_) => {
-                            scalar_structural_calls::validate_call_source(
-                                checked, machine, operation, &target,
-                            )?
-                        }
-                        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Operations(_)
-                            if !structural_arguments.is_empty() || !claim_transfers.is_empty() =>
-                        {
-                            scalar_structural_calls::validate_call_source(
-                                checked, machine, operation, &target,
-                            )?;
-                        }
-                        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Operations(_) => {}
-                    }
-                    if !scalar_closure.contains(target_machine)
-                        && !(closure.contains(target_machine)
-                            && matches!(target, CheckedScalarCallee::Operations(_)))
-                    {
-                        return unsupported(
-                            "ordinary Unit scalar call target is absent from the checked closure",
-                        );
-                    }
-                    let contract = checked
-                        .facts
-                        .contract_plans
-                        .for_machine(*target_machine)
-                        .ok_or(LoweringError::Unsupported(
-                            "ordinary Unit scalar call target has no checked contract",
-                        ))?;
-                    let target_reaches = checked
-                        .facts
-                        .flow
-                        .control
-                        .states
-                        .iter()
-                        .filter(|(_, state)| {
-                            state.machine_symbol == *target_machine
-                                && state.state_symbol == *target_state
-                        })
-                        .map(|(_, state)| state.service_reach)
-                        .collect::<Vec<_>>();
-                    let reach_matches = match &target {
-                        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_) => {
-                            target_reaches.as_slice() == [*service_reach]
-                        }
-                        CheckedScalarCallee::Operations(plan) => {
-                            // The body owns its direct effects; an ordinary call
-                            // contributes the published callee ceiling transitively.
-                            // Rejoin each subject instead of equating their summaries;
-                            // the caller still retains its exact source occurrence row.
-                            source_call.service_reach == *service_reach
-                                && target_reaches.as_slice() == [plan.service_reach]
-                                && checked
-                                    .facts
-                                    .service_reaches
-                                    .plan_for_machine(*target_machine)
-                                    == Some(plan.contract_service_reach)
-                                && checked_unit_target_reach_matches(
-                                    *service_reach,
-                                    plan.contract_service_reach,
-                                )
-                        }
-                        CheckedScalarCallee::Boundary(plan) => {
-                            target_reaches.as_slice() == [plan.service_reach]
-                                && checked_unit_target_reach_matches(
-                                    *service_reach,
-                                    plan.contract_service_reach,
-                                )
-                        }
-                    };
-                    if target.entry_state()? != *target_state
-                        || target.parameter_types()?.len() != scalar_arguments.len()
-                        || target.result_type()? != terminal_scalar_type(result.primitive_type)?
-                        || contract.report_fingerprint != *target_contract_report_fingerprint
-                        || contract.commitment != *target_contract_commitment
-                        || !reach_matches
-                    {
-                        return unsupported(
-                            "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach",
-                        );
-                    }
-                    if matches!(
-                        target,
-                        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_)
-                    ) && (!checked
-                        .facts
-                        .service_reaches
-                        .rows
-                        .services(service_reach.direct)
-                        .is_empty()
-                        || !checked
-                            .facts
-                            .service_reaches
-                            .rows
-                            .services(service_reach.transitive)
-                            .is_empty())
-                    {
-                        return unsupported(
-                            "ordinary Unit scalar call with services requires scalar service lowering",
-                        );
-                    }
-                }
-                CheckedUnitEffectOperationPlan::BoundaryCall {
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    service_reach,
-                    ..
-                } => {
-                    retain_exact_unit_boundary(
-                        checked,
-                        plans,
-                        &mut boundaries,
-                        *target_machine,
-                        *target_state,
-                        *target_contract_report_fingerprint,
-                        *service_reach,
-                        CheckedBoundaryMachineResultPlan::Unit,
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                    coordinate,
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    service_reach,
-                    result,
-                    ..
-                } => {
-                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
-                    retain_exact_unit_boundary(
-                        checked,
-                        plans,
-                        &mut boundaries,
-                        *target_machine,
-                        *target_state,
-                        *target_contract_report_fingerprint,
-                        *service_reach,
-                        CheckedBoundaryMachineResultPlan::Scalar(result.primitive_type),
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    coordinate,
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    service_reach,
-                    result,
-                    ..
-                } => {
-                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
-                    let target = unique_unit_boundary(plans, *target_machine)?;
-                    if !matches!(
-                        &target.result,
-                        CheckedBoundaryMachineResultPlan::Structural {
-                            type_identity,
-                            multiplicity,
-                            ..
-                        } if type_identity == &result.type_identity
-                            && multiplicity == &result.multiplicity
-                    ) {
-                        return unsupported(
-                            "Unit structural result drifted from its checked boundary target",
-                        );
-                    }
-                    retain_exact_unit_boundary(
-                        checked,
-                        plans,
-                        &mut boundaries,
-                        *target_machine,
-                        *target_state,
-                        *target_contract_report_fingerprint,
-                        *service_reach,
-                        target.result.clone(),
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                    coordinate,
-                    result,
-                    requirement_operator,
-                    provider_plan_report_fingerprint,
-                    provider_plan_commitment,
-                    realization_machine,
-                    realization_state,
-                    realization_contract_report_fingerprint,
-                    realization_contract_commitment,
-                    service_reach,
-                    scalar_arguments,
-                    ..
-                } => {
-                    validate_selected_operator_scalar_call(
-                        checked,
-                        machine,
-                        *coordinate,
-                        *result,
-                        *requirement_operator,
-                        *provider_plan_report_fingerprint,
-                        *provider_plan_commitment,
-                        *realization_machine,
-                        *realization_state,
-                        *realization_contract_report_fingerprint,
-                        *realization_contract_commitment,
-                        *service_reach,
-                        scalar_arguments.len(),
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                    coordinate,
-                    result,
-                    requirement_operator,
-                    provider_plan_report_fingerprint,
-                    provider_plan_commitment,
-                    realization_machine,
-                    realization_state,
-                    realization_contract_report_fingerprint,
-                    realization_contract_commitment,
-                    service_reach,
-                    scalar_arguments,
-                    structural_arguments,
-                } => {
-                    validate_selected_operator_structural_scalar_call(
-                        checked,
-                        machine,
-                        *coordinate,
-                        *result,
-                        *requirement_operator,
-                        *provider_plan_report_fingerprint,
-                        *provider_plan_commitment,
-                        *realization_machine,
-                        *realization_state,
-                        *realization_contract_report_fingerprint,
-                        *realization_contract_commitment,
-                        *service_reach,
-                        scalar_arguments,
-                        structural_arguments,
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                    coordinate,
-                    result,
-                    requirement_operator,
-                    provider_plan_report_fingerprint,
-                    provider_plan_commitment,
-                    realization_machine,
-                    realization_state,
-                    realization_contract_report_fingerprint,
-                    realization_contract_commitment,
-                    service_reach,
-                    scalar_arguments,
-                    structural_arguments,
-                    discard_result_on_return,
-                } => {
-                    validate_selected_operator_structural_call(
-                        checked,
-                        machine,
-                        *coordinate,
-                        result,
-                        *requirement_operator,
-                        *provider_plan_report_fingerprint,
-                        *provider_plan_commitment,
-                        *realization_machine,
-                        *realization_state,
-                        *realization_contract_report_fingerprint,
-                        *realization_contract_commitment,
-                        *service_reach,
-                        scalar_arguments,
-                        structural_arguments,
-                        *discard_result_on_return,
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::PortWrite { .. }
-                | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
-                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                | CheckedUnitEffectOperationPlan::Complete { .. } => {}
-            }
-        }
-    }
+    let admitted_bodies = admission::admit(
+        checked,
+        entry,
+        &closure,
+        &scalar_closure,
+        requirements_owner,
+        &mut boundaries,
+    )?;
     let mut additional_type_roots = external
         .as_ref()
         .map_or_else(Vec::new, |roots| roots.structural_type_roots.to_vec());
@@ -1049,141 +595,17 @@ fn assemble_unit_closure(
         lowered_boundary_parameters.push((plan.machine, id, parameters, scalar_parameters));
     }
 
-    // Allocate the actual formal values before lowering contracts. Calls and
-    // bodies share these declarations; requirement terms never use placeholder IDs.
     let mut next_value = 1_u64;
-    let mut lowered_machine_parameters = Vec::with_capacity(closure.len());
-    let mut lowered_machine_scalar_parameters = Vec::with_capacity(closure.len());
-    let mut lowered_claims = Vec::with_capacity(closure.len());
-    for machine_symbol in &closure {
-        let body = UnitBody::find(plans, *machine_symbol)?;
-        let plan = body.entry()?;
-        if body.qualifications().iter().any(|domain| {
-            !plan
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.qualifications.contains(domain))
-        }) {
-            return unsupported(
-                "Unit body qualification is not represented by an exact structural parameter precondition",
-            );
-        }
-        let parameters = lower_unit_parameters(
-            plan.structural_parameters,
-            &type_ids,
-            &domain_ids,
-            &mut next_place,
-        )?;
-        let scalar_parameters = lower_unit_scalar_parameter_types(plan.scalar_parameters)?
-            .into_iter()
-            .map(|scalar_type| {
-                Ok(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: value_id(allocate_dense(&mut next_value)?),
-                    scalar_type,
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        // ClaimId is machine-local; unrelated closure members must not shift
-        // this machine's canonical claim namespace.
-        let claims =
-            lower_unit_entry_claims(plan.machine, plan.state, plan.entry_claims, &parameters)?;
-        lowered_machine_parameters.push((*machine_symbol, parameters));
-        lowered_machine_scalar_parameters.push((*machine_symbol, scalar_parameters));
-        lowered_claims.push((*machine_symbol, claims.entry_claims, claims.source_claims));
-    }
-
-    // Predicate roots use authored positions; Terminal signatures use dense
-    // structural positions. These lowering-only views keep the exact emitted
-    // place/type identities without inserting dummy slots for scalar arguments.
-    let predicate_parameters = closure
-        .iter()
-        .zip(&lowered_machine_parameters)
-        .map(|(symbol, (lowered_symbol, parameters))| {
-            let plan = UnitBody::find(plans, *symbol)?.entry()?;
-            if symbol != lowered_symbol || plan.structural_parameters.len() != parameters.len() {
-                return unsupported(
-                    "Unit predicate signature does not match its structural roster",
-                );
-            }
-            let parameters = plan
-                .structural_parameters
-                .iter()
-                .zip(parameters)
-                .map(|(source, terminal)| StructuralParameterDeclaration {
-                    position: source.position,
-                    ..terminal.clone()
-                })
-                .collect::<Vec<_>>();
-            Ok((*symbol, parameters))
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-
-    let lowered_machine_runtime_requirements = closure
-        .iter()
-        .map(|machine_symbol| {
-            let Some(contract) = checked.facts.contract_plans.for_machine(*machine_symbol) else {
-                return Ok((*machine_symbol, Vec::new()));
-            };
-            // Entry requirements also justify body operations and ordinary
-            // calls. Their presence cannot depend on arithmetic in a published
-            // crash ceiling (which may be unconditional or absent).
-            let requirements = if (requirements_owner == RuntimeRequirementOwner::UnitClosure
-                && contract.crash.structural_runtime_requirements().is_some())
-                || contract.crash.uses_structural_proof_gated_arithmetic()
-            {
-                let checked_requirements = contract.crash.structural_runtime_requirements().ok_or(
-                    LoweringError::Unsupported(
-                        "proof-gated structural arithmetic lacks a complete checked requirement package",
-                    ),
-                )?;
-                let parameters = predicate_parameters
-                    .iter()
-                    .find_map(|(symbol, parameters)| {
-                        (*symbol == *machine_symbol).then_some(parameters)
-                    })
-                    .expect("every closure machine has lowered parameters");
-                let scalar_parameters = lowered_machine_scalar_parameters
-                    .iter()
-                    .find_map(|(symbol, parameters)| {
-                        (*symbol == *machine_symbol).then_some(parameters)
-                    })
-                    .expect("every closure machine has lowered scalar parameters");
-                let requirements = checked_requirements
-                    .iter()
-                    .map(|requirement| {
-                        lower_structural_runtime_requirement(
-                            requirement,
-                            scalar_parameters,
-                            parameters,
-                            &structural_types,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let mut keyed = requirements
-                    .into_iter()
-                    .map(|requirement| {
-                        terminal_codec::canonical_proposition_order_key(&requirement)
-                            .map(|key| (key, requirement))
-                            .map_err(|_| {
-                                LoweringError::Unsupported(
-                                    "structural runtime requirement is not canonically encodable",
-                                )
-                            })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                keyed.sort_by(|left, right| left.0.cmp(&right.0));
-                keyed.dedup_by(|left, right| left.0 == right.0);
-                keyed
-                    .into_iter()
-                    .map(|(_, requirement)| requirement)
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            Ok((*machine_symbol, requirements))
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let machine_signatures = signatures::lower(
+        checked,
+        &admitted_bodies,
+        &type_ids,
+        &domain_ids,
+        &structural_types,
+        requirements_owner,
+        &mut next_place,
+        &mut next_value,
+    )?;
 
     let machine_ids = external
         .as_ref()
@@ -1260,21 +682,16 @@ fn assemble_unit_closure(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let scalar_requirement_counts =
-        prepared_scalar_machines
-            .iter()
-            .map(|machine| (machine.source_machine(), machine.requirement_count()))
-            .chain(lowered_machine_runtime_requirements.iter().filter_map(
-                |(source, requirements)| {
-                    plans
-                        .for_machine(*source)
-                        .filter(|plan| {
-                            plan.scalar_result.is_some() || plan.scalar_control.is_some()
-                        })
-                        .map(|_| (*source, requirements.len()))
-                },
-            ))
-            .collect::<Vec<_>>();
+    let scalar_requirement_counts = prepared_scalar_machines
+        .iter()
+        .map(|machine| (machine.source_machine(), machine.requirement_count()))
+        .chain(machine_signatures.iter().filter_map(|signature| {
+            plans
+                .for_machine(signature.source)
+                .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
+                .map(|_| (signature.source, signature.runtime_requirements.len()))
+        }))
+        .collect::<Vec<_>>();
     let mut next_operation = 1_u64;
     let mut next_edge = 1_u64;
     let mut next_block = 1_u64;
@@ -1290,36 +707,21 @@ fn assemble_unit_closure(
     let mut selected_ieee_float_fma_occurrences = Vec::new();
     let mut selected_ieee_float_comparison_occurrences = Vec::new();
 
-    for machine_symbol in &closure {
-        let body = UnitBody::find(plans, *machine_symbol)?;
+    for (signature, admitted) in machine_signatures.iter().zip(admitted_bodies) {
+        let body = admitted.source();
         let plan = body.entry()?;
         let terminal_machine = lookup_machine_id(&machine_ids, plan.machine)?;
-        let parameters = lowered_machine_parameters
-            .iter()
-            .find_map(|(symbol, parameters)| (*symbol == plan.machine).then_some(parameters))
-            .expect("every closure machine has lowered parameters");
-        let scalar_parameters = lowered_machine_scalar_parameters
-            .iter()
-            .find_map(|(symbol, parameters)| (*symbol == plan.machine).then_some(parameters))
-            .expect("every closure machine has lowered scalar parameters")
-            .clone();
+        let parameters = &signature.parameters;
+        let scalar_parameters = signature.scalar_parameters.clone();
         let scalar_parameter_count = scalar_parameters.len();
-        let runtime_requirements = lowered_machine_runtime_requirements
-            .iter()
-            .find_map(|(symbol, requirements)| (*symbol == plan.machine).then_some(requirements))
-            .expect("every closure machine has lowered runtime requirements");
-        let (_, entry_claims, claim_bindings) = lowered_claims
-            .iter()
-            .find(|(symbol, _, _)| *symbol == plan.machine)
-            .expect("every closure machine has lowered entry claims");
-        if let UnitBody::Composed(source_plan) = body {
-            let position = composed_bodies
-                .iter()
-                .position(|(source, _)| *source == *machine_symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "composed callable has no admitted body",
-                ))?;
-            let (_, admitted) = composed_bodies.remove(position);
+        let runtime_requirements = &signature.runtime_requirements;
+        let entry_claims = &signature.claims.entry_claims;
+        let claim_bindings = &signature.claims.source_claims;
+        if let admission::AdmittedBody::Composed {
+            source: source_plan,
+            body: admitted,
+        } = admitted
+        {
             let (machine, mut occurrences) = composed_control::callable::emit(
                 checked,
                 source_plan,
@@ -1336,8 +738,7 @@ fn assemble_unit_closure(
                     boundaries: &boundary_machines,
                     boundary_parameters: &lowered_boundary_parameters,
                     machine_ids: &machine_ids,
-                    scalar_parameters: &lowered_machine_scalar_parameters,
-                    requirements: &lowered_machine_runtime_requirements,
+                    signatures: &machine_signatures,
                     scalar_requirement_counts: &scalar_requirement_counts,
                 },
                 composed_control::callable::EmissionCounters {
@@ -1761,40 +1162,8 @@ fn assemble_unit_closure(
                                 checked,
                                 plans,
                                 operand,
-                                ordinary_calls::Target {
-                                    parameters: lowered_machine_parameters
-                                        .iter()
-                                        .find(|(symbol, _)| symbol == target_machine)
-                                        .ok_or(LoweringError::Unsupported(
-                                            "operand target parameters missing",
-                                        ))?
-                                        .1
-                                        .as_slice(),
-                                    scalar_parameters: lowered_machine_scalar_parameters
-                                        .iter()
-                                        .find(|(symbol, _)| symbol == target_machine)
-                                        .ok_or(LoweringError::Unsupported(
-                                            "operand target scalar parameters missing",
-                                        ))?
-                                        .1
-                                        .as_slice(),
-                                    predicate_parameters: predicate_parameters
-                                        .iter()
-                                        .find(|(symbol, _)| symbol == target_machine)
-                                        .ok_or(LoweringError::Unsupported(
-                                            "operand target predicate parameters missing",
-                                        ))?
-                                        .1
-                                        .as_slice(),
-                                    runtime_requirements: lowered_machine_runtime_requirements
-                                        .iter()
-                                        .find(|(symbol, _)| symbol == target_machine)
-                                        .ok_or(LoweringError::Unsupported(
-                                            "operand target requirements missing",
-                                        ))?
-                                        .1
-                                        .as_slice(),
-                                },
+                                signatures::find(&machine_signatures, *target_machine)?
+                                    .call_target(),
                                 evaluated,
                                 parameters,
                                 &local_places,
@@ -2083,40 +1452,7 @@ fn assemble_unit_closure(
                         checked,
                         plans,
                         operation,
-                        ordinary_calls::Target {
-                            parameters: lowered_machine_parameters
-                                .iter()
-                                .find(|(symbol, _)| symbol == target_machine)
-                                .ok_or(LoweringError::Unsupported(
-                                    "call target parameters missing",
-                                ))?
-                                .1
-                                .as_slice(),
-                            scalar_parameters: lowered_machine_scalar_parameters
-                                .iter()
-                                .find(|(symbol, _)| symbol == target_machine)
-                                .ok_or(LoweringError::Unsupported(
-                                    "call target scalar parameters missing",
-                                ))?
-                                .1
-                                .as_slice(),
-                            predicate_parameters: predicate_parameters
-                                .iter()
-                                .find(|(symbol, _)| symbol == target_machine)
-                                .ok_or(LoweringError::Unsupported(
-                                    "call target predicate parameters missing",
-                                ))?
-                                .1
-                                .as_slice(),
-                            runtime_requirements: lowered_machine_runtime_requirements
-                                .iter()
-                                .find(|(symbol, _)| symbol == target_machine)
-                                .ok_or(LoweringError::Unsupported(
-                                    "call target requirements missing",
-                                ))?
-                                .1
-                                .as_slice(),
-                        },
+                        signatures::find(&machine_signatures, *target_machine)?.call_target(),
                         evaluated_scalar_arguments.as_deref(),
                         parameters,
                         &local_places,
@@ -3767,11 +3103,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                     lower_structural_crash_route_buckets(
                         contract_plan.crash.published(),
                         &scalar_parameters,
-                        &predicate_parameters
-                            .iter()
-                            .find(|(symbol, _)| *symbol == plan.machine)
-                            .expect("every closure machine has predicate parameter bindings")
-                            .1,
+                        &signature.predicate_parameters,
                         &structural_types,
                         runtime_requirements,
                     )?

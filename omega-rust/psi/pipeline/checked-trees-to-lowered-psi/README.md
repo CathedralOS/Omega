@@ -30,6 +30,15 @@ The subordinate owners follow the work:
 - [Source custody](src/psi_lowering/call_source_custody.rs) preserves call identities.
 - [Tests](src/psi_lowering/tests.rs) exercise completed artifacts and invalid custody.
 
+Within shared Unit assembly, [admission](src/psi_lowering/attached_unit/admission.rs)
+retains the ordered body roster and delegates exact
+[operation custody](src/psi_lowering/attached_unit/admission/operations.rs).
+[Signatures](src/psi_lowering/attached_unit/signatures.rs) allocates all formals
+before deriving requirements, retaining structural/scalar parameters, authored
+predicate positions and machine-local claims together. Ordinary and composed
+calls borrow the same records; emission consumes admitted bodies in roster order.
+Neither step allocates a second module or changes the shared identity namespace.
+
 Within emission, [calls](src/psi_lowering/operation_emission/calls.rs) owns argument
 staging and call-requirement allocation;
 [expressions](src/psi_lowering/operation_emission/expressions.rs) owns scalar leaves,

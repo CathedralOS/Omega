@@ -1,6 +1,7 @@
 //! Emit a composed callee using the enclosing closure's catalogs and identities.
 
 use super::*;
+use crate::psi_lowering::attached_unit::signatures::{self, MachineSignature};
 
 pub(in crate::psi_lowering::attached_unit) enum CallableBody<'a> {
     Composed(admission::AdmittedComposedUnit<'a>),
@@ -44,8 +45,7 @@ pub(in crate::psi_lowering::attached_unit) struct SharedCatalog<'a> {
         Vec<ScalarType>,
     )],
     pub machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
-    pub scalar_parameters: &'a [(symbols::SymbolHandle, Vec<ValueDeclaration>)],
-    pub requirements: &'a [(symbols::SymbolHandle, Vec<Proposition>)],
+    pub signatures: &'a [MachineSignature],
     pub scalar_requirement_counts: &'a [(symbols::SymbolHandle, usize)],
 }
 
@@ -97,23 +97,8 @@ pub(in crate::psi_lowering::attached_unit) fn emit(
         .iter()
         .map(|(body, _)| {
             let target = body.entry()?;
-            let parameters = shared
-                .scalar_parameters
-                .iter()
-                .find_map(|(source, parameters)| (*source == target.machine).then_some(parameters))
-                .ok_or(LoweringError::Unsupported(
-                    "shared callable scalar signature is absent",
-                ))?;
-            let requirements = shared
-                .requirements
-                .iter()
-                .find_map(|(source, requirements)| {
-                    (*source == target.machine).then_some(requirements)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "shared callable requirements are absent",
-                ))?;
-            if !requirements.is_empty() {
+            let signature = signatures::find(shared.signatures, target.machine)?;
+            if !signature.runtime_requirements.is_empty() {
                 return unsupported(
                     "composed Unit call needs structural arguments or caller-specific requirements",
                 );
@@ -123,7 +108,8 @@ pub(in crate::psi_lowering::attached_unit) fn emit(
                 source: target.machine,
                 structural_parameters: target.structural_parameters.to_vec(),
                 id: lookup_machine_id(shared.machine_ids, target.machine)?,
-                scalar_parameters: parameters
+                scalar_parameters: signature
+                    .scalar_parameters
                     .iter()
                     .map(|parameter| parameter.scalar_type)
                     .collect(),
@@ -183,15 +169,9 @@ pub(in crate::psi_lowering::attached_unit) fn emit(
     if catalogs.structural_types != shared.structural_types {
         return unsupported("composed callable produced a type absent from the shared catalog");
     }
-    machine.contract.requires = shared
-        .requirements
-        .iter()
-        .find_map(|(source, requirements)| {
-            (*source == plan.machine).then_some(requirements.clone())
-        })
-        .ok_or(LoweringError::Unsupported(
-            "composed callable entry requirements are absent",
-        ))?;
+    machine.contract.requires = signatures::find(shared.signatures, plan.machine)?
+        .runtime_requirements
+        .clone();
     *counters.place = catalogs.next_place;
     *counters.value = catalogs.next_value;
     *counters.block = catalogs.next_block;

@@ -55,6 +55,72 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
 }
 
 #[test]
+fn transitive_mixed_signatures_keep_formal_values_and_requirements_together() {
+    let source = r#"
+        data Metrics { current: u64; }
+        boundary trait Sink { machine record(divisor: u64, limit: u64); }
+        data Helper {}
+        machine Helper::consume(divisor: u64, metrics: Metrics, limit: u64)
+        reaches Sink
+        requires 1u64 <= divisor
+        crashes Abort metrics.current / divisor <= limit
+        { Sink::record(divisor, limit); }
+        data Relay {}
+        machine Relay::relay(limit: u64, divisor: u64, metrics: Metrics)
+        requires 1u64 <= divisor
+        crashes Abort metrics.current / divisor <= limit
+        { Helper::consume(divisor, metrics, limit); }
+        data Main {}
+        machine Main::main(metrics: Metrics, limit: u64, divisor: u64)
+        requires 1u64 <= divisor
+        crashes Abort metrics.current / divisor <= limit
+        { Relay::relay(limit, divisor, metrics); }
+    "#;
+    let lowered = roundtrip(&checked(source));
+    assert_eq!(lowered.semantic_module.machines.len(), 3);
+    let mut formal_values = Vec::new();
+    for machine in &lowered.semantic_module.machines {
+        assert_eq!(machine.parameters.len(), 2);
+        assert_eq!(machine.structural_parameters.len(), 1);
+        assert_eq!(machine.contract.requires.len(), 1);
+        formal_values.extend(machine.parameters.iter().map(|parameter| parameter.id));
+    }
+    formal_values.sort();
+    formal_values.dedup();
+    assert_eq!(
+        formal_values.len(),
+        6,
+        "each signature owns its allocated values"
+    );
+
+    let root = lowered.semantic_module.entry;
+    let mut changed = lowered.semantic_module.clone();
+    let machine = changed
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == root)
+        .unwrap();
+    let semantic_vocabulary::Proposition::LessOrEqual(_, right) = &mut machine.contract.requires[0]
+    else {
+        panic!("the root carries its divisor requirement");
+    };
+    // The first scalar formal is limit, not divisor. A sibling signature or
+    // dense/authored-position mix-up must not supply this call's evidence.
+    *right = semantic_vocabulary::ScalarTerm::value(
+        machine.parameters[0].id,
+        machine.parameters[0].scalar_type,
+    );
+    assert!(
+        terminal_verifier::verify_module(
+            &changed,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn scalar_divisor_requirement_survives_reordered_mixed_unit_call() {
     roundtrip(&checked(SOURCE));
     let free = SOURCE
