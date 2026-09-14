@@ -6,13 +6,14 @@
 
 use std::collections::BTreeMap;
 
-use semantic_vocabulary::{BlockId, ScalarTerm, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, PropositionContext, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{Block, OperationKind, TerminalMachine, TerminalModule, Terminator};
 
 pub(super) struct MachineReconstructionContext<'a> {
     pub(super) reconstruct_path_facts: bool,
     pub(super) value_types: BTreeMap<ValueId, ScalarType>,
     pub(super) blocks: BTreeMap<BlockId, &'a Block>,
+    proposition_context: PropositionContext,
     machine: &'a TerminalMachine,
     dominators: std::cell::OnceCell<crate::control_graph::DominatorTree>,
 }
@@ -78,13 +79,25 @@ impl<'a> MachineReconstructionContext<'a> {
             .iter()
             .map(|block| (block.id, block))
             .collect::<BTreeMap<_, _>>();
+        // The same context the machine's obligations are checked under, so a
+        // generation-time certificate is decided against exactly the values
+        // and places reconstruction may name.
+        let proposition_context = crate::validation::machine_value_context(module, machine)
+            .expect("validated module retains a consistent proposition context");
         Self {
             reconstruct_path_facts,
             value_types,
             blocks,
+            proposition_context,
             machine,
             dominators: std::cell::OnceCell::new(),
         }
+    }
+
+    /// The machine-wide proposition context generation-time certificate
+    /// checks run under.
+    pub(super) fn proposition_context(&self) -> &PropositionContext {
+        &self.proposition_context
     }
 
     /// Reuse full-graph dominance only when an observation needs it. Pure scalar

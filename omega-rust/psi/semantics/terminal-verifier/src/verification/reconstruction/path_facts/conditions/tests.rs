@@ -1,5 +1,6 @@
 use super::*;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use std::collections::BTreeMap;
 
 fn value(index: u64, scalar_type: ScalarType) -> ScalarTerm {
     ScalarTerm::value(ValueId::new(index).unwrap(), scalar_type)
@@ -16,13 +17,113 @@ fn integer(scalar_type: IntegerType, literal: i128) -> ScalarTerm {
     .unwrap()
 }
 
-fn selected(predicate: ScalarTerm, positive: bool) -> Proposition {
+/// The machine-wide proposition context a certificate check would run
+/// under: every `Value` leaf occurring in the roster keeps its declared
+/// type.
+fn context(axioms: &[Proposition]) -> PropositionContext {
+    let mut types = BTreeMap::new();
+    let mut pending: Vec<&ScalarTerm> = Vec::new();
+    for axiom in axioms {
+        pending.extend(proposition_terms(axiom));
+    }
+    while let Some(term) = pending.pop() {
+        match term {
+            ScalarTerm::Value { id, scalar_type } => {
+                types.insert(*id, *scalar_type);
+            }
+            ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::BooleanField { .. }
+            | ScalarTerm::IntegerField { .. } => {}
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => pending.push(operand.as_ref()),
+            ScalarTerm::WrappingIntegerShiftLeft {
+                value: left,
+                count: right,
+                ..
+            }
+            | ScalarTerm::WrappingIntegerShiftRight {
+                value: left,
+                count: right,
+                ..
+            }
+            | ScalarTerm::ExactIntegerShiftLeft {
+                value: left,
+                count: right,
+                ..
+            }
+            | ScalarTerm::ExactIntegerShiftRight {
+                value: left,
+                count: right,
+                ..
+            }
+            | ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+            | ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                pending.push(left.as_ref());
+                pending.push(right.as_ref());
+            }
+        }
+    }
+    PropositionContext::from_value_types(types).unwrap()
+}
+
+fn proposition_terms(proposition: &Proposition) -> Vec<&ScalarTerm> {
+    match proposition {
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => vec![left, right],
+        Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+            let mut terms = Vec::new();
+            for child in children {
+                if let Proposition::Equal(left, right)
+                | Proposition::LessThan(left, right)
+                | Proposition::LessOrEqual(left, right) = child
+                {
+                    terms.push(left);
+                    terms.push(right);
+                }
+            }
+            terms
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn compare_alias_literal() -> ScalarTerm {
+    ScalarTerm::Boolean(true)
+}
+
+fn selected(predicate: ScalarTerm, positive: bool) -> ConditionFact {
     let condition = value(1, ScalarType::Boolean);
+    let axioms = [Proposition::Equal(condition, predicate)];
     condition_fact(
         ValueId::new(1).unwrap(),
         positive,
-        &[Proposition::Equal(condition, predicate)],
+        &axioms,
         &|id| ScalarTerm::value(id, ScalarType::Boolean),
+        &context(&axioms),
     )
     .unwrap()
 }
@@ -59,12 +160,12 @@ fn equality_complements_keep_full_signed_and_unsigned_nonzero_meaning() {
                 right: Box::new(right.clone()),
             };
             assert_eq!(
-                selected(predicate.clone(), true),
+                selected(predicate.clone(), true).proposition,
                 Proposition::Equal(left, right)
             );
-            assert_eq!(selected(predicate.clone(), false), expected);
+            assert_eq!(selected(predicate.clone(), false).proposition, expected);
             assert_eq!(
-                selected(ScalarTerm::boolean_not(predicate).unwrap(), true),
+                selected(ScalarTerm::boolean_not(predicate).unwrap(), true).proposition,
                 expected
             );
         }
@@ -88,19 +189,19 @@ fn order_complements_reverse_endpoints_without_changing_carriers() {
             right: Box::new(right.clone()),
         };
         assert_eq!(
-            selected(less.clone(), true),
+            selected(less.clone(), true).proposition,
             Proposition::LessThan(left.clone(), right.clone())
         );
         assert_eq!(
-            selected(less, false),
+            selected(less, false).proposition,
             Proposition::LessOrEqual(right.clone(), left.clone())
         );
         assert_eq!(
-            selected(inclusive.clone(), true),
+            selected(inclusive.clone(), true).proposition,
             Proposition::LessOrEqual(left.clone(), right.clone())
         );
         assert_eq!(
-            selected(inclusive, false),
+            selected(inclusive, false).proposition,
             Proposition::LessThan(right.clone(), left.clone())
         );
         let equal = ScalarTerm::IntegerEqual {
@@ -109,7 +210,7 @@ fn order_complements_reverse_endpoints_without_changing_carriers() {
             right: Box::new(right.clone()),
         };
         assert_eq!(
-            selected(equal, false),
+            selected(equal, false).proposition,
             Proposition::Disjunction(vec![
                 Proposition::LessThan(left.clone(), right.clone()),
                 Proposition::LessThan(right, left)
@@ -142,15 +243,25 @@ fn boolean_aliases_and_false_wrappers_preserve_selected_polarity() {
         Proposition::Equal(condition.clone(), alias.clone()),
     ];
     assert_eq!(
-        condition_fact(ValueId::new(1).unwrap(), true, &axioms, &|id| {
-            ScalarTerm::value(id, ScalarType::Boolean)
-        }),
+        condition_fact(
+            ValueId::new(1).unwrap(),
+            true,
+            &axioms,
+            &|id| { ScalarTerm::value(id, ScalarType::Boolean) },
+            &context(&axioms)
+        )
+        .map(|fact| fact.proposition),
         Some(Proposition::LessOrEqual(integer(scalar_type, 1), subject))
     );
     assert_eq!(
-        condition_fact(ValueId::new(8).unwrap(), false, &axioms, &|id| {
-            ScalarTerm::value(id, ScalarType::Boolean)
-        }),
+        condition_fact(
+            ValueId::new(8).unwrap(),
+            false,
+            &axioms,
+            &|id| { ScalarTerm::value(id, ScalarType::Boolean) },
+            &context(&axioms)
+        )
+        .map(|fact| fact.proposition),
         Some(Proposition::Equal(
             value(8, ScalarType::Boolean),
             ScalarTerm::Boolean(false)
@@ -164,7 +275,8 @@ fn boolean_aliases_and_false_wrappers_preserve_selected_polarity() {
                     right: Box::new(alias.clone())
                 },
                 positive
-            ),
+            )
+            .proposition,
             if positive {
                 Proposition::Equal(condition.clone(), alias.clone())
             } else {
@@ -261,16 +373,19 @@ fn strict_value_order_excludes_exact_fixed_carrier_endpoints_on_selected_branch(
                     right: Box::new(right.clone()),
                 };
                 assert_eq!(
-                    strict_carrier_bounds(&selected(strict.clone(), true)),
+                    strict_carrier_bounds(&selected(strict.clone(), true).proposition),
                     expected
                 );
-                assert!(strict_carrier_bounds(&selected(strict, false)).is_none());
+                assert!(strict_carrier_bounds(&selected(strict, false).proposition).is_none());
                 let opposite = ScalarTerm::IntegerLessOrEqual {
                     scalar_type: integer_type,
                     left: Box::new(right),
                     right: Box::new(left),
                 };
-                assert_eq!(strict_carrier_bounds(&selected(opposite, false)), expected);
+                assert_eq!(
+                    strict_carrier_bounds(&selected(opposite, false).proposition),
+                    expected
+                );
             }
         }
     }
@@ -317,21 +432,32 @@ fn condition_alias_cycles_fail_closed_without_a_depth_limit() {
         value(300, ScalarType::Boolean),
         ScalarTerm::Boolean(true),
     ));
-    assert_eq!(
-        condition_fact(ValueId::new(1).unwrap(), true, &axioms, &|id| {
-            ScalarTerm::value(id, ScalarType::Boolean)
-        }),
-        Some(Proposition::Truth)
-    );
+    let resolved = condition_fact(
+        ValueId::new(1).unwrap(),
+        true,
+        &axioms,
+        &|id| ScalarTerm::value(id, ScalarType::Boolean),
+        &context(&axioms),
+    )
+    .unwrap();
+    assert_eq!(resolved.proposition, Proposition::Truth);
+    // The transport check is bounded: a chain this deep exhausts its work
+    // budget, so the emission remains a licensed premise introduction even
+    // though the fact itself is correct.
+    assert!(!resolved.certified);
     axioms.pop();
     axioms.push(Proposition::Equal(
         value(300, ScalarType::Boolean),
         value(1, ScalarType::Boolean),
     ));
     assert!(
-        condition_fact(ValueId::new(1).unwrap(), true, &axioms, &|id| {
-            ScalarTerm::value(id, ScalarType::Boolean)
-        })
+        condition_fact(
+            ValueId::new(1).unwrap(),
+            true,
+            &axioms,
+            &|id| { ScalarTerm::value(id, ScalarType::Boolean) },
+            &context(&axioms)
+        )
         .is_none()
     );
 }
@@ -343,9 +469,14 @@ fn reverse_edge_alias_keeps_the_entry_formals_selected_polarity() {
     let axioms = [Proposition::Equal(alias, formal.clone())];
     for positive in [false, true] {
         assert_eq!(
-            condition_fact(ValueId::new(4).unwrap(), positive, &axioms, &|id| {
-                ScalarTerm::value(id, ScalarType::Boolean)
-            }),
+            condition_fact(
+                ValueId::new(4).unwrap(),
+                positive,
+                &axioms,
+                &|id| { ScalarTerm::value(id, ScalarType::Boolean) },
+                &context(&axioms)
+            )
+            .map(|fact| fact.proposition),
             Some(Proposition::Equal(
                 formal.clone(),
                 ScalarTerm::Boolean(positive)
@@ -382,7 +513,78 @@ fn disequality_at_carrier_extrema_does_not_wrap_adjacent_bounds() {
             } else {
                 Proposition::LessOrEqual(adjacent, subject.clone())
             };
-            assert_eq!(selected(predicate, false), expected);
+            let fact = selected(predicate, false);
+            assert_eq!(fact.proposition, expected);
+            // The literal-adjacency strengthening remains a licensed
+            // premise introduction: no value-equation transport discharges
+            // a bound the roster never stated.
+            assert!(!fact.certified);
         }
     }
+}
+
+#[test]
+fn checked_transport_certifies_denotation_facts_only() {
+    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let subject = value(2, ScalarType::Integer(scalar_type));
+    let zero = integer(scalar_type, 0);
+    let condition = ValueId::new(1).unwrap();
+    let compare = ScalarTerm::IntegerLessThan {
+        scalar_type,
+        left: Box::new(subject.clone()),
+        right: Box::new(zero.clone()),
+    };
+    let axioms = [Proposition::Equal(value(1, ScalarType::Boolean), compare)];
+    let proposition_context = context(&axioms);
+    // A denotation-recognized arm fact carries a generation-time-checked
+    // transport certificate: the arm's truth premise transports through the
+    // roster's own equation to exactly the emitted proposition.
+    for (positive, expected) in [
+        (true, Proposition::LessThan(subject.clone(), zero.clone())),
+        (false, Proposition::LessOrEqual(zero, subject.clone())),
+    ] {
+        let fact = condition_fact(
+            condition,
+            positive,
+            &axioms,
+            &|id| ScalarTerm::value(id, ScalarType::Boolean),
+            &proposition_context,
+        )
+        .unwrap();
+        assert_eq!(fact.proposition, expected);
+        assert!(fact.certified);
+    }
+    // A short alias chain transports too: the premise follows the roster's
+    // equations hop by hop before the denotation is compared.
+    let alias = value(5, ScalarType::Boolean);
+    let axioms = [
+        Proposition::Equal(value(1, ScalarType::Boolean), alias.clone()),
+        Proposition::Equal(alias, compare_alias_literal()),
+    ];
+    let fact = condition_fact(
+        condition,
+        true,
+        &axioms,
+        &|id| ScalarTerm::value(id, ScalarType::Boolean),
+        &context(&axioms),
+    )
+    .unwrap();
+    assert_eq!(fact.proposition, Proposition::Truth);
+    assert!(fact.certified);
+    // An unsatisfiable selected arm's falsehood is likewise the transport
+    // of its closed inconsistent premise.
+    let axioms = [Proposition::Equal(
+        value(1, ScalarType::Boolean),
+        ScalarTerm::Boolean(false),
+    )];
+    let fact = condition_fact(
+        condition,
+        true,
+        &axioms,
+        &|id| ScalarTerm::value(id, ScalarType::Boolean),
+        &context(&axioms),
+    )
+    .unwrap();
+    assert_eq!(fact.proposition, Proposition::Falsehood);
+    assert!(fact.certified);
 }

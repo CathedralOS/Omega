@@ -14,7 +14,9 @@
 //! each operation's own safety question was captured before its result facts.
 
 use proof_admission::{Obligation, ObligationClass};
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, Proposition, ScalarTerm, ValueId};
+use semantic_vocabulary::{
+    BlockId, EdgeId, MachineId, Proposition, PropositionContext, ScalarTerm, ValueId,
+};
 use std::collections::BTreeMap;
 use terminal_psi::{TerminalMachine, TerminalModule, Terminator};
 
@@ -53,6 +55,7 @@ pub(super) fn append_arrival_obligations(
     machine: &TerminalMachine,
     terminator: &Terminator,
     value_term: &impl Fn(ValueId) -> ScalarTerm,
+    proposition_context: &PropositionContext,
     axioms: &[Proposition],
     obligations: &mut Vec<ReconstructedOperationObligation>,
 ) {
@@ -122,11 +125,15 @@ pub(super) fn append_arrival_obligations(
         } => {
             for (successor, positive) in [(when_true, true), (when_false, false)] {
                 let mut selected_axioms = axioms.to_vec();
-                if let Some(fact) =
-                    path_facts::condition_fact(*condition, positive, axioms, value_term)
-                    && !selected_axioms.contains(&fact)
+                if let Some(fact) = path_facts::condition_fact(
+                    *condition,
+                    positive,
+                    axioms,
+                    value_term,
+                    proposition_context,
+                ) && !selected_axioms.contains(&fact.proposition)
                 {
-                    selected_axioms.push(fact);
+                    selected_axioms.push(fact.proposition);
                 }
                 append_edge(
                     successor.edge,
