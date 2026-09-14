@@ -438,7 +438,7 @@ rows! {
     FORM_AFFINE_CLEANUP => (
         "formation:affine-cleanup",
         SharedFormation,
-        "the machine's affine cleanup actions and continuations",
+        "the machine's affine cleanup actions and continuations, including Jump edges whose owned arguments move one projected affine child while the residual complement dies on the edge",
         "cleanup plans validate before terminators reconstruct their obligations",
         &["formation:machine-validation"],
         &[tv!( "validation/affine_cleanup.rs"), tv!( "validation/affine_cleanup/continuation.rs")]
@@ -502,7 +502,7 @@ rows! {
     FORM_BLOCK_INVARIANTS => (
         "formation:scalar-block-invariants",
         SharedFormation,
-        "a header block's declared scalar invariants",
+        "a header block's declared scalar invariants over the destination telescope, immutable invocation formals, and storage observations rooted at places alive for the whole invocation",
         "invariants validate as well-formed propositions before per-edge obligations are reconstructed",
         &["formation:proposition-context", "scope:header-edge-arrival"],
         &[tv!( "validation/scalar_block_invariants.rs")]
@@ -558,7 +558,7 @@ rows! {
     FORM_PARTIAL_AFFINE => (
         "formation:partial-affine",
         SharedFormation,
-        "the machine's partial and trivial affine locals and discards",
+        "the machine's partial and trivial affine locals and discards, plus projected affine roots reached through locals, call products, and constructed records",
         "partial affine structure validates before affine facts or obligations are reconstructed",
         &["formation:machine-validation"],
         &[tv!( "validation/partial_affine.rs")]
@@ -606,8 +606,8 @@ rows! {
     FORM_STRUCTURAL_SCALAR => (
         "formation:structural-scalar-fields",
         SharedFormation,
-        "structural scalar field reads and their declared intervals",
-        "field reads validate and resolve their referents before equations and bounds are reconstructed",
+        "structural scalar field reads and bounded-integer field stores with their declared intervals",
+        "field reads and stores validate and resolve their referents — a store's declared range obligation resolves against the declaration, independently of the stored value — before equations and bounds are reconstructed",
         &["formation:operation-validation"],
         &[tv!( "validation/structural_scalar_fields.rs")]
     );
@@ -638,7 +638,7 @@ rows! {
     FORM_MATHEMATICAL_CORE => (
         "formation:mathematical-core",
         SharedFormation,
-        "the mathematical-integer term language: terms, typing, substitution, conversion, and certificates",
+        "the mathematical-integer term language: terms, typing, substitution, conversion, certificates, and inductive W-type formation with dependent elimination",
         "mathematical terms are well-typed, bounded, and canonically formed before any judgment or normalization evaluates them",
         &["formation:proposition-context"],
         &[pa!( "mathematical_core.rs"), pa!( "mathematical_core/term.rs"), pa!( "mathematical_core/typing.rs"), pa!( "mathematical_core/substitution.rs"), pa!( "mathematical_core/conversion.rs"), pa!( "mathematical_core/certificate.rs")]
