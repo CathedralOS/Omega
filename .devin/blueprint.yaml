@@ -14,7 +14,10 @@ maintenance:
   - name: submodules (best effort; Squalr is in the CathedralOS org)
     run: git submodule update --init --recursive || echo "submodule init skipped"
   - name: git policy
-    run: git config pull.rebase true
+    run: |
+      git config pull.rebase true
+      git config --global user.name "Jarod Castillo"
+      git config --global user.email "43973221+Smotto@users.noreply.github.com"
   - name: prefetch and warm
     run: |
       export PATH="$HOME/.cargo/bin:$PATH"
