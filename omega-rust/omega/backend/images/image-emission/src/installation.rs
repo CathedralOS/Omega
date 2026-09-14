@@ -277,6 +277,18 @@ impl InstallationRecord {
         &mut self.private_functions
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn dynamic_conformance_tables_mut_for_test(
+        &mut self,
+    ) -> &mut Vec<InstalledDynamicConformanceTable> {
+        &mut self.dynamic_conformance_tables
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn dynamic_calls_mut_for_test(&mut self) -> &mut Vec<InstalledDynamicCall> {
+        &mut self.dynamic_calls
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
