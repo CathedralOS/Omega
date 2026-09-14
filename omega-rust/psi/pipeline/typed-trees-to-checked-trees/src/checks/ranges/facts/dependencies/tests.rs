@@ -1,6 +1,7 @@
 use super::*;
 use typed_trees::statement::StatementNode;
 
+mod atomics;
 mod indexes;
 
 fn typed_source(source: &str) -> TypedTrees {
