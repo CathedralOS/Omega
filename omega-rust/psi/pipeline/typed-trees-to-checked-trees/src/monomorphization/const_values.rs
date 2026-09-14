@@ -17,6 +17,7 @@ pub(super) fn substitute(
     runtime_expression_roots: &[ExpressionHandle],
 ) -> Result<(), Diagnostic> {
     for (index, ((binder, name, declared_type), binding)) in candidate
+        .template
         .const_parameters
         .iter()
         .zip(&candidate.const_bindings)
@@ -51,7 +52,7 @@ pub(super) fn substitute(
                 return Err(Diagnostic::error(format!(
                     "value parameter `{name}` of machine `{}` is bound to a runtime argument and \
                      cannot appear in a static type, contract, or const context",
-                    candidate.template_name,
+                    candidate.template.template_name,
                 )));
             }
             continue;
@@ -86,7 +87,7 @@ pub(super) fn substitute(
                 .and_then(|binding| value(program, binding, *declared_type))
                 .ok_or_else(|| Diagnostic::error(format!(
                     "machine `{}` cannot materialize const parameter `{name}` as its declared value type `{}`",
-                    candidate.template_name,
+                    candidate.template.template_name,
                     program.display_type_reference(*declared_type),
                 )))?;
             *program.expression_table.expression_mut(occurrence) = replacement;

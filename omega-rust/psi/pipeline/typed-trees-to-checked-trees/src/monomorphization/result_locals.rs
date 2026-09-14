@@ -62,13 +62,14 @@ pub(super) fn refresh_generic_call_results(
         if super::approved_type_bounds(program, std::slice::from_ref(&candidate)) != [true] {
             return Err(vec![diagnostics::Diagnostic::error(format!(
                 "generic machine `{}` has a concrete call result tuple that does not satisfy its authored type bounds",
-                candidate.template_name,
+                candidate.template.template_name,
             ))]);
         }
         super::validate_candidate_conformance_bounds(program, &mut candidate)?;
         let mut closed_candidate = candidate.clone();
         let mut forwarded_symbols = Vec::new();
         for (ordinal, ((parameter, _, _), binding)) in candidate
+            .template
             .const_parameters
             .iter()
             .zip(&candidate.const_bindings)
@@ -92,12 +93,14 @@ pub(super) fn refresh_generic_call_results(
         super::const_arguments::validate_bindings(program, &closed_candidate)
             .map_err(|error| vec![error])?;
         let substitutions = candidate
+            .template
             .type_parameters
             .iter()
             .zip(&candidate.type_bindings)
             .filter_map(|((symbol, _), binding)| binding.map(|binding| (*symbol, binding)))
             .chain(
                 candidate
+                    .template
                     .const_parameters
                     .iter()
                     .zip(&candidate.const_bindings)
@@ -150,9 +153,9 @@ fn forwarded_result_selection(
 ) -> Option<super::CallSelection> {
     let candidate = &candidates[selection.candidate_index];
     if selection.conflicted
-        || !candidate.type_parameters.is_empty()
-        || !candidate.machine_parameters.is_empty()
-        || !candidate.evidence_parameters.is_empty()
+        || !candidate.template.type_parameters.is_empty()
+        || !candidate.template.machine_parameters.is_empty()
+        || !candidate.template.evidence_parameters.is_empty()
     {
         return None;
     }
@@ -202,7 +205,8 @@ fn forwarded_result_selection(
                 return None;
             };
             if program.package_qualified_type_identity(type_reference)
-                != program.package_qualified_type_identity(candidate.const_parameters[ordinal].2)
+                != program
+                    .package_qualified_type_identity(candidate.template.const_parameters[ordinal].2)
             {
                 return None;
             }

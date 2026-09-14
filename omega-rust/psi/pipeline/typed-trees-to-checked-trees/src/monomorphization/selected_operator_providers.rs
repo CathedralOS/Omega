@@ -258,8 +258,8 @@ fn materialized_application(
     use typed_trees::operator::ClosedOperatorApplicationArgument;
     let parameters = templates.machine_type_parameters(machine);
     if parameters.len() != application.len()
-        || !template.machine_parameters.is_empty()
-        || !template.evidence_parameters.is_empty()
+        || !template.template.machine_parameters.is_empty()
+        || !template.template.evidence_parameters.is_empty()
     {
         return false;
     }
@@ -353,23 +353,23 @@ fn has_materialized_specialization(
         })
 }
 
-fn selected_operator_candidate_for_application(
+fn selected_operator_candidate_for_application<'template>(
     program: &TypedTrees,
-    template: &Candidate,
+    template: &'template Candidate<'_>,
     machine: &typed_trees::machine::Machine,
     application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
-) -> Result<Candidate, Diagnostic> {
+) -> Result<Candidate<'template>, Diagnostic> {
     let machine_parameters = program.machine_type_parameters(machine);
     if machine_parameters.len() != application.len()
-        || !template.machine_parameters.is_empty()
-        || !template.evidence_parameters.is_empty()
+        || !template.template.machine_parameters.is_empty()
+        || !template.template.evidence_parameters.is_empty()
     {
         return Err(Diagnostic::error(format!(
             "selected generic operator provider `{}` has no supported exact type/const specialization tuple",
             machine.name,
         )));
     }
-    let mut candidate = template.clone();
+    let mut candidate = template.borrowed();
     for (parameter, argument) in machine_parameters.iter().zip(application) {
         match (&parameter.kind, argument) {
             (
@@ -380,6 +380,7 @@ fn selected_operator_candidate_for_application(
                 },
             ) => {
                 let index = candidate
+                    .template
                     .type_parameters
                     .iter()
                     .position(|(symbol, _)| *symbol == parameter.symbol)
@@ -397,6 +398,7 @@ fn selected_operator_candidate_for_application(
                     )));
                 };
                 let index = candidate
+                    .template
                     .const_parameters
                     .iter()
                     .position(|(symbol, _, _)| *symbol == parameter.symbol)
