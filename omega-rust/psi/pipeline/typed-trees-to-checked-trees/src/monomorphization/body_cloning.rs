@@ -43,8 +43,11 @@ pub(super) fn clone_specialized_machine(
             typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect::<Vec<_>>();
-    let type_start = program.type_reference_table.type_reference_count();
-    let expression_start = program.expression_table.iter_expressions().count();
+    // Arena indices are one-based, so the clone region begins one past the
+    // last pre-existing node; bounding substitutions at count()+1 keeps an
+    // already-materialized endpoint or binder sentinel out of the sweep.
+    let type_start = program.type_reference_table.type_reference_count() + 1;
+    let expression_start = program.expression_table.iter_expressions().count() + 1;
 
     let type_arguments: Vec<String> = candidate
         .type_bindings

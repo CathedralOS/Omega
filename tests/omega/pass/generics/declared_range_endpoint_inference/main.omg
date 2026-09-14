@@ -126,6 +126,10 @@ machine field_scoped_exclusive() -> u64 {
     let bounded: ScopedBounds = ScopedBounds { second: 511, first: 256 };
     upper_bound(bounded.second)
 }
+machine forward_bound<const K: u64>(value: u64[0..=K]) -> u64 { upper_bound(value) }
+machine relay_bound<const J: u64>(value: u64[0..=J]) -> u64 { forward_bound(value) }
+machine forwarded_bound(value: u64[0..=256]) -> u64 { forward_bound(value) }
+machine relayed_bound(value: u64[0..=256]) -> u64 { relay_bound(value) }
 
 data Main { console: Service<Console> in Bound; }
 machine Main::main(&mut self) reaches Console {
@@ -134,7 +138,9 @@ machine Main::main(&mut self) reaches Console {
     let signed: i64 = generic_signed_call_bound();
     let narrow: i8 = generic_narrow_signed_value();
     let wide: u64 = generic_full_width_value();
-    transition bound == 256 && forwarded == 256 && signed == -2 && narrow == -3 && wide == 18446744073709551615u64 {
+    let symbolic: u64 = forwarded_bound(0);
+    let relayed: u64 = relayed_bound(0);
+    transition bound == 256 && forwarded == 256 && signed == -2 && narrow == -3 && wide == 18446744073709551615u64 && symbolic == 256 && relayed == 256 {
         true -> passed()
         false -> failed()
     }
