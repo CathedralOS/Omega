@@ -108,7 +108,7 @@ pub fn requires_const_initializer_evaluation(
 pub(crate) fn pending_const_initializer_leaves(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: &crate::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
 ) -> Result<
     Vec<(
         syntax_trees::expression::ExpressionHandle,
@@ -121,7 +121,7 @@ pub(crate) fn pending_const_initializer_leaves(
 
     fn collect(
         syntax: &SyntaxTrees,
-        selection: &crate::generic_data::constant_selection::ConstantSelection,
+        selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
         expression: syntax_trees::expression::ExpressionHandle,
         type_reference: syntax_trees::types::TypeReferenceHandle,
         leaves: &mut Vec<(
@@ -247,7 +247,7 @@ pub(crate) fn pending_const_initializer_leaves(
 pub(crate) fn public_declaration_value_encoding(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: Option<&crate::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
 ) -> Result<String, String> {
     use numerics::literals::FloatLiteral;
     use syntax_trees::{expression::ExpressionNode, types::TypeReferenceNode};
@@ -290,7 +290,7 @@ pub(crate) fn public_declaration_value_encoding(
             Ok(format!("float:f64:{:016x}", value.to_bits()))
         };
     }
-    crate::generic_data::canonicalize_selected_declared_const_definition(
+    crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
         syntax, definition, selection,
     )
     .map(|value| value.encoding)
@@ -357,8 +357,10 @@ pub(crate) fn validate_scalar_initializer(
                 ))
             }
         }
-        _ => crate::generic_data::canonicalize_declared_const_definition(syntax, constant)
-            .map(|_| ()),
+        _ => crate::preparation::generic_data::canonicalize_declared_const_definition(
+            syntax, constant,
+        )
+        .map(|_| ()),
     }
 }
 
@@ -380,24 +382,26 @@ pub(crate) fn validate_const_definition(
 }
 
 pub(crate) fn retain_const_initializer(
-    lowerer: &mut crate::lowerer::Lowerer,
+    lowerer: &mut crate::resolution::lowerer::Lowerer,
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<ExpressionHandle, Diagnostic> {
     let pending = lowerer.const_resolution_mode
-        == crate::lowerer::ConstResolutionMode::InitializerSelection
+        == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
         && requires_const_initializer_evaluation(syntax, definition);
     if !pending && !has_scalar_initializer(syntax, definition) {
-        if crate::module_normalization::module_literal_constant(syntax, definition) {
+        if crate::preparation::module_normalization::module_literal_constant(syntax, definition) {
             // Unused private arrays still owe declaration shape and landing.
-            crate::generic_data::canonicalize_declared_const_definition(syntax, definition)
-                .map_err(|reason| {
-                    Diagnostic::error(format!(
-                        "array constant `{}` is invalid: {reason}",
-                        semantic_const_name(definition)
-                    ))
-                    .with_source_span(definition.name.source_span())
-                })?;
+            crate::preparation::generic_data::canonicalize_declared_const_definition(
+                syntax, definition,
+            )
+            .map_err(|reason| {
+                Diagnostic::error(format!(
+                    "array constant `{}` is invalid: {reason}",
+                    semantic_const_name(definition)
+                ))
+                .with_source_span(definition.name.source_span())
+            })?;
         } else {
             validate_literal_initializer(syntax, definition, definition.value)?;
         }
@@ -467,8 +471,8 @@ pub(crate) fn selected_expression_constant(
 
 pub(crate) fn substitute_resolved_constants(
     program: &mut SymbolResolvedTrees,
-    authored: &[crate::lowerer::PendingAuthoredExpression],
-    selections: &mut Vec<crate::lowerer::PendingConstSelection>,
+    authored: &[crate::resolution::lowerer::PendingAuthoredExpression],
+    selections: &mut Vec<crate::resolution::lowerer::PendingConstSelection>,
     retain_selection_only: bool,
 ) -> Result<(), Diagnostic> {
     use symbol_resolved_trees::expression::ExpressionNode;
@@ -605,7 +609,7 @@ pub(crate) fn substitute_resolved_constants(
         if retain_selection_only {
             // This private prepass publishes declaration custody, not a value
             // for typing or execution. Leave the resolved expression intact.
-            selections.push(crate::lowerer::PendingConstSelection {
+            selections.push(crate::resolution::lowerer::PendingConstSelection {
                 expression: occurrence.expression,
                 source_span: reference,
                 declaration_ordinal,
@@ -684,7 +688,7 @@ pub(crate) fn substitute_resolved_constants(
             .bodies
             .expressions
             .set_source_span(occurrence.expression, reference);
-        selections.push(crate::lowerer::PendingConstSelection {
+        selections.push(crate::resolution::lowerer::PendingConstSelection {
             expression: occurrence.expression,
             source_span: reference,
             declaration_ordinal,
@@ -710,7 +714,7 @@ pub(crate) fn semantic_const_name(definition: &ConstDefinition) -> String {
 /// value remains fully erased; only declaration custody survives.
 pub(crate) fn finalize_const_selections(
     program: &mut SymbolResolvedTrees,
-    pending: &[crate::lowerer::PendingConstSelection],
+    pending: &[crate::resolution::lowerer::PendingConstSelection],
 ) -> Result<(), Diagnostic> {
     let const_symbols = program
         .symbols
@@ -755,7 +759,7 @@ pub(crate) fn finalize_const_selections(
 /// only source identity and visibility survive here.
 pub(crate) fn finalize_const_declarations(
     program: &mut SymbolResolvedTrees,
-    pending: &[crate::lowerer::PendingConstDeclaration],
+    pending: &[crate::resolution::lowerer::PendingConstDeclaration],
 ) -> Result<(), Diagnostic> {
     let const_symbols = program
         .symbols
@@ -922,8 +926,8 @@ pub(crate) fn validate_normalized_const_argument(
 /// Bind exact selected declaration custody after ordinary symbol allocation.
 pub(crate) fn finalize_const_argument_selections(
     program: &mut SymbolResolvedTrees,
-    pending: &[crate::lowerer::PendingConstArgumentSelection],
-    slots: &[crate::lowerer::PendingConstArgumentSlot],
+    pending: &[crate::resolution::lowerer::PendingConstArgumentSelection],
+    slots: &[crate::resolution::lowerer::PendingConstArgumentSlot],
 ) -> Result<(), Diagnostic> {
     for (selection_ordinal, selection) in pending.iter().enumerate() {
         let origin = &selection.origin;
@@ -1794,7 +1798,7 @@ mod module_tests {
 
     fn resolve_seeded(
         extension: &str,
-    ) -> Result<crate::continuations::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
+    ) -> Result<crate::resolution::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
         resolve_seeded_with_base(
             "module combat; pub const DAMAGE: u64 = 7;",
             extension,
@@ -1806,7 +1810,7 @@ mod module_tests {
         base_text: &str,
         extension: &str,
         change_base: impl FnOnce(&mut SymbolResolvedTrees),
-    ) -> Result<crate::continuations::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
+    ) -> Result<crate::resolution::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
         use std::{path::PathBuf, sync::Arc};
         let mut sources = source::SourceMap::default();
         let base_source = sources

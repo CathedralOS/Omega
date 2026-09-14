@@ -26,26 +26,29 @@ use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceNode;
 
 pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
-    let selection =
-        crate::generic_data::constant_selection::ConstantSelection::new(syntax, None, Vec::new())?;
+    let selection = crate::preparation::generic_data::constant_selection::ConstantSelection::new(
+        syntax,
+        None,
+        Vec::new(),
+    )?;
     validate_with_selection(syntax, &selection)
 }
 
 pub(crate) fn validate_with_selection(
     syntax: &SyntaxTrees,
-    selection: &crate::generic_data::constant_selection::ConstantSelection,
+    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     validate_with_const_resolution_mode(
         syntax,
         selection,
-        crate::lowerer::ConstResolutionMode::Complete,
+        crate::resolution::lowerer::ConstResolutionMode::Complete,
     )
 }
 
 pub(crate) fn validate_with_const_resolution_mode(
     syntax: &SyntaxTrees,
-    selection: &crate::generic_data::constant_selection::ConstantSelection,
-    mode: crate::lowerer::ConstResolutionMode,
+    selection: &crate::preparation::generic_data::constant_selection::ConstantSelection,
+    mode: crate::resolution::lowerer::ConstResolutionMode,
 ) -> Result<(), Vec<Diagnostic>> {
     let module_sources = syntax
         .root_items()
@@ -106,7 +109,7 @@ pub(crate) fn validate_with_const_resolution_mode(
             Item::Const(constant)
                 if module_sources.contains(&constant.name.source_span().source_id) =>
             {
-                if mode == crate::lowerer::ConstResolutionMode::InitializerSelection
+                if mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
                     && crate::constant::requires_const_initializer_evaluation(syntax, constant)
                 {
                     // Only value admission is deferred. Ordinary resolution
@@ -117,7 +120,7 @@ pub(crate) fn validate_with_const_resolution_mode(
                         syntax.type_references.type_reference(constant.type_reference),
                         TypeReferenceNode::FixedArray { .. }
                     ) {
-                        crate::generic_data::canonicalize_declared_const_definition(syntax, constant)
+                        crate::preparation::generic_data::canonicalize_declared_const_definition(syntax, constant)
                             .map_err(|reason| {
                                 vec![Diagnostic::error(format!(
                                     "module array constant `{}` is invalid: {reason}",
@@ -134,7 +137,7 @@ pub(crate) fn validate_with_const_resolution_mode(
                     }
                     None
                 } else {
-                    crate::generic_data::canonicalize_selected_declared_const_definition(syntax, constant, Some(selection))
+                    crate::preparation::generic_data::canonicalize_selected_declared_const_definition(syntax, constant, Some(selection))
                         .map_err(|reason| vec![Diagnostic::error(format!(
                             "module-owned nominal constant `{}` is invalid: {reason}", constant.name
                         )).with_source_span(constant.name.source_span())])?;

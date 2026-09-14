@@ -75,7 +75,7 @@ pub(crate) enum ConstResolutionMode {
 pub(crate) struct Lowerer {
     pub(crate) const_resolution_mode: ConstResolutionMode,
     pub(crate) constant_selection:
-        Option<crate::generic_data::constant_selection::ConstantSelection<'static>>,
+        Option<crate::preparation::generic_data::constant_selection::ConstantSelection<'static>>,
     pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
     pub(crate) pending_static_module_calls: Vec<(
         symbol_resolved_trees::expression::ExpressionHandle,

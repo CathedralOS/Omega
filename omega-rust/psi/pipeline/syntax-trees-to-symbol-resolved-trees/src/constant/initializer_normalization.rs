@@ -33,7 +33,7 @@ fn error(reference: SourceSpan, reason: &str) -> Diagnostic {
 }
 
 pub(crate) fn retain(
-    lowerer: &mut crate::lowerer::Lowerer,
+    lowerer: &mut crate::resolution::lowerer::Lowerer,
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
     materialized: ExpressionHandle,
@@ -50,7 +50,7 @@ pub(crate) fn retain(
     {
         return Err(error(reference, "lost its exact authored expression"));
     }
-    let value = crate::generic_data::canonicalize_selected_declared_const_definition(
+    let value = crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
         syntax,
         definition,
         lowerer.constant_selection.as_ref(),
@@ -672,9 +672,10 @@ mod tests {
         };
         let members = syntax.expressions.identifier_path_members(*path);
         let reference = members[0].source_span();
-        let encoding = crate::generic_data::canonicalize_declared_const_definition(&syntax, base)
-            .expect("canonical BASE")
-            .encoding;
+        let encoding =
+            crate::preparation::generic_data::canonicalize_declared_const_definition(&syntax, base)
+                .expect("canonical BASE")
+                .encoding;
         let value = syntax.expressions.insert(ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(3),
         ));
@@ -683,12 +684,13 @@ mod tests {
         definition.value = value;
         definition.normalization = Some(ConstInitializerNormalization {
             authored_expression: original,
-            canonical_result_encoding: crate::generic_data::canonicalize_declared_const_definition(
-                &syntax,
-                &definition,
-            )
-            .expect("canonical COUNT")
-            .encoding,
+            canonical_result_encoding:
+                crate::preparation::generic_data::canonicalize_declared_const_definition(
+                    &syntax,
+                    &definition,
+                )
+                .expect("canonical COUNT")
+                .encoding,
             selections: vec![ConstArgumentOrigin {
                 reference,
                 declaration: base.name.source_span(),

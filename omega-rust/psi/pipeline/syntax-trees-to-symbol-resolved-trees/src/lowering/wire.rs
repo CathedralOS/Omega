@@ -1,6 +1,6 @@
 //! Wire schema derivation for lowered data definitions.
 
-use crate::lowerer::Lowerer;
+use crate::resolution::lowerer::Lowerer;
 use symbol_resolved_trees::data::{DataDefinition, DataMember, DataProperties};
 use symbol_resolved_trees::wire::{WireField, WireMember, WireReserved, WireSchema};
 

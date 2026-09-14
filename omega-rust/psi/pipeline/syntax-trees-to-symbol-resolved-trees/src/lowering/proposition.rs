@@ -1,9 +1,9 @@
 //! Proposition definitions: binders, parameters, and primitive, witness, or
 //! transparent bodies.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::state::lower_state_parameters;
 use crate::lowering::type_reference::lower_type_reference_handle;
+use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::data::DataProperties;

@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(in crate::generic_data) fn desugar_generic_data_instances(
+pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
     syntax: &mut SyntaxTrees,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Vec<Diagnostic>> {

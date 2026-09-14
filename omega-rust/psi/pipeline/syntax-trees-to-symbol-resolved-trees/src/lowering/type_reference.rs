@@ -3,8 +3,8 @@
 //! Normalized const arguments are validated before their expressions lower.
 //! Dynamic trait references and fixed array lengths lower here as well.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::expression::lower_expression_into_table;
+use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::types::{
@@ -59,7 +59,7 @@ pub(crate) fn lower_type_reference_handle(
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
                 };
                 lowerer.pending_const_argument_selections.push(
-                    crate::lowerer::PendingConstArgumentSelection {
+                    crate::resolution::lowerer::PendingConstArgumentSelection {
                         origin: origin.clone(),
                         exposure,
                     },
@@ -196,7 +196,7 @@ fn lower_type_reference_node(
             lifetime_arguments,
             arguments,
         } => {
-            crate::generic_data::validate_direct_const_arguments(
+            crate::preparation::generic_data::validate_direct_const_arguments(
                 syntax_trees,
                 base_name,
                 *arguments,
@@ -464,7 +464,7 @@ fn retain_const_argument_slots(
             {
                 if pending.origin == *selected {
                     lowerer.pending_const_argument_slots.push(
-                        crate::lowerer::PendingConstArgumentSlot {
+                        crate::resolution::lowerer::PendingConstArgumentSlot {
                             selection,
                             arguments: lowered_arguments,
                             ordinal,

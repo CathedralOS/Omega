@@ -5,13 +5,13 @@
 //! binding identity, and every state. `lower_generic_conformance_bounds` is
 //! shared with trait definitions.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::data::lower_type_parameters;
 use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::state::{
     lower_machine_signature_contracts, lower_service_reach_names, lower_signature_invokes,
     lower_state_node,
 };
+use crate::resolution::lowerer::Lowerer;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::machine::{

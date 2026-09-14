@@ -2,14 +2,18 @@
 
 use super::*;
 
-pub(in crate::generic_data) fn integer_literal_value(value: &IntegerLiteral) -> Option<i128> {
+pub(in crate::preparation::generic_data) fn integer_literal_value(
+    value: &IntegerLiteral,
+) -> Option<i128> {
     value
         .value_i64()
         .map(i128::from)
         .or_else(|| value.value_u64().map(i128::from))
 }
 
-pub(in crate::generic_data) fn qualified_const_name(definition: &ConstDefinition) -> String {
+pub(in crate::preparation::generic_data) fn qualified_const_name(
+    definition: &ConstDefinition,
+) -> String {
     if definition.scope.as_str().is_empty() {
         definition.name.as_str().to_owned()
     } else {
@@ -22,7 +26,7 @@ pub(in crate::generic_data) fn qualified_const_name(definition: &ConstDefinition
 }
 
 #[derive(Clone)]
-pub(in crate::generic_data) struct ClosedDomainFamily {
+pub(in crate::preparation::generic_data) struct ClosedDomainFamily {
     parameters: Vec<ClosedDomainParameter>,
 }
 
@@ -39,7 +43,7 @@ enum ClosedDomainParameter {
 
 /// The family's index telescope, excluding only a directly named first
 /// type binder used as its carrier. Fixed carriers retain every parameter.
-pub(in crate::generic_data) fn domain_index_parameters<'syntax>(
+pub(in crate::preparation::generic_data) fn domain_index_parameters<'syntax>(
     syntax: &'syntax SyntaxTrees,
     definition: &syntax_trees::item::DomainDefinition,
 ) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
@@ -65,11 +69,11 @@ pub(in crate::generic_data) fn domain_index_parameters<'syntax>(
 /// does not monomorphize the domain: the family remains nominal and erased.
 /// Only its const arguments are rewritten to the same canonical leaves used by
 /// PDI1 generic identity.
-pub(in crate::generic_data) fn canonicalize_closed_domain_indices(
+pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
     syntax: &mut SyntaxTrees,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
-    selection: Option<&crate::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     let mut families = HashMap::<String, ClosedDomainFamily>::new();
@@ -234,14 +238,14 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_indices(
     Ok(())
 }
 
-pub(in crate::generic_data) fn canonicalize_closed_domain_application(
+pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_application(
     syntax: &mut SyntaxTrees,
     family_name: &str,
     family: &ClosedDomainFamily,
     arguments: Vec<TypeReferenceHandle>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
-    selection: Option<&crate::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     concrete_data_positions: &[TypeReferenceHandle],
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
@@ -343,7 +347,7 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
                 if const_values.contains_key(name.as_str())
                     || const_definitions.contains_key(name.as_str())
                 {
-                    crate::generic_data::module_constants::reject_module_constant_selection(
+                    crate::preparation::generic_data::module_constants::reject_module_constant_selection(
                         syntax,
                         name.as_str(),
                         name.source_span(),
@@ -426,7 +430,7 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
     Ok(())
 }
 
-pub(in crate::generic_data) fn const_expression_contains_name(
+pub(in crate::preparation::generic_data) fn const_expression_contains_name(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
 ) -> bool {

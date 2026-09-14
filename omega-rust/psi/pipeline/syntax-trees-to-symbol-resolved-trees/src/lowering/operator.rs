@@ -1,10 +1,10 @@
 //! Operator definitions. Domain homes are selected later by
 //! `selection::domain_operator_homes`.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::data::lower_type_parameters;
 use crate::lowering::state::{lower_signature_contracts, lower_state_parameters};
 use crate::lowering::type_reference::lower_type_reference_handle;
+use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use syntax_trees::{self as syntax, SyntaxTrees};

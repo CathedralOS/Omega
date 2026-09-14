@@ -8,12 +8,12 @@ use super::*;
 /// wrong arity, a non-sluggable argument, or a data shape whose members cannot
 /// substitute every parameter occurrence exactly -- is left
 /// UNTOUCHED for the existing type-check-only path (skip, never reject).
-pub(in crate::generic_data) fn consider_generic_spelling(
+pub(in crate::preparation::generic_data) fn consider_generic_spelling(
     syntax: &mut SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
-    selection: Option<&crate::generic_data::constant_selection::ConstantSelection>,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     type_reference: TypeReferenceHandle,
     rewrites: &mut Vec<PendingRewrite>,
     instantiations: &mut Vec<Instantiation>,
@@ -146,7 +146,7 @@ pub(in crate::generic_data) fn consider_generic_spelling(
                 if const_values.contains_key(name.as_str())
                     || const_definitions.contains_key(name.as_str())
                 {
-                    crate::generic_data::module_constants::reject_module_constant_selection(
+                    crate::preparation::generic_data::module_constants::reject_module_constant_selection(
                         syntax,
                         name.as_str(),
                         name.source_span(),
@@ -319,7 +319,7 @@ pub(in crate::generic_data) fn consider_generic_spelling(
     Ok(())
 }
 
-pub(in crate::generic_data) fn const_arguments_fit_declarations(
+pub(in crate::preparation::generic_data) fn const_arguments_fit_declarations(
     syntax: &SyntaxTrees,
     base_info: &GenericData,
     arguments: &[TypeReferenceHandle],
@@ -371,7 +371,7 @@ pub(in crate::generic_data) fn const_arguments_fit_declarations(
 /// landing. Already-typed arithmetic keeps the current signed/unsigned 64-bit
 /// envelope. Shifts and bitwise operations use the matched const parameter's
 /// declared width and signedness.
-pub(in crate::generic_data) fn evaluate_const_argument_expression(
+pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
@@ -403,7 +403,7 @@ pub(in crate::generic_data) fn evaluate_const_argument_expression(
             } else if symbolic_parameters.contains(&name) {
                 Ok(EvaluatedConst::Symbolic(name))
             } else {
-                crate::generic_data::module_constants::reject_module_constant_selection(
+                crate::preparation::generic_data::module_constants::reject_module_constant_selection(
                     syntax,
                     &name,
                     members
@@ -516,13 +516,13 @@ pub(in crate::generic_data) fn evaluate_const_argument_expression(
 }
 
 #[derive(Clone, Copy)]
-pub(in crate::generic_data) struct ConstIntegerType {
+pub(in crate::preparation::generic_data) struct ConstIntegerType {
     name: &'static str,
     bits: u32,
     signed: bool,
 }
 
-pub(in crate::generic_data) fn const_integer_type(
+pub(in crate::preparation::generic_data) fn const_integer_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<ConstIntegerType> {
@@ -581,7 +581,7 @@ pub(in crate::generic_data) fn const_integer_type(
     })
 }
 
-pub(in crate::generic_data) fn generic_const_integer_types(
+pub(in crate::preparation::generic_data) fn generic_const_integer_types(
     syntax: &SyntaxTrees,
     generic_name: &str,
 ) -> Vec<Option<ConstIntegerType>> {
@@ -609,7 +609,7 @@ pub(in crate::generic_data) fn generic_const_integer_types(
         .unwrap_or_default()
 }
 
-pub(in crate::generic_data) fn evaluate_declared_width_operation(
+pub(in crate::preparation::generic_data) fn evaluate_declared_width_operation(
     operator: BinaryOperator,
     left: i128,
     right: i128,
@@ -696,12 +696,12 @@ pub(in crate::generic_data) fn evaluate_declared_width_operation(
 }
 
 #[derive(Debug)]
-pub(in crate::generic_data) enum EvaluatedConst {
+pub(in crate::preparation::generic_data) enum EvaluatedConst {
     Concrete(i128),
     Symbolic(String),
 }
 
-pub(in crate::generic_data) fn checked_evaluated_const(
+pub(in crate::preparation::generic_data) fn checked_evaluated_const(
     value: Option<i128>,
     operation: &str,
 ) -> Result<EvaluatedConst, String> {
@@ -712,7 +712,7 @@ pub(in crate::generic_data) fn checked_evaluated_const(
 }
 
 impl EvaluatedConst {
-    pub(in crate::generic_data) fn into_concrete(self) -> Result<i128, String> {
+    pub(in crate::preparation::generic_data) fn into_concrete(self) -> Result<i128, String> {
         match self {
             Self::Concrete(value) => Ok(value),
             Self::Symbolic(name) => Err(format!(

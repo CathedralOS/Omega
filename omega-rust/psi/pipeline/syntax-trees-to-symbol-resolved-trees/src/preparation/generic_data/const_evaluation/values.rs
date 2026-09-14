@@ -12,10 +12,10 @@
 //! even when its numeric payload fits. Check the landing before encoding it.
 
 use super::*;
-use crate::generic_data::constant_selection::ConstantSelection;
+use crate::preparation::generic_data::constant_selection::ConstantSelection;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::generic_data) enum CanonicalConstNode {
+pub(in crate::preparation::generic_data) enum CanonicalConstNode {
     Integer {
         type_name: String,
         value: i128,
@@ -37,7 +37,7 @@ pub(in crate::generic_data) enum CanonicalConstNode {
 }
 
 impl CanonicalConstNode {
-    pub(in crate::generic_data) fn encoding(&self) -> String {
+    pub(in crate::preparation::generic_data) fn encoding(&self) -> String {
         match self {
             Self::Integer { type_name, value } => {
                 framed("integer", [type_name.clone(), value.to_string()])
@@ -71,7 +71,7 @@ impl CanonicalConstNode {
         }
     }
 
-    pub(in crate::generic_data) fn display(&self) -> String {
+    pub(in crate::preparation::generic_data) fn display(&self) -> String {
         match self {
             Self::Integer { value, .. } => value.to_string(),
             Self::Boolean(value) => value.to_string(),
@@ -112,7 +112,7 @@ impl CanonicalConstNode {
     }
 }
 
-pub(in crate::generic_data) fn framed(
+pub(in crate::preparation::generic_data) fn framed(
     tag: &str,
     pieces: impl IntoIterator<Item = impl AsRef<str>>,
 ) -> String {
@@ -126,7 +126,7 @@ pub(in crate::generic_data) fn framed(
     encoded
 }
 
-pub(in crate::generic_data) fn canonicalize_const_definition(
+pub(in crate::preparation::generic_data) fn canonicalize_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
     parameter_type: TypeReferenceHandle,
@@ -134,7 +134,7 @@ pub(in crate::generic_data) fn canonicalize_const_definition(
     canonicalize_selected_const_definition(syntax, definition, parameter_type, None)
 }
 
-pub(in crate::generic_data) fn canonicalize_selected_const_definition(
+pub(in crate::preparation::generic_data) fn canonicalize_selected_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
     parameter_type: TypeReferenceHandle,
@@ -160,7 +160,7 @@ pub(in crate::generic_data) fn canonicalize_selected_const_definition(
 /// Direct structural atoms and named constants share index admissibility and
 /// canonical representation. Only the named route additionally owns a const
 /// declaration's copy/cleanup eligibility and declared-carrier equality.
-pub(in crate::generic_data) fn canonicalize_selected_index_expression(
+pub(in crate::preparation::generic_data) fn canonicalize_selected_index_expression(
     syntax: &SyntaxTrees,
     value_type: TypeReferenceHandle,
     parameter_type: TypeReferenceHandle,
@@ -180,7 +180,7 @@ pub(in crate::generic_data) fn canonicalize_selected_index_expression(
     ))
 }
 
-pub(in crate::generic_data) fn syntax_type_identity(
+pub(in crate::preparation::generic_data) fn syntax_type_identity(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
 ) -> Result<String, String> {
@@ -365,7 +365,7 @@ fn same_carrier(
     }
 }
 
-pub(in crate::generic_data) fn validate_const_index_type(
+pub(in crate::preparation::generic_data) fn validate_const_index_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
     _visiting: &mut HashSet<String>,
@@ -457,7 +457,7 @@ fn validate_selected_const_index_type(
     }
 }
 
-pub(in crate::generic_data) fn canonicalize_const_expression(
+pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
     syntax: &SyntaxTrees,
     expected_type: TypeReferenceHandle,
     expression: ExpressionHandle,
@@ -535,7 +535,7 @@ pub(in crate::generic_data) fn canonicalize_const_expression(
     }
 }
 
-pub(in crate::generic_data) fn canonicalize_data_const_expression(
+pub(in crate::preparation::generic_data) fn canonicalize_data_const_expression(
     syntax: &SyntaxTrees,
     type_name: &Identifier,
     expression: ExpressionHandle,
@@ -660,7 +660,7 @@ pub(in crate::generic_data) fn canonicalize_data_const_expression(
     }
 }
 
-pub(in crate::generic_data) fn canonicalize_named_fields(
+pub(in crate::preparation::generic_data) fn canonicalize_named_fields(
     syntax: &SyntaxTrees,
     declared_fields: &[&syntax_trees::item::DataField],
     literal_fields: HandleSpan<syntax_trees::expression::TableStructLiteralField>,
@@ -696,7 +696,7 @@ pub(in crate::generic_data) fn canonicalize_named_fields(
     Ok(canonical)
 }
 
-pub(in crate::generic_data) fn validate_syntax_integer_range(
+pub(in crate::preparation::generic_data) fn validate_syntax_integer_range(
     type_name: &str,
     value: i128,
 ) -> Result<(), String> {
@@ -718,7 +718,7 @@ pub(in crate::generic_data) fn validate_syntax_integer_range(
     }
 }
 
-pub(in crate::generic_data) fn validate_canonical_rat(
+pub(in crate::preparation::generic_data) fn validate_canonical_rat(
     value: &CanonicalConstNode,
 ) -> Result<(), String> {
     let CanonicalConstNode::Record { fields, .. } = value else {
@@ -768,7 +768,9 @@ pub(in crate::generic_data) fn validate_canonical_rat(
     Ok(())
 }
 
-pub(in crate::generic_data) fn nat_value(value: &CanonicalConstNode) -> Result<usize, String> {
+pub(in crate::preparation::generic_data) fn nat_value(
+    value: &CanonicalConstNode,
+) -> Result<usize, String> {
     match value {
         CanonicalConstNode::Variant {
             type_name,
@@ -794,7 +796,7 @@ pub(in crate::generic_data) fn nat_value(value: &CanonicalConstNode) -> Result<u
     }
 }
 
-pub(in crate::generic_data) fn gcd_usize(mut left: usize, mut right: usize) -> usize {
+pub(in crate::preparation::generic_data) fn gcd_usize(mut left: usize, mut right: usize) -> usize {
     while right != 0 {
         let remainder = left % right;
         left = right;
@@ -803,11 +805,11 @@ pub(in crate::generic_data) fn gcd_usize(mut left: usize, mut right: usize) -> u
     left
 }
 
-pub(in crate::generic_data) fn const_integer_in_envelope(value: i128) -> Option<i128> {
+pub(in crate::preparation::generic_data) fn const_integer_in_envelope(value: i128) -> Option<i128> {
     (value >= i128::from(i64::MIN) && value <= i128::from(u64::MAX)).then_some(value)
 }
 
-pub(in crate::generic_data) fn checked_fact_integer(
+pub(in crate::preparation::generic_data) fn checked_fact_integer(
     value: Option<i128>,
     operation: &str,
 ) -> Result<ConstFactValue, String> {

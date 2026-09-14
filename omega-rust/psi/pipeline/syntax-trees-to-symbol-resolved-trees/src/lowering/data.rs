@@ -5,8 +5,8 @@
 //! application while their members lower. Case facts on generic data pass a
 //! narrow support gate before they are retained.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
+use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
@@ -444,9 +444,12 @@ pub(crate) fn lower_type_parameters(
                 .name
                 .clone();
             lowerer.pending_signature_service_reaches.push(
-                crate::lowerer::PendingSignatureServiceReach {
-                    location: crate::lowerer::PendingSignatureLocation::MachineParameter(handle),
-                    owner: crate::lowerer::PendingSignatureOwner::Requirement(owner),
+                crate::resolution::lowerer::PendingSignatureServiceReach {
+                    location:
+                        crate::resolution::lowerer::PendingSignatureLocation::MachineParameter(
+                            handle,
+                        ),
+                    owner: crate::resolution::lowerer::PendingSignatureOwner::Requirement(owner),
                     keyword_source_spans,
                     authored,
                 },

@@ -19,7 +19,8 @@ use syntax_trees::SyntaxTrees;
 /// resolution result and grants no authority to type, execute, or publish it.
 pub struct ConstInitializerSelection {
     pub(crate) trees: SymbolResolvedTrees,
-    pub(crate) selection: crate::generic_data::constant_selection::ConstantSelection<'static>,
+    pub(crate) selection:
+        crate::preparation::generic_data::constant_selection::ConstantSelection<'static>,
 }
 
 impl ConstInitializerSelection {
@@ -123,7 +124,7 @@ impl ConstInitializerSelection {
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
-        crate::generic_data::canonicalize_selected_declared_const_definition(
+        crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
             syntax,
             definition,
             Some(&self.selection),

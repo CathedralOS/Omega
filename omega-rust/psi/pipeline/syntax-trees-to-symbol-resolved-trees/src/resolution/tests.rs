@@ -3,7 +3,7 @@ use super::{
     lower_syntax_extension_with_authored_selection_frontier, lower_syntax_trees,
     lower_syntax_trees_with_sources, lower_syntax_trees_with_sources_and_top_level_bindings,
 };
-use crate::lowerer::Lowerer;
+use crate::resolution::lowerer::Lowerer;
 use source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use source_files_to_tokens::Lexer;
 use std::path::PathBuf;

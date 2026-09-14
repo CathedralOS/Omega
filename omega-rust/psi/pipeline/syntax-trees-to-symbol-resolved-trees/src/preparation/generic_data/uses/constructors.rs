@@ -4,7 +4,7 @@ use super::super::*;
 
 /// Copied type references retain their original application. Reuse that exact
 /// template/argument identity rather than indexing generated display spellings.
-pub(in crate::generic_data) fn expected_instance<'a>(
+pub(in crate::preparation::generic_data) fn expected_instance<'a>(
     syntax: &SyntaxTrees,
     instances: &'a [Instantiation],
     selection: Option<&constant_selection::ConstantSelection>,
@@ -26,7 +26,7 @@ pub(in crate::generic_data) fn expected_instance<'a>(
     candidates.next().is_none().then_some(instance)
 }
 
-pub(in crate::generic_data) fn selected_constructor(
+pub(in crate::preparation::generic_data) fn selected_constructor(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     name: &Identifier,
@@ -58,7 +58,7 @@ pub(in crate::generic_data) fn selected_constructor(
         })
 }
 
-pub(in crate::generic_data) fn selected_case_value(
+pub(in crate::preparation::generic_data) fn selected_case_value(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     name: &Identifier,
@@ -78,7 +78,7 @@ pub(in crate::generic_data) fn selected_case_value(
     selected_constructor(syntax, None, name)
 }
 
-pub(in crate::generic_data) fn constructor_path_name(
+pub(in crate::preparation::generic_data) fn constructor_path_name(
     syntax: &SyntaxTrees,
     path: HandleSpan<Identifier>,
 ) -> Option<Identifier> {
@@ -99,7 +99,7 @@ pub(in crate::generic_data) fn constructor_path_name(
 
 /// Keep the authored carrier occurrence separate from the generated lookup
 /// spelling and final case. Qualified carriers retain their complete prefix.
-pub(in crate::generic_data) fn constructor_carrier_span(
+pub(in crate::preparation::generic_data) fn constructor_carrier_span(
     syntax: &SyntaxTrees,
     path: HandleSpan<Identifier>,
 ) -> Option<source::SourceSpan> {
@@ -112,7 +112,7 @@ pub(in crate::generic_data) fn constructor_carrier_span(
 
 /// Derive lookup metadata in the constructor's own source context, after its
 /// authored template has been selected. The roster remains the identity owner.
-pub(in crate::generic_data) fn closed_constructor_carrier(
+pub(in crate::preparation::generic_data) fn closed_constructor_carrier(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     instance: &Instantiation,
@@ -137,7 +137,7 @@ pub(in crate::generic_data) fn closed_constructor_carrier(
     Some(Identifier::new(lookup, constructor.source_span()))
 }
 
-pub(in crate::generic_data) fn relabel_data_literal_for_expected_type(
+pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_type(
     syntax: &mut SyntaxTrees,
     expression: ExpressionHandle,
     expected_type: TypeReferenceHandle,

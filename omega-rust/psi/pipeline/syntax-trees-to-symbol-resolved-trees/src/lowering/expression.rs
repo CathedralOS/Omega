@@ -4,8 +4,8 @@
 //! admission; compiler-generated inserts are not. Static call receivers are
 //! recorded as pending module calls for `symbols` to normalize.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::name::lower_name;
+use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
@@ -50,12 +50,12 @@ pub(crate) fn lower_expression_into_table(
     }
     if let Some(exposure) = lowerer.current_authored_expression_exposure {
         expression_table(lowerer).set_authored_expression_exposure(lowered, exposure);
-        lowerer
-            .pending_authored_expressions
-            .push(crate::lowerer::PendingAuthoredExpression {
+        lowerer.pending_authored_expressions.push(
+            crate::resolution::lowerer::PendingAuthoredExpression {
                 expression: lowered,
                 exposure,
-            });
+            },
+        );
     }
     if let Some(partition) = lowerer.current_compiler_selection_partition {
         expression_table(lowerer).set_compiler_selection_partition(lowered, partition);

@@ -10,7 +10,7 @@ use super::super::*;
 /// explicitly typed local receiver or direct `self.field` receiver also names
 /// one exact nominal owner. Computed, chained, and dynamic receiver selection
 /// remains resolver-owned and fail closed here.
-pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_returns(
+pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_returns(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&constant_selection::ConstantSelection>,
@@ -256,7 +256,7 @@ pub(in crate::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_retur
     }
 }
 
-pub(in crate::generic_data) fn exact_statement_receiver_owner(
+pub(in crate::preparation::generic_data) fn exact_statement_receiver_owner(
     syntax: &SyntaxTrees,
     receiver: HandleSpan<Identifier>,
     starts_at_self: bool,
@@ -273,7 +273,7 @@ pub(in crate::generic_data) fn exact_statement_receiver_owner(
     }
 }
 
-pub(in crate::generic_data) fn exact_expression_receiver_owner(
+pub(in crate::preparation::generic_data) fn exact_expression_receiver_owner(
     syntax: &SyntaxTrees,
     receiver: ExpressionHandle,
     attached_data: Option<&str>,
@@ -305,7 +305,7 @@ pub(in crate::generic_data) fn exact_expression_receiver_owner(
 /// comparing the handles themselves would make two textually identical
 /// overload signatures look different. Unsupported or expression-bearing
 /// details fail closed rather than broadening contextual inference.
-pub(in crate::generic_data) fn call_context_parameter_types_agree(
+pub(in crate::preparation::generic_data) fn call_context_parameter_types_agree(
     syntax: &SyntaxTrees,
     left: &[TypeReferenceHandle],
     right: &[TypeReferenceHandle],
@@ -317,7 +317,7 @@ pub(in crate::generic_data) fn call_context_parameter_types_agree(
             .all(|(left, right)| call_context_types_agree(syntax, *left, *right))
 }
 
-pub(in crate::generic_data) fn call_context_types_agree(
+pub(in crate::preparation::generic_data) fn call_context_types_agree(
     syntax: &SyntaxTrees,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,

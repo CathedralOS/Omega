@@ -306,7 +306,7 @@ pub(crate) fn assign_symbols(
     program: &mut SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    const_declarations: &[crate::lowerer::PendingConstDeclaration],
+    const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut symbols = build_symbol_table(
@@ -341,8 +341,8 @@ pub(crate) fn assign_symbols_against_resolved_base(
     program: &mut SymbolResolvedTrees,
     sources: Arc<SourceMap>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    roots: crate::lowerer::RootWatermarks,
-    const_declarations: &[crate::lowerer::PendingConstDeclaration],
+    roots: crate::resolution::lowerer::RootWatermarks,
+    const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     symbol_table::extend_symbol_table(

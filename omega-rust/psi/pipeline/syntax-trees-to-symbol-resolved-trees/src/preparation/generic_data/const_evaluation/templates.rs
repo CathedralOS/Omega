@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(in crate::generic_data) fn replace_const_expression_names_from(
+pub(in crate::preparation::generic_data) fn replace_const_expression_names_from(
     syntax: &mut SyntaxTrees,
     expression_watermark: u32,
     const_literals: &HashMap<String, IntegerLiteral>,
@@ -38,7 +38,7 @@ pub(in crate::generic_data) fn replace_const_expression_names_from(
 /// dependency. The concrete clones already carry the fully evaluated value;
 /// this placeholder exists only to preserve the established generic type/kind
 /// checks on the source template.
-pub(in crate::generic_data) fn normalize_generic_template_const_expressions(
+pub(in crate::preparation::generic_data) fn normalize_generic_template_const_expressions(
     syntax: &mut SyntaxTrees,
     const_values: &HashMap<String, i128>,
     warnings: &mut Vec<Diagnostic>,
@@ -98,7 +98,7 @@ pub(in crate::generic_data) fn normalize_generic_template_const_expressions(
     Ok(())
 }
 
-pub(in crate::generic_data) fn normalize_template_type_reference(
+pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
     syntax: &mut SyntaxTrees,
     type_reference: TypeReferenceHandle,
     const_values: &HashMap<String, i128>,
@@ -210,13 +210,13 @@ pub(in crate::generic_data) fn normalize_template_type_reference(
 /// Every TYPE-REFERENCE position a generic-data spelling can appear in: data
 /// FIELDS plus machine-body `let`-local, state PARAMETER, and RETURN types. Run
 /// afresh each fixpoint round so newly-synthesized records' fields are seen.
-pub(in crate::generic_data) fn collect_type_reference_positions(
+pub(in crate::preparation::generic_data) fn collect_type_reference_positions(
     syntax: &SyntaxTrees,
 ) -> Vec<TypeReferenceHandle> {
     collect_owned_type_reference_positions(syntax, true, false)
 }
 
-pub(in crate::generic_data) fn collect_data_type_reference_positions(
+pub(in crate::preparation::generic_data) fn collect_data_type_reference_positions(
     syntax: &SyntaxTrees,
     public_only: bool,
 ) -> Vec<TypeReferenceHandle> {
@@ -372,7 +372,7 @@ fn collect_owned_type_reference_positions(
 
 /// Type owners admitted for original-scope machine constant selection. Public
 /// exposure belongs only to the entry signature, never local/state storage.
-pub(in crate::generic_data) fn collect_machine_type_reference_positions(
+pub(in crate::preparation::generic_data) fn collect_machine_type_reference_positions(
     syntax: &SyntaxTrees,
 ) -> (Vec<TypeReferenceHandle>, Vec<TypeReferenceHandle>) {
     let mut positions = Vec::new();

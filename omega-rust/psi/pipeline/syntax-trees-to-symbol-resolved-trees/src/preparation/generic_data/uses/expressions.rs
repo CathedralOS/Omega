@@ -2,7 +2,7 @@
 
 use super::super::*;
 
-pub(in crate::generic_data) fn concrete_machine_expression_handles(
+pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
     syntax: &SyntaxTrees,
 ) -> HashSet<u32> {
     let mut handles = HashSet::new();
@@ -18,7 +18,7 @@ pub(in crate::generic_data) fn concrete_machine_expression_handles(
         .collect()
 }
 
-pub(in crate::generic_data) fn concrete_machine_state_handles(
+pub(in crate::preparation::generic_data) fn concrete_machine_state_handles(
     syntax: &SyntaxTrees,
 ) -> Vec<syntax_trees::item::StateHandle> {
     syntax.root_items().filter_map(|item| {
@@ -31,7 +31,7 @@ pub(in crate::generic_data) fn concrete_machine_state_handles(
     }).flatten().copied().collect()
 }
 
-pub(in crate::generic_data) fn collect_statement_expression_handles(
+pub(in crate::preparation::generic_data) fn collect_statement_expression_handles(
     syntax: &SyntaxTrees,
     statement: syntax_trees::statement::StatementHandle,
     handles: &mut HashSet<ExpressionHandle>,
@@ -89,7 +89,7 @@ pub(in crate::generic_data) fn collect_statement_expression_handles(
     }
 }
 
-pub(in crate::generic_data) fn collect_expression_handles(
+pub(in crate::preparation::generic_data) fn collect_expression_handles(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     handles: &mut HashSet<ExpressionHandle>,
@@ -161,7 +161,7 @@ pub(in crate::generic_data) fn collect_expression_handles(
 /// Advisory constructor rewriting borrows the actual value frontier. A captured
 /// Name remains authored syntax for the ordinary resolver; no binding is chosen
 /// here. Callers visit concrete machines, whose template binders are already gone.
-pub(in crate::generic_data) struct ConstructorFrontier<'a> {
+pub(in crate::preparation::generic_data) struct ConstructorFrontier<'a> {
     pub parameters: HandleSpan<syntax_trees::item::StateParameterHandle>,
     pub prior_statements: &'a [syntax_trees::statement::StatementHandle],
 }

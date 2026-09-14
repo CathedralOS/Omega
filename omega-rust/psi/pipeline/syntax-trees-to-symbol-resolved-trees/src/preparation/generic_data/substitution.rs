@@ -7,7 +7,7 @@ use super::*;
 /// at the argument; a NESTED generic (`a: Box<T>`) becomes a fresh concrete
 /// spelling (`Box<i32>`) the fixpoint monomorphizes; a parameter-free field is
 /// shared unchanged.
-pub(in crate::generic_data) fn substitute_member(
+pub(in crate::preparation::generic_data) fn substitute_member(
     syntax: &mut SyntaxTrees,
     snapshot: &SyntaxTrees,
     member: DataMember,
@@ -83,7 +83,7 @@ fn copy_case_where_facts(
     copied
 }
 
-pub(in crate::generic_data) fn substitute_data_field(
+pub(in crate::preparation::generic_data) fn substitute_data_field(
     syntax: &mut SyntaxTrees,
     mut field: syntax_trees::item::DataField,
     substitution: &HashMap<String, TypeReferenceHandle>,
@@ -100,7 +100,7 @@ pub(in crate::generic_data) fn substitute_data_field(
     field
 }
 
-pub(in crate::generic_data) fn substitute_type_reference(
+pub(in crate::preparation::generic_data) fn substitute_type_reference(
     syntax: &mut SyntaxTrees,
     type_reference: TypeReferenceHandle,
     substitution: &HashMap<String, TypeReferenceHandle>,
@@ -265,7 +265,7 @@ pub(in crate::generic_data) fn substitute_type_reference(
 /// (recursively through composite nodes). Conservative: on an unhandled node
 /// shape it returns `true` so the caller rejects rather than silently sharing a
 /// parameter-bearing type.
-pub(in crate::generic_data) fn type_reference_mentions_parameter(
+pub(in crate::preparation::generic_data) fn type_reference_mentions_parameter(
     syntax: &SyntaxTrees,
     handle: TypeReferenceHandle,
     substitution: &HashMap<String, TypeReferenceHandle>,

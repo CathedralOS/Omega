@@ -6,7 +6,7 @@ use super::*;
 /// Evaluate a proof expression exactly when every operand is known at generic
 /// instantiation time. `None` means the fact still depends on a runtime field
 /// and must remain on the synthesized record.
-pub(in crate::generic_data) fn evaluate_const_fact_expression(
+pub(in crate::preparation::generic_data) fn evaluate_const_fact_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
@@ -36,7 +36,7 @@ pub(in crate::generic_data) fn evaluate_const_fact_expression(
             if let Some(value) = parameter_values.get(&name) {
                 return Ok(Some(ConstFactValue::Integer(*value)));
             }
-            crate::generic_data::module_constants::reject_module_constant_selection(
+            crate::preparation::generic_data::module_constants::reject_module_constant_selection(
                 syntax,
                 &name,
                 members
@@ -91,7 +91,7 @@ pub(in crate::generic_data) fn evaluate_const_fact_expression(
 /// Discharge `N in Domain` when `N` is a concrete const parameter and the
 /// domain is defined by evaluable boolean facts over `self`. Machine-call facts
 /// stay on the concrete record for typed build-time evaluation.
-pub(in crate::generic_data) fn evaluate_const_membership_fact(
+pub(in crate::preparation::generic_data) fn evaluate_const_membership_fact(
     syntax: &SyntaxTrees,
     membership: &syntax_trees::item::ProofMembershipFact,
     const_values: &HashMap<String, i128>,
@@ -134,7 +134,7 @@ pub(in crate::generic_data) fn evaluate_const_membership_fact(
     )
 }
 
-pub(in crate::generic_data) fn evaluate_named_const_domain(
+pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
     syntax: &SyntaxTrees,
     domain_name: &str,
     carrier: &str,
@@ -234,7 +234,7 @@ pub(in crate::generic_data) fn evaluate_named_const_domain(
     result
 }
 
-pub(in crate::generic_data) fn evaluate_const_domain_expression(
+pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,

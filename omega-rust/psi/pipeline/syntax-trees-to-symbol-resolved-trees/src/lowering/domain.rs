@@ -1,11 +1,11 @@
 //! Domain definitions: index arguments, aliases, member operators, and the
 //! proof facts a domain body declares.
 
-use crate::lowerer::Lowerer;
 use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::name::lower_name;
 use crate::lowering::operator::lower_operator_definition;
 use crate::lowering::type_reference::lower_type_reference_handle;
+use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::domain::{
     DomainAliasConstituent, DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact,
@@ -219,9 +219,9 @@ pub(crate) fn lower_proof_facts(
                 .set_proof_fact_source_span(fact, source_span);
         }
         if is_membership && let Some(exposure) = lowerer.current_authored_expression_exposure {
-            lowerer
-                .pending_authored_proof_memberships
-                .push(crate::lowerer::PendingAuthoredProofMembership { fact, exposure });
+            lowerer.pending_authored_proof_memberships.push(
+                crate::resolution::lowerer::PendingAuthoredProofMembership { fact, exposure },
+            );
         }
     }
 

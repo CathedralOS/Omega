@@ -22,7 +22,7 @@ pub(crate) struct PendingAuthoredServiceReach {
 
 pub(crate) struct PendingSignatureServiceReach {
     pub(crate) symbol: SymbolHandle,
-    pub(crate) owner: crate::lowerer::PendingSignatureOwner,
+    pub(crate) owner: crate::resolution::lowerer::PendingSignatureOwner,
     pub(crate) keyword_source_spans: Vec<source::SourceSpan>,
     pub(crate) authored: Vec<DiagnosticName>,
 }
@@ -238,15 +238,15 @@ fn validate_signature_service_reaches(
     Ok(())
 }
 
-struct SignatureOwnerDisplay<'a>(&'a crate::lowerer::PendingSignatureOwner);
+struct SignatureOwnerDisplay<'a>(&'a crate::resolution::lowerer::PendingSignatureOwner);
 
 impl fmt::Display for SignatureOwnerDisplay<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            crate::lowerer::PendingSignatureOwner::Trait(name) => {
+            crate::resolution::lowerer::PendingSignatureOwner::Trait(name) => {
                 write!(formatter, "trait `{name}`")
             }
-            crate::lowerer::PendingSignatureOwner::Requirement(name) => {
+            crate::resolution::lowerer::PendingSignatureOwner::Requirement(name) => {
                 write!(formatter, "machine-parameter requirement `{name}`")
             }
         }
