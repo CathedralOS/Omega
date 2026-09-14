@@ -2541,9 +2541,14 @@ Owners include
   Resume: the declaration, proof (`ProofConstraint::FloatRange::maximum_inclusive`
   in `omega-rust/psi/semantics/proof/src/obligations.rs`) and cast readers now
   retain the strict endpoint for call/store/return delivery
-  (`tests/omega/{pass,fail}/float/exclusive_float_range_*`). Open: retained
-  entry predicates and independent Terminal Psi replay; no float range
-  predicate exists in checked-trees/lowered-psi/terminal-verifier yet.
+  (`tests/omega/{pass,fail}/float/exclusive_float_range_*`), and checked
+  contracts retain each authored floating entry range as
+  `ClosedFloatRangeRequirement` -- IEEE bit-exact endpoints at the declared
+  carrier plus the authored boundary kind -- on
+  `ClosedScalarValueContractPlan::float_entry_ranges`. Open: lowered-psi
+  emission and independent Terminal Psi replay; the requires tail keeps an
+  explicit unsupported row until the scalar predicate vocabulary carries
+  IEEE comparisons.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
