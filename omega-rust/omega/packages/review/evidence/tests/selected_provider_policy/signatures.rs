@@ -167,12 +167,14 @@ satisfies Echo::echo { value }
     assert!(
         local
             .checked
+            .custody
             .boundary_calling_plan_realizations()
             .is_empty()
     );
     assert!(
         foreign
             .checked
+            .custody
             .boundary_calling_plan_realizations()
             .is_empty()
     );

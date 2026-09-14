@@ -130,7 +130,9 @@ machine Main::query(&mut self) -> i32 reaches Sink { self.sink.echo(35) }
         assert!(!call.receiver.is_empty());
         assert!(!checked.facts.boundary_adapter_dispatch.is_empty());
         assert!(std::ptr::eq(checked.terminal_production_trees(), &*checked));
-        let source = checked.pre_selected_dispatch_source_trees().unwrap();
+        let source = checked
+            .pre_selected_dispatch_source_trees(&checked.typed)
+            .unwrap();
         assert!(matches!(source, std::borrow::Cow::Borrowed(_)));
         let outcome = checked_interpreter::interpret_entry(&checked, "Main::query", &[]);
         assert_eq!(outcome.error, None);

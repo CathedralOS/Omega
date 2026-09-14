@@ -4,14 +4,14 @@ use super::{
     service_reach::project_signature_service_reach_source_locations,
     suspension::project_signature_operational_source_locations,
 };
+use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::capture::source::locations::project_nested_declaration_source_location;
 use crate::record::PackageReviewSourceLocationRole;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn collect_type_parameter_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     locations: &mut Vec<ProjectedNestedSourceLocation>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -56,7 +56,7 @@ pub(crate) fn collect_type_parameter_source_locations(
 }
 
 pub(crate) fn collect_callable_parameter_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     parameters: &[typed_trees::signature::StateParameter],
     subject: &str,
     locations: &mut Vec<ProjectedNestedSourceLocation>,

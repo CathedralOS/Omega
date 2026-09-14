@@ -10,10 +10,10 @@ use symbols::SymbolHandle;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::TypeReferenceNode;
 
-fn root(
-    compilation: &CheckedCompilation,
+fn root<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     symbol: SymbolHandle,
-) -> Result<&TraitDefinition, Vec<Diagnostic>> {
+) -> Result<&'a TraitDefinition, Vec<Diagnostic>> {
     let mut roots = compilation
         .traits()
         .iter()
@@ -28,11 +28,11 @@ fn root(
 }
 
 pub(crate) fn declaration_parameters(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
 ) -> Result<(Vec<PackagePolicyTypeParameter>, u32), Vec<Diagnostic>> {
     let owner = root(compilation, symbol)?;
-    let mut projected = compilation.clone();
+    let mut projected = compilation.typed.clone();
     let mut parameters = compilation.trait_type_parameters(owner).to_vec();
     let lifetimes = owner
         .lifetime_parameters
@@ -68,12 +68,12 @@ pub(crate) fn declaration_parameters(
 }
 
 pub(crate) fn project_declaration(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
     requirement: SymbolHandle,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let owner = root(compilation, symbol)?;
-    let mut projected = compilation.clone();
+    let mut projected = compilation.typed.clone();
     let mut arguments = Vec::new();
     let mut binders = Vec::new();
     for (ordinal, parameter) in compilation.trait_type_parameters(owner).iter().enumerate() {
@@ -88,7 +88,6 @@ pub(crate) fn project_declaration(
         }
         arguments.push(
             projected
-                .typed
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
                     symbol: parameter.symbol,
@@ -97,5 +96,12 @@ pub(crate) fn project_declaration(
         );
         binders.push((parameter.symbol, format!("service-parameter:{ordinal}")));
     }
-    project_with_binders(&projected, symbol, &arguments, requirement, &binders)
+    project_with_binders(
+        compilation,
+        projected,
+        symbol,
+        &arguments,
+        requirement,
+        &binders,
+    )
 }

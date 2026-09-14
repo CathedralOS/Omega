@@ -3,8 +3,8 @@
 use super::*;
 
 pub(crate) fn project_policy_type_parameters_after(
-    compilation: &CheckedCompilation,
-    checked_source: &CheckedCompilation,
+    typed: &typed_trees::TypedTrees,
+    checked_source: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_path: &str,
     preceding_binders: &[(SymbolHandle, String)],
@@ -13,7 +13,7 @@ pub(crate) fn project_policy_type_parameters_after(
     contract_scopes: &[CallingContractScope],
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
     project_policy_type_parameters(
-        compilation,
+        typed,
         checked_source,
         parameters,
         declaration_path,
@@ -28,8 +28,8 @@ pub(crate) fn project_policy_type_parameters_after(
 }
 
 pub(crate) fn project_policy_type_parameters(
-    compilation: &CheckedCompilation,
-    checked_source: &CheckedCompilation,
+    typed: &typed_trees::TypedTrees,
+    checked_source: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_path: &str,
     preceding_binders: &[(SymbolHandle, String)],
@@ -41,7 +41,8 @@ pub(crate) fn project_policy_type_parameters(
     selection_exposure: AuthoredDeclarationSelectionExposure,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
     project_type_parameters_inner(
-        compilation,
+        typed,
+        checked_source,
         parameters,
         "public policy",
         declaration_path,
@@ -54,8 +55,7 @@ pub(crate) fn project_policy_type_parameters(
             policy_crash_guards: true,
             selection_exposure,
             substitutions,
-            checked_source: Some(checked_source),
-            contract_scopes,
+            contract_scopes: Some(contract_scopes),
         },
     )
 }

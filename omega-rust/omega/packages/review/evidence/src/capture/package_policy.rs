@@ -7,20 +7,21 @@ mod authority;
 mod external;
 mod semantic_dependencies;
 
+use crate::capture::PackageReviewInput;
 use crate::record::PackagePolicyBaseline;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
-pub fn project_checked_package_policy(
-    compilation: &CheckedCompilation,
+pub fn project_checked_package_policy<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
-    if compilation.package_identity() != Some(package)
-        || compilation.selected_target_profile() != Some(target)
-        || compilation.selected_native_target() != Some(target.native_target())
+    let compilation = &input.into();
+    if compilation.custody.package_identity() != Some(package)
+        || compilation.custody.selected_target_profile() != Some(target)
+        || compilation.custody.selected_native_target() != Some(target.native_target())
     {
         return Err(rejected(
             "package or target differs from the exact checked root activation",

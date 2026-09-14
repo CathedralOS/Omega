@@ -38,7 +38,7 @@ boundary trait TransferEntry: Calling<TransferPolicy> {
 "#;
 
 pub(super) struct Fixture {
-    pub checked: CheckedCompilation,
+    pub checked: ReviewFixture,
     _package: TempPackage,
     _dependency: Option<TempPackage>,
 }
@@ -139,7 +139,7 @@ machine build(builder: &mut Build) {{
         let inputs =
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
                 .unwrap();
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(inputs),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -151,16 +151,18 @@ machine build(builder: &mut Build) {{
         }
     }
 
-    pub fn changed_carrier(&self) -> CheckedCompilation {
+    pub fn changed_carrier(&self) -> ReviewFixture {
         let mut changed = self.checked.clone();
         let selection = self
             .checked
+            .custody
             .opaque_representation_selections()
             .iter()
             .find(|selection| self.checked.symbols.name(selection.opaque()) == "Token")
             .unwrap();
         let other_carrier = self
             .checked
+            .custody
             .opaque_representation_selections()
             .iter()
             .find(|selection| self.checked.symbols.name(selection.opaque()) == "CopyToken")
@@ -180,7 +182,7 @@ machine build(builder: &mut Build) {{
         changed
     }
 
-    pub fn changed_use_type(&self) -> CheckedCompilation {
+    pub fn changed_use_type(&self) -> ReviewFixture {
         let mut changed = self.checked.clone();
         let boundary = changed
             .traits()

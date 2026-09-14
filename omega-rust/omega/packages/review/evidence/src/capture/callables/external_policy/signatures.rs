@@ -1,17 +1,17 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::semantics::{
     conformances::project_conformance_bounds, signatures::policy::project_type_parameters,
     types::review_signature_type_identity_with_binders,
 };
 use crate::record::*;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &Machine,
 ) -> Result<
     (
@@ -20,7 +20,7 @@ pub(super) fn project(
     ),
     Vec<Diagnostic>,
 > {
-    let mut prepared = compilation.clone();
+    let mut prepared = compilation.typed.clone();
     let source_parameters = compilation.machine_type_parameters(machine);
     let mut parameters = source_parameters.to_vec();
     let lifetimes = machine

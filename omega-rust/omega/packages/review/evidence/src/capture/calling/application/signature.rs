@@ -9,14 +9,14 @@ pub(crate) use declaration::{declaration_parameters, project_declaration};
 pub(crate) use parameters::instantiate as instantiate_static_parameters;
 
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use crate::capture::semantics::signatures::policy::project_type_parameters;
-use crate::capture::semantics::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes;
+use crate::capture::semantics::types::signature_type_identity;
 use crate::record::{
     PackagePolicyTypeParameter, PackageReviewNominalIdentity,
     PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use typed_trees::name::Identifier;
@@ -37,7 +37,7 @@ pub(crate) struct CallingSignatureProjection {
 }
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     realization: &BoundaryCallingPlanRealization,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let projected = project_application(
@@ -69,13 +69,14 @@ pub(super) fn project(
 
 /// Project the semantic application without requiring any physical realization.
 pub(crate) fn project_application(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     boundary_trait: symbols::SymbolHandle,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
     requirement_machine: symbols::SymbolHandle,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     project_with_binders(
         compilation,
+        compilation.typed.clone(),
         boundary_trait,
         boundary_arguments,
         requirement_machine,
@@ -84,7 +85,8 @@ pub(crate) fn project_application(
 }
 
 fn project_with_binders(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
+    mut projected: typed_trees::TypedTrees,
     boundary_trait: symbols::SymbolHandle,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
     requirement_machine: symbols::SymbolHandle,
@@ -101,7 +103,6 @@ fn project_with_binders(
             "calling application has no unique exact boundary trait",
         ));
     };
-    let mut projected = compilation.clone();
     let root_lifetimes = root
         .lifetime_parameters
         .iter()
@@ -149,6 +150,7 @@ fn project_with_binders(
                 application.lifetime_arguments.clone(),
                 arguments::project(
                     &projected,
+                    compilation,
                     &application.owner,
                     &application.arguments,
                     &application.inherited_substitutions,
@@ -276,15 +278,16 @@ fn project_with_binders(
         )?;
         semantic_parameters.push(PackageReviewTraitRequirementParameter {
             name: parameter.name.as_str().to_owned(),
-            type_identity:
-                review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
-                    &projected,
-                    reference,
-                    &binders,
-                    &lifetime_binders,
-                    &substitutions,
-                    &[],
-                )?,
+            type_identity: signature_type_identity(
+                &projected,
+                compilation.custody.exact_toolchain_sources(),
+                reference,
+                &binders,
+                &lifetime_binders,
+                &substitutions,
+                &[],
+                false,
+            )?,
             is_mutable: parameter.is_mutable,
             is_const: parameter.is_const,
             is_self: parameter.is_self,
@@ -298,16 +301,16 @@ fn project_with_binders(
             &lifetimes,
             0,
         )?;
-        Some(
-            review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
-                &projected,
-                reference,
-                &binders,
-                &lifetime_binders,
-                &substitutions,
-                &[],
-            )?,
-        )
+        Some(signature_type_identity(
+            &projected,
+            compilation.custody.exact_toolchain_sources(),
+            reference,
+            &binders,
+            &lifetime_binders,
+            &substitutions,
+            &[],
+            false,
+        )?)
     } else {
         None
     };
@@ -315,6 +318,7 @@ fn project_with_binders(
         boundary_trait: nominal_identity(compilation, root.symbol)?,
         boundary_arguments: arguments::project(
             &projected,
+            compilation,
             root,
             &root_arguments,
             &[],

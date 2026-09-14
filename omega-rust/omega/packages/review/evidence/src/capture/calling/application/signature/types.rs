@@ -1,14 +1,14 @@
 //! Scope-aware projection-only instantiation of checked signature types.
 
 use super::rejected;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 use typed_trees::name::Identifier;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn instantiate(
-    compilation: &mut CheckedCompilation,
+    compilation: &mut TypedTrees,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     lifetimes: &[(Identifier, Identifier)],
@@ -57,20 +57,16 @@ pub(super) fn instantiate(
                     Some(reference) => {
                         instantiate(compilation, reference, substitutions, lifetimes, depth + 1)?
                     }
-                    None => {
-                        compilation
-                            .typed
-                            .type_reference_table
-                            .insert(TypeReferenceNode::Named {
-                                symbol: schema.symbol,
-                                name: schema.name,
-                            })
-                    }
+                    None => compilation
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: schema.symbol,
+                            name: schema.name,
+                        }),
                 };
                 let base_name =
                     Identifier::generated(compilation.symbols.name(layout.policy_symbol));
                 let arguments = compilation
-                    .typed
                     .type_reference_table
                     .insert_type_reference_handles([schema_reference]);
                 TypeReferenceNode::Generic {
@@ -116,7 +112,6 @@ pub(super) fn instantiate(
                 }
             }
             let constraints = compilation
-                .typed
                 .type_reference_table
                 .insert_constraints(constraints);
             TypeReferenceNode::Constrained {
@@ -161,7 +156,6 @@ pub(super) fn instantiate(
                     instantiate(compilation, *argument, substitutions, lifetimes, depth + 1)?;
             }
             let arguments = compilation
-                .typed
                 .type_reference_table
                 .insert_type_reference_handles(arguments);
             TypeReferenceNode::Generic {
@@ -176,5 +170,5 @@ pub(super) fn instantiate(
         }
         other => other,
     };
-    Ok(compilation.typed.type_reference_table.insert(node))
+    Ok(compilation.type_reference_table.insert(node))
 }

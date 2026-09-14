@@ -1,4 +1,5 @@
 use super::model::ProjectedSelectedConformanceApplication;
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::static_arguments::{
     ContractCallStaticParameterKind, contract_call_static_parameter_kind, project_static_argument,
 };
@@ -6,7 +7,6 @@ use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::lifetimes::substituted_lifetime_binder_ordinal;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::record::PackageReviewContractStaticArgument;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use std::borrow::Cow;
 use symbols::SymbolHandle;
@@ -113,7 +113,7 @@ fn selected_conformance_application_type_reference(
 }
 
 pub(crate) fn project_selected_conformance_application(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     selected: &typed_trees::expression::StaticMachineArgument,
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
@@ -249,7 +249,7 @@ pub(crate) fn project_selected_conformance_application(
                 );
                 PackageReviewContractStaticArgument::Type(signature_type_identity(
                     &instantiated,
-                    compilation.exact_toolchain_sources(),
+                    compilation.custody.exact_toolchain_sources(),
                     carrier,
                     binders,
                     lifetime_binders,
@@ -331,7 +331,7 @@ pub(crate) fn project_selected_conformance_application(
         .map(|argument| {
             signature_type_identity(
                 &instantiated,
-                compilation.exact_toolchain_sources(),
+                compilation.custody.exact_toolchain_sources(),
                 *argument,
                 binders,
                 lifetime_binders,

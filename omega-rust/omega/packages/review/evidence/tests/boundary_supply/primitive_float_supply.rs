@@ -35,7 +35,7 @@ machine exercise() {
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -157,7 +157,7 @@ machine exercise(value: f32) -> f32 { F32::negate(value) }
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -208,7 +208,7 @@ pub machine FloatProvider::from_f64(value: f64) -> f32
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -296,7 +296,7 @@ fn review_closes_primitive_float_binary_execution_by_operation_and_format() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -415,7 +415,7 @@ fn primitive_float_binary_intrinsics_require_the_exact_token_and_shape() {
             ),
         );
         package.write("build.omg", build);
-        let diagnostics = compile_to_checked(CheckedCompileRequest {
+        let diagnostics = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })

@@ -1,14 +1,14 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::capture::source::locations::canonical_source_span_location;
 use crate::record::PackageReviewSourceLocationRole;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use flow_effects::ServiceReachInferencePlan;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_machine_service_reach_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     inferred: &ServiceReachInferencePlan,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
@@ -18,7 +18,7 @@ pub(crate) fn project_machine_service_reach_source_locations(
 
 /// Rejoin authored targets and checked ceilings without constructing location rows.
 pub(crate) fn validate_machine_service_reach(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     inferred: &ServiceReachInferencePlan,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -26,7 +26,7 @@ pub(crate) fn validate_machine_service_reach(
 }
 
 fn checked_machine_service_reach<'a>(
-    compilation: &'a CheckedCompilation,
+    compilation: &'a PackageReviewInput<'a>,
     machine: &typed_trees::machine::Machine,
     inferred: &ServiceReachInferencePlan,
 ) -> Result<Option<&'a typed_trees::signature::AuthoredServiceReachRow>, Vec<Diagnostic>> {
@@ -108,7 +108,7 @@ fn checked_machine_service_reach<'a>(
 }
 
 pub(crate) fn project_signature_service_reach_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     owner: SymbolHandle,
     signature: &typed_trees::signature::StateSignature,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
@@ -179,7 +179,7 @@ pub(crate) fn project_signature_service_reach_source_locations(
 }
 
 fn exact_authored_service_reach_row<'a>(
-    compilation: &'a CheckedCompilation,
+    compilation: &'a PackageReviewInput<'a>,
     owner: SymbolHandle,
     owner_name: &str,
     installation_bound: bool,
@@ -220,7 +220,7 @@ fn exact_authored_service_reach_row<'a>(
 }
 
 fn derive_declared_service_reach(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     authored: Option<&typed_trees::signature::AuthoredServiceReachRow>,
     invocations: &[flow_effects::InvocationTarget],
     parameters: &[typed_trees::signature::StateParameter],

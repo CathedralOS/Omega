@@ -1,5 +1,6 @@
 //! Exact opaque selection/use joins with all replay receipts removed afterward.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::representation::physical_contract::{
     project_representation_copy_disposition, project_representation_lifecycle,
     project_representation_origin, project_value_placement,
@@ -12,7 +13,6 @@ use crate::record::{
     PackageReviewOpaqueRepresentationPathElement,
 };
 use calling_conventions::ValidatedBoundaryEntryPlan;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryOpaqueRepresentationMovementRole,
@@ -21,7 +21,7 @@ use provider_planning::calling_policy_plans::{
 use representation_planning::OpaqueRepresentationSelection;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     realization: &BoundaryCallingPlanRealization,
     validated: &ValidatedBoundaryEntryPlan,
 ) -> Result<Vec<PackagePolicyCallingOpaqueUse>, Vec<Diagnostic>> {

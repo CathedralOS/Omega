@@ -10,14 +10,14 @@ use package_evidence::{
 use support::*;
 use target::TargetProfile;
 
-fn compile(source: &str) -> (TempPackage, CheckedCompilation) {
+fn compile(source: &str) -> (TempPackage, ReviewFixture) {
     let package = TempPackage::new();
     package.write("main.omg", source);
     package.write(
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -30,7 +30,7 @@ fn project_source(source: &str) -> PackagePolicyBoundaryApplications {
     project(&checked)
 }
 
-fn project(checked: &CheckedCompilation) -> PackagePolicyBoundaryApplications {
+fn project(checked: &ReviewFixture) -> PackagePolicyBoundaryApplications {
     let applications = project_checked_boundary_application_policy(
         checked,
         TargetProfile::WindowsX64,
@@ -149,7 +149,7 @@ fn generic_operator_binder_renaming_preserves_selected_rows_and_closed_applicati
             .replace("Element", "Item")
             .replace("Value", "Operand"),
     );
-    let providers = |compilation: &CheckedCompilation| {
+    let providers = |compilation: &ReviewFixture| {
         project_checked_selected_provider_policy(
             compilation,
             TargetProfile::WindowsX64,

@@ -1,7 +1,7 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractExpression;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -10,7 +10,7 @@ mod points;
 pub(crate) use points::checked_self_parameter_symbol;
 
 pub(crate) fn contract_member_has_exact_collection_length(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::{
@@ -36,7 +36,7 @@ pub(crate) fn contract_member_has_exact_collection_length(
 }
 
 pub(crate) fn require_exact_checked_contract_nominal_member(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     expected_member: SymbolHandle,
@@ -55,7 +55,7 @@ pub(crate) fn require_exact_checked_contract_nominal_member(
 }
 
 pub(crate) fn exact_checked_contract_nominal_member(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
@@ -97,7 +97,7 @@ pub(crate) fn exact_checked_contract_nominal_member(
 }
 
 pub(crate) fn require_exact_checked_contract_collection_length(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
@@ -148,7 +148,7 @@ pub(crate) fn require_exact_checked_contract_collection_length(
 }
 
 pub(crate) fn project_contract_member_expression(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     receiver: PackageReviewContractExpression,
     member_symbol: SymbolHandle,
@@ -170,7 +170,7 @@ pub(crate) fn project_contract_member_expression(
 }
 
 pub(crate) fn project_computed_contract_member_expression(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
@@ -191,7 +191,7 @@ pub(crate) fn project_computed_contract_member_expression(
 }
 
 pub(crate) fn contract_member_path_source(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<(
     typed_trees::expression::ExpressionHandle,
@@ -219,7 +219,7 @@ pub(crate) fn contract_member_path_source(
 }
 
 pub(crate) fn contract_member_path_root(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::PlaceRoot> {
@@ -274,7 +274,7 @@ pub(crate) fn contract_member_path_root(
 }
 
 pub(crate) fn is_data_subject_field_expression(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     data_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
@@ -315,7 +315,7 @@ pub(crate) fn is_data_subject_field_expression(
 }
 
 pub(crate) fn data_subject_binder_position(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     data_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     binders: &[(SymbolHandle, String)],
@@ -355,7 +355,7 @@ pub(crate) fn data_subject_binder_position(
 }
 
 pub(crate) fn checked_contract_member_path(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     checked_fact: arena::Handle<typed_trees::domain::ProofFact>,
     expression: typed_trees::expression::ExpressionHandle,
@@ -496,7 +496,7 @@ pub(crate) fn checked_contract_member_path(
 }
 
 pub(crate) fn checked_member_segments(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     segments: arena::HandleSpan<facts::PlaceSegment>,
     source_members: &[typed_trees::name::Identifier],
 ) -> Option<Vec<(Option<SymbolHandle>, SymbolHandle)>> {

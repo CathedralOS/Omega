@@ -1,5 +1,6 @@
 //! Translation of retained physical representation contracts into review evidence.
 
+use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryShape,
     PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
@@ -12,7 +13,6 @@ use crate::record::{
     PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
     PackageReviewRepresentationTargetProfile, PackageReviewSystemVEightbyteClass,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn project_representation_origin(
@@ -49,18 +49,24 @@ pub(crate) fn project_representation_copy_disposition(
 }
 
 pub(crate) fn project_representation_target(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
 ) -> Result<PackageReviewRepresentationTarget, Vec<Diagnostic>> {
-    let profile = compilation.selected_target_profile().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "representation demand requires a selected target profile",
-        )]
-    })?;
-    let native = compilation.selected_native_target().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "representation demand requires a selected native target",
-        )]
-    })?;
+    let profile = compilation
+        .custody
+        .selected_target_profile()
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "representation demand requires a selected target profile",
+            )]
+        })?;
+    let native = compilation
+        .custody
+        .selected_native_target()
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "representation demand requires a selected native target",
+            )]
+        })?;
     if profile.native_target() != native {
         return Err(vec![Diagnostic::error(
             "representation demand target profile disagrees with its native target",

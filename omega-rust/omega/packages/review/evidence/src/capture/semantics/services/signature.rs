@@ -10,7 +10,7 @@ use crate::record::{
 use std::borrow::Cow;
 
 pub(super) fn project_declaration(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     schema: SymbolHandle,
     requirement: SymbolHandle,
     identity: &PackageReviewNominalIdentity,
@@ -62,7 +62,7 @@ fn from_application(
 }
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
@@ -166,12 +166,12 @@ pub(super) fn project(
     {
         return Err(rejected("service requirement repeats a lifetime binder"));
     }
-    let mut projected = Cow::Borrowed(compilation);
+    let mut projected = Cow::Borrowed(&compilation.typed);
     let source_parameters = parameters;
     let mut parameters = parameters.to_vec();
     let mut scopes = Vec::new();
     // At depth zero, an empty static telescope performs no instantiation.
-    // Preserve the checked input until a parameter needs clone-local storage.
+    // Borrow typed input until a parameter needs projection-local storage.
     if !parameters.is_empty() {
         let lifetime_substitutions = lifetimes
             .iter()

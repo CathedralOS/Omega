@@ -27,7 +27,7 @@ pub WndClassWindowProcedureSlot:
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -84,7 +84,7 @@ pub Generic<{binder}>: {binder} satisfies Marker<{binder}> {{
         )
     };
     package.write("main.omg", &source("Element", 1));
-    let first = compile_to_checked(CheckedCompileRequest {
+    let first = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -110,7 +110,7 @@ pub Generic<{binder}>: {binder} satisfies Marker<{binder}> {{
         .expect("public conformance canonical row");
 
     package.write("main.omg", &source("Value", 2));
-    let second = compile_to_checked(CheckedCompileRequest {
+    let second = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -149,7 +149,7 @@ pub Scoped<'{lifetime}, Element>:
     };
 
     package.write("main.omg", &source("scope"));
-    let first = compile_to_checked(CheckedCompileRequest {
+    let first = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -164,7 +164,7 @@ pub Scoped<'{lifetime}, Element>:
         .expect("first lifetime-generic public conformance row");
 
     package.write("main.omg", &source("view"));
-    let second = compile_to_checked(CheckedCompileRequest {
+    let second = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -210,7 +210,7 @@ pub Scoped<'{first}, '{second}, Element>:
     };
     let project = |source: String| {
         package.write("main.omg", &source);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -290,7 +290,7 @@ pub BufferReads<'{left}, '{right}>:
     };
     let project = |source: String| {
         package.write("main.omg", &source);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -358,7 +358,7 @@ fn public_conformance_target_lifetimes_fail_closed_before_review() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let diagnostics = compile_to_checked(CheckedCompileRequest {
+        let diagnostics = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -395,7 +395,7 @@ pub data Good {{ }}
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let bodyless = compile_to_checked(CheckedCompileRequest {
+    let bodyless = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -413,7 +413,7 @@ pub data Good {{ }}
         "main.omg",
         &source("pub Primary: Good satisfies Marker { machine touch(&self) { } }"),
     );
-    let closed = compile_to_checked(CheckedCompileRequest {
+    let closed = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })

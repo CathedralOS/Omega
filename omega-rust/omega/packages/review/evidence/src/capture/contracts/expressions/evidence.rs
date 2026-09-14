@@ -1,15 +1,15 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{
     PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
     PackageReviewContractKind,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_contract_call_evidence_arguments(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     expression: typed_trees::expression::ExpressionHandle,
@@ -190,7 +190,7 @@ fn evidence_owner_belongs_to_target(
 }
 
 fn project_term(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     term: &checked_trees::CheckedEvidenceTerm,
 ) -> Result<PackageReviewContractEvidenceTerm, Vec<Diagnostic>> {
     let owner = match term.owner {

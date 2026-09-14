@@ -13,7 +13,7 @@ fn review_projects_width_landed_float_literals_by_exact_bits() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -69,7 +69,7 @@ fn float_contract_review_rejects_missing_checked_width_landing() {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -111,7 +111,7 @@ ensures result == 1.25
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -161,7 +161,7 @@ pub trait Measures {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -182,7 +182,7 @@ fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -239,7 +239,7 @@ fn review_projects_exact_compiler_builtin_function_identity() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -309,7 +309,7 @@ fn builtin_function_review_rejects_checked_target_symbol_tamper() {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -351,7 +351,7 @@ fn review_projects_exact_raw_byte_literals_in_public_contracts() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -422,7 +422,7 @@ requires matrix({literal})
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -477,7 +477,7 @@ requires values([source[0]])
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&nested.0)),
         ..CheckedCompileRequest::new(&nested.0.join("main.omg"), Some("windows_x86_64"))
     })

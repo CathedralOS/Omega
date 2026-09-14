@@ -3,16 +3,16 @@ use super::{
     ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
     ProjectedSemanticDependencyRow,
 };
+use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewCanonicalRowSource, PackageReviewDangerousAuthority,
     PackageReviewDangerousAuthoritySlack, PackageReviewSemanticDependency,
     PackageReviewSourceLocationRole,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn finalize_projected_rows<Row>(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     projected: Vec<ProjectedReviewRow<Row>>,
     role: PackageReviewSourceLocationRole,
 ) -> Result<(Vec<Row>, Vec<PackageReviewCanonicalRowSource>), Vec<Diagnostic>> {
@@ -40,7 +40,7 @@ pub(crate) fn finalize_projected_rows<Row>(
 }
 
 pub(crate) fn finalize_semantic_dependency_rows(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     projected: Vec<ProjectedSemanticDependencyRow>,
 ) -> Result<
     (
@@ -76,7 +76,7 @@ pub(crate) fn finalize_semantic_dependency_rows(
 }
 
 pub(crate) fn finalize_dangerous_authority_rows(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     projected: Vec<ProjectedDangerousAuthorityRow>,
 ) -> Result<
     (
@@ -109,7 +109,7 @@ pub(crate) fn finalize_dangerous_authority_rows(
 }
 
 pub(crate) fn finalize_dangerous_authority_slack_rows(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     projected: Vec<ProjectedDangerousAuthoritySlackRow>,
 ) -> Result<
     (

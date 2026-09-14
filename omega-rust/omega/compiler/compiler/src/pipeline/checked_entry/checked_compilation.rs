@@ -15,9 +15,15 @@ mod custody_tests;
 /// selected for one engine run. The semantic program deliberately does not
 /// retain target/provider installation state.
 ///
-/// Clones share program storage until mutation. Review instantiation currently
-/// uses mutable clones as scratch; this does not recheck their evidence.
-/// Consumers must still perform their independent reconstruction.
+/// Clones share immutable program storage. Temporary review types belong to
+/// projection-local trees, not to this evidence-bearing result. Consumers still
+/// perform their independent reconstruction.
+///
+/// ```compile_fail
+/// fn replace_program(checked: &mut compiler::CheckedCompilation) {
+///     checked.typed = typed_trees::TypedTrees::default();
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct CheckedCompilation {
     execution: CheckedExecution,
@@ -90,13 +96,16 @@ impl CheckedCompilation {
 impl CheckedCompilation {
     /// Restore only exact selected-dispatch edits after checking their settled
     /// operand/type graphs. This is not a pre-specialization or source-text view.
-    pub fn pre_selected_dispatch_source_trees(
+    /// The supplied semantic trees are checked against this compilation's sealed
+    /// edits; the returned review scratch never changes compiler custody.
+    pub fn pre_selected_dispatch_source_trees<'source>(
         &self,
-    ) -> Result<std::borrow::Cow<'_, typed_trees::TypedTrees>, Vec<Diagnostic>> {
+        settled: &'source typed_trees::TypedTrees,
+    ) -> Result<std::borrow::Cow<'source, typed_trees::TypedTrees>, Vec<Diagnostic>> {
         self.execution
             .settled
             .dispatch_source_edits
-            .source_trees(&self.execution.settled.program.typed)
+            .source_trees(settled)
     }
 
     /// Canonical boundary calls already live in this checked program.
@@ -521,14 +530,5 @@ impl std::ops::Deref for CheckedCompilation {
 
     fn deref(&self) -> &Self::Target {
         &self.execution.settled.program
-    }
-}
-
-// Review signature instantiation still uses compilation clones
-// as temporary type storage. Retire this when those projectors own their scratch
-// trees independently of compilation evidence. Mutation never reseals evidence.
-impl std::ops::DerefMut for CheckedCompilation {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        Arc::make_mut(&mut self.execution.settled.program)
     }
 }

@@ -1,13 +1,13 @@
 //! Compiler-classified danger and ceiling slack over normalized callable facts.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::authority::dangerous_authority_class;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::*;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     callables: &PackagePolicyCallables,
 ) -> Result<
     (

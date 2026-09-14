@@ -1,4 +1,4 @@
-use compiler::CheckedCompilation;
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -16,7 +16,7 @@ use crate::record::{
 };
 
 pub(crate) fn project_proposition_binder_argument(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     callable_binders: &[(SymbolHandle, String)],
     argument: &typed_trees::proposition::PropositionBinderArgument,
@@ -61,7 +61,7 @@ pub(crate) fn project_proposition_binder_argument(
                 let identity = compilation
                     .package_qualified_nominal_type_identity_with_toolchain_sources(
                         argument.symbol,
-                        compilation.exact_toolchain_sources(),
+                        compilation.custody.exact_toolchain_sources(),
                     )
                     .ok_or_else(missing_exact_toolchain_type_owner)?;
                 PackageReviewPropositionBinderValue::Type(PackageReviewTypeIdentity {
@@ -91,7 +91,7 @@ pub(crate) fn project_proposition_binder_argument(
 }
 
 pub(crate) fn project_proposition_evidence_projection(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     projection: &typed_trees::expression::EvidenceProjection,
 ) -> Result<PackageReviewPropositionBinderValue, Vec<Diagnostic>> {

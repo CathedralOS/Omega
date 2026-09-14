@@ -1,10 +1,10 @@
 //! Scope-preserving public static telescopes and typed policy values.
 
 pub(crate) mod values;
+use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::semantics::signatures::parameters::project_policy_type_parameters_after;
 use crate::record::*;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
@@ -15,8 +15,8 @@ use typed_trees::{
 /// Project the prepared signature but obtain semantic absence and proof-source
 /// associations from the original checked telescope, never a dummy type string.
 pub(crate) fn project_type_parameters(
-    compilation: &CheckedCompilation,
-    checked_source: &CheckedCompilation,
+    typed: &typed_trees::TypedTrees,
+    checked_source: &PackageReviewInput<'_>,
     parameters: &[TypeParameter],
     source_parameters: &[TypeParameter],
     declaration_path: &str,
@@ -29,7 +29,7 @@ pub(crate) fn project_type_parameters(
     selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackagePolicyTypeParameter>), Vec<Diagnostic>> {
     let (binders, projected) = super::parameters::project_policy_type_parameters(
-        compilation,
+        typed,
         checked_source,
         parameters,
         declaration_path,
@@ -48,14 +48,14 @@ pub(crate) fn project_type_parameters(
 }
 
 pub(crate) struct PreparedRequirement {
-    pub compilation: CheckedCompilation,
+    pub typed: typed_trees::TypedTrees,
     pub signature: typed_trees::signature::StateSignature,
     pub lifetimes: Vec<Identifier>,
     pub scopes: Vec<crate::capture::semantics::signatures::parameters::CallingContractScope>,
 }
 
 pub(crate) fn requirement(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     owner: SymbolHandle,
     source: &typed_trees::signature::StateSignature,
     subject: &str,
@@ -70,7 +70,7 @@ pub(crate) fn requirement(
     ),
     Vec<Diagnostic>,
 > {
-    let mut projected = compilation.clone();
+    let mut projected = compilation.typed.clone();
     let mut wrapper = [TypeParameter {
         symbol: owner,
         name: source.name.clone(),
@@ -126,7 +126,7 @@ pub(crate) fn requirement(
     )?;
     Ok((
         PreparedRequirement {
-            compilation: projected,
+            typed: projected,
             signature,
             lifetimes,
             scopes,
@@ -137,7 +137,7 @@ pub(crate) fn requirement(
 }
 
 pub(crate) fn parameters(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     source: &[TypeParameter],
     subject: &str,
     outer_binders: &[(SymbolHandle, String)],
@@ -147,7 +147,7 @@ pub(crate) fn parameters(
     if source.is_empty() {
         return Ok((outer_binders.to_vec(), Vec::new()));
     }
-    let mut projected = compilation.clone();
+    let mut projected = compilation.typed.clone();
     let mut parameters = source.to_vec();
     let substitutions = lifetimes
         .iter()
@@ -178,7 +178,7 @@ pub(crate) fn parameters(
 }
 
 fn convert_parameters(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     source: &[TypeParameter],
     values: Vec<PackageReviewTypeParameter>,
     depth: usize,
@@ -230,7 +230,7 @@ fn convert_parameters(
 }
 
 fn machine(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     source: &MachineParameterContract,
     value: PackageReviewMachineParameterContract,
     depth: usize,

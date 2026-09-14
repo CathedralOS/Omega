@@ -33,7 +33,7 @@ pub machine BoundProvider::identity<
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -112,7 +112,7 @@ pub machine BoundProvider::identity<
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&weaker_provider.0)),
         ..CheckedCompileRequest::new(&weaker_provider.0.join("main.omg"), Some(target))
     })
@@ -158,7 +158,7 @@ pub machine BoundProvider::identity<
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&stronger_provider.0)),
         ..CheckedCompileRequest::new(&stronger_provider.0.join("main.omg"), Some(target))
     })
@@ -200,7 +200,7 @@ pub machine ConstProvider::identity<const Length: u64>(
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -334,7 +334,7 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -358,8 +358,8 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
     assert_eq!(policy.callable().owner(), supply.callable().owner());
     let surfaces = package_evidence::project_checked_callable_policy(
         &checked,
-        checked.selected_target_profile().unwrap(),
-        checked.package_identity().unwrap(),
+        checked.custody.selected_target_profile().unwrap(),
+        checked.custody.package_identity().unwrap(),
     )
     .unwrap();
     assert!(
@@ -461,7 +461,7 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })

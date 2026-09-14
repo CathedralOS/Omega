@@ -1,4 +1,4 @@
-use compiler::CheckedCompilation;
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -62,7 +62,7 @@ pub(crate) struct RecheckedDataSymbolFactSet {
 }
 
 pub(crate) fn require_rederived_data_definition_facts(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let rederived = validation::build_definition_fact_plan(&compilation.typed);
     let data_symbols = compilation

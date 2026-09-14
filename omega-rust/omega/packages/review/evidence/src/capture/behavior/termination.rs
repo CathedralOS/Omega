@@ -1,14 +1,14 @@
 use super::super::contracts::expressions::names::portable_parameter_position;
 use super::super::semantics::declarations::nominal_identity;
+use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewProgressPremise, PackageReviewProgressSubject, PackageReviewTermination,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_termination(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     guarantee: &language_semantics::TerminationGuarantee,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
     project_termination_with_subject(compilation, guarantee, |root| {
@@ -17,7 +17,7 @@ pub(crate) fn project_termination(
 }
 
 pub(crate) fn project_trait_requirement_termination(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     requirement: &typed_trees::signature::StateSignature,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
     let parameters = compilation.state_signature_parameters(requirement);
@@ -72,7 +72,7 @@ pub(crate) fn project_trait_requirement_termination(
 }
 
 pub(crate) fn project_machine_parameter_termination(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     signature: &typed_trees::signature::StateSignature,
     declaration_path: &str,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
@@ -122,7 +122,7 @@ pub(crate) fn project_machine_parameter_termination(
 }
 
 fn project_termination_with_subject(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     guarantee: &language_semantics::TerminationGuarantee,
     mut project_subject: impl FnMut(
         SymbolHandle,

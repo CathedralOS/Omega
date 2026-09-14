@@ -5,16 +5,16 @@ use super::super::contracts::facts::project_callable_contract_entailment_stand_d
 use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::conformances::project_callable_conformances;
 use super::signatures::project_external_callable_signature;
+use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     CheckedPackageCallableReview, PackageReviewCallableRole, PackageReviewExternalExecutableSupply,
     PackageReviewNominalIdentity,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(in crate::capture) fn project_callable(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,
@@ -72,7 +72,7 @@ pub(in crate::capture) fn project_callable(
 }
 
 pub(in crate::capture) fn project_contract_entailment_open_contract(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     contract_index: usize,
     fact_index: usize,
@@ -100,7 +100,7 @@ pub(in crate::capture) fn project_contract_entailment_open_contract(
 }
 
 pub(in crate::capture) fn project_private_external_executable_supply(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>, Vec<Diagnostic>> {

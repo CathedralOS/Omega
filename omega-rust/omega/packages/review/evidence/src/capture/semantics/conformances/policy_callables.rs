@@ -1,11 +1,11 @@
 //! Exact callable coordinates for retained conformance selections.
 
 use super::policy_arguments::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::encoding::framed_identity;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::PackageReviewNominalIdentity;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -13,7 +13,7 @@ use symbols::SymbolHandle;
 /// telescope ordinal. Other declaration kinds may use their nominal path only
 /// when the checked parameter arena proves it denotes exactly one binder.
 pub(super) fn caller_binder_identity(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     if compilation.machines().iter().any(|machine| {
@@ -42,7 +42,7 @@ pub(super) fn caller_binder_identity(
 }
 
 pub(crate) fn callable_identity(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let matches = compilation

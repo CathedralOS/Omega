@@ -23,7 +23,7 @@ requires self.value <= 10
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -142,7 +142,7 @@ requires value.left == value.right
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -234,7 +234,7 @@ requires tag<View<'{selected}, u64>>() == tag<View<'{selected}, u64>>()
         package.write("build.omg", build);
     }
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -313,7 +313,7 @@ requires {left_receiver}.left == {right_receiver}.right
     original.write("build.omg", build);
     changed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -399,7 +399,7 @@ pub proposition balanced(pair: Pair) = pair.left == pair.right;
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -475,7 +475,7 @@ pub proposition selects_computed_member(value: i32) =
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -530,7 +530,7 @@ pub proposition selects_case_member(value: i32) =
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&case_package.0)),
         ..CheckedCompileRequest::new(&case_package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -583,7 +583,7 @@ requires (Pair {{ left: value, right: value }}).{selected} == value
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -640,7 +640,7 @@ requires (Outcome::Right { value: value }).value == value
 "#,
     );
     case_package.write("build.omg", build);
-    let case_checked = compile_to_checked(CheckedCompileRequest {
+    let case_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&case_package.0)),
         ..CheckedCompileRequest::new(&case_package.0.join("main.omg"), Some(target))
     })
@@ -686,7 +686,7 @@ requires (Pair { left: value, right: value }).left ==
 "#,
     );
     custody_package.write("build.omg", build);
-    let mut custody_checked = compile_to_checked(CheckedCompileRequest {
+    let mut custody_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&custody_package.0)),
         ..CheckedCompileRequest::new(&custody_package.0.join("main.omg"), Some(target))
     })

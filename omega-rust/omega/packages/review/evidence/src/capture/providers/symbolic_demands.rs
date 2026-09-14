@@ -8,12 +8,12 @@ use super::super::api::operators::project_operator_coordinate;
 use super::super::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use super::super::source::locations::canonical_source_span_location;
 use super::application_realizations::authored_application_source_span;
+use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageBoundaryApplicationDemandReview, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
     PackageReviewSymbolicBoundaryApplicationArgument,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -28,7 +28,7 @@ struct StagedDemand {
 }
 
 pub(crate) fn project_boundary_application_demands(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<ProjectedBoundaryApplicationDemands, Vec<Diagnostic>> {
     let mut staged: Vec<StagedDemand> = Vec::new();
@@ -179,7 +179,7 @@ pub(crate) fn project_boundary_application_demands(
 /// must carry the requirement at that site or the producer export fails
 /// closed.
 fn symbolic_demand_authored_use_kind(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     origin: checked_trees::CheckedValueOrigin,
     operator: &typed_trees::operator::OperatorDefinition,

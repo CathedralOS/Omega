@@ -1,4 +1,5 @@
 use super::evidence::require_rederived_data_definition_facts;
+use crate::capture::PackageReviewInput;
 use crate::capture::api::domains::facts::{
     project_definition_contract_fact, semantic_fact_matches_definition_fact,
 };
@@ -16,13 +17,12 @@ use crate::record::{
     PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDataShape, PackageReviewNominalIdentity, PackageReviewSourceLocationRole,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_data_invariant_facts(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     definition: &typed_trees::data::DataDefinition,
     identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
@@ -41,7 +41,7 @@ pub(crate) fn project_data_invariant_facts(
         lifetime_substitutions: &[],
         selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
-    let reviewed_package = compilation.package_identity().ok_or_else(|| {
+    let reviewed_package = compilation.custody.package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
             "data invariant review requires package-aware checked compilation",
         )]
@@ -71,7 +71,7 @@ pub(crate) fn project_data_invariant_facts(
     Ok(projected)
 }
 pub(crate) fn require_exact_checked_data_fact(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     data_symbol: SymbolHandle,
     fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
     identity: &PackageReviewNominalIdentity,
@@ -122,7 +122,7 @@ pub(crate) fn require_exact_checked_data_fact(
 }
 
 pub(crate) fn project_public_data(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewDataShape>>, Vec<Diagnostic>> {
     require_rederived_data_definition_facts(compilation)?;

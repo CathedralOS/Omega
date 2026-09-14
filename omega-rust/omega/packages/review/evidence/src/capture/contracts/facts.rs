@@ -2,6 +2,7 @@ use super::evidence::{
     checked_contract_fact, checked_outcome_specific_guarantee, validate_checked_contract_evidence,
     validate_checked_contract_evidence_components,
 };
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
@@ -9,7 +10,6 @@ use crate::record::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewResultCaseIdentity,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -38,7 +38,7 @@ impl ContractProjectionContext<'_> {
 }
 
 pub(crate) fn project_callable_contracts(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     entry: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
@@ -47,7 +47,7 @@ pub(crate) fn project_callable_contracts(
 }
 
 pub(crate) fn project_callable_contracts_with_exposure(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     entry: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
@@ -79,7 +79,7 @@ pub(crate) fn project_callable_contracts_with_exposure(
 }
 
 pub(crate) fn exact_contract_entailment_stand_down_contract(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     contract_index: usize,
     fact_index: usize,
@@ -121,7 +121,7 @@ pub(crate) fn exact_contract_entailment_stand_down_contract(
 }
 
 pub(crate) fn project_callable_contract_entailment_stand_down(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     entry: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
@@ -166,7 +166,7 @@ pub(crate) fn project_callable_contract_entailment_stand_down(
 }
 
 pub(crate) fn project_trait_requirement_contracts(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     requirement: &typed_trees::signature::StateSignature,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
@@ -180,14 +180,14 @@ pub(crate) fn project_trait_requirement_contracts(
 }
 
 pub(crate) fn project_contracts(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     contracts: &[typed_trees::signature::SignatureContract],
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
     use typed_trees::{domain::ProofFact, signature::SignatureContractKind};
 
-    let reviewed_package = compilation.package_identity().ok_or_else(|| {
+    let reviewed_package = compilation.custody.package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
             "contract review requires package-aware checked compilation",
         )]

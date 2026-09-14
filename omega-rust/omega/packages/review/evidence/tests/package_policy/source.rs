@@ -2,7 +2,7 @@ use super::*;
 use compiler::CheckedCompileRequest;
 
 pub(super) struct Fixture {
-    pub checked: CheckedCompilation,
+    pub checked: ReviewFixture,
     pub target: TargetProfile,
     root: TempPackage,
     dependency: Option<TempPackage>,
@@ -61,7 +61,7 @@ impl Fixture {
         let inputs =
             PackageCompilationInputs::new_package(package_identity(), sources, edges).unwrap();
         let target = TargetProfile::WindowsX64;
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(inputs),
             ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target.target_name()))
         })
@@ -82,6 +82,7 @@ impl Fixture {
         assert!(self.dependency.is_none(), "permission helper is root-local");
         let accepted = self
             .checked
+            .custody
             .candidate_service_binding(
                 AcceptedSemanticBindingRole::FilesystemHostService,
                 package_identity(),
@@ -113,7 +114,7 @@ impl Fixture {
         let accepted = accepted
             .with_terminal_authority_permissions(vec![permission])
             .unwrap();
-        self.checked = compile_to_checked(CheckedCompileRequest {
+        self.checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(
                 package_inputs(&self.root.0)
                     .with_accepted_semantic_bindings(vec![accepted])

@@ -1,16 +1,16 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewContractExpression,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableCastExpression};
 
 pub(crate) fn project_contract_cast(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     cast: &TableCastExpression,
@@ -28,7 +28,7 @@ pub(crate) fn project_contract_cast(
                 ))]
             })?;
         let identity = nominal_identity(compilation, domain.symbol)?;
-        let reviewed_package = compilation.package_identity().ok_or_else(|| {
+        let reviewed_package = compilation.custody.package_identity().ok_or_else(|| {
             vec![Diagnostic::error(
                 "package review requires package-aware checked compilation",
             )]

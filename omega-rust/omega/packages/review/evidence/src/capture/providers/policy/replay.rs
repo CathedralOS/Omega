@@ -1,7 +1,7 @@
 //! Validate live selected associations before projecting inert policy.
 
 use super::rejected;
-use compiler::CheckedCompilation;
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use provider_planning::{
     DerivedProviderPlan, ProviderSelectionProvenance, SelectedProviderPlanWithProvenance,
@@ -10,21 +10,21 @@ use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 pub(super) fn validate(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
-    if compilation.package_identity() != Some(package)
-        || compilation.selected_target_profile() != Some(target)
-        || compilation.selected_native_target() != Some(target.native_target())
-        || compilation.evaluated_via_bindings().target() != Some(target)
+    if compilation.custody.package_identity() != Some(package)
+        || compilation.custody.selected_target_profile() != Some(target)
+        || compilation.custody.selected_native_target() != Some(target.native_target())
+        || compilation.custody.evaluated_via_bindings().target() != Some(target)
     {
         return Err(rejected(
             "package or target differs from the checked root activation",
         ));
     }
-    let plans = compilation.selected_provider_plans().plans();
-    let provenance = compilation.selected_provider_provenance();
+    let plans = compilation.custody.selected_provider_plans().plans();
+    let provenance = compilation.custody.selected_provider_provenance();
     if plans.len() != provenance.len()
         || plans.iter().zip(provenance).any(|(plan, retained)| {
             plan != &retained.plan
@@ -47,7 +47,7 @@ pub(super) fn validate(
         .collect();
     let (replayed, _) = provider_planning::selected_provider_plan_facts_with_provenance(
         &compilation.typed,
-        compilation.evaluated_via_bindings(),
+        compilation.custody.evaluated_via_bindings(),
         selected,
     )?;
     if replayed.plans() != plans {
@@ -58,10 +58,12 @@ pub(super) fn validate(
     validate_authored_activation(compilation)
 }
 
-fn validate_authored_activation(compilation: &CheckedCompilation) -> Result<(), Vec<Diagnostic>> {
-    let provenance = compilation.selected_provider_provenance();
-    let Some(build_symbol) = compilation.selected_build_machine_symbol() else {
-        if !compilation.selected_provider_grants().is_empty()
+fn validate_authored_activation(
+    compilation: &PackageReviewInput<'_>,
+) -> Result<(), Vec<Diagnostic>> {
+    let provenance = compilation.custody.selected_provider_provenance();
+    let Some(build_symbol) = compilation.custody.selected_build_machine_symbol() else {
+        if !compilation.custody.selected_provider_grants().is_empty()
             || provenance.iter().any(|retained| {
                 matches!(
                     retained.selected_by,
@@ -108,12 +110,12 @@ fn validate_authored_activation(compilation: &CheckedCompilation) -> Result<(), 
     let authored = build_evaluation::harvest_root_grants(&compilation.typed, build)
         .map_err(|diagnostic| vec![diagnostic])?;
     let grants = trust_model::resolve_authored_selected_provider_grants(
-        compilation.provider_plans(),
-        compilation.selected_provider_plans(),
+        compilation.custody.provider_plans(),
+        compilation.custody.selected_provider_plans(),
         &authored,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    if grants != compilation.selected_provider_grants() {
+    if grants != compilation.custody.selected_provider_grants() {
         return Err(rejected(
             "provider grants differ from exact authored selected-plan replay",
         ));
@@ -121,8 +123,8 @@ fn validate_authored_activation(compilation: &CheckedCompilation) -> Result<(), 
     validate_target_defaults(compilation)
 }
 
-fn validate_target_defaults(compilation: &CheckedCompilation) -> Result<(), Vec<Diagnostic>> {
-    for retained in compilation.selected_provider_provenance() {
+fn validate_target_defaults(compilation: &PackageReviewInput<'_>) -> Result<(), Vec<Diagnostic>> {
+    for retained in compilation.custody.selected_provider_provenance() {
         let ProviderSelectionProvenance::TargetDefault(declarations) = &retained.selected_by else {
             continue;
         };

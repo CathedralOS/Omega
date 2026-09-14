@@ -13,7 +13,7 @@ fn checked_and_external_exact_edges_publish_the_same_lifetime_partition() {
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", BUILD);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })

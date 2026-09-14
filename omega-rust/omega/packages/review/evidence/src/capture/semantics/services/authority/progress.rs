@@ -6,7 +6,7 @@ use crate::record::{PackagePolicyServiceProgressPremise, PackagePolicyServicePro
 use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     guarantee: &language_semantics::TerminationGuarantee,
     parameters: &[typed_trees::signature::StateParameter],
 ) -> Result<Vec<PackagePolicyServiceProgressPremise>, Vec<Diagnostic>> {

@@ -2,6 +2,7 @@
 //! coordinates. Nominal variables are then projected into the existing exact
 //! static telescope; private helper names never enter package identity.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::behavior::project_service_row;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::facts::exactly_one;
@@ -9,12 +10,11 @@ use crate::record::{
     PackagePolicyMachineParameterContract, PackagePolicyServiceReachDependency,
     PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use flow_effects::ServiceReachInferencePlan;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     inferred: &ServiceReachInferencePlan,
     projected_parameters: &[PackagePolicyTypeParameter],

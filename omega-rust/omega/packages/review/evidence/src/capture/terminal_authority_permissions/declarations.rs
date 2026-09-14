@@ -1,8 +1,8 @@
 //! Rejoin supplied permissions to the complete live service declaration.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{nominal_identity, provider_requirement_identity};
 use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use effects::ServiceTerminalAuthorityPermission;
 use effects::provider_plan::ServiceSchema;
@@ -23,12 +23,13 @@ pub(super) struct ResolvedPermission<'a> {
     pub requirement: PackageReviewNominalIdentity,
 }
 
-pub(super) fn resolve_services(
-    compilation: &CheckedCompilation,
-) -> Result<Vec<ResolvedService<'_>>, Vec<Diagnostic>> {
+pub(super) fn resolve_services<'a>(
+    compilation: &'a PackageReviewInput<'_>,
+) -> Result<Vec<ResolvedService<'a>>, Vec<Diagnostic>> {
     let mut services = Vec::new();
-    for accepted in compilation.resolved_semantic_bindings() {
+    for accepted in compilation.custody.resolved_semantic_bindings() {
         let resolved = compilation
+            .custody
             .resolved_semantic_binding(accepted.role())
             .ok_or_else(|| rejected("accepted binding lost its exact checked declaration"))?;
         if resolved.accepted() != accepted {

@@ -6,13 +6,13 @@ use super::super::api::operators::project_public_operators;
 use super::super::api::propositions::project_public_propositions;
 use super::super::api::traits::project_public_traits;
 use super::super::representation::{project_representation_tcb, project_semantic_dependencies};
+use crate::capture::PackageReviewInput;
 use crate::capture::source::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
 use crate::record::{
     PackageReviewConformanceShape, PackageReviewConstShape, PackageReviewDataShape,
     PackageReviewDomainShape, PackageReviewOperatorShape, PackageReviewPropositionShape,
     PackageReviewRepresentationTcb, PackageReviewTraitShape,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -29,7 +29,7 @@ pub(super) struct ProjectedPackageSurface {
 }
 
 pub(super) fn project_package_surface(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<ProjectedPackageSurface, Vec<Diagnostic>> {
     let public_conformances = project_public_conformances(compilation, package)?;

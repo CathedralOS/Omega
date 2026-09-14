@@ -16,7 +16,7 @@ fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -35,10 +35,11 @@ fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
     );
     assert_eq!(
         toolchain_sources.len(),
-        checked.exact_toolchain_sources().len()
+        checked.custody.exact_toolchain_sources().len()
     );
     for source in toolchain_sources {
         let retained = checked
+            .custody
             .exact_toolchain_sources()
             .iter()
             .find(|(source_id, _)| *source_id == source.source_id)
@@ -100,7 +101,7 @@ pub machine api() {
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -192,7 +193,7 @@ pub machine consume(value: Token) {}
         ],
     )
     .expect("transitive package graph should validate");
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(inputs),
         ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target))
     })
@@ -278,7 +279,7 @@ pub machine make() -> Token { Token { value: 7u64 } }
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -324,10 +325,7 @@ pub machine make() -> Token { Token { value: 7u64 } }
     assert_semantic_dependency_rederivation_rejects(&altered, "altered row");
 }
 
-fn assert_semantic_dependency_rederivation_rejects(
-    checked: &compiler::CheckedCompilation,
-    mutation: &str,
-) {
+fn assert_semantic_dependency_rederivation_rejects(checked: &ReviewFixture, mutation: &str) {
     let diagnostics = match project_checked_package_review(checked) {
         Err(diagnostics) => diagnostics,
         Ok(_) => panic!("{mutation} should reject retained semantic-dependency drift"),
@@ -367,7 +365,7 @@ invokes FilesystemHost;
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let candidate_checked = compile_to_checked(CheckedCompileRequest {
+    let candidate_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&canonical.0)),
         ..CheckedCompileRequest::new(&canonical.0.join("main.omg"), Some(target))
     })
@@ -379,13 +377,14 @@ invokes FilesystemHost;
         "a readable package-owned name alone cannot mint filesystem authority",
     );
     let accepted = candidate_checked
+        .custody
         .candidate_service_binding(
             AcceptedSemanticBindingRole::FilesystemHostService,
             package_identity(),
             "FilesystemHost",
         )
         .expect("derive exact accepted filesystem binding");
-    let canonical_checked = compile_to_checked(CheckedCompileRequest {
+    let canonical_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(
             package_inputs(&canonical.0)
                 .with_accepted_semantic_bindings(vec![accepted])
@@ -499,16 +498,17 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         )
         .expect("ordinary Console dependency graph")
     };
-    let candidate = compile_to_checked(CheckedCompileRequest {
+    let candidate = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(base_inputs()),
         ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some("linux_x86_64"))
     })
     .expect("candidate Console dependency should check before consumer acceptance");
     let (plan, retained) = candidate
+        .custody
         .selected_provider_plans()
         .plans()
         .iter()
-        .zip(candidate.selected_provider_provenance())
+        .zip(candidate.custody.selected_provider_provenance())
         .find(|(plan, _)| plan.schema.trait_name == "Console")
         .expect("candidate retains its exact Console plan");
     let accepted = package_compilation::AcceptedSemanticBinding::new(
@@ -522,7 +522,7 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         plan.identity_digest(),
     )
     .expect("exact accepted Console binding");
-    let checked_without_permission = compile_to_checked(CheckedCompileRequest {
+    let checked_without_permission = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(
             base_inputs()
                 .with_accepted_semantic_bindings(vec![accepted.clone()])
@@ -554,7 +554,7 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
             ),
         ])
         .expect("permission schema matches accepted Console schema");
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(
             base_inputs()
                 .with_accepted_semantic_bindings(vec![accepted])

@@ -6,7 +6,7 @@ fn review_rejects_target_free_and_standalone_checked_programs() {
     let package = TempPackage::new();
     package.write("main.omg", "machine local() { }\n");
 
-    let target_free = compile_to_checked(CheckedCompileRequest {
+    let target_free = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), None)
     })
@@ -19,7 +19,7 @@ fn review_rejects_target_free_and_standalone_checked_programs() {
             .contains("requires one explicit target selection")
     }));
 
-    let standalone = compiler::compile_to_checked(CheckedCompileRequest::new(
+    let standalone = compile_review_fixture(CheckedCompileRequest::new(
         &package.0.join("main.omg"),
         None,
     ))
@@ -43,20 +43,20 @@ fn review_distinguishes_profiles_that_share_a_native_target() {
 "#,
     );
 
-    let windows = compile_to_checked(CheckedCompileRequest {
+    let windows = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
     .expect("Windows review fixture should check");
-    let uefi = compile_to_checked(CheckedCompileRequest {
+    let uefi = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("uefi_x86_64"))
     })
     .expect("UEFI review fixture should check");
 
     assert_eq!(
-        windows.selected_native_target(),
-        uefi.selected_native_target()
+        windows.custody.selected_native_target(),
+        uefi.custody.selected_native_target()
     );
     let windows = project_checked_package_review(&windows).expect("Windows review projection");
     let uefi = project_checked_package_review(&uefi).expect("UEFI review projection");
@@ -84,7 +84,7 @@ fn review_encoding_ignores_unreviewed_arena_insertion_order() {
     second.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })

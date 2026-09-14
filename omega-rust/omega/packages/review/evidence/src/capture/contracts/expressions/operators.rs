@@ -1,14 +1,14 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{
     PackageReviewContractBinaryOperator, PackageReviewContractOperatorMeaning,
     PackageReviewContractUnaryOperator,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn exact_checked_contract_operator_meaning(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<PackageReviewContractOperatorMeaning, Vec<Diagnostic>> {

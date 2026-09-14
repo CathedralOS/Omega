@@ -13,9 +13,9 @@ use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::conformances::project_callable_conformances;
 use super::signatures::project_external_callable_signature;
+use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::*;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
@@ -61,7 +61,7 @@ pub(super) struct ProjectedSurface<'a> {
 }
 
 pub(super) fn project<'a>(
-    compilation: &'a CheckedCompilation,
+    compilation: &'a PackageReviewInput<'a>,
     machine: &typed_trees::machine::Machine,
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,

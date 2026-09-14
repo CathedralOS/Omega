@@ -14,7 +14,7 @@ fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -73,7 +73,7 @@ fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -169,7 +169,7 @@ requires buffer.len > 0
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -229,7 +229,7 @@ requires (value as {target_type}) == 1
     u16_cast.write("build.omg", build);
     u32_cast.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -300,7 +300,7 @@ requires (value as u16 in Tagged) == 1
 "#,
     );
     public.write("build.omg", build);
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&public.0)),
         ..CheckedCompileRequest::new(&public.0.join("main.omg"), Some(target))
     })
@@ -343,7 +343,7 @@ requires (value as u16 in Hidden) == 1
 "#,
     );
     private.write("build.omg", build);
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&private.0)),
         ..CheckedCompileRequest::new(&private.0.join("main.omg"), Some(target))
     })

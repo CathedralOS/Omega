@@ -1,12 +1,12 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::behavior::canonical_checked_invocation_targets;
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::record::PackageReviewSourceLocationRole;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn project_machine_invocation_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     validate_machine_invocations(compilation, machine)?;
@@ -21,7 +21,7 @@ pub(crate) fn project_machine_invocation_source_locations(
 }
 
 pub(crate) fn validate_machine_invocations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     let declarations = compilation.machine_invokes(machine);
@@ -64,7 +64,7 @@ pub(crate) fn validate_machine_invocations(
 }
 
 pub(crate) fn project_signature_invocation_source_locations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     signature: &typed_trees::signature::StateSignature,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let declarations = compilation.state_signature_invokes(signature);

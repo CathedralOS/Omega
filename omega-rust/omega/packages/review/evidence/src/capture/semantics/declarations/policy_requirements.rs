@@ -1,15 +1,15 @@
 //! Normalized policy coordinates remain separate from compiler replay names.
 
 use super::{provider_requirement_identity, provider_requirement_schema};
+use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;
 use crate::record::PackageReviewNominalIdentity;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
 pub(crate) fn policy_provider_requirement_identity(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     schema: ProviderSchemaDeclaration,
     requirement: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {

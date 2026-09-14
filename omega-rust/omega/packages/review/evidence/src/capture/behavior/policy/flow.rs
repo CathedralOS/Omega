@@ -1,9 +1,9 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::PackagePolicyCapabilityFlow;
 use checked_trees::RealizedMachineContractEnvelope;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 /// Disclose the authority exercised anywhere in this checked machine call
@@ -11,7 +11,7 @@ use diagnostics::Diagnostic;
 /// The service-reach topology is machine-wide, as is capability inference;
 /// this is not a claim about dynamically feasible execution paths.
 pub(crate) fn reachable_capability_flows(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     root: &RealizedMachineContractEnvelope,
 ) -> Result<Vec<PackagePolicyCapabilityFlow>, Vec<Diagnostic>> {
     let mut pending = vec![root.machine];
@@ -114,7 +114,7 @@ pub(crate) fn reachable_capability_flows(
 }
 
 pub(crate) fn capability_flows(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     envelope: &RealizedMachineContractEnvelope,
 ) -> Result<Vec<PackagePolicyCapabilityFlow>, Vec<Diagnostic>> {
     let actual = compilation

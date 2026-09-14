@@ -2,11 +2,11 @@ use super::super::semantics::declarations::{
     is_canonical_virtual_toolchain_path, toolchain_source_identity,
 };
 use super::ProjectedNestedSourceLocation;
+use crate::capture::PackageReviewInput;
 use crate::record::package::PackageReviewCanonicalRowSources;
 use crate::record::{
     PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -86,7 +86,7 @@ pub(crate) fn validate_canonical_row_source_limits(
 }
 
 pub(crate) fn canonical_source_location(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
     mut role: PackageReviewSourceLocationRole,
 ) -> Result<PackageReviewSourceLocation, Vec<Diagnostic>> {
@@ -112,7 +112,7 @@ pub(crate) fn canonical_source_location(
 }
 
 pub(crate) fn project_nested_declaration_source_location(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
     authored_role: PackageReviewSourceLocationRole,
     subject: &str,
@@ -136,7 +136,7 @@ pub(crate) fn project_nested_declaration_source_location(
 }
 
 pub(crate) fn canonical_source_span_location(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     span: source::SourceSpan,
     role: PackageReviewSourceLocationRole,
 ) -> Result<PackageReviewSourceLocation, Vec<Diagnostic>> {
@@ -165,7 +165,7 @@ pub(crate) fn canonical_source_span_location(
             })?,
         ),
         source::SourceOrigin::Toolchain => PackageReviewSourceLocationOwner::Toolchain(
-            toolchain_source_identity(source_file, compilation.exact_toolchain_sources())?,
+            toolchain_source_identity(source_file, compilation.custody.exact_toolchain_sources())?,
         ),
     };
     let relative_path = canonical_review_relative_path(source_file)?;

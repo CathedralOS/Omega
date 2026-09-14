@@ -8,7 +8,7 @@ pub(super) const BUILD: &str = r#"machine build(builder: &mut Build) {
 "#;
 
 pub(super) struct Fixture {
-    pub checked: CheckedCompilation,
+    pub checked: ReviewFixture,
     pub target: TargetProfile,
     _package: TempPackage,
     _dependency: Option<TempPackage>,
@@ -27,7 +27,7 @@ impl Fixture {
         Self::new(source, BUILD, target, Some(producer))
     }
 
-    pub fn without_typed_via(&self, machine: &str) -> CheckedCompilation {
+    pub fn without_typed_via(&self, machine: &str) -> ReviewFixture {
         let mut changed = self.checked.clone();
         let conformances = changed
             .typed
@@ -44,13 +44,13 @@ impl Fixture {
         changed
     }
 
-    pub fn changed_build_target(&self, prefix: &str, replacement: &str) -> CheckedCompilation {
+    pub fn changed_build_target(&self, prefix: &str, replacement: &str) -> ReviewFixture {
         use typed_trees::{expression::ExpressionNode, name::Identifier, statement::StatementNode};
         let mut changed = self.checked.clone();
         let build = changed
             .machines()
             .iter()
-            .find(|machine| Some(machine.symbol) == changed.selected_build_machine_symbol())
+            .find(|machine| Some(machine.symbol) == changed.custody.selected_build_machine_symbol())
             .unwrap();
         let statements = changed
             .machine_states(build)
@@ -131,7 +131,7 @@ impl Fixture {
         let inputs =
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
                 .unwrap();
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(inputs),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target.target_name()))
         })

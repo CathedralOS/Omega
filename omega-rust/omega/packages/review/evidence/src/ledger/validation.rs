@@ -1,15 +1,16 @@
 use super::construction::ordinary_package_obligation_ledger_from_compiler_rows;
 use super::model::OrdinaryPackageObligationLedger;
+use crate::PackageReviewInput;
 use crate::project_checked_package_review;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 /// Reconstruct the complete current ordinary package-review question directly
-/// from compiler-owned checked semantics.
-pub fn reconstruct_ordinary_package_obligation_ledger(
-    compilation: &CheckedCompilation,
+/// from semantic review inputs and immutable compiler custody.
+pub fn reconstruct_ordinary_package_obligation_ledger<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
 ) -> Result<OrdinaryPackageObligationLedger, Vec<Diagnostic>> {
-    let dependency_closure = compilation.dependency_closure().cloned().ok_or_else(|| {
+    let compilation = &input.into();
+    let dependency_closure = compilation.custody.dependency_closure().cloned().ok_or_else(|| {
         vec![Diagnostic::error(
             "ordinary package obligation reconstruction requires a package-aware dependency closure",
         )]
@@ -32,9 +33,9 @@ pub fn reconstruct_ordinary_package_obligation_ledger(
 /// Reconstruct and compare the complete local ordinary package-review
 /// question. Recovery or compiler issuance alone never establishes equality to
 /// the exact checked source subject.
-pub fn validate_ordinary_package_obligation_ledger(
+pub fn validate_ordinary_package_obligation_ledger<'a>(
     ledger: &OrdinaryPackageObligationLedger,
-    compilation: &CheckedCompilation,
+    compilation: impl Into<PackageReviewInput<'a>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let expected = reconstruct_ordinary_package_obligation_ledger(compilation)?;
     if ledger == &expected {

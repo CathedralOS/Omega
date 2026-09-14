@@ -4,14 +4,14 @@ use super::super::operators::{
     exact_checked_contract_operator_meaning, project_contract_binary_operator,
     project_contract_unary_operator,
 };
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{PackageReviewContractExpression, PackageReviewContractOperatorMeaning};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn project_operator_form(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: ExpressionHandle,
     node: &ExpressionNode,

@@ -22,7 +22,7 @@ pub trait Worker {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -69,7 +69,7 @@ pub trait Worker {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -124,13 +124,13 @@ ensures
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("ordinary checking should retain the out-of-language stand-down");
     assert_eq!(checked.facts.proof.contract_exits.len(), 1);
-    let [stand_down] = checked.contract_entailment_stand_downs() else {
+    let [stand_down] = checked.custody.contract_entailment_stand_downs() else {
         panic!("one exact contract-entailment stand-down")
     };
     assert_eq!(stand_down.contract_index, 1);
@@ -236,7 +236,7 @@ ensures
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -295,6 +295,7 @@ ensures
     );
     let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
         checked
+            .custody
             .dependency_closure()
             .cloned()
             .expect("fixture package closure"),
@@ -316,6 +317,7 @@ ensures
         .collect::<Vec<_>>();
     let incomplete_ledger = ordinary_package_obligation_ledger_from_compiler_rows(
         checked
+            .custody
             .dependency_closure()
             .cloned()
             .expect("fixture package closure"),
@@ -494,7 +496,7 @@ fn assumption_discharge_batch_preserves_exact_rows_and_remaining_order() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -634,7 +636,7 @@ ensures
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })

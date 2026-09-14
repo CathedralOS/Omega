@@ -1,13 +1,13 @@
 //! Resolve schema rows only within the exact inherited declaration closure.
 
 use super::declarations::rejected;
-use compiler::CheckedCompilation;
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ServiceSchema;
 use symbols::SymbolHandle;
 
 pub(super) fn resolve(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     root: SymbolHandle,
     schema: &ServiceSchema,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {

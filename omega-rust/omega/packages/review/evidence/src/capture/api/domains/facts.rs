@@ -1,15 +1,15 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackageReviewContractFact, PackageReviewNominalIdentity};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_domain_predicate_facts(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     definition: &typed_trees::domain::DomainDefinition,
     identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
@@ -28,7 +28,7 @@ pub(crate) fn project_domain_predicate_facts(
         lifetime_substitutions: &[],
         selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
-    let reviewed_package = compilation.package_identity().ok_or_else(|| {
+    let reviewed_package = compilation.custody.package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
             "domain predicate review requires package-aware checked compilation",
         )]
@@ -59,7 +59,7 @@ pub(crate) fn project_domain_predicate_facts(
 }
 
 pub(crate) fn project_definition_contract_fact(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
@@ -127,7 +127,7 @@ pub(crate) fn project_definition_contract_fact(
 }
 
 pub(crate) fn require_exact_checked_domain_fact(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     domain_symbol: SymbolHandle,
     fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
     identity: &PackageReviewNominalIdentity,
@@ -178,7 +178,7 @@ pub(crate) fn require_exact_checked_domain_fact(
 }
 
 pub(crate) fn semantic_fact_matches_definition_fact(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     semantic_fact: &facts::Fact,
     fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> bool {

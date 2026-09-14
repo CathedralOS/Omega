@@ -4,7 +4,7 @@ use super::*;
 use crate::record::PackagePolicyCallingPlan;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
@@ -36,6 +36,7 @@ pub(super) fn project(
         ));
     }
     let candidates = compilation
+        .custody
         .boundary_calling_plan_realizations()
         .iter()
         .filter(|candidate| {
@@ -69,11 +70,11 @@ pub(super) fn project(
     crate::capture::calling::project_checked_calling_policy(compilation, candidate).map(Some)
 }
 
-pub(super) fn boundary_arguments(
-    compilation: &CheckedCompilation,
+pub(super) fn boundary_arguments<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
-) -> Result<&[typed_trees::types::TypeReferenceHandle], Vec<Diagnostic>> {
+) -> Result<&'a [typed_trees::types::TypeReferenceHandle], Vec<Diagnostic>> {
     let ProviderSchemaDeclaration::BoundaryTrait(schema_symbol) = schema else {
         return Ok(&[]);
     };

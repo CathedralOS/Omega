@@ -1,19 +1,17 @@
 //! Declared argument categories and exact inherited substitution environments.
 
 use super::rejected;
-use crate::capture::semantics::types::{
-    review_signature_const_argument_identity,
-    review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
-};
+use crate::capture::PackageReviewInput;
+use crate::capture::semantics::types::signature_type_identity;
 use crate::record::PackageReviewTypeIdentity;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::{data::TypeParameterKind, name::Identifier, types::TypeReferenceHandle};
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    typed: &typed_trees::TypedTrees,
+    compilation: &PackageReviewInput<'_>,
     owner: &TraitDefinition,
     arguments: &[TypeReferenceHandle],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -38,27 +36,20 @@ pub(super) fn project(
         .iter()
         .zip(arguments)
         .map(|(parameter, argument)| {
-            if matches!(
+            let const_argument = matches!(
                 parameter.kind,
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-            ) {
-                review_signature_const_argument_identity(
-                    compilation,
-                    *argument,
-                    &binders,
-                    lifetimes,
-                    substitutions,
-                )
-            } else {
-                review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
-                    compilation,
-                    *argument,
-                    &binders,
-                    lifetimes,
-                    substitutions,
-                    &[],
-                )
-            }
+            );
+            signature_type_identity(
+                typed,
+                compilation.custody.exact_toolchain_sources(),
+                *argument,
+                &binders,
+                lifetimes,
+                substitutions,
+                &[],
+                const_argument,
+            )
         })
         .collect()
 }

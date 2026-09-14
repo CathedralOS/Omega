@@ -26,7 +26,7 @@ requires observes(&mut input) == true
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -111,7 +111,7 @@ satisfies {selected}::identity
             ),
         );
         package.write("build.omg", build);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -195,7 +195,7 @@ ensures result == input
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -264,7 +264,7 @@ ensures result == input
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -371,7 +371,7 @@ satisfies CheckedMath::identity
 "#,
     );
     private.write("build.omg", build);
-    let diagnostics = compile_to_checked(CheckedCompileRequest {
+    let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&private.0)),
         ..CheckedCompileRequest::new(&private.0.join("main.omg"), Some(target))
     })
@@ -408,7 +408,7 @@ satisfies CheckedMath::identity;
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", build);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -427,7 +427,7 @@ satisfies CheckedMath::identity;
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", build);
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -594,7 +594,7 @@ satisfies CheckedMath::identity
 "#,
     );
     generic.write("build.omg", build);
-    let mut checked = compile_to_checked(CheckedCompileRequest {
+    let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&generic.0)),
         ..CheckedCompileRequest::new(&generic.0.join("main.omg"), Some(target))
     })
@@ -648,7 +648,7 @@ satisfies CheckedMath::identity
             .contains("realizes lifetime-parameterized operator")
     }));
 
-    let mut duplicate = compile_to_checked(CheckedCompileRequest {
+    let mut duplicate = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&generic.0)),
         ..CheckedCompileRequest::new(&generic.0.join("main.omg"), Some(target))
     })
@@ -726,7 +726,7 @@ crashes Trap
             ),
         );
         package.write("build.omg", build);
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })

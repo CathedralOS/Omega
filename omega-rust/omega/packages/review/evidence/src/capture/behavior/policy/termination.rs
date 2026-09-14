@@ -1,4 +1,5 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::{
     declarations::{nominal_identity, trait_requirement_identity_from_symbols},
     facts::exactly_one,
@@ -8,12 +9,11 @@ use crate::record::{
     PackageReviewProgressSubject,
 };
 use checked_trees::RealizedMachineContractEnvelope;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use typed_trees::{machine::Machine, state::State};
 
 pub(crate) fn termination(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &Machine,
     entry: &State,
     envelope: &RealizedMachineContractEnvelope,
@@ -23,7 +23,7 @@ pub(crate) fn termination(
 }
 
 pub(crate) fn declared_termination(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &Machine,
     entry: &State,
     envelope: &RealizedMachineContractEnvelope,
@@ -36,7 +36,7 @@ pub(crate) fn declared_termination(
 }
 
 fn checked_plan<'a>(
-    compilation: &'a CheckedCompilation,
+    compilation: &'a PackageReviewInput<'a>,
     machine: &Machine,
     entry: &State,
     envelope: &RealizedMachineContractEnvelope,
@@ -73,7 +73,7 @@ fn checked_plan<'a>(
 }
 
 fn project_guarantee(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &Machine,
     entry: &State,
     guarantee: &language_semantics::TerminationGuarantee,

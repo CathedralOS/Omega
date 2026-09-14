@@ -1,15 +1,15 @@
 //! Public producer declarations are available choices, not active selections.
 
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::api::policy::conformances as project_public_conformances;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackagePolicyRepresentationAvailability, PackageReviewConformanceSubject};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyRepresentationAvailability>, Vec<Diagnostic>> {
     // Reuse the independent public-surface eligibility owner. In particular,

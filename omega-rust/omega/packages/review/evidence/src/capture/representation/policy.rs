@@ -5,21 +5,23 @@ mod selections;
 
 pub(crate) use selections::rederive_selections;
 
+use crate::capture::PackageReviewInput;
 use crate::capture::calling::project_checked_calling_policy;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackagePolicyRepresentation, PackagePolicyRepresentationDemand};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 /// Project one package's representation policy in the checked activation.
 /// The package owns declarations/producer availability independently of use;
 /// the selecting package owns activation selections and actual demands.
-pub fn project_checked_representation_policy(
-    compilation: &CheckedCompilation,
+pub fn project_checked_representation_policy<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyRepresentation, Vec<Diagnostic>> {
+    let compilation = &input.into();
     if !compilation
+        .custody
         .dependency_closure()
         .is_some_and(|closure| closure.packages().contains(&package))
     {
@@ -45,7 +47,7 @@ pub fn project_checked_representation_policy(
     let producer_availability = availability::project(compilation, package)?;
     let selected_availability = selections::project(compilation, package, &selections)?;
     let mut demands = Vec::new();
-    for realization in compilation.boundary_calling_plan_realizations() {
+    for realization in compilation.custody.boundary_calling_plan_realizations() {
         let uses = realization
             .materialized_signature()
             .opaque_representation_uses();

@@ -7,12 +7,12 @@ mod permissions;
 mod tests;
 
 use super::super::semantics::declarations::nominal_identity;
+use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewCrash, PackageReviewCrashCall, PackageReviewCrashCause,
     PackageReviewCrashInterface, PackageReviewCrashOperatorSite, PackageReviewCrashRoute,
     PackageReviewCrashRouteGuard, PackageReviewCrashSite,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 mod operator_projection;
@@ -21,7 +21,7 @@ pub(super) use expressions::project_boolean_expression;
 use permissions::{project_crash_predicate, project_crash_predicates, project_permission_claim};
 
 pub(crate) fn project_crash(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     plan: &checked_trees::CrashPlan,
 ) -> Result<PackageReviewCrash, Vec<Diagnostic>> {
     let interface = match plan.interface() {

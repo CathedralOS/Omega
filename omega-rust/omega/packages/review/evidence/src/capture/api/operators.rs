@@ -1,3 +1,4 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::behavior::project_crash_cause;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::{ContractProjectionContext, project_contracts};
@@ -13,13 +14,12 @@ use crate::record::{
     PackageReviewCallableParameter, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
     PackageReviewOperatorCoordinate, PackageReviewOperatorShape,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_operator_coordinate(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     declaration: &typed_trees::operator::OperatorDefinition,
 ) -> Result<PackageReviewOperatorCoordinate, Vec<Diagnostic>> {
     let identity = nominal_identity(compilation, declaration.symbol)?;
@@ -40,7 +40,7 @@ pub(crate) fn project_operator_coordinate(
 }
 
 pub(crate) fn project_public_operators(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewOperatorShape>>, Vec<Diagnostic>> {
     let derived =
@@ -177,7 +177,7 @@ pub(crate) fn project_public_operators(
 }
 
 pub(crate) fn project_operator_crash_routes(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     checked: &checked_trees::CheckedOperatorCrashContract,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],

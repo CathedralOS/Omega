@@ -1,7 +1,7 @@
 use crate::support::*;
 use compiler::CheckedCompileRequest;
 
-fn compile_selected_reach_fixture() -> compiler::CheckedCompilation {
+fn compile_selected_reach_fixture() -> ReviewFixture {
     let target =
         host_target_name().expect("package evidence tests require a supported host target");
     let package = TempPackage::new();
@@ -30,7 +30,7 @@ reaches PortIo
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    compile_to_checked(CheckedCompileRequest {
+    compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })

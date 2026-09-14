@@ -21,12 +21,12 @@ requires 0i32 <= right, right <= left, left <= 100i32
 }
 "#;
 
-fn compile_fixture(source: &str) -> compiler::CheckedCompilation {
+fn compile_fixture(source: &str) -> ReviewFixture {
     let target = host_target_name().expect("host target fixture");
     let package = TempPackage::new();
     package.write("main.omg", source);
     package.write("build.omg", BUILD);
-    compile_to_checked(CheckedCompileRequest {
+    compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -278,7 +278,8 @@ requires index == 0u64 { items[index] }
 "#,
     );
     let source = checked
-        .pre_selected_dispatch_source_trees()
+        .custody
+        .pre_selected_dispatch_source_trees(&checked.typed)
         .expect("fixed-token indexing has an exact source view");
     let machine = source
         .machines()
@@ -307,7 +308,10 @@ requires index == 0u64 { items[index] }
         *altered.typed.expression_table.expression_mut(operand) =
             typed_trees::expression::ExpressionNode::Boolean(false);
         assert!(
-            altered.pre_selected_dispatch_source_trees().is_err(),
+            altered
+                .custody
+                .pre_selected_dispatch_source_trees(&altered.typed)
+                .is_err(),
             "changing either original indexing operand invalidates custody"
         );
     }
@@ -368,7 +372,7 @@ satisfies CheckedMath::subtract;
         let package = TempPackage::new();
         package.write("main.omg", source);
         package.write("build.omg", BUILD);
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })

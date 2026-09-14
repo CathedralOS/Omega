@@ -7,6 +7,7 @@ use super::super::source::locations::validate_canonical_row_source_limits;
 use super::callables::ProjectedPackageCallables;
 use super::providers::ProjectedProviders;
 use super::surface::ProjectedPackageSurface;
+use crate::capture::PackageReviewInput;
 use crate::capture::source::{
     ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
 };
@@ -15,7 +16,6 @@ use crate::record::{
     CheckedPackageReviewProjection, PackageReviewSourceLocationRole,
     PackageReviewSyntheticSourceKind, PackageReviewTerminalAuthorityPermission,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
@@ -35,7 +35,7 @@ pub(super) struct PendingPackageReview {
 impl PendingPackageReview {
     pub(super) fn finalize(
         self,
-        compilation: &CheckedCompilation,
+        compilation: &PackageReviewInput<'_>,
     ) -> Result<CheckedPackageReviewProjection, Vec<Diagnostic>> {
         let (public_traits, public_trait_sources) = finalize_projected_rows(
             compilation,

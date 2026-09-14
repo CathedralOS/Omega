@@ -1,6 +1,6 @@
 //! Reify retained resolved arguments without parsing their display paths.
 
-use compiler::CheckedCompilation;
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use symbols::{SymbolHandle, SymbolKind};
@@ -141,7 +141,7 @@ pub(super) fn argument_type_reference(
 }
 
 pub(super) fn argument_context(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     arguments: &[StaticMachineArgument],
     lifetimes: &[Identifier],
     binders: &mut Vec<(SymbolHandle, String)>,

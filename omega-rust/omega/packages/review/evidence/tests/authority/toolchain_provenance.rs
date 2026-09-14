@@ -24,7 +24,7 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let canonical_checked = compile_to_checked(CheckedCompileRequest {
+    let canonical_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&canonical.0)),
         ..CheckedCompileRequest::new(&canonical.0.join("main.omg"), Some(target))
     })
@@ -79,7 +79,7 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let lookalike_checked = compile_to_checked(CheckedCompileRequest {
+    let lookalike_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&lookalike.0)),
         ..CheckedCompileRequest::new(&lookalike.0.join("main.omg"), Some(target))
     })
@@ -109,7 +109,7 @@ fn representation_tcb_retains_private_opaque_data_as_unbound() {
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -137,7 +137,7 @@ fn representation_tcb_retains_private_opaque_data_as_unbound() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let control_checked = compile_to_checked(CheckedCompileRequest {
+    let control_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&control.0)),
         ..CheckedCompileRequest::new(&control.0.join("main.omg"), Some(target))
     })
@@ -182,17 +182,21 @@ pub PublicTokenRepresentation:
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("public opaque-representation availability fixture should check");
     assert!(
-        checked.opaque_representation_selections().is_empty(),
+        checked
+            .custody
+            .opaque_representation_selections()
+            .is_empty(),
         "producer availability accepts no consumer selection"
     );
     assert!(
         checked
+            .custody
             .boundary_calling_plan_realizations()
             .iter()
             .all(|realization| realization
@@ -273,12 +277,12 @@ pub CopyTokenRepresentation:
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("selected copyable opaque fixture should check");
-    let [selection] = checked.opaque_representation_selections() else {
+    let [selection] = checked.custody.opaque_representation_selections() else {
         panic!("one selected copyable opaque representation")
     };
     assert_eq!(
@@ -287,6 +291,7 @@ pub CopyTokenRepresentation:
     );
     assert!(
         checked
+            .custody
             .boundary_calling_plan_realizations()
             .iter()
             .all(|realization| realization
@@ -460,7 +465,7 @@ boundary trait TransferEntry: Calling<TwoParameterPolicy> {
 "#,
     );
 
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -635,7 +640,7 @@ pub CopyTokenRepresentation:
         )],
     )
     .expect("root and representation dependency graph should validate");
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(inputs),
         ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target))
     })

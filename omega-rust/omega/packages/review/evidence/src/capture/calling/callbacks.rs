@@ -3,12 +3,12 @@
 mod binders;
 mod layouts;
 
+use crate::capture::PackageReviewInput;
 use crate::record::{
     PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
     PackagePolicyCallbackMaterialization, PackagePolicyCallbacks,
 };
 use calling_conventions::{NativePlace, ValidatedBoundaryEntryPlan};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::{
     BoundaryNativeParameterOrigin, MaterializedBoundarySignature,
@@ -18,7 +18,7 @@ use typed_trees::name::Identifier;
 /// Called only after the containing owner replays the complete validated
 /// application. Compact identifiers are transient exact joins, never output.
 pub(crate) fn project_callback_policy(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
     lifetime_binders: &[Identifier],

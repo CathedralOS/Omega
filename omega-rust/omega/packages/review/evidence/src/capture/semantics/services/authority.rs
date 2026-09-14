@@ -7,7 +7,7 @@ use crate::capture::behavior::{project_service_row, project_synchronous_invocati
 use crate::record::PackagePolicyServiceAuthority;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     declaration: ProviderSchemaDeclaration,
     requirement: SymbolHandle,
 ) -> Result<PackagePolicyServiceAuthority, Vec<Diagnostic>> {

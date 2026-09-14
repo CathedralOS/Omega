@@ -22,18 +22,18 @@ use super::super::source::parameters::{
 };
 use super::super::source::service_reach::project_signature_service_reach_source_locations;
 use super::super::source::suspension::project_signature_operational_source_locations;
+use crate::capture::PackageReviewInput;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
     PackageReviewSourceLocationRole, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
     PackageReviewTraitRequirement, PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_public_traits(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewTraitShape>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
@@ -154,7 +154,7 @@ pub(crate) fn project_public_traits(
 }
 
 pub(crate) fn project_trait_parent(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     parent: &typed_trees::trait_definition::TraitRequirement,
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
@@ -207,7 +207,7 @@ pub(crate) fn project_trait_parent(
 }
 
 pub(crate) fn project_trait_requirement(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     trait_symbol: SymbolHandle,
     requirement: &typed_trees::signature::StateSignature,
     trait_binders: &[(SymbolHandle, String)],

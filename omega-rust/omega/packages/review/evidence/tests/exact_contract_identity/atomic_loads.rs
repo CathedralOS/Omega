@@ -1,7 +1,7 @@
 use crate::support::*;
 use compiler::CheckedCompileRequest;
 
-fn atomic_load_review(ordering: &str) -> (CheckedCompilation, CheckedPackageReviewProjection) {
+fn atomic_load_review(ordering: &str) -> (ReviewFixture, CheckedPackageReviewProjection) {
     let package = TempPackage::new();
     package.write(
         "main.omg",
@@ -11,7 +11,7 @@ fn atomic_load_review(ordering: &str) -> (CheckedCompilation, CheckedPackageRevi
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -57,6 +57,7 @@ fn review_projects_each_legal_atomic_load_ordering_and_round_trips_rows() {
             assert_eq!(recovered.canonical_bytes(), row.canonical_bytes());
         }
         let closure = checked
+            .custody
             .dependency_closure()
             .cloned()
             .expect("package-aware compilation retains dependency closure");

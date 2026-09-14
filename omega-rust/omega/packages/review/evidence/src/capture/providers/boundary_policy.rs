@@ -3,19 +3,20 @@
 mod demands;
 mod realizations;
 
+use crate::capture::PackageReviewInput;
 use crate::record::PackagePolicyBoundaryApplications;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 /// Retain exact open demands and closed selected relationships, not coverage.
 /// Plan coordinates use the same canonical order as selected-provider policy.
-pub fn project_checked_boundary_application_policy(
-    compilation: &CheckedCompilation,
+pub fn project_checked_boundary_application_policy<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyBoundaryApplications, Vec<Diagnostic>> {
+    let compilation = &input.into();
     let (providers, indices) = super::policy::project_with_indices(compilation, target, package)?;
     let policy = PackagePolicyBoundaryApplications {
         demands: demands::project(compilation, package)?,

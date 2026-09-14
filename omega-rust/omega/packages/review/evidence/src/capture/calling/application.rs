@@ -4,21 +4,23 @@ mod native;
 pub(crate) mod signature;
 
 use super::{callbacks, opaque};
+use crate::capture::PackageReviewInput;
 use crate::capture::representation::physical_contract::{
     project_boundary_shape_graph, project_representation_target,
 };
 use crate::record::{PackagePolicyCallingPlan, PackagePolicyPhysicalCallingContract};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 
 /// Capture the complete published calling application. This is inert policy,
 /// not a validator certificate and not a replacement for fresh compilation.
-pub fn project_checked_calling_policy(
-    compilation: &CheckedCompilation,
+pub fn project_checked_calling_policy<'a>(
+    input: impl Into<PackageReviewInput<'a>>,
     realization: &BoundaryCallingPlanRealization,
 ) -> Result<PackagePolicyCallingPlan, Vec<Diagnostic>> {
+    let compilation = &input.into();
     let candidates = compilation
+        .custody
         .boundary_calling_plan_realizations()
         .iter()
         .filter(|candidate| {
@@ -42,7 +44,7 @@ pub fn project_checked_calling_policy(
                 || !materialized.callback_layout_catalog().is_empty()
                 || !materialized.direct_callback_parameters().is_empty()))
         || &realization.boundary_entry_plan != realization.exact_boundary_entry_plan()
-        || compilation.selected_native_target() != Some(materialized.native_target())
+        || compilation.custody.selected_native_target() != Some(materialized.native_target())
     {
         return Err(rejected(
             "detached signature, callback context, plan, or target",

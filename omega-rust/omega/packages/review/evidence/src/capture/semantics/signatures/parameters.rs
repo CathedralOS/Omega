@@ -10,13 +10,13 @@ use super::super::super::behavior::{
 use super::super::super::contracts::facts::{ContractProjectionContext, project_contracts};
 use super::super::declarations::{nominal_identity, trait_requirement_identity};
 use super::super::types::project_data_properties;
+use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewCrashRoute, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use symbols::SymbolHandle;
@@ -27,8 +27,7 @@ struct Projection<'a> {
     policy_crash_guards: bool,
     selection_exposure: AuthoredDeclarationSelectionExposure,
     substitutions: &'a [(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-    checked_source: Option<&'a CheckedCompilation>,
-    contract_scopes: &'a [CallingContractScope],
+    contract_scopes: Option<&'a [CallingContractScope]>,
 }
 
 /// Temporary source custody for expressions in a clone-instantiated contract.
@@ -44,19 +43,27 @@ pub(crate) struct CallingContractScope {
 impl Projection<'_> {
     fn value_type(
         self,
-        compilation: &CheckedCompilation,
+        typed: &typed_trees::TypedTrees,
+        compilation: &PackageReviewInput<'_>,
         reference: typed_trees::types::TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         lifetimes: &[typed_trees::name::Identifier],
     ) -> Result<crate::record::PackageReviewTypeIdentity, Vec<Diagnostic>> {
-        super::super::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
-            compilation, reference, binders, lifetimes, self.substitutions, &[],
+        super::super::types::signature_type_identity(
+            typed,
+            compilation.custody.exact_toolchain_sources(),
+            reference,
+            binders,
+            lifetimes,
+            self.substitutions,
+            &[],
+            false,
         )
     }
 }
 
 pub(crate) fn project_type_parameters(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
     declaration_path: &str,
@@ -75,7 +82,7 @@ pub(crate) fn project_type_parameters(
 }
 
 pub(crate) fn project_type_parameters_after(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
     declaration_path: &str,
@@ -85,6 +92,7 @@ pub(crate) fn project_type_parameters_after(
     depth: usize,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
     project_type_parameters_inner(
+        &compilation.typed,
         compilation,
         parameters,
         declaration_kind,
@@ -98,15 +106,15 @@ pub(crate) fn project_type_parameters_after(
             policy_crash_guards: false,
             selection_exposure: AuthoredDeclarationSelectionExposure::PublicInterface,
             substitutions: &[],
-            checked_source: None,
-            contract_scopes: &[],
+            contract_scopes: None,
         },
     )
 }
 
 #[allow(clippy::too_many_arguments)]
 fn project_type_parameters_inner(
-    compilation: &CheckedCompilation,
+    typed: &typed_trees::TypedTrees,
+    compilation: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
     declaration_path: &str,
@@ -134,6 +142,7 @@ fn project_type_parameters_inner(
             typed_trees::data::TypeParameterKind::Type => PackageReviewTypeParameterKind::Type,
             typed_trees::data::TypeParameterKind::Const { type_reference } => {
                 PackageReviewTypeParameterKind::Const(projection.value_type(
+                    typed,
                     compilation,
                     *type_reference,
                     &binders,
@@ -142,6 +151,7 @@ fn project_type_parameters_inner(
             }
             typed_trees::data::TypeParameterKind::Value { type_reference } => {
                 PackageReviewTypeParameterKind::Value(projection.value_type(
+                    typed,
                     compilation,
                     *type_reference,
                     &binders,
@@ -150,6 +160,7 @@ fn project_type_parameters_inner(
             }
             typed_trees::data::TypeParameterKind::Machine { contract } => {
                 PackageReviewTypeParameterKind::Machine(project_machine_parameter_contract_inner(
+                    typed,
                     compilation,
                     parameter.symbol,
                     contract,
@@ -164,11 +175,7 @@ fn project_type_parameters_inner(
             }
             typed_trees::data::TypeParameterKind::Proposition { contract } => {
                 let mut projected_parameters = Vec::new();
-                for value_parameter in compilation
-                    .typed
-                    .state_parameters
-                    .span_or_empty(contract.parameters)
-                {
+                for value_parameter in typed.state_parameters.span_or_empty(contract.parameters) {
                     if value_parameter.is_const
                         || value_parameter.is_mutable
                         || value_parameter.is_self
@@ -179,6 +186,7 @@ fn project_type_parameters_inner(
                     }
                     projected_parameters.push(PackageReviewPropositionParameterValue {
                         type_identity: projection.value_type(
+                            typed,
                             compilation,
                             value_parameter.type_reference,
                             &binders,
@@ -203,7 +211,7 @@ fn project_type_parameters_inner(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn project_machine_parameter_contract(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     parameter_symbol: SymbolHandle,
     contract: &typed_trees::data::MachineParameterContract,
     declaration_kind: &str,
@@ -214,6 +222,7 @@ pub(crate) fn project_machine_parameter_contract(
     depth: usize,
 ) -> Result<PackageReviewMachineParameterContract, Vec<Diagnostic>> {
     project_machine_parameter_contract_inner(
+        &compilation.typed,
         compilation,
         parameter_symbol,
         contract,
@@ -228,15 +237,15 @@ pub(crate) fn project_machine_parameter_contract(
             policy_crash_guards: false,
             selection_exposure: AuthoredDeclarationSelectionExposure::PublicInterface,
             substitutions: &[],
-            checked_source: None,
-            contract_scopes: &[],
+            contract_scopes: None,
         },
     )
 }
 
 #[allow(clippy::too_many_arguments)]
 fn project_machine_parameter_contract_inner(
-    compilation: &CheckedCompilation,
+    typed: &typed_trees::TypedTrees,
+    compilation: &PackageReviewInput<'_>,
     parameter_symbol: SymbolHandle,
     contract: &typed_trees::data::MachineParameterContract,
     declaration_kind: &str,
@@ -260,8 +269,9 @@ fn project_machine_parameter_contract_inner(
             let mut lifetime_binders = outer_lifetime_binders.to_vec();
             lifetime_binders.extend(signature.lifetime_parameters.iter().cloned());
             let (binders, type_parameters) = project_type_parameters_inner(
+                typed,
                 compilation,
-                compilation.state_signature_type_parameters(signature),
+                typed.state_signature_type_parameters(signature),
                 declaration_kind,
                 declaration_path,
                 outer_binders,
@@ -270,18 +280,24 @@ fn project_machine_parameter_contract_inner(
                 depth,
                 projection,
             )?;
-            let parameters = compilation.state_signature_parameters(signature);
-            let mut scopes = projection.contract_scopes.iter().filter(|scope| {
-                scope.parameter_symbol == parameter_symbol
-                    && scope.signature_symbol == signature.symbol
-            });
+            let parameters = typed.state_signature_parameters(signature);
+            let mut scopes = projection
+                .contract_scopes
+                .unwrap_or(&[])
+                .iter()
+                .filter(|scope| {
+                    scope.parameter_symbol == parameter_symbol
+                        && scope.signature_symbol == signature.symbol
+                });
             let scope = scopes.next();
-            if scopes.next().is_some() || (projection.checked_source.is_some() && scope.is_none()) {
+            if scopes.next().is_some() || (projection.contract_scopes.is_some() && scope.is_none())
+            {
                 return Err(vec![Diagnostic::error(
                     "calling static contract has no unique exact source scope",
                 )]);
             }
-            let checked_source = projection.checked_source.unwrap_or(compilation);
+            let checked_source = compilation;
+            let source_signature = scope.map_or(signature, |scope| &scope.original_signature);
             let context = ContractProjectionContext {
                 subject_kind: "public static-machine parameter",
                 subject_name: declaration_path,
@@ -303,7 +319,7 @@ fn project_machine_parameter_contract_inner(
             };
             let contracts = project_contracts(
                 checked_source,
-                checked_source.state_signature_contracts(signature),
+                checked_source.state_signature_contracts(source_signature),
                 &context,
                 &binders,
             )?;
@@ -311,7 +327,7 @@ fn project_machine_parameter_contract_inner(
                 policy_crashes::project(
                     checked_source,
                     parameter_symbol,
-                    scope.map_or(signature, |scope| &scope.original_signature),
+                    source_signature,
                     &context,
                     &binders,
                 )?
@@ -334,6 +350,7 @@ fn project_machine_parameter_contract_inner(
                             Ok(PackageReviewMachineParameterValue {
                                 name: parameter.name.as_str().to_owned(),
                                 type_identity: projection.value_type(
+                                    typed,
                                     compilation,
                                     parameter.type_reference,
                                     &binders,
@@ -346,6 +363,7 @@ fn project_machine_parameter_contract_inner(
                         })
                         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?,
                     return_type: projection.value_type(
+                        typed,
                         compilation,
                         signature.return_type,
                         &binders,
@@ -353,18 +371,21 @@ fn project_machine_parameter_contract_inner(
                     )?,
                     contracts,
                     published_crash,
-                    service_reach: project_service_row(compilation, signature.service_reach_row)?,
-                    service_reach_is_installation_bound: signature
+                    service_reach: project_service_row(
+                        compilation,
+                        source_signature.service_reach_row,
+                    )?,
+                    service_reach_is_installation_bound: source_signature
                         .service_reach_is_installation_bound,
                     synchronous_invocations: project_synchronous_invocations(
                         compilation,
-                        &validation::declared_signature_invocations(compilation, signature),
+                        &validation::declared_signature_invocations(compilation, source_signature),
                     )?,
-                    suspends: signature.suspends,
-                    blocks: signature.blocks,
+                    suspends: source_signature.suspends,
+                    blocks: source_signature.blocks,
                     termination: project_machine_parameter_termination(
                         compilation,
-                        signature,
+                        source_signature,
                         declaration_path,
                     )?,
                 },
@@ -420,7 +441,7 @@ fn project_machine_parameter_contract_inner(
 }
 
 pub(crate) fn project_signature_crash_routes(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
     subject_kind: &str,

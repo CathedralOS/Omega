@@ -25,7 +25,7 @@ operator Token::hidden(value: Token) -> bool;
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -118,7 +118,7 @@ operator Token::hidden(value: Token) -> bool;
         .map(|(handle, fact)| (handle, *fact))
         .expect("one checked operator-declaration contract row");
 
-    let assert_owner_row_rejects = |checked: &CheckedCompilation, count: usize| {
+    let assert_owner_row_rejects = |checked: &ReviewFixture, count: usize| {
         let diagnostics = project_checked_package_review(checked)
             .expect_err("malformed operator-declaration custody must reject review");
         assert!(diagnostics.iter().any(|diagnostic| {
@@ -176,7 +176,7 @@ pub operator Token::checked(value: Token, flag: bool) -> bool
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })

@@ -30,7 +30,7 @@ fn policy(declaration: &str) -> PackagePolicyCallingPlan {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -41,6 +41,7 @@ fn policy(declaration: &str) -> PackagePolicyCallingPlan {
         .find(|owner| owner.name.as_str() == "HookProcedure")
         .unwrap();
     let realization = checked
+        .custody
         .boundary_calling_plan_realizations()
         .iter()
         .find(|realization| realization.boundary_trait == owner.symbol)

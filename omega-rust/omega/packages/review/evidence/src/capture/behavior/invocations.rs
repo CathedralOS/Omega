@@ -1,10 +1,10 @@
 use super::super::semantics::declarations::nominal_identity;
+use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewSynchronousInvocation;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn canonical_checked_invocation_targets(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     targets: &[flow_effects::InvocationTarget],
 ) -> Result<Vec<String>, Vec<Diagnostic>> {
     let mut canonical = targets
@@ -40,7 +40,7 @@ pub(crate) fn canonical_checked_invocation_targets(
 }
 
 pub(crate) fn project_synchronous_invocations(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     invocations: &[flow_effects::InvocationTarget],
 ) -> Result<Vec<PackageReviewSynchronousInvocation>, Vec<Diagnostic>> {
     let mut projected = invocations

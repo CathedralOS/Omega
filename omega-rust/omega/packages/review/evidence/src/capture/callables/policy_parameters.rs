@@ -1,14 +1,14 @@
 //! Scope-preserving static telescopes for complete callable policy.
 
+use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::record::PackagePolicyTypeParameter;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(super) fn type_parameters(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     subject: &str,
     public_nominals: bool,
@@ -17,7 +17,7 @@ pub(super) fn type_parameters(
     if parameters.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
-    let mut projected = compilation.clone();
+    let mut projected = compilation.typed.clone();
     let lifetimes = machine
         .lifetime_parameters
         .iter()

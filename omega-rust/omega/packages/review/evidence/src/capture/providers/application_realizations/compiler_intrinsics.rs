@@ -4,22 +4,22 @@ use super::{
     StagedRealization, authored_application_source_span, canonical_source_span_location,
     expression_is_owned_by_package, nominal_identity, stage_realization,
 };
+use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
     PackageReviewBoundaryApplicationRealization, PackageReviewSourceLocationOwner,
     PackageReviewSourceLocationRole,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
     staged: &mut Vec<StagedRealization>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let selected_plans = compilation.selected_provider_plans().plans();
-    let provenance = compilation.selected_provider_provenance();
+    let selected_plans = compilation.custody.selected_provider_plans().plans();
+    let provenance = compilation.custody.selected_provider_provenance();
     if selected_plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected-provider plans and intrinsic review provenance are not aligned",
@@ -213,7 +213,7 @@ pub(super) fn project(
             **requirement_symbol,
             **realization_symbol,
             compilation
-                .selected_target_profile()
+                .custody.selected_target_profile()
                 .map(target::TargetProfile::target_name),
             **retained_execution,
         )?
@@ -270,7 +270,7 @@ struct ExactApplicationUse {
 }
 
 fn exact_application_uses(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
     requirement: symbols::SymbolHandle,
 ) -> Vec<ExactApplicationUse> {

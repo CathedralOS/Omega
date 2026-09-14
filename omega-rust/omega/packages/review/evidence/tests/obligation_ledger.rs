@@ -14,7 +14,7 @@ fn accepted_claim_results_join_encoded_keys_without_reordering_callables() {
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
@@ -73,12 +73,13 @@ pub machine expose() reaches Console + FilesystemHost {}
 }
 "#,
     );
-    let candidate = compile_to_checked(CheckedCompileRequest {
+    let candidate = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("linux_x86_64"))
     })
     .expect("two exposed service candidates check");
     let filesystem = candidate
+        .custody
         .candidate_service_binding(
             AcceptedSemanticBindingRole::FilesystemHostService,
             package_identity(),
@@ -86,6 +87,7 @@ pub machine expose() reaches Console + FilesystemHost {}
         )
         .expect("derive exact filesystem binding");
     let plan = candidate
+        .custody
         .selected_provider_plans()
         .plans()
         .iter()
@@ -99,7 +101,7 @@ pub machine expose() reaches Console + FilesystemHost {}
         plan.identity_digest(),
     )
     .expect("derive exact Console binding");
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(
             package_inputs(&package.0)
                 .with_accepted_semantic_bindings(vec![filesystem, console])
@@ -163,7 +165,7 @@ fn obligation_ledger_binds_and_recovers_application_root_role() {
         vec![],
     )
     .expect("application package graph");
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(inputs),
         ..CheckedCompileRequest::new(&application.0.join("main.omg"), Some(target))
     })
@@ -174,6 +176,7 @@ fn obligation_ledger_binds_and_recovers_application_root_role() {
         .expect("application rows");
     let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
         checked
+            .custody
             .dependency_closure()
             .cloned()
             .expect("compiler retains dependency closure"),
@@ -226,7 +229,7 @@ ensures result == constant<LIMIT>();
 "#,
     );
     original.write("build.omg", build);
-    let original_checked = compile_to_checked(CheckedCompileRequest {
+    let original_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&original.0)),
         ..CheckedCompileRequest::new(&original.0.join("main.omg"), Some(target))
     })
@@ -237,6 +240,7 @@ ensures result == constant<LIMIT>();
         .canonical_rows()
         .expect("ordinary package obligation rows");
     let dependency_closure = original_checked
+        .custody
         .dependency_closure()
         .cloned()
         .expect("package-aware compilation retains its dependency closure");
@@ -367,7 +371,7 @@ ensures result == constant<LIMIT>();
 "#,
     );
     changed.write("build.omg", build);
-    let changed_checked = compile_to_checked(CheckedCompileRequest {
+    let changed_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&changed.0)),
         ..CheckedCompileRequest::new(&changed.0.join("main.omg"), Some(target))
     })
@@ -418,19 +422,20 @@ fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_pat
         .expect("two-package graph should validate")
     };
     let compile_graph = |root_path: &Path, dependency_path: &Path, alias: &str| {
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(graph_inputs(root_path, dependency_path, alias)),
             ..CheckedCompileRequest::new(&root_path.join("main.omg"), Some(target))
         })
         .expect("unused dependency graph should check")
     };
-    let ledger_for = |checked: &compiler::CheckedCompilation| {
+    let ledger_for = |checked: &ReviewFixture| {
         let rows = project_checked_package_review(checked)
             .expect("dependency-closure review should project")
             .canonical_rows()
             .expect("dependency-closure canonical rows");
         ordinary_package_obligation_ledger_from_compiler_rows(
             checked
+                .custody
                 .dependency_closure()
                 .cloned()
                 .expect("package-aware compilation retains its dependency closure"),
@@ -508,7 +513,7 @@ fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_pat
         "unexpected diagnostics: {diagnostics:#?}"
     );
 
-    let without_dependency = compile_to_checked(CheckedCompileRequest {
+    let without_dependency = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&root.0)),
         ..CheckedCompileRequest::new(&root.0.join("main.omg"), Some(target))
     })
@@ -564,23 +569,25 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     let first = TempPackage::new();
     first.write("main.omg", source);
     first.write("build.omg", build);
-    let first_checked = compile_to_checked(CheckedCompileRequest {
+    let first_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&first.0)),
         ..CheckedCompileRequest::new(&first.0.join("main.omg"), Some(target))
     })
     .expect("first package source should check");
     let first_commitment = first_checked
+        .custody
         .source_consumption_commitment()
         .expect("package-aware compilation must retain source consumption");
     assert_ne!(first_commitment.digest(), [0; 32]);
     first_checked
+        .custody
         .verify_current_source_consumption()
         .expect("unchanged loaded source should verify");
 
     let relocated = TempPackage::new();
     relocated.write("main.omg", source);
     relocated.write("build.omg", build);
-    let relocated_checked = compile_to_checked(CheckedCompileRequest {
+    let relocated_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&relocated.0)),
         ..CheckedCompileRequest::new(&relocated.0.join("main.omg"), Some(target))
     })
@@ -588,6 +595,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     assert_eq!(
         first_commitment,
         relocated_checked
+            .custody
             .source_consumption_commitment()
             .expect("relocated package source commitment"),
         "absolute cache location and source-id assignment are not source identity"
@@ -596,7 +604,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     let changed = TempPackage::new();
     changed.write("main.omg", changed_source);
     changed.write("build.omg", build);
-    let changed_checked = compile_to_checked(CheckedCompileRequest {
+    let changed_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&changed.0)),
         ..CheckedCompileRequest::new(&changed.0.join("main.omg"), Some(target))
     })
@@ -604,6 +612,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     assert_ne!(
         first_commitment,
         changed_checked
+            .custody
             .source_consumption_commitment()
             .expect("changed package source commitment")
     );
@@ -663,7 +672,10 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
 
     first.write("main.omg", changed_source);
     assert!(
-        first_checked.verify_current_source_consumption().is_err(),
+        first_checked
+            .custody
+            .verify_current_source_consumption()
+            .is_err(),
         "loaded source drift must reject against the retained compiler bytes"
     );
 
@@ -695,19 +707,19 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
         )
         .expect("two-package graph should validate")
     };
-    let first_graph = compile_to_checked(CheckedCompileRequest {
+    let first_graph = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(graph_inputs("dependency")),
         ..CheckedCompileRequest::new(&graph_root.0.join("main.omg"), Some(target))
     })
     .expect("first reconciled graph should check");
-    let renamed_graph = compile_to_checked(CheckedCompileRequest {
+    let renamed_graph = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(graph_inputs("renamed_dependency")),
         ..CheckedCompileRequest::new(&graph_root.0.join("main.omg"), Some(target))
     })
     .expect("renamed reconciled graph should check");
     assert_ne!(
-        first_graph.source_consumption_commitment(),
-        renamed_graph.source_consumption_commitment(),
+        first_graph.custody.source_consumption_commitment(),
+        renamed_graph.custody.source_consumption_commitment(),
         "requester-local dependency bindings must enter compiler-consumption identity even when unused"
     );
 }

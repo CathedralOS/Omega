@@ -1,4 +1,5 @@
 use super::{bindings, rejected};
+use crate::capture::PackageReviewInput;
 use crate::capture::providers::installation::project_selected_installation_reach;
 use crate::capture::providers::intrinsics::project_compiler_intrinsic_execution;
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
@@ -6,14 +7,13 @@ use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity, provider_requirement_schema,
 };
 use crate::record::PackagePolicyProviderRow;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
 use symbols::SymbolHandle;
 use target::TargetProfile;
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     target: TargetProfile,
     retained: &SelectedProviderReviewProvenance,
 ) -> Result<Vec<PackagePolicyProviderRow>, Vec<Diagnostic>> {
@@ -83,7 +83,7 @@ pub(super) fn project(
 }
 
 fn validate_lifetime_partition(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     schema: ProviderSchemaDeclaration,
     requirement: SymbolHandle,
     realization: SymbolHandle,

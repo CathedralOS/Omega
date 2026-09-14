@@ -1,11 +1,11 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
     top_level_requirement_identity, trait_requirement_identity,
     trait_requirement_identity_from_symbols,
 };
 use crate::capture::semantics::encoding::framed_identity;
 use crate::record::PackagePolicyCallbackBinder;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::{
     BoundaryCallbackBinder, MaterializedBoundarySignature,
@@ -13,7 +13,7 @@ use provider_planning::calling_policy_plans::{
 use typed_trees::data::{MachineParameterContract, TypeParameterKind};
 
 pub(super) fn project(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     signature: &MaterializedBoundarySignature,
     binder: &BoundaryCallbackBinder,
 ) -> Result<PackagePolicyCallbackBinder, Vec<Diagnostic>> {

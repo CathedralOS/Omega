@@ -39,7 +39,7 @@ requires evidence: forwarded<i32>(1)
     aliased.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        compile_to_checked(CheckedCompileRequest {
+        compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -229,7 +229,7 @@ pub proposition right_fact() evidence Evidence;
     first.write("build.omg", build);
     second.write("build.omg", build);
     let encode = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
@@ -276,7 +276,7 @@ requires selected<{binding}.modulus>()
     original.write("build.omg", build);
     renamed.write("build.omg", build);
     let project = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })

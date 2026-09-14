@@ -30,7 +30,7 @@ pub boundary trait Service<Value>: Parent<Value> {
     second.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -184,7 +184,7 @@ pub trait Child<'child>: Parent<'child> { }
     changed.write("build.omg", build);
 
     let compile = |package: &TempPackage| {
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -281,7 +281,7 @@ fn public_trait_lifetime_declarations_validate_before_review() {
             "build.omg",
             "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
-        let diagnostics = compile_to_checked(CheckedCompileRequest {
+        let diagnostics = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })

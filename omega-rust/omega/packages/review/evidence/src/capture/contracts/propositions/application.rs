@@ -1,4 +1,4 @@
-use compiler::CheckedCompilation;
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -14,7 +14,7 @@ use super::binders::{project_proposition_binder_argument, proposition_binder_val
 use super::endpoint::project_proposition_endpoint;
 
 fn require_exact_reference_argument(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     argument: typed_trees::expression::ExpressionHandle,
     expected_type: typed_trees::types::TypeReferenceHandle,
@@ -36,7 +36,7 @@ fn require_exact_reference_argument(
 }
 
 pub(crate) fn project_contract_proposition(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     callable_binders: &[(SymbolHandle, String)],
     application: &typed_trees::proposition::PropositionApplication,

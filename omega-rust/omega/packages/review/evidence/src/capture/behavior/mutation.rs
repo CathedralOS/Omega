@@ -1,10 +1,10 @@
 use super::super::semantics::declarations::nominal_identity;
+use crate::capture::PackageReviewInput;
 use crate::record::{PackageReviewMutation, PackageReviewWriteFrameCompleteness};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(crate) fn project_mutation(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     plans: &[checked_trees::StateWriteFramePlan],
 ) -> Result<Vec<PackageReviewMutation>, Vec<Diagnostic>> {
     let mut projected = plans

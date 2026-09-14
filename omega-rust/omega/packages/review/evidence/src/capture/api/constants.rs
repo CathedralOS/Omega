@@ -1,13 +1,13 @@
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{PackageReviewConstShape, PackageReviewSourceLocationRole};
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_public_consts(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewConstShape>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();

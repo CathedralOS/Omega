@@ -1,5 +1,6 @@
 use super::aliases::{project_domain_alias_expansion, project_domain_establishment_route};
 use super::facts::project_domain_predicate_facts;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::capture::semantics::signatures::parameters::project_type_parameters;
 use crate::capture::semantics::types::review_type_identity_with_binders;
@@ -10,12 +11,11 @@ use crate::record::{
     PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
     PackageReviewNominalIdentity,
 };
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_public_domains(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewDomainShape>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();

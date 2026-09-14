@@ -40,7 +40,7 @@ fn module_constant_domain_index_enters_canonical_public_data_artifact() {
              pub data Root {{ value: u64 in Indexed<{argument}>; }}"
             ),
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -142,7 +142,7 @@ fn module_constant_index_enters_canonical_public_data_artifact() {
              pub data Root {{ value: Buffer<{argument}>; }}"
             ),
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })

@@ -16,7 +16,7 @@ fn review_projects_trait_defaults_and_unnamed_contracts() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&default_package.0)),
         ..CheckedCompileRequest::new(&default_package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -39,7 +39,7 @@ fn review_projects_trait_defaults_and_unnamed_contracts() {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let abstract_checked = compile_to_checked(CheckedCompileRequest {
+    let abstract_checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&abstract_package.0)),
         ..CheckedCompileRequest::new(&abstract_package.0.join("main.omg"), Some("windows_x86_64"))
     })
@@ -73,7 +73,7 @@ pub boundary trait SchedulerRuntime {
         r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked(CheckedCompileRequest {
+    let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&precondition_package.0)),
         ..CheckedCompileRequest::new(
             &precondition_package.0.join("main.omg"),
@@ -142,7 +142,7 @@ fn public_trait_requires_and_ensures_change_comparison_identity() {
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
@@ -205,7 +205,7 @@ pub trait Worker {{
             r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
-        let checked = compile_to_checked(CheckedCompileRequest {
+        let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })

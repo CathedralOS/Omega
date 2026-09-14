@@ -1,13 +1,13 @@
 use super::rejected;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::{PackagePolicyMutation, PackageReviewWriteFrameCompleteness};
 use checked_trees::RealizedMachineContractEnvelope;
-use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
 use typed_trees::{machine::Machine, state::State};
 
 pub(crate) fn mutation<'program>(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     source: &'program typed_trees::TypedTrees,
     resolver: &validation::CallFrameResolver<'program>,
     machine: &Machine,

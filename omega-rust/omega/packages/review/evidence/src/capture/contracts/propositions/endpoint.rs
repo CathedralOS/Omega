@@ -1,4 +1,4 @@
-use compiler::CheckedCompilation;
+use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -16,7 +16,7 @@ use crate::record::{
 use super::evidence::project_evidence_interface;
 
 pub(crate) fn project_proposition_endpoint(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     declaration: &typed_trees::proposition::PropositionDefinition,
     binder_arguments: Vec<PackageReviewPropositionBinderArgument>,
     arguments: Vec<PackageReviewContractExpression>,
@@ -48,7 +48,7 @@ pub(crate) fn project_proposition_endpoint(
 }
 
 pub(crate) fn project_proposition_signature(
-    compilation: &CheckedCompilation,
+    compilation: &PackageReviewInput<'_>,
     declaration: &typed_trees::proposition::PropositionDefinition,
 ) -> Result<
     (
