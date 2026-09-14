@@ -727,9 +727,13 @@ other terminal services are not prerequisites.
   realization settles `HostedExitProcessI32` rows under `SelectedProcessExit`
   custody (`tests/omega/pass/host/process_exit_i32_status{,_ordered}`,
   macOS arm64 native run exits 70 with byte-ordered console output; Windows
-  provider declared, host execution unavailable). Open: remaining hosts'
-  physical runs, root-return/task-custody survivor contracts, and general
-  completion syntax.
+  provider declared, host execution unavailable). Status mapping is witnessed
+  by `process_exit_i32_status_mapped`: semantic statuses outside the host's
+  8-bit presentation (-44 taken, 300 untaken) stay exact through the checked
+  interpreter and each branch's `SelectedProcessExit` custody, while the
+  macOS arm64 physical run presents the low byte (212). Open: remaining
+  hosts' physical runs, root-return/task-custody survivor contracts, and
+  general completion syntax.
 
 ## P1 - Authority, roots, and entry
 

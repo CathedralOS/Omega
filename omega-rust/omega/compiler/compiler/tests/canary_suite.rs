@@ -223,6 +223,8 @@ mod generics_and_dependent_facts;
 mod host_text_filesystem_and_abi;
 #[path = "canary_suite/portable_terminal_reload.rs"]
 mod portable_terminal_reload;
+#[path = "canary_suite/process_exit_status_mapping.rs"]
+mod process_exit_status_mapping;
 #[path = "canary_suite/providers_float_and_console.rs"]
 mod providers_float_and_console;
 #[path = "canary_suite/ranges_storage_and_entries.rs"]
@@ -2843,6 +2845,9 @@ const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
     ("host/process_exit_i32_status", "linux_x86_64"),
     ("host/process_exit_i32_status", "linux_arm64"),
     ("host/process_exit_i32_status", "macos_arm64"),
+    ("host/process_exit_i32_status_mapped", "linux_x86_64"),
+    ("host/process_exit_i32_status_mapped", "linux_arm64"),
+    ("host/process_exit_i32_status_mapped", "macos_arm64"),
     ("filesystem/windows_raw_breadth_exit", "windows_x86_64"),
     ("filesystem/windows_raw_roundtrip_exit", "windows_x86_64"),
     ("host/runtime_user32_key_state_exit", "windows_x86_64"),
