@@ -45,6 +45,7 @@ pub struct PostAllocationStatistics {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PostAllocationSelectedTransformation {
     RuntimeSpill(SelectedInstructionPlanIdentity),
+    RuntimeRematerialization(SelectedInstructionPlanIdentity),
     FixedViewCopy(FixedViewCopyIdentity),
     LiteralFold(LiteralFoldIdentity),
     PressureRematerialization(PressureRematerializationIdentity),

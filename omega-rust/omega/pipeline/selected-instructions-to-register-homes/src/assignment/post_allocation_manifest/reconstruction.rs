@@ -36,6 +36,9 @@ pub(super) fn expected_record(
             PostAllocationSelectedTransformation::RuntimeSpill(identity) => {
                 (4_u8, identity.bytes())
             }
+            PostAllocationSelectedTransformation::RuntimeRematerialization(identity) => {
+                (5_u8, identity.bytes())
+            }
         };
         !unique_transformations.insert(key)
     }) {

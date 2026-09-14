@@ -1,9 +1,9 @@
 use crate::{
     StagedOptimizedAllocationLegality, ValidatedAllocationLegality, ValidatedLiveRanges,
     ValidatedLiveness, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
-    ValidatedRuntimeSpill,
+    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
 };
-use selected_instructions::VirtualRegisterId;
+use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId};
 
 /// Original source custody and rewrite evidence are retained only for replay.
 #[derive(Debug)]
@@ -19,7 +19,32 @@ pub(crate) struct RuntimeSpillAllocation {
 pub(crate) struct RuntimeSpillStep {
     pub(crate) function: usize,
     pub(crate) register: VirtualRegisterId,
-    pub(crate) rewrite: ValidatedRuntimeSpill,
+    pub(crate) rewrite: RuntimeSpillStepRewrite,
+}
+
+/// The recorded recovery decision for one pressured value. Rematerialization
+/// is the cheaper form and is chosen whenever its admission accepts the
+/// victim's pure immediate definition; private storage is the fallback.
+#[derive(Debug)]
+pub(crate) enum RuntimeSpillStepRewrite {
+    Spill(ValidatedRuntimeSpill),
+    Rematerialization(ValidatedRuntimeRematerialization),
+}
+
+impl RuntimeSpillStepRewrite {
+    pub(crate) fn transformed(&self) -> &SelectedInstructionPlan {
+        match self {
+            Self::Spill(rewrite) => rewrite.transformed(),
+            Self::Rematerialization(rewrite) => rewrite.transformed(),
+        }
+    }
+
+    pub(crate) fn selected(&self) -> crate::SelectedProgramRef<'_> {
+        match self {
+            Self::Spill(rewrite) => crate::SelectedProgramRef::new(rewrite),
+            Self::Rematerialization(rewrite) => crate::SelectedProgramRef::new(rewrite),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -33,6 +58,7 @@ pub(crate) struct RuntimeSpillFacts {
 pub enum RuntimeSpillAllocationError {
     Upstream(crate::OptimizedAllocationLegalityCustodyError),
     Rewrite(crate::RuntimeSpillError),
+    Rematerialization(crate::RuntimeRematerializationError),
     Liveness(crate::LivenessError),
     Ranges(crate::LiveRangeError),
     Legality(crate::AllocationLegalityError),

@@ -101,7 +101,8 @@ impl std::error::Error for RuntimeSpillError {}
 
 /// Project every selected terminator without conflating edge transport with
 /// instruction operands. Both can keep a virtual value live across blocks.
-fn control(
+/// Shared with the runtime-rematerialization recovery rewrite.
+pub(crate) fn control(
     terminator: &selected_instructions::SelectedTerminator,
 ) -> (
     &selected_instructions::SelectedInstruction,
@@ -135,7 +136,8 @@ fn control(
 
 /// The same projection for operand substitution. Successor edges and their
 /// transports stay untouched; only the instruction's operand registers change.
-fn control_mut(
+/// Shared with the runtime-rematerialization recovery rewrite.
+pub(crate) fn control_mut(
     terminator: &mut selected_instructions::SelectedTerminator,
 ) -> &mut selected_instructions::SelectedInstruction {
     use selected_instructions::SelectedTerminator;
@@ -193,7 +195,8 @@ fn require_acyclic(
 /// Removing the initialization anchor must disconnect every use from entry.
 /// Together with ordinary reachability, this proves dominance without assuming
 /// that the block vector is topological or that a use is an edge-copy idiom.
-fn require_dominated_uses(
+/// Shared with the runtime-rematerialization recovery rewrite.
+pub(crate) fn require_dominated_uses(
     function: &selected_instructions::SelectedFunction,
     anchor: usize,
     use_blocks: &[usize],

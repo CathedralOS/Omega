@@ -33,7 +33,7 @@ impl RuntimeSpillAllocation {
                 selected: rewrite.transformed(),
                 homes: self.homes.plan(),
             },
-            selected: crate::SelectedProgramRef::new(rewrite),
+            selected: rewrite.selected(),
             liveness: &self.facts.liveness,
             ranges: &self.facts.ranges,
             legality: &self.facts.legality,

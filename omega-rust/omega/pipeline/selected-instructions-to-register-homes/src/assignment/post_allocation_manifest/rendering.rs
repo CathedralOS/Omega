@@ -52,6 +52,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::RuntimeSpill(identity) => {
                     ("runtime-spill", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::RuntimeRematerialization(identity) => {
+                    ("runtime-rematerialization", identity.bytes())
+                }
             };
             writeln!(
                 output,

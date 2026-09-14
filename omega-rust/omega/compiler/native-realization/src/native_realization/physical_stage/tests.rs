@@ -8,6 +8,7 @@ use crate::native_realization::target_stage::lower_realization_target_stage;
 mod conditional;
 mod conditional_fixture;
 mod ordered_calls;
+mod runtime_rematerialization_pressure;
 mod runtime_spill_pressure;
 mod stack_probe_commit;
 
