@@ -2833,3 +2833,673 @@ fn symbolic_inner_materialization_bounds_writes_to_the_interior_extent() {
         error.0
     );
 }
+
+/// A second record boundary below `slot`: the outer plan places `slot` as one
+/// 32-byte `At` extent at offset 8; `slot`'s interior places `pad` at 0 and
+/// `sub` at 8; `sub`'s interior places `entry`, `flags`, and `args` at 0, 8,
+/// and 16. The carrier tree mirrors the record boundaries: `sub`'s interior
+/// rides inside `slot`'s carrier, so `slot.sub.entry` composes to byte 16 and
+/// `slot.sub.args` to byte 32 of the outer object.
+fn deeply_nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
+    (
+        LayoutPlanReport {
+            schema_report_fingerprint: 1,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "header".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+                LayoutFieldEntryReport {
+                    field: "slot".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 8 },
+                },
+            ],
+            offsets: Some(vec![0, 8]),
+            size: Some(40),
+            align: 8,
+        },
+        SymbolicFieldInnerLayout::new(
+            "slot",
+            LayoutPlanReport {
+                schema_report_fingerprint: 2,
+                entries: vec![
+                    LayoutFieldEntryReport {
+                        field: "pad".into(),
+                        member_identity: None,
+                        placement: LayoutPlacementReport::At { offset: 0 },
+                    },
+                    LayoutFieldEntryReport {
+                        field: "sub".into(),
+                        member_identity: None,
+                        placement: LayoutPlacementReport::At { offset: 8 },
+                    },
+                ],
+                offsets: Some(vec![0, 8]),
+                size: Some(32),
+                align: 8,
+            },
+        )
+        .with_inner_layout(SymbolicFieldInnerLayout::new(
+            "sub",
+            LayoutPlanReport {
+                schema_report_fingerprint: 3,
+                entries: vec![
+                    LayoutFieldEntryReport {
+                        field: "entry".into(),
+                        member_identity: None,
+                        placement: LayoutPlacementReport::At { offset: 0 },
+                    },
+                    LayoutFieldEntryReport {
+                        field: "flags".into(),
+                        member_identity: None,
+                        placement: LayoutPlacementReport::At { offset: 8 },
+                    },
+                    LayoutFieldEntryReport {
+                        field: "args".into(),
+                        member_identity: None,
+                        placement: LayoutPlacementReport::At { offset: 16 },
+                    },
+                ],
+                offsets: Some(vec![0, 8, 16]),
+                size: Some(24),
+                align: 8,
+            },
+        )),
+    )
+}
+
+#[test]
+fn symbolic_inner_materialization_composes_through_a_second_record_boundary() {
+    let (layout, carrier) = deeply_nested_layout();
+    let symbolic = [
+        SymbolicFieldValue::new("slot", 64, entry())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("sub")
+                    .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
+            ),
+        SymbolicFieldValue::new("slot", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("sub")
+                    .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
+            ),
+        SymbolicFieldValue::new("slot", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(SymbolicFieldPathSegment::new("pad")),
+    ];
+    let plan = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        std::slice::from_ref(&carrier),
+        &symbolic,
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect("deep paths compose one offset per crossed record boundary");
+
+    let writes = plan
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("expected runtime writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        writes,
+        [
+            ("slot.sub.entry", 16),
+            ("slot.sub.flags", 24),
+            ("slot.pad", 8)
+        ]
+    );
+
+    let mut entry_resolutions = 0;
+    let writer = plan.derive_post_handoff_writer().expect("writer");
+    let mut bytes = [0xa5_u8; 40];
+    writer
+        .execute(
+            &mut bytes,
+            PlacementSite {
+                base_address: 0,
+                phase: PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |target| {
+                Some(match target {
+                    RelocationTarget::Entry(_) => {
+                        entry_resolutions += 1;
+                        0x1122_3344_5566_7788
+                    }
+                    RelocationTarget::Data(_) => 0xdead_beef,
+                })
+            },
+        )
+        .expect("the deeper writers resolve each exact member");
+    assert_eq!(entry_resolutions, 1);
+    assert_eq!(&bytes[16..24], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert_eq!(&bytes[24..32], &0xdead_beef_u64.to_le_bytes());
+    assert_eq!(&bytes[8..16], &0xdead_beef_u64.to_le_bytes());
+    assert!(
+        bytes[..8]
+            .iter()
+            .chain(&bytes[32..])
+            .all(|byte| *byte == 0xa5),
+        "deeper materialization writes only the addressed members"
+    );
+}
+
+#[test]
+fn symbolic_inner_materialization_composes_indexed_boundaries_at_each_level() {
+    // `slots[1].subs[0].flags` indexes at both crossed record boundaries: the
+    // outer repeated record `slots` and the repeated record `subs` inside it.
+    let layout = LayoutPlanReport {
+        schema_report_fingerprint: 1,
+        entries: (0..2)
+            .map(|index| LayoutFieldEntryReport {
+                field: "slots".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: index * 48 },
+            })
+            .collect(),
+        offsets: None,
+        size: Some(96),
+        align: 8,
+    };
+    let carrier = SymbolicFieldInnerLayout::new(
+        "slots",
+        LayoutPlanReport {
+            schema_report_fingerprint: 2,
+            entries: (0..2)
+                .map(|index| LayoutFieldEntryReport {
+                    field: "subs".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: index * 24 },
+                })
+                .chain(std::iter::once(LayoutFieldEntryReport {
+                    field: "mark".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 40 },
+                }))
+                .collect(),
+            offsets: None,
+            size: Some(48),
+            align: 8,
+        },
+    )
+    .with_inner_layout(SymbolicFieldInnerLayout::new(
+        "subs",
+        LayoutPlanReport {
+            schema_report_fingerprint: 3,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "entry".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+                LayoutFieldEntryReport {
+                    field: "flags".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 16 },
+                },
+            ],
+            offsets: Some(vec![0, 16]),
+            size: Some(24),
+            align: 8,
+        },
+    ));
+    let symbolic = [
+        SymbolicFieldValue::new_indexed("slots", 1, 64, entry())
+            .expect("indexed outer record element")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed("subs", 0)
+                    .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
+            ),
+        SymbolicFieldValue::new_indexed("slots", 0, 64, data())
+            .expect("indexed outer record element")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed("subs", 1)
+                    .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
+            ),
+        SymbolicFieldValue::new_indexed("slots", 1, 64, data())
+            .expect("indexed outer record element")
+            .with_inner_segment(SymbolicFieldPathSegment::new("mark")),
+    ];
+    let plan = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        std::slice::from_ref(&carrier),
+        &symbolic,
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect("each index hop selects the exact element at its boundary");
+
+    let writes = plan
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("expected runtime writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        writes,
+        [
+            ("slots[1].subs[0].flags", 48 + 16),
+            ("slots[0].subs[1].entry", 24),
+            ("slots[1].mark", 48 + 40),
+        ]
+    );
+}
+
+#[test]
+fn symbolic_inner_materialization_relocates_a_deeper_member() {
+    let (layout, carrier) = deeply_nested_layout();
+    let symbolic = SymbolicFieldValue::new("slot", 64, entry())
+        .expect("outer record field")
+        .with_inner_segment(
+            SymbolicFieldPathSegment::new("sub")
+                .with_inner_segment(SymbolicFieldPathSegment::new("args")),
+        );
+    let plan = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&symbolic),
+        MaterializationContext {
+            consumption: ConsumptionInstant::BeforeOmegaEntry,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
+        },
+        |_| None,
+    )
+    .expect("a deeper whole pointer uses the loader-native relocation");
+    assert!(matches!(
+        plan.actions.as_slice(),
+        [MaterializationAction::NativePointerRelocation {
+            field,
+            destination_byte_offset: 32,
+            width_bits: 64,
+            ..
+        }] if field == "slot.sub.args"
+    ));
+}
+
+#[test]
+fn symbolic_inner_materialization_rejects_deeper_path_faults() {
+    let (layout, carrier) = deeply_nested_layout();
+    let deep_path = |member: &str| {
+        SymbolicFieldValue::new("slot", 64, entry())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("sub")
+                    .with_inner_segment(SymbolicFieldPathSegment::new(member)),
+            )
+    };
+
+    // A second record boundary needs its own carrier: `slot`'s carrier alone
+    // cannot resolve `sub`'s interior.
+    let shallow = SymbolicFieldInnerLayout::new("slot", carrier.inner_layout.clone());
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        &[shallow],
+        std::slice::from_ref(&deep_path("entry")),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a deeper hop needs the nested carrier");
+    assert!(
+        error
+            .0
+            .contains("`slot.sub.entry` has no supplied inner layout for `slot.sub`"),
+        "{}",
+        error.0
+    );
+
+    // A nested carrier no path traverses rejects, just like a top-level one.
+    let shallow_path = SymbolicFieldValue::new("slot", 64, entry())
+        .expect("outer record field")
+        .with_inner_segment(SymbolicFieldPathSegment::new("pad"));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&shallow_path),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a nested carrier no path traverses must reject");
+    assert!(
+        error
+            .0
+            .contains("no symbolic field path traverses the supplied inner layout for `slot.sub`"),
+        "{}",
+        error.0
+    );
+
+    // A nested carrier must bind to a field the enclosing interior contains.
+    let stray = SymbolicFieldInnerLayout::new("slot", carrier.inner_layout.clone())
+        .with_inner_layout(SymbolicFieldInnerLayout::new(
+            "missing",
+            LayoutPlanReport {
+                schema_report_fingerprint: 4,
+                entries: vec![],
+                offsets: Some(vec![]),
+                size: Some(8),
+                align: 8,
+            },
+        ));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        &[stray],
+        std::slice::from_ref(&shallow_path),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a nested carrier must bind inside the enclosing interior");
+    assert!(
+        error.0.contains(
+            "inner layout for `slot.missing` binds to a field the enclosing interior layout plan does not contain"
+        ),
+        "{}",
+        error.0
+    );
+
+    // The same inner path cannot be supplied twice at any depth.
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        std::slice::from_ref(&carrier),
+        &[
+            deep_path("entry"),
+            SymbolicFieldValue::new("slot", 64, data())
+                .expect("outer record field")
+                .with_inner_segment(
+                    SymbolicFieldPathSegment::new("sub")
+                        .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
+                ),
+        ],
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("the same deeper path cannot be supplied twice");
+    assert!(
+        error
+            .0
+            .contains("`slot.sub.entry` is supplied more than once"),
+        "{}",
+        error.0
+    );
+}
+
+#[test]
+fn symbolic_inner_materialization_bounds_each_record_boundary() {
+    let (layout, carrier) = deeply_nested_layout();
+    let deep_path = |member: &str| {
+        SymbolicFieldValue::new("slot", 64, entry())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("sub")
+                    .with_inner_segment(SymbolicFieldPathSegment::new(member)),
+            )
+    };
+
+    // An unindexed hop into a repeated interior record cannot name one element.
+    let repeated_middle = SymbolicFieldInnerLayout::new(
+        "slot",
+        LayoutPlanReport {
+            schema_report_fingerprint: 2,
+            entries: (0..2)
+                .map(|index| LayoutFieldEntryReport {
+                    field: "subs".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: index * 24 },
+                })
+                .collect(),
+            offsets: None,
+            size: Some(48),
+            align: 8,
+        },
+    )
+    .with_inner_layout(SymbolicFieldInnerLayout::new(
+        "subs",
+        LayoutPlanReport {
+            schema_report_fingerprint: 3,
+            entries: vec![LayoutFieldEntryReport {
+                field: "entry".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: 0 },
+            }],
+            offsets: Some(vec![0]),
+            size: Some(24),
+            align: 8,
+        },
+    ));
+    let ambiguous = SymbolicFieldValue::new("slot", 64, entry())
+        .expect("outer record field")
+        .with_inner_segment(
+            SymbolicFieldPathSegment::new("subs")
+                .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
+        );
+    // `slot` spans offset 8 of the 40-byte outer plan, so its interior is
+    // bounded to 32 bytes; the repeated-`subs` carrier legitimately claims 48,
+    // so the outer plan must offer the room before the ambiguity check runs.
+    let outer_56 = LayoutPlanReport {
+        size: Some(56),
+        ..layout.clone()
+    };
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &outer_56,
+        &[repeated_middle],
+        std::slice::from_ref(&ambiguous),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("an unindexed deeper hop cannot cover several elements");
+    assert!(
+        error.0.contains(
+            "requires the enclosing field `slot.subs` to resolve to exactly one element placement, found 2"
+        ),
+        "{}",
+        error.0
+    );
+
+    // A stored-integer interior field cannot enclose another record.
+    let integer_middle = SymbolicFieldInnerLayout::new(
+        "slot",
+        LayoutPlanReport {
+            schema_report_fingerprint: 2,
+            entries: vec![LayoutFieldEntryReport {
+                field: "sub".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::IntegerAt {
+                    offset: 8,
+                    stored_width: 64,
+                    interpretation: IntegerInterpretation::Unsigned,
+                },
+            }],
+            offsets: None,
+            size: Some(32),
+            align: 8,
+        },
+    )
+    .with_inner_layout(SymbolicFieldInnerLayout::new(
+        "sub",
+        carrier.inner_layouts()[0].inner_layout.clone(),
+    ));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        &[integer_middle],
+        std::slice::from_ref(&deep_path("entry")),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a deeper hop requires a whole-record enclosing placement");
+    assert!(
+        error
+            .0
+            .contains("requires the enclosing field `slot.sub` to use a whole `At` placement"),
+        "{}",
+        error.0
+    );
+
+    // A nested carrier whose claimed interior overflows the enclosing element
+    // must reject at the boundary, before any member offset is composed.
+    let overflowing_interior = SymbolicFieldInnerLayout::new("slot", carrier.inner_layout.clone())
+        .with_inner_layout(SymbolicFieldInnerLayout::new(
+            "sub",
+            LayoutPlanReport {
+                schema_report_fingerprint: 3,
+                entries: vec![LayoutFieldEntryReport {
+                    field: "entry".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                }],
+                offsets: Some(vec![0]),
+                // `sub` sits at offset 8 of `slot`'s 32-byte interior; claiming 32
+                // more bytes reaches 40 and escapes into the outer object.
+                size: Some(32),
+                align: 8,
+            },
+        ));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        &[overflowing_interior],
+        std::slice::from_ref(&deep_path("entry")),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a nested interior may not exceed its enclosing element");
+    assert!(
+        error
+            .0
+            .contains("interior layout for `slot.sub` exceeds the enclosing 32-byte record extent"),
+        "{}",
+        error.0
+    );
+
+    // A leaf member may not escape the innermost interior extent either.
+    let mut deep_escape = carrier.inner_layouts()[0].inner_layout.clone();
+    deep_escape.entries.push(LayoutFieldEntryReport {
+        field: "escape".into(),
+        member_identity: None,
+        placement: LayoutPlacementReport::At { offset: 20 },
+    });
+    let escaping = SymbolicFieldInnerLayout::new("slot", carrier.inner_layout.clone())
+        .with_inner_layout(SymbolicFieldInnerLayout::new("sub", deep_escape));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        &[escaping],
+        std::slice::from_ref(&deep_path("escape")),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a deeper leaf may not escape its interior record extent");
+    assert!(
+        error
+            .0
+            .contains("writes outside the 24-byte materialization"),
+        "{}",
+        error.0
+    );
+}
+
+#[test]
+fn symbolic_inner_materialization_bounds_record_path_depth() {
+    let (layout, carrier) = deeply_nested_layout();
+
+    // The shared 64-segment record path bound is a compiler resource limit,
+    // not a language limit. A 65-segment path rejects before any field
+    // membership or carrier check; a 64-segment path still resolves normally
+    // past the bound check — here it reaches the third hop and fails ordinary
+    // interior membership.
+    let mut chain = SymbolicFieldPathSegment::new("leaf");
+    for _ in 1..CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT - 1 {
+        chain = SymbolicFieldPathSegment::new("sub").with_inner_segment(chain);
+    }
+    let at_bound = SymbolicFieldValue::new("slot", 64, entry())
+        .expect("outer record field")
+        .with_inner_segment(chain);
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&at_bound),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("the second `sub` hop is not a member of `sub`'s interior");
+    assert!(
+        error.0.contains("has no entry in the inner layout plan"),
+        "{}",
+        error.0
+    );
+
+    let mut chain = SymbolicFieldPathSegment::new("leaf");
+    for _ in 1..CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
+        chain = SymbolicFieldPathSegment::new("sub").with_inner_segment(chain);
+    }
+    let over_bound = SymbolicFieldValue::new("slot", 64, entry())
+        .expect("outer record field")
+        .with_inner_segment(chain);
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        std::slice::from_ref(&carrier),
+        std::slice::from_ref(&over_bound),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a path past the record depth bound must reject");
+    assert!(
+        error
+            .0
+            .contains("exceeds the compiler's 64-segment record path bound"),
+        "{}",
+        error.0
+    );
+
+    // The carrier tree obeys the same bound: carriers nested past it cannot be
+    // traversed by any admitted path, so they reject during preparation.
+    let self_similar = || {
+        SymbolicFieldInnerLayout::new(
+            "slot",
+            LayoutPlanReport {
+                schema_report_fingerprint: 2,
+                entries: vec![LayoutFieldEntryReport {
+                    field: "slot".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                }],
+                offsets: Some(vec![0]),
+                size: Some(8),
+                align: 8,
+            },
+        )
+    };
+    let mut tree = self_similar();
+    for _ in 1..CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT + 1 {
+        tree = self_similar().with_inner_layout(tree);
+    }
+    let symbolic = SymbolicFieldValue::new("slot", 64, entry())
+        .expect("outer record field")
+        .with_inner_segment(SymbolicFieldPathSegment::new("slot"));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &layout,
+        &[tree],
+        std::slice::from_ref(&symbolic),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a carrier tree deeper than the bound must reject");
+    assert!(
+        error
+            .0
+            .contains("nests beyond the compiler's 64-segment record path bound"),
+        "{}",
+        error.0
+    );
+}

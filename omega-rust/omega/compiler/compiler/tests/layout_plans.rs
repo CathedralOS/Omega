@@ -3674,3 +3674,189 @@ machine Main::main(&mut self) { }
     );
     lower_writer_on_both_linux_isas(&writer);
 }
+
+#[test]
+fn deeply_nested_symbolic_materialization_preserves_the_exact_path() {
+    // One three-segment record path, end to end: `slot.inner.entry` crosses
+    // two record boundaries. The flat outer plan places `slot` as one whole
+    // `At` extent; `slot`'s carrier retains the record's own validated plan
+    // and binds `inner`'s interior under it, so record depth is data in the
+    // carrier tree rather than another derivation. Derivation composes each
+    // crossed boundary's `At` offset; the writes realize bytes 8, 16, and 24
+    // of the 40-byte outer object and lower to each Linux ISA without
+    // changing which semantic slots they address.
+    let main_path = write_program(
+        "deeply-nested-symbolic-field",
+        r#"
+use omega::language::core::layout;
+
+data DispatchLayout { }
+machine DispatchLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: entries, entry_count: 2,
+           size_fixed: 40, size_is_dynamic: false, align: 8 }
+}
+
+data SlotLayout { }
+machine SlotLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 16 },
+    };
+    entries[2] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::At { offset: 24 },
+    };
+    Plan { entries: entries, entry_count: 3,
+           size_fixed: 32, size_is_dynamic: false, align: 8 }
+}
+
+data InnerLayout { }
+machine InnerLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: entries, entry_count: 2,
+           size_fixed: 16, size_is_dynamic: false, align: 8 }
+}
+
+data DispatchInner { entry: u64; args: u64; }
+data DispatchSlot { inner: DispatchInner; flags: u64; pad: u64; }
+data DispatchTable { header: u64; slot: DispatchSlot; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("deeply nested dispatch table should check");
+    let report = compute_layout_plan(&checked.typed, "DispatchLayout::plan", "DispatchTable")
+        .expect("a nested record field placed as one At extent should validate");
+    assert_eq!(
+        report
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        vec![
+            ("header", LayoutPlacementReport::At { offset: 0 }),
+            ("slot", LayoutPlacementReport::At { offset: 8 }),
+        ]
+    );
+    let slot_report = compute_layout_plan(&checked.typed, "SlotLayout::plan", "DispatchSlot")
+        .expect("the slot record's own policy supplies its interior geometry");
+    let inner_report = compute_layout_plan(&checked.typed, "InnerLayout::plan", "DispatchInner")
+        .expect("the inner record's own policy supplies its interior geometry");
+    let inner = SymbolicFieldInnerLayout::new("slot", slot_report)
+        .with_inner_layout(SymbolicFieldInnerLayout::new("inner", inner_report));
+
+    let entry_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let data_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x5a5a).expect("normalized data identity"),
+    );
+    let symbolic = [
+        SymbolicFieldValue::new("slot", 64, entry_target)
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner")
+                    .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
+            ),
+        SymbolicFieldValue::new("slot", 64, data_target)
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner")
+                    .with_inner_segment(SymbolicFieldPathSegment::new("args")),
+            ),
+        SymbolicFieldValue::new("slot", 64, data_target)
+            .expect("outer record field")
+            .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
+    ];
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
+        &report,
+        std::slice::from_ref(&inner),
+        &symbolic,
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect("the deeper member paths compose every crossed boundary offset");
+    let writes = materialization
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("unresolved deeper paths derive writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        writes,
+        [
+            ("slot.inner.entry", 8),
+            ("slot.inner.args", 16),
+            ("slot.flags", 24),
+        ]
+    );
+
+    let writer = materialization
+        .derive_post_handoff_writer()
+        .expect("the deeper member writes derive a writer");
+    let mut bytes = [0xa5_u8; 40];
+    writer
+        .execute(
+            &mut bytes,
+            layout_plans::PlacementSite {
+                base_address: 0,
+                phase: layout_plans::PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |resolved| {
+                if resolved == entry_target {
+                    Some(0x1122_3344_5566_7788)
+                } else {
+                    assert_eq!(resolved, data_target);
+                    Some(0x99aa_bbcc_ddee_ff00)
+                }
+            },
+        )
+        .expect("the deeper writer resolves each exact slot");
+    assert_eq!(&bytes[8..16], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert_eq!(&bytes[16..24], &0x99aa_bbcc_ddee_ff00_u64.to_le_bytes());
+    assert_eq!(&bytes[24..32], &0x99aa_bbcc_ddee_ff00_u64.to_le_bytes());
+    assert!(
+        bytes[..8]
+            .iter()
+            .chain(&bytes[32..])
+            .all(|byte| *byte == 0xa5),
+        "deeper materialization writes only the addressed member slots"
+    );
+    lower_writer_on_both_linux_isas(&writer);
+}

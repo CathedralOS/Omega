@@ -654,21 +654,51 @@ fn symbolic_index_display(element_index: Option<u64>) -> String {
 }
 
 /// The diagnostic spelling of a symbolic field path: `field`, `field[index]`,
-/// `field.inner`, `field[index].inner`, or `field.inner[index]`. Materialized
+/// `field.inner`, `field[index].inner`, `field.inner[index]`, or any deeper
+/// chain of record hops such as `field[index].inner.sub[index]`. Materialized
 /// writes carry it so diagnostics and relocation labels name the exact slot a
-/// two-segment path addressed.
+/// nested path addressed.
 fn symbolic_path_display(symbolic: &SymbolicFieldValue) -> String {
     let mut display = format!(
         "{}{}",
         symbolic.field,
         symbolic_index_display(symbolic.element_index)
     );
-    if let Some(inner) = &symbolic.inner {
+    let mut segment = symbolic.inner.as_ref();
+    while let Some(inner) = segment {
         display.push('.');
         display.push_str(&inner.field);
         display.push_str(&symbolic_index_display(inner.element_index));
+        segment = inner.inner();
     }
     display
+}
+
+/// One segment of a spelled symbolic field path: the field name, its optional
+/// stable member identity, and its optional exact element index. The outer
+/// hop comes from the [`SymbolicFieldValue`]; each further hop comes from the
+/// [`SymbolicFieldPathSegment`] chain it carries.
+type SymbolicPathHop<'a> = (&'a str, Option<u64>, Option<u64>);
+
+/// Flattens a spelled symbolic path into its segment list, outer hop first.
+/// The chain is caller-supplied data; the depth bound is enforced during
+/// derivation, not here.
+fn symbolic_path_hops(symbolic: &SymbolicFieldValue) -> Vec<SymbolicPathHop<'_>> {
+    let mut hops = vec![(
+        symbolic.field.as_str(),
+        symbolic.member_identity,
+        symbolic.element_index,
+    )];
+    let mut segment = symbolic.inner.as_ref();
+    while let Some(inner) = segment {
+        hops.push((
+            inner.field.as_str(),
+            inner.member_identity,
+            inner.element_index,
+        ));
+        segment = inner.inner();
+    }
+    hops
 }
 
 /// One ordinary scalar supplied to a validated dictated-layout materializer.
@@ -943,15 +973,21 @@ impl RelocationTarget {
 }
 
 /// One hop of a nested symbolic field path. `SymbolicFieldValue` spells the
-/// outer hop; this segment adds the inner `field` of `outer.field`, carrying
-/// its own optional stable member identity and element index. Its placement
-/// comes from a [`SymbolicFieldInnerLayout`] carrier supplied at derivation,
-/// so the exact inner offset stays symbolic until assignment.
+/// outer hop; each segment adds the next `field` below the record stored by
+/// the previous hop, carrying its own optional stable member identity and
+/// element index. A segment may itself carry the next segment, so record
+/// depth is data in the path rather than a family of depth-specific types;
+/// derivation bounds the walk by [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`].
+/// Each boundary's placement comes from a [`SymbolicFieldInnerLayout`]
+/// carrier supplied at derivation, so the exact inner offset stays symbolic
+/// until assignment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolicFieldPathSegment {
     pub field: String,
     member_identity: Option<u64>,
     element_index: Option<u64>,
+    /// The next record boundary below this segment; `None` ends the path.
+    inner: Option<Box<SymbolicFieldPathSegment>>,
 }
 
 impl SymbolicFieldPathSegment {
@@ -962,6 +998,7 @@ impl SymbolicFieldPathSegment {
             field: field.into(),
             member_identity: None,
             element_index: None,
+            inner: None,
         }
     }
 
@@ -1002,6 +1039,24 @@ impl SymbolicFieldPathSegment {
     pub const fn element_index(&self) -> Option<u64> {
         self.element_index
     }
+
+    /// Extends this segment with the next hop of the record path, so
+    /// `outer.field.sub` (or `outer[index].field[index].sub`) selects inside
+    /// the record stored in `field`. The next boundary's interior comes from
+    /// a nested [`SymbolicFieldInnerLayout`] carrier; no concrete address or
+    /// offset is baked into the path.
+    pub fn with_inner_segment(mut self, inner: SymbolicFieldPathSegment) -> Self {
+        self.inner = Some(Box::new(inner));
+        self
+    }
+
+    /// The next hop of this record path, if any.
+    pub const fn inner(&self) -> Option<&SymbolicFieldPathSegment> {
+        match &self.inner {
+            Some(inner) => Some(&**inner),
+            None => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1009,8 +1064,9 @@ pub struct SymbolicFieldValue {
     pub field: String,
     member_identity: Option<u64>,
     element_index: Option<u64>,
-    /// The optional inner hop of a bounded two-segment `outer.field` path.
-    /// `None` keeps this value on the flat `field[index]` surface.
+    /// The optional second hop of a nested `outer.field` path. Each segment
+    /// may carry the next, so record depth is data; `None` keeps this value
+    /// on the flat `field[index]` surface.
     inner: Option<SymbolicFieldPathSegment>,
     pub width_bits: u16,
     pub target: RelocationTarget,
@@ -1088,16 +1144,17 @@ impl SymbolicFieldValue {
 
     /// Extends this symbolic value with a second path segment, spelling the
     /// `field.inner` (or `field[index].inner`) hop into the record stored in
-    /// `field`. The segment's placement comes from a
-    /// [`SymbolicFieldInnerLayout`] carrier supplied to
-    /// [`derive_symbolic_materialization_with_inner_layouts`]; no concrete
+    /// `field`. The segment may itself carry further segments, so a path like
+    /// `field.inner.sub` spells each record boundary as data. Each boundary's
+    /// placement comes from a [`SymbolicFieldInnerLayout`] carrier supplied
+    /// to [`derive_symbolic_materialization_with_inner_layouts`]; no concrete
     /// address or inner offset is baked into the value itself.
     pub fn with_inner_segment(mut self, inner: SymbolicFieldPathSegment) -> Self {
         self.inner = Some(inner);
         self
     }
 
-    /// The inner hop of this two-segment field path, if any.
+    /// The second hop of this nested field path, if any.
     pub const fn inner(&self) -> Option<&SymbolicFieldPathSegment> {
         self.inner.as_ref()
     }
@@ -1111,6 +1168,14 @@ impl SymbolicFieldValue {
 /// plan without flattening inner rows into the outer schema;
 /// [`derive_symbolic_materialization_with_inner_layouts`] consults it only for
 /// symbolic values spelling an inner path segment through that outer field.
+///
+/// When the stored record itself contains record fields, [`Self::with_inner_layout`]
+/// binds each nested record's interior under this carrier, so the carrier tree
+/// mirrors the record boundaries a path crosses. Depth is data in the tree
+/// rather than a family of depth-specific carriers; derivation bounds it by
+/// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`]. Every supplied carrier must be
+/// traversed by some symbolic path: a carrier that outlives the semantic path
+/// it describes would let a stale interior join a renamed or reshaped schema.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolicFieldInnerLayout {
     /// Outer field name. Report/diagnostic presentation; the member identity
@@ -1119,6 +1184,9 @@ pub struct SymbolicFieldInnerLayout {
     member_identity: Option<u64>,
     /// The nested record's complete compiler-derived interior layout.
     pub inner_layout: LayoutPlanReport,
+    /// Carriers bound to record fields inside `inner_layout`, supplying the
+    /// interior of the next record boundary down.
+    inner_layouts: Vec<SymbolicFieldInnerLayout>,
 }
 
 impl SymbolicFieldInnerLayout {
@@ -1128,6 +1196,7 @@ impl SymbolicFieldInnerLayout {
             field: field.into(),
             member_identity: None,
             inner_layout,
+            inner_layouts: Vec::new(),
         }
     }
 
@@ -1142,6 +1211,20 @@ impl SymbolicFieldInnerLayout {
             member_identity: Some(member_identity),
             ..Self::new(field, inner_layout)
         }
+    }
+
+    /// Binds the interior layout of a record field inside this carrier's
+    /// `inner_layout`, so a symbolic path continuing through
+    /// `field.<nested>` finds the next record boundary's carrier.
+    pub fn with_inner_layout(mut self, inner: SymbolicFieldInnerLayout) -> Self {
+        self.inner_layouts.push(inner);
+        self
+    }
+
+    /// The carriers bound to record fields inside this interior layout, in
+    /// supply order.
+    pub fn inner_layouts(&self) -> &[SymbolicFieldInnerLayout] {
+        &self.inner_layouts
     }
 }
 
@@ -2645,9 +2728,10 @@ mod tests;
 /// Derives a phase-aware consumer plan. `resolve` is compiler/provider
 /// infrastructure; source code never receives its returned address.
 ///
-/// A symbolic value spelling an inner hop (`outer.field`) additionally needs
-/// the interior layout carrier of the record stored in `outer`; derive those
-/// paths through [`derive_symbolic_materialization_with_inner_layouts`].
+/// A symbolic value spelling inner hops (`outer.field`, `outer.field.sub`)
+/// additionally needs the interior layout carriers of the records it crosses;
+/// derive those paths through
+/// [`derive_symbolic_materialization_with_inner_layouts`].
 pub fn derive_symbolic_materialization(
     layout: &LayoutPlanReport,
     symbolic_fields: &[SymbolicFieldValue],
@@ -2666,13 +2750,18 @@ pub fn derive_symbolic_materialization(
 /// `derive_symbolic_materialization` extended with interior layout carriers.
 ///
 /// `inner_layouts` carries the compiler-derived interior layout of a nested
-/// record beside the flat outer plan. A symbolic value spelling an inner hop
-/// (`outer.field`, `outer[index].field`, `outer.field[index]`) resolves its
-/// outer `At` placement first, then selects inside that element's retained
-/// inner layout, so the exact inner path stays symbolic until the write offset
-/// is assigned. Supplying an inner layout no symbolic path traverses is
-/// rejected: a carrier that outlives the semantic path it describes would let
-/// a stale interior join a renamed or reshaped schema.
+/// record beside the flat outer plan. A symbolic value spelling inner hops
+/// (`outer.field`, `outer[index].field`, `outer.field[index]`, or deeper
+/// chains like `outer.field.sub`) resolves each crossed record boundary's
+/// `At` placement in turn, then selects inside the innermost element's
+/// retained interior layout, so the exact path stays symbolic until the write
+/// offset is assigned. Each carrier's own `inner_layouts` binds the next
+/// boundary's interior, so record depth is data the traversal walks rather
+/// than a family of depth-specific implementations; the walk is bounded by
+/// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`]. Supplying an inner layout no
+/// symbolic path traverses is rejected: a carrier that outlives the semantic
+/// path it describes would let a stale interior join a renamed or reshaped
+/// schema.
 pub fn derive_symbolic_materialization_with_inner_layouts(
     layout: &LayoutPlanReport,
     inner_layouts: &[SymbolicFieldInnerLayout],
@@ -2701,46 +2790,46 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
 
     // `field[index]` is a distinct semantic slot from `field[j]` and from the
     // whole-field `field`, so the exact index joins the name and identity when
-    // detecting a duplicate supply. An inner hop does the same: `outer.field`
-    // is a distinct slot from `outer` and from `outer.field[index]`. Without
-    // those hops two elements of one array or two members of one record would
-    // collide even though they write disjoint placements.
+    // detecting a duplicate supply. Each inner hop does the same: `outer.field`
+    // is a distinct slot from `outer`, from `outer.field[index]`, and from
+    // `outer.field.sub`. Without the complete path two elements of one array
+    // or two members of nested records would collide even though they write
+    // disjoint placements. The segment bound is a compiler resource limit, not
+    // a language limit: it caps the work a malformed or adversarial path can
+    // make derivation perform.
     let mut supplied = std::collections::BTreeSet::new();
     let mut names = std::collections::BTreeSet::new();
     for symbolic in symbolic_fields {
         let path_display = symbolic_path_display(symbolic);
-        let inner_name_key = symbolic
-            .inner
-            .as_ref()
-            .map(|inner| (inner.field.as_str(), inner.element_index));
-        if !names.insert((
-            symbolic.field.as_str(),
-            symbolic.element_index,
-            inner_name_key,
-        )) {
+        let hops = symbolic_path_hops(symbolic);
+        if hops.len() > CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
+            return Err(MaterializationDiagnostic(format!(
+                "symbolic field `{path_display}` exceeds the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
+            )));
+        }
+        if !names.insert(
+            hops.iter()
+                .map(|&(field, _, element_index)| (field, element_index))
+                .collect::<Vec<_>>(),
+        ) {
             return Err(MaterializationDiagnostic(format!(
                 "symbolic field `{path_display}` is supplied more than once"
             )));
         }
-        let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
-        let inner_key = symbolic
-            .inner
-            .as_ref()
-            .map(|inner| materialization_field_key(&inner.field, inner.member_identity));
-        if !supplied.insert((
-            key,
-            symbolic.element_index,
-            inner_key,
-            symbolic.inner.as_ref().map(|inner| inner.element_index),
-        )) {
+        if !supplied.insert(
+            hops.iter()
+                .map(|&(field, member_identity, element_index)| {
+                    (
+                        materialization_field_key(field, member_identity),
+                        element_index,
+                    )
+                })
+                .collect::<Vec<_>>(),
+        ) {
             return Err(MaterializationDiagnostic(format!(
                 "symbolic field `{path_display}` repeats stable member identity #{}",
-                symbolic
-                    .member_identity
-                    .or_else(|| symbolic
-                        .inner
-                        .as_ref()
-                        .and_then(|inner| inner.member_identity))
+                hops.iter()
+                    .find_map(|&(_, member_identity, _)| member_identity)
                     .expect("only numbered symbolic values can collide after name validation")
             )));
         }
@@ -2780,170 +2869,184 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
         }
     }
 
-    // Bind each supplied inner carrier to its outer field key before any
-    // symbolic path resolves through it. A carrier is evidence the compiler
-    // produced for one named field; a duplicate or a carrier for a field the
-    // outer plan never placed would silently substitute one record's interior
-    // for another's.
-    let mut inner_carriers = std::collections::BTreeMap::<
-        MaterializationFieldKey,
-        (
-            &SymbolicFieldInnerLayout,
-            usize,
-            std::collections::BTreeMap<MaterializationFieldKey, Vec<&LayoutFieldEntryReport>>,
-        ),
-    >::new();
-    for carrier in inner_layouts {
-        let key = materialization_field_key(&carrier.field, carrier.member_identity);
-        if !planned.contains_key(&key) {
-            return Err(MaterializationDiagnostic(format!(
-                "inner layout for `{}` binds to a field the validated layout plan does not contain",
-                carrier.field
-            )));
-        }
-        let inner_byte_len = carrier
-            .inner_layout
-            .size
-            .ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "inner layout for `{}` requires a fixed-size interior layout plan",
-                    carrier.field
-                ))
-            })
-            .and_then(|size| {
-                usize::try_from(size).map_err(|_| {
-                    MaterializationDiagnostic(format!(
-                        "inner layout size {size} for `{}` cannot be represented on this compiler host",
-                        carrier.field
-                    ))
-                })
-            })?;
-        validate_materialization_field_identities(&carrier.inner_layout)?;
-        let mut planned_inner = std::collections::BTreeMap::<
-            MaterializationFieldKey,
-            Vec<&LayoutFieldEntryReport>,
-        >::new();
-        for entry in &carrier.inner_layout.entries {
-            planned_inner
-                .entry(materialization_field_key(
-                    &entry.field,
-                    entry.member_identity,
-                ))
-                .or_default()
-                .push(entry);
-        }
-        if inner_carriers
-            .insert(key, (carrier, inner_byte_len, planned_inner))
-            .is_some()
-        {
-            return Err(MaterializationDiagnostic(format!(
-                "inner layout for `{}` is supplied more than once",
-                carrier.field
-            )));
-        }
-    }
+    // Bind each supplied inner carrier to its field key before any symbolic
+    // path resolves through it. A carrier is evidence the compiler produced
+    // for one named field; a duplicate or a carrier for a field the enclosing
+    // plan never placed would silently substitute one record's interior for
+    // another's. Carriers nest the same way records do: each boundary's own
+    // `inner_layouts` binds the interior of the record fields inside its
+    // interior, so a deeper path resolves against the same shape the compiler
+    // derived. Preparation is one bounded recursion over the carrier tree.
+    let mut carrier_nodes = Vec::new();
+    let (top_carriers, top_carrier_order) =
+        prepare_inner_layouts(inner_layouts, &planned, "", 0, true, &mut carrier_nodes)?;
 
     let mut traversed_inner = std::collections::BTreeSet::new();
     let prepared_writes = symbolic_fields
         .iter()
         .map(|symbolic| {
-            let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
-            let entries = planned
-                .get(&key)
-                .expect("symbolic layout membership validated above");
-            let selected =
-                select_materialization_entries(entries, symbolic.element_index, &symbolic.field)?;
-            let Some(inner) = &symbolic.inner else {
-                return selected
-                    .into_iter()
-                    .map(|entry| {
-                        let write = write_from_entry(entry, symbolic, &symbolic.field)?;
-                        validate_write(byte_len, &write)?;
-                        Ok((entry.placement, write))
-                    })
-                    .collect::<Result<Vec<_>, MaterializationDiagnostic>>();
-            };
             let path_display = symbolic_path_display(symbolic);
-            // The inner hop needs one enclosing element. An unindexed `outer`
-            // on a repeated record covers several elements, so the inner path
-            // alone cannot name a destination; `outer[i].field` spells which
-            // element the inner member belongs to.
-            let [outer_entry] = selected.as_slice() else {
-                return Err(MaterializationDiagnostic(format!(
-                    "symbolic field `{path_display}` requires the outer field `{}` to resolve to exactly one element placement, found {}",
-                    symbolic.field,
-                    selected.len()
-                )));
-            };
-            let LayoutPlacementReport::At {
-                offset: outer_offset,
-            } = outer_entry.placement
-            else {
-                return Err(MaterializationDiagnostic(format!(
-                    "symbolic field `{path_display}` requires the outer field `{}` to use a whole `At` placement",
-                    symbolic.field
-                )));
-            };
-            let Some((carrier, inner_byte_len, planned_inner)) = inner_carriers.get(&key) else {
-                return Err(MaterializationDiagnostic(format!(
-                    "symbolic field `{path_display}` has no supplied inner layout for `{}`",
-                    symbolic.field
-                )));
-            };
-            traversed_inner.insert(key);
-            let inner_key = materialization_field_key(&inner.field, inner.member_identity);
-            let Some(inner_entries) = planned_inner.get(&inner_key) else {
-                let suffix = stable_identity_suffix(inner.member_identity);
-                return Err(MaterializationDiagnostic(format!(
-                    "symbolic field `{path_display}` has no entry in the inner layout plan{suffix}"
-                )));
-            };
-            let inner_names = inner_entries
-                .iter()
-                .map(|entry| entry.field.as_str())
-                .collect::<std::collections::BTreeSet<_>>();
-            if let Some(drifted) = carrier.inner_layout.entries.iter().find(|entry| {
-                inner_names.contains(entry.field.as_str())
-                    && materialization_field_key(&entry.field, entry.member_identity) != inner_key
-            }) {
-                return Err(MaterializationDiagnostic(format!(
-                    "inner layout field `{}` fragments do not retain one stable member identity",
-                    drifted.field
-                )));
-            }
-            select_materialization_entries(inner_entries, inner.element_index, &path_display)?
-                .into_iter()
-                .map(|entry| {
-                    let mut write = write_from_entry(entry, symbolic, &path_display)?;
-                    // The inner hop may not escape the interior record's own
-                    // extent: the outer check below bounds the composed write
-                    // by the whole plan, but only this bound keeps a malformed
-                    // carrier from reaching into neighboring outer fields.
-                    validate_write(*inner_byte_len, &write)?;
-                    write.container_byte_offset =
-                        outer_offset
+            let hops = symbolic_path_hops(symbolic);
+            let mut current_planned = &planned;
+            let mut current_layout = layout;
+            let mut current_carriers = &top_carriers;
+            let mut current_byte_len = byte_len;
+            let mut base_offset = 0_u64;
+            let mut prefix = String::new();
+            let mut writes = Vec::new();
+            let last = hops.len() - 1;
+            // Each segment resolves inside the plan the previous record
+            // boundary supplied: the outer validated plan at the first hop,
+            // then the enclosing element's retained interior. The leaf writes
+            // inside its own record extent; every earlier hop must name the
+            // one element the rest of the path lives in.
+            for (depth, &(field, member_identity, element_index)) in hops.iter().enumerate() {
+                if depth > 0 {
+                    prefix.push('.');
+                }
+                prefix.push_str(field);
+                prefix.push_str(&symbolic_index_display(element_index));
+                let key = materialization_field_key(field, member_identity);
+                let Some(entries) = current_planned.get(&key) else {
+                    let suffix = stable_identity_suffix(member_identity);
+                    return Err(MaterializationDiagnostic(if depth == 0 {
+                        format!(
+                            "symbolic field `{field}` has no entry in the validated layout plan{suffix}"
+                        )
+                    } else {
+                        format!(
+                            "symbolic field `{path_display}` has no entry in the inner layout plan{suffix}"
+                        )
+                    }));
+                };
+                let entry_names = entries
+                    .iter()
+                    .map(|entry| entry.field.as_str())
+                    .collect::<std::collections::BTreeSet<_>>();
+                if let Some(drifted) = current_layout.entries.iter().find(|entry| {
+                    entry_names.contains(entry.field.as_str())
+                        && materialization_field_key(&entry.field, entry.member_identity) != key
+                }) {
+                    return Err(MaterializationDiagnostic(if depth == 0 {
+                        format!(
+                            "layout field `{}` fragments do not retain one stable member identity",
+                            drifted.field
+                        )
+                    } else {
+                        format!(
+                            "inner layout field `{}` fragments do not retain one stable member identity",
+                            drifted.field
+                        )
+                    }));
+                }
+                let selected = select_materialization_entries(
+                    entries,
+                    element_index,
+                    if depth == 0 { field } else { prefix.as_str() },
+                )?;
+                if depth == last {
+                    for entry in selected {
+                        let mut write = write_from_entry(
+                            entry,
+                            symbolic,
+                            if depth == 0 {
+                                symbolic.field.as_str()
+                            } else {
+                                path_display.as_str()
+                            },
+                        )?;
+                        // The leaf member may not escape its enclosing
+                        // record's own extent: the outer check below bounds
+                        // the composed write by the whole plan, but only this
+                        // per-level bound keeps a malformed carrier from
+                        // reaching into neighboring fields.
+                        validate_write(current_byte_len, &write)?;
+                        write.container_byte_offset = base_offset
                             .checked_add(write.container_byte_offset)
                             .ok_or_else(|| {
                                 MaterializationDiagnostic(format!(
                                     "symbolic field `{path_display}` composes an out-of-range destination offset"
                                 ))
                             })?;
-                    validate_write(byte_len, &write)?;
-                    Ok((entry.placement, write))
-                })
-                .collect::<Result<Vec<_>, MaterializationDiagnostic>>()
+                        validate_write(byte_len, &write)?;
+                        writes.push((entry.placement, write));
+                    }
+                    continue;
+                }
+                // The next hop needs one enclosing element. An unindexed
+                // segment on a repeated record covers several elements, so
+                // the path below it cannot name a destination;
+                // `outer[i].field` spells which element the member belongs to.
+                let [enclosing_entry] = selected.as_slice() else {
+                    return Err(MaterializationDiagnostic(if depth == 0 {
+                        format!(
+                            "symbolic field `{path_display}` requires the outer field `{field}` to resolve to exactly one element placement, found {}",
+                            selected.len()
+                        )
+                    } else {
+                        format!(
+                            "symbolic field `{path_display}` requires the enclosing field `{prefix}` to resolve to exactly one element placement, found {}",
+                            selected.len()
+                        )
+                    }));
+                };
+                let LayoutPlacementReport::At { offset } = enclosing_entry.placement else {
+                    return Err(MaterializationDiagnostic(if depth == 0 {
+                        format!(
+                            "symbolic field `{path_display}` requires the outer field `{field}` to use a whole `At` placement"
+                        )
+                    } else {
+                        format!(
+                            "symbolic field `{path_display}` requires the enclosing field `{prefix}` to use a whole `At` placement"
+                        )
+                    }));
+                };
+                let Some(&node_id) = current_carriers.get(&key) else {
+                    return Err(MaterializationDiagnostic(format!(
+                        "symbolic field `{path_display}` has no supplied inner layout for `{prefix}`"
+                    )));
+                };
+                let node = &carrier_nodes[node_id];
+                // The claimed interior must fit inside the enclosing record's
+                // extent at this offset. Per-level bounds compose: the leaf
+                // check above bounds the member inside this interior, and
+                // this bound keeps the whole interior inside its enclosing
+                // element, so a malformed carrier cannot place writes past
+                // the record boundary it describes.
+                let interior_end = usize::try_from(offset)
+                    .ok()
+                    .and_then(|start| start.checked_add(node.byte_len))
+                    .ok_or_else(|| {
+                        MaterializationDiagnostic(format!(
+                            "symbolic field `{path_display}` composes an out-of-range interior offset"
+                        ))
+                    })?;
+                if interior_end > current_byte_len {
+                    return Err(MaterializationDiagnostic(format!(
+                        "symbolic field `{path_display}` interior layout for `{prefix}` exceeds the enclosing {current_byte_len}-byte record extent"
+                    )));
+                }
+                traversed_inner.insert(node_id);
+                base_offset = base_offset.checked_add(offset).ok_or_else(|| {
+                    MaterializationDiagnostic(format!(
+                        "symbolic field `{path_display}` composes an out-of-range destination offset"
+                    ))
+                })?;
+                current_planned = &node.planned;
+                current_layout = node.layout;
+                current_carriers = &node.nested;
+                current_byte_len = node.byte_len;
+            }
+            Ok(writes)
         })
         .collect::<Result<Vec<_>, MaterializationDiagnostic>>()?;
 
-    if let Some(carrier) = inner_layouts.iter().find(|carrier| {
-        !traversed_inner.contains(&materialization_field_key(
-            &carrier.field,
-            carrier.member_identity,
-        ))
-    }) {
+    if let Some(node_id) =
+        first_untraversed_inner_layout(&carrier_nodes, &top_carrier_order, &traversed_inner)
+    {
         return Err(MaterializationDiagnostic(format!(
             "no symbolic field path traverses the supplied inner layout for `{}`",
-            carrier.field
+            carrier_nodes[node_id].path_display
         )));
     }
 
@@ -3019,6 +3122,153 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
         placement,
         actions,
     })
+}
+
+/// One interior layout carrier prepared for symbolic traversal: the carrier's
+/// validated interior plan indexed by field key, its fixed extent, and the
+/// prepared carriers bound to record fields inside it. Nodes live in one
+/// arena so the traversal walks record depth as data instead of recursing a
+/// type the compiler already knows.
+struct PreparedInnerLayout<'a> {
+    /// The carrier's validated interior plan; drift checks read its entries.
+    layout: &'a LayoutPlanReport,
+    /// The interior record's fixed extent in bytes. Every member write and
+    /// every nested record boundary inside the carrier must fit within it.
+    byte_len: usize,
+    /// Interior entries indexed by materialization key.
+    planned: std::collections::BTreeMap<MaterializationFieldKey, Vec<&'a LayoutFieldEntryReport>>,
+    /// Prepared nested carriers by the enclosing field key they bind to.
+    nested: std::collections::BTreeMap<MaterializationFieldKey, usize>,
+    /// Nested carrier node ids in supply order, so untraversed reporting is
+    /// deterministic rather than key order.
+    nested_order: Vec<usize>,
+    /// Diagnostic spelling of the record path this carrier serves (`slot`,
+    /// `slot.sub`).
+    path_display: String,
+}
+
+/// Validates and indexes one level of supplied interior carriers. `planned`
+/// is the enclosing plan's field-keyed entries — the outer validated plan at
+/// the top level, or the parent carrier's interior below it. Each carrier's
+/// own `inner_layouts` recurses through this same preparation, bounded by
+/// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`] so a malformed carrier tree
+/// cannot make preparation unbounded. Returns the key-indexed carrier map
+/// plus the node ids in supply order.
+fn prepare_inner_layouts<'a>(
+    carriers: &'a [SymbolicFieldInnerLayout],
+    planned: &std::collections::BTreeMap<MaterializationFieldKey, Vec<&'a LayoutFieldEntryReport>>,
+    path_prefix: &str,
+    depth: usize,
+    outermost: bool,
+    nodes: &mut Vec<PreparedInnerLayout<'a>>,
+) -> Result<
+    (
+        std::collections::BTreeMap<MaterializationFieldKey, usize>,
+        Vec<usize>,
+    ),
+    MaterializationDiagnostic,
+> {
+    let mut bound = std::collections::BTreeMap::new();
+    let mut order = Vec::new();
+    for carrier in carriers {
+        let path_display = format!("{path_prefix}{}", carrier.field);
+        let key = materialization_field_key(&carrier.field, carrier.member_identity);
+        if !planned.contains_key(&key) {
+            return Err(MaterializationDiagnostic(if outermost {
+                format!(
+                    "inner layout for `{path_display}` binds to a field the validated layout plan does not contain"
+                )
+            } else {
+                format!(
+                    "inner layout for `{path_display}` binds to a field the enclosing interior layout plan does not contain"
+                )
+            }));
+        }
+        if bound.contains_key(&key) {
+            return Err(MaterializationDiagnostic(format!(
+                "inner layout for `{path_display}` is supplied more than once"
+            )));
+        }
+        let inner_byte_len = carrier
+            .inner_layout
+            .size
+            .ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "inner layout for `{path_display}` requires a fixed-size interior layout plan"
+                ))
+            })
+            .and_then(|size| {
+                usize::try_from(size).map_err(|_| {
+                    MaterializationDiagnostic(format!(
+                        "inner layout size {size} for `{path_display}` cannot be represented on this compiler host"
+                    ))
+                })
+            })?;
+        validate_materialization_field_identities(&carrier.inner_layout)?;
+        let mut planned_inner = std::collections::BTreeMap::<
+            MaterializationFieldKey,
+            Vec<&LayoutFieldEntryReport>,
+        >::new();
+        for entry in &carrier.inner_layout.entries {
+            planned_inner
+                .entry(materialization_field_key(
+                    &entry.field,
+                    entry.member_identity,
+                ))
+                .or_default()
+                .push(entry);
+        }
+        let (nested, nested_order) = if carrier.inner_layouts.is_empty() {
+            (std::collections::BTreeMap::new(), Vec::new())
+        } else {
+            if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
+                return Err(MaterializationDiagnostic(format!(
+                    "inner layout for `{path_display}` nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
+                )));
+            }
+            prepare_inner_layouts(
+                &carrier.inner_layouts,
+                &planned_inner,
+                &format!("{path_display}."),
+                depth + 1,
+                false,
+                nodes,
+            )?
+        };
+        let node_id = nodes.len();
+        nodes.push(PreparedInnerLayout {
+            layout: &carrier.inner_layout,
+            byte_len: inner_byte_len,
+            planned: planned_inner,
+            nested,
+            nested_order,
+            path_display,
+        });
+        bound.insert(key, node_id);
+        order.push(node_id);
+    }
+    Ok((bound, order))
+}
+
+/// Finds the first supplied interior carrier no symbolic path traversed, in
+/// supply order with a parent before its nested carriers. A carrier whose
+/// parent is untraversed can never be reached, so the parent reports first.
+fn first_untraversed_inner_layout(
+    nodes: &[PreparedInnerLayout<'_>],
+    order: &[usize],
+    traversed: &std::collections::BTreeSet<usize>,
+) -> Option<usize> {
+    for &node_id in order {
+        if !traversed.contains(&node_id) {
+            return Some(node_id);
+        }
+        if let Some(deeper) =
+            first_untraversed_inner_layout(nodes, &nodes[node_id].nested_order, traversed)
+        {
+            return Some(deeper);
+        }
+    }
+    None
 }
 
 /// Resolves a symbolic `element_index` to the exact element `At` placement it
