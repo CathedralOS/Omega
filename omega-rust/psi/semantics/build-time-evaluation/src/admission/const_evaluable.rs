@@ -8,7 +8,7 @@
 use language_semantics::{DataSupplyMode, Multiplicity};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
+use typed_trees::data::{DataDefinition, DataMember, DataShapeKind, TypeParameterKind};
 use typed_trees::machine::Machine;
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -233,12 +233,20 @@ fn require_closed_data_shape(
     }
     if !definition.lifetime_parameters.is_empty()
         || !program.data_type_parameters(definition).is_empty()
-        || definition.generic_instance.is_some()
     {
         return Err(format!(
             "{path} has open or generic aggregate type `{}`",
             definition.name
         ));
+    }
+    // A synthesized concrete generic instance is a closed nominal aggregate:
+    // its members were substituted during synthesis. Its retained application
+    // origin is admitted only when that origin itself is closed — erased
+    // borrow-region arguments absent, the exact open template as base, and
+    // every argument a closed const atom or closed type. Anything else means
+    // the value's identity still mentions an open construct.
+    if let Some(application) = definition.generic_instance {
+        require_closed_generic_application(program, definition, application, path)?;
     }
     if definition.quotient.is_some() {
         return Err(format!(
@@ -247,6 +255,224 @@ fn require_closed_data_shape(
         ));
     }
     Ok(())
+}
+
+/// The retained structural origin of a synthesized generic instance. Only a
+/// CLOSED application may cross the const boundary: the base must resolve to
+/// the open generic template, lifetime arguments must already be erased, and
+/// each argument must satisfy its parameter kind — a closed const literal for
+/// `const`/`value` parameters, a closed type for `type` parameters. Machine
+/// parameters can never supply a const-evaluable argument.
+fn require_closed_generic_application(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    application: TypeReferenceHandle,
+    path: &str,
+) -> Result<(), String> {
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = program.type_reference_table.type_reference(application)
+    else {
+        return Err(format!(
+            "{path} has generic aggregate type `{}` whose origin is not a resolved generic application",
+            definition.name
+        ));
+    };
+    if !lifetime_arguments.is_empty() {
+        return Err(format!(
+            "{path} has generic aggregate type `{}` with non-erased lifetime arguments",
+            definition.name
+        ));
+    }
+    if !base_symbol.is_valid() {
+        return Err(format!(
+            "{path} has generic aggregate type `{base_name}` without an exact nominal base identity"
+        ));
+    }
+    let mut bases = program
+        .data_definitions()
+        .iter()
+        .filter(|candidate| candidate.symbol == *base_symbol);
+    let base = bases.next().ok_or_else(|| {
+        format!("{path} has generic aggregate type `{base_name}` with an unknown base data type")
+    })?;
+    if bases.next().is_some() {
+        return Err(format!(
+            "{path} has ambiguous nominal base identity for `{base_name}`"
+        ));
+    }
+    if base.name.as_str() != base_name.as_str() || base.generic_instance.is_some() {
+        return Err(format!(
+            "{path} has generic aggregate type `{}` whose base `{base_name}` is not the open generic template",
+            definition.name
+        ));
+    }
+    let parameters = program.data_type_parameters(base);
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    if arguments.len() != parameters.len() {
+        return Err(format!(
+            "{path} has generic aggregate type `{}` supplying {} argument(s) for {} base parameter(s)",
+            definition.name,
+            arguments.len(),
+            parameters.len()
+        ));
+    }
+    let mut active_data = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+        require_closed_argument(
+            program,
+            &parameter.kind,
+            *argument,
+            &format!("{path} parameter `{}`", parameter.name),
+            &mut active_data,
+        )?;
+    }
+    Ok(())
+}
+
+/// One generic argument judged against its parameter kind. `const`/`value`
+/// parameters admit only a compile-known resolved integer literal; `type`
+/// parameters admit only a closed const-boundary type; machine parameters
+/// admit nothing at this boundary.
+fn require_closed_argument(
+    program: &TypedTrees,
+    kind: &TypeParameterKind,
+    argument: TypeReferenceHandle,
+    path: &str,
+    active_data: &mut Vec<SymbolHandle>,
+) -> Result<(), String> {
+    match kind {
+        TypeParameterKind::Type => require_closed_type(program, argument, path, active_data),
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+            match program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::Named { symbol, name }
+                    if !symbol.is_valid()
+                        && !name.as_str().is_empty()
+                        && name.as_str().chars().all(|c| c.is_ascii_digit()) =>
+                {
+                    Ok(())
+                }
+                _ => Err(format!(
+                    "{path} has a non-literal const argument and is not a closed const application"
+                )),
+            }
+        }
+        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => Err(format!(
+            "{path} is not a data parameter; only closed const atoms and closed types can cross the const boundary"
+        )),
+    }
+}
+
+/// Type-level closedness for a generic argument in `type` position: a
+/// primitive, unit, a literal-length fixed array of closed elements, a
+/// constrained closed base, or a closed nominal aggregate (itself possibly a
+/// closed generic instance). References, slices, open generics, proof-static
+/// expressions, dynamic traits, and interior-mutable types are not closed.
+fn require_closed_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    path: &str,
+    active_data: &mut Vec<SymbolHandle>,
+) -> Result<(), String> {
+    if !type_reference.is_valid() {
+        return Err(format!("{path} has an invalid argument type"));
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Unit => Ok(()),
+        TypeReferenceNode::Named { symbol, name } => {
+            if name.as_str().starts_with("Atomic") {
+                return Err(format!(
+                    "{path} has interior-mutable type `{name}`, which is not const-copy eligible"
+                ));
+            }
+            if PrimitiveType::from_name(name.as_str()).is_some() {
+                return Ok(());
+            }
+            if !symbol.is_valid() {
+                return Err(format!(
+                    "{path} names `{name}` without an exact nominal type identity"
+                ));
+            }
+            let mut definitions = program
+                .data_definitions()
+                .iter()
+                .filter(|candidate| candidate.symbol == *symbol);
+            let definition = definitions
+                .next()
+                .ok_or_else(|| format!("{path} names unknown data type `{name}`"))?;
+            if definitions.next().is_some() {
+                return Err(format!(
+                    "{path} has ambiguous nominal type identity for `{name}`"
+                ));
+            }
+            if definition.name.as_str() != name.as_str() {
+                return Err(format!(
+                    "{path} has inconsistent nominal type spelling `{name}` for `{}`",
+                    definition.name
+                ));
+            }
+            require_closed_data_shape(program, definition, path)?;
+            if active_data.contains(symbol) {
+                return Err(format!(
+                    "{path} reaches recursive data `{name}` through a generic argument"
+                ));
+            }
+            active_data.push(*symbol);
+            let result = (|| {
+                for member in program.data_members(definition) {
+                    match member {
+                        DataMember::Field(field) => require_closed_type(
+                            program,
+                            field.type_reference,
+                            &format!("{path}.{}", field.name),
+                            active_data,
+                        )?,
+                        DataMember::Variant(variant) => {
+                            for field in program.data_payload_fields(variant) {
+                                require_closed_type(
+                                    program,
+                                    field.type_reference,
+                                    &format!("{path}::{}.{}", variant.name, field.name),
+                                    active_data,
+                                )?;
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            })();
+            active_data.pop();
+            result
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let FixedArrayLength::Literal(_) = length else {
+                return Err(format!(
+                    "{path} has a non-literal array length and is not a closed const type"
+                ));
+            };
+            require_closed_type(program, *element_type, &format!("{path}[]"), active_data)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            require_closed_type(program, *base_type, path, active_data)
+        }
+        TypeReferenceNode::Reference { .. } => Err(format!("{path} has reference type")),
+        TypeReferenceNode::Slice { .. } => Err(format!("{path} has slice type")),
+        TypeReferenceNode::Generic { .. } => Err(format!(
+            "{path} has an open or generic aggregate type and is not a closed const type"
+        )),
+        TypeReferenceNode::ConstExpression(_) => Err(format!(
+            "{path} has a proof-static expression type, not a runtime const value type"
+        )),
+        TypeReferenceNode::DynamicTrait { .. } => Err(format!("{path} has a dynamic trait type")),
+    }
 }
 
 fn check_record(
@@ -431,6 +657,82 @@ mod tests {
         }
     "#;
 
+    /// EVALUATED-FOREIGN-BINDINGS: a synthesized const-generic instance is a
+    /// closed nominal aggregate, but the snapshot must still match its exact
+    /// nominal name and substituted member types.
+    #[test]
+    fn closed_generic_instance_snapshots_are_value_sensitive() {
+        let typed = typed_normalized(
+            r#"
+            data Holder<T> [copy] { slot: T; }
+            machine holder_value() -> Holder<[u8; 2]> {
+                Holder { slot: "\x01\x02" }
+            }
+            "#,
+        );
+
+        // The value is well-formed and the instance admits it.
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "holder_value")
+            .expect("machine");
+        require_const_evaluable_result(
+            &typed,
+            machine,
+            &BuildTimeValue::Struct {
+                type_name: "Holder<[u8; 2]>".to_owned(),
+                fields: vec![(
+                    "slot".to_owned(),
+                    BuildTimeValue::Array(vec![BuildTimeValue::Int(1), BuildTimeValue::Int(2)]),
+                )],
+            },
+        )
+        .expect("a closed `Holder<[u8; 2]>` snapshot is ConstEvaluable");
+
+        // The template's authored spelling is not the instance identity.
+        let name_error = reject(
+            &typed,
+            "holder_value",
+            BuildTimeValue::Struct {
+                type_name: "Holder".to_owned(),
+                fields: vec![(
+                    "slot".to_owned(),
+                    BuildTimeValue::Array(vec![BuildTimeValue::Int(1), BuildTimeValue::Int(2)]),
+                )],
+            },
+        );
+        assert!(
+            name_error.contains("expected record `Holder<[u8; 2]>`"),
+            "{name_error}"
+        );
+
+        // Substituted member types are enforced exactly.
+        let member_error = reject(
+            &typed,
+            "holder_value",
+            BuildTimeValue::Struct {
+                type_name: "Holder<[u8; 2]>".to_owned(),
+                fields: vec![("slot".to_owned(), BuildTimeValue::Int(1))],
+            },
+        );
+        assert!(
+            member_error.contains("expected an array value"),
+            "{member_error}"
+        );
+
+        // A dynamically sized snapshot cannot cross even inside an instance.
+        let text_error = reject(
+            &typed,
+            "holder_value",
+            BuildTimeValue::Struct {
+                type_name: "Holder<[u8; 2]>".to_owned(),
+                fields: vec![("slot".to_owned(), BuildTimeValue::Text(vec![1, 2]))],
+            },
+        );
+        assert!(text_error.contains("contains Text"), "{text_error}");
+    }
+
     #[test]
     fn malformed_snapshots_reject_without_panicking() {
         let typed = typed(SOURCE);
@@ -508,6 +810,15 @@ mod tests {
     fn typed(source: &str) -> typed_trees::TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        lower_symbol_resolved_trees(&resolved).expect("type")
+    }
+
+    fn typed_normalized(source: &str) -> typed_trees::TypedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
+            .expect("synthesize closed generic instances");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
         lower_symbol_resolved_trees(&resolved).expect("type")
     }

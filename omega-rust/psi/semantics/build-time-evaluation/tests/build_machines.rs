@@ -1094,3 +1094,145 @@ fn builtin_evaluation_does_not_inherit_a_bound_proof_depth_limit() {
         .expect("builtin meaning is checked at each visited node");
     assert_eq!(value, BuildTimeValue::Int(140));
 }
+
+/// EVALUATED-FOREIGN-BINDINGS: a `via` producer evaluates to an ordinary
+/// closed `Binding<ObjectLength, SymbolLength, VersionLength>` value. The
+/// result is a synthesized const-generic instance — a closed nominal
+/// aggregate whose fixed byte-array widths are literal — and it crosses the
+/// semantic const boundary through the exact-symbol invocation entry with
+/// authored source custody and retained evaluator usage.
+#[test]
+fn closed_generic_binding_result_is_const_evaluable_for_invocation() {
+    let program = typed_normalized_generic_binding(
+        r#"
+        data DllImport<const ObjectLength: u64, const SymbolLength: u64, const VersionLength: u64> {
+            case PeByName(library: [u8; ObjectLength], export: [u8; SymbolLength]);
+            case PeByOrdinal(library: [u8; ObjectLength], ordinal: u16);
+            case ElfVersioned(object: [u8; ObjectLength], symbol: [u8; SymbolLength], version: [u8; VersionLength]);
+            case MachODylibSymbol(install_name: [u8; ObjectLength], symbol: [u8; SymbolLength]);
+        }
+        data Binding<const ObjectLength: u64, const SymbolLength: u64, const VersionLength: u64> {
+            case DllImport(import: DllImport<ObjectLength, SymbolLength, VersionLength>);
+            case Syscall(number: u64);
+        }
+        machine write_binding() -> Binding<12, 11, 0> {
+            Binding::DllImport {
+                import: DllImport::PeByName {
+                    library: "kernel32.dll",
+                    export: "ExitProcess",
+                },
+            }
+        }
+        machine write_syscall() -> Binding<0, 0, 0> {
+            (Binding::Syscall { number: 60 })
+        }
+        "#,
+    );
+
+    let producer = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "write_binding")
+        .expect("producer machine");
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    let measured = admission
+        .evaluate_const_evaluable_machine_symbol_for_invocation_measured(
+            &program,
+            producer.symbol,
+            Vec::new(),
+            build_time_evaluation::BuildTimeInvocationCustody::Source(Default::default()),
+        )
+        .expect("the closed `Binding` result is a ConstEvaluable snapshot");
+    let (value, _usage) = measured.into_parts();
+    let BuildTimeValue::Case { variant, payload } = &value else {
+        panic!("expected a `Binding` case, found {value:?}");
+    };
+    assert_eq!(variant, "DllImport");
+    let [
+        (
+            import_field,
+            BuildTimeValue::Case {
+                variant: import_variant,
+                payload: import_payload,
+            },
+        ),
+    ] = payload.as_slice()
+    else {
+        panic!("expected one `import` payload case, found {payload:?}");
+    };
+    assert_eq!(import_field, "import");
+    assert_eq!(import_variant, "PeByName");
+    let fields = import_payload
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(fields, ["library", "export"]);
+
+    let syscall = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "write_syscall")
+        .expect("syscall producer machine");
+    let value = admission
+        .evaluate_const_evaluable_machine_symbol_for_invocation(
+            &program,
+            syscall.symbol,
+            Vec::new(),
+            build_time_evaluation::BuildTimeInvocationCustody::Source(Default::default()),
+        )
+        .expect("the zero-width `Binding::Syscall` result is also ConstEvaluable");
+    assert_eq!(
+        value,
+        BuildTimeValue::Case {
+            variant: "Syscall".to_owned(),
+            payload: vec![("number".to_owned(), BuildTimeValue::Int(60))],
+        }
+    );
+}
+
+/// A closed record instance is admitted the same way: `Holder<[u8; 2]>`
+/// carries the synthesized nominal name and a substituted fixed-array member.
+#[test]
+fn closed_generic_record_result_is_const_evaluable() {
+    let program = typed_normalized_generic_binding(
+        r#"
+        data Holder<T> [copy] { slot: T; }
+        machine write_holder() -> Holder<[u8; 2]> {
+            Holder { slot: "\x01\x02" }
+        }
+        "#,
+    );
+    let producer = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "write_holder")
+        .expect("producer machine");
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    let value = admission
+        .evaluate_const_evaluable_machine_symbol_for_invocation(
+            &program,
+            producer.symbol,
+            Vec::new(),
+            build_time_evaluation::BuildTimeInvocationCustody::Source(Default::default()),
+        )
+        .expect("a closed `Holder<[u8; 2]>` result is ConstEvaluable");
+    assert_eq!(
+        value,
+        BuildTimeValue::Struct {
+            type_name: "Holder<[u8; 2]>".to_owned(),
+            fields: vec![(
+                "slot".to_owned(),
+                BuildTimeValue::Array(vec![BuildTimeValue::Int(1), BuildTimeValue::Int(2)]),
+            )],
+        }
+    );
+}
+
+fn typed_normalized_generic_binding(source: &str) -> typed_trees::TypedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let syntax = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
+        .expect("synthesize closed generic instances");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    lower_symbol_resolved_trees(&resolved).expect("type")
+}

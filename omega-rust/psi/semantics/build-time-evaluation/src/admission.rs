@@ -451,6 +451,27 @@ impl BuildTimeAdmissionPlan {
         arguments: Vec<BuildTimeValue>,
         custody: BuildTimeInvocationCustody,
     ) -> Result<BuildTimeValue, String> {
+        self.evaluate_const_evaluable_machine_symbol_for_invocation_measured(
+            program,
+            machine_symbol,
+            arguments,
+            custody,
+        )
+        .map(crate::MeasuredEvaluation::into_value)
+    }
+
+    /// [`Self::evaluate_const_evaluable_machine_symbol_for_invocation`]
+    /// retaining the deterministic evaluator usage beside the admitted
+    /// snapshot. Invocation positions such as `via` that commit the measured
+    /// usage as evidence select this entry once their result vocabulary opts
+    /// into the target-neutral `ConstEvaluable` judgment.
+    pub fn evaluate_const_evaluable_machine_symbol_for_invocation_measured(
+        &self,
+        program: &TypedTrees,
+        machine_symbol: SymbolHandle,
+        arguments: Vec<BuildTimeValue>,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
         let matching: Vec<_> = program
             .machines()
             .iter()
@@ -460,17 +481,15 @@ impl BuildTimeAdmissionPlan {
             return Err("build-time invocation has no unique exact machine".into());
         };
         self.require_common_floor_for_invocation(program, machine, custody)?;
-        let value =
+        let measured =
             checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
                 program,
                 machine_symbol,
                 arguments,
                 &self.selected_operators,
-            )?
-            .into_parts()
-            .0;
-        require_const_evaluable_result(program, machine, &value)?;
-        Ok(value)
+            )?;
+        require_const_evaluable_result(program, machine, measured.value())?;
+        Ok(measured)
     }
 
     fn machine_suspension(&self, machine_symbol: SymbolHandle) -> Option<bool> {
