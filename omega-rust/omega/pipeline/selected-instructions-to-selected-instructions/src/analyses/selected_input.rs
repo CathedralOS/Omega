@@ -4,9 +4,9 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::{
-    ValidatedFixedViewCopies, ValidatedLiteralFold, ValidatedPressureRematerialization,
-    ValidatedRedundantExtension, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedStoredLoadForwarding,
+    ValidatedFixedViewCopies, ValidatedLiteralCompare, ValidatedLiteralFold,
+    ValidatedPressureRematerialization, ValidatedRedundantExtension,
+    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedStoredLoadForwarding,
 };
 
 mod sealed {
@@ -36,6 +36,26 @@ impl ValidatedSelectedAnalysis for ValidatedRedundantExtension {
 impl sealed::Sealed for ValidatedStoredLoadForwarding {}
 
 impl ValidatedSelectedAnalysis for ValidatedStoredLoadForwarding {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedLiteralCompare {}
+
+impl ValidatedSelectedAnalysis for ValidatedLiteralCompare {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }

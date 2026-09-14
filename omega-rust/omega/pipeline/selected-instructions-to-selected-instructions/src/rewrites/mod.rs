@@ -2,6 +2,7 @@
 
 mod allocation_recovery;
 mod fixed_view;
+mod literal_compare;
 mod literal_folds;
 mod load_forwarding;
 mod redundant_extension;
@@ -11,6 +12,7 @@ mod selected_lowering;
 
 pub use allocation_recovery::*;
 pub use fixed_view::*;
+pub use literal_compare::*;
 pub use literal_folds::*;
 pub use load_forwarding::*;
 pub use redundant_extension::*;
