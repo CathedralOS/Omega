@@ -416,8 +416,11 @@ fn evaluate_one(
     let widths = binding_widths(typed, vocabulary.binding, entry.return_type)
         .map_err(|message| at(source_span, message))?;
     let custody = BuildTimeInvocationCustody::Source(source_span);
+    // The evaluated binding crosses the boundary as an ordinary closed const
+    // value: the producer result is admitted under ConstEvaluable, with the
+    // authored `via` span retained as its invocation custody.
     let measured = admission
-        .evaluate_machine_symbol_for_invocation_measured(
+        .evaluate_const_evaluable_machine_symbol_for_invocation_measured(
             typed,
             producer.symbol,
             Vec::new(),

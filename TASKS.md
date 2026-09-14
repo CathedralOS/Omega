@@ -2397,6 +2397,15 @@ Owners include
   Carry normalized locator, evaluated plan, target applicability, and producer
   custody through provider selection and native emission. Raw foreign bytes are
   data, never Omega symbol names or ambient lookup authority.
+  Resume: `ConstEvaluable` now admits synthesized closed const-generic data
+  instances — closed application origin plus the substituted member walk — so
+  a `via` producer's `Binding<O,S,V>` result crosses build-time evaluation as
+  an ordinary typed value through
+  `evaluate_const_evaluable_machine_symbol_for_invocation_measured` with the
+  authored `via` span retained as invocation custody
+  (`omega-rust/psi/semantics/build-time-evaluation/src/admission/const_evaluable.rs`,
+  `omega-rust/omega/build/provider-planning/src/evaluated_via_bindings.rs`).
+  Open: string-backed bootstrap retirement and the wider acceptance replay.
 
   Extend [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement)
   from fixed-width scalar calls to a
