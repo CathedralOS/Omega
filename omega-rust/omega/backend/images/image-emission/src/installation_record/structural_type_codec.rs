@@ -1,0 +1,130 @@
+//! Wire codec for the structural type declarations carried by installation
+//! record rows.
+
+use super::{
+    InstallationError, Reader, StructuralTypeId, boundary_result_scalar_codec, decode_identity,
+    decode_structural_cases, decode_structural_fields, encode_identity, encode_structural_cases,
+    encode_structural_fields, push_u32, push_u64,
+};
+pub(super) fn encode_structural_types(
+    bytes: &mut Vec<u8>,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<(), InstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(declarations.len()).map_err(|_| InstallationError::TooManyStructuralTypes)?,
+    );
+    for declaration in declarations {
+        push_u64(bytes, declaration.id.get());
+        encode_identity(bytes, &declaration.identity)?;
+        match &declaration.shape {
+            terminal_psi::StructuralTypeShape::Reference { .. } => {
+                return Err(InstallationError::UnsupportedStructuralReturnShape);
+            }
+            terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
+                bytes.extend_from_slice(&[6, 0, 0, 0]);
+                boundary_result_scalar_codec::encode_boundary_result_scalar_type(
+                    bytes,
+                    *scalar_type,
+                );
+            }
+            terminal_psi::StructuralTypeShape::ByteSequence(carrier) => {
+                bytes.extend_from_slice(&[4, 0, 0, 0]);
+                match carrier {
+                    terminal_psi::ByteSequenceCarrier::BorrowedView => {
+                        bytes.extend_from_slice(&[1, 0, 0, 0]);
+                        push_u64(bytes, 0);
+                    }
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                        bytes.extend_from_slice(&[2, 0, 0, 0]);
+                        push_u64(bytes, *capacity);
+                    }
+                }
+            }
+            terminal_psi::StructuralTypeShape::Record { fields } => {
+                bytes.extend_from_slice(&[1, 0, 0, 0]);
+                encode_structural_fields(bytes, fields)?;
+            }
+            terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+                bytes.extend_from_slice(&[2, 0, 0, 0]);
+                push_u64(bytes, element.get());
+                push_u64(bytes, *length);
+            }
+            terminal_psi::StructuralTypeShape::Sum { cases } => {
+                bytes.extend_from_slice(&[3, 0, 0, 0]);
+                encode_structural_cases(bytes, cases)?;
+            }
+            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
+                bytes.extend_from_slice(&[5, 0, 0, 0]);
+                encode_structural_fields(bytes, fields)?;
+                encode_structural_cases(bytes, cases)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn decode_structural_types(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<terminal_psi::StructuralTypeDeclaration>, InstallationError> {
+    let count =
+        usize::try_from(reader.u32()?).map_err(|_| InstallationError::TooManyStructuralTypes)?;
+    if count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut declarations = Vec::with_capacity(count);
+    for _ in 0..count {
+        let id = StructuralTypeId::new(reader.u64()?).ok_or(
+            InstallationError::ZeroStructuralReturnIdentity("structural type"),
+        )?;
+        let identity = decode_identity(reader)?;
+        let shape_tag = reader.u8()?;
+        if reader.u8()? != 0 || reader.u8()? != 0 || reader.u8()? != 0 {
+            return Err(InstallationError::NonzeroReservedField);
+        }
+        let shape = match shape_tag {
+            1 => terminal_psi::StructuralTypeShape::Record {
+                fields: decode_structural_fields(reader)?,
+            },
+            2 => terminal_psi::StructuralTypeShape::FixedArray {
+                element: StructuralTypeId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralReturnIdentity("fixed-array element type"),
+                )?,
+                length: reader.u64()?,
+            },
+            3 => terminal_psi::StructuralTypeShape::Sum {
+                cases: decode_structural_cases(reader)?,
+            },
+            4 => {
+                let carrier_tag = reader.u8()?;
+                if reader.u8()? != 0 || reader.u8()? != 0 || reader.u8()? != 0 {
+                    return Err(InstallationError::NonzeroReservedField);
+                }
+                let capacity = reader.u64()?;
+                terminal_psi::StructuralTypeShape::ByteSequence(match carrier_tag {
+                    1 if capacity == 0 => terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    2 => terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                    tag => {
+                        return Err(InstallationError::InvalidStructuralTypeShapeTag(tag));
+                    }
+                })
+            }
+            5 => terminal_psi::StructuralTypeShape::Mixed {
+                fields: decode_structural_fields(reader)?,
+                cases: decode_structural_cases(reader)?,
+            },
+            6 => terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                boundary_result_scalar_codec::decode_boundary_result_scalar_type(reader)?,
+            ),
+            tag => {
+                return Err(InstallationError::InvalidStructuralTypeShapeTag(tag));
+            }
+        };
+        declarations.push(terminal_psi::StructuralTypeDeclaration {
+            id,
+            identity,
+            shape,
+        });
+    }
+    Ok(declarations)
+}

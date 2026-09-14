@@ -53,7 +53,7 @@ pub(super) fn settlement(
         .ok_or(Error::Mismatch("selected byte output span"))?;
     let native = container.source().text_section().target;
     let (register, offset) =
-        crate::runtime_scalar_custody::decode_selected_byte_output(native, &span.bytes)
+        crate::object_artifact::replay::boundary::runtime_scalar_custody::decode_selected_byte_output(native, &span.bytes)
             .ok_or(Error::Mismatch("selected byte output encoding"))?;
     let frame = source::frame(container, machine)?.ok_or(Error::Mismatch("byte output frame"))?;
     let scratch = frame
@@ -213,7 +213,7 @@ pub(super) fn validate(
         || scratch_byte_offset >= frame.frame_size_bytes
         || settlement.code_offset != offset
         || settlement.byte_count != span.bytes.len()
-        || !crate::runtime_scalar_custody::selected_byte_output_bytes_are_exact(
+        || !crate::object_artifact::replay::boundary::runtime_scalar_custody::selected_byte_output_bytes_are_exact(
             container.source().text_section().target,
             settlement,
             &fragment.bytes,

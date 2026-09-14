@@ -91,7 +91,7 @@ Native candidates and replayed object artifacts already exist; that does not
 complete source `Independent` composition. The current
 [target plan](../../../representations/target-operations/src/target_operations.rs)
 names one semantic entry and its functions. The
-[object publisher](../../images/image-emission/src/lib.rs) builds artifact-local
+[object publisher](../../images/image-emission/src/object_artifact.rs) builds artifact-local
 symbols, data, and relocations and resolves internal calls against that artifact's
 function roster. These local machine/symbol handles are not cross-compilation
 identities. General independent crossings need the specification's exported

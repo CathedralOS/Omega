@@ -62,11 +62,12 @@ pub(super) fn settlement(
     {
         return Err(Error::Mismatch("process exit nominal edge"));
     }
-    let register = crate::runtime_scalar_custody::process_exit::decode(
-        container.source().text_section().target,
-        &span.bytes,
-    )
-    .ok_or(Error::Mismatch("process exit encoding"))?;
+    let register =
+        crate::object_artifact::replay::boundary::runtime_scalar_custody::process_exit::decode(
+            container.source().text_section().target,
+            &span.bytes,
+        )
+        .ok_or(Error::Mismatch("process exit encoding"))?;
     let code_offset = host(span.offset)?;
     let scalar_type = ScalarType::Integer(
         IntegerType::new(IntegerSign::Signed, 32).map_err(|_| Error::Mismatch("i32"))?,
@@ -204,7 +205,7 @@ pub(super) fn validate(
             != attribution::ordinal(abstracted, SemanticCodeSite::Operation(operation))?
         || proposed.settlement.code_offset != host(span.offset)?
         || proposed.settlement.byte_count != span.bytes.len()
-        || !crate::runtime_scalar_custody::process_exit::bytes_are_exact(
+        || !crate::object_artifact::replay::boundary::runtime_scalar_custody::process_exit::bytes_are_exact(
             container.source().text_section().target,
             &proposed.settlement,
             &fragment.bytes,

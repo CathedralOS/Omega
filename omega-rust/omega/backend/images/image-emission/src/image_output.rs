@@ -12,9 +12,11 @@ use terminal_psi::TerminalPsiIdentity;
 
 use super::final_image_validation::validate_terminal_image;
 use super::{
-    LINUX_X86_SCALAR_EXIT_SHIM_BYTES, LinuxX86ScalarExitShim, ObjectArtifact,
-    ObjectBoundarySettlement, ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectFunction,
-    ObjectPortEffect, SCALAR_CALL_REFERENCE_FINGERPRINT,
+    LinuxX86ScalarExitShim, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
+    ObjectCompilerPrivateFunction, ObjectFunction, ObjectPortEffect,
+};
+use crate::hosted_unit_entry::{
+    LINUX_X86_SCALAR_EXIT_SHIM_BYTES, SCALAR_CALL_REFERENCE_FINGERPRINT,
 };
 
 fn validate_x86_scalar_fma_provider(artifact: &ObjectArtifact) -> Result<(), Diagnostic> {
