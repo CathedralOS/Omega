@@ -55,7 +55,10 @@ impl<'program> FieldCoordinate<'program> {
         parameter: &'program StateParameter,
         field: SymbolHandle,
     ) -> Option<Self> {
-        if parameter.is_self || parameter.is_mutable || parameter.is_const {
+        // A mutable record still denotes its arrival value at an edge whose
+        // evaluated prefix is proven to preserve its path; mutability is a
+        // storage capability, not evidence the field moved.
+        if parameter.is_self || parameter.is_const {
             return None;
         }
         let (owner, field) = declared_field(program, parameter, field)?;
@@ -192,13 +195,15 @@ fn parameter<'program>(
     let [name] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
+    // The edge owners evaluate every expression through this resolver over a
+    // parameter-preserving prefix, so a mutable parameter's name still denotes
+    // the live record the edge observes.
     program.state_parameters(state).iter().find(|parameter| {
         path.symbol.is_valid()
             && path.symbol == path.head_symbol
             && parameter.symbol == path.symbol
             && parameter.name == *name
             && !parameter.is_self
-            && !parameter.is_mutable
             && !parameter.is_const
     })
 }

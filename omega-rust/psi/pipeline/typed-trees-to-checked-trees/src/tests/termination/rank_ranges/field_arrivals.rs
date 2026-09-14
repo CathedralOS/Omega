@@ -218,9 +218,63 @@ fn record_arrivals_need_unique_roles_and_exact_nominal_owners() {
             "data Other {{ remaining: u64 [0..=5]; }} {source}"
         ));
     }
-    for parameter in ["pending: &Countdown", "mut pending: Countdown"] {
-        reject(&COUNTDOWN.replace("pending: Countdown", parameter));
+    reject(&COUNTDOWN.replace("pending: Countdown", "pending: &Countdown"));
+}
+
+#[test]
+fn mutable_record_parameters_prove_only_while_the_prefix_preserves_them() {
+    // The same preserved-prefix evidence that admits mutable integer inputs
+    // carries a mutable record's arrival fields: a write into its path before
+    // the transition invalidates the premise, a disjoint local write does not.
+    let mutable_subject =
+        COUNTDOWN.replace("walk(countdown: Countdown", "walk(mut countdown: Countdown");
+    prove(&mutable_subject);
+    prove(&mutable_subject.replace(
+        "    transition {",
+        "    let mut scratch: u64 = 0; scratch = 5;\n    transition {",
+    ));
+    for statement in [
+        "countdown.remaining = 5;",
+        "countdown = Countdown { remaining: 5 };",
+    ] {
+        reject(&mutable_subject.replace(
+            "    transition {",
+            &format!("    {statement}\n    transition {{"),
+        ));
     }
+    // A mutable arrival parameter carries the field coordinate through
+    // `at_arrival` the same way. The recursive arm rebuilds the record from a
+    // literal so its constructor obligation needs no fact about the mutable
+    // place: constructor guard facts still require immutable inputs until
+    // that adapter consumes write frames.
+    let mutable_arrival = COUNTDOWN
+        .replace("pending: Countdown", "mut pending: Countdown")
+        .replace(
+            "Countdown { remaining: pending.remaining - 1 }",
+            "Countdown { remaining: 0 }",
+        );
+    prove(&mutable_arrival);
+    prove(&mutable_arrival.replace(
+        "transition pending.remaining",
+        "let mut scratch: u64 = 0; scratch = 5; transition pending.remaining",
+    ));
+    for statement in [
+        "pending.remaining = 5;",
+        "pending = Countdown { remaining: 5 };",
+    ] {
+        reject(&mutable_arrival.replace(
+            "transition pending.remaining",
+            &format!("{statement} transition pending.remaining"),
+        ));
+    }
+    // A store into a different mutable input still cannot reach the edge:
+    // the preserved prefix must spare every parameter path, not only the
+    // ranked one.
+    let mutable_bound = mutable_arrival.replace("limit: u64 [5..=10]", "mut limit: u64 [5..=10]");
+    reject(&mutable_bound.replace(
+        "transition pending.remaining",
+        "limit = 10; transition pending.remaining",
+    ));
 }
 
 #[test]

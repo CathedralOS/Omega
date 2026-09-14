@@ -37,10 +37,12 @@ pub(super) fn parameter<'program>(
     {
         return None;
     }
+    // Mutability is a storage capability, not a value change: the edge owners
+    // supply a parameter-preserving evaluated prefix, so a mutable slice still
+    // denotes its arrival sequence -- and its arrival length -- at the edge.
     program.state_parameters(state).iter().find(|parameter| {
         parameter.symbol == path.symbol
             && !parameter.is_self
-            && !parameter.is_mutable
             && !parameter.is_const
             && is_slice(program, parameter.type_reference)
     })
@@ -58,8 +60,11 @@ pub(super) fn bindings(
         .filter(|parameter| !parameter.is_self)
         .enumerate()
     {
+        // Mutable slices are admitted on the same contract as `parameter`:
+        // callers evaluate the produced length facts over a prefix that is
+        // proven to preserve the parameter's path, so the arrival binding is
+        // still the value the edge observes.
         if !parameter.symbol.is_valid()
-            || parameter.is_mutable
             || parameter.is_const
             || !is_slice(program, parameter.type_reference)
         {
