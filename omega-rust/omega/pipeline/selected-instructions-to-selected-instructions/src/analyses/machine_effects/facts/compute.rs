@@ -5,8 +5,9 @@ use register_model::{
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
 use selected_instructions::{
-    MachineEffectDeclaration, MachineSemanticKind, SelectedConstraintKeys, SelectedInstruction,
-    SelectedInstructionKind, SelectedTerminator, ValidatedMachineEffectCatalog,
+    MachineEffectDeclaration, MachineSemanticKind, SelectedConstraintKeys, SelectedFunction,
+    SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
+    ValidatedMachineEffectCatalog,
 };
 
 use crate::MachineEffectError;
@@ -46,7 +47,12 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
         for block in &function.blocks {
             let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
             for instruction in &block.instructions {
-                instructions.push(compute_instruction(instruction, constraints, catalog)?);
+                instructions.push(compute_instruction(
+                    function,
+                    instruction,
+                    constraints,
+                    catalog,
+                )?);
             }
             let terminator = match &block.terminator {
                 SelectedTerminator::ConditionalBranch { instruction, .. }
@@ -56,7 +62,12 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
                 | SelectedTerminator::Return { instruction, .. }
                 | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
             };
-            instructions.push(compute_instruction(terminator, constraints, catalog)?);
+            instructions.push(compute_instruction(
+                function,
+                terminator,
+                constraints,
+                catalog,
+            )?);
             blocks.push(BlockMachineEffects {
                 block: block.id,
                 instructions,
@@ -149,6 +160,7 @@ fn terminal_selected_keys(
 }
 
 fn compute_instruction(
+    function: &SelectedFunction,
     instruction: &SelectedInstruction,
     constraints: &ValidatedRegisterConstraintCatalog,
     catalog: &ValidatedMachineEffectCatalog,
@@ -167,6 +179,34 @@ fn compute_instruction(
         .ok_or(MachineEffectError::ConstraintEffectMismatch {
             instruction: instruction.id,
         })?;
+    if instruction.operands.len() != constraint.operands.len() {
+        return Err(MachineEffectError::ConstraintOperandMismatch {
+            instruction: instruction.id,
+        });
+    }
+    for (operand, expected) in instruction.operands.iter().zip(&constraint.operands) {
+        let Some(register) = function
+            .virtual_registers
+            .get(operand.virtual_register.0 as usize)
+        else {
+            return Err(MachineEffectError::ConstraintOperandMismatch {
+                instruction: instruction.id,
+            });
+        };
+        if operand.operand != expected.operand
+            || operand.access != expected.access
+            || operand.class != expected.class
+            || operand.fixed_view != expected.fixed_view
+            || operand.tied_to != expected.tied_to
+            || operand.early_clobber != expected.early_clobber
+            || register.id != operand.virtual_register
+            || register.class != expected.class
+        {
+            return Err(MachineEffectError::ConstraintOperandMismatch {
+                instruction: instruction.id,
+            });
+        }
+    }
     if instruction.implicit_uses != constraint.implicit_uses
         || instruction.implicit_defs != constraint.implicit_defs
         || instruction.clobbers != constraint.clobbers

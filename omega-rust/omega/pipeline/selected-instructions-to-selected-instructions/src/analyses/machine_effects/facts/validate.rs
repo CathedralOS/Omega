@@ -5,10 +5,11 @@ use register_model::{
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
 use selected_instructions::{
-    MachineEffectDeclaration, MachineSemanticKind, SelectedConstraintKeys, SelectedInstruction,
+    MachineEffectDeclaration, SelectedConstraintKeys, SelectedFunction, SelectedInstruction,
     SelectedInstructionKind, SelectedTerminator, ValidatedMachineEffectCatalog,
 };
 
+use super::compute::machine_semantic_kind;
 use super::model::receipt;
 use super::{MachineEffectError, ValidatedPreAllocationMachineEffects};
 use selected_instructions::{
@@ -93,7 +94,13 @@ fn validate_function(
             .iter()
             .zip(&actual_block.instructions)
         {
-            validate_instruction(source_instruction, actual_instruction, constraints, catalog)?;
+            validate_instruction(
+                source,
+                source_instruction,
+                actual_instruction,
+                constraints,
+                catalog,
+            )?;
         }
         let terminator = match &source_block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
@@ -104,6 +111,7 @@ fn validate_function(
             | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         };
         validate_instruction(
+            source,
             terminator,
             actual_block
                 .instructions
@@ -117,6 +125,7 @@ fn validate_function(
 }
 
 fn validate_instruction(
+    function: &SelectedFunction,
     source: &SelectedInstruction,
     actual: &InstructionMachineEffects,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -136,6 +145,34 @@ fn validate_instruction(
         .ok_or(MachineEffectError::ConstraintEffectMismatch {
             instruction: source.id,
         })?;
+    if source.operands.len() != constraint.operands.len() {
+        return Err(MachineEffectError::ConstraintOperandMismatch {
+            instruction: source.id,
+        });
+    }
+    for (operand, expected) in source.operands.iter().zip(&constraint.operands) {
+        let Some(register) = function
+            .virtual_registers
+            .get(operand.virtual_register.0 as usize)
+        else {
+            return Err(MachineEffectError::ConstraintOperandMismatch {
+                instruction: source.id,
+            });
+        };
+        if operand.operand != expected.operand
+            || operand.access != expected.access
+            || operand.class != expected.class
+            || operand.fixed_view != expected.fixed_view
+            || operand.tied_to != expected.tied_to
+            || operand.early_clobber != expected.early_clobber
+            || register.id != operand.virtual_register
+            || register.class != expected.class
+        {
+            return Err(MachineEffectError::ConstraintOperandMismatch {
+                instruction: source.id,
+            });
+        }
+    }
     if source.implicit_uses != constraint.implicit_uses
         || source.implicit_defs != constraint.implicit_defs
         || source.clobbers != constraint.clobbers
@@ -170,94 +207,7 @@ fn replay_declaration<'a>(
     instruction: &SelectedInstruction,
     catalog: &'a ValidatedMachineEffectCatalog,
 ) -> Result<&'a MachineEffectDeclaration, MachineEffectError> {
-    let semantic = match instruction.kind {
-        SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
-        SelectedInstructionKind::CallAggregate { .. } => MachineSemanticKind::CallAggregate,
-        SelectedInstructionKind::ReturnAggregate { .. } => MachineSemanticKind::ReturnAggregate,
-        SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
-        SelectedInstructionKind::CompareI64Immediate { .. } => {
-            MachineSemanticKind::CompareI64Immediate
-        }
-        SelectedInstructionKind::MaterializeI64 { .. } => MachineSemanticKind::MaterializeI64,
-        SelectedInstructionKind::CopyI64 => MachineSemanticKind::CopyI64,
-        SelectedInstructionKind::Float32ToBits => MachineSemanticKind::Float32ToBits,
-        SelectedInstructionKind::Float64ToBits => MachineSemanticKind::Float64ToBits,
-        SelectedInstructionKind::BitsToFloat32 => MachineSemanticKind::BitsToFloat32,
-        SelectedInstructionKind::BitsToFloat64 => MachineSemanticKind::BitsToFloat64,
-        SelectedInstructionKind::ZeroExtendU8 => MachineSemanticKind::ZeroExtendU8,
-        SelectedInstructionKind::ZeroExtendU32 => MachineSemanticKind::ZeroExtendU32,
-        SelectedInstructionKind::ZeroExtendU16 => MachineSemanticKind::ZeroExtendU16,
-        SelectedInstructionKind::SignExtendI8 => MachineSemanticKind::SignExtendI8,
-        SelectedInstructionKind::SignExtendI16 => MachineSemanticKind::SignExtendI16,
-        SelectedInstructionKind::SignExtendI32 => MachineSemanticKind::SignExtendI32,
-        SelectedInstructionKind::MaterializeBooleanEqual => {
-            MachineSemanticKind::MaterializeBooleanEqual
-        }
-        SelectedInstructionKind::MaterializeBooleanU64LessThan => {
-            MachineSemanticKind::MaterializeBooleanU64LessThan
-        }
-        SelectedInstructionKind::MaterializeBooleanI64LessThan => {
-            MachineSemanticKind::MaterializeBooleanI64LessThan
-        }
-        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => {
-            MachineSemanticKind::MaterializeBooleanU64LessOrEqual
-        }
-        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
-            MachineSemanticKind::MaterializeBooleanI64LessOrEqual
-        }
-
-        SelectedInstructionKind::HostedWriteByteI32 { .. } => {
-            MachineSemanticKind::HostedWriteByteI32
-        }
-        SelectedInstructionKind::HostedReadByte { .. } => MachineSemanticKind::HostedReadByte,
-        SelectedInstructionKind::ByteViewAddress => MachineSemanticKind::ByteViewAddress,
-        SelectedInstructionKind::HostedExitProcessI32 => MachineSemanticKind::HostedExitProcessI32,
-        SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
-        SelectedInstructionKind::BitwiseAndI64 => MachineSemanticKind::BitwiseAndI64,
-        SelectedInstructionKind::BitwiseXorI64 => MachineSemanticKind::BitwiseXorI64,
-        SelectedInstructionKind::SaturatingSubtractU64 => {
-            MachineSemanticKind::SaturatingSubtractU64
-        }
-        SelectedInstructionKind::SaturatingAddU64 => MachineSemanticKind::SaturatingAddU64,
-        SelectedInstructionKind::ExactDivideU64 { .. } => MachineSemanticKind::ExactDivideU64,
-        SelectedInstructionKind::ExactAddI64Immediate { .. } => {
-            MachineSemanticKind::ExactAddI64Immediate
-        }
-        SelectedInstructionKind::ExactSubtractI64 { .. } => MachineSemanticKind::ExactSubtractI64,
-        SelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
-            MachineSemanticKind::ExactSubtractI64Immediate
-        }
-        SelectedInstructionKind::ConditionalBranchNonZero => {
-            MachineSemanticKind::ConditionalBranchNonZero
-        }
-        SelectedInstructionKind::ConditionalBranchU64LessThan => {
-            MachineSemanticKind::ConditionalBranchU64LessThan
-        }
-        SelectedInstructionKind::ConditionalBranchI64LessThan => {
-            MachineSemanticKind::ConditionalBranchI64LessThan
-        }
-        SelectedInstructionKind::Jump => MachineSemanticKind::Jump,
-        SelectedInstructionKind::ReturnScalar => MachineSemanticKind::ReturnScalar,
-        SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
-        SelectedInstructionKind::CallScalar { .. } => MachineSemanticKind::CallScalar,
-        SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,
-        SelectedInstructionKind::LoadPacked { width, .. } => match width {
-            selected_instructions::PackedByteWidth::Three => MachineSemanticKind::LoadPacked3,
-            selected_instructions::PackedByteWidth::Five => MachineSemanticKind::LoadPacked5,
-            selected_instructions::PackedByteWidth::Six => MachineSemanticKind::LoadPacked6,
-            selected_instructions::PackedByteWidth::Seven => MachineSemanticKind::LoadPacked7,
-        },
-        SelectedInstructionKind::StorePacked { .. } => MachineSemanticKind::StorePacked,
-        SelectedInstructionKind::Load8 { .. } => MachineSemanticKind::Load8,
-        SelectedInstructionKind::Load16 { .. } => MachineSemanticKind::Load16,
-        SelectedInstructionKind::Load32 { .. } => MachineSemanticKind::Load32,
-        SelectedInstructionKind::Load8Indexed => MachineSemanticKind::Load8Indexed,
-        SelectedInstructionKind::Store { .. } => MachineSemanticKind::Store,
-        SelectedInstructionKind::AddressOffset { .. } => MachineSemanticKind::AddressOffset,
-        SelectedInstructionKind::Store64 { .. } => MachineSemanticKind::Store64,
-        SelectedInstructionKind::FrameAddress { .. } => MachineSemanticKind::FrameAddress,
-        SelectedInstructionKind::CallUnit { .. } => MachineSemanticKind::CallUnit,
-    };
+    let semantic = machine_semantic_kind(instruction.kind);
     let declarations = catalog
         .catalog()
         .declarations
@@ -322,3 +272,6 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         return_unit: keys.return_unit,
     }
 }
+
+#[cfg(test)]
+mod tests;
