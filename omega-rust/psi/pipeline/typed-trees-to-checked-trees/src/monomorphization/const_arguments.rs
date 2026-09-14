@@ -212,13 +212,13 @@ fn validate_arguments(
                     program.symbols.get(argument.symbol).kind,
                     SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
                 );
-            if !candidate.const_parameters.is_empty()
-                && candidate.type_parameters.is_empty()
+            if !candidate.template.const_parameters.is_empty()
+                && candidate.template.type_parameters.is_empty()
                 && type_shaped
             {
                 return Err(Diagnostic::error(format!(
                     "machine `{}` requires a const value, not type `{}`",
-                    candidate.template_name,
+                    candidate.template.template_name,
                     argument.display_name()
                 )));
             }
@@ -226,12 +226,15 @@ fn validate_arguments(
             // const specialization path and ordinary runtime subjects through
             // the dynamic realization path. Anything else spelled here is
             // neither.
-            if candidate.value_const_parameters.contains(&const_index)
+            if candidate
+                .template
+                .value_const_parameters
+                .contains(&const_index)
                 && argument.application.is_none()
                 && argument.evidence_projection.is_none()
                 && !type_shaped
             {
-                let parameter_name = &candidate.const_parameters[const_index].1;
+                let parameter_name = &candidate.template.const_parameters[const_index].1;
                 if is_runtime_value_subject(program, argument) {
                     const_index += 1;
                     continue;
@@ -239,17 +242,18 @@ fn validate_arguments(
                 return Err(Diagnostic::error(format!(
                     "value parameter `{parameter_name}` of machine `{}` received `{}`, which \
                      is neither a static const value nor an ordinary runtime value subject",
-                    candidate.template_name,
+                    candidate.template.template_name,
                     argument.display_name()
                 )));
             }
             continue;
         }
-        let Some((_, parameter_name, required)) = candidate.const_parameters.get(const_index)
+        let Some((_, parameter_name, required)) =
+            candidate.template.const_parameters.get(const_index)
         else {
             return Err(Diagnostic::error(format!(
                 "machine `{}` has no const parameter for extra argument `{}`",
-                candidate.template_name,
+                candidate.template.template_name,
                 argument.display_name()
             )));
         };
@@ -268,7 +272,7 @@ fn validate_arguments(
         {
             return Err(Diagnostic::error(format!(
                 "const parameter `{parameter_name}` of `{}` requires `{}`, but `{}` declares `{}`",
-                candidate.template_name,
+                candidate.template.template_name,
                 program.display_type_reference(*required),
                 argument.display_name(),
                 program.display_type_reference(actual)
@@ -291,8 +295,9 @@ pub(super) fn validate_bindings(
     program: &TypedTrees,
     candidate: &Candidate,
 ) -> Result<(), Diagnostic> {
-    let machine = &program.machines()[candidate.machine_index];
+    let machine = &program.machines()[candidate.template.machine_index];
     for (index, ((symbol, _, _), binding)) in candidate
+        .template
         .const_parameters
         .iter()
         .zip(&candidate.const_bindings)
@@ -315,7 +320,7 @@ pub(super) fn validate_bindings(
         };
         validation::validate_closed_const_argument(
             program,
-            &candidate.template_name,
+            &candidate.template.template_name,
             parameter,
             *binding,
         )

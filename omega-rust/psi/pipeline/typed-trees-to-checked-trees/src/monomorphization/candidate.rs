@@ -1,8 +1,8 @@
-use super::{CalleeState, Candidate};
+use super::{CalleeState, Candidate, CandidateTemplate};
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 
-pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candidate {
+pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candidate<'static> {
     let machine = &program.machines()[machine_index];
     let parameters = program.machine_type_parameters(machine);
     let mut type_parameters = Vec::new();
@@ -56,33 +56,35 @@ pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candid
         .cloned()
         .collect::<Vec<_>>();
     Candidate {
-        machine_index,
-        template_symbol: machine.symbol,
-        template_name: machine.name.as_str().to_owned(),
-        state_symbols: program
-            .machine_states(machine)
-            .iter()
-            .map(|state| state.symbol)
-            .collect(),
         type_bindings: vec![None; type_parameters.len()],
         const_bindings: vec![None; const_parameters.len()],
         runtime_value_bindings: vec![None; const_parameters.len()],
         machine_bindings: vec![None; machine_parameters.len()],
         evidence_bindings: vec![None; evidence_parameters.len()],
-        type_parameters,
-        parameter_bounds,
-        conformance_bounds: machine.conformance_bounds.clone(),
-        const_parameters,
-        value_const_parameters,
-        machine_parameters,
-        evidence_parameters,
+        template: std::borrow::Cow::Owned(CandidateTemplate {
+            machine_index,
+            template_symbol: machine.symbol,
+            template_name: machine.name.as_str().to_owned(),
+            state_symbols: program
+                .machine_states(machine)
+                .iter()
+                .map(|state| state.symbol)
+                .collect(),
+            type_parameters,
+            parameter_bounds,
+            conformance_bounds: machine.conformance_bounds.clone(),
+            const_parameters,
+            value_const_parameters,
+            machine_parameters,
+            evidence_parameters,
+        }),
         inferred_conformance_arguments: Vec::new(),
         selected_bound_applications: Vec::new(),
         conflicted: false,
     }
 }
 
-pub(super) fn collect(program: &TypedTrees) -> Vec<Candidate> {
+pub(super) fn collect(program: &TypedTrees) -> Vec<Candidate<'static>> {
     program
         .machines()
         .iter()
@@ -98,7 +100,7 @@ pub(super) fn callees(program: &TypedTrees, candidates: &[Candidate]) -> Vec<Cal
         .enumerate()
         .flat_map(|(candidate_index, candidate)| {
             program
-                .machine_states(&program.machines()[candidate.machine_index])
+                .machine_states(&program.machines()[candidate.template.machine_index])
                 .iter()
                 .map(move |state| CalleeState {
                     symbol: state.symbol,

@@ -77,7 +77,7 @@ fn recursive_instances_keep_each_tuples_own_state_and_template_commitment() {
             .is_empty()
     );
     for receipt in &program.machine_specializations {
-        assert_ne!(receipt.instance, template.template_symbol);
+        assert_ne!(receipt.instance, template.template.template_symbol);
         assert_eq!(receipt.canonical_template_contract_bytes, contract);
         let machine = program
             .machines()
@@ -297,4 +297,82 @@ fn nested_generic_reference_forwarding_only_specializes_the_closed_caller() {
     );
     assert!(!relay_instance.is_public);
     assert!(!inspect_instance.is_public);
+}
+
+#[test]
+fn selected_applications_borrow_template_metadata_without_sharing_binding_mutation() {
+    let program = typed(
+        "machine identity<T [copy]>(value: T) -> T { value }
+         machine caller(value: u8) -> u8 { identity(value) }",
+    );
+    let candidates = candidate::collect(&program);
+    let callees = candidate::callees(&program, &candidates);
+    let contracts = contract_expression_handles(&program);
+    let selections = collect_call_selections(&program, &candidates, &callees, &contracts);
+    let selection = selections
+        .iter()
+        .find(|selection| selection.is_complete())
+        .expect("closed call");
+    let template = &candidates[selection.candidate_index];
+    let mut first = candidate_for_selection(template, selection);
+    let second = candidate_for_selection(template, selection);
+    assert!(std::ptr::eq(
+        first.template.as_ref(),
+        template.template.as_ref()
+    ));
+    assert!(std::ptr::eq(
+        second.template.as_ref(),
+        template.template.as_ref()
+    ));
+    assert_ne!(first.type_bindings.as_ptr(), second.type_bindings.as_ptr());
+    first.type_bindings[0] = None;
+    assert!(second.type_bindings[0].is_some());
+    assert!(selection.type_bindings[0].is_some());
+    assert!(template.type_bindings[0].is_none());
+}
+
+#[test]
+fn runtime_call_subject_collection_matches_lexical_owner_lookup() {
+    let program = typed(
+        "machine recurse<Count: u32>(value: u32) -> u32 {
+             let next: u32 = value;
+             recurse<next>(recurse<value>(value))
+         }",
+    );
+    let machine = &program.machines()[0];
+    let states = program.machine_states(machine);
+    let state_symbols = states
+        .iter()
+        .map(|state| (state.symbol, state.symbol))
+        .collect::<Vec<_>>();
+    let calls = cloned_runtime_call_subjects(&program, machine.states, &state_symbols, 0);
+    assert!(calls.len() >= 2);
+    for (expression, actual) in &calls {
+        let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
+            panic!("retained call");
+        };
+        let owner = states
+            .iter()
+            .find(|state| {
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .any(|statement| {
+                        let mut expressions = Vec::new();
+                        collect_statement_expression_trees(&program, statement, &mut expressions);
+                        expressions.contains(expression)
+                    })
+            })
+            .expect("lexical owner");
+        assert_eq!(
+            *actual,
+            runtime_value_subjects(&program, owner, &call.machine_arguments)
+        );
+    }
+    let after_region = program.expression_table.iter_expressions().count();
+    assert!(
+        cloned_runtime_call_subjects(&program, machine.states, &state_symbols, after_region)
+            .is_empty()
+    );
 }

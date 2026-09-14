@@ -30,7 +30,7 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
         if !sites.contains(&selection.site) || !selection.is_complete()
             // Lexical self-state remapping happens during cloning. An exact
             // cross-instance self call needs replay after that remapping.
-            || candidate.template_symbol == machine.symbol
+            || candidate.template.template_symbol == machine.symbol
         {
             continue;
         }
@@ -38,6 +38,7 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
             continue;
         };
         let Some(state_offset) = candidate
+            .template
             .state_symbols
             .iter()
             .position(|symbol| *symbol == selection.callee_symbol)
@@ -113,7 +114,7 @@ pub(super) fn selected_instance<'program>(
     super::validate_candidate_conformance_bounds(source, &mut concrete).ok()?;
     applications.extend(concrete.selected_bound_applications);
     program.machine_specializations.iter().find(|instance| {
-        instance.template == candidate.template_symbol
+        instance.template == candidate.template.template_symbol
             && instance.type_argument_identities == type_arguments
             && instance.const_argument_identities == const_arguments
             && instance.machine_arguments == machine_arguments
