@@ -8,10 +8,11 @@ use terminal_psi::{
     ByteSequenceCarrier, StructuralCaseDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+use super::CodecError;
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::structural_field_wire::{decode_structural_field, encode_structural_field};
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted};
+use crate::wire::decode_counted;
 
 pub(super) fn encode_structural_type(
     writer: &mut Writer,

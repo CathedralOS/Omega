@@ -7,9 +7,10 @@ use terminal_psi::{
     ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema,
 };
 
+use super::CodecError;
 use super::structural_signature_wire::encode_service_ceiling;
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted, decode_ids, decode_optional_id, encode_optional_id};
+use crate::wire::{decode_counted, decode_ids, decode_optional_id, encode_optional_id};
 
 pub(super) fn encode(
     writer: &mut Writer,

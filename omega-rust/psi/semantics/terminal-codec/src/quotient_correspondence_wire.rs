@@ -14,8 +14,9 @@ use language_semantics::quotient_correspondence::{
 };
 use terminal_psi::{RetainedQuotientCorrespondence, retain_non_executable_quotient_correspondence};
 
+use super::CodecError;
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted};
+use crate::wire::decode_counted;
 
 pub(super) fn encode_quotient_correspondence(
     writer: &mut Writer,

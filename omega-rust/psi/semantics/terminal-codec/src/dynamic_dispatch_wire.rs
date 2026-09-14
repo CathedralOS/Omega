@@ -9,9 +9,11 @@ use terminal_psi::{
     TerminalStoredDynamicDispatch,
 };
 
+use super::CodecError;
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted, decode_structural_arguments, encode_structural_arguments};
+use crate::structural_place_wire::{decode_structural_arguments, encode_structural_arguments};
 use crate::structural_signature_wire::{decode_structural_access, encode_structural_access};
+use crate::wire::decode_counted;
 
 pub(super) fn encode_dynamic_descriptor_parameters(
     writer: &mut Writer,

@@ -18,16 +18,15 @@ use terminal_psi::{
     StructuralPathQualification,
 };
 
+use super::CodecError;
 use super::content_wire::{
     decode_content_conservation_guarantee, encode_content_conservation_guarantee,
 };
 use super::contract_wire::{decode_crash_routes, encode_crash_routes};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::wire::{Reader, Writer};
-use super::{
-    CodecError, decode_counted, decode_ids, decode_optional_id, decode_structural_path,
-    encode_optional_id, encode_structural_path,
-};
+use crate::structural_place_wire::{decode_structural_path, encode_structural_path};
+use crate::wire::{decode_counted, decode_ids, decode_optional_id, encode_optional_id};
 
 pub(super) fn encode_boundary_machine(
     writer: &mut Writer,

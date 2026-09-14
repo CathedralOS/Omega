@@ -21,7 +21,8 @@ use terminal_verifier::{
 use super::proposition_wire::{decode_proposition, encode_proposition};
 use super::trust_graph::{TerminalTrustGraphIdentity, ValidatedTerminalTrustGraph};
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted, terminal_psi_identity};
+use super::{CodecError, terminal_psi_identity};
+use crate::wire::decode_counted;
 
 const MAGIC: &[u8; 8] = b"PSIOBLG\0";
 const FORMAT_MARKER: u16 = 3;

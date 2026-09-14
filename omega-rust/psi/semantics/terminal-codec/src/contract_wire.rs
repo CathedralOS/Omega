@@ -11,8 +11,9 @@ use terminal_psi::{
 };
 
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted, decode_proposition, encode_proposition};
-use super::{decode_structural_arguments, encode_structural_arguments};
+use super::{CodecError, decode_proposition, encode_proposition};
+use crate::structural_place_wire::{decode_structural_arguments, encode_structural_arguments};
+use crate::wire::decode_counted;
 
 pub(super) fn encode_successor_edge(
     writer: &mut Writer,

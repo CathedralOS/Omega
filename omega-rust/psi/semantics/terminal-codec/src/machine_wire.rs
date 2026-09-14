@@ -12,6 +12,7 @@ use terminal_psi::{
     TerminalRankedSuccessorArgument, TerminalUnsignedCountdownScc, ValueDeclaration,
 };
 
+use super::CodecError;
 use super::content_wire::{
     decode_content_entry_claim, decode_content_identity_reshuffle,
     decode_content_partition_composition, encode_content_entry_claim,
@@ -27,11 +28,11 @@ use super::structural_signature_wire::{
     decode_structural_parameters, encode_service_ceiling, encode_structural_parameters,
 };
 use super::wire::{Reader, Writer};
-use super::{
-    CodecError, decode_counted, decode_ids, decode_optional_id, decode_structural_path,
-    decode_structural_place_kind, encode_optional_id, encode_structural_path,
+use crate::structural_place_wire::{
+    decode_structural_path, decode_structural_place_kind, encode_structural_path,
     encode_structural_place_kind,
 };
+use crate::wire::{decode_counted, decode_ids, decode_optional_id, encode_optional_id};
 
 #[cfg(test)]
 mod tests;

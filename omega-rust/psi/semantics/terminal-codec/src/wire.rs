@@ -150,3 +150,47 @@ impl<'bytes> Reader<'bytes> {
         T::new(raw).ok_or(CodecError::ZeroIdentity(label))
     }
 }
+
+pub(crate) fn encode_optional_id<I: PsiSemanticId>(writer: &mut Writer, id: Option<I>) {
+    match id {
+        None => writer.u8(0),
+        Some(id) => {
+            writer.u8(1);
+            writer.id(id);
+        }
+    }
+}
+
+pub(crate) fn decode_counted<T>(
+    reader: &mut Reader<'_>,
+    mut decode: impl FnMut(&mut Reader<'_>) -> Result<T, CodecError>,
+) -> Result<Vec<T>, CodecError> {
+    let count = reader.count()?;
+    let count = usize::try_from(count).map_err(|_| CodecError::UnexpectedEnd)?;
+    if count > reader.remaining() {
+        return Err(CodecError::UnexpectedEnd);
+    }
+    let mut values = Vec::with_capacity(count);
+    for _ in 0..count {
+        values.push(decode(reader)?);
+    }
+    Ok(values)
+}
+
+pub(crate) fn decode_ids<I: PsiSemanticId>(
+    reader: &mut Reader<'_>,
+    label: &'static str,
+) -> Result<Vec<I>, CodecError> {
+    decode_counted(reader, |reader| reader.id(label))
+}
+
+pub(crate) fn decode_optional_id<I: PsiSemanticId>(
+    reader: &mut Reader<'_>,
+    label: &'static str,
+) -> Result<Option<I>, CodecError> {
+    match reader.u8()? {
+        0 => Ok(None),
+        1 => Ok(Some(reader.id(label)?)),
+        tag => Err(CodecError::InvalidTag("OptionalSemanticId", tag)),
+    }
+}

@@ -12,8 +12,9 @@ use terminal_psi::{
     PropositionDeclaration, PropositionEvidence,
 };
 
+use super::CodecError;
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted};
+use crate::wire::decode_counted;
 
 pub(super) fn encode_proposition_declaration(
     writer: &mut Writer,
