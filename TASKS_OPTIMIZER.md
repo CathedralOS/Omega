@@ -313,7 +313,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   incoming-activation read against the validated frame geometry through the
   same publication boundary on all four targets
   (`register_arity::stack_argument_calls_replay_frame_accesses_through_callable_publication`).
-  Acceptance: every admitted frame policy replays its exact physical accesses
+  Probing is landed: a caller whose outgoing ABI area exceeds one
+  stack-commit granule commits its frame through an exact per-granule
+  touch roster recorded in the validated layout, emitted as
+  move-and-touch chunks by the x86-64 frame protocol, and replayed
+  through ordinary callable publication on linux_x64 and windows_x64
+  (`stack_probe_commit::wide_outgoing_area_commits_through_exact_probe_roster_and_publication`);
+  the AArch64 targets record the roster demand and keep rejecting frames
+  their single-instruction prologue cannot encode. Acceptance: every
+  admitted frame policy replays its exact physical accesses
   through callable publication; requirements artifacts remain
   non-authoritative until that replay succeeds.
 
