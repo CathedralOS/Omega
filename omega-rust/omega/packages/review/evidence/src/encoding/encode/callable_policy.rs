@@ -5,24 +5,14 @@ mod row;
 pub(super) use behavior::{crash_route, termination};
 pub(in crate::encoding) use row::encode_callable;
 
-use super::{
-    declarations::{encode_conformance_bound, encode_type_identity},
-    encoder::Encoder,
-    public_api::type_parameter as encode_type_parameter,
-    values::{
-        contracts::encode_callable_contract,
-        declarations::encode_operator_coordinate,
-        effects::{encode_installation_reach, encode_synchronous_invocation},
-        identity::{encode_nominal, encode_supply},
-    },
-};
+use super::declarations::encode_type_identity;
+use super::encoder::Encoder;
+use super::public_api::type_parameter as encode_type_parameter;
+use super::values::identity::encode_nominal;
 use crate::encoding::{
     CALLABLE_POLICY_MAGIC, PACKAGE_CALLABLE_POLICY_VERSION, PackageReviewEncodingError,
 };
-use crate::record::{
-    PackagePolicyCallable, PackagePolicyCallableConformance, PackagePolicyCallableRole,
-    PackagePolicyCallables, PackageReviewCheckedServiceReach,
-};
+use crate::record::{PackagePolicyCallableConformance, PackagePolicyCallables};
 
 impl PackagePolicyCallables {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
