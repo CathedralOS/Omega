@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    CheckedScalarSuccessor, CheckedStructuralControlTransferSourcePlan,
+    CheckedStructuralScalarArgumentSourcePlan, CheckedTrees, ExpressionHandle, Multiplicity,
+    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    PermissionProvenance, SymbolHandle, authored_state, transition_permission_source, validate,
+    validate_affine_permission,
+};
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
 fn fixture(copyable: bool, ranked: bool) -> CheckedTrees {

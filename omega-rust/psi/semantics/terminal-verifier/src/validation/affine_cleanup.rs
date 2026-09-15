@@ -1,7 +1,13 @@
 //! Validates exact partial and nominal affine cleanup shape and custody.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, BlockId, CanonicalStructuralPathSegment, MachineId, ModuleError,
+    OperationKind, OperationResult, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralAccess,
+    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind,
+    StructuralTypeId, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, is_partial_affine_path,
+    partial_affine_residuals, partial_affine_root_type, resolve_structural_path,
+};
 mod continuation;
 
 pub(super) fn nominal_cleanup_contract_receiver(

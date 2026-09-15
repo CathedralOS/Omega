@@ -1,6 +1,9 @@
 //! Authored result binding and return custody for the boundary-return route.
-
-use super::*;
+use super::super::{CheckedScalarExpression, CheckedScalarExpressionRole, PrimitiveType};
+use super::{
+    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+    LoweringError, checked_requirements, memberships, terminal_scalar_type, unsupported,
+};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 

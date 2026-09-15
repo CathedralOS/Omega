@@ -7,8 +7,10 @@
 //! validation/cloning and share arithmetic work across the whole outcome check.
 //! Unsupported or exhausted evaluation cannot become a false route or authorize
 //! a crash. This adds neither a normal-return guarantee nor a provider inference.
-
-use super::*;
+use super::{
+    BoundaryMachineDeclaration, CrashRouteGuard, ModuleError, Proposition, ScalarTerm, ScalarType,
+    substitute_proposition_values, validate_boundary_crash_routes,
+};
 use proof_admission::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
 use terminal_psi::CrashCause;
 

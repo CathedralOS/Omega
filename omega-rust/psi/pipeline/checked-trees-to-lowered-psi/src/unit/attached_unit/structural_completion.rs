@@ -2,8 +2,10 @@
 //! or fresh-constructor route. Producers validate construction/call/selection
 //! custody; this boundary checks the authored return and complete statement
 //! coverage before an ordinary result can leave its enclosing machine.
-
-use super::*;
+use super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan, LoweringError, Multiplicity, unsupported,
+};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{CheckedArrayConstructionSource, CheckedStructuralAccess};

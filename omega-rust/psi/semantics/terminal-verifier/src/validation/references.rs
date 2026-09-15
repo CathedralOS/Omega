@@ -3,8 +3,12 @@
 //! Origins and immediate parents are reconstructed from operations and checked
 //! call interfaces. No producer-supplied lifetime or origin table is authority.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, PlaceId, StructuralAccess,
+    StructuralArgument, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
+    Terminator,
+};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct ReferenceIdentity {
     place: PlaceId,

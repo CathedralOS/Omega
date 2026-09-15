@@ -1,7 +1,8 @@
 //! Rejoin a computation root through the shared authored scalar locator.
 
-use super::*;
-
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, Computation, LoweringError, Site, unsupported,
+};
 pub(super) fn validate(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,

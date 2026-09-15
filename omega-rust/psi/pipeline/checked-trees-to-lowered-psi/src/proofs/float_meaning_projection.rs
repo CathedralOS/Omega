@@ -458,6 +458,15 @@ pub enum FloatMeaningProjectionLoweringError {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        BlockId, CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionError,
+        CheckedFloatProjectionSource, CheckedProofOnlyValueType, DirectBlockFloatParameter,
+        DirectMachineFloatParameter, DirectMachineFloatResult, FloatMeaningProjectionLoweringError,
+        FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
+        FloatProjectionInputId, IeeeFloatFormat, MachineId, PrimitiveType, ProofValueId,
+        ScalarType, TerminalMachine, TerminalMachineResult, lower_float_meaning_projection,
+        resolve_direct_float_source_binding,
+    };
     use checked_trees::{
         CheckedDirectBlockFloatParameter, CheckedDirectMachineFloatParameter,
         CheckedDirectMachineFloatResult, CheckedFloatProjectionInput,
@@ -471,8 +480,6 @@ mod tests {
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
-
-    use super::*;
 
     fn checked_projection() -> CheckedFloatMeaningProjection {
         CheckedFloatMeaningProjection {

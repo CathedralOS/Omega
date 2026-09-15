@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+    check_certificate, implications, polarity_certificate,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 use terminal_semantics::{OperationSemanticError, goal_free_scalar_leaf_semantics};

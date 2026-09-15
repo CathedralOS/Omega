@@ -1,6 +1,15 @@
 //! Selected payload bindings feed the ordinary successor argument path.
-
-use super::*;
+use super::super::super::super::{
+    CheckedComposedUnitControlTerminatorPlan, StructuralAccess, StructuralCaseId,
+    StructuralFieldId, StructuralParameterDeclaration,
+};
+use super::super::super::{
+    CheckedUnitEffectOperationPlan, OperationResult, PlaceId, StructuralMultiplicity,
+    StructuralTypeShape, ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported,
+    value_id,
+};
+use super::super::{LoweringError, catalogs};
+use super::{CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 pub(super) struct PreparedCase<'a> {

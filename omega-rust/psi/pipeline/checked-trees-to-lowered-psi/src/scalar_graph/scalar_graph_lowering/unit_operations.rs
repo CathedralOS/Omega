@@ -1,6 +1,8 @@
 //! Rejoin ordered Unit statements and lower their existing checked call rows.
-
-use super::*;
+use super::{
+    CheckedTrees, LoweringError, Multiplicity, QualifiedScalarType, source_custody, storage,
+    terminal_scalar_type, unsupported,
+};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredUnitCall;

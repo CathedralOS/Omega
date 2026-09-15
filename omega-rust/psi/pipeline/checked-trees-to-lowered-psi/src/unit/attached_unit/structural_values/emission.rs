@@ -1,4 +1,15 @@
-use super::*;
+use super::super::super::{
+    BlockId, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, SuccessorEdge, ValueId, block_id,
+};
+use super::super::{
+    Block, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError,
+    Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ScalarType,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense, argument_evaluation,
+    edge_id, lookup_type_id, lower_structural_path, place_id, unsupported, value_id,
+};
+use super::{CheckedTrees, source_custody};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;

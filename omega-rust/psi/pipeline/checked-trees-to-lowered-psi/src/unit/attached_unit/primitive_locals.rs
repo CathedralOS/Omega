@@ -1,6 +1,12 @@
 //! Initialized primitive referents retain authored identity apart from SSA locals.
-
-use super::*;
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
+    ScalarType, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, ValueDeclaration, allocate_dense,
+    direct_expression_contains_short_circuit, emit_direct_expression, parameters, place_id,
+    terminal_scalar_type, unsupported, validate_direct_parameter_types,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::statement::{StatementNode, TableLocalData};

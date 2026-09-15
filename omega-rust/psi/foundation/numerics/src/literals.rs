@@ -474,7 +474,9 @@ fn split_radix(unsigned: &str) -> (u32, &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType,
+    };
 
     #[test]
     fn canonicalization_is_spelling_insensitive_within_a_radix() {

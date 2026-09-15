@@ -1,8 +1,12 @@
 //! Complete a field's RHS before mutating its current local home. Writes use the
 //! same declaration-based field geometry as parameter stores; local identity is
 //! resolved in the ordered namespace so copies and moved homes stay distinct.
-
-use super::*;
+use super::super::{StructuralFieldId, StructuralFieldType};
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, PlaceId, QualifiedScalarType,
+    StructuralPathSegment, StructuralTypeDeclaration, computations, source_custody, storage,
+    terminal_scalar_type, unsupported,
+};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{

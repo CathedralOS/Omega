@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
+    ExpressionHandle, ExpressionNode, LoweringError, Multiplicity, PrimitiveType, ReadScope,
+    StatementNode, authored_state, collect_authored_storage_reads, validate_entry_read_expression,
+    validate_expression, validate_normal_result_read_expression,
+};
 use checked_trees::{CheckedIntegerComparisonKind, CheckedStructuralPredicatePathSegment};
 
 fn fixture(body: &str, result: &str) -> CheckedTrees {

@@ -1,6 +1,11 @@
 //! Pre-Terminal Psi optimization entrance regressions.
-
-use super::*;
+use super::{
+    BTreeSet, ContractClause, DebugSite, DebugSubject, IntegerValue, LoweredPsi, ObligationId,
+    Operation, OperationId, OperationKind, OperationResult, Proposition, PsiOptimizationStageError,
+    ScalarType, TerminalMachineResult, Terminator, ValueDeclaration, ValueId, checked_source,
+    finalize_terminal_artifact, hard_root_checked_fixture, lower_machine, run_psi_optimization,
+    terminal_psi_identity,
+};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 
 #[test]

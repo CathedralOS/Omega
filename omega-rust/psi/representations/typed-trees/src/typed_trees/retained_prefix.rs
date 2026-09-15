@@ -168,7 +168,7 @@ pub(crate) fn arena_is_exact_prefix<T: Default + PartialEq>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Arena, TypedTrees, arena_is_exact_prefix};
     use crate::expression::ExpressionNode;
     use crate::machine::Machine;
 

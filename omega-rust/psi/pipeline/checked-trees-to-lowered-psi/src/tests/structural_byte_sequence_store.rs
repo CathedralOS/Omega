@@ -1,7 +1,12 @@
 //! Source admission for whole bounded byte-field replacement.
 
-use super::*;
-
+use super::{
+    Block, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralPathSegment, IntegerValue, Lexer, OperationKind, ResolutionRequest,
+    ScalarType, StructuralPathSegment, SuccessorEdge, Terminator, ValueDeclaration, block_id,
+    checked_source, edge_id, lower_machine, lower_symbol_resolved_trees, lower_typed_trees,
+    parse_syntax_trees, resolve, value_id,
+};
 #[test]
 fn replaced_byte_field_length_reaches_canonical_interpretation() {
     let checked = checked_source(

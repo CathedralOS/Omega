@@ -1,7 +1,10 @@
 //! Claim-bearing composed Unit control and independent corruption replay.
 
-use super::*;
-
+use super::{
+    CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, OperationKind, StructuralAccess,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, Terminator,
+    checked_source, lower_machine,
+};
 fn checked_composed_claim() -> checked_trees::CheckedTrees {
     checked_source(
         r#"

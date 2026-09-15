@@ -1,6 +1,11 @@
 //! Reference carriers retain ingress provenance and the exact source loan end.
-
-use super::*;
+use super::super::StructuralArgument;
+use super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan, LoweringError, Multiplicity, Operation, OperationKind,
+    OperationResult, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, allocate_dense, lookup_type_id, place_id, unsupported,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;

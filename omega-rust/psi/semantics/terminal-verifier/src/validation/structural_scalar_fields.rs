@@ -1,6 +1,10 @@
 //! Scalar-field mutation and observation under exact structural authority.
-
-use super::*;
+use super::{
+    ModuleError, OperationId, OperationKind, PlaceId, ScalarType, StructuralAccess,
+    StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, TerminalModule, resolve_structural_path,
+};
 use terminal_psi::is_bounded_structural_scalar_store_path;
 
 fn parameter_for(

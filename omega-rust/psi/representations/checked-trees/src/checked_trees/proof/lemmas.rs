@@ -79,7 +79,9 @@ impl LemmaFacts {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Arena, LemmaFacts, ProofLemmaFact, ProofLemmaKind, QuantifiedBoundFact, QuantifiedRangeFact,
+    };
 
     #[test]
     fn lemma_facts_constructor_keeps_roots_explicit() {

@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    ConditionFact, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId, condition_fact,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use std::collections::BTreeMap;
 

@@ -1,6 +1,9 @@
 //! Boolean and relevant structural-field runtime-input custody.
-
-use super::*;
+use super::super::{StructuralFieldType, StructuralMultiplicity, StructuralTypeShape, unsupported};
+use super::{
+    BTreeSet, LoweringError, ScalarType, SharedBooleanRuntimeInput, StructuralParameterDeclaration,
+    StructuralTypeDeclaration,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 
 pub(super) fn valid_shared_boolean_runtime_inputs(

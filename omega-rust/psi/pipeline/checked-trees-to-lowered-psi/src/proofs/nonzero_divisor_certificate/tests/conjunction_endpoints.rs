@@ -1,6 +1,8 @@
 //! Direct arithmetic endpoints retain their original conjunction citations.
-
-use super::*;
+use super::{
+    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, ValueId, prove_canonical_integer_proposition, value,
+};
 use proof_admission::check_certificate;
 use semantic_vocabulary::IntegerMathTerm;
 

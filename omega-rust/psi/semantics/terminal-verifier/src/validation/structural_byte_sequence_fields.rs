@@ -1,7 +1,11 @@
 //! Exact bounded field metadata and indexed mutation custody.
 
-use super::*;
-
+use super::{
+    IntegerSign, IntegerType, ModuleError, OperationKind, OperationResult, PlaceId, ScalarType,
+    StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
+    StructuralPathSegment, StructuralPlaceKind, StructuralTypeShape, TerminalMachine,
+    TerminalModule, resolve_structural_path,
+};
 mod freshness;
 pub(crate) use freshness::replacement_length_equation;
 pub(crate) use freshness::view_length_is_current;

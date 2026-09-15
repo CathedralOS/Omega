@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AtomicUsize, BTreeMap, CertificateEnvelope, EvidenceIdentity, EvidenceRoute, LoweredPsi,
+    LoweringError, ObligationEvidence, Ordering, PARALLEL_PROOF_THRESHOLD, ProofSystemMarker,
+    Proposition, finalize_operation_proofs, finalize_operation_proofs_inner, lower_machine,
+    obligation_id, produce_checked_canonical_integer_proof,
+};
 use crate::terminal_identities::block_id;
 
 fn fixture(obligation_count: usize) -> LoweredPsi {

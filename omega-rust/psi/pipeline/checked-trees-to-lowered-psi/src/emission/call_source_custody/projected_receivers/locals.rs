@@ -1,6 +1,8 @@
 //! Local receiver loans retain the established result's original storage.
-
-use super::*;
+use super::{
+    CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, ReceiverSource, SymbolHandle,
+    unsupported,
+};
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitCallCoordinate, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan,

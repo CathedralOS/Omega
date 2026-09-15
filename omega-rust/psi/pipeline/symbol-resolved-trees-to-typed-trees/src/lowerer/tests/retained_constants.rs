@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    lower_seeded_extension, retained_typed_base_is_exact_prefix, seeded_plain_data_inputs,
+};
 use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
 
 fn resolved_local(program: &SymbolResolvedTrees, local_name: &str) -> ExpressionHandle {

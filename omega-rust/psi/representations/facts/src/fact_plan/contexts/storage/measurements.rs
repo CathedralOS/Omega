@@ -1,10 +1,11 @@
+use super::{
+    Arena, ContextGroup, ContextLink, FactContext, FactContextGroup, FactContexts, ProgramPoint,
+};
 use std::hint::black_box;
 use std::time::Instant;
 
 use arena::HandleSpan;
 use symbols::SymbolHandle;
-
-use super::*;
 
 /// Compares the former three-lookups-per-entry route with retained declaration
 /// groups, including preparation and repeated context-store clones. Other flow

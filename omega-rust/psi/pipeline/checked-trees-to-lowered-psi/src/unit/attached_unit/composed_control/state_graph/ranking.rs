@@ -1,6 +1,8 @@
 //! Retain the selected source view as natural ranks over the emitted graph.
-
-use super::*;
+use super::super::super::super::{BlockId, IntegerType, PrimitiveType, TerminalRankedScc, ValueId};
+use super::super::super::{OperationResult, ScalarType, TerminalMachine, Terminator, unsupported};
+use super::super::{CheckedTrees, LoweringError};
+use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use checked_trees::CheckedNaturalRankMeasure;
 use std::collections::BTreeMap;
 use terminal_psi::{

@@ -2,7 +2,11 @@
 //! or control it pins down, per the board's discriminating-control contract.
 
 use super::term::sorts_equal;
-use super::*;
+use super::{
+    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort,
+    Term, TermArena, TermHandle, assumption_closure, check_signature, check_type, convertible,
+    infer_sort, infer_type, judgment_assumption_closure, shift, substitute, weak_head_normalize,
+};
 
 fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))

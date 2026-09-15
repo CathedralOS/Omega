@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    BTreeSet, ContractClauseKind, ContractId, ModuleError, Proposition, ScalarTerm, ScalarType,
+    StructuralFieldType, TerminalMachine, TerminalModule, ValueId, structural_leaf_type,
+};
 pub(super) fn validate_contract_clause_kind(
     proposition: &Proposition,
     contract: ContractId,

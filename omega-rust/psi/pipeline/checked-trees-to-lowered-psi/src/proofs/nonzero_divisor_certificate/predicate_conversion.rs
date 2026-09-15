@@ -145,7 +145,7 @@ fn retain_original_citations(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BTreeSet, Proposition, PropositionContext, ValueId, prove};
     use proof_admission::{AcceptedProofRule, accept_certificate};
     use semantic_vocabulary::{ScalarTerm, ScalarType};
 

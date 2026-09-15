@@ -30,7 +30,7 @@ pub struct MachineSuspensionFact {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{MachineSuspensionFact, SuspensionFacts, SuspensionPlan, SymbolHandle};
     use language_semantics::SuspensionInterface;
 
     #[test]

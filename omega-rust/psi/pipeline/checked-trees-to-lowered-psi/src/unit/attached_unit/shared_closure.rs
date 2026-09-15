@@ -1,7 +1,9 @@
 //! Joint catalog and identity ownership for Unit bodies beneath external control.
 
-use super::*;
-
+use super::super::{
+    BoundaryMachineId, MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration,
+};
+use super::{LoweredPsi, ScalarType, SemanticDomainId, StructuralDomainId, StructuralTypeId};
 /// Additional roots already selected from the external caller's authored body.
 /// They join ordinary body discovery before any semantic identity is assigned.
 pub(crate) struct ExternalUnitRoots<'a> {

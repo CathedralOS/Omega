@@ -1,6 +1,11 @@
 //! Lower checked branch outcomes through the existing selected-arm value path.
-
-use super::*;
+use super::super::{ClaimId, PermissionClaimIdentity};
+use super::{
+    CheckedScalarBranchDestination, CheckedScalarExpressionRole, CheckedTrees, LoweringError,
+    PreparedScalarQualifications, QualifiedScalarType, StructuralTypeDeclaration, computations,
+    lower_checked_crash_exit, lower_scalar_graph_successor, scalar_carriers, storage,
+    structural_values, unsupported, validate_direct_parameter_types,
+};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,

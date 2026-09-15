@@ -1,6 +1,8 @@
 //! Stored records use exact field identities and current ownership places.
-
-use super::*;
+use super::{
+    OperationKind, PrimitiveType, StructuralAccess, StructuralTypeShape, SymbolHandle,
+    checked_source, lower_machine, obligation_id,
+};
 use checked_trees::CheckedScalarComputationKind;
 
 const SOURCE: &str = "

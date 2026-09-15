@@ -3,8 +3,17 @@
 //! share the linear transfer, returned-claim and callee-content joins. Scalar
 //! types and dominance are checked by ordinary operation validation separately.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, BlockId, BoundaryContentGuarantee, BoundaryMachineDeclaration,
+    CanonicalStructuralPathSegment, ClaimId, ClaimTransfer, CompletionReceipt, CrashPredicateTerm,
+    CrashRouteBucket, CrashRouteGuard, MachineId, ModuleError, OperationId, OperationKind, PlaceId,
+    Proposition, ScalarTerm, ScalarType, ServiceId, StructuralAccess, StructuralArgument,
+    StructuralDomainId, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueId, is_nonempty_field_path, is_partial_affine_path, partial_affine_root_type,
+    propositions, resolve_structural_path, substitute_proposition_structural_places,
+};
 /// Recognize the bounded executable guarded-result carrier whose ordinary
 /// exits each return an exact, claim-free payloadless case. This direct
 /// producer classifier intentionally rejects calls and payload construction;

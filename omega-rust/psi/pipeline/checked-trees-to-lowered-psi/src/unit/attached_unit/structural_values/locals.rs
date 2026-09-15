@@ -1,5 +1,9 @@
 //! Publish a source local only after its exact initializer result exists.
-use super::*;
+use super::super::{
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError, PlaceId,
+    unsupported,
+};
+use super::CheckedTrees;
 use checked_trees::CheckedArrayConstructionSource;
 use checked_trees::statement::StatementNode;
 

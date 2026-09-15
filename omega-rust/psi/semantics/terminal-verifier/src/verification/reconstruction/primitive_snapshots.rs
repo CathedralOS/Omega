@@ -320,7 +320,7 @@ fn charge_work(remaining: &mut usize, machine: MachineId) -> Result<(), ModuleEr
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{MachineId, ModuleError, charge_work};
 
     #[test]
     fn primitive_snapshot_work_exhaustion_rejects_without_wrapping_or_refilling() {

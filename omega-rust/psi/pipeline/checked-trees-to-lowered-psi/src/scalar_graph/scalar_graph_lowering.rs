@@ -1,6 +1,17 @@
 //! Scalar-graph preparation, validation, partial evaluation, and lowering.
-
-use super::*;
+use super::{
+    BTreeSet, CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+    CheckedScalarBranchDestination, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTrees,
+    ClosedScalarContractValue, ClosedScalarValueContractPlan, IeeeFloatFormat, IntegerSign,
+    IntegerType, IntegerValue, LoweredContentIdentityReshuffles,
+    LoweredContentPartitionCompositions, LoweredPsi, LoweringError, Multiplicity, PlaceId,
+    PrimitiveType, QualifiedScalarType, ScalarType, StructuralAccess, StructuralArgument,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, build_scalar_graph_module, finalize_operation_proofs,
+    lower_checked_crash_exit, lower_checked_crash_routes, lower_content_identity_reshuffles,
+    lower_content_partition_compositions, machine_id, scalar_carriers, unsupported,
+};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
@@ -2362,7 +2373,11 @@ pub(crate) fn integer_value(
 
 #[cfg(test)]
 mod primitive_read_tests {
-    use super::*;
+    use super::{
+        IntegerValue, KnownDirectScalar, LoweredBooleanReturnExpression, LoweredDirectExpression,
+        PlaceId, PrimitiveType, evaluate_compile_known_boolean_expression,
+        evaluate_direct_expression, terminal_scalar_type,
+    };
 
     #[test]
     fn primitive_read_values_cannot_be_recovered_from_known_ssa_inputs() {

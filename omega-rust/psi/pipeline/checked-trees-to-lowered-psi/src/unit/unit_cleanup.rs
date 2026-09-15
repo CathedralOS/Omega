@@ -7,8 +7,17 @@
 //! validity-scoped observations, not permanent assumption slots; their available
 //! premises are known only after the complete caller and cleanup edge exist.
 
-use super::*;
-
+use super::{
+    BTreeSet, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError,
+    Multiplicity, NominalAffineCleanup, OperationKind, PrimitiveType, Proposition, ScalarTerm,
+    ScalarType, ServiceReachInterface, ServiceReachPlan, ServiceReachSummary, StructuralFieldType,
+    StructuralMultiplicity, StructuralTypeShape, TerminalMachineResult, Terminator,
+    checked_unit_call_closure_including, dense_identity, lookup_type_id,
+    lower_nominal_cleanup_closure, machine_id, obligation_id, place_id, unique_unit_machine,
+    unsupported,
+};
 mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;

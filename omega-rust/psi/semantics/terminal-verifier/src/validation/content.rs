@@ -1,5 +1,13 @@
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, BoundaryContentGuarantee, BoundaryMachineDeclaration, ClaimId,
+    ContentAlgebra, ContentConservation, ContentPartitionComposition, ContentProjectionIdentity,
+    ContentStructuralPlace, ContentTerm, IdRegistry, MachineId, ModuleError, OperationId,
+    OperationKind, PlaceId, Proposition, PropositionContext, RetainedBorrowContentProjection,
+    RetainedBorrowPlaceRoot, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralRootKey, TerminalMachine, TerminalModule,
+    content_conservation_report_fingerprint, insert_unique,
+};
 pub(super) fn validate_boundary_content_guarantees(
     module: &TerminalModule,
     registry: &mut IdRegistry,
@@ -1005,7 +1013,11 @@ fn content_places_overlap(left: &ContentStructuralPlace, right: &ContentStructur
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ContentAlgebra, ContentConservation, ContentProjectionIdentity, ContentStructuralPlace,
+        ContentTerm, PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind,
+        content_guarantees_alpha_equal,
+    };
 
     fn conservation(root: PlaceId) -> ContentConservation {
         let term = ContentTerm::Projection {

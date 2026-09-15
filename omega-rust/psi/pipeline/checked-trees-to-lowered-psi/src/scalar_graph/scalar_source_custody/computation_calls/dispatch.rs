@@ -1,6 +1,9 @@
 //! Independently reconstruct the exact covered arm prefix from authored syntax.
-
-use super::*;
+use super::{
+    CheckedBooleanExpression, CheckedScalarComputationHandle, CheckedScalarComputationKind,
+    CheckedScalarExpression, CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError,
+    PrimitiveType, authored_expressions, operand_scopes, unsupported,
+};
 use checked_trees::expression::MatchPattern;
 use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
 
@@ -167,7 +170,8 @@ pub(super) fn operands(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::validate_computation_calls;
+    use super::{CheckedScalarComputationKind, CheckedTrees, ExpressionNode};
 
     #[test]
     fn source_scope_rejects_deleted_erasure_before_same_tag_reintroduction() {

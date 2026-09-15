@@ -1,6 +1,13 @@
 //! Rejoin the complete authored body before emitting its ordered effects.
-
-use super::*;
+use super::super::super::super::{
+    CheckedComposedUnitControlTerminatorPlan, StructuralParameterDeclaration,
+};
+use super::super::super::{
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Operation, OperationResult,
+    ValueDeclaration, terminal_scalar_type, unsupported,
+};
+use super::super::{CheckedTrees, LoweringError, catalogs};
+use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::statement::StatementNode;
 

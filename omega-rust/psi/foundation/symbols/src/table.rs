@@ -909,7 +909,10 @@ impl SymbolTableAppender for SymbolTableExtension {
 
 #[cfg(test)]
 mod builtin_function_identity_tests {
-    use super::*;
+    use super::{
+        BUILTIN_TYPE_COUNT, BuiltinFunction, SymbolKind, SymbolNameRef, SymbolTable,
+        SymbolTableBuilder,
+    };
     use crate::{builtin_function_symbols, builtin_type_symbols};
 
     fn builtin_symbol_table(
@@ -1023,7 +1026,7 @@ mod builtin_function_identity_tests {
 
 #[cfg(test)]
 mod source_name_storage_tests {
-    use super::*;
+    use super::{Arc, SourceMap, SourceSpan, SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use source::Span;
 
     #[test]

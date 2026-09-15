@@ -1,7 +1,11 @@
 //! Whole owned successor bindings consume the old roots before establishing new ones.
 
-use super::*;
-
+use super::super::{StructuralArgument, resolve_structural_path};
+use super::{
+    EdgeId, ModuleError, StructuralAccess, StructuralMultiplicity, StructuralOwnershipFrontier,
+    StructuralParameterDeclaration, TerminalMachine, TerminalModule, partial_affine_root_type,
+    projected_root_is_fully_consumed,
+};
 /// Phase one consumes each owned source before the residual and trivial
 /// cleanup for the same edge runs. A projected owned argument moves one
 /// affine child out of a live root: the root records the exact moved path as

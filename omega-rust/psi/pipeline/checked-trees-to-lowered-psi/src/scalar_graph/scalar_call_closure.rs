@@ -1,7 +1,11 @@
 //! Reachable scalar-call closure discovery and terminal module assembly.
 
-use super::*;
-
+use super::{
+    CheckedScalarBindingValue, CheckedTerminalSignatureEligibility, CheckedTrees, LoweredPsi,
+    LoweringError, PrimitiveType, ProofBundle, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalModule,
+    VocabularyMarker, build_scalar_graph_module, machine_id, prepare_scalar_graph_machine,
+    scalar_graph_lowering, unsupported,
+};
 pub(crate) mod callee;
 pub(crate) mod embedded;
 

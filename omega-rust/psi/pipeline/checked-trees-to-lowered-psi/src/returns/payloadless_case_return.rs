@@ -1,7 +1,13 @@
 //! Exact zero-input payloadless structural-case construction and return.
 
-use super::*;
-
+use super::{
+    Block, CheckedTrees, LoweredPsi, LoweringError, MachineContract, Operation, OperationKind,
+    ProofBundle, RESULT_STRUCTURAL_PLACE_ID, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker, block_id, contract_id,
+    edge_id, lookup_type_id, lower_structural_type_plans, machine_id, operation_id, place_id,
+    unsupported,
+};
 pub(crate) fn lower_payloadless_case_return_machine(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedPayloadlessCaseReturnMachinePlan,

@@ -1,7 +1,13 @@
 //! Frame-owned byte arguments distinguish immutable values from field loans.
 
-use super::*;
-
+use super::{
+    BTreeMap, ByteSequenceView, MachineId, PlaceId, StructuralAccess, StructuralArgument,
+    StructuralByteSequenceRuntimeField, StructuralMultiplicity, StructuralPathSegment,
+    StructuralRuntimePlace, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    TerminalExecution, TerminalInterpretError, TerminalMachineResult, TerminalScalarArrayValue,
+    TerminalScalarCaseValue, TerminalStructuralValue, bind_structural_arguments,
+    structural_byte_arrays,
+};
 #[derive(Clone)]
 pub(super) enum ByteSequenceBinding {
     Immutable(ByteSequenceView),

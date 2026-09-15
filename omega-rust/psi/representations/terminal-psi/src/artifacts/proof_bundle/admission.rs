@@ -1,4 +1,4 @@
-use super::*;
+use super::{EvidenceIdentity, PrimitiveJudgment, ProofNode};
 use semantic_vocabulary::{AdmissionSiteId, ProfileDecisionId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

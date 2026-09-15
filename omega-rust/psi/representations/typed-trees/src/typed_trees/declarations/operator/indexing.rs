@@ -1,7 +1,9 @@
 //! Collection-view matching belongs only to indexed syntax, not ordinary calls.
 
-use super::*;
-
+use super::{
+    OperatorSpelling, SpelledOperator, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    operator_matches_operands_with_indexed_collection, resolve_spelling,
+};
 /// Resolve `[]` / `[..]` with an implicit shared collection view in the first
 /// operand. Element bindings and every other operand use the ordinary matcher;
 /// root/domain candidates and ambiguity are retained without ranking.

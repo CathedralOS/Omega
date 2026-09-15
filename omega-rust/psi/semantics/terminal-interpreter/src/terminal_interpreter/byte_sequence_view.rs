@@ -59,7 +59,7 @@ impl ByteSequenceView {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Arc, ByteSequenceView};
 
     #[test]
     fn nested_tails_and_call_clones_share_backing_without_exposing_other_bytes() {

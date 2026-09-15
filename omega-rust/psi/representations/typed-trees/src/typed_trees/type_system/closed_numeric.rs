@@ -425,7 +425,10 @@ pub fn has_builtin_anonymous_operands(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, IntegerValue, PrimitiveType,
+        TypedTrees, evaluate_anonymous_value, land_integer,
+    };
     use crate::expression::TableBinaryExpression;
     use numerics::literals::IntegerLiteral;
 

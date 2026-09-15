@@ -1,7 +1,14 @@
 //! Attached Unit closure and transfer regression families.
 
-use super::*;
-
+use super::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, LoweringError, Multiplicity,
+    OperationKind, PermissionClaimIdentity, StructuralFieldType, StructuralMultiplicity,
+    StructuralPathSegment, StructuralPlaceKind, StructuralTypeShape, Terminator,
+    boundary_machine_id, checked_source, claim_id, edge_id, finalize_operation_proofs,
+    hard_root_checked_fixture, lower_machine, machine_dispatch, machine_id, place_id, service_id,
+    structural_domain_id, unit_claim_at,
+};
 #[test]
 fn array_call_numeric_requirements_use_completed_argument_facts() {
     let checked = checked_source(

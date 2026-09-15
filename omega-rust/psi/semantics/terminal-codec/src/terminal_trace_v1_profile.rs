@@ -608,6 +608,14 @@ fn validate_structural_schema(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        CRASH_ROW_TAG, CrashCause, DOMAIN, ORDINARY_EVENT_ROW_TAG, TerminalObservationSchema,
+        TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind, TerminalTraceResultSchema,
+        TerminalTraceRootRow, TerminalTraceV1Profile, TerminalTraceV1ProfileAcceptanceError,
+        TerminalTraceV1ProfileCodecError, VocabularyMarker, accept_terminal_trace_v1_profile,
+        decode_terminal_trace_v1_profile, encode_raw, encode_terminal_trace_v1_profile,
+        reconstruct_canonical_terminal_trace_v1_profile, terminal_psi_identity,
+    };
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId,
         OperationId, PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind,
@@ -622,8 +630,6 @@ mod tests {
         TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceValueComparison,
         Terminator, ValueDeclaration,
     };
-
-    use super::*;
 
     fn id<T>(raw: u64, make: impl FnOnce(u64) -> Option<T>) -> T {
         make(raw).expect("nonzero test identity")

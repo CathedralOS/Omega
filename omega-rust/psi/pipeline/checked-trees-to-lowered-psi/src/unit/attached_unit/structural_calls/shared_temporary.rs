@@ -1,6 +1,8 @@
 //! Rejoin a temporary owner's establishment, shared loan, and dying continuation.
-
-use super::*;
+use super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, LoweringError, Multiplicity, StatementNode,
+    unsupported,
+};
 use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
     PermissionProvenance,

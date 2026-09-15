@@ -350,7 +350,7 @@ fn emit_direct_call_operation(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CallEmissionContext, LoweringError};
 
     #[test]
     fn call_requirements_cannot_escape_their_reserved_identity_range() {

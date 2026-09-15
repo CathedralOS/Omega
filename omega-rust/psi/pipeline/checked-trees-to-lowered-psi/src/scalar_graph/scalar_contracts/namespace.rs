@@ -1,7 +1,7 @@
 //! Closed scalar contracts use only the supplied entry/result namespace.
 //! A nested body local cannot borrow an equally numbered parameter slot.
 
-use super::{CheckedBooleanExpression, CheckedScalarExpression, LoweringError};
+use super::super::{CheckedBooleanExpression, CheckedScalarExpression, LoweringError};
 
 pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), LoweringError> {
     match predicate {
@@ -76,7 +76,7 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CheckedBooleanExpression, CheckedScalarExpression, validate};
     use checked_trees::{CheckedIntegerBinaryKind, CheckedIntegerComparisonKind};
     use typed_trees::types::PrimitiveType;
 

@@ -1,6 +1,8 @@
 //! Produce certificates for the verifier's exact runtime ranking questions.
-
-use super::*;
+use super::{
+    CertificateEnvelope, EvidenceIdentity, EvidenceRoute, LoweredPsi, LoweringError, ProofNode,
+    ProofRule, ProofSystemMarker,
+};
 use proof_admission::{
     CertificateObligation, RecursiveComponentCertificate, RecursiveEdgeCertificate,
 };

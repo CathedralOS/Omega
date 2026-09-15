@@ -343,7 +343,10 @@ fn zero_valid_byte_field(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckedProgramEntryReceiverProjection, CheckedTrees, StructuralFieldType,
+        StructuralTypeShape, derive,
+    };
     use crate::TerminalProductionRequest;
 
     fn check_source(source: &str) -> CheckedTrees {

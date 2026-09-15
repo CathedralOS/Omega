@@ -169,14 +169,18 @@ impl std::error::Error for NormalizationError {}
 
 #[cfg(test)]
 mod tests {
-    use semantic_vocabulary::{
-        AdmissionSiteId, ObligationId, ProfileDecisionId, Proposition, PropositionId, PsiSemanticId,
+    use super::{
+        AcceptedFactRoute, AdmissionProfile, CertificateObligation, EvidenceRoute,
+        NormalizationCertificate, NormalizationError, NormalizationLawCertificate,
+        NormalizationLawObligation, NormalizationObligation, PropositionContext,
+        verify_normalization,
     };
-
-    use super::*;
     use crate::{
         AdmissionAcceptance, AdmissionEvidence, AdmissionKind, AuthorizedAdmission,
         CertificateEnvelope, Obligation, ObligationClass, ProofNode, ProofRule, ProofSystemMarker,
+    };
+    use semantic_vocabulary::{
+        AdmissionSiteId, ObligationId, ProfileDecisionId, Proposition, PropositionId, PsiSemanticId,
     };
 
     fn id<T: PsiSemanticId>(raw: u64) -> T {

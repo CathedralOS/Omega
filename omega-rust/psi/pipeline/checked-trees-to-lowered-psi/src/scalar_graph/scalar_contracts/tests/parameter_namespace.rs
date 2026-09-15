@@ -1,4 +1,9 @@
-use super::*;
+use super::super::super::{CheckedIntegerComparisonKind, PrimitiveType};
+use super::super::{
+    CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, IntegerValue,
+    LoweringError, ValueDeclaration, canonical_equality, clauses, proposition,
+};
+use super::{IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId};
 use numerics::{
     arithmetic::ArithmeticDomain,
     literals::{IntegerLanding, IntegerLiteral, LandedIntegerType},

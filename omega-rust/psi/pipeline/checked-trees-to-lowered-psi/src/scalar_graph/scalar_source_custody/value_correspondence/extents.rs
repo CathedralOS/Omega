@@ -1,7 +1,9 @@
 //! Static source evaluation and bounds custody for eliminated subslice extents.
 
-use super::*;
-
+use super::{
+    CheckedCallScalarArgument, Computation, Context, ExpressionHandle, ExpressionNode,
+    LoweringError,
+};
 #[cfg(test)]
 mod tests;
 

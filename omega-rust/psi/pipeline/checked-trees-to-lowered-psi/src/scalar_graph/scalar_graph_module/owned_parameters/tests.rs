@@ -1,4 +1,14 @@
-use super::*;
+use super::super::super::{
+    Operation, PlaceId, PrimitiveType, StructuralTypeId, place_id, terminal_scalar_type,
+};
+use super::super::{
+    MachineId, OperationResult, StructuralArgument, SuccessorEdge, ValueDeclaration, block_id,
+    edge_id, value_id,
+};
+use super::{
+    Block, LoweringError, OperationKind, StructuralAccess, StructuralMultiplicity,
+    StructuralParameterDeclaration, TerminalAffineCleanupAction, Terminator, complete,
+};
 use semantic_vocabulary::OperationId;
 
 #[test]

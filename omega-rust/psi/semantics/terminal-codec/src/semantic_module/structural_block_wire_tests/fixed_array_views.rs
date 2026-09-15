@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    OperationKind, StructuralAccess, StructuralArgument, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalModule, decode_module, encode_module, id, unit_byte_field_module,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use terminal_psi::{StructuralFieldType, StructuralPathSegment};
 

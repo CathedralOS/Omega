@@ -108,7 +108,7 @@ fn non_authoritative_write_frame_compatibility_fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::NormalizedWriteFrame;
 
     #[test]
     fn complete_frames_normalize_order_and_duplicates_before_identity() {

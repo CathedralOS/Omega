@@ -1,4 +1,4 @@
-use super::*;
+use super::{IntegerMathTerm, Proposition, ScalarTerm, ValueId};
 use crate::{IntegerSign, IntegerType, IntegerValue, PlaceId, PropositionId, ScalarType};
 
 fn identifier(index: u64) -> ValueId {

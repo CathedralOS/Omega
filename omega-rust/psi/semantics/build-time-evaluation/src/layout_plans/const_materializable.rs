@@ -684,7 +684,11 @@ pub(super) fn hash_byte(hash: &mut u64, value: u8) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BuildTimeValue, ByteOrder, LayoutPlanReport, TypedTrees,
+        normalized_layout_plan_report_fingerprint, normalized_schema_report_fingerprint,
+        unique_data_by_name, validate_const_materializable_typed_owned_layout,
+    };
     use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport};
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;

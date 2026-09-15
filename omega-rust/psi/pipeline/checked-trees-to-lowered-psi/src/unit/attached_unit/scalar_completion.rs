@@ -1,7 +1,9 @@
 //! Scalar completion rejoins the exact final source occurrence and its live
 //! scalar binding. The statement schedule owns evaluation, effects, and custody.
-
-use super::*;
+use super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
+    unsupported,
+};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 

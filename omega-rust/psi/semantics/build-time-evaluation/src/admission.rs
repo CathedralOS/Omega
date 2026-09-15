@@ -628,7 +628,9 @@ fn project_operational_axes(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BuildTimeAdmissionPlan, BuildTimeCallEdge, SymbolHandle, project_operational_axes,
+    };
     use arena::HandleSpan;
     use flow_effects::{CallOperational, MachineOperational, OperationalPlan, StateOperational};
 

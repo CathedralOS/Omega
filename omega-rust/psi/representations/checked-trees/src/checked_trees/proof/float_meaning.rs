@@ -208,7 +208,13 @@ pub enum CheckedFloatMeaningProjectionError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
+        CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionError,
+        CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
+        CheckedProofOnlyValueType, CheckedProofValueDeclaration, CheckedProofValueId,
+        FloatProjectionOperation, PrimitiveType,
+    };
 
     fn projection() -> CheckedFloatMeaningProjection {
         CheckedFloatMeaningProjection {

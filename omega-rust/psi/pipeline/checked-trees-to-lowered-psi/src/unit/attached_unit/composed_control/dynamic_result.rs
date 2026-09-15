@@ -1,8 +1,7 @@
 //! Dynamic-result continuation admission and catalog lowering.
 
-use super::*;
-
 pub(crate) use super::emission::emit_call_leaf;
+use super::{CheckedTrees, ComposedCatalogs, LoweringError, admission, catalogs};
 
 pub(crate) fn lower_control_catalogs(
     checked: &CheckedTrees,

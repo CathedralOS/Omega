@@ -1,6 +1,13 @@
 //! Whole owned-affine identity returns, shared by ordinary and selected machines.
-
-use super::*;
+use super::{
+    Block, CheckedTrees, LoweredPsi, LoweringError, MachineContract, MachineId, Multiplicity,
+    ProofBundle, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeId,
+    TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, block_id, contract_id, edge_id,
+    lookup_machine_id, lookup_type_id, machine_id, place_id, retain_additional_structural_types,
+    terminal_scalar_type, unsupported, value_id,
+};
 use crate::unit::attached_unit::lower_unit_parameters;
 
 pub(crate) fn lower_affine_return_machine(

@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{CheckedTrees, validate};
 fn checked(source: &str) -> CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

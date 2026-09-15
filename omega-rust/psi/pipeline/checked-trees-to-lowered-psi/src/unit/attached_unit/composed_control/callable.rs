@@ -1,6 +1,17 @@
 //! Emit a composed callee using the enclosing closure's catalogs and identities.
-
-use super::*;
+use super::super::super::{
+    BoundaryMachineId, LoweredSourceCallOccurrence, MachineId, ServiceDeclaration, ServiceId,
+    ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    lower_checked_crash_routes,
+};
+use super::super::{
+    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, ScalarType, SemanticDomainId,
+    StructuralDomainId, StructuralTypeId, TerminalMachine, ValueDeclaration, lookup_machine_id,
+    unique_unit_boundary, unsupported,
+};
+use super::{
+    CheckedTrees, LoweringError, admission, catalogs, emission, scalar_calls, state_graph,
+};
 use crate::unit::attached_unit::signatures::{self, MachineSignature};
 use std::borrow::Cow;
 

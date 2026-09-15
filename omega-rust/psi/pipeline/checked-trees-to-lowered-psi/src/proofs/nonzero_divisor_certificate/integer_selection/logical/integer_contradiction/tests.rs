@@ -1,4 +1,4 @@
-use super::*;
+use super::{Proposition, ScalarTerm, prove};
 use proof_admission::{AcceptedProofRule, accept_certificate, check_certificate};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, PropositionContext, ScalarType, ValueId,

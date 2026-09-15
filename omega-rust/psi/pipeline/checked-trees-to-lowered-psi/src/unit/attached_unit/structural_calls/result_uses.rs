@@ -1,7 +1,10 @@
 //! Exact source bindings and final custody of structural call results.
 
 use super::super::parameters::expression_producer;
-use super::*;
+use super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, ExpressionNode,
+    LoweringError, Multiplicity, StatementNode, unsupported,
+};
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// Rejoin a whole named linear operand to its earlier successful call, not

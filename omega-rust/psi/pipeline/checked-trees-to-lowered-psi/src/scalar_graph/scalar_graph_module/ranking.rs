@@ -1,6 +1,6 @@
 //! Project one authored natural state rank across its private evaluation blocks.
-
-use super::*;
+use super::super::BlockId;
+use super::{LoweringError, ScalarType, TerminalMachine, Terminator, unsupported};
 use terminal_psi::{
     TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
     TerminalNaturalRankEdge, TerminalRankedScc,

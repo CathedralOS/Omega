@@ -1,6 +1,11 @@
 //! Exact source correspondence and ordered operands for indexed byte replacement.
-
-use super::*;
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError,
+    Operation, OperationKind, OperationResult, PrimitiveType, StructuralFieldType,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, ValueDeclaration, allocate_dense,
+    direct_expression_contains_short_circuit, emit_direct_expression, obligation_id,
+    terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan;

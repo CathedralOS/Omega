@@ -1,6 +1,11 @@
 //! Rejoin anonymous partial-result permissions without reconstructing cleanup.
+use super::super::super::{CheckedUnitEffectMachinePlan, PermissionClaimIdentity};
 
-use super::*;
+use super::{
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralPathSegment, LoweringError,
+    Multiplicity, unsupported,
+};
 use checked_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use language_semantics::{
     PermissionAccess, PermissionEventKind, PermissionEventSource, PermissionProvenance,

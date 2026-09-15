@@ -3,14 +3,17 @@
 //! The result retains each checked source alongside its admitted body. Emission
 //! consumes that roster in order instead of searching and removing composed bodies.
 
+use super::super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
+    unsupported,
+};
 mod operations;
 
 use super::bodies::UnitBody;
 use super::composed_control::{self, callable::CallableBody};
 use super::{
-    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     RuntimeRequirementOwner, reference_results, retain_exact_unit_boundary, scalar_completion,
-    structural_completion, unsupported, validate_unit_operation_sequence,
+    structural_completion, validate_unit_operation_sequence,
 };
 use checked_trees::{CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan};
 use symbols::SymbolHandle;

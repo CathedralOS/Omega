@@ -1,5 +1,11 @@
 //! Atomic record establishment over the interpreter's existing structural storage.
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, OperationKind, StructuralAccess, StructuralAffineDiscard,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralRuntimePlace, StructuralScalarRuntimeField, StructuralTypeId, StructuralTypeShape,
+    TerminalExecution, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
+    remove_affine_root, terminal_scalar_belongs_to_type,
+};
 use terminal_psi::StructuralFieldType;
 
 #[cfg(test)]

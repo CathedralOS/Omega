@@ -1,8 +1,13 @@
 //! One authored formal stream interleaves scalar operands and array construction.
 //! An array's leaf staging is retired at its constructor, leaving earlier scalar
 //! actuals intact. CPS attaches this stream only to the selected expression path.
-
-use super::*;
+use super::super::direct_expression_contains_short_circuit;
+use super::{
+    Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
+    Expansion, Handle, LoweringError, PreparedScalarQualifications, QualifiedScalarType, Site,
+    arrays, cases, lower_scalar_call, parameter, source_custody, storage, structural_arguments,
+    unsupported,
+};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::calls::{LoweredDirectCallBinding, ScalarCallCrashScope};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;

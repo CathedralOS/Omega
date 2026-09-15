@@ -521,7 +521,10 @@ impl TerminalExecution {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BTreeSet, LocalStructuralIdentities, StructuralTypeId, TerminalInterpretError,
+        TerminalStructuralValue,
+    };
 
     #[test]
     fn fresh_identities_skip_reserved_values_and_do_not_wrap() {

@@ -415,7 +415,10 @@ fn sort_applications(applications: &mut [ClosedConformanceApplication]) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckedTrees, LoweringError, TerminalModule,
+        append_closed_conformance_applications_excluding,
+    };
 
     type Owners = Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>;
 

@@ -1,4 +1,4 @@
-use super::*;
+use super::{Arena, FactContext, FactContextGroup, FactContexts, Handle, ProgramPoint};
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use typed_trees::statement::TransitionTargetHandle;

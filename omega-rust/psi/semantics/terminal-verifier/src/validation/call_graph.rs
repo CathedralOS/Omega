@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{BTreeMap, BTreeSet, ModuleError, OperationKind, TerminalModule};
 pub(super) fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleError> {
     let calls = module
         .machines

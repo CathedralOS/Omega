@@ -1,6 +1,5 @@
 //! Exact literal payload custody under the authored scalar/structural partition.
-
-use super::*;
+use super::{CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, authored, unsupported};
 use checked_trees::CheckedStructuralAccess;
 use checked_trees::expression::ExpressionNode;
 

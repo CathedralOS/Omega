@@ -1,7 +1,10 @@
 //! Recheck exact selected boundary-operator custody before Unit lowering.
 
-use super::*;
-
+use super::super::{BTreeSet, PrimitiveType};
+use super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, LoweringError, Multiplicity, ScalarType,
+    lower_checked_scalar_expression, terminal_scalar_type, unsupported,
+};
 mod structural_realizations;
 pub(super) use structural_realizations::lower_selected_structural_scalar_realizations;
 

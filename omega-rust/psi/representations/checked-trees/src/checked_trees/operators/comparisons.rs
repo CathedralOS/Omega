@@ -1,7 +1,9 @@
 //! Selected source comparison identity shared by expression and dispatch uses.
 
-use super::*;
-
+use super::{
+    CheckedOperatorFacts, CheckedOperatorOccurrence, CheckedOperatorResolutionStatus,
+    CheckedOperatorUseFact, Handle, OperatorSpelling,
+};
 impl CheckedOperatorFacts {
     /// Classify the exact selected source requirement, without granting any
     /// authority to execute its eventual provider realization.

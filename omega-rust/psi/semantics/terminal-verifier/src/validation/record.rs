@@ -1,6 +1,9 @@
 //! Complete record establishment binds declarations, never layout-compatible names.
-
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, ModuleError, OperationKind, PlaceId, ScalarType, StructuralAccess,
+    StructuralFieldType, StructuralMultiplicity, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, TerminalMachine, TerminalModule, ValueId,
+};
 use terminal_psi::{RecordFieldValue, StructuralFieldDeclaration};
 
 pub(super) fn plain_type(module: &TerminalModule, root: StructuralTypeId) -> bool {

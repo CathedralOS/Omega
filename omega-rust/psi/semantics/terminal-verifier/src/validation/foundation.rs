@@ -1,5 +1,14 @@
 use super::structural_qualification_rosters::validate_projected_qualification_roster;
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineId,
+    BoundaryMachineResult, CanonicalStructuralPathSegment, ClaimId, ContentProjectionExpression,
+    ContentProjectionScalar, EntryClaim, MachineId, ModuleError, OperationKind, PlaceId, ServiceId,
+    StructuralAccess, StructuralDomainId, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator,
+    program_local_root_introduction_compatibility_report_identity,
+};
 
 mod provider_result;
 

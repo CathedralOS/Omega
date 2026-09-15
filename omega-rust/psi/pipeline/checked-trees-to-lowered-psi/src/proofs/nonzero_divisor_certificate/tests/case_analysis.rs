@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    IntegerSign, IntegerType, ProofRule, Proposition, accept_certificate, integer,
+    prove_canonical_integer_proposition, two_value_context, value,
+};
 #[test]
 fn signed_division_composes_both_retained_nonzero_cases() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();

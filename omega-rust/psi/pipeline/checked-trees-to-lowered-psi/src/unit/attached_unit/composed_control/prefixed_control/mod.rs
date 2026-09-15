@@ -1,7 +1,6 @@
 //! Exact scalar-prefix composition before one conditional effect frontier.
 
-use super::*;
-
+use super::{CheckedTrees, LoweringError, SourceMappedLowered};
 mod admission;
 mod emission;
 

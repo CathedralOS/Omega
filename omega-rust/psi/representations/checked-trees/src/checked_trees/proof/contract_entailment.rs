@@ -85,7 +85,10 @@ impl CheckedContractEntailmentAssumptionDischarge {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckedContractEntailmentAssumptionDischarge, MachineContractCommitment, Proposition,
+        SymbolHandle,
+    };
 
     #[test]
     fn construction_rejects_zero_contract_commitment() {

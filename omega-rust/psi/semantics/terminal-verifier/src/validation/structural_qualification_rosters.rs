@@ -1,7 +1,6 @@
 //! Canonical path-indexed structural qualification roster validation.
 
-use super::*;
-
+use super::{BTreeMap, ModuleError, PlaceId, StructuralDomainId, StructuralTypeId};
 pub(super) fn validate_projected_qualification_roster(
     place: PlaceId,
     root_type: StructuralTypeId,

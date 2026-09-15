@@ -2,7 +2,10 @@
 //! Carrier syntax is not ownership: fixed arrays and closed generic applications
 //! use the same source/type/transfer checks as named records. The recursive
 //! plain-owned classifier excludes references, qualifications and cleanup hooks.
-use super::*;
+use super::{
+    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, SymbolHandle,
+    unsupported,
+};
 use checked_trees::{CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan};
 
 pub(crate) fn validate(

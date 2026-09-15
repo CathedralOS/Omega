@@ -249,7 +249,7 @@ pub enum QuantifiedBound {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ElementIndex, ForAllInRangeFact, LemmaFact, ProofLemma, QuantifiedBound};
 
     #[test]
     fn lemmas_have_distinct_stable_names() {

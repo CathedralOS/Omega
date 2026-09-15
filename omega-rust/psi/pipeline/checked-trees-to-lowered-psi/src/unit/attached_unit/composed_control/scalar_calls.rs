@@ -1,6 +1,7 @@
 //! Source-selected scalar helper closure for composed Unit operands.
-
-use super::*;
+use super::super::super::CheckedComposedUnitControlTerminatorPlan;
+use super::super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, unsupported};
+use super::{CheckedTrees, LoweringError, catalogs};
 use checked_trees::CheckedCallScalarArgument;
 
 pub(crate) use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScalarCalls as ComposedScalarCalls;

@@ -1,8 +1,10 @@
 //! Ordered exits are checked against the entire authored suffix. A final case
 //! remains a guard; only exact coverage of one unchanged subject removes the
 //! need for an authored fallback.
-
-use super::*;
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, ExpressionNode, LoweringError, ScalarType,
+    StatementNode, TransitionGuardNode, authored_state, storage_reads, unsupported, validate_pure,
+};
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarGuardedExit};
 
 pub(crate) fn complementary(

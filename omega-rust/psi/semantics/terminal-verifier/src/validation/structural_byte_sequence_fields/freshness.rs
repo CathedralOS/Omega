@@ -1,7 +1,10 @@
 //! All-path operation-point custody, including length-changing backedges.
 
-use super::*;
-
+use super::super::{BTreeSet, OperationId, Proposition, ScalarTerm};
+use super::{
+    ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralPathSegment, TerminalMachine,
+    TerminalModule, byte_count_type, field_path,
+};
 fn operation_position(machine: &TerminalMachine, identity: OperationId) -> Option<(usize, usize)> {
     machine
         .blocks

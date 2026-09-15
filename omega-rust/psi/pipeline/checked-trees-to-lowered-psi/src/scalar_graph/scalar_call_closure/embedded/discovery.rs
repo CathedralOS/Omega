@@ -1,7 +1,8 @@
 //! Exact embedded scalar helper closure and source eligibility.
 
-use super::*;
-
+use super::super::super::CheckedUnitEffectOperationPlan;
+use super::super::{CheckedScalarBindingValue, CheckedTerminalSignatureEligibility};
+use super::{CheckedTrees, LoweringError, unsupported};
 /// Discover scalar bodies selected by exact calls in an external caller.
 /// Embedded roots retain their caller attachment; every
 /// transitive attached callee needs an exact source-validated static computation

@@ -3,8 +3,21 @@
 //! This module owns the structural-custody return cohort. General structural
 //! returns, structural Unit control, and scalar-graph construction remain
 //! separate producer responsibilities in the crate root.
-
-use super::*;
+use super::{
+    BTreeSet, Block, CheckedScalarBindingValue, CheckedScalarExpressionRole,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedTrees, LoweredPsi, LoweringError, MachineContract, MachineId, Multiplicity, Operation,
+    OperationKind, PrimitiveType, ProofBundle, ScalarType, StructuralArgument,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
+    TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    allocate_dense, block_id, boolean_decision_block_count, contains_short_circuit, contract_id,
+    edge_id, emit_direct_expression, emit_inlined_boolean_value_blocks, finalize_operation_proofs,
+    lookup_type_id, lower_boolean_value_decision, lower_checked_scalar_expression_at,
+    lower_structural_type_plans, lower_unit_parameters, machine_id, operation_id,
+    terminal_scalar_type, unsupported, validate_boolean_parameter_types,
+    validate_direct_parameter_types, value_id,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::boolean_control::LoweredBooleanDecisionExit;
@@ -995,7 +1008,8 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
 
 #[cfg(test)]
 mod trait_operator_tests {
-    use super::*;
+    use super::super::CheckedScalarExpression;
+    use super::{OperationKind, machine_id};
     use crate::machine_lowering::lower_machine;
     use checked_trees::CheckedBooleanExpression;
     use source_files_to_tokens::Lexer;

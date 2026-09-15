@@ -1,8 +1,11 @@
 //! Reconstruct the authored tail independently of the producer's completion.
 //! Prefix coverage and selected return roles prevent a plausible Boolean value
 //! from authorizing swapped arms, omitted statements, or a different return.
-
-use super::*;
+use super::super::CheckedScalarExpressionRole;
+use super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
+    StatementNode, unsupported,
+};
 use checked_trees::statement::{TransitionExit, TransitionGuardNode};
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 

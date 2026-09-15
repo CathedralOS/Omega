@@ -1,6 +1,11 @@
 //! Explicit initialized fixed-array inputs and their fieldless original backing.
-
-use super::*;
+use super::{
+    BTreeMap, ByteSequenceBinding, ByteSequenceView, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralRuntimePlace, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, TerminalArtifactInterpretError, TerminalExecution, TerminalInterpretError,
+    TerminalScalarValue, TerminalStructuralValue, resolve_structural_arguments,
+};
 use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
 
 /// Initialized contents of a true fixed u8 array reachable from an entry input.

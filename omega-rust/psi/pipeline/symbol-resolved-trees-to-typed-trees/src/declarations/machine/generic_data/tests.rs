@@ -1,4 +1,4 @@
-use super::*;
+use super::{Machine, SymbolResolvedTrees, is_derived};
 use source_files_to_tokens::Lexer;
 use symbols::SymbolHandle;
 

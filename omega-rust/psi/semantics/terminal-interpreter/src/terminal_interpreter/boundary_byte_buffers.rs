@@ -1,6 +1,11 @@
 //! Exact array/field loans and separately staged external byte-field replacement.
-
-use super::*;
+use super::{
+    BTreeMap, ByteSequenceBinding, ByteSequenceView, StructuralAccess, StructuralArgument,
+    StructuralByteSequenceRuntimeField, StructuralCallArguments, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralRuntimePlace,
+    StructuralTypeShape, TerminalEffectRejection, TerminalExecution, TerminalInterpretError,
+    TerminalStructuralValue, bind_structural_arguments, resolve_structural_arguments,
+};
 use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
 
 /// One mutable boundary argument's live bytes and original inline capacity.

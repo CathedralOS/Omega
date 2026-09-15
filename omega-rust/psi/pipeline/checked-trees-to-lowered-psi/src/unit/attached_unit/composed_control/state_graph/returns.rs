@@ -1,6 +1,17 @@
 //! Ordinary structural graph results, with exact authored field custody.
-
-use super::*;
+use super::super::super::super::{
+    CheckedComposedUnitControlTerminatorPlan, StructuralFieldType, StructuralResultDeclaration,
+};
+use super::super::super::{
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity, Operation,
+    OperationKind, PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeShape, TerminalMachineResult, ValueDeclaration,
+    allocate_dense, direct_expression_contains_short_circuit, emit_direct_expression,
+    lookup_domain_id, lookup_type_id, obligation_id, place_id, terminal_scalar_type, unsupported,
+    validate_direct_parameter_types,
+};
+use super::super::{CheckedTrees, LoweringError, catalogs};
+use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::{CheckedControlResultPlan, data::DataMember, expression::ExpressionNode};
 

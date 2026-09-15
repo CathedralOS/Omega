@@ -1,6 +1,8 @@
 //! Source-produced bounded byte fields presented to an external boundary.
-
-use super::*;
+use super::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, OperationKind,
+    checked_source, lower_machine,
+};
 mod checked_provider;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,

@@ -1,11 +1,17 @@
 //! Validates scalar crash routes, live frontiers, and Boolean field predicates.
 
+use super::{
+    BTreeMap, BTreeSet, BoundaryMachineDeclaration, CanonicalStructuralPathSegment,
+    ContractClauseKind, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, IntegerSign,
+    IntegerType, IntegerValue, ModuleError, OperationId, PlaceId, Proposition, PropositionContext,
+    ScalarTerm, ScalarType, StructuralFieldType, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, TerminalModule, Terminator, ValueId, contracts, structural_leaf_type,
+    substitute_proposition_values,
+};
 use numerics::{
     arithmetic::ArithmeticDomain,
     integer_policy::{IntegerFormationCondition, IntegerPolicyPrimitive, integer_policy_bridge},
 };
-
-use super::*;
 
 mod entry_requirements;
 mod outcome;

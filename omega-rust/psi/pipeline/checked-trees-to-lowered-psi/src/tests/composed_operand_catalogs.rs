@@ -1,6 +1,5 @@
 //! Operand helpers coexist with dynamic realizations and closed-sum payloads.
-
-use super::*;
+use super::{CheckedTrees, LoweredPsi, OperationKind, Terminator, checked_source, lower_machine};
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
 mod dynamic_unit;

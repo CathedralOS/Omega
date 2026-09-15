@@ -2,8 +2,13 @@
 //! rejoins each operand to its authored expression before emitting portable values.
 //! Completion uses the sibling structural-completion checker; this module owns
 //! array shape, storage and operand correspondence.
-
-use super::*;
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, Operation, OperationKind,
+    OperationResult, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, ValueDeclaration, allocate_dense, lookup_type_id,
+    place_id, terminal_scalar_type, unsupported,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::CheckedArrayConstructionSource;
 use checked_trees::CheckedUnitCallCoordinate;

@@ -1,6 +1,19 @@
 //! Selected type, boundary, and service catalogs for composed Unit control.
-
-use super::*;
+use super::super::super::{
+    BoundaryMachineId, MachineId, ServiceDeclaration, ServiceId, ServiceReachId, ServiceReachPlan,
+    StructuralTypeDeclaration, lower_checked_crash_routes,
+};
+use super::super::{
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
+    LoweredPsi, Multiplicity, ScalarType, SemanticDomainId, ServiceReachSummary,
+    StructuralDomainId, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralTypeId,
+    boundary_machine_id, dense_identity, lookup_type_id, lower_boundary_content_guarantees,
+    lower_boundary_crash_routes, lower_fixed_boundary_service_reach,
+    lower_published_service_ceiling, lower_root_service_reach, lower_unit_parameters,
+    terminal_scalar_type, unsupported,
+};
+use super::{CheckedTrees, LoweringError, admission, internal_calls, scalar_calls};
 use crate::unit::attached_unit::bodies::UnitBody;
 use crate::unit::attached_unit::catalog::{
     collect_installation_machine_contract_services, collect_published_contract_services,

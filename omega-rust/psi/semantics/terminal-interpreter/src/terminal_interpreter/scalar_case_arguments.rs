@@ -6,8 +6,13 @@
 //! alias can change this payload during the call. This is not permission to
 //! snapshot arbitrary shared structural backing.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, ExecutableMachine, PlaceId, StructuralAccess, StructuralAffineDiscard,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalExecution, TerminalInterpretError,
+    TerminalScalarCaseValue, TerminalStructuralValue, bind_affine_frontier_types,
+    consume_affine_projection,
+};
 impl TerminalExecution {
     pub(super) fn prepare_scalar_case_argument(
         &self,

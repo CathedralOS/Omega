@@ -91,7 +91,10 @@ pub(crate) fn decode_integer_math_term(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CodecError, IntegerMathTerm, Reader, Writer, decode_integer_math_term,
+        encode_integer_math_term,
+    };
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
 
     #[test]

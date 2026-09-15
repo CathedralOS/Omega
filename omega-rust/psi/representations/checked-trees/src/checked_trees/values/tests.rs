@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    Arena, CheckedBooleanExpression, CheckedLocatedScalarExpression, CheckedScalarExpression,
+    CheckedScalarExpressionBindings, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
+    ExpressionHandle, SymbolHandle,
+};
 fn bound_plans() -> CheckedScalarExpressionPlans {
     let mut plans = CheckedScalarExpressionPlans::default();
     let state = SymbolHandle::from_arena_index(1);

@@ -1,7 +1,11 @@
 //! Rejoin scalar reads with authored bindings, storage, and operand positions.
 
-use super::*;
-
+use super::super::{CheckedBooleanExpression, CheckedScalarExpression, Multiplicity};
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError,
+    PrimitiveType, SourceRoot, StatementNode, authored_state, supported_mutable_parameter,
+    unsupported,
+};
 pub(super) mod case_membership;
 
 #[cfg(test)]

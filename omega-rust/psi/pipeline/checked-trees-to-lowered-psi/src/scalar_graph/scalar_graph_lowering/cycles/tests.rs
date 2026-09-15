@@ -1,5 +1,11 @@
-use super::*;
-
+use super::super::super::StructuralTypeId;
+use super::super::{PlaceId, PrimitiveType};
+use super::{
+    CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
+    CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan, CheckedTrees,
+    LoweringError, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    place_id, prepare, source_custody, validate_rank,
+};
 fn fixture(
     predicate: &str,
     recursive_truth: bool,

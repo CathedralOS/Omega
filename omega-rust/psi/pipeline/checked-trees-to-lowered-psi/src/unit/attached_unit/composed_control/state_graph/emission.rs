@@ -1,6 +1,23 @@
 //! Emit every authored state using shared catalogs and simultaneous typed edges.
-
-use super::*;
+use super::super::super::super::{
+    CheckedComposedUnitControlTerminatorPlan, LoweredSourceCallOccurrence, MachineId,
+    StructuralAccess, StructuralArgument, StructuralCaseSuccessorEdge,
+    StructuralParameterDeclaration, SuccessorEdge, block_id,
+};
+use super::super::super::{
+    Block, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    MachineContract, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine, Terminator,
+    ValueDeclaration, allocate_dense, contract_id, direct_expression_contains_short_circuit,
+    edge_id, emit_direct_expression, lookup_claim_id, lookup_type_id,
+    lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling,
+    lower_unit_parameters, place_id, terminal_scalar_type, unsupported,
+    validate_direct_parameter_types, value_id,
+};
+use super::super::{CheckedTrees, LoweringError, catalogs};
+use super::{
+    AdmittedGraph, CheckedComposedUnitControlMachinePlan, CheckedStructuralControlSuccessorPlan,
+    case_emission, edges, ranking, result_custody, returns, scalars, subslices, successors,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::scalar_graph::boolean_control::LoweredBooleanDecision;

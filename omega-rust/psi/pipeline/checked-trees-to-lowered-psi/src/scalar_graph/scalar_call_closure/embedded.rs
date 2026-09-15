@@ -1,6 +1,11 @@
 //! Scalar helper catalogs embedded beneath an existing source-owned root.
-
-use super::*;
+use super::super::{
+    MachineId, TERMINAL_UNIT_CALL_OBLIGATION_BASE, dense_identity, lookup_machine_id,
+};
+use super::{
+    CheckedTrees, LoweredPsi, LoweringError, TERMINAL_MACHINE_IDENTITY_STRIDE,
+    build_scalar_graph_module, machine_id, prepare_scalar_graph_machine, unsupported,
+};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
 use checked_trees::CheckedScalarComputationKind;

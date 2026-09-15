@@ -41,8 +41,6 @@ tests/native-differential/tests/scalar_case_results/guarded_returns.rs at the
 repository root. Full source coverage is
 specified in ../../compiler/terminal-production/README.md relative to this crate.
 */
-
-use super::*;
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedStructuralControlSuccessorPlan,

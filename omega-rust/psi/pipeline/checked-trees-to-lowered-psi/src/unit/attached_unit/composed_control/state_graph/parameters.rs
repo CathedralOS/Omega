@@ -1,7 +1,8 @@
 //! Persistent receivers retain the exact invocation declaration in every state.
 
-use super::*;
-
+use super::super::super::{Multiplicity, unsupported};
+use super::super::{CheckedTrees, LoweringError};
+use super::CheckedComposedUnitControlMachinePlan;
 pub(super) fn validate_receiver(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,

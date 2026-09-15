@@ -51,7 +51,7 @@ impl<'facts> OperatorAcceptance<'facts> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ContractOperatorUseFact, OperatorAcceptance};
     use arena::HandleSpan;
 
     #[test]

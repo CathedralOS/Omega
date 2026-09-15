@@ -386,6 +386,12 @@ fn reconstruct_port_write_event(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        IntegerSign, IntegerType, OperationId, StructuralAccess, TerminalTraceCrashSiteRow,
+        TerminalTraceOrdinaryEventKind, TerminalTraceResultSchema, TerminalTraceScalarSchema,
+        TerminalTraceV1OperationClassification, TerminalTraceValueComparison, classify_operation,
+        reconstruct_terminal_trace_v1_rows,
+    };
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, PlaceId, ScalarType, ServiceId,
         StructuralPlaceKind, StructuralTypeId, ValueId,
@@ -398,8 +404,6 @@ mod tests {
         TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
         VocabularyMarker,
     };
-
-    use super::*;
 
     fn id<T>(raw: u64, make: impl FnOnce(u64) -> Option<T>) -> T {
         make(raw).expect("nonzero test identity")

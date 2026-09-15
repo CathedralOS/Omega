@@ -1,6 +1,10 @@
 //! Unit entry requirements over exact scalar and structural parameters.
-
-use super::*;
+use super::{
+    BTreeMap, CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
+    Proposition, ScalarTerm, ScalarType, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    ValueDeclaration, ValueId, integer_landing_scalar_type, integer_scalar_type, integer_value,
+    unsupported,
+};
 use crate::proofs::contract_predicates::PredicateTerms;
 use crate::proofs::crash_routes::{
     checked_boolean_scalar_term, checked_scalar_term, lower_structural_member_term,

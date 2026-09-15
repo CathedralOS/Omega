@@ -1,8 +1,11 @@
 //! Borrowed views of ordinary statement and graph bodies. Structural result
 //! calls traverse either complete body through the same closure; result shape
 //! does not select a different producer. No synthetic checked plans or states.
-
-use super::*;
+use super::super::ServiceReachPlan;
+use super::{
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError, SemanticDomainId,
+    ServiceReachSummary, unsupported,
+};
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedStructuralScalarParameterPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,

@@ -1,7 +1,9 @@
 //! Exact immutable borrowed windows; establishment is checked at every use.
 
-use super::*;
-
+use super::{
+    BTreeSet, ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity,
+    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule, ValueId,
+};
 pub(super) fn borrowed_result(
     machine: &TerminalMachine,
     place: PlaceId,

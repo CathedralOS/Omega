@@ -114,7 +114,10 @@ pub fn certificate_assumption_closure(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Budget, CoreError, Declaration, MathematicalCertificate, TermArena, TermHandle,
+        certificate_assumption_closure, verify_mathematical_certificate,
+    };
     use crate::mathematical_core::{DEFAULT_CONVERSION_STEPS, Level, Sort, Term};
 
     fn budget() -> Budget {

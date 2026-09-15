@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    SeededContinuationError, lower_seeded_extension, retained_typed_base_is_exact_prefix,
+    seeded_plain_data_inputs,
+};
 use typed_trees::signature::AuthoredInvocationTarget;
 
 const BASE: &str = "boundary trait Console { machine write(value: i32) reaches Console; }";

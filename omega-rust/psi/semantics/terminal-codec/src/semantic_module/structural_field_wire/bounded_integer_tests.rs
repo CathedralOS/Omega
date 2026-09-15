@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    BindingRelevance, BoundedIntegerType, Reader, StructuralFieldDeclaration, StructuralFieldType,
+    Writer, decode_structural_field, encode_structural_field,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralFieldId};
 
 fn field(bounds: BoundedIntegerType) -> StructuralFieldDeclaration {

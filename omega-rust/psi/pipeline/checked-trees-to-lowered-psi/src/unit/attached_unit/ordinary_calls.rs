@@ -1,5 +1,19 @@
 //! Shared ordinary call operands, requirements and crash substitution.
-use super::*;
+use super::super::{
+    BTreeMap, ClaimId, MachineId, ObligationId, PermissionClaimIdentity, Proposition,
+    StructuralArgument, StructuralParameterDeclaration, StructuralTypeDeclaration, ValueId,
+    claim_id, structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
+};
+use super::{
+    CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
+    Operation, OperationKind, OperationResult, PlaceId, SemanticDomainId, StructuralDomainId,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration, allocate_dense,
+    argument_evaluation, lookup_claim_id, lookup_domain_id, lookup_type_id,
+    lower_checked_crash_route_buckets, lower_structural_arguments,
+    lower_structural_crash_route_buckets, lower_structural_path, place_id, primitive_locals,
+    terminal_scalar_type, unsupported, validate_transfer_shape,
+};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;

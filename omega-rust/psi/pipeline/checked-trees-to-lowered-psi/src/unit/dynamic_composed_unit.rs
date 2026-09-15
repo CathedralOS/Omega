@@ -7,6 +7,14 @@
 //! the exact conformance application, source field subloan, requirement row,
 //! and realization callable in Terminal custody.
 
+use super::{
+    CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence, LoweringError, MachineId, PrimitiveType,
+    ProofBundle, allocate_dense, attached_unit, block_id, checked_unit_target_reach_matches,
+    collect_service_summary, contract_id, edge_id, evidence_lowering, integer_landing_scalar_type,
+    integer_value, lookup_type_id, lower_installation_machine_service_ceiling,
+    lower_root_service_reach, lower_structural_path, machine_id, operation_id, place_id,
+    terminal_scalar_type, unsupported, value_id,
+};
 use checked_trees::{
     CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedDynamicSelectionPlan,
     CheckedReboundDynamicScalarCallPlan, CheckedScalarExpression, CheckedStructuralAccess,
@@ -28,8 +36,6 @@ use terminal_psi::{
     TerminalStoredDynamicDispatch, Terminator, ValueDeclaration, VocabularyMarker,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
-
-use super::*;
 
 mod continuation;
 mod join;

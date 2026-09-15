@@ -1,6 +1,10 @@
 //! Source-bound Unit roots; shared Unit lowering admits their complete bodies.
+use super::super::super::{
+    CheckedUnitEffectOperationPlan, Multiplicity, checked_terminal_machine_name,
+    checked_unit_target_reach_matches, unsupported,
+};
+use super::super::{CheckedTrees, LoweringError};
 
-use super::*;
 use crate::unit::attached_unit::bodies::UnitBody;
 
 pub(in crate::unit::attached_unit::composed_control) fn retain_call_target<'a>(

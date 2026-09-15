@@ -1,6 +1,24 @@
 //! One direct named-dynamic scalar result followed by checked Unit control.
-
-use super::*;
+use super::super::{
+    BlockId, SuccessorEdge, emit_direct_expression, finalize_operation_proofs,
+    lower_checked_crash_route_buckets, lower_checked_scalar_expression,
+    validate_direct_parameter_types,
+};
+use super::{
+    Block, CheckedDynamicScalarCallPlan, CheckedStructuralAccess, CheckedTrees, DynamicCallerShape,
+    DynamicLoweringLane, LoweredPsi, LoweringError, Operation, OperationKind, OperationResult,
+    ProofBundle, StructuralAccess, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, block_id,
+    collect_dynamic_realizations, dynamic_source_call_occurrences_for_chain, edge_id,
+    empty_terminal_contract, extend_parameter_forwarding_catalog, forwarded_helper_chain_ids,
+    lookup_type_id, lower_dynamic_call_custody, lower_exact_application,
+    lower_initial_rebound_application, lower_installation_machine_service_ceiling, machine_id,
+    materialize_dynamic_realizations, materialize_forwarded_helper_chain, operation_id, place_id,
+    retain_dynamic_source_owners, retain_realizations_for_lane, terminal_callable_result,
+    terminal_scalar_type, terminal_structural_multiplicity, unsupported, validate_and_lower_source,
+    value_id,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 pub(super) fn lower(

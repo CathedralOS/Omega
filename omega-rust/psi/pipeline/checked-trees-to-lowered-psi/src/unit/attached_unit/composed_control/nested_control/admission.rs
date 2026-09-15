@@ -1,7 +1,14 @@
 //! Independent general acyclic topology and scalar-edge replay.
 
-use super::*;
+use super::super::super::super::{
+    CheckedBooleanExpression, CheckedComposedUnitControlTerminatorPlan, PrimitiveType,
+};
+use super::super::super::{
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    unsupported,
+};
 
+use super::{CheckedTrees, LoweringError};
 pub(super) struct AdmittedNested<'a> {
     pub(super) controls: &'a [checked_trees::CheckedComposedUnitControlStatePlan],
     pub(super) leaf_calls: super::super::admission::AdmittedComposedUnit<'a>,

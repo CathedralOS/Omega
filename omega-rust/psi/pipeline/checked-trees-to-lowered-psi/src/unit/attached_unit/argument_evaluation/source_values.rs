@@ -1,8 +1,12 @@
 //! Retained scalar values share selective evaluation, whether they establish
 //! a source local or one array leaf. Completed values survive later control
 //! joins; the fixed source prefix excludes private argument and leaf slots.
-
-use super::*;
+use super::{
+    CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedTrees, Evaluation,
+    LoweringError, ScalarType, ValueDeclaration, direct_expression_contains_short_circuit,
+    emit_direct_expression, prepare_shared_qualifications, scalar_carriers, terminal_scalar_type,
+    unsupported, validate_direct_parameter_types,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;

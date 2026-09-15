@@ -1,7 +1,9 @@
 //! Shared logical contract conversion; callers retain ownership of their leaf namespaces.
 
-use super::*;
-
+use super::{
+    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression, LoweringError,
+    Proposition, ScalarTerm, unsupported,
+};
 pub(crate) trait PredicateTerms {
     fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError>;
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError>;

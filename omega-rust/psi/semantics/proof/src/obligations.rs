@@ -2895,7 +2895,12 @@ fn constrained_type_reference(
 
 #[cfg(test)]
 mod range_tests {
-    use super::*;
+    use super::{
+        BigInt, BinaryOperator, ConstraintBuffer, ExpressionNode, FloatLiteral, FloatRange,
+        Identifier, ProofConstraint, TypeConstraintNode, TypeReferenceNode, TypedTrees,
+        constraints_prove_finite, derived_binary_constraints, float_binary_range,
+        has_named_constraint,
+    };
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 
     fn program_with_u8() -> TypedTrees {

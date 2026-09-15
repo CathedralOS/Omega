@@ -1,6 +1,5 @@
 //! Explicit result discard belongs to the boundary's immediate normal continuation.
-
-use super::*;
+use super::{CheckedTrees, SymbolHandle, checked_source, lower_machine};
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,

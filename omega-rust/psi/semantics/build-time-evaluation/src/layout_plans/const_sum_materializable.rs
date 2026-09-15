@@ -619,7 +619,13 @@ fn non_authoritative_sum_materialization_report_fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BuildTimeValue, ByteOrder, ConventionalSumCaseLayoutReport, ConventionalSumLayoutReport,
+        DataMember, TypedTrees, checked_align_up,
+        normalized_conventional_sum_layout_report_fingerprint,
+        normalized_schema_report_fingerprint, reflected_nested_member_layout, unique_data_by_name,
+        validate_const_materializable_conventional_sum,
+    };
     use layout_plans::ConventionalSumPayloadFieldLayoutReport;
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;

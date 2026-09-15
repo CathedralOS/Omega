@@ -1,8 +1,19 @@
 //! Ordered exits use the same source-coordinate coverage check as scalar returns.
 //! Their values are ordinary structural producers, evaluated only after selecting
 //! an exit. Dependency discovery visits every arm; execution never does so.
-
-use super::*;
+use super::super::super::super::{
+    CheckedComposedUnitControlTerminatorPlan, ClaimId, PermissionClaimIdentity,
+    StructuralParameterDeclaration, SuccessorEdge, block_id,
+};
+use super::super::super::{
+    Block, CheckedUnitEffectOperationPlan, Multiplicity, ScalarType, Terminator, ValueDeclaration,
+    allocate_dense, edge_id, unsupported,
+};
+use super::super::{CheckedTrees, LoweringError, catalogs};
+use super::{
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan, case_emission,
+    edges,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::CheckedScalarBranchDestination;
 

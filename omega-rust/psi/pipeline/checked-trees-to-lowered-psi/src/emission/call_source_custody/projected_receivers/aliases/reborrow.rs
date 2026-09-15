@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    BorrowLoanFact, CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedTrees,
+    FlowBorrowWeakeningReason, FlowConstraintKind, FlowInvalidationSource, Handle, LoweringError,
+    SymbolHandle, unsupported,
+};
 pub(super) fn reborrow_resource(
     checked: &CheckedTrees,
     machine: SymbolHandle,

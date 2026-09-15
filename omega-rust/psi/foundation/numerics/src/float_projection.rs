@@ -131,7 +131,9 @@ impl FloatProjectionOperation {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FLOAT_PROJECTION_CATALOG_VERSION, FloatFormat, FloatMeaning, FloatProjectionOperation,
+    };
 
     #[test]
     fn projection_rows_are_format_exact() {

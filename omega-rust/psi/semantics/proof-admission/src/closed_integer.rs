@@ -225,7 +225,11 @@ fn big_integer_literal(literal: IntegerMathLiteral) -> BigInt {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ClosedIntegerEvaluationError, ClosedIntegerEvaluator, IntegerMathTerm,
+        MAXIMUM_ALLOCATION_LIMBS, MAXIMUM_LIMB_WORK, MAXIMUM_RESULT_BITS, MAXIMUM_TERM_DEPTH,
+        MAXIMUM_TERM_NODES, Ordering, compare_integer_math_terms,
+    };
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
 
     fn integer(value: i128) -> IntegerMathTerm {

@@ -182,6 +182,9 @@ const fn transitional_source_id(source: &terminal_psi::FloatMeaningSource) -> Op
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        ModuleError, TerminalModule, validate_direct_sources, validate_equalities, validate_rows,
+    };
     use semantic_vocabulary::{
         BlockId, CanonicalStructuralPathSegment, ContractId, EdgeId, IeeeFloatFormat,
         IeeeFloatStructuralField, IeeeFloatValue, MachineId, OperationId, PlaceId, ScalarType,
@@ -211,8 +214,6 @@ mod tests {
             commitment: contract.commitment,
         }
     }
-
-    use super::*;
 
     fn projection(index: u32) -> FloatMeaningProjection {
         FloatMeaningProjection {

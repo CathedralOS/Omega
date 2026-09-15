@@ -1,7 +1,11 @@
 //! Exact projected transfers whose residual owner dies before a successor block.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, StructuralAccess,
+    StructuralMultiplicity, StructuralPathSegment, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, exact_fixed_array_element_sink, partial_affine_residuals,
+    partial_affine_root_type, resolve_structural_path,
+};
 pub(super) fn validate(
     module: &TerminalModule,
     machine: &TerminalMachine,

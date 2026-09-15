@@ -1,5 +1,10 @@
-use super::*;
-
+use super::{
+    ExecutableMachine, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeId, SuspendedCall, SuspendedCallResult,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
+    TerminalInterpretError, TerminalScalarValue, Terminator, ValueId, meter_status,
+    remove_affine_root,
+};
 /// Exact row-major primitive payload; the type retains all array dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarArrayValue {

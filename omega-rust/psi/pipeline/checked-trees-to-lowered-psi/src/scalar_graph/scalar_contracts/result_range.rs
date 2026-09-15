@@ -1,7 +1,9 @@
 //! A numeric result refinement is an ordinary normal-return obligation, not
 //! permission to narrow the returned carrier or assume the authored body fits.
-
-use super::*;
+use super::super::{CheckedTrees, ClosedScalarValueContractPlan};
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, LoweringError,
+};
 use checked_trees::types::TypeReferenceNode;
 
 pub(crate) fn with_result_range(

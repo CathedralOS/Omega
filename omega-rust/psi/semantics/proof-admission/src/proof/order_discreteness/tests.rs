@@ -1,4 +1,4 @@
-use super::*;
+use super::{IntegerValue, Proposition, ScalarTerm, adjacent, check};
 use crate::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{IntegerSign, IntegerType, PropositionContext, ScalarType, ValueId};
 

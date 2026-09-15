@@ -2,8 +2,11 @@
 //! Semantic casts are part of that ordering: equal final tags cannot justify
 //! skipping an explicit erasure followed by reintroduction. Only casts whose
 //! operand is independently known to be bare may be peeled as payload wrappers.
-
-use super::*;
+use super::super::{CheckedBooleanExpression, CheckedScalarExpression};
+use super::{
+    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, PrimitiveType, StatementNode,
+    authored_state, unsupported,
+};
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
 use crate::unit::attached_unit::primitive_locals::borrows as borrow_rows;
@@ -543,7 +546,11 @@ fn expression_membership(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::CheckedScalarExpressionRole;
+    use super::{
+        CheckedScalarComputationKind, CheckedScalarExpression, CheckedTrees, ExpressionNode,
+        authored_expressions, validate_computation_calls,
+    };
     use checked_trees::expression::{BinaryOperator, TableBinaryExpression};
 
     #[test]

@@ -7,8 +7,10 @@
 //! directions so deleting either half cannot silently turn a retained callback
 //! into an unrelated ordinary call. Complete original-source coverage still
 //! belongs to producer correspondence, not reconstruction from unmarked calls.
-
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, ServiceCeilingOwner, ServiceId,
+    TerminalModule, foundation,
+};
 use terminal_psi::{ClosedReachMachineBinding, ClosedReachParameter};
 
 pub(super) fn validate_closed_reach_applications(

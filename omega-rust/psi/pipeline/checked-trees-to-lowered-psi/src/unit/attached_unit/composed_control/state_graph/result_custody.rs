@@ -5,8 +5,11 @@
 //! Reconstruct the transfer roster from source, check its exact permission rows,
 //! then subtract the selected edge's transfers. The resulting reverse-ordered
 //! local roots use Terminal's existing edge disposal, after argument evaluation.
-
-use super::*;
+use super::super::super::{CheckedUnitEffectOperationPlan, Multiplicity, PlaceId, unsupported};
+use super::super::{CheckedTrees, LoweringError};
+use super::{
+    CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan, case_emission,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{StatementNode, TransitionTargetNode};

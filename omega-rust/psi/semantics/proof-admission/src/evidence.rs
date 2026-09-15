@@ -199,7 +199,12 @@ impl std::error::Error for EvidenceError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind, AdmissionProfile,
+        AdmissionSiteId, AuthorizedAdmission, EvidenceError, EvidenceIdentity, EvidenceRoute,
+        Obligation, ObligationClass, ObligationId, ProfileDecisionId, ProofSystemMarker,
+        Proposition, PropositionContext, verify_obligation,
+    };
     fn obligation(proposition: Proposition, class: ObligationClass) -> Obligation {
         Obligation {
             id: ObligationId::new(1).expect("obligation identity"),

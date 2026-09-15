@@ -4,8 +4,23 @@
 //! predecessor call supplies its own exact selection; no representative table
 //! or joined-table vocabulary is introduced.
 
-use super::*;
-
+use super::{
+    Block, CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedScalarExpression,
+    CheckedStructuralAccess, CheckedTrees, ForwardedHelperIds, LoweredDynamicRealization,
+    LoweredPsi, LoweredSourceCallOccurrence, LoweringError, Operation, OperationKind,
+    OperationResult, PrimitiveType, ProofBundle, StructuralAccess, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalDynamicConformanceSelection,
+    TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
+    TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch, Terminator,
+    ValueDeclaration, VocabularyMarker, block_id, collect_dynamic_realizations,
+    dynamic_parameter_interface, edge_id, empty_terminal_contract, exact_machine_service_summary,
+    extend_parameter_forwarding_catalog, lookup_type_id, lower_dynamic_structural_types,
+    lower_exact_application, lower_installation_machine_service_ceiling, lower_root_service_reach,
+    machine_id, materialize_dynamic_realizations, materialize_forwarded_helper_chain, operation_id,
+    place_id, terminal_scalar_type, terminal_structural_multiplicity, unsupported,
+    validate_and_lower_source, validate_exact_direct_plan, value_id,
+};
 pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedJoinedDynamicScalarCallPlan,

@@ -6,7 +6,13 @@ use super::affine_cleanup::{
 };
 use super::crash::{substitute_crash_routes, validate_crash_frontiers};
 use super::structural_operations::{validate_service_reach, validate_unit_operation_static};
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
+    ContractClauseKind, IdRegistry, MachineId, ModuleError, OperationKind, OperationResult,
+    PropositionContext, ScalarTerm, ScalarType, StructuralPlaceKind, StructuralRootKey,
+    TerminalMachine, TerminalMachineResult, TerminalModule, content, contracts, control_flow,
+    crash, frontier, insert_unique, insert_value, propositions, validate_boolean_structural_field,
+};
 
 pub(super) fn validate_machine(
     module: &TerminalModule,

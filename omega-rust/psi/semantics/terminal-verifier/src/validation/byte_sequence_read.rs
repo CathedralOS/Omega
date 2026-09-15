@@ -1,7 +1,9 @@
 //! Exact immutable byte reads with a direct, dominating length witness.
 
-use super::*;
-
+use super::{
+    IntegerSign, IntegerType, ModuleError, OperationKind, PlaceId, ScalarType, TerminalMachine,
+    TerminalModule, ValueId,
+};
 pub(super) fn validate(
     module: &TerminalModule,
     machine: &TerminalMachine,

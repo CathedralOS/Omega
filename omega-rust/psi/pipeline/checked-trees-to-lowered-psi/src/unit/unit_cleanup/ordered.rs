@@ -1,7 +1,16 @@
 //! Ordered multi-root nominal cleanup lowering.
 
-use super::*;
-
+use super::super::{PlaceId, StructuralFieldId, StructuralTypeId};
+use super::{
+    BTreeSet, CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape,
+    LoweredPsi, LoweringError, Multiplicity, NominalAffineCleanup, OperationKind, PrimitiveType,
+    Proposition, ScalarTerm, ScalarType, ServiceReachInterface, ServiceReachPlan,
+    ServiceReachSummary, StructuralFieldType, StructuralTypeShape, TerminalMachineResult,
+    Terminator, checked_unit_call_closure_including, dense_identity,
+    is_bounded_nominal_cleanup_record, lookup_type_id, lower_nominal_cleanup_closure, machine_id,
+    obligation_id, place_id, unique_unit_machine, unsupported,
+};
 pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,

@@ -6,8 +6,7 @@
 //! using the partially built program: it can lack its carrier or an authored
 //! operator which vetoes builtin arithmetic. Final replay uses original operands,
 //! not the syntax producer's interval observations or its synthetic names.
-
-use super::*;
+use super::{Diagnostic, resolved, typed};
 use arena::{Handle, HandleSpan};
 use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
 use symbols::{SymbolHandle, SymbolKind};

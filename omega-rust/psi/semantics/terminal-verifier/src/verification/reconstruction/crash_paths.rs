@@ -178,7 +178,7 @@ pub(super) fn reconstruct(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Budget, MAXIMUM_BLOCK_VISITS, MAXIMUM_FACT_COPIES, MachineId, ModuleError};
 
     #[test]
     fn path_visits_and_retained_facts_have_independent_hard_limits() {

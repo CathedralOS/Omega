@@ -1,6 +1,19 @@
 //! Exact three-state structural-result case dispatch.
-
-use super::*;
+use super::super::super::{
+    CheckedComposedUnitControlTerminatorPlan, StructuralCaseSuccessorEdge, block_id,
+};
+use super::super::{
+    Block, BoundaryMachineResult, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
+    MachineContract, Multiplicity, Operation, OperationKind, OperationResult,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalMachineResult, Terminator,
+    ValueDeclaration, allocate_dense, contract_id, edge_id, lookup_type_id,
+    lower_installation_machine_service_ceiling, machine_id, place_id, retain_exact_unit_boundary,
+    terminal_scalar_type, unique_unit_boundary, unsupported, value_id,
+};
+use super::{
+    CheckedTrees, LoweringError, SourceMappedLowered, admission, catalogs, custody, emission,
+};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 
 pub(super) fn lower(

@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, BlockId, EdgeId, TerminalMachine, Terminator, dominators, successors,
+};
 use semantic_vocabulary::{ContractId, MachineId, PlaceId, StructuralCaseId};
 use terminal_psi::{Block, MachineContract, StructuralCaseSuccessorEdge, TerminalMachineResult};
 

@@ -1,6 +1,9 @@
 //! A fresh guard proves each indexed write without a termination claim.
-
-use super::*;
+use super::{
+    IntegerSign, IntegerType, IntegerValue, Lexer, OperationKind, ResolutionRequest,
+    StructuralPathSegment, StructuralTypeShape, checked_source, lower_symbol_resolved_trees,
+    lower_typed_trees, parse_syntax_trees, resolve,
+};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,

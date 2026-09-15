@@ -1,6 +1,15 @@
 //! Source-bound byte ranges are evaluated at their authored call positions.
-
-use super::*;
+use super::super::{
+    IntegerValue, PrimitiveType, StructuralAccess, StructuralParameterDeclaration, ValueId,
+};
+use super::{
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError, Operation,
+    OperationKind, OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
+    allocate_dense, literal_argument_places, lookup_type_id, obligation_id, place_id,
+    terminal_scalar_type, unsupported,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::expression::ExpressionNode;

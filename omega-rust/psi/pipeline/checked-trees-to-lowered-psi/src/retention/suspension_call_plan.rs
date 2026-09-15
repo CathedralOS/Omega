@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    CheckedTrees, LoweredSourceCallOccurrence, LoweringError, OperationId, OperationKind,
+    TerminalModule, ValueDeclaration, ValueId, terminal_scalar_type, unsupported,
+};
 pub(crate) fn retain_suspension_call_plans(
     checked: &CheckedTrees,
     source_machines: &[symbols::SymbolHandle],

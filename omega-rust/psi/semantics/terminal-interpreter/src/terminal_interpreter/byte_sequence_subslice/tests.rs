@@ -1,5 +1,13 @@
+use super::{
+    ByteSequenceCarrier, IntegerSign, IntegerType, IntegerValue, Operation, OperationKind,
+    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape, TerminalExecution,
+    TerminalScalarValue, TerminalStructuralValue,
+};
 use std::collections::BTreeMap;
 
+use crate::terminal_interpreter::{
+    ExecutableMachine, LiveClaim, TerminalExecutionStatus, TerminalScalarCaseValue,
+};
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, StructuralDomainId,
     StructuralTypeId, ValueId,
@@ -10,11 +18,6 @@ use terminal_psi::{
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathQualification,
     StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralTypeDeclaration,
     TerminalMachineResult, Terminator, ValueDeclaration,
-};
-
-use super::*;
-use crate::terminal_interpreter::{
-    ExecutableMachine, LiveClaim, TerminalExecutionStatus, TerminalScalarCaseValue,
 };
 
 fn place(ordinal: u64) -> PlaceId {

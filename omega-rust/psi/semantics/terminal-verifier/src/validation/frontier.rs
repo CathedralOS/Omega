@@ -1,7 +1,13 @@
 use super::affine_cleanup::{
     bounded_nominal_cleanup_receiver_shape, valid_nominal_cleanup_requirements,
 };
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, BlockId, ClaimId, EdgeId, MachineId, ModuleError, OperationId,
+    OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceKind,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, partial_affine_residuals, partial_affine_root_type,
+};
 
 mod block_parameters;
 mod traversal;
@@ -1717,7 +1723,11 @@ fn apply_continuation_residual_discards(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BlockId, ClaimId, ModuleError, PlaceId, StructuralMultiplicity, StructuralPathSegment,
+        VerifiedLiveClaim, VerifiedOwnedStructuralPlace, VerifiedPartialStructuralCustody,
+        VerifiedStructuralOwnershipFrontier, require_snapshot_match,
+    };
 
     fn empty_snapshot() -> VerifiedStructuralOwnershipFrontier {
         VerifiedStructuralOwnershipFrontier {

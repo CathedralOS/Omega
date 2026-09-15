@@ -755,7 +755,13 @@ fn validate_schema_correspondence_placement_binding(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        DeviceRevisionPredicateId, ResourceProfileReceiptId, RuntimeDeviceRevisionEvidence,
+        RuntimeDeviceRevisionObservationId, SchemaCorrespondenceProviderId,
+        SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
+        SchemaDeviceCorrespondenceReceiptContext, StableDeviceInstanceId, ValidatedPlacementPlan,
+        admit_schema_device_correspondence,
+    };
     use crate::{AccessPlan, BoundaryReach, PlacementPlan, validate_placement_plan};
     use layout_plans::LayoutPlanReport;
 

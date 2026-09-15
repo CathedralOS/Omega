@@ -1,6 +1,14 @@
 //! Partial-affine cleanup lowering and maximal residual reconstruction.
-
-use super::*;
+use super::super::{
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, StructuralAffineDiscard, lower_structural_path,
+    lower_unit_effect_closure,
+};
+use super::{
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, LoweringError, Multiplicity, PrimitiveType, Terminator,
+    lookup_type_id, unique_unit_machine, unsupported,
+};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 mod anonymous;

@@ -36,7 +36,10 @@ pub struct MachineSynchronousInvocationFact {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineSynchronousInvocationFact, SymbolHandle, SynchronousInvocationFacts,
+        SynchronousInvocationPlan,
+    };
     use language_semantics::SynchronousInvocationInterface;
 
     #[test]

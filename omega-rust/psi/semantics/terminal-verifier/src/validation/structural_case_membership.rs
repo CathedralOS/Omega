@@ -2,8 +2,11 @@
 //! lookup supplies nominal identity, not liveness: control-flow availability and
 //! the ownership frontier independently check the occurrence before it executes.
 
-use super::*;
-
+use super::{
+    BTreeSet, ModuleError, OperationKind, PlaceId, ScalarType, StructuralAccess,
+    StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalModule,
+    resolve_structural_path,
+};
 pub(super) fn validate(
     module: &TerminalModule,
     machine: &TerminalMachine,

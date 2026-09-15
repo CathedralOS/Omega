@@ -1,6 +1,21 @@
 //! Proposition and evidence artifact lowering.
-
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind,
+    CheckedPropositionEvidence, CheckedTrees, EvidenceContractLane, EvidenceContractLaneKind,
+    EvidenceIdentity, EvidenceInterfaceIdentity, EvidenceProducerProvenance,
+    EvidenceProducerRealization, EvidenceProducerRowSource, EvidenceProjectionIdentity,
+    EvidenceRequirementIdentity, EvidenceRoute, EvidenceTermDeclaration, EvidenceTermId,
+    LoweredPsi, LoweringError, MachineId, ObligationEvidence, OperationKind,
+    OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity,
+    OutcomeSpecificCallResultSubstitution, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
+    OutcomeSpecificEvidenceUse, OutcomeSpecificGuard, PrimitiveJudgment, PrimitiveType,
+    ProofOutput, ProofOutputCall, ProofOutputRuntimeCall, Proposition,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, PropositionId, StaticRequirementDispatch,
+    StructuralTypeShape, TerminalMachine, TerminalModule, Terminator, dense_identity, machine_id,
+    obligation_id, proposition_id, terminal_scalar_type, unsupported,
+};
 use terminal_psi::ProofOutputRuntimeResult;
 
 pub(crate) fn lower_and_install_evidence_artifacts(

@@ -1,7 +1,6 @@
 //! Canonical source-free proof-recursion component validation.
 
-use super::*;
-
+use super::{BTreeMap, BTreeSet, IdRegistry, ModuleError, TerminalModule, insert_unique};
 pub(super) fn validate_proof_recursive_components(
     module: &TerminalModule,
     registry: &mut IdRegistry,

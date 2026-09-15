@@ -1,6 +1,14 @@
 //! Exact authored successor operands and Boolean fallback pairing.
-
-use super::*;
+use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
+use super::super::super::{
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity,
+    terminal_scalar_type, unsupported,
+};
+use super::super::{CheckedTrees, LoweringError};
+use super::{
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
+    CheckedStructuralControlSuccessorPlan, result_custody, subslices,
+};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{
     StatementNode, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,

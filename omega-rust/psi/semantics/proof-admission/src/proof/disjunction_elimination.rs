@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,
+    Proposition, PropositionContext, accept_certificate,
+};
 use semantic_vocabulary::PropositionId;
 
 fn atom(index: u64) -> Proposition {

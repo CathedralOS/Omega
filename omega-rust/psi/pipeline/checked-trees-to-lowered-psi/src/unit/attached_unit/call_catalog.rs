@@ -7,8 +7,12 @@
 //! emitter exactly once, while the remaining scalar bodies use their own emitter.
 //! Classification grants no custody; each body and call is validated by assembly.
 
-use super::*;
-
+use super::{
+    CheckedScalarCallee, CheckedTrees, CheckedUnitEffectOperationPlan,
+    CheckedUnitProviderCandidate, LoweringError, ProviderBody, UnitBody,
+    checked_scalar_call_closure_with_structural_roots, checked_unit_call_closure_including,
+    checked_unit_provider_candidates, reject_recursive_unit_closure, shared_closure, unsupported,
+};
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
     pub(super) providers: Vec<CheckedUnitProviderCandidate>,

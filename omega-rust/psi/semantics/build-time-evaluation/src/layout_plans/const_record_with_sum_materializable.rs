@@ -2112,7 +2112,16 @@ fn non_authoritative_record_with_sum_materialization_report_fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BuildTimeValue, ByteOrder, ConventionalSumArrayFieldLayoutReport,
+        ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport, DataMember,
+        LayoutPlacementReport, LayoutPlanReport, TypedTrees,
+        normalized_layout_plan_report_fingerprint, normalized_schema_report_fingerprint,
+        unique_data_by_name, validate_const_materializable_record_with_conventional_sum,
+        validate_const_materializable_record_with_conventional_sum_array,
+        validate_const_materializable_record_with_conventional_sum_arrays,
+        validate_const_materializable_record_with_conventional_sums,
+    };
     use layout_plans::{
         ConventionalSumCaseLayoutReport, ConventionalSumPayloadFieldLayoutReport,
         LayoutFieldEntryReport,

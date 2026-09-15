@@ -365,14 +365,17 @@ fn encode_propositions(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        CodecError, build_terminal_obligation_ledger, decode_terminal_obligation_ledger,
+        encode_terminal_obligation_ledger, terminal_obligation_ledger_fingerprint,
+        validate_terminal_obligation_ledger,
+    };
+    use crate::current_terminal_trust_graph;
     use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, ObligationId, Proposition};
     use terminal_psi::{
         Block, ContractClause, MachineContract, TerminalMachine, TerminalMachineResult,
         TerminalModule, Terminator, VocabularyMarker,
     };
-
-    use super::*;
-    use crate::current_terminal_trust_graph;
 
     #[test]
     fn canonical_ledger_round_trips_and_rejects_a_tampered_question() {

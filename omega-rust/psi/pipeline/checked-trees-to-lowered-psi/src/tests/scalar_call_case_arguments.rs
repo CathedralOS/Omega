@@ -1,5 +1,8 @@
 //! A case actual retains its constructor and each authored payload occurrence.
-use super::*;
+use super::{
+    IntegerSign, IntegerType, IntegerValue, LoweringError, OperationKind, StructuralAccess,
+    StructuralTypeShape, checked_source, lower_machine,
+};
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
 
 const ORDERED_CONSTRUCTOR: &str = r#"

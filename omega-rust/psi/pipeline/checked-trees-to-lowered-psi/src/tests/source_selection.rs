@@ -1,7 +1,9 @@
 //! Source closure ownership travels with the selected lowering result.
 
-use super::*;
-
+use super::{
+    checked_source, lower_machine, lower_selected_machine, scalar_call_closure,
+    select_terminal_machine,
+};
 #[test]
 fn scalar_selection_returns_the_source_closure_used_to_emit_its_catalog() {
     let checked = checked_source(

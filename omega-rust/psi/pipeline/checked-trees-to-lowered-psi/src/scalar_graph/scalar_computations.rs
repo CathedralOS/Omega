@@ -5,8 +5,11 @@
 //! positions. Selection converges with one scalar result, without hoisting the
 //! selected path's structural effects. The calls and arrays modules own that
 //! mixed schedule and its real structural results.
-
-use super::*;
+use super::{
+    CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
+    PreparedScalarQualifications, QualifiedScalarType, ScalarType, StructuralArgument,
+    scalar_carriers, unsupported, validate_direct_parameter_types,
+};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
