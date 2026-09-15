@@ -74,10 +74,13 @@ fn same_directory(left: &Dir, right: &Dir) -> Result<(), PackagePublicationError
 
 #[cfg(unix)]
 fn synchronize(directory: &Dir, path: &Path) -> Result<(), PackagePublicationError> {
+    // Ambient and child directory handles are `O_PATH` descriptors on Linux,
+    // which `fsync` rejects. Reopen "." for a writable-sync descriptor, the
+    // same route `record_file`'s `synchronize_directory` takes.
     directory
-        .try_clone()
+        .open(".")
         .map_err(|error| io_error(path, error))?
-        .into_std_file()
+        .into_std()
         .sync_all()
         .map_err(|error| io_error(path, error))
 }
