@@ -10,6 +10,8 @@ mod dynamic_and_cleanup_plans;
 mod hosted_exit_runtime;
 #[path = "artifacts/installation_field_substitutions.rs"]
 mod installation_field_substitutions;
+#[path = "artifacts/installation_function_nested_custody.rs"]
+mod installation_function_nested_custody;
 #[path = "artifacts/installation_records.rs"]
 mod installation_records;
 #[path = "artifacts/installed_artifact.rs"]
