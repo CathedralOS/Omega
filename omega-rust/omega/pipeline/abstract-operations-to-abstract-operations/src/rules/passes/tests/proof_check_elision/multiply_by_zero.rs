@@ -1,6 +1,16 @@
 //! Exact multiplication-by-zero tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;
+use super::super::{
+    IntegerSign, IntegerType, IntegerValue, O, ObligationId, OperationId, OptimizationFact,
+    OptimizationUnitValidationError, OptimizationValidatorIdentity,
+    ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite, PsiRewriteCandidate,
+    PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, ValueId, exact_add_unit, id,
+    live_divide_by_one_unit, live_exact_multiply_by_zero_unit, live_proof_binary_identity_unit,
+    recompute_psi_optimization_unit_identity, validate_proof_certified_scalar_identity_candidate,
+    validate_psi_optimization_unit,
+};
 
 #[test]
 fn proof_certified_exact_multiply_by_zero_covers_both_sides_and_integer_signs() {

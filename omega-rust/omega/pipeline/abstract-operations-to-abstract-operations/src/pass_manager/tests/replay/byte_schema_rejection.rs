@@ -1,6 +1,9 @@
+use super::super::super::{
+    ExternalDecisionReplayError, OptimizationRunError, replay_psi_pipeline, run_psi_pipeline,
+};
 use super::super::{
-    ExternalDecisionReplayError, ExternalDecisionSchemaError, Optimization, OptimizationRunError,
-    OptimizationSelections, budget, replay_psi_pipeline, run_psi_pipeline, verified_exact_add_unit,
+    ExternalDecisionSchemaError, Optimization, OptimizationSelections, budget,
+    verified_exact_add_unit,
 };
 
 #[test]

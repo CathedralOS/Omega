@@ -1,6 +1,9 @@
 //! Byte replacement preserves exact capacity evidence and the original storage effect.
-use super::*;
 
+use super::{
+    AbstractOperation, OptimizationUnitValidationError, TerminalFuelSchedule, refresh_identity,
+    validate_transformed_psi_optimization_unit, validate_verified_psi_optimization_unit,
+};
 #[test]
 fn indexed_byte_field_rejoins_original_field_even_when_current_bounds_match() {
     let source = r#"

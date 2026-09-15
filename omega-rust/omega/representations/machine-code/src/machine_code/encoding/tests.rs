@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    DeferredControlEncodingReason, PostAllocationMachineIdentity, ResolvedPhysicalAddress,
+    SelectedFormDecodedFootprint, SelectedFormEncoding, SelectedFormEncodingCounts,
+    SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormMachineDisposition,
+};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionId,
     SelectedInstructionPlanIdentity,

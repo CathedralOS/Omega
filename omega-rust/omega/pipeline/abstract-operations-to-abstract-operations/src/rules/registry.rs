@@ -205,9 +205,12 @@ impl OrderedRuleRegistry {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        Arc, OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
+        OrderedRuleRegistry, PsiOptimizationRule, PsiOptimizationUnit, PsiRewriteCandidate,
+        RuleAnalysisView, RuleProposalError, RuleRegistryError,
+    };
     use optimization_core::{AnalysisInvalidationSet, AnalysisSet, OptimizationSafetyClass};
-
-    use super::*;
 
     #[derive(Debug)]
     struct TestRule(OptimizationRuleContract);

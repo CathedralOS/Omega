@@ -1,5 +1,9 @@
 //! Ordered Unit definitions retain exact producer homes, not assigned stack slots.
-use super::*;
+use super::super::{
+    AbstractOperation, AbstractOperationPlan, IntegerSign, IntegerType, NativeTarget, OperationId,
+    ScalarType, TargetUnitOperation, ValueId, ValueShape,
+};
+
 use target_operations::TargetOperationPlan;
 
 fn integer(sign: IntegerSign, bits: u16) -> IntegerType {

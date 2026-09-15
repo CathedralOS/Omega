@@ -6,6 +6,11 @@
 //! and only then construct the immutable candidate. `access` exposes the
 //! admitted value without reopening mutation.
 
+use super::{
+    BlockId, OptimizationCandidateIdentity, OptimizationRuleContract, OptimizationUnitIdentity,
+    ProvenanceRewrite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
+    PsiRewriteWitness, ScalarSubstitution,
+};
 mod access;
 mod common_invariants;
 mod control_flow;
@@ -14,7 +19,6 @@ mod patch_invariants;
 mod scalar;
 
 use super::codec::encode_candidate;
-use super::*;
 
 impl PsiRewriteCandidate {
     #[allow(clippy::too_many_arguments)]

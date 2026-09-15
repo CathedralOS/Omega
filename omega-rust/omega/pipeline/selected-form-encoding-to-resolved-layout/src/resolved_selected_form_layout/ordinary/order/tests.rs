@@ -1,5 +1,7 @@
 //! Raw ordering premises only; these fixtures do not manufacture selection authority.
-use super::*;
+use super::{
+    SelectedBlock, SelectedFunction, SelectedFunctionLayoutPolicy, SelectedTerminator, derive,
+};
 use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
 use selected_instructions::{
     SelectedBlockId, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,

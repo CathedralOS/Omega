@@ -1,7 +1,12 @@
 //! Unary integer constant-evaluation fixtures by exact operation identity.
 
-use super::*;
-
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractResult, BlockId, EdgeId, FuelScheduleIdentity, IntegerType,
+    IntegerValue, MachineId, O, ObligationId, OperationId, PsiOptimizationUnit, ScalarType,
+    SemanticFingerprint, TerminalPsiIdentity, ValueId, VocabularyMarker, id,
+    reconstruct_psi_optimization_unit_seed, with_synthetic_accepted_obligations,
+};
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum UnaryConstantFixtureKind {
     ExactCast,

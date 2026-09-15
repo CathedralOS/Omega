@@ -13,8 +13,12 @@
 //! rebuilt by core validation, so the comparison below retains every
 //! source-owned field rather than the refreshed coordinates.
 
-use super::*;
+use super::super::super::super::{
+    BTreeSet, BlockId, OperationId, OptimizationBlock, OptimizationNode, PsiOptimizationFunction,
+    PsiProvenance, ScalarType, ValueId,
+};
 
+use super::{BTreeMap, MachineId, OptimizationUnitValidationError, OptimizerCycleComponent};
 struct Moved<'function> {
     home: &'function OptimizerCycleComponent,
     expected_block: BlockId,

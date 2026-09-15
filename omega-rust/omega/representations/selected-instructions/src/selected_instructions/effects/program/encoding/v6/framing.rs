@@ -1,5 +1,11 @@
-use super::*;
-
+use super::{
+    BlockMachineEffects, Cursor, FuelScheduleIdentity, FunctionMachineEffects, MAGIC,
+    MachineEffectCatalogIdentity, MachineId, OptimizationUnitIdentity,
+    PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
+    PreAllocationMachineEffectPlan, RegisterConstraintCatalogIdentity, SelectedBlockId,
+    SelectedInstructionPlanIdentity, TargetRegisterEnvironmentIdentity, VERSION,
+    decode_instruction, decode_target, identity, pre_allocation_machine_effect_identity,
+};
 pub fn encode_terminal_pre_allocation_machine_effect_plan(
     plan: &PreAllocationMachineEffectPlan,
 ) -> Vec<u8> {

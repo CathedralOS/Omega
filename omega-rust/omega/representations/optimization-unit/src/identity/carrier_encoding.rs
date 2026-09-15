@@ -3,8 +3,11 @@
 //! These codecs are shared by the unit, proposition, structural-domain, and
 //! operation identity encoders; they do not own any operation-family tags.
 
-use super::*;
-
+use super::{
+    CanonicalBytes, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
+    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, ValueBinding,
+};
 pub(super) fn encode_binding(bytes: &mut CanonicalBytes, binding: &ValueBinding) {
     bytes.id(binding.parameter);
     bytes.id(binding.argument);

@@ -1,7 +1,10 @@
 //! Optimizer module role: carrier leaf. Revision-bound countdown invariant constants.
 
-use super::*;
-
+use super::{
+    BlockId, CountedLoopAnalysisError, EffectLink, FuelSettlement, IntegerType, IntegerValue,
+    MachineId, NodeLocation, OperationId, OptimizationUnitIdentity, PsiProvenance,
+    UnsignedCountdownLoopSummary, ValueDefinition, ValueId,
+};
 /// Closed semantic role of an input-free integer constant retained by the
 /// exact unsigned-countdown ranking relation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -1,7 +1,19 @@
 //! Pass dispatch, ordering, manifest, and composed-pipeline fixed points.
 
-use super::super::super::*;
-
+use super::super::super::super::run_unit;
+use super::super::super::{
+    AbstractOperation, AnalysisProduct, BaselineDecisionOutcome, Optimization,
+    OptimizationCandidateVerdict, OptimizationFactReference, OptimizationPassManifestRecord,
+    OptimizationSelections, PsiTransformationLedger, SelfDividePolicy, SelfRemainderPolicy,
+    boolean_unit, budget, built_in_psi_registries, built_in_psi_registry,
+    compatible_policy_local_cse_unit, dead_exact_add_unit, dead_wrapping_add_unit,
+    dependent_exact_chain_unit, dominator_gvn_unit, exact_add_unit, live_divide_by_one_unit,
+    live_exact_multiply_by_zero_unit, live_exact_zero_value_shift_unit, live_self_divide_unit,
+    live_self_remainder_unit, local_cse_unit, proof_certified_dominator_gvn_unit,
+    proof_certified_local_cse_unit, propagated_block_parameter_unit,
+    randomized_built_in_registries, redundant_block_parameter_unit, run_test_pipeline,
+    wrapping_add_unit,
+};
 #[test]
 fn fixed_point_dispatch_validates_then_commits_with_stable_usage() {
     let unit = exact_add_unit();

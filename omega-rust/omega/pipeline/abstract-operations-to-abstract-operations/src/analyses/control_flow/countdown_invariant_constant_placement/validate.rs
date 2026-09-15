@@ -1,7 +1,12 @@
 //! Optimizer module role: acceptance leaf. Independent replay and exact placement comparison.
 
-use super::*;
-
+use super::{
+    CountdownInvariantConstantPlacementAnalysisError,
+    CountdownInvariantConstantPlacementAnalysisSnapshot, PsiOptimizationUnit,
+    ValidatedCountdownInvariantConstantAnalysis,
+    ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
+    ValidatedOptimizerCycleComponents, replay,
+};
 pub(super) fn accept(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,

@@ -1,5 +1,9 @@
-use super::*;
-
+use super::super::legalized_operation_plan_identity;
+use super::{
+    CallSignature, CallingPolicy, LegalizedOperationPlan, LegalizedScalarArgument,
+    LegalizedScalarCall, LegalizedScalarInstructionKind, ValueShape, evaluate_call_plan, id,
+    scalar_argument_mut, scalar_call_unit_plan,
+};
 #[test]
 fn empty_aggregate_result_shape_retains_some_and_rejects_fake_storage() {
     for policy in [

@@ -739,7 +739,14 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AdmittedSameStackContribution, BTreeSet, SameStackContributionAdmissionCandidate,
+        SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment,
+        StackCallContribution, StackPlan, StackRepresentationId, TaskPlanDiagnostic,
+        TaskStackFrameId, TaskStackFrameSummary, TaskStackFrameValidationId,
+        ValidatedTaskStackFrameSummary, admit_same_stack_contribution, compose_task_stack_demand,
+        project_wcsu_stack_plan, validate_task_stack_frame_summary,
+    };
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
         constructor(identity).expect("normalized identity")

@@ -1,5 +1,22 @@
-use super::*;
-
+use super::super::{
+    LegalizedCallUnitParameter, LegalizedScalarBlock, LegalizedScalarFunction,
+    LegalizedScalarInstruction, LegalizedScalarReturn, LegalizedScalarReturnValue,
+    LegalizedScalarTerminator, LegalizedStructuralContract, LegalizedValueDefinition,
+    NativeCallOrigin,
+};
+use super::{
+    BindingRelevance, BoundaryMachineId, CallSignature, CallingPolicy, ClaimTransfer,
+    CompletionClaimSource, CompletionReceipt, EdgeId, EffectLink, EntryClaim, FuelScheduleIdentity,
+    FuelSettlement, IntegerSign, IntegerType, IntegerValue, LegalizedOperationPlan,
+    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstructionKind, NativeTarget,
+    OperationId, OptimizationUnitIdentity, OwnershipEvent, ProviderCandidateConformance,
+    PsiProvenance, ScalarType, SemanticFingerprint, StructuralAccess, StructuralArgument,
+    StructuralDomainId, StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    TerminalPsiIdentity, TerminalPsiProvenance, ValueId, ValueShape, VocabularyMarker,
+    evaluate_call_plan, id,
+};
 pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     let extent_type = id::<StructuralTypeId>(1);
     let granted = id::<StructuralDomainId>(1);

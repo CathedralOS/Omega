@@ -1,6 +1,16 @@
 //! Remainder-by-one tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::LiveProofCertifiedIntegerRemainderByOneEliminationRule;
+use super::super::{
+    AnalysisKind, AnalysisProduct, BlockId, EdgeId, IntegerConstantRewrite, IntegerSign,
+    IntegerType, IntegerValue, MachineId, O, ObligationId, OperationId, OptimizationFact,
+    OptimizationFactReference, OptimizationUnitValidationError, OptimizationValidatorIdentity,
+    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, ScalarType,
+    SelfRemainderPolicy, ValueId, discard_scalar_function_result, id, integer_zero,
+    live_remainder_by_one_unit, live_self_remainder_unit, recompute_psi_optimization_unit_identity,
+    validate_proof_certified_integer_remainder_by_one_candidate, validate_psi_optimization_unit,
+};
 
 #[test]
 fn proof_certified_remainder_by_one_materializes_typed_zero_for_every_policy_and_sign() {

@@ -1,6 +1,22 @@
 //! Exact SCCP catalog positions for constant-evaluation rule families.
 
-use super::*;
+use super::super::super::super::{
+    BooleanEqualConstantsRule, BooleanNotConstantsRule, ExactIntegerAddConstantsRule,
+    ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
+    ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
+    ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
+    ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,
+    IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
+    IntegerEqualConstantsRule, IntegerLessOrEqualConstantsRule, IntegerLessThanConstantsRule,
+    IntegerWidenConstantsRule, SaturatingIntegerAddConstantsRule,
+    SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
+    SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
+    WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
+    WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
+    WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
+    WrappingIntegerSubtractConstantsRule,
+};
+use super::super::super::{OptimizationSafetyClass, PsiOptimization, registry_for_optimization};
 
 #[test]
 fn sccp_registry_pins_every_binary_integer_constant_rule_position() {

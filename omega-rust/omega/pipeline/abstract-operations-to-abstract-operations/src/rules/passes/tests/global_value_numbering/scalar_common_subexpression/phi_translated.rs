@@ -1,6 +1,19 @@
 //! Phi-translated leader construction and validation.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::{
+    PhiTranslatedObligationFreeScalarGvnRule,
+    PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
+    PhiTranslatedProofCertifiedScalarGvnRule,
+};
+use super::super::super::{
+    BlockId, EdgeId, O, OperationId, OptimizationFact, OptimizationUnitValidationError,
+    PhiTranslatedRightArm, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+    RuleAnalysisView, ValueId, compatible_policy_phi_translated_gvn_unit, id,
+    phi_translated_gvn_fixture, phi_translated_gvn_unit, proof_certified_phi_translated_gvn_unit,
+    recompute_psi_optimization_unit_identity,
+    validate_phi_translated_scalar_common_subexpression_candidate,
+};
 
 fn phi_translated_candidates(unit: &PsiOptimizationUnit) -> Vec<PsiRewriteCandidate> {
     let contract = PhiTranslatedObligationFreeScalarGvnRule::contract();

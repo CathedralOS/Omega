@@ -1,5 +1,9 @@
 //! Current target catalogs, physical addresses and independent byte replay agree on narrow loads.
-use super::*;
+use super::{
+    Architecture, NativeTarget, OptimizedSelectedFormEncodingError,
+    PostAllocationMachineInstruction, SelectedFormEncodingState, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, encode_row,
+};
 use physical_instructions::{
     PhysicalAddressOperation, PhysicalOperandFootprint, PostAllocationMachineFunction,
 };

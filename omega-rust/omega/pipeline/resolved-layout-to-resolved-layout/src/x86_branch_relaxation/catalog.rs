@@ -60,7 +60,11 @@ pub fn x86_rel8_selected(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Architecture, FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
+        ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES, Optimization, OptimizationExecutionPhase,
+        x86_rel8_selected,
+    };
     use optimization_core::OptimizationSelections;
 
     #[test]

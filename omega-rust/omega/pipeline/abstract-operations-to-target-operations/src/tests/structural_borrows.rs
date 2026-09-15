@@ -1,5 +1,12 @@
 //! Authored borrows retain reference ABI placement after canonical Psi checking.
 
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, BlockId, EdgeId, IntegerSign, IntegerType,
+    ScalarType, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, ValueId,
+};
 use calling_conventions::{ValueClass, ValueLocation};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
@@ -170,7 +177,6 @@ fn shared_source() -> abstract_operations::AbstractOperationPlan {
 }
 
 fn projected_field_borrow_plan() -> abstract_operations::AbstractOperationPlan {
-    use super::*;
     let tally = StructuralTypeId::new(1).unwrap();
     let main = StructuralTypeId::new(2).unwrap();
     let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
@@ -260,7 +266,6 @@ fn projected_field_borrow_plan() -> abstract_operations::AbstractOperationPlan {
 /// The same projected-field borrow with one runtime scalar argument, so the
 /// retained call exercises the scalar prefix of the callee's plan too.
 fn projected_field_borrow_scalar_argument_plan() -> abstract_operations::AbstractOperationPlan {
-    use super::*;
     let mut plan = projected_field_borrow_plan();
     let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let caller_value = ValueId::new(40).unwrap();

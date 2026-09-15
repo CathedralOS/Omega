@@ -1,7 +1,11 @@
 //! Subslice result, bounds, source, and execution custody after optimization.
 
-use super::*;
-
+use super::super::super::StructuralTypeId;
+use super::{
+    AbstractOperation, OptimizationUnitValidationError, PlaceId, ValueId, byte_reads, id,
+    refresh_identity, validate_transformed_psi_optimization_unit,
+    validate_verified_psi_optimization_unit,
+};
 #[test]
 fn surviving_subslice_cannot_reuse_proof_after_endpoint_drift() {
     let verified = byte_reads::verified_byte_operation(true);

@@ -285,7 +285,9 @@ pub(super) fn decode_definition_site(
 
 #[cfg(test)]
 mod scratch_tests {
-    use super::*;
+    use super::{
+        Cursor, SelectedInstructionId, VirtualRegisterOrigin, decode_origin, encode_origin,
+    };
     #[test]
     fn instruction_scratch_origin_roundtrips_exact_coordinates() {
         let origin = VirtualRegisterOrigin::InstructionScratch {

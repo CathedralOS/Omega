@@ -1,7 +1,10 @@
 //! Canonical home encoding. Successful decode is not allocation admission.
 
 use super::identity::encode_terminal_register_home_content;
-use crate::*;
+use crate::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionRegisterHomes,
+    RegisterHomeIdentity, RegisterHomePlan, VirtualRegisterHome, register_home_identity,
+};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{LiveRangeIdentity, VirtualRegisterId};
 use semantic_vocabulary::MachineId;

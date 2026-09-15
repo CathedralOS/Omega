@@ -1,7 +1,10 @@
 //! Optimizer module role: executable entrance. Transition-free physical-home assignment entrance.
 
-use crate::*;
-
+use crate::{
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedPhysicalRegisterModel,
+    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
+};
 pub(crate) mod compute;
 pub(crate) mod model;
 mod physical_requirement;

@@ -1,6 +1,14 @@
 //! Constant-conditional folding, pruning, and corruption rejection.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::ConstantConditionalFoldRule;
+use super::super::{
+    AbstractOperation, BlockId, ConstantConditionalRewrite, IntegerEvaluationWitness,
+    OptimizationUnitValidationError, ProvenanceDisposition, PsiRealizationSite,
+    PsiRewriteCandidate, RuleAnalysisView, ServiceId, constant_conditional_dead_service_unit,
+    constant_conditional_same_target_unit, id, propagated_block_parameter_unit,
+    validate_constant_conditional_candidate, validate_psi_optimization_unit,
+};
 
 #[test]
 fn constant_conditional_fold_binds_selected_edge_fact_and_fuel() {

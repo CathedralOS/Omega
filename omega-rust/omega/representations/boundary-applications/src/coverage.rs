@@ -229,7 +229,11 @@ fn canonical_usize(value: usize) -> [u8; 8] {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundaryApplication, BoundaryApplicationRealization, OperationId,
+        TerminalBoundaryApplicationCoverage, TerminalBoundaryApplicationDemand,
+        TerminalBoundaryApplicationDemands, TerminalBoundaryApplicationRealizations,
+    };
     use crate::{
         BoundaryApplicationRealizationCompanion, BoundaryNominalIdentity,
         BoundaryOperatorRequirement,

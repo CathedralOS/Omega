@@ -50,13 +50,14 @@ fn length(bytes: &mut Vec<u8>, value: usize) {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, allocator_availability_identity,
+    };
+    use crate::RegisterClassAvailability;
     use register_model::{
         PhysicalRegisterModelIdentity, RegisterClassId, RegisterViewId,
         TargetRegisterEnvironmentIdentity,
     };
-
-    use super::*;
-    use crate::RegisterClassAvailability;
 
     fn plan() -> AllocatorAvailabilityPlan {
         AllocatorAvailabilityPlan {

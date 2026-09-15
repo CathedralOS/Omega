@@ -1,7 +1,6 @@
 //! Bounds-checked transformation-ledger byte cursor.
 
-use super::*;
-
+use super::super::PsiTransformationLedgerDecodeError;
 pub(in crate::ledger) struct LedgerCursor<'encoded> {
     encoded: &'encoded [u8],
     pub(in crate::ledger) offset: usize,

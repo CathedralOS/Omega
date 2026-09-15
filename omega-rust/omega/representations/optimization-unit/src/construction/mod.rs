@@ -1,13 +1,15 @@
 //! Optimizer module role: executable entrance. Deterministically projects one abstract plan into a canonical optimization unit seed.
 
+use super::{
+    AbstractOperationPlan, Arc, BlockId, FuelScheduleIdentity, MachineId, OptimizationUnitIdentity,
+    PsiOptimizationUnit, TerminalRootServiceReach, recompute_psi_optimization_unit_identity,
+};
 mod control_flow;
 mod facts;
 mod function;
 mod provenance;
 mod scalar_dataflow;
 mod structural_custody;
-
-use super::*;
 use function::build_function;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

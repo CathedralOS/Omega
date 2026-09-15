@@ -1,6 +1,19 @@
 //! Memory observations remain ordered through scalar optimization and loop reentry.
-
-use super::*;
+use super::super::{
+    DeadScalarLiteralEliminationRule, DeadUnconditionallyTotalScalarEliminationRule,
+    SameBlockTotalScalarCseRule,
+};
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperationPlan,
+    AbstractResult, AnalysisKind, AnalysisProduct, BlockId, EdgeId, FuelScheduleIdentity,
+    IntegerSign, IntegerType, IntegerValue, MachineId, NodeLocation, O, OperationId,
+    OptimizationUnitValidationError, PlaceId, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, RuleAnalysisView, ScalarType,
+    SemanticFingerprint, StructuralTypeId, TerminalPsiIdentity, ValueId, VocabularyMarker,
+    compute_analysis, id, reconstruct_psi_optimization_unit_seed,
+    validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
+};
+use crate::rule_registry::PsiOptimizationRule;
 use terminal_psi::{
     StructuralMultiplicity, StructuralOperationResult, StructuralTypeDeclaration,
     StructuralTypeShape,

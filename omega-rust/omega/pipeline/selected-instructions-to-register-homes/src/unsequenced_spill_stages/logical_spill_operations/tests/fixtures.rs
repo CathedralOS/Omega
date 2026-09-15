@@ -1,3 +1,13 @@
+use crate::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, BlockPointDomain,
+    FunctionAllocationLegality, FunctionLiveRanges, FunctionLogicalSpillOperations,
+    FunctionSpillChoices, LiveRangeFragment, LiveRangeIdentity, LiveRangePoint, LivenessPosition,
+    LogicalReloadValueId, LogicalSpillAction, LogicalSpillOperationPlan,
+    LogicalSpillOperationPolicy, LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass,
+    LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite, PressureContender,
+    PressureResident, SpillChoice, SpillChoiceIdentity, VirtualLiveRange, VirtualOccurrence,
+    VirtualRegisterAllocationLegality,
+};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use optimization_unit::ValueDefinitionSite;
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
@@ -10,8 +20,6 @@ use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     ScalarType, ValueId,
 };
-
-use crate::*;
 
 pub(super) struct Fixture {
     pub(super) plan: LogicalSpillOperationPlan,

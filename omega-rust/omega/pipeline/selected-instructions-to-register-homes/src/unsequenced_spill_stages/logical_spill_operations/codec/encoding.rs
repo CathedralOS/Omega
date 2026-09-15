@@ -1,4 +1,6 @@
-use super::super::*;
+use super::super::{
+    LogicalSpillOperationPlan, LogicalSpillOperationPolicy, LogicalSpillStorageClass,
+};
 use super::values::{encode_definition_site, encode_len, encode_origin, encode_scalar_type};
 use super::{MAGIC, VERSION};
 

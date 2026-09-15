@@ -3,8 +3,6 @@
 //! Encoding, decoding, and cursor mechanics are separate leaves. Decoding
 //! rejoins canonical ledger construction before returning an admitted value.
 
-use super::*;
-
 mod cursor;
 mod decoding;
 mod encoding;

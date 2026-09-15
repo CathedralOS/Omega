@@ -1,6 +1,11 @@
 //! Raw identity controls do not confer primitive-store admission.
-use super::*;
 
+use super::super::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
+use super::{
+    IntegerSign, IntegerType, LegalizedOperationPlan, LegalizedScalarInstructionKind, ScalarType,
+    StructuralPathSegment, assert_identity_drift, id, legalized_operation_plan_identity,
+    scalar_call_unit_plan,
+};
 fn primitive_store_plan() -> LegalizedOperationPlan {
     let mut plan = scalar_call_unit_plan();
     let row = &mut plan.scalar_functions[0].blocks[0].instructions[0];

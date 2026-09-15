@@ -1,7 +1,15 @@
 //! Optimizer module role: proposal leaf. Certificate-keyed placement construction.
 
-use super::*;
-
+use super::{
+    BlockId, CountdownInvariantConstantConsumer, CountdownInvariantConstantDestination,
+    CountdownInvariantConstantPlacement, CountdownInvariantConstantPlacementAnalysisError,
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
+    CountdownInvariantIntegerConstant, MachineId, NodeLocation, O, OperationId, OptimizationNode,
+    OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
+    UnsignedCountdownInvariantConstantPlacements, UnsignedCountdownLoopSummary,
+    ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
+    ValidatedOptimizerCycleComponents, ValueId, recompute_psi_optimization_unit_identity,
+};
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,

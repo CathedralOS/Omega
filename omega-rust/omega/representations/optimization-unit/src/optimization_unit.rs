@@ -1,5 +1,10 @@
 //! Immutable optimization-unit aggregate and its exact carrier-family map.
 
+use super::{
+    Arc, BoundaryMachineDeclaration, FuelScheduleIdentity, MachineId, OptimizationUnitIdentity,
+    ProviderCandidateConformance, ServiceDeclaration, StructuralDomainDeclaration,
+    TerminalPsiIdentity, TerminalRootServiceReach,
+};
 mod attachment;
 mod cycles;
 mod graph;
@@ -7,8 +12,6 @@ mod manifest;
 mod ownership;
 mod proof;
 mod range;
-
-use super::*;
 
 pub use attachment::*;
 pub use cycles::*;

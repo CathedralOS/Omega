@@ -1,7 +1,10 @@
 //! Verified structural attachment plus immutable signature and roster custody.
 
-use super::*;
-
+use super::super::{
+    BTreeMap, BTreeSet, recompute_psi_optimization_unit_identity,
+    structural_domain_catalog_identity,
+};
+use super::{OptimizationUnitValidationError, PsiOptimizationUnit};
 pub(super) fn attach_verified_structural_context(
     unit: &mut PsiOptimizationUnit,
     module: &terminal_psi::TerminalModule,

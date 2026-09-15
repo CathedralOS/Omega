@@ -198,7 +198,10 @@ fn successor(scalar_type: IntegerType, value: IntegerValue) -> Option<IntegerVal
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        IntegerSign, IntegerType, IntegerValue, IntervalExtraction, Proposition, ScalarTerm,
+        ScalarType, ValueId, extract,
+    };
     use semantic_vocabulary::PropositionId;
 
     fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {

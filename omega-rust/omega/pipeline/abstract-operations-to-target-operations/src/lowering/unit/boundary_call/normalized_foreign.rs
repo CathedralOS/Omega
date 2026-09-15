@@ -1,7 +1,11 @@
 //! Normalized foreign scalar-call argument and result projection.
 
 use super::super::super::scalar_abi::fixed_native_integer_shape;
-use super::*;
+use super::{
+    BTreeMap, BoundaryMachineId, CallSignature, KnownUnitInteger, LoweringError, OperationId,
+    ScalarType, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement, ValueId,
+    ValueLocation, ValueShape,
+};
 
 pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     boundary: BoundaryMachineId,

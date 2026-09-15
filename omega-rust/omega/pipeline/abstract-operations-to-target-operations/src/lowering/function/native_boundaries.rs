@@ -1,7 +1,9 @@
 //! Scalar native-boundary route classification before result-shape dispatch.
 
-use super::*;
-
+use super::{
+    AbstractFunction, AbstractOperation, BTreeMap, BoundaryMachineId, BoundaryRealization,
+    BoundarySettlementBinding, InstalledProviderCallEvidence, MachineId, OperationId,
+};
 pub(super) fn unsupported_scalar_call(
     function: &AbstractFunction,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,

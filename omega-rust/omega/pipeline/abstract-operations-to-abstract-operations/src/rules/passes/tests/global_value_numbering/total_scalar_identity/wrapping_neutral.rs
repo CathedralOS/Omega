@@ -1,6 +1,15 @@
 //! Obligation-free wrapping identity partitions and canonical tie behavior.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::WrappingNeutralArithmeticIdentityRule;
+use super::super::super::{
+    AnalysisProduct, IntegerSign, IntegerType, IntegerValue, O, OperationId,
+    OptimizationFactReference, OptimizationRuleContract, PsiOptimizationUnit, PsiRewriteCandidate,
+    PsiRewritePatch, RuleAnalysisView, TotalScalarIdentityKind, ValueId, WrappingNeutralOperation,
+    id, recompute_psi_optimization_unit_identity, validate_psi_optimization_unit,
+    validate_total_scalar_identity_candidate, wrapping_neutral_identity_unit,
+    wrapping_neutral_identity_unit_with_type_and_liveness,
+};
 
 fn analysis_products(
     unit: &PsiOptimizationUnit,

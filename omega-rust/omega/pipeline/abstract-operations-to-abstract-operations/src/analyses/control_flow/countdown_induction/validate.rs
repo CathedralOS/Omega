@@ -1,7 +1,9 @@
 //! Optimizer module role: acceptance leaf. Independent replay and exact candidate comparison.
 
-use super::*;
-
+use super::{
+    CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, PsiOptimizationUnit,
+    ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, replay,
+};
 pub(super) fn accept(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,

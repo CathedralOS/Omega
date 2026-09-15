@@ -133,7 +133,7 @@ fn indirect_aggregate_result(placement: &ValuePlacement) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{LegalizedScalarCall, LegalizedScalarCallShapeError, ValueLocation, ValueShape};
 
     #[test]
     fn scalar_float_call_result_retains_exact_direct_width() {

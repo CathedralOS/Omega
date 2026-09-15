@@ -1,7 +1,11 @@
 //! Ordinary, structural, boundary, and service-effect call tags.
 
-use super::*;
-
+use super::super::{
+    encode_abstract_result, encode_access, encode_completion_claim_source,
+    encode_crash_route_bucket, encode_ids, encode_outcome_specific_call_evidence,
+    encode_scalar_type, encode_structural_argument, encode_structural_operation_result,
+};
+use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {

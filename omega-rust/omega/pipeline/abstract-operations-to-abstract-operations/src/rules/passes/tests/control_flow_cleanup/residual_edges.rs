@@ -1,6 +1,14 @@
 //! Residual transactions cannot disappear through scalar control rewrites.
 
-use super::*;
+use super::super::super::{
+    AdjacentBlockMergeRule, LinearEmptyBlockThreadRule, NonAdjacentBlockMergeRule,
+    PathQualifiedEmptyBlockThreadRule, SharedJumpFusionRule,
+};
+use super::super::{
+    O, PlaceId, PsiOptimizationRule, PsiOptimizationUnit, RuleAnalysisView, StructuralTypeId, id,
+    linear_empty_block_unit, non_adjacent_merge_unit, path_qualified_empty_block_unit,
+    shared_terminal_unit,
+};
 
 #[test]
 fn control_rewrites_do_not_offer_to_erase_residual_edge_cleanup() {

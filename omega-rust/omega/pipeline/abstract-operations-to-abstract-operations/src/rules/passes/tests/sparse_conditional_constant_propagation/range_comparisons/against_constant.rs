@@ -1,4 +1,16 @@
-use super::*;
+use super::super::super::super::{
+    IntegerEqualConstantRangeRule, IntegerEqualRangeConstantRule,
+    IntegerLessOrEqualConstantRangeRule, IntegerLessOrEqualRangeConstantRule,
+    IntegerLessThanConstantRangeRule, IntegerLessThanRangeConstantRule,
+};
+use super::super::super::{
+    AbstractOperation, AnalysisKind, BooleanConstantRewrite, IntegerEvaluationWitness,
+    IntegerRangeComparisonKind, IntegerSign, IntegerType, IntegerValue, OptimizationRuleContract,
+    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitValidationError,
+    ProofRangeKind, PsiOptimizationRule, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+    RuleAnalysisView, compute_analysis, range_constant_comparison_unit,
+    validate_boolean_evaluation_candidate,
+};
 
 fn rule(kind: IntegerRangeComparisonKind) -> &'static dyn PsiOptimizationRule {
     match kind {

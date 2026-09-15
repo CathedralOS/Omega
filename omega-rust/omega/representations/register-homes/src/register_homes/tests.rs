@@ -1,12 +1,11 @@
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{LiveRangeIdentity, VirtualRegisterId};
-use semantic_vocabulary::MachineId;
-
-use super::*;
+use super::register_home_identity;
 use crate::{
     AllocationLegalityIdentity, FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomePlan,
     VirtualRegisterHome,
 };
+use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
+use selected_instructions::{LiveRangeIdentity, VirtualRegisterId};
+use semantic_vocabulary::MachineId;
 
 type Mutation = fn(&mut RegisterHomePlan);
 

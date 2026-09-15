@@ -1,8 +1,13 @@
 //! Cross-block, phi-translated, and proof-certified value-numbering fixed points.
 
-use optimization_core::OptimizationValidatorIdentity;
-
-use super::super::super::*;
+use super::super::super::super::{OptimizationRunError, run_unit};
+use super::super::super::{
+    Optimization, OptimizationFactReference, OptimizationSelections, budget, built_in_psi_registry,
+    compatible_policy_local_cse_unit, compatible_policy_phi_translated_gvn_unit,
+    diamond_dominator_gvn_unit, dominator_gvn_unit, local_cse_unit, phi_translated_gvn_unit,
+    proof_certified_dominator_gvn_unit, proof_certified_local_cse_unit,
+    proof_certified_phi_translated_gvn_unit,
+};
 use crate::rules::tests::compatible_policy_dominator_gvn_unit;
 use crate::rules::{
     DominatorProofCertifiedCompatiblePolicyScalarGvnRule, DominatorProofCertifiedScalarGvnRule,
@@ -11,6 +16,7 @@ use crate::rules::{
     PhiTranslatedProofCertifiedScalarGvnRule, SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
     SameBlockProofCertifiedScalarCseRule, SameBlockTotalScalarCseRule,
 };
+use optimization_core::OptimizationValidatorIdentity;
 
 #[test]
 fn named_global_value_numbering_reaches_a_cross_block_ledger_fixed_point() {

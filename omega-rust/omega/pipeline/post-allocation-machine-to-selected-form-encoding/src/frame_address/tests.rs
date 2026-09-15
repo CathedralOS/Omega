@@ -1,5 +1,9 @@
 //! Raw frame proposals exercise address equations without granting frame authority.
-use super::*;
+use super::{
+    Address, FrameStorageSlotId, FunctionTargetFrameLayout, PostAllocationMachineFunction,
+    PostAllocationMachineInstruction, ResolvedPhysicalAddress, TargetFrameLayoutPlan, resolve,
+    validate_address,
+};
 use selected_instructions::{
     LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,

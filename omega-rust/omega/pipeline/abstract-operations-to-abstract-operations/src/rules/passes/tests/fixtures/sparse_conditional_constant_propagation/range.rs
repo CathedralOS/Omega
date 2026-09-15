@@ -1,7 +1,18 @@
 //! Proof-backed integer-range comparison fixtures.
 
-use super::*;
+use super::super::super::{
+    AbstractParameter, AcceptedObligationFact, IntegerRangeComparisonKind,
+    IntegerRangePairComparisonKind, ProofQuestion, ProofQuestionClass, ProofQuestionOwner,
+    attach_accepted_obligation_facts, attach_proof_questions,
+};
 
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractResult, BlockId, EdgeId, FuelScheduleIdentity, IntegerSign,
+    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PsiOptimizationUnit,
+    ScalarType, SemanticFingerprint, TerminalPsiIdentity, ValueId, VocabularyMarker, id,
+    reconstruct_psi_optimization_unit_seed,
+};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProofRangeKind {
     Zero,

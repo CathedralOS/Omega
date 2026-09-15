@@ -1,6 +1,17 @@
 //! Native-boundary provider and Linux settlement fixtures.
 
-use super::*;
+use super::super::super::{LoweringError, TargetLoweringRequest, lower_to_target_operations};
+use super::super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, BlockId, BoundaryMachineDeclaration,
+    BoundaryMachineId, EdgeId, InstalledProviderCallEvidence,
+    InstalledProviderCompletionClaimSource, IntegerSign, IntegerType, MachineId, NativeTarget,
+    OperationId, PlaceId, ProviderInstallationEvidence, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, TargetUnitOperation, TerminalPsiIdentity, ValueId,
+    identity,
+};
 
 #[derive(Debug)]
 struct InstalledProviderFixture {

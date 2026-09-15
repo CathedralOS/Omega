@@ -1,7 +1,12 @@
 //! Optimizer module role: carrier leaf. Immutable exact relocation proposal and accepted output.
 
-use super::*;
-
+use super::{
+    BlockId, CountdownInvariantConstantAnalysisError,
+    CountdownInvariantConstantPlacementAnalysisError, CountdownInvariantConstantRole,
+    CountdownInvariantIntegerConstant, CountedLoopAnalysisError, CycleComponentId, MachineId,
+    NodeLocation, OptimizationCandidateIdentity, OptimizationUnitIdentity, ProvenanceRewrite,
+    PsiOptimizationUnit, PsiTransformationLedger, VerifiedPsiOptimizationSession,
+};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CountdownInvariantConstantRelocation {
     pub(super) constant: CountdownInvariantIntegerConstant,

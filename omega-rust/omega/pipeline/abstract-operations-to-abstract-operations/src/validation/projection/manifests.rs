@@ -1,7 +1,9 @@
 //! Pass-manifest codec, rule-set, revision, and ledger replay.
 
-use super::*;
-
+use super::{
+    OptimizationCandidateVerdict, OptimizationPassManifestRecord, OptimizationRuleSetIdentity,
+    OptimizedAbstractPlanProjectionError, PsiTransformationLedger,
+};
 pub(in crate::validation) fn validate_manifests(
     manifests: &[OptimizationPassManifestRecord],
     expected_rule_set: OptimizationRuleSetIdentity,

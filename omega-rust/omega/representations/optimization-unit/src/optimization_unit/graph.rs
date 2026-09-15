@@ -1,7 +1,13 @@
 //! Executable CFG, value-flow, effect, fuel, and ownership-event carriers.
 
-use super::*;
-
+use super::super::{
+    AbstractFunctionResult, AbstractOperation, BTreeSet, BlockId, ClaimId, ContentEntryClaim,
+    EdgeId, EntryClaim, EvidenceContractLane, IntegerValue, MachineContract, ObligationId,
+    OperationId, PlaceId, ScalarType, ServiceId, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeId, TerminalAffineCleanupAction, ValueBinding,
+    ValueId,
+};
+use super::MachineId;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PsiProvenance {
     Operation(OperationId),

@@ -1,5 +1,4 @@
-use super::*;
-
+use super::PreAllocationMachineEffectDecodeError;
 pub struct Cursor<'a> {
     bytes: &'a [u8],
     position: usize,

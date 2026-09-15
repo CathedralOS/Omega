@@ -1,7 +1,13 @@
 //! Evidence-preserving proof-check elision fixed points.
 
-use super::super::super::*;
-
+use super::super::super::super::run_unit;
+use super::super::super::{
+    AbstractOperation, Optimization, OptimizationFactReference, OptimizationSelections,
+    SelfDividePolicy, SelfRemainderPolicy, budget, built_in_psi_registry, dead_exact_add_unit,
+    live_exact_self_subtract_unit, live_exact_signed_negative_one_shift_right_unit,
+    live_remainder_by_one_unit, live_self_divide_unit, live_self_remainder_unit,
+    live_signed_remainder_by_negative_one_unit,
+};
 #[test]
 fn named_proof_check_elision_reaches_an_evidence_preserving_fixed_point() {
     let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();

@@ -1,6 +1,17 @@
 //! Exact-width bitwise absorbing-literal and overlap custody.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::{
+    BitwiseAbsorbingLiteralIdentityRule, BitwiseNeutralLiteralIdentityRule,
+};
+use super::super::super::{
+    AnalysisProduct, BitwiseNeutralOperation, IntegerSign, IntegerType, IntegerValue, O,
+    OptimizationRuleContract, OptimizationValidatorIdentity, PsiOptimizationUnit,
+    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, TotalScalarIdentityKind, ValueId,
+    bitwise_literal_pair_unit, bitwise_neutral_identity_unit,
+    bitwise_neutral_identity_unit_with_type_and_liveness, id,
+    validate_total_scalar_identity_candidate,
+};
 
 fn analysis_products(
     unit: &PsiOptimizationUnit,

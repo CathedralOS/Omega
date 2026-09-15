@@ -1,7 +1,13 @@
 //! Spill-choice v2 framing and unchecked decoding.
 
 use super::identity::encode_terminal_spill_choice_content;
-use super::*;
+use super::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionSpillChoices,
+    LiveRangeIdentity, LiveRangePoint, MachineId, OptimizationWorkBudget, OptimizationWorkUsage,
+    PressureContender, PressureResident, RegisterClassId, RegisterViewId, SelectedBlockId,
+    SpillChoice, SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+    TargetRegisterEnvironmentIdentity, VirtualRegisterId,
+};
 
 const SPILL_CHOICE_MAGIC: &[u8; 8] = b"OMGSPC\0\0";
 const SPILL_CHOICE_VERSION: u32 = 2;

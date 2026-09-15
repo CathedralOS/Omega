@@ -55,7 +55,6 @@ use super::global_value_numbering::{
     proof_certified_scalar_expression,
 };
 use super::proof_check_elision::{integer_one, integer_zero};
-use super::*;
 use crate::rules::catalog::{
     BuiltInRuleRegistration, assemble_built_in_registry, built_in_rule_registrations,
     registry_for_optimization,

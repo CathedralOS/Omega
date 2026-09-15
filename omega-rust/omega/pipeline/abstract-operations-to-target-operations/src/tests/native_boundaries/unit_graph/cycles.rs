@@ -1,6 +1,9 @@
 //! Graph projection preserves cycles; this is not ranking or native admission.
-use super::*;
 
+use super::{
+    AbstractOperation, AbstractOperationPlan, block, edge, fixture, lower, operation, transfers,
+    value,
+};
 fn cyclic() -> AbstractOperationPlan {
     let mut plan = transfers::transferred();
     let caller = &mut plan.functions[1];

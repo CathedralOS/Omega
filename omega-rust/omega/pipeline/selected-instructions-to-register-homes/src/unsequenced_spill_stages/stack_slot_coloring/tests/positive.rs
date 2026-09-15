@@ -1,5 +1,8 @@
 use super::fixtures::{budget, source};
-use crate::*;
+use crate::{
+    LiveRangePoint, LogicalSpillStorageId, StackSlotColoringPolicy,
+    color_logical_spill_stack_slots, stack_slot_coloring_identity,
+};
 
 #[test]
 fn colors_the_validated_u64_logical_spill_relative_to_a_future_spill_area() {

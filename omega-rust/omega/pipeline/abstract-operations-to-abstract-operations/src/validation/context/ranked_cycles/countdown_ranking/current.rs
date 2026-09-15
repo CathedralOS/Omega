@@ -1,7 +1,17 @@
 //! Optimizer module role: reconstruction leaf. Current-IR countdown evidence inference.
 
-use super::*;
+use super::super::super::super::{
+    BlockId, IntegerCarrier, IntegerSign, IntegerValue, O, PsiOptimizationFunction, ScalarType,
+    ValueId,
+};
 
+use super::super::{
+    OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
+    OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
+};
+use super::{
+    OptimizationUnitValidationError, OptimizerCycleComponentSnapshot, PsiOptimizationUnit,
+};
 mod invariant_constants;
 
 pub(super) fn derive(

@@ -1,5 +1,14 @@
-use super::*;
-
+use super::super::{
+    LegalizedOperationPlanIdentity, LegalizedScalarFunction, LegalizedScalarParameter,
+    LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarTerminator,
+    legalized_operation_plan_identity,
+};
+use super::{
+    CallSignature, CallingPolicy, ClaimId, IntegerSign, IntegerType, IntegerValue,
+    LegalizedOperationPlan, LegalizedScalarCall, LegalizedScalarInstructionKind, OwnershipEvent,
+    ScalarType, StructuralPathSegment, call_aware_plan, evaluate_call_plan, id,
+    scalar_argument_mut, scalar_call_unit_plan, structural_argument_mut, structural_call_mut,
+};
 mod byte_literals;
 mod primitive_store;
 mod scalar_control;

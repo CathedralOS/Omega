@@ -1,7 +1,9 @@
 //! Projected-plan shape, source roster, and reconstructible equivalence.
 
-use super::*;
-
+use super::{
+    AbstractOperationPlan, BTreeMap, BTreeSet, OptimizedAbstractPlanProjectionError,
+    PsiOptimizationUnit,
+};
 pub(super) fn validate_projection_shape(
     source: &AbstractOperationPlan,
     final_unit: &PsiOptimizationUnit,

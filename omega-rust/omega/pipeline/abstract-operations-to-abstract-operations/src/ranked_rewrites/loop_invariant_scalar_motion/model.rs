@@ -1,7 +1,12 @@
 //! Optimizer module role: carrier leaf. Immutable exact relocation proposal and accepted output.
 
-use super::*;
-
+use super::{
+    BlockId, CountdownInvariantConstantAnalysisError,
+    CountdownInvariantConstantPlacementAnalysisError, CountedLoopAnalysisError, CycleComponentId,
+    MachineId, NodeLocation, OperationId, OptimizationCandidateIdentity, OptimizationUnitIdentity,
+    ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance, PsiTransformationLedger, ScalarType,
+    ValueId, VerifiedPsiOptimizationSession,
+};
 /// One loop-invariant scalar node selected for relocation. The node records
 /// the exact source-owned custody the ledger and validator must see: its
 /// operation identity, defined result, original location, provenance, and fuel

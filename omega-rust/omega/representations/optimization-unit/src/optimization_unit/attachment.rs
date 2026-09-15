@@ -1,7 +1,10 @@
 //! One-time verifier-catalog attachment and aggregate identity resealing.
 
-use super::*;
-
+use super::super::{BTreeSet, recompute_psi_optimization_unit_identity};
+use super::{
+    AcceptedObligationFact, OwnershipFrontierFact, OwnershipFrontierSnapshot, ProofQuestion,
+    PsiOptimizationUnit,
+};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OwnershipFrontierFactIndexError {
     AlreadyAttached,

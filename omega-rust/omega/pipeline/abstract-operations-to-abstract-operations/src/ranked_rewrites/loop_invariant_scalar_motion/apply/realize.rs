@@ -1,8 +1,11 @@
 //! Optimizer module role: application leaf. Canonical node movement and derived-coordinate refresh.
 
+use super::super::{
+    EffectLink, LoopInvariantScalarMotionError, LoopInvariantScalarNode, NodeLocation, OperationId,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
+    recompute_psi_optimization_unit_identity,
+};
 use std::collections::BTreeMap;
-
-use super::super::*;
 
 /// Remove every planned scalar node at its exact source location, rebind any
 /// invariant-parameter operands to their entry representatives, and insert the

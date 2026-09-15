@@ -1,7 +1,12 @@
 //! Decision-v5 validation, identity binding, and corruption rejection.
 
-use super::*;
-
+use super::super::{InvalidOptimizationManifestRecord, OptimizationManifestDecodeError};
+use super::{
+    AnalysisKind, AnalysisSet, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
+    OptimizationDecisionRecord, OptimizationReasonCode, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, decision, fact, obligation_fact, ownership_fact, range_fact,
+    rule,
+};
 #[test]
 fn applied_decision_requires_independent_validator_and_round_trips() {
     let rule = rule(b"rule");

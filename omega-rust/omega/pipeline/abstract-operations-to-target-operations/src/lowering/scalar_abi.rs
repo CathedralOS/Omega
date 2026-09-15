@@ -179,7 +179,13 @@ pub(super) fn fixed_native_integer_shape(scalar_type: IntegerType) -> Option<Val
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AbstractFunction, AbstractFunctionResult, AbstractParameter, BlockId, IeeeFloatFormat,
+        IntegerSign, IntegerType, MachineId, NativeTarget, PlaceId, ScalarType, StructuralAccess,
+        StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralTypeDeclaration,
+        StructuralTypeId, StructuralTypeLookup, StructuralTypeShape, ValueId, ValueLocation,
+        ValueShape, derive_fixed_scalar_function_abi, derive_mixed_structural_scalar_function_abi,
+    };
     use abstract_operations::AbstractResult;
 
     #[test]

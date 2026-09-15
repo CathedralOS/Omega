@@ -1,5 +1,10 @@
 //! Fail-closed catalog admission for the closed hosted byte-output leaf.
-use super::*;
+use super::{
+    MachineAlternativeApplicability, MachineBarrier, MachineEffectDeclaration,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedTrapBehavior, MachineSemanticKind, MachineSizeKnowledge,
+    RegisterInstructionConstraint, RegisterOperandAccess, validate_declaration,
+};
 use crate::{MachineAlternative, MachineAlternativeKey, MachineLatencyKnowledge};
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,

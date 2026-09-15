@@ -1,6 +1,17 @@
 //! Self-division tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::LiveProofCertifiedIntegerSelfDivideEliminationRule;
+use super::super::{
+    BlockId, IntegerConstantRewrite, IntegerSign, IntegerType, IntegerValue, MachineId,
+    NodeLocation, O, OperationId, OptimizationFact, OptimizationFactReference,
+    OptimizationUnitValidationError, OptimizationValidatorIdentity, ProvenanceDisposition,
+    ProvenanceRewrite, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
+    ScalarType, SelfDividePolicy, ValueId, discard_scalar_function_result, id, integer_one,
+    live_proof_binary_identity_unit, live_self_divide_unit,
+    recompute_psi_optimization_unit_identity,
+    validate_proof_certified_integer_self_divide_candidate,
+};
 
 #[test]
 fn proof_certified_self_divide_materializes_typed_one_for_every_policy_and_sign() {

@@ -1,7 +1,11 @@
 //! Fresh typed fixtures for Boolean-result constant evaluation.
 
-use super::*;
-
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractResult, BlockId, EdgeId, FuelScheduleIdentity, IntegerType,
+    IntegerValue, MachineId, OperationId, PsiOptimizationUnit, ScalarType, SemanticFingerprint,
+    TerminalPsiIdentity, ValueId, VocabularyMarker, id, reconstruct_psi_optimization_unit_seed,
+};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BooleanFixtureKind {
     Not,

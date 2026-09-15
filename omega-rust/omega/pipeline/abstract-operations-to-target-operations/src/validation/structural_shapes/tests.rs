@@ -1,6 +1,10 @@
 //! Empty ABI shapes retain complete recursive primitive declarations.
-use super::*;
 
+use super::{
+    IeeeFloatFormat, ScalarType, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueShape,
+    project_static_path, reconstruct,
+};
 fn declaration(id: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
         id: StructuralTypeId::new(id).unwrap(),

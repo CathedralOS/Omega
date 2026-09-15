@@ -1,7 +1,8 @@
 //! Initial seed reconstruction and accepted proof/frontier fact projection.
 
+use super::super::{BTreeMap, OptimizationFact};
 use super::context_projection::ContextProjection;
-use super::*;
+use super::{OptimizationUnitValidationError, PsiOptimizationUnit, immutable_custody};
 
 pub(super) fn validate_seed_projection(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,

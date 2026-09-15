@@ -1,6 +1,10 @@
 //! Exact scalar-field layout, retaining canonical IEEE format identity.
-use super::*;
 
+use super::{
+    BTreeMap, BTreeSet, IeeeFloatFormat, LoweringError, ScalarType, StructuralFieldId,
+    StructuralFieldType, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    ValueShape, byte_sequence_shape, checked_align_up_u32, structural_shape,
+};
 pub(in crate::lowering) fn direct_boolean_field_offset(
     structural_type: StructuralTypeId,
     field: StructuralFieldId,

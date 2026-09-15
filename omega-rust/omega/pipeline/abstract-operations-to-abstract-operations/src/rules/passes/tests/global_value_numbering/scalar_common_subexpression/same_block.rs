@@ -1,6 +1,16 @@
 //! Same-block leader choice and custody.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::{
+    SameBlockProofCertifiedScalarCseRule, SameBlockTotalScalarCseRule,
+};
+use super::super::super::{
+    AnalysisKind, IntegerSign, IntegerType, O, OperationId, OptimizationFact,
+    OptimizationSafetyClass, OptimizationUnitValidationError, ProvenanceDisposition, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, ScalarSubstitution,
+    ScalarType, ValueId, compute_analysis, id, local_cse_unit, proof_certified_local_cse_unit,
+    recompute_psi_optimization_unit_identity, validate_local_scalar_common_subexpression_candidate,
+};
 
 #[test]
 fn same_block_cse_uses_earliest_typed_leader_and_moves_custody_forward() {

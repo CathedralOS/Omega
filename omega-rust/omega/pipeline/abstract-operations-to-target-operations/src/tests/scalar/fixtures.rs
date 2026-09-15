@@ -1,5 +1,9 @@
-use super::*;
-
+use super::super::{AbstractBlockEntry, CrashCause, CrashRouteBucket, CrashRouteGuard};
+use super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
+    AbstractParameter, AbstractResult, BlockId, EdgeId, IntegerType, MachineId, ObligationId,
+    OperationId, ScalarType, ValueId, identity,
+};
 pub(super) fn parameter_return_plan(parameter_count: usize) -> AbstractOperationPlan {
     let machine = MachineId::new(10).expect("machine");
     let result = ValueId::new(100).expect("result");

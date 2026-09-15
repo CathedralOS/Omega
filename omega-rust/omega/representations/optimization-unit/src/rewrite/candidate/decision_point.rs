@@ -1,7 +1,8 @@
 //! Canonical scheduling coordinate derived from the typed patch family.
 
-use super::super::*;
-
+use super::super::{
+    NodeLocation, PsiRewriteCandidateError, PsiRewriteDecisionPoint, PsiRewritePatch,
+};
 pub(super) fn derive(
     patch: &PsiRewritePatch,
 ) -> Result<PsiRewriteDecisionPoint, PsiRewriteCandidateError> {

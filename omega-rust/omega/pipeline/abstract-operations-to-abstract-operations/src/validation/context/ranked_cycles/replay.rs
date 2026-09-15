@@ -1,7 +1,8 @@
 //! Optimizer module role: validation leaf. Independent Terminal/current component identity replay.
 
-use super::*;
-
+use super::{
+    OptimizationUnitValidationError, OptimizerCycleComponentSnapshot, PsiOptimizationUnit,
+};
 pub(super) fn rederive_exact_components(
     module: &terminal_psi::TerminalModule,
     unit: &PsiOptimizationUnit,

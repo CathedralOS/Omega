@@ -1,7 +1,13 @@
 //! Optimizer module role: proposal leaf. Direct certificate-owned constant construction.
 
-use super::*;
-
+use super::{
+    BlockId, CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
+    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, IntegerType, IntegerValue,
+    MachineId, NodeLocation, O, OperationId, OptimizerUnsignedCountdownRankingCertificate,
+    PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, UnsignedCountdownInvariantConstants,
+    ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, ValueDefinitionSite, ValueId,
+    recompute_psi_optimization_unit_identity,
+};
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,

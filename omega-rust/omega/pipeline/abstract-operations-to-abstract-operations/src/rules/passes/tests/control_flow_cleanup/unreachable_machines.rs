@@ -1,6 +1,15 @@
 //! Whole-machine reachability pruning and root discovery.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::UnreachablePrivateMachinePruneRule;
+use super::super::{
+    AnalysisKind, AnalysisProduct, BoundaryMachineId, EdgeId, MachineId, O, OperationId,
+    OptimizationUnitValidationError, PlaceId, ProvenanceDisposition, PrunedMachineCustody,
+    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, StructuralTypeId, compute_analysis,
+    linear_empty_block_unit, recompute_psi_optimization_unit_identity,
+    rule_unreachable_private_machine_complement, validate_psi_optimization_unit,
+    validate_unreachable_private_machines_candidate,
+};
 
 #[test]
 fn unreachable_private_machine_pruning_is_atomic_canonical_and_idempotent() {

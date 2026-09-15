@@ -1,7 +1,10 @@
 //! Stable transformation-ledger encoding.
 
-use super::*;
-
+use super::super::{
+    FuelScheduleIdentity, OptimizationUnitIdentity, ProvenanceDisposition, PsiProvenance,
+    PsiRealizationSite, PsiTransformationLedger, PsiTransformationRecord, TerminalPsiIdentity,
+};
+use super::LEDGER_MAGIC;
 impl PsiTransformationLedger {
     pub fn encode(&self) -> Vec<u8> {
         encode_ledger(

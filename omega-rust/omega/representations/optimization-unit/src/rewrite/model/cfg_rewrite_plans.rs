@@ -1,4 +1,7 @@
-use super::super::*;
+use super::super::{
+    BlockId, EdgeId, MachineId, OwnershipFrontierFactIdentity, OwnershipFrontierSite, ScalarType,
+    ValueId,
+};
 use super::foundations::NodeLocation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

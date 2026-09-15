@@ -1,7 +1,8 @@
 //! Model-neutral canonical writers shared by rewrite identities and candidate encoding.
 
-use super::*;
-
+use super::{
+    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueDefinitionSite,
+};
 pub(super) fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
     match site {
         ValueDefinitionSite::FunctionParameter(position) => {

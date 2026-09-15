@@ -1,7 +1,10 @@
 //! Validated optimized-plan projection custody receipt.
 
-use super::*;
-
+use super::{
+    FuelScheduleIdentity, OptimizationSelectionIdentity, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, OptimizedAbstractPlanProjectionIdentity, TerminalPsiIdentity,
+    TransformationLedgerIdentity,
+};
 /// Validator-owned receipt for one optimized-unit to abstract-plan projection.
 ///
 /// This is a custody identity, not the final native realization identity. The

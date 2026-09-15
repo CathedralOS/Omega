@@ -1,5 +1,10 @@
-use super::*;
-
+use super::super::{TargetLoweringRequest, lower_to_target_operations};
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, BlockId, CallSignature,
+    CallingPolicy, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, NativeTarget,
+    OperationId, ScalarType, ValueId, ValueShape, evaluate_call_plan, identity,
+};
 fn mixed_fixed_integer_plan() -> (
     AbstractOperationPlan,
     Vec<AbstractParameter>,

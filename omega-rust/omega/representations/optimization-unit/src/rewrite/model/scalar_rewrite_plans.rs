@@ -1,4 +1,4 @@
-use super::super::*;
+use super::super::{BlockId, EdgeId, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 use super::foundations::NodeLocation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

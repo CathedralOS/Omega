@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, ValuePlacement, ValueShape, encode_structural_parameter,
+    encode_target_structural_parameter,
+};
 #[test]
 fn semantic_and_target_parameters_bind_ordered_projected_qualifications() {
     let rows = [1, 2]

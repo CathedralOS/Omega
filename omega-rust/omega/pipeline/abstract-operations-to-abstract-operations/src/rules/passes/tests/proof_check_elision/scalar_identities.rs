@@ -1,6 +1,15 @@
 //! General proof-certified scalar identity tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::LiveProofCertifiedIntegerIdentityEliminationRule;
+use super::super::{
+    IntegerSign, IntegerType, IntegerValue, O, ObligationId, OperationId, OptimizationFact,
+    OptimizationUnitValidationError, OptimizationValidatorIdentity,
+    ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite, PsiRewriteCandidate,
+    PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, ValueId, exact_add_unit, id,
+    live_exact_add_zero_unit, recompute_psi_optimization_unit_identity,
+    validate_proof_certified_scalar_identity_candidate, validate_psi_optimization_unit,
+};
 
 #[test]
 fn live_proof_certified_identity_elision_substitutes_and_replays_exact_custody() {

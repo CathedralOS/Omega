@@ -1,6 +1,15 @@
 //! Division-by-one tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::LiveProofCertifiedIntegerDivideByOneEliminationRule;
+use super::super::{
+    IntegerSign, IntegerType, IntegerValue, O, OptimizationFact, OptimizationUnitValidationError,
+    OptimizationValidatorIdentity, ProofCertifiedScalarIdentityKind,
+    ProofCertifiedScalarIdentityRewrite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
+    ScalarConstantFactIdentity, ValueId, id, live_divide_by_one_unit,
+    recompute_psi_optimization_unit_identity, validate_proof_certified_scalar_identity_candidate,
+    validate_psi_optimization_unit,
+};
 
 #[test]
 fn proof_certified_divide_by_one_covers_every_policy_and_integer_sign() {

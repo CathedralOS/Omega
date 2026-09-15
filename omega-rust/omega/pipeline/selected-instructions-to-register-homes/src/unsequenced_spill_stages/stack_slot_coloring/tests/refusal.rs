@@ -1,7 +1,11 @@
+use crate::{
+    LogicalSpillOperationIdentity, StackSlotColoringError, StackSlotColoringPlan,
+    StackSlotColoringPolicy, ValidatedLogicalSpillOperations, color_logical_spill_stack_slots,
+    validate_stack_slot_coloring,
+};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use super::fixtures::{budget, source, validated_source};
-use crate::*;
 
 fn plan(source: &ValidatedLogicalSpillOperations) -> StackSlotColoringPlan {
     color_logical_spill_stack_slots(

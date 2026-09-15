@@ -319,7 +319,11 @@ fn encode_decision(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,
+        BaselineDecisionOutcome, BaselineDecisionRecordError, OptimizationCandidateIdentity,
+        OptimizationUnitIdentity, ValidatedCandidateSummary,
+    };
 
     fn candidate(name: &[u8], cost: i64) -> ValidatedCandidateSummary {
         ValidatedCandidateSummary {

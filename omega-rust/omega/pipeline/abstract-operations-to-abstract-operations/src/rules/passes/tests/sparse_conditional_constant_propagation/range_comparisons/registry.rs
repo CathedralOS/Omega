@@ -1,4 +1,10 @@
-use super::*;
+use super::super::super::super::{
+    IntegerEqualConstantRangeRule, IntegerEqualRangeConstantRule, IntegerEqualRangeRangeRule,
+    IntegerLessOrEqualConstantRangeRule, IntegerLessOrEqualRangeConstantRule,
+    IntegerLessOrEqualRangeRangeRule, IntegerLessThanConstantRangeRule,
+    IntegerLessThanRangeConstantRule, IntegerLessThanRangeRangeRule, SCCP_PASS_NAME,
+};
+use super::super::super::{OptimizationPassIdentity, PsiOptimization, registry_for_optimization};
 
 #[test]
 fn sccp_registry_appends_range_pair_comparisons_after_literal_range_rules() {

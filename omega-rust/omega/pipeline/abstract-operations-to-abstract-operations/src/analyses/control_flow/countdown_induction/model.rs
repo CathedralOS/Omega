@@ -1,7 +1,9 @@
 //! Optimizer module role: carrier leaf. Revision-bound exact countdown-loop summaries.
 
-use super::*;
-
+use super::{
+    CycleComponentEdge, IntegerType, LoopRegion, MachineId, OptimizationUnitIdentity,
+    OptimizerUnsignedCountdownRankingCertificate, ValueId,
+};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExactUnsignedTripCount {
     /// The value entering the header before the first guard evaluation.

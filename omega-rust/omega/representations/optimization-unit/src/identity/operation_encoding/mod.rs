@@ -4,8 +4,7 @@
 //! owns exact variant tags and field order; `scalar_shapes` owns repeated
 //! scalar-operation fields. Identity-wide carriers live beside this entrance.
 
-use super::*;
-
+use super::{AbstractOperation, CanonicalBytes};
 mod atomic;
 mod calls_and_effects;
 mod control;

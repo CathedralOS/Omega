@@ -1,8 +1,11 @@
 //! Invariants shared by every rewrite patch family.
 
+use super::super::{
+    BlockId, NodeLocation, OptimizationRuleContract, OptimizationSafetyClass, ProvenanceRewrite,
+    PsiRewriteCandidateError, PsiRewriteDecisionPoint, PsiRewriteWitness, ScalarEvaluationWitness,
+    ScalarSubstitution,
+};
 use std::collections::BTreeSet;
-
-use super::super::*;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(

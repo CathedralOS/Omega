@@ -1,9 +1,12 @@
+use super::super::super::{
+    OptimizationRunError, replay_psi_pipeline, run_psi_pipeline, run_psi_registry, run_unit,
+    validate_external_decision_recording,
+};
 use super::super::{
     AbstractOperation, BaselineDecisionOutcome, ExternalDecisionAction, ExternalDecisionPoint,
-    Optimization, OptimizationReasonCode, OptimizationRunError, OptimizationSelections,
-    OrderedRuleRegistry, budget, built_in_psi_registry, external_log_with, replay_psi_pipeline,
-    run_psi_pipeline, run_psi_registry, run_unit, validate_external_decision_recording,
-    verified_empty_unit, verified_exact_add_unit, verified_exact_add_zero_unit,
+    Optimization, OptimizationReasonCode, OptimizationSelections, OrderedRuleRegistry, budget,
+    built_in_psi_registry, external_log_with, verified_empty_unit, verified_exact_add_unit,
+    verified_exact_add_zero_unit,
 };
 
 #[test]

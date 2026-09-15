@@ -1,7 +1,12 @@
 //! Optimizer module role: reconstruction leaf. Terminal natural-cycle countdown projection.
 
-use super::*;
+use super::super::super::super::{BTreeMap, BTreeSet, BlockId, IntegerValue, ValueId};
 
+use super::super::{
+    CycleComponentEdge, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
+    OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
+};
+use super::OptimizationUnitValidationError;
 /// Project the exact unsigned-countdown idiom out of one verifier-admitted
 /// `Natural` component. A component whose verified ranking is not that shape
 /// yields no certificate: it retains its verified source and frozen body

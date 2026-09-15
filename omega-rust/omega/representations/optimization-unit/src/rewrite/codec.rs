@@ -4,7 +4,10 @@ use super::canonical_encoding::{
     encode_integer_type, encode_integer_value, encode_len, encode_scalar_type,
 };
 use super::model::*;
-use super::*;
+use super::{
+    BlockId, OptimizationRuleContract, OptimizationUnitIdentity, OwnershipFrontierSite,
+    PsiProvenance,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn encode_candidate(

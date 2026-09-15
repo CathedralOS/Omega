@@ -1,5 +1,8 @@
 //! Exact and wrapping integer-shift semantics.
-use super::*;
+use super::{
+    BTreeMap, IntegerType, KnownInteger, KnownScalar, LoweringError, TargetIntegerExpression,
+    ValueId,
+};
 #[derive(Clone, Copy)]
 pub(in crate::lowering::scalar) enum WrappingShiftKind {
     Left,

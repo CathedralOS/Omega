@@ -1,6 +1,14 @@
 //! Unconditionally-total dead scalar elimination semantics and refusal boundaries.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::{
+    DeadScalarLiteralEliminationRule, DeadUnconditionallyTotalScalarEliminationRule,
+};
+use super::super::{
+    AnalysisKind, OptimizationUnitValidationError, PsiRewriteCandidate, PsiRewritePatch,
+    RuleAnalysisView, compute_analysis, dead_exact_add_unit, dead_wrapping_add_unit,
+    validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
+};
 
 #[test]
 fn rule_removes_wrapping_add_but_not_proof_bearing_exact_add() {

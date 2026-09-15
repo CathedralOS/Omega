@@ -1,4 +1,13 @@
-use super::*;
+use super::super::super::{
+    LegalizedScalarBlock, LegalizedScalarComparison, LegalizedScalarInstruction,
+    LegalizedScalarSuccessor, LegalizedValueDefinition,
+};
+use super::super::{EffectLink, FuelSettlement, PsiProvenance};
+use super::{
+    IntegerSign, IntegerType, LegalizedScalarInstructionKind, LegalizedScalarTerminator,
+    OwnershipEvent, ScalarType, assert_identity_drift, id, legalized_operation_plan_identity,
+    scalar_call_unit_plan,
+};
 use abstract_operations::ValueBinding;
 use optimization_unit::{ValueDefinition, ValueDefinitionSite};
 

@@ -1,5 +1,11 @@
 //! Machine parameters do not depend on the body matching a special entry shape.
-use super::*;
+
+use super::super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, BlockId, BoundaryMachineDeclaration,
+    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, NativeTarget, OperationId,
+    ScalarType, TargetUnitOperation, ValueId, identity,
+};
 
 #[test]
 fn hosted_byte_output_rejects_noncanonical_or_unsupported_targets() {

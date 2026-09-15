@@ -1,6 +1,6 @@
 //! Exact proof-certified scalar expression vocabulary.
 
-use super::*;
+use super::super::{O, proof_certified_local_cse_unit, proof_certified_scalar_expression};
 
 #[test]
 fn proof_certified_cse_expression_vocabulary_is_closed_and_exact() {

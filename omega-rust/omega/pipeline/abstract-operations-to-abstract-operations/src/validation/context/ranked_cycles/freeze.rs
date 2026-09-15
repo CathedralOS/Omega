@@ -1,7 +1,9 @@
 //! Optimizer module role: validation leaf. Frozen ranked-block preservation coordination.
 
-use super::*;
-
+use super::super::super::BTreeMap;
+use super::{
+    MachineId, OptimizationUnitValidationError, OptimizerCycleComponent, PsiOptimizationUnit,
+};
 mod relocated_scalars;
 
 pub(super) fn validate_frozen_component_blocks(

@@ -1,4 +1,9 @@
-use super::*;
+use super::super::super::validate_abstract_to_target_translation;
+use super::{
+    AbstractOperation, AbstractParameter, NativeTarget, ObligationId, OperationId, ScalarType,
+    TargetIntegerExpression, TargetLoweringRequest, ValueId, constant_conditional_plan,
+    direct_call_plan, lower_to_target_operations, parameter_return_plan,
+};
 use target_operations::TargetScalarExpression;
 
 #[test]

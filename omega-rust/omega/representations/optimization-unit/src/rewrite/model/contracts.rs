@@ -1,4 +1,8 @@
-use super::super::*;
+use super::super::{
+    AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisSet, BlockId, MachineId,
+    OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationSafetyClass,
+    OptimizationUnitIdentity, ScalarConstantFactIdentity,
+};
 use super::cfg_rewrite_plans::*;
 use super::foundations::*;
 use super::scalar_evaluation::*;

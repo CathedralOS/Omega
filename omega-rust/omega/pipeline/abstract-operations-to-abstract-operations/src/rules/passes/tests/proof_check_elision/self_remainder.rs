@@ -1,6 +1,21 @@
 //! Self-remainder tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::{
+    LiveProofCertifiedIntegerSelfRemainderEliminationRule, PROOF_CHECK_ELISION_PASS_NAME,
+};
+use super::super::{
+    BlockId, IntegerConstantRewrite, IntegerEvaluationWitness, IntegerSign, IntegerType,
+    IntegerValue, MachineId, NodeLocation, O, ObligationId, OperationId, OptimizationFact,
+    OptimizationFactReference, OptimizationPassIdentity, OptimizationRuleContract,
+    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitValidationError,
+    OptimizationValidatorIdentity, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
+    ScalarConstantFactIdentity, ScalarSubstitution, ScalarType, SelfRemainderPolicy, ValueId,
+    discard_scalar_function_result, id, integer_zero, live_proof_binary_identity_unit,
+    live_self_remainder_unit, recompute_psi_optimization_unit_identity,
+    validate_proof_certified_integer_self_remainder_candidate, validate_psi_optimization_unit,
+};
 
 #[test]
 fn proof_certified_self_remainder_materializes_typed_zero_for_every_policy_and_sign() {

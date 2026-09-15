@@ -1,6 +1,17 @@
 //! Wrapping multiply-zero annihilation and overlap custody.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::{
+    WrappingMultiplyZeroAnnihilationRule, WrappingNeutralArithmeticIdentityRule,
+};
+use super::super::super::{
+    AnalysisProduct, IntegerSign, IntegerType, IntegerValue, O, ObligationId, OperationId,
+    OptimizationRuleContract, OptimizationValidatorIdentity, PsiOptimizationUnit,
+    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, TotalScalarIdentityKind, ValueId,
+    WrappingNeutralOperation, id, recompute_psi_optimization_unit_identity,
+    validate_total_scalar_identity_candidate, wrapping_multiply_literal_pair_unit,
+    wrapping_neutral_identity_unit, wrapping_neutral_identity_unit_with_type_and_liveness,
+};
 
 fn analysis_products(
     unit: &PsiOptimizationUnit,

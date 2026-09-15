@@ -1,7 +1,13 @@
 //! Pass-v1 ordered-rule and publication validation.
 
-use super::*;
-
+use super::super::{
+    InvalidOptimizationManifestRecord, OptimizationPassManifestRecord, OptimizationWorkUsage,
+};
+use super::{
+    AnalysisSet, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
+    OptimizationDecisionRecord, OptimizationPassIdentity, OptimizationReasonCode,
+    OptimizationRuleSetIdentity, OptimizationUnitIdentity, decision, rule,
+};
 #[test]
 fn pass_record_binds_rule_order_decisions_and_usage() {
     let rules = vec![rule(b"first"), rule(b"second")];

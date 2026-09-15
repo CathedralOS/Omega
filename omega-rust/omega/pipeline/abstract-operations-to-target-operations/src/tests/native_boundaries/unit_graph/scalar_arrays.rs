@@ -1,5 +1,10 @@
 //! Owned array actuals retain their exact producer through repeated calls.
-use super::*;
+
+use super::super::super::AbstractFunctionResult;
+use super::{
+    AbstractOperation, AbstractOperationPlan, IntegerValue, MachineId, NativeTarget, block, edge,
+    operation, value,
+};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,

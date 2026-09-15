@@ -1,7 +1,12 @@
 //! Optimizer module role: reconstruction leaf. Location-independent countdown constants.
 
-use super::*;
+use super::super::super::super::super::{
+    IntegerType, NodeLocation, OperationId, PsiProvenance, ValueDefinitionSite,
+};
 
+use super::{
+    BlockId, IntegerValue, O, OptimizerCycleComponent, PsiOptimizationFunction, ScalarType, ValueId,
+};
 #[derive(Clone, Copy)]
 pub(super) struct ResolvedInvariantConstant {
     pub(super) result: ValueId,

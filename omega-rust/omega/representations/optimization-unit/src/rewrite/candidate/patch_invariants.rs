@@ -1,8 +1,10 @@
 //! Patch-family shape, witness, substitution, and provenance invariants.
 
+use super::super::{
+    BlockId, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite,
+    PsiRewriteCandidateError, PsiRewritePatch, PsiRewriteWitness, ScalarSubstitution, ScalarType,
+};
 use std::collections::BTreeSet;
-
-use super::super::*;
 
 pub(super) fn validate(
     location: Option<NodeLocation>,

@@ -1,5 +1,14 @@
 //! Primitive effects and scalar exits share the ordinary target control graph.
-use super::*;
+use super::super::{TargetLoweringRequest, lower_to_target_operations};
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, BlockId, CallSignature,
+    CallingPolicy, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, NativeTarget,
+    OperationId, PlaceId, ScalarType, StructuralAccess, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, TargetUnitOperation, TerminalAffineCleanupAction, ValueId, ValueShape,
+    evaluate_call_plan, identity,
+};
 use target_operations::{TargetControlTerminator, TargetUnitWriteOnlyPrimitiveStoreSource};
 
 fn fixture(runtime: bool) -> AbstractOperationPlan {

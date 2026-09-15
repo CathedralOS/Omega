@@ -1,7 +1,12 @@
 //! Optimizer module role: proposal leaf. Direct countdown-summary construction.
 
-use super::*;
-
+use super::{
+    CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, ExactUnsignedTripCount, LoopRegion,
+    MachineId, O, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
+    PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, UnsignedCountdownLoopSummary,
+    ValidatedOptimizerCycleComponents, compute_loop_forest,
+    recompute_psi_optimization_unit_identity,
+};
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,

@@ -41,7 +41,10 @@ pub(super) fn validate(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        OptimizedSelectedFormEncodingError, SelectedFormEncoding, SelectedFormEncodingCounts,
+        validate,
+    };
     use machine_code::SelectedFormEncodingIdentity;
     use physical_instructions::PostAllocationMachineIdentity;
     use selected_instructions::SelectedInstructionPlanIdentity;

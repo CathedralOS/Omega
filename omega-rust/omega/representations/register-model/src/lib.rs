@@ -1032,7 +1032,18 @@ fn validate_ordered_views(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Architecture, PhysicalRegisterModel, PreservationConvention, RegisterClass,
+        RegisterClassId, RegisterConstraintCatalog, RegisterConstraintCatalogValidationError,
+        RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
+        RegisterInstructionConstraint, RegisterModelValidationError, RegisterOperandAccess,
+        RegisterOperandConstraint, RegisterReservationOverlay, RegisterReservationProfile,
+        RegisterReservationProfileValidationError, RegisterUnit, RegisterUnitId, RegisterUnitKind,
+        RegisterView, RegisterViewId, RegisterWriteSemantics, ReservationReason,
+        TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel, identities,
+        target_register_environment_identity, validate_physical_register_model,
+        validate_register_constraint_catalog, validate_register_reservation_profile,
+    };
 
     type ModelMutation = Box<dyn Fn(&mut PhysicalRegisterModel)>;
     type CatalogMutation = Box<dyn Fn(&mut RegisterConstraintCatalog)>;

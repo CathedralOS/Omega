@@ -17,7 +17,9 @@ pub(super) fn choose_baseline(candidates: &[ValidatedCandidateSummary]) -> Basel
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BaselineDecisionOutcome, OptimizationReasonCode, ValidatedCandidateSummary, choose_baseline,
+    };
     use optimization_core::{
         BaselineDecisionLog, BaselineDecisionLogBuilder, OptimizationCandidateIdentity,
         OptimizationUnitIdentity,

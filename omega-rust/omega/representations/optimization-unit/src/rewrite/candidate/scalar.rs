@@ -1,7 +1,14 @@
 //! Scalar evaluation, elimination, identity, and common-subexpression candidates.
 
-use super::super::*;
-
+use super::super::{
+    AcceptedObligationFactIdentity, BlockId, BooleanConstantRewrite, DeadScalarNodeRewrite,
+    DominatingScalarCommonSubexpressionRewrite, IntegerConstantRewrite,
+    LocalScalarCommonSubexpressionRewrite, OptimizationRuleContract, OptimizationUnitIdentity,
+    PhiTranslatedScalarGvnRewrite, ProofCertifiedScalarIdentityRewrite, ProvenanceRewrite,
+    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch, PsiRewriteWitness,
+    ScalarConstantFactIdentity, ScalarEvaluationWitness, ScalarSubstitution, ScalarType,
+    TotalScalarIdentityRewrite,
+};
 impl PsiRewriteCandidate {
     #[allow(clippy::too_many_arguments)]
     pub fn new_integer_evaluation(

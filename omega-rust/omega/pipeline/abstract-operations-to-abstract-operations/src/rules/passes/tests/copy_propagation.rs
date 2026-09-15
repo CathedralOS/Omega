@@ -1,7 +1,13 @@
 //! Copy-propagation tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
-
+use super::super::RedundantBlockParameterRule;
+use super::{
+    AnalysisKind, O, ObligationId, OptimizationRuleContract, OptimizationRuleIdentity,
+    OptimizationSafetyClass, OptimizationUnitValidationError, PsiRewriteCandidate, PsiRewritePatch,
+    RedundantBlockParameterWitness, RuleAnalysisView, id, redundant_block_parameter_unit,
+    validate_redundant_block_parameter_candidate,
+};
 #[test]
 fn redundant_block_parameter_rule_binds_both_exact_conditional_edges() {
     let unit = redundant_block_parameter_unit(true);

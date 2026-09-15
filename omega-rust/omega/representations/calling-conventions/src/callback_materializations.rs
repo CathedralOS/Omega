@@ -358,7 +358,13 @@ fn native_places_overlap(left: &NativePlace, right: &NativePlace) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
+        CallbackRequirementId, LayoutPlanId, LayoutSlotId, NativeCallbackDemand, NativeParameterId,
+        NativePlace, StaticMachineBinderId, callback_layout_field_slot_id, callback_layout_plan_id,
+        callback_layout_slot_id, callback_native_parameter_id, callback_plan_laid_layout_id,
+        callback_requirement_id, nominal_callback_native_parameter_id,
+    };
     use crate::{
         CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
         validate_boundary_entry_plan, validate_boundary_entry_plan_with_callback_materializations,

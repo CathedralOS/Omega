@@ -1,7 +1,10 @@
 //! Optimizer module role: proposal leaf. Component-custody-derived exact relocation candidates.
 
-use super::*;
-
+use super::{
+    LoopInvariantScalarMotionCandidate, LoopInvariantScalarMotionError, LoopInvariantScalarNode,
+    LoopInvariantScalarRelocation, NodeLocation, OperationId, PsiProvenance, ValueDefinitionSite,
+    VerifiedPsiOptimizationSession, apply, candidate_identity,
+};
 pub(super) fn all(
     session: &VerifiedPsiOptimizationSession,
     candidate_limit: u64,

@@ -1,6 +1,15 @@
 //! Wrapping shift-by-zero-count semantic and replay coverage.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::WrappingShiftZeroCountIdentityRule;
+use super::super::super::{
+    AnalysisProduct, IntegerSign, IntegerType, IntegerValue, O, ObligationId, OperationId,
+    OptimizationRuleContract, OptimizationValidatorIdentity, PsiOptimizationUnit,
+    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, TotalScalarIdentityKind, ValueId,
+    WrappingNeutralOperation, id, recompute_psi_optimization_unit_identity,
+    validate_total_scalar_identity_candidate,
+    wrapping_neutral_identity_unit_with_value_and_identity_types_and_liveness,
+};
 
 fn analysis_products(
     unit: &PsiOptimizationUnit,

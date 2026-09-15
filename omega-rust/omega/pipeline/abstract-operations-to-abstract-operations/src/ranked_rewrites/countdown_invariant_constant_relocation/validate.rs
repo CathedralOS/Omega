@@ -1,7 +1,12 @@
 //! Optimizer module role: validation leaf. Independent placement replay and transformed custody proof.
 
-use super::*;
-
+use super::{
+    CountdownInvariantConstantRelocation, CountdownInvariantConstantRelocationCandidate,
+    CountdownInvariantConstantRelocationError, CountdownInvariantConstantRole, MachineId,
+    NodeLocation, OptimizationNode, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit,
+    PsiProvenance, PsiRealizationSite, ValidatedCountdownInvariantConstantRelocation,
+    VerifiedPsiOptimizationSession, apply, candidate_identity,
+};
 pub(super) fn candidate(
     session: &VerifiedPsiOptimizationSession,
     candidate: &CountdownInvariantConstantRelocationCandidate,

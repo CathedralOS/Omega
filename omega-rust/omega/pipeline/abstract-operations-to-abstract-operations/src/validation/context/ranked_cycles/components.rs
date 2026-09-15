@@ -1,6 +1,6 @@
 //! Optimizer module role: algorithm leaf. Deterministic strongly connected component reconstruction.
 
-use super::*;
+use super::super::super::{BTreeMap, BTreeSet, BlockId};
 
 pub(super) fn cyclic_components(graph: &BTreeMap<BlockId, Vec<BlockId>>) -> Vec<Vec<BlockId>> {
     strongly_connected_components(graph)

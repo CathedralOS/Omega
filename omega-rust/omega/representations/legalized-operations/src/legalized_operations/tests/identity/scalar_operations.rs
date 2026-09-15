@@ -1,5 +1,14 @@
 //! Current graph identity coverage; raw mutation tests do not grant source admission.
-use super::*;
+use super::super::super::{
+    LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarInstruction,
+    LegalizedValueDefinition,
+};
+use super::super::{EffectLink, FuelSettlement, PsiProvenance};
+use super::{
+    IntegerSign, IntegerType, IntegerValue, LegalizedOperationPlan, LegalizedScalarInstructionKind,
+    OwnershipEvent, ScalarType, assert_identity_drift, id, legalized_operation_plan_identity,
+    scalar_call_unit_plan,
+};
 use optimization_core::AcceptedObligationFactIdentity;
 use optimization_unit::ValueDefinitionSite;
 

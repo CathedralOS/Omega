@@ -1,5 +1,12 @@
-use super::*;
-
+use super::{
+    FuelScheduleIdentity, FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifest,
+    FunctionFragmentEmissionManifestDecodeError, FunctionFragmentEmissionManifestIdentity,
+    FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
+    FunctionFragmentEmissionUnavailableData,
+    FunctionRelativeOptimizationRealizationManifestIdentity, NativeTarget,
+    OptimizationSelectionIdentity, PostAllocationOptimizationManifestIdentity,
+    SelectedFormEncodingIdentity, TerminalPsiIdentity, WholeFunctionExitContractIdentity,
+};
 #[test]
 fn prior_wire_versions_with_route_taxonomy_reject() {
     let encoded = record().encode();

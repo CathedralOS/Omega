@@ -1,8 +1,19 @@
 //! Rewrite model, construction, and identity tests.
 
+use super::{
+    AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisSet, BlockId, EdgeId,
+    FuelSettlement, IntegerSign, IntegerType, IntegerValue, MachineId, NodeLocation, OperationId,
+    OptimizationFactReference, OptimizationRuleContract, OptimizationRuleIdentity,
+    OptimizationSafetyClass, OptimizationUnitIdentity, PhiTranslatedScalarGvnRewrite,
+    PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
+    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, ScalarConstantFactIdentity, ScalarConstantValue,
+    ScalarType, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow,
+    SccpValueState, TotalScalarIdentityKind, TotalScalarIdentityRewrite, ValueDefinition,
+    ValueDefinitionSite, ValueId, derived_sccp_scalar_constant_fact_identity,
+    literal_scalar_constant_fact_identity,
+};
 use std::collections::BTreeSet;
-
-use super::*;
 
 #[test]
 fn literal_fact_identity_binds_revision_definition_value_type_constant_and_support() {

@@ -1,6 +1,10 @@
 //! Independent phase-selection, baseline, rewrite, and current-program replay.
-
-use super::*;
+use super::{
+    OptimizationPhaseSelections, ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
+    StagedOptimizedSelectedFormEncoding, ValidatedPhysicalRegisterModel, ValidatedSelectedAnalysis,
+    validate_optimized_resolved_selected_form_layout, x86_rel8_selected,
+};
 use crate::validate_optimized_x86_branch_relaxation;
 
 #[allow(clippy::too_many_arguments)]

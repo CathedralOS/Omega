@@ -1,4 +1,7 @@
-use super::*;
+use super::super::{
+    AbstractOperation, BTreeSet, OwnershipEvent, PlaceId, StructuralPlaceDeclaration,
+    StructuralPlaceKind,
+};
 
 pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
     use AbstractOperation as O;
