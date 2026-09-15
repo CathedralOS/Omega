@@ -269,6 +269,29 @@ fn exercise_boundary_outcomes(
     }
 }
 
+#[test]
+fn named_crash_qualified_operator_call_rejects_at_terminal_lowering() {
+    // Named calls to crash-qualified operators keep checked crash-site
+    // evidence, but selected operator crash invocations still have no
+    // portable Terminal replay carrier; lowering must fail closed rather
+    // than silently drop the obligation.
+    let source = r#"
+        boundary operator == Comparison::equal(left: i32, right: i32) -> bool crashes Trap;
+        machine Root::enter(left: i32, right: i32) -> bool crashes Trap { Comparison::equal(left, right) }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
+        .expect_err("named crash-qualified operator call has no Terminal replay support");
+    assert!(
+        format!("{error:?}").contains("crash"),
+        "named crash-qualified operator call must reject as a crash obligation, not incidentally: {error:?}"
+    );
+}
+
 fn verify_roundtrip(lowered: &lowered_psi::LoweredPsi) {
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("encode module");
     let evidence =
