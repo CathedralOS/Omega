@@ -456,11 +456,15 @@ mod tests {
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
         let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
-        let selection = crate::machine_dispatch::select_terminal_machine(&checked, "Main::main")
-            .expect("dynamic root selection");
+        let selection = crate::machine_lowering::machine_dispatch::select_terminal_machine(
+            &checked,
+            "Main::main",
+        )
+        .expect("dynamic root selection");
         let root = selection.machine;
-        let mut lowered = crate::machine_dispatch::lower_selected_machine(&checked, selection)
-            .expect("dynamic root and ordinary callee lower");
+        let mut lowered =
+            crate::machine_lowering::machine_dispatch::lower_selected_machine(&checked, selection)
+                .expect("dynamic root and ordinary callee lower");
         let owners = lowered.exact_sources.expect("exact dynamic source owners");
         // This fixture enters below ordinary publication's custody passes.
         // Include the fixed-only reach application before comparing products.

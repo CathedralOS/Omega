@@ -41,9 +41,15 @@ use terminal_psi::{
 };
 use terminal_verifier::ProofBundle;
 
-use crate::lowering_error::LoweringError;
-use crate::machine_dispatch::{
+use crate::machine_lowering::lowering_error::LoweringError;
+use crate::machine_lowering::machine_dispatch;
+use crate::machine_lowering::machine_dispatch::{
     ConformancePublication, lower_selected_machine, select_terminal_machine,
+};
+use crate::machine_lowering::terminal_identities::{
+    TERMINAL_MACHINE_IDENTITY_STRIDE, block_id, boundary_machine_id, claim_id, contract_id,
+    edge_id, machine_id, obligation_id, operation_id, place_id, service_id, structural_domain_id,
+    value_id,
 };
 use crate::proofs::content_conservation::{
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions,
@@ -60,16 +66,11 @@ use crate::scalar_graph::scalar_graph_lowering::{
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::shared_runtime_parameters::normalize_shared_boolean_comparison_leaves;
-use crate::terminal_identities::{
-    TERMINAL_MACHINE_IDENTITY_STRIDE, block_id, boundary_machine_id, claim_id, contract_id,
-    edge_id, machine_id, obligation_id, operation_id, place_id, service_id, structural_domain_id,
-    value_id,
-};
 use crate::unit::attached_unit::{
     collect_published_contract_services, lower_published_service_ceiling, lower_root_service_reach,
 };
 use crate::unit::unit_cleanup::lower_nominal_affine_unit_cleanup_machine;
-use crate::{lower_bounded_callback_identity_machine, lower_machine, machine_dispatch};
+use crate::{lower_bounded_callback_identity_machine, lower_machine};
 
 #[cfg(test)]
 use terminal_verifier::reconstruct_operation_obligations;

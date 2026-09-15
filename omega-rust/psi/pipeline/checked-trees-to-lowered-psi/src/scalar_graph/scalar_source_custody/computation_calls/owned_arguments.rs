@@ -11,8 +11,8 @@ use checked_trees::{
 use language_semantics::Multiplicity;
 
 use super::borrow_rows;
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::machine_lowering::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::unsupported;
 
 pub(super) fn validate(
     checked: &CheckedTrees,

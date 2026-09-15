@@ -3,7 +3,7 @@
 use super::buffer::OperationBuffer;
 use super::expressions::{LoweredDirectExpression, emit_direct_expression, emit_scalar_leaf};
 use super::integer::LoweredIntegerComparisonKind;
-use crate::terminal_identities::value_id;
+use crate::machine_lowering::terminal_identities::value_id;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, ValueId};
 use terminal_psi::{Operation, OperationKind, ValueDeclaration};
 

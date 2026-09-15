@@ -9,12 +9,12 @@ pub(crate) mod calls;
 pub(crate) mod expressions;
 pub(crate) mod integer;
 
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::machine_lowering::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::unsupported;
+use crate::machine_lowering::terminal_identities::value_id;
 use crate::scalar_graph::scalar_computations;
 use crate::scalar_graph::scalar_graph_lowering;
 use crate::scalar_graph::scalar_graph_lowering::direct_expression_contains_short_circuit;
-use crate::terminal_identities::value_id;
 pub(crate) use boolean::emit_boolean_expression;
 use buffer::OperationBuffer;
 pub(crate) use calls::emit_staged_scalar_call_binding;

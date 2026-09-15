@@ -1,7 +1,7 @@
 //! Rejoin provider requirements to the original receiver field at each call.
 
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::machine_lowering::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::unsupported;
 use checked_trees::CheckedProviderAttachmentRequirementPlan;
 use checked_trees::CheckedTrees;
 use checked_trees::CheckedUnitEffectOperationPlan;

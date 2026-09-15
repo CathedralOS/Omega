@@ -1,7 +1,7 @@
 //! Rejoin implicit receiver operands to their exact authored parameter place.
 
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::machine_lowering::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::unsupported;
 use checked_trees::CheckedTrees;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::types::TypeReferenceNode;

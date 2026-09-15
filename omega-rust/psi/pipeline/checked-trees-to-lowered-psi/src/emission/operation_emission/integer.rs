@@ -1,6 +1,6 @@
 //! Integer operation selection and its exact formation-obligation identity.
 
-use crate::terminal_identities::obligation_id;
+use crate::machine_lowering::terminal_identities::obligation_id;
 use numerics::{
     arithmetic::ArithmeticDomain,
     integer_policy::{IntegerPolicyPrimitive, integer_policy_bridge},

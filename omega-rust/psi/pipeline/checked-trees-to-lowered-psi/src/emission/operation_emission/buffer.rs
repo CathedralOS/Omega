@@ -1,8 +1,8 @@
 //! Invocation-owned operation identities and exact source-occurrence companions.
 
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
-use crate::terminal_identities::operation_id;
+use crate::machine_lowering::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::unsupported;
+use crate::machine_lowering::terminal_identities::operation_id;
 use lowered_psi::{LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence};
 use semantic_vocabulary::{OperationId, PlaceId, ValueId};
 use terminal_psi::{Operation, ValueDeclaration};
@@ -146,7 +146,7 @@ impl std::ops::DerefMut for OperationBuffer {
 #[cfg(test)]
 mod tests {
     use super::{LoweringError, OperationBuffer, SourceCallCoordinate, ValueDeclaration};
-    use crate::terminal_identities::value_id;
+    use crate::machine_lowering::terminal_identities::value_id;
     use semantic_vocabulary::ScalarType;
 
     #[test]

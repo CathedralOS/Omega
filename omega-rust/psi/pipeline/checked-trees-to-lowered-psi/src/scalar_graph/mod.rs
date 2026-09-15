@@ -40,7 +40,12 @@ use crate::emission::operation_emission::{
     emit_boolean_expression, emit_direct_expression, emit_scalar_binding,
     emit_staged_scalar_call_binding,
 };
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::machine_lowering::lowering_error::{LoweringError, unsupported};
+use crate::machine_lowering::terminal_identities::{
+    TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
+    contract_id, dense_identity, edge_id, lookup_machine_id, lookup_type_id, machine_id,
+    obligation_id, place_id, value_id,
+};
 use crate::proofs::content_conservation::{
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions,
     lower_content_identity_reshuffles, lower_content_partition_compositions,
@@ -64,11 +69,6 @@ use crate::scalar_graph::scalar_graph_lowering::{
 };
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications;
-use crate::terminal_identities::{
-    TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
-    contract_id, dense_identity, edge_id, lookup_machine_id, lookup_type_id, machine_id,
-    obligation_id, place_id, value_id,
-};
 
 pub(crate) mod boolean_control;
 pub(crate) mod scalar_bindings;

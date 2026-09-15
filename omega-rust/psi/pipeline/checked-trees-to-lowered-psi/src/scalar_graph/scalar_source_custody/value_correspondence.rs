@@ -10,7 +10,7 @@
 //! carry; matching literal endpoints alone never supplies that evidence.
 //! Array elements and case fields share this receiving check.
 
-use crate::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::LoweringError;
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use checked_trees::types::PrimitiveType;
 use checked_trees::{

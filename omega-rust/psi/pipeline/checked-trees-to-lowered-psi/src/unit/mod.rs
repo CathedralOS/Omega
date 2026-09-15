@@ -52,7 +52,14 @@ use terminal_verifier::{ObligationEvidence, ProofBundle};
 use crate::emission::operation_emission::{
     emit_boolean_expression, emit_direct_expression, emit_scalar_binding,
 };
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::machine_lowering::lowering_error::{LoweringError, unsupported};
+use crate::machine_lowering::terminal_identities::{
+    TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
+    boundary_machine_id, claim_id, contract_id, dense_identity, edge_id, lookup_claim_id,
+    lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id, machine_id,
+    obligation_id, operation_id, place_id, service_id, structural_domain_id, structural_field_id,
+    structural_type_id, value_id,
+};
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{
     lower_boundary_crash_routes, lower_checked_crash_route_buckets, lower_checked_crash_routes,
@@ -75,13 +82,6 @@ use crate::scalar_graph::scalar_graph_lowering::{
     contains_short_circuit, direct_expression_contains_short_circuit, integer_landing_scalar_type,
     integer_scalar_type, integer_value, lower_checked_scalar_expression,
     lower_checked_scalar_expression_at, terminal_scalar_type, validate_direct_parameter_types,
-};
-use crate::terminal_identities::{
-    TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
-    boundary_machine_id, claim_id, contract_id, dense_identity, edge_id, lookup_claim_id,
-    lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id, machine_id,
-    obligation_id, operation_id, place_id, service_id, structural_domain_id, structural_field_id,
-    structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{
     checked_unit_call_closure_including, checked_unit_target_reach_matches,

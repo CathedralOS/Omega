@@ -103,14 +103,14 @@ enum DynamicLoweringLane<'a> {
 pub(crate) fn lower_direct_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
-) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
     lower_dynamic_composed_unit_machine(checked, plan, DynamicLoweringLane::Direct)
 }
 
 pub(crate) fn lower_rebound_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedReboundDynamicScalarCallPlan,
-) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
     lower_dynamic_composed_unit_machine(
         checked,
         &plan.latest,
@@ -121,7 +121,7 @@ pub(crate) fn lower_rebound_dynamic_composed_unit_machine(
 pub(crate) fn lower_stored_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedStoredDynamicScalarCallPlan,
-) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
     lower_dynamic_composed_unit_machine(checked, &plan.call, DynamicLoweringLane::Stored(plan))
 }
 
@@ -129,7 +129,7 @@ fn lower_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
     lane: DynamicLoweringLane<'_>,
-) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
     let caller = match lane {
         DynamicLoweringLane::Direct => validate_exact_direct_plan(checked, plan)?,
         DynamicLoweringLane::Rebound(initial) => {
@@ -426,7 +426,7 @@ fn retain_dynamic_source_owners(
     realizations: &[LoweredDynamicRealization],
     helpers: &[ForwardedHelperIds],
     mut sources: Vec<(symbols::SymbolHandle, MachineId)>,
-) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
     if !sources
         .iter()
         .any(|(source, _)| *source == plan.caller_machine)
@@ -449,7 +449,7 @@ fn retain_dynamic_source_owners(
             .map_or(machine, |transfer| transfer.caller_machine);
         sources.push((source, helper.machine));
     }
-    crate::machine_dispatch::SourceMappedLowered::new(terminal, sources)
+    crate::machine_lowering::machine_dispatch::SourceMappedLowered::new(terminal, sources)
 }
 
 fn validate_exact_direct_plan(

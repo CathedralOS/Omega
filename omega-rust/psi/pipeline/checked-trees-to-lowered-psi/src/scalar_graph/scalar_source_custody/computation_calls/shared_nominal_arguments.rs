@@ -7,8 +7,8 @@
 //! authored endpoint captured by the call. Reconstruct both from the source;
 //! an equal endpoint type does not permit substituting a sibling or another root.
 
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::machine_lowering::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::unsupported;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::machine::Machine;
 use checked_trees::signature::StateParameter;
