@@ -6883,6 +6883,242 @@ fn installation_record_retains_selected_provider_plan_without_execution() {
     );
 }
 
+/// The selected provider-plan roster is admission-owned custody. The executed
+/// subset is pinned by the boundary settlements' admitted-provider execution
+/// records: substituting or dropping the executed plan, clearing or reordering
+/// the roster, or duplicating an entry is rejected at canonical encoding. The
+/// unexecuted remainder is representable — exact selection authority stays
+/// outside the decodable record — so each substitution still encodes,
+/// recomputes a distinct installation fingerprint, and is rejected by the
+/// published record identity a deployment journal replays rather than by the
+/// image join. Malformed identities and non-canonical wire order reject at
+/// decode.
+#[test]
+fn installation_selected_provider_plan_rejects_every_one_field_substitution() {
+    let provider = WriteExitProvider(7);
+    let plan = port_effect_plan(&provider);
+    let artifact = build_object_artifact(&plan).expect("port-effect artifact");
+    let image = emit_executable_image(&artifact, 3).expect("port-effect image");
+    let profile = ProfileDecisionId::new(23).expect("profile decision");
+    // The settlement's admitted-provider execution requires plan 7; plan 42 is
+    // selected but never executes in this image.
+    let record = build_installation_record_with_selected_provider_plans_and_evidence(
+        &image,
+        profile,
+        [7, 42],
+        [&provider],
+        None,
+    )
+    .expect("selected closure with an unexecuted plan");
+    assert_eq!(
+        record
+            .selected_provider_plans()
+            .iter()
+            .map(|plan| plan.get())
+            .collect::<Vec<_>>(),
+        [7, 42]
+    );
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+
+    // Every unexecuted-selection substitution is independently representable:
+    // the mutated roster is itself a genuine admitted selection producing the
+    // same record, the substitution still encodes and round-trips, and the
+    // recomputed installation fingerprint differs from the authentic record —
+    // the published identity a deployment journal replays. The image join
+    // cannot see the change, so image replay still accepts.
+    let representable: [(&str, &[u64]); 3] = [
+        ("unexecuted element", &[7, 43]),
+        ("extended selection", &[7, 42, 99]),
+        ("dropped unexecuted", &[7]),
+    ];
+    for (field, plans) in representable {
+        let mut changed = record.clone();
+        *changed.selected_provider_plans_mut_for_test() = plans
+            .iter()
+            .map(|plan| {
+                image_emission::SelectedProviderPlanReportIdentity::new(*plan)
+                    .expect("nonzero plan identity")
+            })
+            .collect();
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        let admitted = build_installation_record_with_selected_provider_plans_and_evidence(
+            &image,
+            profile,
+            plans.iter().copied(),
+            [&provider],
+            None,
+        )
+        .unwrap_or_else(|error| panic!("{field}: substituted roster admits: {error:?}"));
+        assert_eq!(
+            changed, admitted,
+            "{field}: substitution is itself an admitted selection"
+        );
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted record decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted record"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Ok(()),
+            "{field}: the selected closure sits outside the image join"
+        );
+    }
+
+    // The executed subset is bound by the record-shape closure join: a
+    // substitution that loses the required plan, an emptied roster, a
+    // non-canonical order, or a duplicated entry all fail at encoding before
+    // any identity or replay check.
+    let encode_rejected: [(
+        &str,
+        fn(&mut image_emission::InstallationRecord),
+        InstallationError,
+    ); 6] = [
+        (
+            "executed element",
+            |record| {
+                record.selected_provider_plans_mut_for_test()[0] =
+                    image_emission::SelectedProviderPlanReportIdentity::new(8)
+                        .expect("nonzero plan identity");
+            },
+            InstallationError::ProviderSettlementClosureMismatch,
+        ),
+        (
+            "dropped executed",
+            |record| {
+                record.selected_provider_plans_mut_for_test().remove(0);
+            },
+            InstallationError::ProviderSettlementClosureMismatch,
+        ),
+        (
+            "cleared roster",
+            |record| {
+                record.selected_provider_plans_mut_for_test().clear();
+            },
+            InstallationError::ProviderSettlementClosureMismatch,
+        ),
+        (
+            "reordered roster",
+            |record| {
+                record.selected_provider_plans_mut_for_test().swap(0, 1);
+            },
+            InstallationError::NonCanonicalProviderPlanOrder,
+        ),
+        (
+            "duplicated element",
+            |record| {
+                let plans = record.selected_provider_plans_mut_for_test();
+                plans.insert(1, plans[0]);
+            },
+            InstallationError::NonCanonicalProviderPlanOrder,
+        ),
+        (
+            "out-of-order substitution",
+            |record| {
+                record.selected_provider_plans_mut_for_test()[1] =
+                    image_emission::SelectedProviderPlanReportIdentity::new(3)
+                        .expect("nonzero plan identity");
+            },
+            InstallationError::NonCanonicalProviderPlanOrder,
+        ),
+    ];
+    for (field, mutate, expected) in encode_rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: non-canonical substitution rejected at encoding"
+        );
+    }
+
+    // Admission binds the roster both ways: every reported execution must sit
+    // inside the selected closure, and the reported closure must match the
+    // image's retained executions exactly.
+    assert_eq!(
+        build_installation_record_with_selected_provider_plans_and_evidence(
+            &image,
+            profile,
+            [42],
+            [&provider],
+            None,
+        ),
+        Err(InstallationError::ProviderExecutionOutsideSelectedClosure)
+    );
+    assert_eq!(
+        build_installation_record_with_selected_provider_plans_and_evidence(
+            &image,
+            profile,
+            [7, 970],
+            [&provider, &WriteExitProvider(970)],
+            None,
+        ),
+        Err(InstallationError::ProviderExecutionClosureMismatch)
+    );
+    assert_eq!(
+        build_installation_record_with_selected_provider_plans_and_evidence(
+            &image,
+            profile,
+            [7, 0],
+            [&provider],
+            None,
+        ),
+        Err(InstallationError::ZeroProviderPlan)
+    );
+
+    // Axes without an in-memory representation still reject at the wire: a
+    // zero identity, a non-canonical or duplicated order, and a count the
+    // remaining bytes cannot carry are malformed encodings, never a canonical
+    // record.
+    let canonical = encode_installation_record(&record).expect("canonical bytes");
+    let plan_pair = [7_u64.to_le_bytes(), 42_u64.to_le_bytes()].concat();
+    let plan_offset = canonical
+        .windows(plan_pair.len())
+        .position(|window| window == plan_pair.as_slice())
+        .expect("adjacent provider-plan identities");
+    let count_offset = plan_offset - 4;
+    assert_eq!(
+        u32::from_le_bytes(canonical[count_offset..plan_offset].try_into().unwrap()),
+        2
+    );
+    let mut zero_identity = canonical.clone();
+    zero_identity[plan_offset..plan_offset + 8].fill(0);
+    assert_eq!(
+        decode_installation_record(&zero_identity),
+        Err(InstallationError::ZeroProviderPlan)
+    );
+    let mut wire_reordered = canonical.clone();
+    wire_reordered[plan_offset..plan_offset + 8].copy_from_slice(&42_u64.to_le_bytes());
+    wire_reordered[plan_offset + 8..plan_offset + 16].copy_from_slice(&7_u64.to_le_bytes());
+    assert_eq!(
+        decode_installation_record(&wire_reordered),
+        Err(InstallationError::NonCanonicalProviderPlanOrder)
+    );
+    let mut wire_duplicated = canonical.clone();
+    wire_duplicated[plan_offset + 8..plan_offset + 16].copy_from_slice(&7_u64.to_le_bytes());
+    assert_eq!(
+        decode_installation_record(&wire_duplicated),
+        Err(InstallationError::NonCanonicalProviderPlanOrder)
+    );
+    let mut inflated_count = canonical.clone();
+    inflated_count[count_offset..plan_offset].copy_from_slice(&u32::MAX.to_le_bytes());
+    assert_eq!(
+        decode_installation_record(&inflated_count),
+        Err(InstallationError::UnexpectedEnd)
+    );
+}
+
 #[test]
 fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let artifact = build_object_artifact(&two_function_plan()).expect("artifact");
