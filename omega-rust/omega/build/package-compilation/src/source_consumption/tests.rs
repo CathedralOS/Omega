@@ -1,0 +1,505 @@
+//! Source consumption tests.
+
+use super::{
+    CheckedTrees, ConsumedSourceUnit, ConsumedSourceUnitKind, GeneratedSourceOrder,
+    PackageCompilationSubject, PackageSourceConsumptionCommitment, Sha256, SourceFile,
+    SourceOrigin, append_field, canonical_consumed_unit_bytes, canonical_source_entry,
+    consumed_source_unit, derive_consumed_source_units, derive_source_consumption_commitment,
+    toolchain_source_identity_digest, verify_current_files,
+};
+use semantic_vocabulary::PackageKeyIdentity;
+use sha2::Digest;
+use source::SourceId;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+fn generated_fixture() -> Vec<(SourceId, build_output::PackageGeneratedSource)> {
+    let tree = build_output::replayed_ordinary_files(&[
+        (b"first.omg", b"data First {}"),
+        (b"second.omg", b"data Second {}"),
+    ])
+    .expect("retained generated files");
+    build_output::select_included_sources(&tree, &[b"first.omg".to_vec(), b"second.omg".to_vec()])
+        .expect("included generated files")
+        .into_iter()
+        .enumerate()
+        .map(|(position, generated)| (SourceId(position * 2 + 1), generated))
+        .collect()
+}
+
+fn checked_sources(files: Vec<SourceFile>) -> CheckedTrees {
+    let mut program = CheckedTrees::default();
+    program.typed.symbols = program
+        .typed
+        .symbols
+        .begin_extension(
+            Some(Arc::new(source::SourceMap::from_files(files))),
+            Vec::new(),
+        )
+        .finish();
+    program
+}
+
+fn generated_files(
+    custody: &[(SourceId, build_output::PackageGeneratedSource)],
+) -> Vec<SourceFile> {
+    custody
+        .iter()
+        .map(|(source_id, generated)| {
+            let mut file = source(
+                &format!(
+                    "/package/.omega/generated/{}",
+                    String::from_utf8_lossy(generated.relative_path())
+                ),
+                "/package",
+                Some(PackageKeyIdentity::from_digest([7; 32]).expect("package identity")),
+                SourceOrigin::User,
+                std::str::from_utf8(generated.bytes()).expect("generated UTF-8"),
+            );
+            file.source_id = *source_id;
+            file
+        })
+        .collect()
+}
+
+#[test]
+fn generated_custody_order_preserves_arbitrary_ids_and_first_duplicate() {
+    let custody = generated_fixture();
+    let ordered = GeneratedSourceOrder::new(&custody);
+    assert!(
+        ordered.positions.is_none(),
+        "producer order needs no permutation"
+    );
+    assert!(GeneratedSourceOrder::new(&[]).positions.is_none());
+    assert!(ordered.find(SourceId(0)).is_none());
+    assert!(ordered.find(SourceId(2)).is_none());
+    assert!(ordered.find(SourceId(usize::MAX)).is_none());
+    let reordered = vec![
+        custody[1].clone(),
+        custody[0].clone(),
+        (custody[1].0, custody[0].1.clone()),
+    ];
+    let ordered = GeneratedSourceOrder::new(&reordered);
+    assert!(ordered.positions.is_some());
+    assert_eq!(ordered.find(custody[1].0).unwrap().1, &custody[1].1);
+}
+
+#[test]
+fn generated_projection_preserves_order_independence_and_custody_errors() {
+    let custody = generated_fixture();
+    let files = generated_files(&custody);
+    let baseline = derive_consumed_source_units(&checked_sources(files.clone()), &custody).unwrap();
+    let mut reversed_files = files.clone();
+    reversed_files.reverse();
+    let reversed_custody = vec![custody[1].clone(), custody[0].clone()];
+    assert_eq!(
+        baseline,
+        derive_consumed_source_units(&checked_sources(reversed_files), &reversed_custody).unwrap()
+    );
+    let mut duplicate = custody.clone();
+    duplicate.push(custody[0].clone());
+    assert!(
+        derive_consumed_source_units(&CheckedTrees::default(), &duplicate).unwrap_err()[0]
+            .message
+            .contains("duplicate frontend source IDs")
+    );
+    let mut missing = custody.clone();
+    missing.push((SourceId(usize::MAX), custody[0].1.clone()));
+    assert!(
+        derive_consumed_source_units(&checked_sources(files.clone()), &missing).unwrap_err()[0]
+            .message
+            .contains("absent from the final checked closure")
+    );
+    let mut changed_content = files.clone();
+    changed_content[0].source = Arc::from("changed");
+    let mut changed_path = files.clone();
+    changed_path[0].path = PathBuf::from("/package/.omega/generated/other.omg");
+    let mut changed_root = files.clone();
+    changed_root[0].package_root = PathBuf::from("/other-package");
+    for (changed, expected) in [
+        (changed_content, "does not match final checked source"),
+        (changed_path, "path does not match final checked source"),
+        (changed_root, "outside its reconciled package root"),
+    ] {
+        assert!(
+            derive_consumed_source_units(&checked_sources(changed), &custody).unwrap_err()[0]
+                .message
+                .contains(expected)
+        );
+    }
+    let mut repeated = files.clone();
+    repeated.push(files[0].clone());
+    assert!(
+        derive_consumed_source_units(&checked_sources(repeated.clone()), &custody).unwrap_err()[0]
+            .message
+            .contains("duplicate canonical source coordinates")
+    );
+    assert!(
+        derive_consumed_source_units(&checked_sources(repeated), &missing).unwrap_err()[0]
+            .message
+            .contains("absent from the final checked closure"),
+        "repeated source IDs must not hide missing custody"
+    );
+    let mut wrong_origin = files;
+    wrong_origin[0].origin = SourceOrigin::Toolchain;
+    assert!(
+        derive_consumed_source_units(&checked_sources(wrong_origin), &custody).unwrap_err()[0]
+            .message
+            .contains("does not match final checked source")
+    );
+}
+
+#[test]
+fn generated_verification_preserves_physical_rereads_and_custody_only_behavior() {
+    let custody = generated_fixture();
+    let mut files = generated_files(&custody);
+    // Verification is also callable alone: projection, not this reread,
+    // owns duplicate/missing ID and generated logical-path admission.
+    let mut unchecked = vec![custody[1].clone(), custody[0].clone()];
+    unchecked.push((custody[0].0, custody[1].1.clone()));
+    unchecked.push((SourceId(usize::MAX), custody[0].1.clone()));
+    verify_current_files(&checked_sources(files.clone()), &unchecked).unwrap();
+    files[0].source = Arc::from("drifted");
+    assert!(
+        verify_current_files(&checked_sources(files.clone()), &unchecked).unwrap_err()[0]
+            .message
+            .contains("drifted from staged-output custody")
+    );
+    files = generated_files(&custody);
+    let path = std::env::temp_dir().join(format!(
+        "omega-source-consumption-reread-{}.omg",
+        std::process::id()
+    ));
+    std::fs::write(&path, "physical").expect("write physical source");
+    let mut physical = source("unused", "unused", None, SourceOrigin::User, "physical");
+    physical.path = path.clone();
+    physical.source_id = SourceId(0);
+    files.insert(1, physical);
+    let program = checked_sources(files);
+    verify_current_files(&program, &unchecked).unwrap();
+    std::fs::write(&path, "changed").expect("change physical source");
+    assert!(
+        verify_current_files(&program, &unchecked).unwrap_err()[0]
+            .message
+            .contains("changed after frontend loading")
+    );
+    std::fs::remove_file(&path).expect("remove physical source");
+    assert!(
+        verify_current_files(&program, &unchecked).unwrap_err()[0]
+            .message
+            .contains("cannot be re-read")
+    );
+}
+
+fn canonical_row_fixture() -> Vec<ConsumedSourceUnit> {
+    let package = PackageKeyIdentity::from_digest([7; 32]).expect("package identity");
+    [
+        (
+            ConsumedSourceUnitKind::PackageAuthored,
+            Some(package),
+            None,
+            vec!["main.omg".to_owned()],
+        ),
+        (
+            ConsumedSourceUnitKind::PackageGenerated,
+            Some(package),
+            None,
+            vec!["generated".to_owned(), "λ.omg".to_owned()],
+        ),
+        (
+            ConsumedSourceUnitKind::ToolchainVirtual,
+            None,
+            Some("std".to_owned()),
+            vec!["<prelude>".to_owned()],
+        ),
+        (
+            ConsumedSourceUnitKind::ToolchainOwned,
+            None,
+            Some("core".to_owned()),
+            vec!["nested".to_owned(), "types.omg".to_owned()],
+        ),
+    ]
+    .into_iter()
+    .map(
+        |(kind, package, toolchain_namespace, relative_path)| ConsumedSourceUnit {
+            kind,
+            package,
+            toolchain_namespace,
+            relative_path,
+            byte_count: 123,
+            content_digest: [13; 32],
+        },
+    )
+    .collect()
+}
+
+#[test]
+fn canonical_row_layout_and_source_commitment_are_stable() {
+    let units = canonical_row_fixture();
+    let mut identities = units
+        .iter()
+        .map(|unit| format!("{:x}", Sha256::digest(canonical_consumed_unit_bytes(unit))))
+        .collect::<Vec<_>>();
+    let package = units[0].package().expect("authored owner");
+    let inputs = super::super::PackageCompilationInputs::new_package(
+        package,
+        vec![super::super::PackageSourceBinding::new(
+            package,
+            "canonical-row-fixture",
+            std::env::current_dir().expect("package root"),
+        )],
+        Vec::new(),
+    )
+    .expect("single package graph");
+    let commitment = derive_source_consumption_commitment(&units, &inputs).expect("commitment");
+    identities.push(
+        commitment
+            .digest()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+    );
+    // Captured from the V3 row/commitment encoder before changing its storage.
+    assert_eq!(
+        identities,
+        [
+            "ae0e65b19e6af4b93dce85e0feb096a5858db96308d6c7e60d99915732e3a213",
+            "519ca0511d1018331db0e01bb39405e40d0660985e099f787918737492c15671",
+            "eb986861f4e7b8b2018605c9436f9aabf7e535182dd8ea9f774d90cdba4a9285",
+            "24b8039fc620e9d7d4a69da5af6c2a203ecabb369fcf263a8acb134cd1021141",
+            "0085e87aac427a0e725966f478af42996e1714c151c8e93e10b9ad423278c6bd",
+        ]
+    );
+}
+
+#[test]
+fn canonical_source_rows_append_in_place_without_changing_framing() {
+    let fixture = canonical_row_fixture();
+    let package = fixture[0].package().expect("authored owner");
+    for row_count in [0, 1, 4, 4096] {
+        let mut units = (0..row_count)
+            .map(|ordinal| {
+                let mut unit = fixture[ordinal % fixture.len()].clone();
+                unit.relative_path
+                    .push(format!("{ordinal}-{}", "x".repeat(ordinal % 257)));
+                unit
+            })
+            .collect::<Vec<_>>();
+        units.sort();
+        // Independent outer framing preserves the former manifest protocol:
+        // count, then each raw row's length and bytes, in canonical order.
+        let mut expected = b"manifest-prefix".to_vec();
+        expected.extend_from_slice(&(row_count as u64).to_le_bytes());
+        for unit in &units {
+            append_field(&mut expected, &canonical_consumed_unit_bytes(unit));
+        }
+        expected.extend_from_slice(b"manifest-suffix");
+        let subject = PackageCompilationSubject {
+            root: package,
+            dependency_closure: super::super::PackageDependencyClosure::from_canonical_parts(
+                package,
+                super::super::BuildDeclarationKind::Package,
+                vec![package],
+                Vec::new(),
+            )
+            .expect("single package closure"),
+            source_consumption_commitment: PackageSourceConsumptionCommitment::for_test([1; 32]),
+            consumed_units: units,
+        };
+        let mut actual = Vec::with_capacity(expected.len());
+        actual.extend_from_slice(b"manifest-prefix");
+        let storage = actual.as_ptr();
+        subject.append_canonical_consumed_units(&mut actual);
+        actual.extend_from_slice(b"manifest-suffix");
+        assert_eq!(actual, expected, "{row_count} rows");
+        assert_eq!(
+            actual.as_ptr(),
+            storage,
+            "caller-supplied storage is retained"
+        );
+    }
+}
+
+fn source(
+    path: &str,
+    root: &str,
+    package: Option<PackageKeyIdentity>,
+    origin: SourceOrigin,
+    text: &str,
+) -> SourceFile {
+    SourceFile {
+        source_id: SourceId(0),
+        path: PathBuf::from(path),
+        package_root: PathBuf::from(root),
+        package_identity: package,
+        origin,
+        resolution_stratum: source::SourceResolutionStratum::Base,
+        source: Arc::from(text),
+    }
+}
+
+#[test]
+fn canonical_entries_ignore_absolute_package_location() {
+    let package = PackageKeyIdentity::from_digest([7; 32]).expect("package identity");
+    let first = source(
+        "/cache/one/pkg/main.omg",
+        "/cache/one/pkg",
+        Some(package),
+        SourceOrigin::User,
+        "machine main {}",
+    );
+    let second = source(
+        "/different/cache/pkg/main.omg",
+        "/different/cache/pkg",
+        Some(package),
+        SourceOrigin::User,
+        "machine main {}",
+    );
+    assert_eq!(
+        canonical_source_entry(&first).expect("first canonical entry"),
+        canonical_source_entry(&second).expect("second canonical entry")
+    );
+}
+
+#[test]
+fn canonical_entries_bind_package_path_and_bytes() {
+    let first_package = PackageKeyIdentity::from_digest([7; 32]).expect("first package");
+    let second_package = PackageKeyIdentity::from_digest([8; 32]).expect("second package");
+    let baseline = source(
+        "/cache/pkg/main.omg",
+        "/cache/pkg",
+        Some(first_package),
+        SourceOrigin::User,
+        "machine main {}",
+    );
+    let other_package = source(
+        "/cache/pkg/main.omg",
+        "/cache/pkg",
+        Some(second_package),
+        SourceOrigin::User,
+        "machine main {}",
+    );
+    let other_path = source(
+        "/cache/pkg/lib.omg",
+        "/cache/pkg",
+        Some(first_package),
+        SourceOrigin::User,
+        "machine main {}",
+    );
+    let other_bytes = source(
+        "/cache/pkg/main.omg",
+        "/cache/pkg",
+        Some(first_package),
+        SourceOrigin::User,
+        "machine changed {}",
+    );
+    let baseline = canonical_source_entry(&baseline).expect("baseline entry");
+    assert_ne!(baseline, canonical_source_entry(&other_package).unwrap());
+    assert_ne!(baseline, canonical_source_entry(&other_path).unwrap());
+    assert_ne!(baseline, canonical_source_entry(&other_bytes).unwrap());
+}
+
+#[test]
+fn consumed_units_are_logical_content_addressed_and_classified() {
+    let package = PackageKeyIdentity::from_digest([7; 32]).expect("package identity");
+    let authored = source(
+        "/host/cache/pkg/main.omg",
+        "/host/cache/pkg",
+        Some(package),
+        SourceOrigin::User,
+        "machine main {}",
+    );
+    let relocated = source(
+        "/other/root/pkg/main.omg",
+        "/other/root/pkg",
+        Some(package),
+        SourceOrigin::User,
+        "machine main {}",
+    );
+    let generated = consumed_source_unit(&authored, true).expect("generated row");
+    let authored = consumed_source_unit(&authored, false).expect("authored row");
+    let relocated = consumed_source_unit(&relocated, false).expect("relocated row");
+
+    assert_eq!(authored, relocated);
+    assert_eq!(authored.kind(), ConsumedSourceUnitKind::PackageAuthored);
+    assert_eq!(generated.kind(), ConsumedSourceUnitKind::PackageGenerated);
+    assert_ne!(authored, generated);
+    assert!(
+        !canonical_consumed_unit_bytes(&authored)
+            .windows(b"/host/cache".len())
+            .any(|window| window == b"/host/cache")
+    );
+
+    let virtual_source = source(
+        "<prelude>",
+        "toolchain/std",
+        None,
+        SourceOrigin::Toolchain,
+        "data Unit {}",
+    );
+    let owned_source = source(
+        "toolchain/std/types.omg",
+        "toolchain/std",
+        None,
+        SourceOrigin::Toolchain,
+        "data Unit {}",
+    );
+    assert_eq!(
+        consumed_source_unit(&virtual_source, false)
+            .expect("virtual row")
+            .kind(),
+        ConsumedSourceUnitKind::ToolchainVirtual
+    );
+    assert_eq!(
+        consumed_source_unit(&owned_source, false)
+            .expect("owned row")
+            .kind(),
+        ConsumedSourceUnitKind::ToolchainOwned
+    );
+}
+
+#[test]
+fn toolchain_source_identity_binds_namespace_path_and_exact_bytes() {
+    let baseline = source(
+        "toolchain/std/types.omg",
+        "toolchain/std",
+        None,
+        SourceOrigin::Toolchain,
+        "data Packet {}",
+    );
+    let changed_namespace = source(
+        "toolchain/core/types.omg",
+        "toolchain/core",
+        None,
+        SourceOrigin::Toolchain,
+        "data Packet {}",
+    );
+    let changed_path = source(
+        "toolchain/std/other.omg",
+        "toolchain/std",
+        None,
+        SourceOrigin::Toolchain,
+        "data Packet {}",
+    );
+    let changed_bytes = source(
+        "toolchain/std/types.omg",
+        "toolchain/std",
+        None,
+        SourceOrigin::Toolchain,
+        "data Packet { value: u8; }",
+    );
+
+    let baseline = toolchain_source_identity_digest(&baseline).expect("baseline identity");
+    assert_ne!(
+        baseline,
+        toolchain_source_identity_digest(&changed_namespace).unwrap()
+    );
+    assert_ne!(
+        baseline,
+        toolchain_source_identity_digest(&changed_path).unwrap()
+    );
+    assert_ne!(
+        baseline,
+        toolchain_source_identity_digest(&changed_bytes).unwrap()
+    );
+}
