@@ -865,3 +865,149 @@ fn filesystem_cohort_closure_admits_settled_rows_and_refuses_generic_release() {
     );
     receipt.validate().expect("canonical receipt replays");
 }
+
+#[test]
+fn filesystem_cohort_closure_admits_constrained_release_occurrence() {
+    use super::super::{
+        filesystem_host_permission_row, filesystem_mechanism_row,
+        filesystem_ordinary_release_contract, filesystem_release_mechanism_row,
+        terminal_authority_permission_policy::terminal_authority_permission_policy_with_rows,
+        terminal_authority_policy::terminal_authority_policy_with_rows,
+    };
+
+    let requirements: [(&str, i64, u8); 4] = [
+        ("test::FilesystemHost::read()", 0, 7),
+        ("test::FilesystemHost::sync()", 74, 9),
+        ("test::FilesystemHost::read_link()", 89, 8),
+        ("test::FilesystemHost::close()", 3, 4),
+    ];
+    let methods = requirements
+        .iter()
+        .map(|(requirement, ..)| service_method(requirement))
+        .collect::<Vec<_>>();
+    let provider_plan = ProviderPlan {
+        name: "filesystem".to_owned(),
+        provider_type: "FilesystemProvider".to_owned(),
+        provider_type_package_identity: None,
+        target: "linux_x86_64".to_owned(),
+        schema: ServiceSchema {
+            trait_name: "test::FilesystemHost".to_owned(),
+            trait_package_identity: None,
+            methods: methods.clone(),
+        },
+        rows: requirements
+            .iter()
+            .zip(&methods)
+            .map(|((_, number, _), method)| ProviderPlanRow {
+                method: method.name.clone(),
+                requirement_identity: method.requirement_identity.clone(),
+                requirement_lifetime_partition: Vec::new(),
+                binding: ProviderBinding::Syscall { number: *number },
+            })
+            .collect(),
+        origin_package_identity: None,
+        origin_package: "test".to_owned(),
+    };
+    let selected = SelectedProviderPlanFacts::from_selected_plans(vec![provider_plan.clone()])
+        .expect("selected filesystem");
+    let boundaries = requirements
+        .iter()
+        .enumerate()
+        .map(|(index, (requirement, ..))| boundary(index as u32 + 1, requirement))
+        .collect::<Vec<_>>();
+    // The proved constrained close occurrence binds the retained release
+    // contract into its mechanism key; the unconstrained sibling keeps an
+    // ordinary contract and is a different key, not a competing row.
+    let release_contract = filesystem_ordinary_release_contract([9; 32]);
+    let mechanism_for = |index: usize| AdmittedTerminalMechanism {
+        boundary: BoundaryMachineId::new(index as u64 + 1).unwrap(),
+        mechanism: SyscallTerminalMechanismIdentity::new(
+            target::TargetProfile::LinuxX64,
+            requirements[index].1 as u32,
+            if index == 3 {
+                release_contract.checked_argument_contract()
+            } else {
+                CheckedSyscallArgumentContractIdentity::from_digest([requirements[index].2; 32])
+            },
+        )
+        .into(),
+    };
+    let mechanisms = (0..4).map(mechanism_for).collect::<Vec<_>>();
+    let physical = terminal_authority_policy_with_rows(
+        methods[..3]
+            .iter()
+            .zip(&mechanisms[..3])
+            .map(|(method, admitted)| {
+                filesystem_mechanism_row(admitted.mechanism, method)
+                    .expect("settled cohort emits one exact mechanism row")
+            })
+            .chain(std::iter::once(
+                filesystem_release_mechanism_row(
+                    mechanisms[3].mechanism,
+                    &methods[3],
+                    release_contract,
+                )
+                .expect("the constrained close earns its evidence-bound empty row"),
+            ))
+            .collect(),
+    )
+    .expect("exact cohort classification rows including the release row");
+    let permitted = terminal_authority_permission_policy_with_rows(
+        methods
+            .iter()
+            .map(|method| {
+                filesystem_host_permission_row(provider_plan.schema.identity_digest(), method)
+                    .expect("every canonical requirement has a justified permission")
+            })
+            .collect(),
+    )
+    .expect("exact filesystem permission table");
+
+    let receipt = review_terminal_authority_closure(
+        [31; 32],
+        target::TargetProfile::LinuxX64,
+        &abstract_plan(
+            boundaries.clone(),
+            Vec::new(),
+            vec![function(1, &[1, 2, 3, 4])],
+        ),
+        &selected,
+        &physical,
+        &permitted,
+        &mechanisms,
+        &[],
+    )
+    .expect("the constrained close occurrence admits under its bound contract");
+    assert_eq!(receipt.leaves().len(), 4);
+    let leaf = receipt
+        .leaves()
+        .iter()
+        .find(|leaf| leaf.requirement_identity() == "test::FilesystemHost::close()")
+        .expect("the release leaf retains its exact review identity");
+    assert!(leaf.exercised().is_authority_class_empty());
+    assert!(leaf.permitted().is_authority_class_empty());
+    receipt.validate().expect("canonical receipt replays");
+
+    // An unconstrained close mechanism under the same number does not inherit
+    // the bound row: its key differs and classification stays fail-closed.
+    let mut substituted = mechanisms.clone();
+    substituted[3].mechanism = SyscallTerminalMechanismIdentity::new(
+        target::TargetProfile::LinuxX64,
+        3,
+        CheckedSyscallArgumentContractIdentity::from_digest([4; 32]),
+    )
+    .into();
+    let error = review_terminal_authority_closure(
+        [31; 32],
+        target::TargetProfile::LinuxX64,
+        &abstract_plan(boundaries, Vec::new(), vec![function(1, &[1, 2, 3, 4])]),
+        &selected,
+        &physical,
+        &permitted,
+        &substituted,
+        &[],
+    )
+    .expect_err("an unconstrained close does not inherit the bound row");
+    assert!(error.contains("does not classify"), "{error}");
+    assert!(error.contains("close"), "{error}");
+}
