@@ -1,0 +1,680 @@
+use super::{
+    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, crossed_edge,
+    eliminate, fixture, instruction, mutated_chained, place, settlement, settlement_at, successor,
+};
+use crate::rewrites::dead_store::{
+    DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
+};
+use optimization_unit::ValueDefinitionSite;
+use register_environment::baseline_target_register_environment;
+use selected_instructions::{
+    LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
+    SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedInstructionId,
+    SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    SelectedStructuralBinding, SelectedStructuralCaseEdge, SelectedStructuralTransport,
+    SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
+};
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
+    StructuralFieldId, ValueId,
+};
+use target::NativeTarget;
+
+#[test]
+fn cross_block_covering_store_eliminates_across_the_edge() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let source = chained(target);
+        let environment = baseline_target_register_environment(target).unwrap();
+        let result =
+            eliminate_selected_dead_store(&source, 0, STORE, &environment, budget()).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN]
+        );
+        // The covering store stays at the head of the successor block.
+        assert_eq!(
+            function.blocks[1]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![KILLER]
+        );
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.role))
+                .collect::<Vec<_>>(),
+            vec![(KILLER, SelectedMemoryAccessRole::WritePlace)]
+        );
+        validate_dead_store_elimination(
+            &source,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn cross_block_walk_crosses_intermediate_blocks_and_converging_legs() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Store in block 0, the between-copy alone in a middle bridge block 2,
+    // the covering store in block 1: the walk crosses two edges and one full
+    // body.
+    let three = mutated_chained(target, |function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let mid_terminator = std::mem::replace(
+            &mut function.blocks[0].terminator,
+            SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(2),
+            },
+        );
+        let middle = function.blocks[0].instructions.remove(2);
+        function.blocks.insert(
+            1,
+            SelectedBlock {
+                id: SelectedBlockId(2),
+                origin: SelectedBlockOrigin::EdgeTransfer {
+                    edge: EdgeId::new(2).unwrap(),
+                    target: BlockId::new(2).unwrap(),
+                },
+                instructions: vec![middle],
+                terminator: mid_terminator,
+            },
+        );
+    });
+    eliminate(&three, &environment).unwrap();
+    // A conditional whose legs both reach the covering block still covers
+    // every path forward.
+    let converged = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        let edge = edge.clone();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: edge,
+            when_zero: successor(1),
+        };
+    });
+    eliminate(&converged, &environment).unwrap();
+    // A second predecessor into the covering block is harmless: coverage
+    // looks forward, so a join cannot open an uncovered path.
+    let join = mutated_chained(target, |function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(1),
+            },
+        });
+    });
+    eliminate(&join, &environment).unwrap();
+}
+
+#[test]
+fn cross_block_forks_returns_and_cycles_reject() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Edges fanning out to distinct blocks admit a path the covering store
+    // never runs on.
+    let forked = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let return_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        let edge = edge.clone();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: edge,
+            when_zero: successor(2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    assert_eq!(
+        eliminate(&forked, &environment).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedPair
+    );
+    // Without the covering store the walk reaches the return's boundary,
+    // where the bytes stay observable.
+    let open = mutated_chained(target, |function, _| {
+        function.blocks[1].instructions.clear();
+        function.memory_accesses.remove(1);
+    });
+    assert_eq!(
+        eliminate(&open, &environment).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedPair
+    );
+    // A chain re-entering a walked block cycles without covering.
+    let cycled = mutated_chained(target, |function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[1].instructions.clear();
+        function.memory_accesses.remove(1);
+        function.blocks[1].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(8),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            successor: successor(0),
+        };
+    });
+    assert_eq!(
+        eliminate(&cycled, &environment).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedPair
+    );
+    // A successor naming no block cannot be walked.
+    let dangling = mutated_chained(target, |function, _| {
+        crossed_edge(function).block = SelectedBlockId(99);
+    });
+    assert_eq!(
+        eliminate(&dangling, &environment).unwrap_err(),
+        DeadStoreEliminationError::SourceMismatch
+    );
+}
+
+#[test]
+fn cross_block_edge_transports_and_terminator_rows_decide() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Register transports cannot reach memory; carrying one across the edge
+    // still eliminates.
+    let carried = mutated_chained(target, |function, _| {
+        crossed_edge(function).bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: SCRATCH,
+                parameter: VALUE,
+            },
+        });
+    });
+    eliminate(&carried, &environment).unwrap();
+    // A structural write into the dead place's storage observes or retires
+    // the bytes inside the interval.
+    let aliased = mutated_chained(target, |function, _| {
+        crossed_edge(function)
+            .structural_bindings
+            .push(SelectedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: PlaceId::new(2).unwrap(),
+                    argument: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                },
+                transport: SelectedStructuralTransport::WholeValue {
+                    argument: SCRATCH,
+                    destination: LocalStorageSlotId::Structural {
+                        operation: OperationId::new(9).unwrap(),
+                        place: place(),
+                    },
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            });
+    });
+    assert_eq!(
+        eliminate(&aliased, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // The same transport into a different place's slot stays harmless.
+    let disjoint = mutated_chained(target, |function, _| {
+        crossed_edge(function)
+            .structural_bindings
+            .push(SelectedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: PlaceId::new(2).unwrap(),
+                    argument: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                },
+                transport: SelectedStructuralTransport::WholeValue {
+                    argument: SCRATCH,
+                    destination: LocalStorageSlotId::Structural {
+                        operation: OperationId::new(9).unwrap(),
+                        place: PlaceId::new(2).unwrap(),
+                    },
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            });
+    });
+    eliminate(&disjoint, &environment).unwrap();
+    // Case custody on the dead place writes its slot inside the interval.
+    let custody = mutated_chained(target, |function, _| {
+        crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(9).unwrap(),
+                place: place(),
+            },
+            case: StructuralCaseId::new(1).unwrap(),
+            case_tag: 0,
+            payloads: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        });
+    });
+    assert_eq!(
+        eliminate(&custody, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A trivially discarded case binding on the dead place retires storage.
+    let discarded = mutated_chained(target, |function, _| {
+        crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(9).unwrap(),
+                place: PlaceId::new(2).unwrap(),
+            },
+            case: StructuralCaseId::new(1).unwrap(),
+            case_tag: 0,
+            payloads: Vec::new(),
+            trivial_affine_discards: vec![place()],
+        });
+    });
+    assert_eq!(
+        eliminate(&discarded, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A case payload's register parameter is a register transport only.
+    let payload = mutated_chained(target, |function, _| {
+        crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(9).unwrap(),
+                place: PlaceId::new(2).unwrap(),
+            },
+            case: StructuralCaseId::new(1).unwrap(),
+            case_tag: 0,
+            payloads: vec![SelectedCasePayloadBinding {
+                semantic: legalized_operations::LegalizedStructuralCasePayload {
+                    field: StructuralFieldId::new(1).unwrap(),
+                    field_byte_offset: 0,
+                    parameter: legalized_operations::LegalizedValueDefinition {
+                        value: ValueId::new(5).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        ),
+                        definition_site: ValueDefinitionSite::BlockParameter {
+                            block: BlockId::new(2).unwrap(),
+                            position: 0,
+                        },
+                    },
+                },
+                transport: SelectedCasePayloadTransport::Registers {
+                    argument: SCRATCH,
+                    parameter: VALUE,
+                },
+            }],
+            trivial_affine_discards: Vec::new(),
+        });
+    });
+    eliminate(&payload, &environment).unwrap();
+    // A roster row on the crossed terminator's instruction decides first.
+    let terminator_write = mutated_chained(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            access(
+                SelectedInstructionId(6),
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WritePlace,
+            ),
+        );
+    });
+    assert_eq!(
+        eliminate(&terminator_write, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+}
+
+#[test]
+fn cross_block_intervening_accesses_reject() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A read of the dead range in the covering block observes the bytes.
+    let read = mutated_chained(target, |function, environment| {
+        let load = environment
+            .constraint(environment.selected_keys().load64.unwrap())
+            .unwrap();
+        function.blocks[1].instructions.insert(
+            0,
+            instruction(
+                SelectedInstructionId(9),
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                load,
+                &[POINTER, SCRATCH],
+            ),
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                SelectedInstructionId(9),
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::ReadPlace,
+            ),
+        );
+    });
+    assert_eq!(
+        eliminate(&read, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A partial overwrite in a crossed middle block is an access, not a
+    // covering store.
+    let middle = mutated_chained(target, |function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let mid_terminator = std::mem::replace(
+            &mut function.blocks[0].terminator,
+            SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(2),
+            },
+        );
+        function.blocks.insert(
+            1,
+            SelectedBlock {
+                id: SelectedBlockId(2),
+                origin: SelectedBlockOrigin::EdgeTransfer {
+                    edge: EdgeId::new(2).unwrap(),
+                    target: BlockId::new(2).unwrap(),
+                },
+                instructions: vec![instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::Store {
+                        byte_offset: 4,
+                        byte_size: 4,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                )],
+                terminator: mid_terminator,
+            },
+        );
+        function.memory_accesses.push(SelectedMemoryAccess {
+            byte_count: 4,
+            ..access(
+                SelectedInstructionId(10),
+                3,
+                place(),
+                4,
+                SelectedMemoryAccessRole::WritePlace,
+            )
+        });
+    });
+    assert_eq!(
+        eliminate(&middle, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A shifted covering store in the successor block still rejects.
+    let elsewhere = mutated_chained(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[1].instructions[0] = instruction(
+            KILLER,
+            SelectedInstructionKind::Store {
+                byte_offset: 8,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses[1].byte_offset = 8;
+    });
+    assert_eq!(
+        eliminate(&elsewhere, &environment).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedPair
+    );
+}
+
+#[test]
+fn cross_block_settlement_positions_decide() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A settlement before the covering store in its block is inside the dead
+    // interval.
+    let inside = mutated_chained(target, |function, _| {
+        function
+            .boundary_settlements
+            .push(settlement_at(SelectedBlockId(1), 0));
+    });
+    assert_eq!(
+        eliminate(&inside, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A settlement after the covering store's body position observes only
+    // covered bytes and stays put.
+    let after = mutated_chained(target, |function, _| {
+        function
+            .boundary_settlements
+            .push(settlement_at(SelectedBlockId(1), 1));
+    });
+    let result = eliminate(&after, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0]
+            .boundary_settlements
+            .iter()
+            .map(|settlement| (settlement.block, settlement.instruction_index))
+            .collect::<Vec<_>>(),
+        vec![(SelectedBlockId(1), 1)]
+    );
+    // Any settlement in a fully crossed block sits inside the interval.
+    let bridged = mutated_chained(target, |function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let mid_terminator = std::mem::replace(
+            &mut function.blocks[0].terminator,
+            SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(2),
+            },
+        );
+        let middle = function.blocks[0].instructions.remove(2);
+        function.blocks.insert(
+            1,
+            SelectedBlock {
+                id: SelectedBlockId(2),
+                origin: SelectedBlockOrigin::EdgeTransfer {
+                    edge: EdgeId::new(2).unwrap(),
+                    target: BlockId::new(2).unwrap(),
+                },
+                instructions: vec![middle],
+                terminator: mid_terminator,
+            },
+        );
+        function
+            .boundary_settlements
+            .push(settlement_at(SelectedBlockId(2), 0));
+    });
+    assert_eq!(
+        eliminate(&bridged, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // Every position after the store in its own block is inside the interval
+    // once the covering store crosses an edge.
+    let trailing = mutated_chained(target, |function, _| {
+        function.boundary_settlements.push(settlement(3));
+    });
+    assert_eq!(
+        eliminate(&trailing, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A settlement before the removed store is outside and stays put.
+    let before = mutated_chained(target, |function, _| {
+        function.boundary_settlements.push(settlement(1));
+    });
+    let result = eliminate(&before, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0]
+            .boundary_settlements
+            .iter()
+            .map(|settlement| (settlement.block, settlement.instruction_index))
+            .collect::<Vec<_>>(),
+        vec![(SelectedBlockId(0), 1)]
+    );
+}
+
+#[test]
+fn cross_block_replay_rejects_mutated_proposals() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = chained(target);
+    let result = eliminate(&source, &environment).unwrap();
+    // Any structural drift beyond the removal itself mismatches, including
+    // in the successor block the removal never touched.
+    let mut proposed = result.transformed().clone();
+    proposed.functions[0].blocks[1].instructions.remove(0);
+    assert_eq!(
+        validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), proposed)
+            .unwrap_err(),
+        DeadStoreEliminationError::ReplayMismatch
+    );
+    let mut proposed = result.transformed().clone();
+    let jump = environment
+        .constraint(environment.selected_keys().jump)
+        .unwrap();
+    proposed.functions[0].blocks.push(SelectedBlock {
+        id: SelectedBlockId(2),
+        origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+        instructions: Vec::new(),
+        terminator: SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(7),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            successor: successor(1),
+        },
+    });
+    assert_eq!(
+        validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), proposed)
+            .unwrap_err(),
+        DeadStoreEliminationError::ReplayMismatch
+    );
+}
+
+/// Two runs over the identical source produce the identical validated result,
+/// and the published plan is a legal second input: the sealed transformed
+/// program already sits at the rule's fixed point, so the removed store no
+/// longer exists and the surviving store has no later covering write.
+#[test]
+fn elimination_is_deterministic_and_terminal() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let first = eliminate(&fixture(target), &environment).unwrap();
+    let second = eliminate(&fixture(target), &environment).unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. Re-running on
+    // it is terminal: the dead store is already gone,
+    assert_eq!(
+        eliminate_selected_dead_store(&first, 0, STORE, &environment, budget()).unwrap_err(),
+        DeadStoreEliminationError::SourceMismatch
+    );
+    // and the covering store's own bytes are never rewritten, so no second
+    // elimination can fire on it.
+    assert_eq!(
+        eliminate_selected_dead_store(&first, 0, KILLER, &environment, budget()).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedPair
+    );
+}
