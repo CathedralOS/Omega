@@ -1,6 +1,10 @@
 //! Shape and independently decoded bytes do not replace selected source replay.
-use super::*;
 
+use super::{
+    Architecture, BoundaryExecutionRecord, BoundarySettlementRecord, CompilerBuiltinExecution,
+    IntegerSign, InternalUnitScalarArgumentSourceRecord, MachineRegister, NativeTarget, ScalarType,
+    ValueLocation, ValueShape,
+};
 pub(crate) fn decode(target: NativeTarget, bytes: &[u8]) -> Option<MachineRegister> {
     match target.architecture {
         Architecture::X86_64 => {

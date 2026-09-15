@@ -968,7 +968,12 @@ fn decode_boundary_runtime_source(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundaryResultRecord, BoundaryStructuralResultRecord, InstallationError,
+        InternalUnitScalarArgumentSourceRecord, OperationId, PlaceId, Reader,
+        StructuralOperationResult, StructuralTypeId, ValueId, decode_boundary_result,
+        decode_boundary_runtime_source, encode_boundary_result, encode_boundary_runtime_source,
+    };
 
     #[test]
     fn selected_process_exit_source_has_no_scratch_and_preserves_exact_identity() {

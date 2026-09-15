@@ -124,7 +124,7 @@ fn successor(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{FunctionFragmentSuccessorProvenance, SelectedSuccessor, successor};
     use selected_instructions::{SelectedBlockId, SelectedSuccessorRole};
     use semantic_vocabulary::{BlockId, EdgeId};
 

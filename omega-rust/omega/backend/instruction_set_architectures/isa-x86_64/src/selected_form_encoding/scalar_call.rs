@@ -366,10 +366,16 @@ mod unit_calls;
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, MachineId,
+        NativeTarget, RegisterViewId, SelectedInstructionKind, ValidatedPhysicalRegisterModel,
+        X86_64ScalarCallFixup, X86_64ScalarCallTemplateError, canonical_fixup,
+        encode_x86_64_selected_scalar_call_template, expected_effects, expected_operand_views,
+        validate_x86_64_selected_scalar_call_template, x86_64_physical_register_model,
+        x86_64_system_v_register_call_keys,
+    };
     mod mixed_aggregates;
     use register_model::validate_physical_register_model;
-
-    use super::*;
 
     fn inputs() -> (
         ValidatedPhysicalRegisterModel,

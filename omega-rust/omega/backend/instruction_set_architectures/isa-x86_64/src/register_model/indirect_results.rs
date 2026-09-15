@@ -1,6 +1,11 @@
 //! Hidden aggregate destinations retain the native first-argument register as an input.
-use super::*;
 
+use super::{
+    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    ValidatedPhysicalRegisterModel, x86_64_microsoft_mixed_unit_call_keys,
+    x86_64_microsoft_register_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
+    x86_64_system_v_register_unit_call_keys,
+};
 pub fn x86_64_indirect_aggregate_call_keys(microsoft: bool) -> Vec<RegisterConstraintKey> {
     let first = if microsoft { 2300 } else { 2200 };
     let count = if microsoft { 15 } else { 54 };

@@ -288,7 +288,12 @@ fn reject<'occurrence>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BOOT_SERVICES_FIELD_ALIGNMENT, BOOT_SERVICES_FIELD_OFFSET, BOOT_SERVICES_FIELD_ORDINAL,
+        BOOT_SERVICES_FIELD_SIZE, ExternalRootDiagnostic, TargetProfile,
+        UefiApplicationBootstrapAdapterInvocationReadiness, UefiApplicationFirmwareLedger,
+        plan_uefi_system_table_native_layout, project_uefi_application_boot_services,
+    };
     use crate::{
         UefiApplicationBootstrapLedgerId, UefiApplicationPhysicalArrival,
         UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId, UefiImageHandleOccurrenceId,

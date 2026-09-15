@@ -361,7 +361,13 @@ fn emitted_writer_report_fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Architecture, InstalledCode, LoweredPostHandoffWriter, MachineRegister, NativeTarget,
+        PostHandoffEntryWriterBindingError, PostHandoffWriterPlan,
+        PreparedPostHandoffEntryWriterInvocation, ValidatedPreparedPostHandoffWriterDestination,
+        bind_post_handoff_entry_writer_invocation, lower_post_handoff_writer_fragment,
+        preflight_post_handoff_entry_writer_binding,
+    };
     use layout_plans::{
         ByteOrder, DataSymbolId, EntryStubId, MaterializationWrite, PlacementConstraints,
         PlacementPhase, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,

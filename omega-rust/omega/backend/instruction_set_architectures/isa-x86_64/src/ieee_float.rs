@@ -108,7 +108,11 @@ fn xmm_index(register: MachineRegister) -> Result<u8, Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineRegister, OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm,
+        encode_binary64_bits_to_xmm, encode_ldmxcsr_rsp_displacement,
+        encode_stmxcsr_rsp_displacement, encode_store_mxcsr_constant_rsp_displacement,
+    };
 
     #[test]
     fn exact_raw_bits_materialize_without_host_float_conversion() {

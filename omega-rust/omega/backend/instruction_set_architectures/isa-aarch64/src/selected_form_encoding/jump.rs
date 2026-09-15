@@ -1,7 +1,12 @@
 //! Ordinary unconditional B immediate control.
 
-use super::*;
-
+use super::{
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
+    aarch64_physical_register_model,
+};
 pub fn encode_aarch64_selected_jump_form(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -72,7 +77,11 @@ pub fn validate_aarch64_selected_jump_form(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+        aarch64_physical_register_model, encode_aarch64_selected_jump_form,
+        validate_aarch64_selected_jump_form,
+    };
     #[test]
     fn jump_round_trip_rejects_wrong_target_and_opcode() {
         let physical =

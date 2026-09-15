@@ -37,7 +37,7 @@ pub fn stage_non_authoritative_spill_frame_requirements(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{derive_zero_access_requirement_for_test, replay_zero_access_requirement_for_test};
     use register_environment::FrameAbiPreservationConvention;
 
     #[test]

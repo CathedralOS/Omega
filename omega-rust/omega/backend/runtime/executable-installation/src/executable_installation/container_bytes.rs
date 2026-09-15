@@ -1,3 +1,13 @@
+use super::{
+    Architecture, Artifact, ArtifactAuthorityCommitments, ArtifactEntry, ArtifactId,
+    ArtifactRelocationKind, ContainerLimits, ContainerSection, ContainerSectionKind,
+    DecodedArtifactContainer, DecodedArtifactRelocation, EntrySetId, EntryStubId,
+    InstallationDiagnostic, MachineContractSetId, MachineFootprintId,
+    NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
+    OMEGA_EXECUTABLE_CONTAINER_V1_MARKER, OMEGA_EXECUTABLE_CONTAINER_V2_MARKER, PlacementPlanId,
+    RelocationSetId, RelocationTarget, ValidatedArtifactContainer, normalized_proof_payload_digest,
+    validate_decoded_container,
+};
 use std::collections::BTreeMap;
 
 use layout_plans::{
@@ -6,8 +16,6 @@ use layout_plans::{
     PlacementConstraints, PlacementPhase, ScalarFieldSchema, ScalarFieldValue,
     decode_scalar_layout, materialize_scalar_layout_into,
 };
-
-use super::*;
 
 pub const OMEGA_EXECUTABLE_CONTAINER_MAGIC: [u8; 8] = *b"OMEGAXE!";
 pub const OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES: u64 = 64;
@@ -1518,7 +1526,26 @@ fn relocation_schema() -> Vec<ScalarFieldSchema> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{
+        AdmissionReceiptId, ValidatedContainerAdmissionEvidence, admit_validated_container,
+        non_authoritative_decoded_container_fingerprint,
+    };
+    use super::{
+        Architecture, Artifact, ArtifactAuthorityCommitments, ArtifactEntry, ArtifactId,
+        ArtifactInstallationScopeId, ArtifactRelocationKind, ContainerLimits,
+        DecodedArtifactContainer, DecodedArtifactRelocation, ENTRY_RECORD_BYTES, EntrySetId,
+        EntryStubId, LayoutPlanReport, MachineContractSetId, MachineFootprintId, MachineRegimeId,
+        NonAuthoritativeContainerFingerprint64, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES,
+        OMEGA_EXECUTABLE_CONTAINER_MAGIC, OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES,
+        OMEGA_EXECUTABLE_CONTAINER_V1_MARKER, OMEGA_EXECUTABLE_CONTAINER_V2_MARKER,
+        PLACEMENT_RECORD_BYTES, PlacementConstraints, PlacementPhase, PlacementPlanId,
+        RelocationSetId, RelocationTarget, SECTION_CODE, SECTION_CONTRACTS, SECTION_ENTRIES,
+        SECTION_FOOTPRINT, SECTION_INFORMATIONAL, SECTION_PLACEMENT, SECTION_PROOF,
+        SECTION_RELOCATIONS, decode_executable_container, encode_executable_container,
+        encode_executable_container_v1_compatibility, encode_record, entry_layout, header_layout,
+        identity_layout, non_authoritative_informational_section_fingerprint,
+        normalized_proof_payload_digest, placement_layout, relocation_layout, section_layout,
+    };
 
     fn limits() -> ContainerLimits {
         ContainerLimits {

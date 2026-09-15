@@ -194,7 +194,12 @@ fn claim_source_is_canonical(source: &CompletionClaimSource) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundarySettlementRecord, ClaimId, CompletionClaimSource, CompletionCustodyError,
+        CompletionReceipt, ContentPlaceSegment, ContentPlaceVersion, StructuralArgument,
+        StructuralPathSegment, completion_receipts_have_exact_custody,
+        derive_completion_provider_custody, validate_completion_custody,
+    };
 
     fn settlement(
         arguments: Vec<StructuralArgument>,

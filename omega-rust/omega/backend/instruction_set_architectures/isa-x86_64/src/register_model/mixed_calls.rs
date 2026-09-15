@@ -1,6 +1,10 @@
 //! Fixed register Unit calls retain independent SysV banks and positional Microsoft slots.
-use super::*;
 
+use super::{
+    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys,
+};
 /// System V rows ordered by GPR count (0–6), then IEEE register count (1–8).
 pub fn x86_64_system_v_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
     keys(800..856)

@@ -3,8 +3,14 @@
 //! frame and a shifted-then-unshifted `add` pair past it — the same immediate
 //! reach the frame protocol's `sp` adjustment admits — so every displacement
 //! a committable frame can resolve encodes exactly.
-use super::*;
 
+use super::{
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
+    ValidatedPhysicalRegisterModel, aarch64_physical_register_model, resolve_registers,
+};
 const fn frame_address_words(register: u8, displacement: u32) -> (u32, Option<u32>) {
     let high = displacement >> 12;
     if high == 0 {
@@ -164,7 +170,10 @@ pub(super) fn validate(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
+        aarch64_physical_register_model, encode, validate,
+    };
     use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
     use semantic_vocabulary::{OperationId, PlaceId};
 

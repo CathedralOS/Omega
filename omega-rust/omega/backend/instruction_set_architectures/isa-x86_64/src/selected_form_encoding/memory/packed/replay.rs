@@ -1,4 +1,5 @@
 //! Decode each required access, register operation and displacement independently.
+use super::super::X86_64SelectedFormEncodingError;
 use super::X86_64SelectedFormEncodingError as Error;
 
 pub(super) fn validate(

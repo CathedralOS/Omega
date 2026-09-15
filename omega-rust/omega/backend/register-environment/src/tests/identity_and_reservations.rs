@@ -1,9 +1,12 @@
+use super::super::{
+    TargetRegisterEnvironmentValidationError, baseline_target_register_environment,
+    validate_target_register_environment_with_reservations,
+};
 use isa_x86_64::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
 use register_model::validate_physical_register_model;
 use target::NativeTarget;
 
 use super::super::catalog::conservative_baseline_reservation_profile;
-use super::super::*;
 
 #[test]
 fn baseline_profile_is_exact_conservative_and_platform_applicable() {

@@ -300,7 +300,10 @@ pub(super) fn decode_offset(reader: &mut Reader<'_>) -> Result<usize, Installati
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        InternalUnitScalarArgumentSourceRecord, OperationId, Reader, ValueId,
+        decode_argument_source, encode_argument_source,
+    };
     use machine_code::UnitScalarParameterLocationRecord;
     use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
     use target_operations::MachineRegister;

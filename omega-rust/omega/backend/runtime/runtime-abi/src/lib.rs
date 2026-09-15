@@ -264,7 +264,7 @@ pub const fn build_runtime_abi_plan(target: NativeTarget) -> RuntimeAbiPlan {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{FatDescriptorKind, RuntimeAbiPlan};
 
     fn plan(pointer_size: usize) -> RuntimeAbiPlan {
         RuntimeAbiPlan {

@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    SelectedInstructionKind, encode_aarch64_selected_memory_form,
+    validate_aarch64_selected_memory_form,
+};
 #[test]
 fn load32_preserves_exact_four_byte_extent_and_rejects_a_widened_load() {
     let physical =

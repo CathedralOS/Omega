@@ -1,7 +1,13 @@
 //! A fixed local loop implements a runtime span without source CFG edges.
 //! Inputs survive; early-clobber cursor and byte temporaries own every write.
-use super::*;
 
+use super::{
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    RegisterViewId, ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
+    aarch64_physical_register_model, resolve_registers,
+};
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -126,7 +132,10 @@ pub(super) fn validate(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineAlternativeFamily, MachineAlternativeKey, aarch64_physical_register_model, encode,
+        validate,
+    };
 
     #[test]
     fn copy_loop_replays_every_bit_and_rejects_scratch_aliases() {

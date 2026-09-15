@@ -71,7 +71,10 @@ pub(super) fn contains_call(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineId, ObjectCodeAttribution, OperationId, SemanticCodeSite, contains_call,
+        validate_order,
+    };
     use machine_code::SemanticCodeAttribution;
 
     fn interval(offset: usize, length: usize) -> ObjectCodeAttribution {

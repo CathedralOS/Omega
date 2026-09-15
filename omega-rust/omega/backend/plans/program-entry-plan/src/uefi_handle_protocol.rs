@@ -302,7 +302,12 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        STATUS_ERROR_BIT, TargetProfile, UEFI_LOADED_IMAGE_PROTOCOL_GUID,
+        UefiBootServicesNativeField, UefiHandleProtocolInvocationPlan, UefiHandleProtocolStatus,
+        plan_uefi_boot_services_native_layout, plan_uefi_handle_protocol_invocation,
+        validate_candidate, validate_exact_locations,
+    };
 
     #[test]
     fn exact_plan_binds_service_guid_signature_abi_and_statuses() {

@@ -78,7 +78,7 @@ fn source_slot_matches(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{AbstractBlockEntry, LocalStorageSlotId, PlaceId, source_slot_matches};
     use semantic_vocabulary::{BlockId, OperationId, StructuralTypeId};
     use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
 

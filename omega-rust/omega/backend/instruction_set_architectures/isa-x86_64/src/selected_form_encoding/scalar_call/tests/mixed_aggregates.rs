@@ -1,6 +1,10 @@
 //! Mixed call operands and integer result fragments retain exact encoding effects.
-use super::*;
 
+use super::{
+    MachineId, NativeTarget, SelectedInstructionKind, canonical_fixup,
+    encode_x86_64_selected_scalar_call_template, inputs,
+    validate_x86_64_selected_scalar_call_template,
+};
 #[test]
 fn mixed_aggregate_templates_replay_inputs_results_and_clobbers() {
     let (physical, _, _, _, _) = inputs();

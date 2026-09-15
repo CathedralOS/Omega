@@ -490,7 +490,11 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CompilerFunctionValidationEvidence, CompilerTextDerivationDigest,
+        CompilerTextRelocationEnvelopeDigest, CompilerTextValidationEvidence,
+        EncodedCompilerTextDigest, FinalCompilerTextDigest,
+    };
 
     fn text_evidence(encoded_digest: [u8; 32]) -> CompilerTextValidationEvidence {
         let mut evidence = CompilerTextValidationEvidence {

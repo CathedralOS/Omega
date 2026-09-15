@@ -231,7 +231,10 @@ fn append_register_memory(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        X86_64_STACK_PROBE_INTERVAL_BYTES, X86_64FrameProtocolError, X86_64FrameSlot,
+        X86_64StackProbe, encode_system_v_amd64_frame_protocol,
+    };
     use register_model::validate_physical_register_model;
 
     const NO_PROBE: X86_64StackProbe = X86_64StackProbe {

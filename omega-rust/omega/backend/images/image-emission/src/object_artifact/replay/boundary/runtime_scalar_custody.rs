@@ -398,7 +398,11 @@ fn structural_payload_source_is_exact(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Architecture, BoundaryExecutionRecord, IntegerSign, IntegerType,
+        InternalUnitScalarArgumentSourceRecord, MachineRegister, NativeTarget, ScalarType,
+        ValueLocation, ValueShape, decode_selected_byte_output, hosted_write_byte_custody_is_exact,
+    };
     use machine_code::{
         BoundarySettlementRecord, ForeignCallScalarArgumentRecord, UnitIntegerConstantRecord,
         UnitScalarHomeRecord,

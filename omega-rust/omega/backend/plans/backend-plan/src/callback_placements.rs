@@ -594,7 +594,12 @@ pub fn canonical_callback_private_symbol(placement: &BoundNominalCallbackPlaceme
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Arc, BoundNominalCallbackPlacement, CallbackThunkPlan, NominalMachineUseSite, StateKey,
+        SymbolHandle, callback_placement_binding_identity,
+        callback_thunk_placement_identity_report_fingerprint, canonical_callback_private_symbol,
+        validate_bound_nominal_callback_placement,
+    };
     use calling_conventions::{CallSignature, CallingPolicy};
 
     fn resource_receipt(

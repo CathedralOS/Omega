@@ -1542,7 +1542,24 @@ fn reject_physical_arrival_join<'occurrence>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CallSignature, CallingPolicy, ExternalRootDiagnostic,
+        OptimizedProgramStorageSemanticEntryContract, ProgramEntryPhysicalContractPlan,
+        ProgramEntrySourceReceiverSignature, ProgramStorageEntryRootRole, TargetProfile,
+        UefiApplicationBootstrapAdapterComposition,
+        UefiApplicationBootstrapAdapterInvocationReadiness, UefiApplicationBootstrapLedgerId,
+        UefiApplicationBootstrapSameStackBudgetPlan,
+        UefiApplicationBootstrapSameStackDemandComponents, UefiApplicationFirmwareLedger,
+        UefiApplicationPhysicalArrival, UefiBootServicesPhaseLease, UefiBootServicesPhaseLeaseId,
+        UefiFirmwareSessionId, UefiImageHandleOccurrenceId, UefiPhysicalInvocationId,
+        UefiSystemTableOccurrenceId, UefiSystemTableOccurrenceProvenance,
+        ValidatedUefiSystemTableHeaderIntegrity, compose_uefi_application_bootstrap_adapter,
+        join_lifecycle_scoped_uefi_system_table, join_uefi_application_physical_arrival,
+        plan_uefi_application_bootstrap_same_stack_budget,
+        plan_uefi_application_bootstrap_same_stack_budget_with_generated_adapter,
+        plan_uefi_system_table_native_layout,
+        prepare_uefi_application_bootstrap_adapter_invocation,
+    };
     use calling_conventions::{
         MachineRegister, ValueLocation, ValueShape, evaluate_ordinary_boundary_entry_plan,
     };

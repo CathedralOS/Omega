@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    CallSiteOwner, InternalUnitCallArgumentRecord, InternalUnitCallRecord, StructuralAccess,
+    StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, UnitAffineCleanupRecord, UnitParameterHomeRecord,
+    exact_fully_consumed_affine_parameter, exact_owned_projection,
+    exact_partially_consumed_affine_parameter,
+};
 use calling_conventions::{ValuePlacement, ValueShape};
 use semantic_vocabulary::{
     EdgeId, MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId,

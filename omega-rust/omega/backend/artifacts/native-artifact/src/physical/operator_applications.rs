@@ -336,7 +336,10 @@ fn sha256(bytes: &[u8]) -> [u8; 32] {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Architecture, RelocationKind, RelocationOrigin, RelocationRecord, SectionKind,
+        validate_checked_call_relocation,
+    };
 
     fn checked_call_relocation() -> RelocationRecord {
         RelocationRecord {

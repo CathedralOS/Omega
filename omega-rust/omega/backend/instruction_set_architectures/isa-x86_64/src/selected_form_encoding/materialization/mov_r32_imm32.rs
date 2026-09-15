@@ -272,6 +272,12 @@ const GPR_NAMES: [(&str, &str); 16] = [
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        GPR_NAMES, IntegerValue, X86_64MovR32Imm32I64MaterializationError,
+        decode_x86_64_mov_r32_imm32_i64_materialization,
+        encode_x86_64_mov_r32_imm32_i64_materialization,
+        validate_x86_64_mov_r32_imm32_i64_materialization, x86_64_physical_register_model,
+    };
     use register_model::{
         RegisterViewId, RegisterWriteSemantics, validate_physical_register_model,
     };
@@ -279,8 +285,6 @@ mod tests {
         MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
         MachineEncodedTrapBehavior,
     };
-
-    use super::*;
 
     #[test]
     fn every_allocatable_gpr_and_boundary_value_round_trips_canonically() {

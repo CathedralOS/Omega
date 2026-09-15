@@ -1,7 +1,20 @@
 //! Canonical callable-entry and manifest wire encoding.
 
-use super::*;
-
+use super::{
+    Architecture, CallingPolicy, EdgeId, IntegerCarrier, IntegerSign, IntegerType, MachineId,
+    MachineRegister, NativeTarget, ObjectFormat, ObjectLocalSymbolId,
+    OptimizationSelectionIdentity, OptimizedObjectArtifactIdentity,
+    OptimizedObjectArtifactManifestIdentity, OptimizedOrdinaryCallableEntryDecodeError,
+    OptimizedOrdinaryCallableEntryDisposition, OptimizedOrdinaryCallableEntryError,
+    OptimizedOrdinaryCallableEntryManifest, OptimizedOrdinaryCallableEntryRecord,
+    OptimizedOrdinaryCallableParameter, OptimizedOrdinaryCallableResult,
+    OptimizedOrdinaryCallableReturn, OptimizedTerminalOrdinaryCallableEntryIdentity,
+    PhysicalRegisterModelIdentity, RegisterClassId, RegisterHomeIdentity, RegisterUnitId,
+    RegisterViewId, RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+    ScalarType, SelectedInstructionId, SelectedInstructionPlanIdentity, TerminalPsiIdentity,
+    ValueDeclaration, ValueId, ValueShape, VirtualRegisterId, WholeFunctionEntryAssumption,
+    WholeFunctionExitContractIdentity, WholeFunctionExitPolicy, WholeFunctionHardeningPolicy,
+};
 pub(super) fn encode_record_content(
     bytes: &mut Vec<u8>,
     record: &OptimizedOrdinaryCallableEntryRecord,

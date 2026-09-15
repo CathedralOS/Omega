@@ -323,7 +323,11 @@ pub(crate) fn validate_stack(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Architecture, Block, MachineId, Predicate, ScalarDirectConditionalBranchEvidence,
+        ScalarStackEvidence, SemanticCodeAttribution, SemanticCodeSite, Terminator,
+        reconstruct_scalar_control_flow, validate_stack,
+    };
     use machine_code::{ScalarControlFlowEvidence, ScalarStackMutation, ScalarStackMutationKind};
     use semantic_vocabulary::EdgeId;
 

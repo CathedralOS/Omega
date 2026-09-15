@@ -597,7 +597,11 @@ fn push_shape(canonical: &mut Vec<u8>, shape: calling_conventions::ValueShape) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
+        ProgramEntrySourceResultSignature, ProgramStorageEntryRootRole,
+        SelectedProgramEntrySourceSignature,
+    };
     use arena::Arena;
     use checked_trees::name::Identifier;
     use std::sync::Arc;

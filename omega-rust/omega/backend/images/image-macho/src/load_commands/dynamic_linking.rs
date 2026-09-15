@@ -146,7 +146,7 @@ pub(crate) fn write_macho_load_dylib_command(bytes: &mut Vec<u8>, dylib: &MachoD
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{MachoDylib, write_macho_load_dylib_command};
 
     #[test]
     fn libsystem_command_size_matches_historical_constant() {

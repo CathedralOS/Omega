@@ -1200,7 +1200,17 @@ impl UefiMemoryMapAcquisition {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        EFI_BUFFER_TOO_SMALL, EFI_INVALID_PARAMETER, EFI_STATUS_ERROR_BIT, EFI_SUCCESS,
+        ExternalRootDiagnostic, GET_MEMORY_MAP_FIELD_OFFSET, NonZeroU64,
+        PlannedUefiExitBootServicesInvocation, TargetProfile, UefiApplicationFirmwareLedger,
+        UefiBootServicesNativeField, UefiBootServicesTableOccurrenceId, UefiFirmwareSessionId,
+        UefiGetMemoryMapAttemptOutcome, UefiImageHandleOccurrenceId, UefiMemoryMapAcquisition,
+        UefiMemoryMapBuffer, UefiMemoryMapKeyId, UefiMemoryMapSnapshotId, UefiPhysicalInvocationId,
+        admit_uefi_get_memory_map_execution, bind_uefi_get_memory_map_invocation, c_void,
+        execute_uefi_get_memory_map, join_lifecycle_scoped_uefi_get_memory_map_provider,
+        prepare_uefi_get_memory_map_invocation,
+    };
     use crate::{
         LifecycleScopedUefiBootServicesProjection, UefiApplicationBootstrapLedgerId,
         UefiBootServicesPhaseLeaseId, UefiErrorStatus, UefiExitBootServicesAttemptOutcome,

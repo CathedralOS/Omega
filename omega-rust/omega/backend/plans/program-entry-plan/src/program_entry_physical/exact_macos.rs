@@ -86,7 +86,12 @@ impl ProgramEntryPhysicalContractPlan {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
+        MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY, ProgramEntryPhysicalContractPlan,
+        exact_macos_arm64_physical_boundary_entry_plan,
+        exact_macos_arm64_physical_contract_package_source_digest,
+    };
     use crate::ProgramEntryPhysicalContractPackageSourceDigest;
 
     fn exact_contract() -> ProgramEntryPhysicalContractPlan {

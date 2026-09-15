@@ -1,7 +1,9 @@
 //! These fixtures test semantic interval replay only, not instruction encoding
 //! or admission. The integrated object tests retain real staged machine custody.
-
-use super::*;
+use super::{
+    AbstractFunction, Control, FunctionFragment, SelectedSuccessorRole, SemanticCodeAttribution,
+    SemanticCodeSite, ordinal, produce, validate,
+};
 use abstract_operations::{AbstractFunctionResult, AbstractOperation};
 use machine_code::{FunctionFragmentBlockSpan, FunctionFragmentInstructionSpan};
 use selected_instructions::{

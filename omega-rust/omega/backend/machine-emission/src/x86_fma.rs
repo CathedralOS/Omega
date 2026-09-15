@@ -62,7 +62,10 @@ pub fn emit_feature_required_x86_scalar_fma(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineRegister, NativeTarget, X86FeatureRequirement, X86ScalarFmaFormat,
+        emit_feature_required_x86_scalar_fma,
+    };
     use target::TargetProfile;
 
     #[test]

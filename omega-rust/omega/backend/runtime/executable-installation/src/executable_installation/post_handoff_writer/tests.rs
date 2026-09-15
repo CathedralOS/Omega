@@ -1,10 +1,17 @@
 use super::super::test_support::*;
-use super::super::*;
-use super::*;
+use super::super::{
+    Architecture, Artifact, ArtifactEntry, ArtifactId, DestinationPreparationReceipt,
+    DestinationPreparationReceiptId, EntrySetId, ExtentRights, MachineContractSetId,
+    MachineFootprintId, NonAuthoritativeWriterContextFingerprint64, PlacementConstraints,
+    PlacementPlanId, PlacementSite, PreparedPostHandoffWriterDestination, RelocationSetId,
+    RelocationTarget,
+};
+use super::{POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource};
 use layout_plans::{
     ByteOrder, IntegerInterpretation, MaterializationWrite, PlacementPhase, PostHandoffWriterStep,
     StoredIntegerFit,
 };
+use sha2::Digest;
 
 #[test]
 fn installed_code_resolves_only_its_entries_for_atomic_post_handoff_writers() {

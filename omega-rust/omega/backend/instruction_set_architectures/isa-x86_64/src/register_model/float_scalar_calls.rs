@@ -1,6 +1,12 @@
 //! Ordinary scalar results use the ABI floating register without a wrapper call.
-use super::*;
 
+use super::{
+    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    X86_64_MICROSOFT_RETURN, X86_64_SYSTEM_V_RETURN, x86_64_microsoft_mixed_unit_call_keys,
+    x86_64_microsoft_register_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
+    x86_64_system_v_register_unit_call_keys,
+};
 pub fn x86_64_float_scalar_call_keys(microsoft: bool) -> Vec<RegisterConstraintKey> {
     let count = input_keys(microsoft).len()
         + (if microsoft {
@@ -105,7 +111,14 @@ pub(super) fn append_constraints(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{
+        validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
+        x86_64_register_constraint_catalog,
+    };
+    use super::{
+        x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys,
+        x86_64_system_v_register_unit_call_keys,
+    };
 
     #[test]
     fn floating_return_uses_ordinary_return_bytes_and_exact_home() {

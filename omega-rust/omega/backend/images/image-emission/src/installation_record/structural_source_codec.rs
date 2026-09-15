@@ -69,7 +69,10 @@ pub(super) fn decode(
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        IndirectPointerLocation, InstallationError, Reader, StructuralSourceLocation, decode,
+        encode,
+    };
 
     #[test]
     fn owned_stack_pointer_wire_role_preserves_raw_geometry() {

@@ -350,7 +350,7 @@ mod tests;
 
 #[cfg(test)]
 mod spill_tests {
-    use super::*;
+    use super::{FrameAbiPreservationConvention, TargetFrameLayoutPolicy, function_layout};
 
     #[test]
     fn compiler_spill_slots_expand_final_frame_without_aliasing_outgoing_or_other_locals() {

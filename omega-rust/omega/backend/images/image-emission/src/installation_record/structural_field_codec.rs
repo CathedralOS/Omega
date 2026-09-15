@@ -202,7 +202,11 @@ pub(super) fn decode_structural_field(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BindingRelevance, InstallationError, IntegerSign, IntegerType, Reader,
+        StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType,
+        decode_structural_field, encode_structural_field,
+    };
     use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
 
     #[test]

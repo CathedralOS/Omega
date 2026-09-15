@@ -1,5 +1,8 @@
 //! Exact memory coverage and independent register/effect custody for packed forms.
-use super::*;
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    SelectedInstructionKind, encode, validate,
+};
 use register_model::{RegisterOperandAccess, validate_physical_register_model};
 use selected_instructions::{MachineSemanticKind, PackedByteWidth};
 

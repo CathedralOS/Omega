@@ -1,4 +1,15 @@
-use super::*;
+use super::{
+    ArtifactId, EntryStack, EntryStubId, EstablishedInterruptTable, Extent, ExternalRootId,
+    INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES, InstalledCodeId, InstalledExternalRoot,
+    InstalledRootLedger, InterruptTableDescriptorOperand, InterruptTableEstablishedMember,
+    InterruptTableEstablishmentId, InterruptTableGateDescriptor, InterruptTableLedger,
+    InterruptTableMemberPlan, InterruptTableObligation, InterruptTableProfile,
+    InterruptTableProfileId, InterruptTablePublication, InterruptTablePublicationAuthority,
+    InterruptTablePublicationAuthorityId, InterruptTablePublicationId,
+    InterruptTablePublicationOutcome, InterruptTablePublicationReceipt,
+    InterruptTablePublicationReceiptId, InterruptTablePublicationScope, MachineRegister,
+    RootSlotId, X86_64_GATE_DESCRIPTOR_BYTES,
+};
 use crate::{
     InterruptAcknowledgementReceipt, InterruptAcknowledgementReceiptId, RootAdmission,
     RootAdmissionId, RootRemovalReceipt, RootRemovalReceiptId, RootSlotAuthority, RootSlotOwnerId,

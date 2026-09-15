@@ -1,3 +1,4 @@
+use super::{Arc, FragmentPublicationBinding, validate_final_plan};
 use machine_code::{
     MachineCodeFunction, MachineCodePlan, SemanticCodeAttribution, SemanticCodeSite,
     UnitAffineCleanupRecord, UnitStackEvidence,
@@ -6,8 +7,6 @@ use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-use super::*;
 
 #[test]
 fn construction_rejects_detached_final_plan_and_object_terminal() {

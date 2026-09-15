@@ -1,7 +1,18 @@
 //! Independent callable-entry reconstruction from validated object custody.
 
-use super::*;
-
+use super::{
+    CallSignature, CallingPolicy, IntegerCarrier, OptimizedOrdinaryCallableEntryCustodyReceipt,
+    OptimizedOrdinaryCallableEntryDisposition, OptimizedOrdinaryCallableEntryError,
+    OptimizedOrdinaryCallableEntryManifest, OptimizedOrdinaryCallableEntryManifestIdentity,
+    OptimizedOrdinaryCallableEntryRecord, OptimizedOrdinaryCallableEntryStage,
+    OptimizedOrdinaryCallableEntryUnavailableData, OptimizedOrdinaryCallableParameter,
+    OptimizedOrdinaryCallableResult, OptimizedOrdinaryCallableReturn,
+    OptimizedTerminalOrdinaryCallableEntryIdentity, RelocationFreeObjectSymbolLinkage,
+    RelocationFreeObjectSymbolRole, ScalarType, SelectedTerminator,
+    StagedValidatedOptimizedObjectArtifact, TerminalMachineResult, Terminator, ValueDeclaration,
+    ValueId, ValueLocation, ValueShape, VirtualRegisterOrigin, evaluate_call_plan,
+    register_home_identity,
+};
 pub(super) fn reconstruct(
     source: &StagedValidatedOptimizedObjectArtifact,
 ) -> Result<OptimizedOrdinaryCallableEntryRecord, OptimizedOrdinaryCallableEntryError> {

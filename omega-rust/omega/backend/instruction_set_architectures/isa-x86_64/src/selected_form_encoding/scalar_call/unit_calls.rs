@@ -1,5 +1,10 @@
 //! Unit call templates preserve arity and never manufacture a result operand.
-use super::*;
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineId, NativeTarget,
+    SelectedInstructionKind, encode_x86_64_selected_scalar_call_template, expected_effects,
+    expected_operand_views, validate_x86_64_selected_scalar_call_template,
+    x86_64_physical_register_model, x86_64_register_constraint_catalog,
+};
 use register_model::{RegisterOperandAccess, validate_physical_register_model};
 
 #[test]

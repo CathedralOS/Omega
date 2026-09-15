@@ -675,7 +675,13 @@ fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CompilerEntryFootprintBindingEvidence, CompilerFunctionValidationEvidence,
+        CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
+        CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,
+        FinalFootprintCertificate, FinalFootprintClass, FinalFootprintCoverage,
+        PlacedExecutableRegionInventory,
+    };
     use target::NativeTarget;
 
     fn empty_inventory() -> PlacedExecutableRegionInventory {

@@ -5,7 +5,12 @@ use super::record_shape::{
     installed_stack_facts_are_canonical, is_partial_cleanup_path,
     scalar_control_affine_cleanups_are_canonical,
 };
-use super::*;
+use super::{
+    CallSiteOwner, INSTALLATION_FORMAT_MARKER, InstallationError, InstalledForeignCallStack,
+    InstalledFunction, InstalledInternalUnitCall, MAGIC, MachineId, OperationId, Reader,
+    StructuralTypeId, decode_installation_record, decode_structural_types, encode_structural_types,
+    installed_scalar_control_cleanups_match_object, push_u16, push_u32, structural_argument_codec,
+};
 use super::{
     function_affine_cleanup_codec::{
         decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,

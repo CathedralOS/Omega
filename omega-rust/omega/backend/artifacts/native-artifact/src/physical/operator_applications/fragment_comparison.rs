@@ -1,5 +1,8 @@
 //! Comparison spans from the immutable, independently replayed fragment object.
-use super::*;
+use super::{
+    OperatorPhysicalSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition, SectionKind,
+    derive_span, ranges_overlap,
+};
 use image_emission::ObjectCodeAttribution;
 use machine_code::SemanticCodeSite;
 use semantic_vocabulary::{MachineId, OperationId};
@@ -121,7 +124,9 @@ fn comparison_interval(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineId, ObjectCodeAttribution, OperationId, SemanticCodeSite, comparison_interval,
+    };
 
     fn row(offset: usize, length: usize) -> ObjectCodeAttribution {
         ObjectCodeAttribution {

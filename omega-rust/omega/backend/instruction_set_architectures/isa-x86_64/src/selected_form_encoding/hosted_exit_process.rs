@@ -1,5 +1,8 @@
 //! Exact hosted exit: normalize the low i32 carrier, invoke the kernel, trap if it returns.
-use super::*;
+use super::{
+    RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint, resolve_registers,
+};
 use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
 use target::NativeTarget;
@@ -171,7 +174,12 @@ pub fn decode_x86_64_selected_hosted_exit_process_i32(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineAlternativeFamily, MachineAlternativeKey, NativeTarget, SelectedInstructionKind,
+        decode_x86_64_selected_hosted_exit_process_i32, effects,
+        encode_x86_64_selected_hosted_exit_process_form,
+        validate_x86_64_selected_hosted_exit_process_form,
+    };
     #[test]
     fn hosted_exit_replays_target_input_and_every_encoded_bit() {
         let physical = register_model::validate_physical_register_model(

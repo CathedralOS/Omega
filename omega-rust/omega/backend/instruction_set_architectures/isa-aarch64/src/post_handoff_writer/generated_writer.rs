@@ -255,7 +255,12 @@ const fn low_mask(width: u16) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ByteOrder, GeneratedPostHandoffWriterFragmentPlan, MachineRegister,
+        encode_generated_post_handoff_writer_bytes,
+        generated_post_handoff_writer_additional_machine_state,
+        generated_post_handoff_writer_clobbers, generated_post_handoff_writer_width,
+    };
     use layout_plans::{
         DataSymbolId, MaterializationWrite, PlacementConstraints, PlacementPhase,
         PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,

@@ -1,5 +1,9 @@
 //! Raw IEEE register transport. These instructions neither evaluate floats nor touch control state.
-use super::*;
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, RegisterViewId,
+    SelectedInstructionKind, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint, resolve_registers,
+};
 type Error = X86_64SelectedFormEncodingError;
 type Encoding = ValidatedX86_64SelectedFormEncoding;
 pub(super) fn is_transfer(kind: SelectedInstructionKind) -> bool {
@@ -131,7 +135,10 @@ pub(super) fn validate(
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
+        SelectedInstructionKind, encode, properties, validate,
+    };
     #[test]
     fn raw_transfers_decode_exact_width_direction_and_registers() {
         let physical = register_model::validate_physical_register_model(

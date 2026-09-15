@@ -88,7 +88,10 @@ pub(super) fn validate(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Architecture, ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack,
+        ObjectUnitStack, PlacedInternalMachineCallResolution, validate,
+    };
     use machine_code::{InternalMachineCallResolutionKind, InternalMachineCallResolutionState};
     use selected_instructions::{SelectedBlockId, SelectedInstructionId};
     use semantic_vocabulary::{MachineId, OperationId};

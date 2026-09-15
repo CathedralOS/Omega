@@ -182,7 +182,10 @@ pub(crate) fn replay_region(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Architecture, MachineId, ObjectError, Predicate, ScalarDirectConditionalBranchEvidence,
+        ScalarStackMutation,
+    };
     use crate::ObjectScalarStack;
     use machine_code::{
         ScalarControlBlockEvidence, ScalarControlFlowEvidence, ScalarControlTerminatorEvidence,

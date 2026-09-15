@@ -1,7 +1,12 @@
 //! Ordinary unconditional rel32 control; no hidden branch relaxation.
 
-use super::*;
-
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, ValidatedPhysicalRegisterModel,
+    ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
+    X86_64SelectedFormFootprint, x86_64_physical_register_model,
+};
 pub fn encode_x86_64_selected_jump_form(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -66,7 +71,11 @@ pub fn validate_x86_64_selected_jump_form(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+        encode_x86_64_selected_jump_form, validate_x86_64_selected_jump_form,
+        x86_64_physical_register_model,
+    };
     #[test]
     fn jump_round_trip_rejects_wrong_target_and_opcode() {
         let physical =

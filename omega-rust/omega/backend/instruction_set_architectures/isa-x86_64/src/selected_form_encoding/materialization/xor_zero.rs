@@ -193,13 +193,16 @@ fn modrm(register: u8, rm: u8) -> u8 {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        X86_64SelectedFormEncodingError, decode_x86_64_xor_zero_i64_materialization,
+        encode_x86_64_xor_zero_i64_materialization, validate_x86_64_xor_zero_i64_materialization,
+        x86_64_physical_register_model,
+    };
     use register_model::{RegisterViewId, validate_physical_register_model};
     use selected_instructions::{
         MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
         MachineEncodedTrapBehavior,
     };
-
-    use super::*;
 
     #[test]
     fn round_trips_every_low_and_high_gpr_with_exact_zero_effects() {

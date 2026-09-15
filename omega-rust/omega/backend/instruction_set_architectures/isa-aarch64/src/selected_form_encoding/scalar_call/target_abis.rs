@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    Aarch64ScalarCallTemplateError, MachineAlternativeFamily, MachineAlternativeKey, MachineId,
+    NativeTarget, SelectedInstructionKind, aarch64_physical_register_model,
+    aarch64_register_constraint_catalog, encode_aarch64_selected_scalar_call_template,
+    expected_effects, validate_aarch64_selected_scalar_call_template,
+};
 use register_model::validate_physical_register_model;
 
 #[test]

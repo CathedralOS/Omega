@@ -1,6 +1,10 @@
 //! Exact narrow pointer reads reject opcode, operand and displacement substitutions.
-use super::*;
 
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstructionKind,
+    encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form,
+};
 #[test]
 fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
     let physical =

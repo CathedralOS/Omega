@@ -1,5 +1,8 @@
 use super::super::control_flow::retained as cleanup_retained;
-use super::*;
+use super::{
+    AbstractFunction, AbstractOperation, SelectedFunction, StructuralAccess,
+    StructuralMultiplicity, TargetFunction, TerminalAffineCleanupAction, arrivals,
+};
 use abstract_operations::{AbstractFunctionResult, AbstractResult};
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use semantic_vocabulary::{
