@@ -465,10 +465,16 @@ impl<'program> Evaluator<'program> {
         if self.try_build_product_entry_statement(call, frame)? {
             return Ok(Value::Unit);
         }
+        if self.try_build_product_schema_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
         if self.try_build_output_obligation_statement(call, frame)? {
             return Ok(Value::Unit);
         }
         if self.try_required_output_path_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_product_type_schema_path_statement(call, frame)? {
             return Ok(Value::Unit);
         }
 

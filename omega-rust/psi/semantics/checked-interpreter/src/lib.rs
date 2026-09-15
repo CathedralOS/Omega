@@ -151,9 +151,9 @@ pub use evaluation::{
     BuildIncludedSource, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
     BuildOutputObligation, BuildOutputObligationState, BuildOutputReceipt,
     BuildTimeOperationEvaluation, CURRENT_EVALUATION_SEMANTICS, CURRENT_EVALUATION_STEP_SCHEDULE,
-    CURRENT_EVALUATION_USAGE_SCHEMA, DescribedProductEntry, EvaluationObservations,
-    EvaluationSemanticsIdentity, EvaluationStepScheduleIdentity, EvaluationUsage,
-    EvaluationUsageSchemaIdentity, ExecutedRootBinding, InterpretOutcome,
+    CURRENT_EVALUATION_USAGE_SCHEMA, DescribedProductEntry, DescribedProductSchema,
+    EvaluationObservations, EvaluationSemanticsIdentity, EvaluationStepScheduleIdentity,
+    EvaluationUsage, EvaluationUsageSchemaIdentity, ExecutedRootBinding, InterpretOutcome,
     MAX_BUILD_OUTPUT_OBLIGATIONS, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
     PrivateLayoutPlacementReceipt,
 };

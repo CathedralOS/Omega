@@ -411,6 +411,12 @@ pub(super) struct Evaluator<'program> {
     /// evaluated code can copy the marker but cannot read or fabricate the
     /// selection payload.
     product_entry_descriptions: Vec<crate::DescribedProductEntry>,
+    /// Compiler-issued product-type-schema descriptions handed to evaluated
+    /// code as opaque `ProductTypeSchema` markers. Same marker discipline as
+    /// the entry table: the marker indexes this table and evaluated code
+    /// cannot read or fabricate the payload; `schema.path()` is the single
+    /// sanctioned inspection.
+    product_schema_descriptions: Vec<crate::DescribedProductSchema>,
     stdin: &'program [u8],
     stdin_cursor: usize,
     /// Virtual monotonic tick counter for `Clock.tick_count` (advances on every
@@ -592,6 +598,7 @@ mod names_recasts_and_places;
 mod numeric_landing;
 mod output_obligations;
 mod product_entries;
+mod product_schemas;
 mod program_lookup;
 mod record_views;
 mod scalar_operations;

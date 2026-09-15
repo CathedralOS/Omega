@@ -1073,6 +1073,190 @@ fn product_description_binds_only_the_slot_it_was_selected_for() {
 }
 
 #[test]
+fn owner_selected_product_schema_inspects_through_foreign_helper() {
+    // The owner selects its own private product data declaration through the
+    // compiler-owned `product.schema` query and hands the restricted
+    // description to a helper in another package. The helper inspects it
+    // through `path()` without holding any product namespace of its own. A
+    // clean compile plus the emitted log line also witnesses non-execution:
+    // had the declared `BuildProduct::schema` body run, the returned authored
+    // `ProductTypeSchema {}` would carry no description and `path()` would
+    // trap.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine configure(builder: &mut Build, schema: &ProductTypeSchema) { builder.log.write_line(schema.path()); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "data LaunchConfig { value: u8; }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); setup::configure(builder, &schema); builder.product.schema(\"LaunchConfig\"); schema.path(); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let checked = compile_to_checked(request).expect(
+        "an owner-selected product schema inspects through a helper without executing the declaration",
+    );
+    let observation = checked
+        .build_observation_summary()
+        .expect("schema inspection retains a build observation");
+    assert_eq!(observation.build_log(), b"LaunchConfig\n");
+}
+
+#[test]
+fn product_schema_query_is_scoped_to_the_query_occurrences_package() {
+    // The helper performs the query itself: `LaunchConfig` exists only in the
+    // owner's package, so the borrowed Build cannot reach it. Selection
+    // authority belongs to the query occurrence's package, not the caller's.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine configure(builder: &mut Build) { let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); builder.log.write_line(schema.path()); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "data LaunchConfig { value: u8; }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let diagnostics = compile_to_checked(request)
+        .expect_err("a foreign helper cannot select the caller's private product schema")
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        diagnostics
+            .contains("not a product declaration visible from this build occurrence's package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn forged_product_schema_description_is_rejected() {
+    // An authored `ProductTypeSchema {}` has the static type but carries no
+    // compiler-issued description payload, so inspection refuses it at
+    // evaluation rather than trusting the shape.
+    let project = TempProject::new(&application_build(
+        "    let forged: ProductTypeSchema = ProductTypeSchema {};\n    builder.log.write_line(forged.path());",
+    ));
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("an authored ProductTypeSchema value is not a product schema description")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("requires a compiler-issued ProductTypeSchema"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_schema_query_rejects_a_non_facet_receiver() {
+    // An authored `BuildProduct` lookalike resolves the toolchain machine by
+    // member lookup but carries no facet marker: selection authority lives on
+    // the compiler-issued `Build.product` value only.
+    let project = TempProject::with_main(
+        "data LaunchConfig { value: u8; }",
+        "machine build(builder: &mut Build) { builder.application(\"lookalike-facet\"); let product: BuildProduct = BuildProduct {}; let schema: ProductTypeSchema = product.schema(\"LaunchConfig\"); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("an authored BuildProduct value cannot perform the schema query")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("requires the compiler-issued Build.product facet"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_schema_query_requires_an_exact_data_declaration() {
+    // `launch` names a machine, not a data declaration; a schema operand
+    // selects only authored product data in the occurrence's package.
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }",
+        "machine build(builder: &mut Build) { builder.application(\"schema-miss\"); let schema: ProductTypeSchema = builder.product.schema(\"launch\"); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("a machine name cannot stand in for a product schema")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("names no data declaration in this build occurrence's package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_schema_cannot_stand_in_for_an_entry_description() {
+    // The description kinds are distinct: `roots.bind` consumes only the
+    // entry marker, so a schema description is refused wherever an entry
+    // description is required.
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }\ndata LaunchConfig { value: u8; }",
+        "machine build(builder: &mut Build) { builder.application(\"schema-not-entry\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); builder.roots.bind(windows_x86_64::ProgramEntry, schema); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("a product schema description cannot stand in as a root binding operand")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("not a compiler-issued product entry description")
+            || diagnostics.contains("ProductEntryRef"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_schema_query_rejects_an_ambiguous_declaration() {
+    // Two same-named data declarations in the query occurrence's own package
+    // cannot mint one description: the query admits exactly one candidate.
+    let project = TempProject::with_main(
+        "use other;\ndata LaunchConfig { value: u8; }",
+        "machine build(builder: &mut Build) { builder.application(\"schema-ambiguous\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); }",
+    );
+    fs::write(
+        project.0.join("other.omg"),
+        "module other; pub data LaunchConfig { flag: u8; }",
+    )
+    .expect("ambiguous sibling source");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("an ambiguous product schema name is refused")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("is ambiguous within its package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
 fn root_build_aliases_cannot_mutate_target_or_replace_the_activation() {
     for (operation, expected) in [
         (

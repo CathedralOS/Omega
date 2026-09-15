@@ -563,9 +563,16 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   occurrence's lexical package without executing product code; `roots.bind`
   accepts a delegated single-name implementation operand only as a retained
   `ProductEntryRef` place, and final admission rejoins the exact selected
-  symbol after generation. Remaining: provider/schema description kinds and
-  the computed-receiver implementation fence once ordinary call-result
-  authority and effect/loan traversal can carry that use.
+  symbol after generation. `BuildProduct::schema(path)` now issues an opaque
+  non-callable `ProductTypeSchema` description of the exact product data
+  declaration under the same lexical-package rule, with `schema.path()` as
+  the single sanctioned inspection; wrong-package queries, authored
+  `BuildProduct` lookalikes, authored `ProductTypeSchema` forgeries,
+  non-data names, ambiguity, and use as a `roots.bind` operand all reject in
+  `compiler/tests/build_target_activation.rs`. Remaining: provider
+  description kind and the computed-receiver implementation fence once
+  ordinary call-result authority and effect/loan traversal can carry that
+  use.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** In build evaluation, its host custody adapters and
   compiler publication, implement coherent captured inventories, narrowed inputs,
