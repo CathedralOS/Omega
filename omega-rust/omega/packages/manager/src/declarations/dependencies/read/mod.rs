@@ -16,7 +16,7 @@ pub use model::{
     PackageSelection, ProjectedDependencies,
 };
 
-pub(crate) use extraction::extract_from_source;
+pub(crate) use extraction::extract_scoped_from_source;
 pub(crate) use projection::validate_static_dependency_source;
 
 #[cfg(test)]

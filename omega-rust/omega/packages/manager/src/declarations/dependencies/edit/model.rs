@@ -1,5 +1,7 @@
 use crate::declarations::dependencies::edit::rendering::source_digest;
-use crate::declarations::dependencies::read::{DependencyProjectionError, extract_from_source};
+use crate::declarations::dependencies::read::{
+    DependencyProjectionError, validate_static_dependency_source,
+};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -35,8 +37,10 @@ impl BuildFileReplacement {
         before: &str,
         proposed: String,
     ) -> Result<Self, BuildDependencyEditError> {
-        extract_from_source(before).map_err(BuildDependencyEditError::InvalidBuild)?;
-        extract_from_source(&proposed).map_err(BuildDependencyEditError::InvalidBuild)?;
+        validate_static_dependency_source(before)
+            .map_err(BuildDependencyEditError::InvalidBuild)?;
+        validate_static_dependency_source(&proposed)
+            .map_err(BuildDependencyEditError::InvalidBuild)?;
         Ok(Self::new(build_path, source_digest(before), proposed))
     }
 

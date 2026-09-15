@@ -97,6 +97,7 @@ pub(super) fn update(
             let edit = plan_dependency_replacement_from_source(
                 build_path.clone(),
                 proposed_source.clone(),
+                edge.purpose(),
                 &before_request,
                 &candidate,
             )

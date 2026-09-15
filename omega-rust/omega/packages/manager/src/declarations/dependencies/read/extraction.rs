@@ -1,6 +1,8 @@
 use super::error::DependencyProjectionError;
-use super::model::{BuildDependencyProjection, DependencySourceRequest};
-use super::projection::extract_build_projection_from_source;
+use super::model::{BuildDependencyProjection, DependencyPurpose, DependencySourceRequest};
+use super::projection::{
+    extract_build_projection_from_source, extract_scoped_requests_from_source,
+};
 use std::fs;
 use std::path::Path;
 
@@ -49,12 +51,11 @@ pub fn extract_build_dependency_projection(
     extract_build_projection_from_source(source)
 }
 
-pub(crate) fn extract_from_source(
+/// Project every unconditional direct dependency row in authored order,
+/// tagged with the scope it authorizes. Edit planning needs this one flat
+/// list to correlate rows and requests across both purposes.
+pub(crate) fn extract_scoped_from_source(
     source: &str,
-) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
-    Ok(extract_build_projection_from_source(source)?
-        .into_parts()
-        .1
-        .into_product()
-        .into_authored_dependencies())
+) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
+    extract_scoped_requests_from_source(source)
 }
