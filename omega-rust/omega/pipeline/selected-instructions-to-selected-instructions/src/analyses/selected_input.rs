@@ -4,13 +4,34 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::{
-    ValidatedDeadStoreElimination, ValidatedFixedViewCopies, ValidatedLiteralCompare,
-    ValidatedLiteralFold, ValidatedPressureRematerialization, ValidatedRedundantExtension,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedStoredLoadForwarding,
+    ValidatedCopyRemoval, ValidatedDeadStoreElimination, ValidatedFixedViewCopies,
+    ValidatedLiteralCompare, ValidatedLiteralFold, ValidatedPressureRematerialization,
+    ValidatedRedundantExtension, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedStoredLoadForwarding,
 };
 
 mod sealed {
     pub trait Sealed {}
+}
+
+impl sealed::Sealed for ValidatedCopyRemoval {}
+
+impl ValidatedSelectedAnalysis for ValidatedCopyRemoval {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
 }
 
 impl sealed::Sealed for ValidatedRedundantExtension {}

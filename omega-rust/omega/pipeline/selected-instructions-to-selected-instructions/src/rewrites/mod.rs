@@ -1,6 +1,7 @@
 //! Optimizer module role: stage group. Selected-CFG rewrites and their replay evidence.
 
 mod allocation_recovery;
+mod copy_removal;
 mod dead_store;
 mod fixed_view;
 mod literal_compare;
@@ -14,6 +15,7 @@ mod selected_lowering;
 pub mod test_support;
 
 pub use allocation_recovery::*;
+pub use copy_removal::*;
 pub use dead_store::*;
 pub use fixed_view::*;
 pub use literal_compare::*;
