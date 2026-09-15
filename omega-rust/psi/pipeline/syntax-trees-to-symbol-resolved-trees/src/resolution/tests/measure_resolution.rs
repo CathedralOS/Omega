@@ -1,14 +1,13 @@
-use super::{
-    ExtensionRequest, Lexer, ResolutionRequest, parse_syntax_trees, parse_syntax_trees_with_id,
-    resolve_extension,
-};
+use crate::resolution::{ExtensionRequest, ResolutionRequest, resolve_extension};
 use source::{SourceMap, SourceOrigin, SourceResolutionStratum};
+use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionNode;
 use symbol_resolved_trees::measure::MeasureDefinition;
 use symbols::{SymbolHandle, SymbolKind};
+use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 
 fn resolve(source: &str) -> SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize measure");

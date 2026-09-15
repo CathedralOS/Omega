@@ -1,0 +1,831 @@
+use crate::resolution::{ResolutionRequest, resolve};
+use source::{SourceMap, SourceOrigin, SourceResolutionStratum};
+use source_files_to_tokens::Lexer;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
+
+#[test]
+fn rejects_authored_empty_service_reach_on_external_realization_before_resolved_trees() {
+    let source = r#"
+        boundary trait Process {
+            machine exit(code: i32)
+            reaches Process;
+        }
+
+        machine exit_leaf(code: i32)
+        satisfies Process::exit
+        via Binding::Syscall(60)
+        reaches;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
+        .expect_err("an explicit empty external reach must not collapse into omission");
+
+    assert!(
+        diagnostic[0]
+            .message
+            .contains("repeats an authored `reaches` row")
+    );
+}
+
+#[test]
+fn retains_external_realization_mechanism_without_rendering_classification() {
+    let source = r#"
+        boundary trait Console {
+            machine write(value: u8);
+        }
+
+        machine write_leaf(value: u8)
+        satisfies Console::write
+        via Binding::CompilerIntrinsic;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve external realization");
+    let leaf = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "write_leaf")
+        .expect("external leaf");
+
+    let language_semantics::MachineSupplyMode::ExternalRealization { binding, mechanism } =
+        leaf.supply_mode
+    else {
+        panic!("bodyless via leaf must retain external supply");
+    };
+    let binding = binding.expect("bootstrap binding identity");
+    assert!(binding.is_valid());
+    assert_eq!(
+        mechanism,
+        Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic)
+    );
+    let [conformance] = program.machine_trait_conformances(leaf.satisfies) else {
+        panic!("external leaf must retain one exact satisfaction row");
+    };
+    assert_eq!(conformance.external_binding, Some(binding));
+}
+
+#[test]
+fn retains_ordinary_via_call_as_resolved_expression_without_fabricated_binding() {
+    let source = r#"
+        boundary trait Console {
+            machine write(value: u8);
+        }
+
+        machine binding() -> i32 {
+            0
+        }
+
+        machine write_leaf(value: u8)
+        satisfies Console::write
+        via binding();
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve ordinary via call");
+    let leaf = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "write_leaf")
+        .expect("external leaf");
+    assert_eq!(
+        leaf.supply_mode,
+        language_semantics::MachineSupplyMode::ExternalRealization {
+            binding: None,
+            mechanism: None,
+        }
+    );
+    let [conformance] = program.machine_trait_conformances(leaf.satisfies) else {
+        panic!("external leaf must retain one exact satisfaction row");
+    };
+    assert!(conformance.external_binding.is_none());
+    let symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
+        .tables
+        .bodies
+        .expressions
+        .expression(conformance.via_expression)
+    else {
+        panic!("ordinary via source must retain its resolved call");
+    };
+    assert_eq!(call.target.as_str(), "binding");
+    assert!(call.target_symbol.is_valid());
+}
+
+#[test]
+fn keeps_attached_machines_as_distinct_callables() {
+    let source = r#"
+    pub machine Game::new() {}
+
+    pub machine Game::running() {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+
+    assert_eq!(program.machines.len(), 2);
+    assert_eq!(program.machines[0].name.as_str(), "Game::new");
+    assert_eq!(
+        program.machines[0]
+            .attached_data
+            .as_ref()
+            .map(|name| name.as_str()),
+        Some("Game")
+    );
+    assert_eq!(program.machines[1].name.as_str(), "Game::running");
+    assert_eq!(
+        program
+            .machine_state_handles(program.machines[0].states)
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn lowers_domain_definitions() {
+    let source = r#"
+    domain Player::Valid
+    requires
+        self.health >= 0
+
+    domain Player::Alive
+    requires
+        self in Player::Valid;
+        self.health > 0
+
+    domain Player::Tagged;
+
+    domain Player::Usable =
+        Player::Valid & Player::Alive;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+
+    assert_eq!(program.domain_definitions.len(), 4);
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Player::Alive")
+        .expect("alive domain should lower");
+    assert!(domain.symbol.is_valid());
+    assert_eq!(domain.name.as_str(), "Player::Alive");
+    let facts = program.proof_facts(domain.facts);
+    assert_eq!(facts.len(), 2);
+    let symbol_resolved_trees::domain::ProofFact::Membership(membership) = &facts[0] else {
+        panic!("first domain fact should be membership")
+    };
+    assert!(membership.domain_symbol.is_valid());
+    assert!(domain.semantic_clause_token_count >= 3);
+    assert_eq!(
+        domain.predicate_body,
+        language_semantics::DomainPredicateBody::Present
+    );
+    assert!(domain.semantic_roles.is_empty());
+    let tagged = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Player::Tagged")
+        .expect("tagged domain should lower");
+    assert_eq!(
+        tagged.predicate_body,
+        language_semantics::DomainPredicateBody::Bodyless
+    );
+    assert_eq!(tagged.semantic_clause_token_count, 0);
+    assert!(tagged.semantic_roles.is_empty());
+    assert!(
+        program
+            .symbols
+            .find_child_by_name(program.symbols.root(), "Player::Alive")
+            .is_some()
+    );
+    let usable = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Player::Usable")
+        .expect("usable alias should lower");
+    let alias = usable.alias.as_ref().expect("alias theory");
+    assert_eq!(alias.constituents.len(), 2);
+    assert!(
+        alias
+            .constituents
+            .iter()
+            .all(|constituent| constituent.domain_symbol.is_valid())
+    );
+    assert!(usable.facts.is_empty(), "aliases are not predicate facts");
+}
+
+#[test]
+fn resolves_exact_case_symbols_in_domain_proof_expressions() {
+    let source = r#"
+    data Command {
+        case Move(dx: i32);
+        case Say(volume: i32);
+    }
+
+    domain Command::Interactive
+    requires
+        self in Command::Move | Command::Say;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
+    let command = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Command")
+        .expect("Command data");
+    let expected_cases = program
+        .data_members(command.members)
+        .iter()
+        .filter_map(|member| match member {
+            symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Command::Interactive")
+        .expect("interactive domain");
+    let [symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
+        program.proof_facts(domain.facts)
+    else {
+        panic!("case union should remain one proof expression");
+    };
+    let symbol_resolved_trees::expression::ExpressionNode::Binary(union) =
+        program.tables.bodies.expressions.expression(*expression)
+    else {
+        panic!("proof expression should remain a case union");
+    };
+
+    for (expression, expected_case) in [union.left, union.right].into_iter().zip(expected_cases) {
+        let symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
+            program.tables.bodies.expressions.expression(expression)
+        else {
+            panic!("union operand should remain a case membership");
+        };
+        assert!(!membership.domain_symbol.is_valid());
+        assert_eq!(membership.case_type_symbol, command.symbol);
+        assert_eq!(membership.case_symbol, expected_case);
+    }
+}
+
+#[test]
+fn resolves_free_machine_calls_in_domain_predicates() {
+    let source = r#"
+    boundary machine no_wrap(base: addr, length: u64) -> bool;
+
+    data Region {
+        base: addr;
+        length: u64;
+    }
+
+    domain Region::Valid
+    requires
+        no_wrap(self.base, self.length);
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Region::Valid")
+        .expect("valid domain");
+    let [symbol_resolved_trees::domain::ProofFact::Expression(predicate)] =
+        program.proof_facts(domain.facts)
+    else {
+        panic!("one predicate call");
+    };
+    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        program.tables.bodies.expressions.expression(*predicate)
+    else {
+        panic!("predicate should remain a call");
+    };
+    assert!(call.target_symbol.is_valid());
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "no_wrap")
+        .expect("predicate machine");
+    assert!(
+        program
+            .machine_state_handles(machine.states)
+            .iter()
+            .any(|state| program.machine_state(*state).symbol == call.target_symbol)
+    );
+}
+
+#[test]
+fn resolves_repeated_capacity_specializations_as_one_domain_identity() {
+    let source = r#"
+    domain [u8; 8]::Utf8
+    requires
+        valid_utf8(self);
+
+    domain [u8; 16]::Utf8
+    requires
+        valid_utf8(self);
+
+    data Holder {
+        label: [u8; 8] in Utf8;
+    }
+
+    machine fill(out: &mut Holder)
+    ensures
+        out.label in Utf8
+    {
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    assert_eq!(
+        program.domain_definitions[0].semantic_id, program.domain_definitions[1].semantic_id,
+        "capacity-specialized declarations with the same normalized predicate should share semantic identity",
+    );
+
+    let machine = program.machines.first().expect("fill machine");
+    let contract = program
+        .machine_contracts(machine)
+        .iter()
+        .find(|contract| {
+            contract.kind == symbol_resolved_trees::signature::SignatureContractKind::Ensures
+        })
+        .expect("fill should retain its ensures contract");
+    let [symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
+        program.proof_facts(contract.facts)
+    else {
+        panic!("ensures should contain one domain membership")
+    };
+    assert!(membership.domain_symbol.is_valid());
+}
+
+#[test]
+fn preserves_operator_declarations() {
+    let source = r#"
+    pub operator Slice::index<T>(items: &[T], index: usize) -> T
+    requires
+        index < items.len;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+
+    assert_eq!(program.operators.len(), 1);
+    let operator = &program.operators[0];
+    assert!(operator.is_public);
+    assert_eq!(
+        program
+            .operator_path_members(operator.name)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["Slice", "index"]
+    );
+    assert_eq!(
+        program.data_type_parameters(operator.type_parameters).len(),
+        1
+    );
+    assert_eq!(program.state_parameters(operator.parameters).len(), 2);
+    assert!(operator.symbol.is_valid());
+    assert!(operator.return_type.is_some());
+    assert_eq!(program.signature_contracts(operator.contracts).len(), 1);
+    assert!(operator.token_count > 0);
+}
+
+#[test]
+fn resolves_operator_const_parameter_carriers() {
+    let source = r#"
+    pub operator ConstSurface::identity<const Count: u64>(
+        value: [u8; Count]
+    ) -> [u8; Count];
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    let operator = program.operators.first().expect("const-generic operator");
+    let [parameter] = program.data_type_parameters(operator.type_parameters) else {
+        panic!("one const parameter")
+    };
+    let symbol_resolved_trees::data::TypeParameterKind::Const {
+        type_reference: symbol_resolved_trees::types::TypeReference::Named { symbol, name },
+    } = &parameter.kind
+    else {
+        panic!("const parameter carrier")
+    };
+    assert_eq!(name.as_str(), "u64");
+    assert!(
+        symbol.is_valid(),
+        "const carrier must retain semantic identity"
+    );
+}
+
+#[test]
+fn preserves_domain_operator_declarations() {
+    let source = r#"
+    data Quantity {
+        value: i32;
+    }
+
+    domain Quantity::Additive
+    requires
+        self.value >= 0;
+
+    operator Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Quantity::Additive")
+        .expect("domain should lower");
+    let operators = program.operator_definitions(domain.operators);
+
+    assert_eq!(operators.len(), 1);
+    assert_eq!(
+        domain.semantic_roles.denotation_dimension,
+        Some(domain.semantic_id)
+    );
+    assert!(domain.semantic_roles.arithmetic_policy.is_none());
+    assert!(operators[0].symbol.is_valid());
+    assert_eq!(
+        program
+            .operator_path_members(operators[0].name)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["add"]
+    );
+    assert_eq!(program.proof_facts(domain.facts).len(), 1);
+}
+
+#[test]
+fn infers_top_level_operator_home_from_qualified_operands() {
+    let source = r#"
+    domain i32::Degrees;
+
+    operator + add(left: i32 in Degrees, right: i32 in Degrees) -> i32 in Degrees;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "i32::Degrees")
+        .expect("domain should lower");
+    let operator = program
+        .operator_definitions(domain.operators)
+        .first()
+        .expect("qualified operands should supply one semantic home");
+
+    assert!(program.operators.is_empty());
+    assert_eq!(
+        domain.semantic_roles.denotation_dimension,
+        Some(domain.semantic_id)
+    );
+    assert_eq!(
+        program
+            .operator_path_members(operator.name)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["add"]
+    );
+}
+
+#[test]
+fn rejects_ambiguous_inferred_domain_operator_home() {
+    let source = r#"
+    domain i32::Degrees;
+    domain i32::Radians;
+
+    operator + add(left: i32 in Degrees, right: i32 in Radians) -> i32;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
+        .expect_err("competing operand domains must not infer an operator home");
+    assert!(
+        diagnostic[0]
+            .message
+            .contains("has more than one possible domain home")
+    );
+}
+
+#[test]
+fn does_not_infer_domain_establishment_from_contract_placement() {
+    let source = r#"
+    data Token {
+        value: u64;
+    }
+
+    domain Token::Issued;
+
+    machine Token::issue(value: u64) -> Token
+    ensures
+        result in Token::Issued
+    {
+        Token { value: value }
+    }
+
+    boundary trait TokenIssuer {
+        machine issue(value: u64) -> Token
+        ensures
+            result in Token::Issued;
+    }
+
+    domain Token::Stamped;
+
+    operator Token::Stamped::stamp(value: Token) -> Token
+    ensures
+        result in Token::Stamped;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+
+    let issued = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Issued")
+        .expect("issued domain");
+    assert!(issued.establishment_routes.is_empty());
+
+    let stamped = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Stamped")
+        .expect("stamped domain");
+    assert!(program.operator_definitions(stamped.operators).len() == 1);
+    assert!(stamped.establishment_routes.is_empty());
+}
+
+#[test]
+fn normalizes_authored_checked_and_boundary_requirement_routes() {
+    use language_semantics::DomainEstablishmentRoute;
+
+    let source = r#"
+    data Token { value: u64; }
+
+    domain Token::Checked
+    established by CheckedIssuer::issue;
+    domain Token::Admitted
+    established by BoundaryIssuer::issue;
+
+    trait CheckedIssuer {
+        machine issue(value: u64) -> Token in Checked;
+    }
+    boundary trait BoundaryIssuer {
+        machine issue(value: u64) -> Token
+        ensures result in Token::Admitted;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+
+    for (domain_name, trait_name, is_boundary) in [
+        ("Token::Checked", "CheckedIssuer", false),
+        ("Token::Admitted", "BoundaryIssuer", true),
+    ] {
+        let domain = program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.name.as_str() == domain_name)
+            .expect("domain");
+        let definition = program
+            .traits
+            .iter()
+            .find(|definition| definition.name.as_str() == trait_name)
+            .expect("trait");
+        let requirement = program
+            .trait_machine_signatures(definition.machines)
+            .first()
+            .expect("requirement");
+        let expected = if is_boundary {
+            DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: definition.symbol,
+                requirement: requirement.symbol,
+            }
+        } else {
+            DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition: definition.symbol,
+                requirement: requirement.symbol,
+            }
+        };
+        assert!(domain.establishment_routes.contains(&expected));
+    }
+}
+
+#[test]
+fn authored_establishment_route_cannot_use_an_extension_only_domain_constraint() {
+    let base = r#"
+        data Token { value: u64; }
+        domain Token::Issued
+        established by Issuer::issue;
+        trait Issuer {
+            machine issue(value: u64) -> Token in Later;
+        }
+    "#;
+    let extension = "domain Token::Later = Token::Issued;";
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("main.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let mut syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base source");
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let extension_syntax = parse_syntax_trees_with_id(extension_id, &extension_tokens)
+        .expect("parse extension source");
+    syntax.extend_from(&extension_syntax);
+
+    let diagnostics = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect_err("an authored route must not gain authority from a hidden domain alias");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not name the domain on its exact result")),
+        "unexpected domain-establishment diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn preserves_explicit_progress_profile_classification_during_resolution() {
+    let source = r#"
+    data SchedulerHandle {}
+    domain SchedulerHandle::WeakFair
+    satisfies ProgressProfile
+    established by SchedulerAdmission::grant;
+    boundary trait SchedulerAdmission {
+        machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "SchedulerHandle::WeakFair")
+        .expect("profile domain");
+
+    assert_eq!(
+        domain.classification,
+        Some(language_semantics::DomainClassification::ProgressProfile)
+    );
+    assert!(matches!(
+        domain.establishment_routes.as_slice(),
+        [language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }]
+    ));
+}
+
+#[test]
+fn boundary_requirement_route_accepts_exact_non_self_parameter_domain() {
+    use language_semantics::DomainEstablishmentRoute;
+
+    let source = r#"
+    data Token { value: u64; }
+    domain Token::Pending
+    established by BoundaryIngress::enter;
+    boundary trait BoundaryIngress {
+        machine enter(token: Token in Pending);
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Pending")
+        .expect("pending domain");
+    let ingress = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "BoundaryIngress")
+        .expect("boundary ingress trait");
+    let enter = program
+        .trait_machine_signatures(ingress.machines)
+        .first()
+        .expect("entry requirement");
+    assert!(
+        domain
+            .establishment_routes
+            .contains(&DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: ingress.symbol,
+                requirement: enter.symbol,
+            })
+    );
+}
+
+#[test]
+fn ordinary_requirement_route_rejects_parameter_domain_as_introduction() {
+    let source = r#"
+    data Token { value: u64; }
+    domain Token::Pending
+    established by OrdinaryIngress::enter;
+    trait OrdinaryIngress {
+        machine enter(token: Token in Pending);
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
+        .expect_err("an ordinary call must treat its parameter domain as a precondition");
+    assert!(diagnostic[0].message.contains(
+        "does not name the domain on its exact result or an exact non-self external-root parameter"
+    ));
+}
+
+#[test]
+fn rejects_unresolved_authored_domain_requirement_route() {
+    let source = r#"
+    data Token { value: u64; }
+    domain Token::Issued
+    established by MissingIssuer::issue;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect_err("route must resolve exactly");
+    assert!(
+        diagnostic[0]
+            .message
+            .contains("does not resolve to one exact trait")
+    );
+}

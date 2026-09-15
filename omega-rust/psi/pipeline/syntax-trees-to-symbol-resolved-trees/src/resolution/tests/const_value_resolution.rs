@@ -1,4 +1,5 @@
-use super::{Lexer, ResolutionRequest, parse_syntax_trees};
+use crate::resolution::ResolutionRequest;
+use source_files_to_tokens::Lexer;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::domain::ProofFact;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -6,6 +7,7 @@ use symbol_resolved_trees::signature::SignatureContract;
 use symbol_resolved_trees::state::State;
 use symbol_resolved_trees::statement::{StatementNode, TableLocalData};
 use symbols::SymbolHandle;
+use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn resolve(source: &str) -> SymbolResolvedTrees {
     let tokens = Lexer::new(source)

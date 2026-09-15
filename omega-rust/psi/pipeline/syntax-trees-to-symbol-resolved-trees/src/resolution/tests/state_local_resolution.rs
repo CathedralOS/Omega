@@ -1,4 +1,6 @@
-use super::{Lexer, ResolutionRequest, parse_syntax_trees, resolve};
+use crate::resolution::{ResolutionRequest, resolve};
+use source_files_to_tokens::Lexer;
+use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn static_signature_contracts_bind_their_own_value_parameters() {

@@ -1,4 +1,8 @@
-use super::{Arc, Lexer, PathBuf, ResolutionRequest, SourceMap};
+use crate::resolution::ResolutionRequest;
+use source::SourceMap;
+use source_files_to_tokens::Lexer;
+use std::path::PathBuf;
+use std::sync::Arc;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionNode};
 use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;

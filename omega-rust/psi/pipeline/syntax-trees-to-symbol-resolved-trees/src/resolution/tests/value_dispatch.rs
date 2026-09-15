@@ -6,8 +6,8 @@ fn match_resolves_subject_patterns_and_every_arm_in_machine_scope() {
     let source = "machine helper(value: i64) -> i64 { value } machine choose(value: i64, alternative: i64) -> i64 { match value { alternative -> helper(value), _ -> helper(alternative) } }";
     let tokens = Lexer::new(source).tokenize().expect("tokens");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let program =
-        super::resolve(super::ResolutionRequest::new(&syntax)).expect("resolved dispatch");
+    let program = crate::resolution::resolve(crate::resolution::ResolutionRequest::new(&syntax))
+        .expect("resolved dispatch");
     let expressions = &program.tables.bodies.expressions;
     let dispatch = expressions
         .iter_expressions()
