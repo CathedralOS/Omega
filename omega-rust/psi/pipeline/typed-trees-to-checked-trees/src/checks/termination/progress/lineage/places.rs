@@ -37,7 +37,13 @@ pub(super) fn partition(
                 _ => break,
             }
         }
-        let Some(data) = super::super::replay_data_type(program, current, machine.symbol) else {
+        let Some(data) =
+            crate::checks::termination::progress::qualification_correspondences::replay_data_type(
+                program,
+                current,
+                machine.symbol,
+            )
+        else {
             return Some(partition);
         };
         if visiting.contains(&data.symbol) {

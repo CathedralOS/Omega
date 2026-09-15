@@ -1,7 +1,7 @@
 //! Exact parameter dependencies, with projection growth detected on cycles.
 
 use super::{FlowFacts, ProgressSubject};
-use crate::checks::termination::progress::{
+use crate::checks::termination::progress::machine_summaries::{
     call_argument_subject_with_parameters, local_state_transition_target,
 };
 
