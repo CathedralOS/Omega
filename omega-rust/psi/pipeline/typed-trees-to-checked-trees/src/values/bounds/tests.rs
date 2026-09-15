@@ -325,8 +325,8 @@ fn every_source_leaf_rejects_reversed_outside_or_absent_carrier_bounds() {
 }
 
 #[test]
-fn casts_require_valid_source_bounds_and_their_exact_destination_contract() {
-    let source = parameter(0, PrimitiveType::I16);
+fn casts_meet_flow_bounds_with_their_exact_destination_contract() {
+    let source = parameter(0, PrimitiveType::I32);
     let exact = |range| CheckedScalarExpression::IntegerExactCast {
         primitive_type: PrimitiveType::U8,
         operand: Box::new(source.clone()),
@@ -341,20 +341,37 @@ fn casts_require_valid_source_bounds_and_their_exact_destination_contract() {
             evaluate(&expression, &mut Bounds(vec![range(65, 90)])),
             Some(range(65, 90))
         );
-        for invalid in [
-            range(-1, 65),
-            range(65, 256),
-            range(90, 65),
-            range(0, 32768),
+        // The proved spelling interval and the normal-return destination
+        // carrier both bound the same runtime value: the result is the meet,
+        // never a failure just because the live view is wider.
+        for (incoming, expected) in [
+            (range(-1, 65), range(0, 65)),
+            (range(65, 256), range(65, 255)),
+            (range(0, 32768), range(0, 255)),
         ] {
-            assert_eq!(evaluate(&expression, &mut Bounds(vec![invalid])), None);
+            assert_eq!(
+                evaluate(&expression, &mut Bounds(vec![incoming])),
+                Some(expected)
+            );
         }
+        // A reversed live interval is contradictory evidence, not a bound.
+        assert_eq!(
+            evaluate(&expression, &mut Bounds(vec![range(90, 65)])),
+            None
+        );
         assert_eq!(evaluate(&expression, &mut Bounds(Vec::new())), None);
     }
-    for declared in [range(70, 90), range(65, 80), range(90, 65)] {
+    // The retained occurrence fact meets the live operand interval: a proved
+    // narrow spelling tightens a coarser flow view, and a contradictory one
+    // still fails closed.
+    for (declared, expected) in [
+        (range(70, 90), Some(range(70, 90))),
+        (range(65, 80), Some(range(65, 80))),
+        (range(90, 65), None),
+    ] {
         assert_eq!(
             evaluate(&exact(declared), &mut Bounds(vec![range(65, 90)])),
-            None
+            expected
         );
     }
     // A forged wide cast constraint cannot override the destination carrier.

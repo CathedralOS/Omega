@@ -257,19 +257,34 @@ fn retains_values_across_unit_call<Value>(
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()
         })
-        || arguments.iter().any(
-            |argument| match program.expression_table.expression(*argument) {
-                ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => false,
-                ExpressionNode::Name(path) => {
-                    !symbols.contains(&path.symbol)
-                        && !values
-                            .storage
-                            .iter()
-                            .any(|(symbol, _)| *symbol == path.symbol)
+        || arguments
+            .iter()
+            .enumerate()
+            .any(|(argument_ordinal, argument)| {
+                match program.expression_table.expression(*argument) {
+                    ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => return false,
+                    ExpressionNode::Name(path) => {
+                        return !symbols.contains(&path.symbol)
+                            && !values
+                                .storage
+                                .iter()
+                                .any(|(symbol, _)| *symbol == path.symbol);
+                    }
+                    _ => {}
                 }
-                _ => true,
-            },
-        )
+                // A computed operand is still pure when the computation plan
+                // retained its selected scalar form at this exact call
+                // coordinate: CheckedScalarExpression carries no calls,
+                // borrows, or writes, so it cannot extend the call's checked
+                // storage footprint.
+                !selected_scalar_argument(
+                    context.scalar_expressions,
+                    state.symbol,
+                    statement_index,
+                    argument_ordinal,
+                    *argument,
+                )
+            })
     {
         // No nested invocation or borrowed/nonlocal argument can hide a write
         // outside the exact call footprint checked below.
@@ -306,6 +321,54 @@ fn retains_values_across_unit_call<Value>(
     )?
     .is_empty()
     .then_some(())
+}
+
+/// Whether the computation plan retained `argument` as the selected scalar
+/// operand of the statement's only call. The binding and its checked form must
+/// each occur exactly once at the coordinate; selected scalars cannot express
+/// nested calls, borrows, or storage writes.
+fn selected_scalar_argument(
+    plans: &checked_trees::CheckedScalarExpressionPlans,
+    state: SymbolHandle,
+    statement_index: usize,
+    argument_ordinal: usize,
+    argument: ExpressionHandle,
+) -> bool {
+    let (Ok(statement_ordinal), Ok(argument_ordinal)) = (
+        u32::try_from(statement_index),
+        u32::try_from(argument_ordinal),
+    ) else {
+        return false;
+    };
+    let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
+        binding.state == state
+            && binding.statement_ordinal == statement_ordinal
+            && binding.expression == argument
+            && !binding.destination.is_valid()
+            && match binding.role {
+                CheckedScalarExpressionRole::UnitCallArgument {
+                    call_ordinal: 0,
+                    argument_ordinal: ordinal,
+                }
+                | CheckedScalarExpressionRole::BoundaryCallArgument {
+                    call_ordinal: 0,
+                    argument_ordinal: ordinal,
+                } => ordinal == argument_ordinal,
+                _ => false,
+            }
+    });
+    let Some((_, binding)) = bindings.next() else {
+        return false;
+    };
+    if bindings.next().is_some() {
+        return false;
+    }
+    let mut expressions = plans.expressions.iter().filter(|expression| {
+        expression.state == state
+            && expression.statement_ordinal == statement_ordinal
+            && expression.role == binding.role
+    });
+    expressions.next().is_some() && expressions.next().is_none()
 }
 
 /// Call-local scratch: immutable bindings use their selected ordinal namespace;

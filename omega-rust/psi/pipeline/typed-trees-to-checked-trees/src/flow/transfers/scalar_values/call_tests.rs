@@ -181,6 +181,59 @@ fn mutable_owned_scalar_formals_do_not_alias_the_callers_local() {
     assert!(preserves_values(&checked));
 }
 
+#[test]
+fn unit_call_preservation_admits_selected_scalar_arguments() {
+    let authentic = checked(
+        "machine observe(value: u8) {} \
+         machine wrapper(value: u8) -> u8 { observe(value + 1); value }",
+    );
+    assert!(preserves_values(&authentic));
+
+    // Without the retained operand form the same computed argument stays
+    // opaque and can hide no checked write footprint.
+    let wrapper = authentic
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "wrapper")
+        .expect("wrapper machine");
+    let state_symbol = authentic.machine_states(wrapper)[0].symbol;
+    let (binding_handle, binding) = authentic
+        .facts
+        .values
+        .scalar_expressions
+        .source_bindings
+        .iter()
+        .find(|(_, binding)| {
+            binding.state == state_symbol
+                && matches!(
+                    binding.role,
+                    checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                        call_ordinal: 0,
+                        argument_ordinal: 0,
+                    }
+                )
+        })
+        .expect("selected unit-call argument binding");
+    let mut missing_binding = authentic.clone();
+    missing_binding
+        .facts
+        .values
+        .scalar_expressions
+        .source_bindings
+        .get_mut(binding_handle)
+        .expression = Default::default();
+    assert!(!preserves_values(&missing_binding));
+
+    let mut missing_expression = authentic.clone();
+    missing_expression
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .retain(|expression| expression.role != binding.role);
+    assert!(!preserves_values(&missing_expression));
+}
+
 fn range_call_source(body: &str) -> CheckedTrees {
     checked(&format!(
         "machine observe(value: bool) {{}} \
@@ -329,17 +382,30 @@ fn selected_call_ranges_reject_missing_or_substituted_custody() {
         .calls
         .span_or_empty(borrowed_state.calls)[0]
         .clone();
-    for corruption in [
-        "missing argument binding",
-        "duplicate argument binding",
-        "wrong argument source",
-        "wrong argument destination",
-        "wrong local binding ordinal",
-        "missing call",
-        "wrong call target",
-        "wrong call ordinal",
-        "missing callee body",
-        "missing selected return",
+    // Two custody outcomes are acceptable. A present-but-inconsistent
+    // occurrence — a duplicated row, a substituted source or destination, an
+    // altered call coordinate, or missing callee evidence — must still fail
+    // closed. A binding that is simply absent cannot forge a narrower result:
+    // the unbound argument is bounded only by its formal's declared type, so
+    // the returned byte keeps the carrier-wide bound instead of the precise
+    // selected one. Corruption can widen the captured range, never narrow it.
+    let declared_carrier = || {
+        Some(facts::IntegerRange {
+            minimum: numerics::bignum::BigInt::from_u64(0),
+            maximum: numerics::bignum::BigInt::from_u64(255),
+        })
+    };
+    for (corruption, expected) in [
+        ("missing argument binding", declared_carrier()),
+        ("duplicate argument binding", None),
+        ("wrong argument source", None),
+        ("wrong argument destination", None),
+        ("wrong local binding ordinal", declared_carrier()),
+        ("missing call", None),
+        ("wrong call target", None),
+        ("wrong call ordinal", None),
+        ("missing callee body", None),
+        ("missing selected return", None),
     ] {
         let mut changed = authentic.clone();
         match corruption {
@@ -422,6 +488,67 @@ fn selected_call_ranges_reject_missing_or_substituted_custody() {
             }
             _ => unreachable!("enumerated custody mutation"),
         }
-        assert_eq!(captured_range(&changed), None, "accepted {corruption}");
+        assert_eq!(captured_range(&changed), expected, "accepted {corruption}");
+    }
+}
+
+#[test]
+fn mutable_formal_arguments_read_the_lent_places_incoming_bounds() {
+    // A `mut` formal's incoming value is the caller's lent storage read at
+    // the call point: a live local snapshot wins, and nonlocal storage behind
+    // an exclusive borrow still supplies the formal's declared carrier. The
+    // callee's own writes then bound the returned byte; nothing is guessed.
+    for (prefix, body, expected) in [
+        (
+            "",
+            "let mut scratch: u32 = 7; \
+             let byte: u8 = narrow(&mut scratch, unknown); byte",
+            Some((48, 57)),
+        ),
+        (
+            "data Pad { cell: u32; }",
+            "let byte: u8 = narrow(&mut pad.cell, unknown); byte",
+            Some((48, 57)),
+        ),
+        (
+            "",
+            "let mut scratch: u32 = 7; \
+             let byte: u8 = widen(&mut scratch); byte",
+            Some((7, 7)),
+        ),
+        (
+            // No snapshot behind the exclusive borrow: the formal's carrier
+            // bounds the incoming value, and wrapping lands the u8 carrier.
+            "data Pad { cell: u32; }",
+            "let byte: u8 = widen(&mut pad.cell); byte",
+            Some((0, 255)),
+        ),
+    ] {
+        let checked = checked(&format!(
+            "{prefix} \
+             machine narrow(mut scratch: u32, value: u32) -> u8 {{ \
+                 scratch = value; \
+                 ((scratch % 10 + 48) as u8 in Wrapping) as u8 \
+             }} \
+             machine widen(mut scratch: u32) -> u8 {{ \
+                 (scratch as u8 in Wrapping) as u8 \
+             }} \
+             machine wrapper(pad: &mut Pad, unknown: u32) -> u8 {{ {body} }}",
+            prefix = if prefix.is_empty() {
+                "data Pad { cell: u32; }"
+            } else {
+                prefix
+            }
+        ));
+        assert_eq!(
+            captured_range(&checked).map(|range| {
+                (
+                    range.minimum.to_u64().expect("u64 minimum"),
+                    range.maximum.to_u64().expect("u64 maximum"),
+                )
+            }),
+            expected,
+            "{body}"
+        );
     }
 }

@@ -137,10 +137,17 @@ fn integer(
             range,
         } => {
             let (_, bounds) = integer(operand, source)?;
-            if !contains(range, &bounds) {
-                return None;
-            }
-            (*primitive_type, bounds)
+            // The retained occurrence fact proved the operand lands inside
+            // `range`; flow bounds are only a coarser view of the same value.
+            // The result is the meet of the two, not a failure when the flow
+            // view is wider than the proved spelling range.
+            (
+                *primitive_type,
+                IntegerRange {
+                    minimum: bounds.minimum.max(range.minimum.clone()),
+                    maximum: bounds.maximum.min(range.maximum.clone()),
+                },
+            )
         }
         Expression::IntegerWrappingCast {
             primitive_type,
@@ -163,9 +170,18 @@ fn integer(
             operand,
         } => {
             // This only describes successful results; it does not prove that
-            // the conversion or its enclosing invocation returns normally.
+            // the conversion or its enclosing invocation returns normally. A
+            // result that did return is representable, so the carrier bounds
+            // the operand range even when the operand's own interval is wider.
             let (_, bounds) = integer(operand, source)?;
-            (*primitive_type, bounds)
+            let carrier = primitive_range(*primitive_type)?;
+            (
+                *primitive_type,
+                IntegerRange {
+                    minimum: bounds.minimum.max(carrier.minimum.clone()),
+                    maximum: bounds.maximum.min(carrier.maximum.clone()),
+                },
+            )
         }
         Expression::IntegerBitwiseNot { .. }
         | Expression::Boolean(_)
