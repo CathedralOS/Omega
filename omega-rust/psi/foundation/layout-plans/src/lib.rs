@@ -57,7 +57,7 @@ pub use symbolic_materialization::{
 };
 pub use symbolic_values::{
     DataSymbolId, EntryStubId, RelocationTarget, SymbolicFieldInnerLayout,
-    SymbolicFieldPathSegment, SymbolicFieldValue,
+    SymbolicFieldInteriorLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
 };
 
 #[cfg(test)]

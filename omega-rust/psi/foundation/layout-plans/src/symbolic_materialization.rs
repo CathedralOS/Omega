@@ -4,13 +4,14 @@
 
 use crate::field_values::ScalarFieldValue;
 use crate::layout_reports::{
-    CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, LayoutFieldEntryReport, LayoutPlacementReport,
-    LayoutPlanReport,
+    CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalSumLayoutReport, LayoutFieldEntryReport,
+    LayoutPlacementReport, LayoutPlanReport,
 };
 use crate::materialization::{MaterializationDiagnostic, SymbolicMaterializationPlan};
 use crate::materialization_field_identities::{
     MaterializationFieldKey, materialization_field_key, stable_identity_suffix,
     symbolic_index_display, symbolic_path_display, symbolic_path_hops,
+    validate_conventional_sum_materialization_identities,
     validate_materialization_field_identities,
 };
 use crate::placement::{
@@ -21,7 +22,9 @@ use crate::stored_integer_writes::{
     apply_fragment, scalar_fragment, validate_fragment, validate_stored_integer_value,
     validate_write, validate_write_source_value,
 };
-use crate::symbolic_values::{RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldValue};
+use crate::symbolic_values::{
+    RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldInteriorLayout, SymbolicFieldValue,
+};
 
 /// Derives a phase-aware consumer plan. `resolve` is compiler/provider
 /// infrastructure; source code never receives its returned address.
@@ -48,12 +51,18 @@ pub fn derive_symbolic_materialization(
 /// `derive_symbolic_materialization` extended with interior layout carriers.
 ///
 /// `inner_layouts` carries the compiler-derived interior layout of a nested
-/// record beside the flat outer plan. A symbolic value spelling inner hops
-/// (`outer.field`, `outer[index].field`, `outer.field[index]`, or deeper
-/// chains like `outer.field.sub`) resolves each crossed record boundary's
-/// `At` placement in turn, then selects inside the innermost element's
-/// retained interior layout, so the exact path stays symbolic until the write
-/// offset is assigned. Each carrier's own `inner_layouts` binds the next
+/// record or a conventional sum beside the flat outer plan. A symbolic value
+/// spelling inner hops (`outer.field`, `outer[index].field`,
+/// `outer.field[index]`, or deeper chains like `outer.field.sub`) resolves
+/// each crossed record boundary's `At` placement in turn, then selects inside
+/// the innermost element's retained interior layout, so the exact path stays
+/// symbolic until the write offset is assigned. Below a conventional sum
+/// boundary the next two hops spell `Case.payload` — the selected case, then
+/// that case's payload field — and a repeated sum field composes its hop's
+/// element index through the carrier's element stride before the case and
+/// payload resolve inside that element. The tag and the inactive cases'
+/// payload bytes stay staged content; the writer only realizes the addressed
+/// payload slot. Each record carrier's own `inner_layouts` binds the next
 /// boundary's interior, so record depth is data the traversal walks rather
 /// than a family of depth-specific implementations; the walk is bounded by
 /// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`]. Supplying an inner layout no
@@ -237,12 +246,12 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                         )
                     }));
                 }
-                let selected = select_materialization_entries(
-                    entries,
-                    element_index,
-                    if depth == 0 { field } else { prefix.as_str() },
-                )?;
                 if depth == last {
+                    let selected = select_materialization_entries(
+                        entries,
+                        element_index,
+                        if depth == 0 { field } else { prefix.as_str() },
+                    )?;
                     for entry in selected {
                         let mut write = write_from_entry(
                             entry,
@@ -271,47 +280,119 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                     }
                     continue;
                 }
-                // The next hop needs one enclosing element. An unindexed
-                // segment on a repeated record covers several elements, so
-                // the path below it cannot name a destination;
-                // `outer[i].field` spells which element the member belongs to.
-                let [enclosing_entry] = selected.as_slice() else {
-                    return Err(MaterializationDiagnostic(if depth == 0 {
-                        format!(
-                            "symbolic field `{path_display}` requires the outer field `{field}` to resolve to exactly one element placement, found {}",
-                            selected.len()
-                        )
-                    } else {
-                        format!(
-                            "symbolic field `{path_display}` requires the enclosing field `{prefix}` to resolve to exactly one element placement, found {}",
-                            selected.len()
-                        )
-                    }));
-                };
-                let LayoutPlacementReport::At { offset } = enclosing_entry.placement else {
-                    return Err(MaterializationDiagnostic(if depth == 0 {
-                        format!(
-                            "symbolic field `{path_display}` requires the outer field `{field}` to use a whole `At` placement"
-                        )
-                    } else {
-                        format!(
-                            "symbolic field `{path_display}` requires the enclosing field `{prefix}` to use a whole `At` placement"
-                        )
-                    }));
-                };
+                // The next hop needs one enclosing element. The bound carrier
+                // spells which kind of interior this field stores, and it
+                // resolves how the hop's element index selects that element:
+                // a repeated sum retains one whole-extent `At` placement, so
+                // the index composes the element's stride offset inside it,
+                // while every other interior selects among the retained
+                // element placements.
                 let Some(&node_id) = current_carriers.get(&key) else {
                     return Err(MaterializationDiagnostic(format!(
                         "symbolic field `{path_display}` has no supplied inner layout for `{prefix}`"
                     )));
                 };
                 let node = &carrier_nodes[node_id];
+                let enclosing_offset = match &node.interior {
+                    PreparedInterior::Sum {
+                        repetition: Some((element_count, element_stride)),
+                        ..
+                    } => {
+                        let [entry] = entries.as_slice() else {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` requires the repeated sum field `{prefix}` to retain exactly one whole-extent `At` placement, found {}",
+                                entries.len()
+                            )));
+                        };
+                        let LayoutPlacementReport::At { offset } = entry.placement else {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` requires the repeated sum field `{prefix}` to use a whole `At` placement"
+                            )));
+                        };
+                        let index = element_index.ok_or_else(|| {
+                            MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` requires an element index into the repeated sum field `{prefix}`"
+                            ))
+                        })?;
+                        if index >= *element_count {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` element index {index} is outside its {element_count} element placements"
+                            )));
+                        }
+                        // The carrier's claimed array extent is evidence about
+                        // the whole field, not just the selected element: a
+                        // carrier describing a shrunken array must reject
+                        // here rather than serve a stale element offset.
+                        let array_end = (*element_count - 1)
+                            .checked_mul(*element_stride)
+                            .and_then(|span| offset.checked_add(span))
+                            .and_then(|last_start| last_start.checked_add(node.byte_len as u64));
+                        match array_end {
+                            Some(end) if end <= current_byte_len as u64 => {}
+                            _ => {
+                                return Err(MaterializationDiagnostic(format!(
+                                    "symbolic field `{path_display}` repeated interior for `{prefix}` exceeds the enclosing {current_byte_len}-byte record extent"
+                                )));
+                            }
+                        }
+                        offset
+                            .checked_add(
+                                index.checked_mul(*element_stride).ok_or_else(|| {
+                                    MaterializationDiagnostic(format!(
+                                        "symbolic field `{path_display}` composes an out-of-range interior offset"
+                                    ))
+                                })?,
+                            )
+                            .ok_or_else(|| {
+                                MaterializationDiagnostic(format!(
+                                    "symbolic field `{path_display}` composes an out-of-range interior offset"
+                                ))
+                            })?
+                    }
+                    _ => {
+                        // An unindexed segment on a repeated record covers
+                        // several elements, so the path below it cannot name
+                        // a destination; `outer[i].field` spells which element
+                        // the member belongs to.
+                        let selected = select_materialization_entries(
+                            entries,
+                            element_index,
+                            if depth == 0 { field } else { prefix.as_str() },
+                        )?;
+                        let [enclosing_entry] = selected.as_slice() else {
+                            return Err(MaterializationDiagnostic(if depth == 0 {
+                                format!(
+                                    "symbolic field `{path_display}` requires the outer field `{field}` to resolve to exactly one element placement, found {}",
+                                    selected.len()
+                                )
+                            } else {
+                                format!(
+                                    "symbolic field `{path_display}` requires the enclosing field `{prefix}` to resolve to exactly one element placement, found {}",
+                                    selected.len()
+                                )
+                            }));
+                        };
+                        let LayoutPlacementReport::At { offset } = enclosing_entry.placement else {
+                            return Err(MaterializationDiagnostic(if depth == 0 {
+                                format!(
+                                    "symbolic field `{path_display}` requires the outer field `{field}` to use a whole `At` placement"
+                                )
+                            } else {
+                                format!(
+                                    "symbolic field `{path_display}` requires the enclosing field `{prefix}` to use a whole `At` placement"
+                                )
+                            }));
+                        };
+                        offset
+                    }
+                };
                 // The claimed interior must fit inside the enclosing record's
                 // extent at this offset. Per-level bounds compose: the leaf
                 // check above bounds the member inside this interior, and
                 // this bound keeps the whole interior inside its enclosing
                 // element, so a malformed carrier cannot place writes past
                 // the record boundary it describes.
-                let interior_end = usize::try_from(offset)
+                let interior_end = usize::try_from(enclosing_offset)
                     .ok()
                     .and_then(|start| start.checked_add(node.byte_len))
                     .ok_or_else(|| {
@@ -325,15 +406,115 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                     )));
                 }
                 traversed_inner.insert(node_id);
-                base_offset = base_offset.checked_add(offset).ok_or_else(|| {
+                base_offset = base_offset.checked_add(enclosing_offset).ok_or_else(|| {
                     MaterializationDiagnostic(format!(
                         "symbolic field `{path_display}` composes an out-of-range destination offset"
                     ))
                 })?;
-                current_planned = &node.planned;
-                current_layout = node.layout;
-                current_carriers = &node.nested;
-                current_byte_len = node.byte_len;
+                match &node.interior {
+                    PreparedInterior::Record {
+                        planned,
+                        layout,
+                        nested,
+                        ..
+                    } => {
+                        current_planned = planned;
+                        current_layout = *layout;
+                        current_carriers = nested;
+                        current_byte_len = node.byte_len;
+                    }
+                    PreparedInterior::Sum {
+                        layout: sum_layout, ..
+                    } => {
+                        // A sum boundary ends the path exactly two hops later:
+                        // the selected case, then that case's payload field
+                        // leaf. The carrier retains the complete case
+                        // geometry, so the exact case and member stay
+                        // symbolic until this offset assignment; the tag and
+                        // the inactive cases' payload bytes are staged
+                        // content the writer does not produce.
+                        let Some(&(case_field, case_identity, case_index)) = hops.get(depth + 1)
+                        else {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` requires the sum path `{prefix}` to spell a selected case and payload field"
+                            )));
+                        };
+                        if case_index.is_some() {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` case `{prefix}.{case_field}` cannot carry an element index"
+                            )));
+                        }
+                        let case_key = materialization_field_key(case_field, case_identity);
+                        let Some(case) = sum_layout.cases.iter().find(|case| {
+                            materialization_field_key(&case.case, case.member_identity) == case_key
+                        }) else {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` spells no case `{case_field}` of the inner sum layout for `{prefix}`"
+                            )));
+                        };
+                        let Some(&(payload_field, payload_identity, payload_index)) =
+                            hops.get(depth + 2)
+                        else {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` requires a payload field below case `{prefix}.{case_field}`"
+                            )));
+                        };
+                        if depth + 2 != last {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` continues below sum payload `{prefix}.{case_field}.{payload_field}`; a case payload is the leaf of a sum path"
+                            )));
+                        }
+                        if payload_index.is_some() {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` payload `{prefix}.{case_field}.{payload_field}` cannot carry an element index; a sum payload retains one extent per field"
+                            )));
+                        }
+                        let payload_key =
+                            materialization_field_key(payload_field, payload_identity);
+                        let Some(payload) = case.payload_fields.iter().find(|payload| {
+                            materialization_field_key(&payload.field, payload.member_identity)
+                                == payload_key
+                        }) else {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` spells no payload field `{payload_field}` of case `{prefix}.{case_field}`"
+                            )));
+                        };
+                        // The destination slot is the payload field's own
+                        // extent: a wider symbolic value would cross into the
+                        // other payload members the same case overlays.
+                        let payload_bits = payload.size.checked_mul(8).ok_or_else(|| {
+                            MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` composes an out-of-range payload extent"
+                            ))
+                        })?;
+                        if u64::from(symbolic.width_bits) > payload_bits {
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` width {} exceeds the {payload_bits}-bit payload field `{prefix}.{case_field}.{payload_field}`",
+                                symbolic.width_bits
+                            )));
+                        }
+                        let leaf_entry = LayoutFieldEntryReport {
+                            field: payload.field.clone(),
+                            member_identity: payload.member_identity,
+                            placement: LayoutPlacementReport::At {
+                                offset: payload.offset,
+                            },
+                        };
+                        let mut write =
+                            write_from_entry(&leaf_entry, symbolic, &path_display)?;
+                        validate_write(node.byte_len, &write)?;
+                        write.container_byte_offset = base_offset
+                            .checked_add(write.container_byte_offset)
+                            .ok_or_else(|| {
+                                MaterializationDiagnostic(format!(
+                                    "symbolic field `{path_display}` composes an out-of-range destination offset"
+                                ))
+                            })?;
+                        validate_write(byte_len, &write)?;
+                        writes.push((leaf_entry.placement, write));
+                        break;
+                    }
+                }
             }
             Ok(writes)
         })
@@ -422,26 +603,55 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
     })
 }
 
-/// One interior layout carrier prepared for symbolic traversal: the carrier's
-/// validated interior plan indexed by field key, its fixed extent, and the
-/// prepared carriers bound to record fields inside it. Nodes live in one
-/// arena so the traversal walks record depth as data instead of recursing a
-/// type the compiler already knows.
+/// The prepared interior a carrier binds. The kind of interior is data on the
+/// node: a record interior supplies the next hop's field placements and
+/// carriers, while a sum interior ends the path two hops later at the
+/// selected case's payload field.
+enum PreparedInterior<'a> {
+    /// A nested record's interior plan with its nested carriers prepared.
+    Record {
+        /// The carrier's validated interior plan; drift checks read its
+        /// entries.
+        layout: &'a LayoutPlanReport,
+        /// Interior entries indexed by materialization key.
+        planned:
+            std::collections::BTreeMap<MaterializationFieldKey, Vec<&'a LayoutFieldEntryReport>>,
+        /// Prepared nested carriers by the enclosing field key they bind to.
+        nested: std::collections::BTreeMap<MaterializationFieldKey, usize>,
+        /// Nested carrier node ids in supply order, so untraversed reporting
+        /// is deterministic rather than key order.
+        nested_order: Vec<usize>,
+    },
+    /// A conventional sum's fixed tag/case overlay. The path's case and
+    /// payload hops select inside this compiler-owned geometry; the tag and
+    /// inactive cases' payload bytes are staged content the writer never
+    /// emits.
+    Sum {
+        /// One sum element's validated overlay.
+        layout: &'a ConventionalSumLayoutReport,
+        /// `Some((element_count, element_stride))` when the field repeats the
+        /// sum: the plan then retains the field's whole array extent as one
+        /// `At` placement, and the hop's element index composes
+        /// `index * element_stride` inside that extent instead of selecting
+        /// among per-element placements.
+        repetition: Option<(u64, u64)>,
+    },
+}
+
+/// One interior layout carrier prepared for symbolic traversal: the interior
+/// extent one selected element occupies and its prepared interior. Nodes live
+/// in one arena so the traversal walks record depth as data instead of
+/// recursing a type the compiler already knows.
 struct PreparedInnerLayout<'a> {
-    /// The carrier's validated interior plan; drift checks read its entries.
-    layout: &'a LayoutPlanReport,
-    /// The interior record's fixed extent in bytes. Every member write and
-    /// every nested record boundary inside the carrier must fit within it.
+    /// The fixed extent in bytes of the interior the path descends into: the
+    /// nested record's size, or one sum element's extent for either sum kind.
+    /// Every member or payload write and every nested boundary inside the
+    /// carrier must fit within it.
     byte_len: usize,
-    /// Interior entries indexed by materialization key.
-    planned: std::collections::BTreeMap<MaterializationFieldKey, Vec<&'a LayoutFieldEntryReport>>,
-    /// Prepared nested carriers by the enclosing field key they bind to.
-    nested: std::collections::BTreeMap<MaterializationFieldKey, usize>,
-    /// Nested carrier node ids in supply order, so untraversed reporting is
-    /// deterministic rather than key order.
-    nested_order: Vec<usize>,
+    /// The prepared interior bound to the carrier's field.
+    interior: PreparedInterior<'a>,
     /// Diagnostic spelling of the record path this carrier serves (`slot`,
-    /// `slot.sub`).
+    /// `slot.sub`, `choice`).
     path_display: String,
 }
 
@@ -487,65 +697,168 @@ fn prepare_inner_layouts<'a>(
                 "inner layout for `{path_display}` is supplied more than once"
             )));
         }
-        let inner_byte_len = carrier
-            .inner_layout
-            .size
-            .ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "inner layout for `{path_display}` requires a fixed-size interior layout plan"
-                ))
-            })
-            .and_then(|size| {
-                usize::try_from(size).map_err(|_| {
-                    MaterializationDiagnostic(format!(
-                        "inner layout size {size} for `{path_display}` cannot be represented on this compiler host"
-                    ))
-                })
-            })?;
-        validate_materialization_field_identities(&carrier.inner_layout)?;
-        let mut planned_inner = std::collections::BTreeMap::<
-            MaterializationFieldKey,
-            Vec<&LayoutFieldEntryReport>,
-        >::new();
-        for entry in &carrier.inner_layout.entries {
-            planned_inner
-                .entry(materialization_field_key(
-                    &entry.field,
-                    entry.member_identity,
-                ))
-                .or_default()
-                .push(entry);
-        }
-        let (nested, nested_order) = if carrier.inner_layouts.is_empty() {
-            (std::collections::BTreeMap::new(), Vec::new())
-        } else {
-            if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
-                return Err(MaterializationDiagnostic(format!(
-                    "inner layout for `{path_display}` nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
-                )));
+        let (interior, byte_len) = match &carrier.inner_layout {
+            SymbolicFieldInteriorLayout::Record(inner_layout) => {
+                let inner_byte_len = inner_layout
+                    .size
+                    .ok_or_else(|| {
+                        MaterializationDiagnostic(format!(
+                            "inner layout for `{path_display}` requires a fixed-size interior layout plan"
+                        ))
+                    })
+                    .and_then(|size| {
+                        usize::try_from(size).map_err(|_| {
+                            MaterializationDiagnostic(format!(
+                                "inner layout size {size} for `{path_display}` cannot be represented on this compiler host"
+                            ))
+                        })
+                    })?;
+                validate_materialization_field_identities(inner_layout)?;
+                let mut planned_inner = std::collections::BTreeMap::<
+                    MaterializationFieldKey,
+                    Vec<&LayoutFieldEntryReport>,
+                >::new();
+                for entry in &inner_layout.entries {
+                    planned_inner
+                        .entry(materialization_field_key(
+                            &entry.field,
+                            entry.member_identity,
+                        ))
+                        .or_default()
+                        .push(entry);
+                }
+                let (nested, nested_order) = if carrier.inner_layouts.is_empty() {
+                    (std::collections::BTreeMap::new(), Vec::new())
+                } else {
+                    if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
+                        return Err(MaterializationDiagnostic(format!(
+                            "inner layout for `{path_display}` nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
+                        )));
+                    }
+                    prepare_inner_layouts(
+                        &carrier.inner_layouts,
+                        &planned_inner,
+                        &format!("{path_display}."),
+                        depth + 1,
+                        false,
+                        nodes,
+                    )?
+                };
+                (
+                    PreparedInterior::Record {
+                        layout: inner_layout,
+                        planned: planned_inner,
+                        nested,
+                        nested_order,
+                    },
+                    inner_byte_len,
+                )
             }
-            prepare_inner_layouts(
-                &carrier.inner_layouts,
-                &planned_inner,
-                &format!("{path_display}."),
-                depth + 1,
-                false,
-                nodes,
-            )?
+            SymbolicFieldInteriorLayout::Sum(sum_layout) => {
+                if !carrier.inner_layouts.is_empty() {
+                    return Err(MaterializationDiagnostic(format!(
+                        "inner layout for `{path_display}` binds a sum interior; its case payload fields carry no nested record carriers"
+                    )));
+                }
+                let byte_len = prepare_sum_interior(sum_layout, &path_display)?;
+                (
+                    PreparedInterior::Sum {
+                        layout: sum_layout,
+                        repetition: None,
+                    },
+                    byte_len,
+                )
+            }
+            SymbolicFieldInteriorLayout::SumArray {
+                element_layout,
+                element_count,
+                element_stride,
+            } => {
+                if !carrier.inner_layouts.is_empty() {
+                    return Err(MaterializationDiagnostic(format!(
+                        "inner layout for `{path_display}` binds a repeated sum interior; its elements carry no nested record carriers"
+                    )));
+                }
+                let byte_len = prepare_sum_interior(element_layout, &path_display)?;
+                if *element_count == 0 {
+                    return Err(MaterializationDiagnostic(format!(
+                        "inner layout for `{path_display}` repeats its sum interior zero times"
+                    )));
+                }
+                if *element_stride < element_layout.size {
+                    return Err(MaterializationDiagnostic(format!(
+                        "inner layout for `{path_display}` strides repeated sum elements by {element_stride} bytes inside their {}-byte extent",
+                        element_layout.size
+                    )));
+                }
+                (
+                    PreparedInterior::Sum {
+                        layout: element_layout,
+                        repetition: Some((*element_count, *element_stride)),
+                    },
+                    byte_len,
+                )
+            }
         };
         let node_id = nodes.len();
         nodes.push(PreparedInnerLayout {
-            layout: &carrier.inner_layout,
-            byte_len: inner_byte_len,
-            planned: planned_inner,
-            nested,
-            nested_order,
+            byte_len,
+            interior,
             path_display,
         });
         bound.insert(key, node_id);
         order.push(node_id);
     }
     Ok((bound, order))
+}
+
+/// Validates one conventional sum interior bound to a carrier and returns its
+/// byte extent. The overlay's tag and every case payload must fit inside the
+/// claimed extent — the same closed extent build-time materialization
+/// requires — and case and payload spellings must retain consistent
+/// identities so a symbolic path joins them unambiguously.
+fn prepare_sum_interior(
+    layout: &ConventionalSumLayoutReport,
+    path_display: &str,
+) -> Result<usize, MaterializationDiagnostic> {
+    let byte_len = usize::try_from(layout.size).map_err(|_| {
+        MaterializationDiagnostic(format!(
+            "inner sum layout size {} for `{path_display}` cannot be represented on this compiler host",
+            layout.size
+        ))
+    })?;
+    let tag_end = layout
+        .tag_offset
+        .checked_add(layout.tag_size)
+        .ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "inner layout for `{path_display}` composes an out-of-range sum tag"
+            ))
+        })?;
+    if tag_end > layout.size {
+        return Err(MaterializationDiagnostic(format!(
+            "inner layout for `{path_display}` places the sum tag outside its {}-byte extent",
+            layout.size
+        )));
+    }
+    for case in &layout.cases {
+        for payload in &case.payload_fields {
+            let payload_end = payload.offset.checked_add(payload.size).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "inner layout for `{path_display}` composes an out-of-range sum payload field `{}`",
+                    payload.field
+                ))
+            })?;
+            if payload_end > layout.size {
+                return Err(MaterializationDiagnostic(format!(
+                    "inner layout for `{path_display}` places payload field `{}` of case `{}` outside the sum's {}-byte extent",
+                    payload.field, case.case, layout.size
+                )));
+            }
+        }
+    }
+    validate_conventional_sum_materialization_identities(layout)?;
+    Ok(byte_len)
 }
 
 /// Finds the first supplied interior carrier no symbolic path traversed, in
@@ -560,8 +873,8 @@ fn first_untraversed_inner_layout(
         if !traversed.contains(&node_id) {
             return Some(node_id);
         }
-        if let Some(deeper) =
-            first_untraversed_inner_layout(nodes, &nodes[node_id].nested_order, traversed)
+        if let PreparedInterior::Record { nested_order, .. } = &nodes[node_id].interior
+            && let Some(deeper) = first_untraversed_inner_layout(nodes, nested_order, traversed)
         {
             return Some(deeper);
         }

@@ -4,7 +4,7 @@
 //! exists and by positional name otherwise; symbolic paths render through the
 //! same hop vocabulary for diagnostics.
 
-use crate::layout_reports::LayoutPlanReport;
+use crate::layout_reports::{ConventionalSumLayoutReport, LayoutPlanReport};
 use crate::materialization::MaterializationDiagnostic;
 use crate::symbolic_values::SymbolicFieldValue;
 
@@ -46,6 +46,45 @@ pub(crate) fn validate_materialization_field_identities(
                 "layout field `{}` fragments do not retain the same stable identity",
                 entry.field
             )));
+        }
+    }
+    Ok(())
+}
+
+/// The same identity-pairing rule applied to a conventional sum interior: a
+/// numbered schema's case or payload identity pairs with exactly one name, and
+/// a case or payload name pairs with exactly one identity. Field spellings
+/// stay diagnostic presentation, so the same name may spell a case and a
+/// payload field under different parents.
+pub(crate) fn validate_conventional_sum_materialization_identities(
+    layout: &ConventionalSumLayoutReport,
+) -> Result<(), MaterializationDiagnostic> {
+    let mut identity_names = std::collections::BTreeMap::new();
+    let mut name_identities = std::collections::BTreeMap::new();
+    for case in &layout.cases {
+        for (field, member_identity) in [(case.case.as_str(), case.member_identity)]
+            .into_iter()
+            .chain(
+                case.payload_fields
+                    .iter()
+                    .map(|payload| (payload.field.as_str(), payload.member_identity)),
+            )
+        {
+            let key = materialization_field_key(field, member_identity);
+            if let Some(prior_name) = identity_names.insert(key.clone(), field)
+                && prior_name != field
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "sum interior identity names both `{prior_name}` and `{field}`"
+                )));
+            }
+            if let Some(prior_identity) = name_identities.insert(field, key.clone())
+                && prior_identity != key
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "sum interior field `{field}` does not retain the same stable identity"
+                )));
+            }
         }
     }
     Ok(())

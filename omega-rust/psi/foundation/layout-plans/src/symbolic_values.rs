@@ -4,7 +4,7 @@
 //! Numeric identities are never callable addresses and never reach source
 //! programs.
 
-use crate::layout_reports::LayoutPlanReport;
+use crate::layout_reports::{ConventionalSumLayoutReport, LayoutPlanReport};
 use crate::materialization::MaterializationDiagnostic;
 
 /// Compiler-issued identity of an inbound entry stub. The numeric identity is
@@ -61,7 +61,10 @@ impl RelocationTarget {
 /// derivation bounds the walk by [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`].
 /// Each boundary's placement comes from a [`SymbolicFieldInnerLayout`]
 /// carrier supplied at derivation, so the exact inner offset stays symbolic
-/// until assignment.
+/// until assignment. Below a conventional sum boundary the next hop spells
+/// the selected case and the final hop spells that case's payload field;
+/// a case payload always ends a sum path, so it never carries a carrier or
+/// a further segment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolicFieldPathSegment {
     pub field: String,
@@ -226,10 +229,13 @@ impl SymbolicFieldValue {
     /// Extends this symbolic value with a second path segment, spelling the
     /// `field.inner` (or `field[index].inner`) hop into the record stored in
     /// `field`. The segment may itself carry further segments, so a path like
-    /// `field.inner.sub` spells each record boundary as data. Each boundary's
-    /// placement comes from a [`SymbolicFieldInnerLayout`] carrier supplied
-    /// to [`derive_symbolic_materialization_with_inner_layouts`]; no concrete
-    /// address or inner offset is baked into the value itself.
+    /// `field.inner.sub` spells each record boundary as data. When the bound
+    /// carrier describes a conventional sum, the following two segments spell
+    /// `field.Case.payload` (or `field[index].Case.payload` over a repeated
+    /// sum field); the same hop vocabulary carries that boundary too. Each
+    /// boundary's placement comes from a [`SymbolicFieldInnerLayout`] carrier
+    /// supplied to [`derive_symbolic_materialization_with_inner_layouts`]; no
+    /// concrete address or inner offset is baked into the value itself.
     pub fn with_inner_segment(mut self, inner: SymbolicFieldPathSegment) -> Self {
         self.inner = Some(inner);
         self
@@ -241,11 +247,46 @@ impl SymbolicFieldValue {
     }
 }
 
-/// The compiler-derived interior layout of the record stored in one outer
-/// field, bound to that field's identity. A nested record's member offsets are
+/// The compiler-derived interior layout bound to one outer field. A nested
+/// record's member offsets and a conventional sum's case/payload geometry are
 /// compiler-derived interior geometry shared with typed-owned encoding, not
-/// policy-chosen placements, so the flat outer [`LayoutPlanReport`] deliberately
-/// does not carry them. This carrier retains the inner layout beside the outer
+/// policy-chosen placements, so the flat outer [`LayoutPlanReport`]
+/// deliberately carries neither. The kind of interior the field stores is
+/// data on the carrier, not a separate carrier family.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SymbolicFieldInteriorLayout {
+    /// The field stores one nested record; this is its complete
+    /// compiler-derived interior plan. Record fields inside it may carry
+    /// their own carriers through
+    /// [`SymbolicFieldInnerLayout::with_inner_layout`], so the carrier tree
+    /// mirrors the record boundaries a path crosses.
+    Record(LayoutPlanReport),
+    /// The field stores one conventional pure sum; this is the compiler-owned
+    /// tag-prefixed overlay shared with build-time const materialization. A
+    /// path crossing the boundary spells the selected case and that case's
+    /// payload field as its last two hops; neither hop carries an element
+    /// index. The tag and the inactive cases' payload bytes stay staged
+    /// content: the writer only realizes the addressed payload slot.
+    Sum(ConventionalSumLayoutReport),
+    /// The field repeats one conventional pure sum at a constant byte stride.
+    /// The outer plan retains the field's whole array extent as one `At`
+    /// placement, so the path's element index composes
+    /// `index * element_stride` inside that extent before the case and
+    /// payload hops resolve inside the addressed element. `element_stride`
+    /// must cover the complete `element_layout` extent so repeated elements
+    /// cannot overlap.
+    SumArray {
+        /// One array element's complete conventional sum overlay.
+        element_layout: ConventionalSumLayoutReport,
+        /// The literal element count the field's extent covers.
+        element_count: u64,
+        /// The constant byte distance between consecutive elements.
+        element_stride: u64,
+    },
+}
+
+/// The compiler-derived interior layout stored by one outer field, bound to
+/// that field's identity. This carrier retains the interior beside the outer
 /// plan without flattening inner rows into the outer schema;
 /// [`derive_symbolic_materialization_with_inner_layouts`] consults it only for
 /// symbolic values spelling an inner path segment through that outer field.
@@ -263,20 +304,23 @@ pub struct SymbolicFieldInnerLayout {
     /// joins when the outer schema is numbered.
     pub field: String,
     pub(crate) member_identity: Option<u64>,
-    /// The nested record's complete compiler-derived interior layout.
-    pub inner_layout: LayoutPlanReport,
-    /// Carriers bound to record fields inside `inner_layout`, supplying the
-    /// interior of the next record boundary down.
+    /// The interior bound to `field`: a nested record's plan, one conventional
+    /// sum's overlay, or a repeated conventional sum's element geometry.
+    pub inner_layout: SymbolicFieldInteriorLayout,
+    /// Carriers bound to record fields inside a `Record` interior layout,
+    /// supplying the interior of the next record boundary down. Sum interiors
+    /// carry no field namespace, so they never hold nested carriers.
     pub(crate) inner_layouts: Vec<SymbolicFieldInnerLayout>,
 }
 
 impl SymbolicFieldInnerLayout {
-    /// Binds `inner_layout` to the outer field named `field`.
+    /// Binds the nested record `inner_layout` to the outer field named
+    /// `field`.
     pub fn new(field: impl Into<String>, inner_layout: LayoutPlanReport) -> Self {
         Self {
             field: field.into(),
             member_identity: None,
-            inner_layout,
+            inner_layout: SymbolicFieldInteriorLayout::Record(inner_layout),
             inner_layouts: Vec::new(),
         }
     }
@@ -291,6 +335,69 @@ impl SymbolicFieldInnerLayout {
         Self {
             member_identity: Some(member_identity),
             ..Self::new(field, inner_layout)
+        }
+    }
+
+    /// Binds one direct conventional sum interior to the outer field named
+    /// `field`. A symbolic path crossing the boundary spells the selected
+    /// case and that case's payload field as its last two hops.
+    pub fn new_sum(field: impl Into<String>, sum_layout: ConventionalSumLayoutReport) -> Self {
+        Self {
+            field: field.into(),
+            member_identity: None,
+            inner_layout: SymbolicFieldInteriorLayout::Sum(sum_layout),
+            inner_layouts: Vec::new(),
+        }
+    }
+
+    /// `new_sum` carrying the outer field's compiler-retained stable member
+    /// identity.
+    pub fn new_sum_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        sum_layout: ConventionalSumLayoutReport,
+    ) -> Self {
+        Self {
+            member_identity: Some(member_identity),
+            ..Self::new_sum(field, sum_layout)
+        }
+    }
+
+    /// Binds a repeated conventional sum interior to the outer field named
+    /// `field`. The outer plan retains the field's whole array extent as one
+    /// `At` placement; a symbolic path crossing the boundary carries the
+    /// element index on the field hop, then the selected case and that
+    /// case's payload field as its last two hops.
+    pub fn new_sum_array(
+        field: impl Into<String>,
+        element_layout: ConventionalSumLayoutReport,
+        element_count: u64,
+        element_stride: u64,
+    ) -> Self {
+        Self {
+            field: field.into(),
+            member_identity: None,
+            inner_layout: SymbolicFieldInteriorLayout::SumArray {
+                element_layout,
+                element_count,
+                element_stride,
+            },
+            inner_layouts: Vec::new(),
+        }
+    }
+
+    /// `new_sum_array` carrying the outer field's compiler-retained stable
+    /// member identity.
+    pub fn new_sum_array_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        element_layout: ConventionalSumLayoutReport,
+        element_count: u64,
+        element_stride: u64,
+    ) -> Self {
+        Self {
+            member_identity: Some(member_identity),
+            ..Self::new_sum_array(field, element_layout, element_count, element_stride)
         }
     }
 
