@@ -152,6 +152,18 @@
         "omega-rust/psi/compiler/terminal-production"
       ],
       "suggested_first_slice": "Plan-side slice: target-owned private callback slots through exact conformances and validated layout paths — callback_layout_catalog under provider-planning is the seam. backend/runtime/component-publication is claimed by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z; keep to planning/terminal-production writes or report blocked."
+    },
+    {
+      "name": "build-product-references",
+      "board": "TASKS.md",
+      "item": "BUILD-PRODUCT-REFERENCES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation/src/selection",
+        "omega-rust/omega/compiler/compiler/tests/build_target_activation.rs"
+      ],
+      "suggested_first_slice": "Backfill for the blocked frame-layout slot. Remaining work per board: provider/schema description kinds (the computed-receiver implementation fence likely still waits on call-result authority). Extend the landed ProductEntryRef pattern in build-evaluation/src/selection/root_bindings.rs to one provider or schema description kind; keep rejection matrix intact. omega/packages is claimed by BUILD-DEPENDENCY-PURPOSES; tests/canary_suite files are partially claimed by other items — keep writes in owned paths or report blocked.",
+      "backfill_for": "frame-layout"
     }
   ]
 }
