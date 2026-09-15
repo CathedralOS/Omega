@@ -2,8 +2,11 @@
 //!
 //! A transformed cyclic body stays frozen against the reconstructed seed
 //! except for independently admitted scalar motion: an admissible
-//! source-owned scalar constant leaf, or an admissible scalar computation
-//! whose uses are all defined outside the component, name provably invariant
+//! source-owned scalar constant leaf, an admissible place observation whose
+//! component performs no place mutation or custody movement and whose storage
+//! root is visible at the preheader insertion point, or an admissible scalar
+//! computation whose uses are all defined outside the component, name
+//! provably invariant
 //! member parameters, or are defined by another node relocated
 //! out of the same component's run, may relocate from one of its component's
 //! member blocks into the tail of that component's unique-entry preheader.
@@ -139,6 +142,23 @@ pub(super) fn validate(
         // producer stayed inside the loop has no substitution and rejects.
         let substitution =
             if crate::validation::admissible_scalar_leaf_relocation(relocation.expected) {
+                BTreeMap::new()
+            } else if crate::validation::admissible_invariant_place_read(relocation.expected)
+                .is_some()
+            {
+                // An admitted place observation carries no operand rewrites —
+                // its storage root already names a preheader-visible place —
+                // so the node moves byte-exact like a scalar leaf. The
+                // whole-component place-custody gate and the root's preheader
+                // visibility are re-derived here from the seed rather than
+                // trusted from the transformed unit.
+                if !crate::validation::invariant_place_observation_admission(
+                    expected,
+                    component,
+                    relocation.expected,
+                ) {
+                    return Err(mismatch(machine, relocation.expected_block));
+                }
                 BTreeMap::new()
             } else {
                 match crate::validation::invariant_scalar_operand_substitution(

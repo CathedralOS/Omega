@@ -69,7 +69,8 @@ fn component_candidate(
 
 /// The independently replayable relocation plan for one component: every
 /// admissible scalar node still inside a member block — a scalar-constant
-/// leaf, an invariant scalar computation, or a computation whose
+/// leaf, an invariant place observation, an invariant scalar computation, or
+/// a computation whose
 /// member-internal operands are all defined by nodes earlier in the same run —
 /// plus the number of countdown-certificate constants already occupying the
 /// preheader tail (the dedicated countdown boundary owns their role order).
@@ -169,6 +170,20 @@ pub(super) fn component_plan(
                 }
                 let operand_rewrites = if crate::validation::admissible_scalar_leaf_relocation(node)
                 {
+                    Vec::new()
+                } else if crate::validation::admissible_invariant_place_read(node).is_some() {
+                    // An invariant place observation keeps both halves of the
+                    // non-speculative gate — observing a root performs work a
+                    // skipped traversal would not — and additionally needs the
+                    // component to preserve place custody and its storage root
+                    // to be visible at the preheader insertion point.
+                    if !(guaranteed_entry && guaranteed.contains(member))
+                        || !crate::validation::invariant_place_observation_admission(
+                            function, component, node,
+                        )
+                    {
+                        continue;
+                    }
                     Vec::new()
                 } else {
                     if !(guaranteed_entry && guaranteed.contains(member)) {

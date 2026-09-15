@@ -35,12 +35,18 @@ pub use model::{
 
 /// Propose every single-entry cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
-/// leaves, and side-effect-free scalar computations whose operands are all
+/// leaves, invariant place observations, and side-effect-free scalar
+/// computations whose operands are all
 /// defined outside the component, name provably invariant member parameters
 /// (each rebound to the representative every reaching edge agrees on, resolved
 /// transitively across member-to-member edges), or are defined by another node
 /// the same run relocates — invariant discovery iterates to a fixed point so a
-/// chain of computations moves together in def-before-use order. Computation
+/// chain of computations moves together in def-before-use order. A place
+/// observation — one verifier-approved read of an established storage root —
+/// is admissible only when its component performs no place mutation or
+/// custody movement at all and the observed root is already visible at the
+/// preheader insertion point, so it relocates byte-exact with no operand
+/// rewrites. Computation and observation
 /// relocation is non-speculative: the unique entry edge must be the preheader
 /// terminator's only successor, and only member blocks guaranteed to execute
 /// on every traversal that leaves the component contribute computations — a
