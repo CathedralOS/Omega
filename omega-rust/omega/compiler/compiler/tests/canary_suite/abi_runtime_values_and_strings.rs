@@ -558,39 +558,78 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
 }
 
 // A source-authored external import end to end: the program's bodyless
-// `satisfies Beeper::beep via Binding::DllImport("msvcrt.dll", "abs")` leaf
-// binds, the import table names msvcrt.dll (the binding, not
-// the KERNEL32 catalog default), and abs(-42) delivers 42 through the result
+// `satisfies Beeper::beep via beeper_binding()` leaf binds the typed
+// compile-time producer's evaluated `Binding::DllImport` value -- the
+// normalized `PeByName { library: "msvcrt.dll", export: "abs" }` locator, not
+// the KERNEL32 catalog default -- and abs(-42) delivers 42 through the result
 // place (ZII would exit 71). NATIVE-ONLY: no interpreter provider exists for
 // authored bindings, so unlike its neighbors this test runs no interp oracle.
 #[test]
-fn windows_external_import_canary_selects_exact_free_import_plan() {
+fn windows_external_import_canary_selects_evaluated_import_plan() {
     let canary = pass_canary(fixture_roster::WINDOWS_PROVIDES_IMPORT_EXIT);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &canary.join("main.omg"),
-        None,
+        Some("windows_x86_64"),
     ))
-    .expect("free DllImport leaf should resolve the Beeper slot");
+    .expect("evaluated DllImport leaf should resolve the Beeper slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
-        None,
-        "targetless checking must not select an authored target entry"
+        Some("Main::main"),
+        "the authored windows_x86_64 root must select Main::main as its program entry"
     );
+    let [via_row] = checked.evaluated_via_bindings().rows() else {
+        panic!("the beeper_binding() producer must retain one evaluated `via` row");
+    };
+    assert_ne!(via_row.via_source_span(), Default::default());
     let beeper_plan = checked
         .selected_provider_plans()
         .plans()
         .iter()
         .find(|plan| plan.schema.trait_name == "Beeper")
-        .expect("Beeper must retain its selected free DllImport plan");
+        .expect("Beeper must retain its selected evaluated import plan");
     assert_eq!(beeper_plan.provider_type, "");
     assert!(beeper_plan.covers_schema());
     assert_eq!(beeper_plan.rows.len(), 1);
     assert_eq!(beeper_plan.rows[0].method, "beep");
-    assert!(matches!(
-        &beeper_plan.rows[0].binding,
-        effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { library, symbol }
-            if library == "msvcrt.dll" && symbol == "abs"
-    ));
+    let effects::provider_plan::ProviderBinding::Import { evaluated } =
+        &beeper_plan.rows[0].binding
+    else {
+        panic!("Beeper must retain one evaluated import binding, never a string-backed row");
+    };
+    assert_eq!(
+        evaluated.locator().target(),
+        target::TargetProfile::WindowsX64
+    );
+    assert_eq!(
+        evaluated.locator().locator(),
+        &target::ForeignLocatorCandidate::PeByName {
+            library: b"msvcrt.dll".to_vec(),
+            export: b"abs".to_vec(),
+        }
+    );
+    assert_eq!(
+        evaluated.receipt().locator_identity_digest(),
+        evaluated.locator().identity_digest()
+    );
+    assert_ne!(evaluated.receipt().identity_digest(), [0; 32]);
+    assert_ne!(
+        evaluated.receipt().producer_closure_digest().as_bytes(),
+        [0; 32]
+    );
+    // The retained external-binding row rejoins the same normalized locator;
+    // downstream stages must never re-derive it from raw strings.
+    let retained = checked
+        .external_binding_rows()
+        .iter()
+        .filter_map(|row| match &row.binding {
+            calling_conventions::ExternalBindingKind::Import { locator } => Some(locator),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [retained] = retained.as_slice() else {
+        panic!("one retained normalized import row expected");
+    };
+    assert_eq!(*retained, evaluated.locator());
 }
 
 #[cfg(windows)]
