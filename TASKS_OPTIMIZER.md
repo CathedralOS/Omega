@@ -679,8 +679,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   declared family rather than a non-ELF fallback, and undeclared (Aarch64,
   Coff) fails closed with `UnsupportedTargetAbi` before any row is selected
   (`cargo test -p isa-aarch64`: 102 pass on Linux x86-64, including declared
-  pair pinning, the undeclared-Coff arm, and exact-target hosted rows).
-  Remaining: allocator, unwind, and object legs.
+  pair pinning, the undeclared-Coff arm, and exact-target hosted rows). The
+  object leg is now declared in object-file `target_matrix`:
+  `object_target_policy` maps each supported (architecture, object-format)
+  pair — (Aarch64, Elf), (Aarch64, MachO), (X86_64, Elf), and (X86_64, Coff)
+  — to its entry-symbol spelling, per-kind section names, and canonical text
+  alignment, so `entry_symbol_name`, `section_name`, and
+  `symbol_section_name` resolve through the matrix and fail closed on
+  undeclared pairs rather than inheriting a format arm's spelling, and the
+  relocation-free validator and object construction reject undeclared pairs
+  as `NonCanonicalTarget` through the same resolution (`cargo test -p
+  object-file`: 24 pass on Linux x86-64, including per-pair row pinning,
+  undeclared-pair rejection, and wrong-architecture drift negatives).
+  Remaining: allocator and unwind legs.
   Windows and macOS runs were unavailable on this host.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
