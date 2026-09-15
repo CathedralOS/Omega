@@ -802,22 +802,55 @@ pub(super) fn build_static_boundary_requirements(
     }) {
         for signature in program.trait_machine_signatures(definition) {
             let type_parameters = program.state_signature_type_parameters(signature);
-            let direct_callback_telescope = !signature.native_callback_parameters.is_empty()
-                && type_parameters.len() == signature.native_callback_parameters.len()
+            // A `machine` binder without an ABI `native callback` entry takes
+            // its destination from a target-owned private slot: the cited
+            // `PrivateCallbackSlot` conformance evaluated a boundary calling
+            // plan, retained as `callback_placement` on each recorded use of
+            // this registrar.
+            let nominal_use_backs_binder =
+                |ordinal: usize, parameter: &typed_trees::data::TypeParameter| {
+                    let typed_trees::data::TypeParameterKind::Machine {
+                        contract:
+                            typed_trees::data::MachineParameterContract::Nominal {
+                                trait_definition,
+                                requirement,
+                            },
+                    } = parameter.kind
+                    else {
+                        return false;
+                    };
+                    facts.nominal_machine_uses.uses.iter().any(|nominal_use| {
+                        nominal_use.registration_operation == signature.symbol
+                            && usize::try_from(nominal_use.static_machine_ordinal).ok()
+                                == Some(ordinal)
+                            && nominal_use.satisfaction_trait == trait_definition
+                            && nominal_use.satisfaction_requirement == requirement
+                            && nominal_use.callback_placement.is_some()
+                    })
+                };
+            let callback_telescope = signature.native_callback_parameters.len()
+                <= type_parameters.len()
                 && type_parameters
                     .iter()
-                    .zip(&signature.native_callback_parameters)
-                    .all(|(parameter, callback)| {
-                        parameter.name == callback.binder
-                            && matches!(
-                                parameter.kind,
-                                typed_trees::data::TypeParameterKind::Machine {
-                                    contract:
-                                        typed_trees::data::MachineParameterContract::Nominal { .. }
-                                }
-                            )
+                    .enumerate()
+                    .all(|(ordinal, parameter)| {
+                        match signature.native_callback_parameters.get(ordinal) {
+                            Some(callback) => {
+                                parameter.name == callback.binder
+                                    && matches!(
+                                    parameter.kind,
+                                    typed_trees::data::TypeParameterKind::Machine {
+                                        contract:
+                                            typed_trees::data::MachineParameterContract::Nominal {
+                                                ..
+                                            }
+                                    }
+                                )
+                            }
+                            None => nominal_use_backs_binder(ordinal, parameter),
+                        }
                     });
-            if (!type_parameters.is_empty() && !direct_callback_telescope)
+            if (!type_parameters.is_empty() && !callback_telescope)
                 || !signature_contracts_are_exact_parameter_qualifications(program, signature)
                 || signature.suspends
                 || signature.blocks

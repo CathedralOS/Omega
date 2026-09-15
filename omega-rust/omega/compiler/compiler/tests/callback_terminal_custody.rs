@@ -109,6 +109,35 @@ impl Fixture {
         }
     }
 
+    fn reachable() -> Self {
+        let fixture = Self::new();
+        let source = fs::read_to_string(&fixture.main).expect("read callback fixture");
+        let head = source
+            .split("data CallbackProvider")
+            .next()
+            .expect("fixture head before callback use");
+        let source = format!(
+            "{head}{}",
+            r#"data CallbackProvider { }
+
+machine CallbackProvider::call(message: u64)
+satisfies WindowProcedure::call
+{
+}
+
+data Main {
+    specification: Spread<ForeignRecord>;
+}
+
+machine Main::main(&mut self) reaches WindowRegistrar {
+    WindowRegistrar::register<CallbackProvider::call, CallbackProvider::call>(&self.specification);
+}
+"#
+        );
+        fs::write(&fixture.main, source).expect("write reachable callback fixture");
+        fixture
+    }
+
     fn direct() -> Self {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
@@ -303,6 +332,32 @@ fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
         terminal.iter().any(|diagnostic| diagnostic
             .message
             .contains("resolves to 0 Terminal registrar occurrences")),
+        "unexpected diagnostics: {terminal:#?}",
+    );
+}
+
+#[test]
+fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
+    let fixture = Fixture::reachable();
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(fixture.package_inputs()),
+        ..CheckedCompileRequest::new(&fixture.main, Some("windows_x86_64"))
+    })
+    .expect("reachable callback program should reach checked compilation");
+    assert_eq!(checked.callback_placements().len(), 2);
+    let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect_err("the admitted registrar must surface its next custody stage");
+    assert!(
+        !terminal.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("0 Terminal registrar occurrences")),
+        "the reachable registrar call must reach Terminal: {terminal:#?}",
+    );
+    assert!(
+        terminal.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("callback thunk Terminal lowering failed")),
         "unexpected diagnostics: {terminal:#?}",
     );
 }
