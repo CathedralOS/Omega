@@ -177,12 +177,16 @@ pub(crate) fn invariant_entry_target_parameters(
 /// `None` when the node is not an admitted computation or one of its uses is
 /// genuinely loop-carried. A use whose definition already sits outside the
 /// member roster needs no rewrite; a use of an invariant entry-target
-/// parameter is rebound to that parameter's entry representative. Any other
-/// member-internal definition rejects the relocation.
+/// parameter is rebound to that parameter's entry representative; and a use
+/// whose member-internal definition is the result of another node in the same
+/// relocation run — `relocating` — stays bound to that value, since the run
+/// preserves the producer's result identity and places it earlier in the
+/// preheader. Any other member-internal definition rejects the relocation.
 pub(crate) fn invariant_scalar_operand_substitution(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
 ) -> Option<BTreeMap<ValueId, ValueId>> {
     if !admissible_invariant_scalar_computation(node) {
         return None;
@@ -208,6 +212,7 @@ pub(crate) fn invariant_scalar_operand_substitution(
             ValueDefinitionSite::BlockParameter { block, .. } if *block == entry.target => {
                 substitution.insert(value_use.value, *representatives.get(&value_use.value)?);
             }
+            ValueDefinitionSite::Node { .. } if relocating.contains(&value_use.value) => {}
             _ => return None,
         }
     }
