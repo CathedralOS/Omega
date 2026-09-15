@@ -4,13 +4,13 @@
 //! except for independently admitted scalar motion: an admissible
 //! source-owned scalar constant leaf, or an admissible scalar computation
 //! whose uses are all defined outside the component, name provably invariant
-//! parameters of the entry target, or are defined by another node relocated
+//! member parameters, or are defined by another node relocated
 //! out of the same component's run, may relocate from one of its component's
 //! member blocks into the tail of that component's unique-entry preheader.
 //! Moved computations rebind each invariant-parameter operand to the
-//! representative the entry edge binds — the substitution is re-derived here
-//! from the seed, not trusted from the transformed unit — while a
-//! run-internal producer operand stays bound to the result value the
+//! representative every reaching edge agrees on — the substitution is
+//! re-derived here from the seed, not trusted from the transformed unit —
+//! while a run-internal producer operand stays bound to the result value the
 //! relocation preserves, and core use/def validation keeps the run
 //! def-before-use. Definition/use sites and the function-wide effect
 //! sequence are derived coordinates rebuilt by core validation, so the
@@ -131,9 +131,9 @@ pub(super) fn validate(
             return Err(mismatch(machine, entry.source));
         }
         // Leaf relocations move byte-exact; invariant computations rebind
-        // entry-target parameters to the representatives this validator
-        // re-derives from the expected seed, so a forged operand rewrite
-        // cannot carry different authority than the loop's own edges prove. A
+        // member parameters to the representatives this validator re-derives
+        // from the expected seed, so a forged operand rewrite cannot carry
+        // different authority than the loop's own edges prove. A
         // member-internal operand may instead name the result of another node
         // relocated out of the same component's roster; an operand whose
         // producer stayed inside the loop has no substitution and rejects.
