@@ -10,7 +10,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use compilation_report::verify_native_proof_sidecar;
+use compilation_report::{verify_native_proof_sidecar, verify_published_proof_pair};
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileOutcomes, CompileRequest,
     RequestedCompileProduct, compile,
@@ -22,6 +22,16 @@ use terminal_codec::{
 };
 
 const MAIN: &str = "data Main { }\nmachine Main::main(&mut self) { }\n";
+
+// The bound entry invokes a top-level boundary requirement whose reach stays
+// installation-bound, so the compiled module — and therefore the published
+// sidecar — carries a real omitted-dependency inventory rather than a fixture
+// injected after compilation.
+const DEPENDENCY_MAIN: &str = "pub boundary trait Console {}\n\
+     pub data Endpoint {}\n\
+     pub boundary requirement Endpoint::step() invokes Console; reaches <= Console;\n\
+     data Main { }\n\
+     machine Main::main(&mut self) invokes Console; { Endpoint::step(); }\n";
 
 // Reproduce the obsolete custody protocol without trusting its producer API.
 // Every native digest is attacker-chosen; a valid unrelated Psi artifact is
@@ -125,6 +135,10 @@ fn build_source(body_lines: &str) -> String {
 }
 
 fn write_project(pcc_lines: &str) -> PathBuf {
+    write_project_source(MAIN, pcc_lines)
+}
+
+fn write_project_source(main: &str, pcc_lines: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
         "omega-pcc-e2e-{}-{}",
         std::process::id(),
@@ -134,7 +148,7 @@ fn write_project(pcc_lines: &str) -> PathBuf {
             .as_nanos()
     ));
     fs::create_dir_all(&dir).expect("create project dir");
-    fs::write(dir.join("main.omg"), MAIN).expect("write main.omg");
+    fs::write(dir.join("main.omg"), main).expect("write main.omg");
     fs::write(dir.join("build.omg"), build_source(pcc_lines)).expect("write build.omg");
     dir
 }
@@ -635,6 +649,336 @@ fn republishing_without_pcc_removes_stale_companions() {
     );
     let _ = fs::remove_dir_all(&dir);
     let _ = fs::remove_dir_all(&terminal_dir);
+}
+
+/// Compile `main` with the Psi proof request and publish the Terminal pair,
+/// returning the project directory and the installed artifact/companion bytes.
+fn publish_psi_pair(main: &str) -> (PathBuf, Vec<u8>, Vec<u8>) {
+    let dir = write_project_source(main, "    builder.pcc.psi = true;\n");
+    let published = compile(compile_request(
+        &dir,
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("terminal compilation")
+    .publish_retained_terminal_artifact(&dir.join("out"))
+    .expect("psi publication");
+    let pair = &published.pcc_publications()[0];
+    (dir, read(&pair.artifact_path), read(&pair.sidecar_path))
+}
+
+/// Rebuild one offered sidecar with selected fields replaced, preserving the
+/// canonical ordering rules construction enforces.
+fn rebuild_sidecar(
+    sidecar: &PccProofSidecar,
+    product: PccProductKind,
+    artifact_commitment: [u8; 32],
+    guarantees: Vec<terminal_codec::PccGuarantee>,
+    evidence: Vec<u8>,
+    assumptions: Vec<String>,
+    dependencies: Vec<terminal_codec::PccDependency>,
+) -> PccProofSidecar {
+    PccProofSidecar::new(
+        product,
+        artifact_commitment,
+        sidecar.semantic_profile().to_owned(),
+        sidecar.checker_profile().to_owned(),
+        guarantees,
+        evidence,
+        assumptions,
+        dependencies,
+    )
+    .expect("rebuilt sidecar")
+}
+
+#[test]
+fn standalone_pair_checking_rejects_wrong_bytes_premises_policy_and_assumptions() {
+    let (dir, psi, proof) = publish_psi_pair(MAIN);
+    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode");
+    let policy = receiver_policy(&sidecar);
+
+    // The envelope's declared kind routes the pair through the bounded Psi
+    // verifier: the honest pair verifies Complete, qualified by the
+    // reconstructed subject, ledger and receiver admissions.
+    let product = match verify_published_proof_pair(&psi, &proof, &policy) {
+        PccVerificationOutcome::Complete(product) => product,
+        other => panic!("expected a complete verified pair, got {other:?}"),
+    };
+    assert_eq!(product.product, PccProductKind::Psi);
+    assert_eq!(
+        product.accepted_guarantees,
+        [terminal_codec::PSI_TERMINAL_VERIFIED_GUARANTEE]
+    );
+
+    // Wrong bytes: the recomputed artifact commitment is the only binding, so
+    // one appended byte rejects.
+    let mut tampered = psi.clone();
+    tampered.push(0);
+    assert!(matches!(
+        verify_published_proof_pair(&tampered, &proof, &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "artifact bytes"
+    ));
+
+    // A different published Psi artifact is still the wrong bytes: pairing
+    // the first sidecar with the second project's artifact rejects on the
+    // content commitment, and vice versa.
+    let (other_dir, other_psi, other_proof) = publish_psi_pair(DEPENDENCY_MAIN);
+    assert_ne!(psi, other_psi);
+    assert!(matches!(
+        verify_published_proof_pair(&other_psi, &proof, &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "artifact bytes"
+    ));
+    let other_sidecar = PccProofSidecar::from_bytes(&other_proof).expect("decode");
+    let other_policy = receiver_policy(&other_sidecar);
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &other_proof, &other_policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "artifact bytes"
+    ));
+    let _ = fs::remove_dir_all(&other_dir);
+
+    // A malformed companion rejects at the envelope before any product leg.
+    let mut malformed = proof.clone();
+    malformed.truncate(3);
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &malformed, &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "sidecar envelope"
+    ));
+
+    // Wrong premises: a guarantee conditioned on a premise the receiver
+    // policy does not admit rejects at claim checking.
+    let mut premised = sidecar.guarantees().to_vec();
+    premised[0]
+        .premises
+        .push("receiver-unadmitted-premise".to_owned());
+    let premised = rebuild_sidecar(
+        &sidecar,
+        sidecar.product(),
+        *sidecar.artifact_commitment(),
+        premised,
+        sidecar.evidence().to_vec(),
+        sidecar.assumptions().to_vec(),
+        sidecar.dependencies().to_vec(),
+    );
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &premised.to_bytes(), &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "guarantee premise"
+    ));
+
+    // Even when the policy admits the invented premise, the offered claim
+    // still differs from the claim replay independently establishes, so the
+    // reconstruction rejects it.
+    let mut admitted = policy.clone();
+    admitted
+        .admitted_premises
+        .push("receiver-unadmitted-premise".to_owned());
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &premised.to_bytes(), &admitted),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "guarantees"
+    ));
+
+    // Wrong policy: a requirement the pair does not offer, and profiles the
+    // receiver does not accept, each reject by name.
+    let mut denied = policy.clone();
+    denied.required_guarantees = vec!["omega.unsupported-claim.v1".to_owned()];
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &denied),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "required guarantee"
+    ));
+    let mut denied = policy.clone();
+    denied.accepted_semantic_profiles = vec!["other-semantics".to_owned()];
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &denied),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "semantic profile"
+    ));
+    let mut denied = policy.clone();
+    denied.accepted_checker_profiles = vec!["other-checker".to_owned()];
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &denied),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "checker profile"
+    ));
+
+    // Wrong assumptions: a policy that stops admitting one closure member
+    // rejects, and a sidecar that understates the closure the toolchain
+    // actually relies on is caught by reconstruction even under a policy that
+    // would admit the reduced set.
+    let mut denied = policy.clone();
+    denied.admitted_assumptions.pop();
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &denied),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "assumption"
+    ));
+    assert!(!sidecar.assumptions().is_empty());
+    let understated = rebuild_sidecar(
+        &sidecar,
+        sidecar.product(),
+        *sidecar.artifact_commitment(),
+        sidecar.guarantees().to_vec(),
+        sidecar.evidence().to_vec(),
+        Vec::new(),
+        sidecar.dependencies().to_vec(),
+    );
+    let mut permissive = policy.clone();
+    permissive.admitted_assumptions.clear();
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &understated.to_bytes(), &permissive),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "assumption closure"
+    ));
+
+    // The bounded Psi contract carries its checkable evidence inside the
+    // artifact: a companion that moves evidence into the envelope rejects.
+    let evidenced = rebuild_sidecar(
+        &sidecar,
+        sidecar.product(),
+        *sidecar.artifact_commitment(),
+        sidecar.guarantees().to_vec(),
+        vec![1],
+        sidecar.assumptions().to_vec(),
+        sidecar.dependencies().to_vec(),
+    );
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &evidenced.to_bytes(), &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "psi evidence"
+    ));
+
+    // Relabeling the same companion bytes as a native product routes to the
+    // native leg, which stays fail-closed: the relabel gains nothing.
+    let relabeled = rebuild_sidecar(
+        &sidecar,
+        PccProductKind::Native,
+        *sidecar.artifact_commitment(),
+        sidecar.guarantees().to_vec(),
+        sidecar.evidence().to_vec(),
+        sidecar.assumptions().to_vec(),
+        sidecar.dependencies().to_vec(),
+    );
+    assert_eq!(
+        verify_published_proof_pair(&psi, &relabeled.to_bytes(), &policy),
+        PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+            product: PccProductKind::Native,
+        })
+    );
+
+    // Exhaustion reports Incomplete through the same entry, not Reject.
+    let mut exhausted = policy.clone();
+    exhausted.max_artifact_bytes = 4;
+    assert_eq!(
+        verify_published_proof_pair(&psi, &proof, &exhausted),
+        PccVerificationOutcome::Incomplete(PccIncompleteness::ArtifactBytes {
+            actual: psi.len() as u64,
+            limit: 4,
+        })
+    );
+
+    // Standalone checking needs only the pair and the receiver policy: with
+    // the source gone the same pair still verifies Complete.
+    fs::remove_file(dir.join("main.omg")).expect("delete source");
+    fs::remove_file(dir.join("build.omg")).expect("delete build");
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &policy),
+        PccVerificationOutcome::Complete(_)
+    ));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn omitted_dependencies_require_exact_receiver_possession() {
+    let (dir, psi, proof) = publish_psi_pair(DEPENDENCY_MAIN);
+    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode");
+    let [dependency] = sidecar.dependencies() else {
+        panic!("the published pair must enumerate its omitted dependency")
+    };
+    assert!(
+        dependency.identity.contains("Endpoint::step"),
+        "unexpected dependency identity {}",
+        dependency.identity
+    );
+
+    // The receiver's possessed material is reconstructed from the artifact's
+    // own installation-reach declaration — the same identity and content
+    // commitment an independently held copy would carry — never copied from
+    // the offered claim.
+    let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&psi).expect("decode");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("module");
+    let possessed: Vec<terminal_codec::PccDependency> = module
+        .root_service_reach
+        .installation_dependencies
+        .iter()
+        .map(|reach| {
+            terminal_codec::PccDependency::from_installation_reach(reach, &module.services)
+                .expect("declared dependency commits")
+        })
+        .collect();
+    assert_eq!(possessed, sidecar.dependencies().to_vec());
+
+    let mut policy = receiver_policy(&sidecar);
+    policy.possessed_dependencies = possessed;
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &policy),
+        PccVerificationOutcome::Complete(_)
+    ));
+
+    // A receiver that does not independently possess the omitted dependency
+    // rejects; the name alone is not possession.
+    let mut lacking = policy.clone();
+    lacking.possessed_dependencies.clear();
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &lacking),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "dependency"
+    ));
+
+    // Possession is by exact content commitment: a same-identity dependency
+    // with different material — a nearby version or guessed compatibility —
+    // rejects identically.
+    let mut nearby = policy.clone();
+    nearby.possessed_dependencies = vec![terminal_codec::PccDependency {
+        identity: dependency.identity.clone(),
+        content_commitment: [9; 32],
+    }];
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &nearby),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "dependency"
+    ));
+
+    // A sidecar that omits the declared dependency passes the possession
+    // check vacuously but is caught by reconstruction: the producer cannot
+    // shrink the inventory the artifact itself enumerates.
+    let omitted = rebuild_sidecar(
+        &sidecar,
+        sidecar.product(),
+        *sidecar.artifact_commitment(),
+        sidecar.guarantees().to_vec(),
+        sidecar.evidence().to_vec(),
+        sidecar.assumptions().to_vec(),
+        Vec::new(),
+    );
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &omitted.to_bytes(), &lacking),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "dependency inventory"
+    ));
+
+    // Padding the inventory with material the artifact does not declare
+    // fails the same reconstruction even when the receiver possesses it.
+    let mut padded_dependencies = sidecar.dependencies().to_vec();
+    padded_dependencies.push(terminal_codec::PccDependency {
+        identity: "test::uninstalled-material".to_owned(),
+        content_commitment: [4; 32],
+    });
+    let padded = rebuild_sidecar(
+        &sidecar,
+        sidecar.product(),
+        *sidecar.artifact_commitment(),
+        sidecar.guarantees().to_vec(),
+        sidecar.evidence().to_vec(),
+        sidecar.assumptions().to_vec(),
+        padded_dependencies.clone(),
+    );
+    let mut overpossessed = policy.clone();
+    overpossessed.possessed_dependencies = padded_dependencies;
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &padded.to_bytes(), &overpossessed),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "dependency inventory"
+    ));
+    let _ = fs::remove_dir_all(&dir);
 }
 
 #[test]
