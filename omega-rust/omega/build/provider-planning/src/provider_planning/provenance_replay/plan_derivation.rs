@@ -1,6 +1,9 @@
 //! Deriving satisfies plans, top-level requirement plans and boundary
 //! operator plans with their provenance.
 
+use crate::provider_planning::operator_provider_evidence::{
+    provider_type_package_identity, provider_type_symbol,
+};
 use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_installed_external_binding_identity, exact_satisfied_requirement_identity,
     external_provider_binding, inferred_hosted_console_compiler_intrinsic,
@@ -12,7 +15,6 @@ use crate::provider_planning::provenance_replay::{
 };
 use crate::provider_planning::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
-    provider_type_package_identity, provider_type_symbol,
 };
 
 pub(crate) fn derive_satisfies_plans_with_optional_evaluated_bindings(
