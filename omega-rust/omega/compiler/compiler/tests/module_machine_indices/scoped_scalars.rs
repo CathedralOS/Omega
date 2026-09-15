@@ -177,13 +177,12 @@ fn module_scoped_scalars_require_valid_attachment_and_visibility() {
     let tree = Sources::new();
     let root = tree.package("root");
     Sources::write(root.join("main.omg"), "use settings; data Limits {}");
+    // `const Limits::MAX` without a settings-local `Limits` is no longer a
+    // negative case: the scope head resolves main.omg's unmoduled `data Limits`
+    // under the same name law as any other module-source type reference.
     for (declarations, diagnostic) in [
         (
             "const Missing::MAX: u64 = 1;",
-            "exact nongeneric data carrier",
-        ),
-        (
-            "const Limits::MAX: u64 = 1;",
             "exact nongeneric data carrier",
         ),
         (
@@ -271,6 +270,65 @@ fn module_scoped_scalar_indices_reject_ambiguous_imports_and_runtime_roots() {
                 .iter()
                 .any(|diagnostic| diagnostic.message.contains("original lexical scope")),
             "{machine}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn module_scoped_scalars_attach_to_foreign_module_carriers() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(root.join("other.omg"), "module other; pub data Sizes {}");
+    Sources::write(
+        root.join("settings.omg"),
+        &format!(
+            "module settings; use other::Sizes; pub const Sizes::MAX: u64 = 5;
+             machine direct() -> u64 {{ Sizes::MAX }} {}",
+            keep("keep", "Sizes::MAX + 1")
+        ),
+    );
+    Sources::write(
+        root.join("main.omg"),
+        &format!(
+            "use settings; use settings::Sizes::MAX; {BUFFER}
+             machine observed() -> u64 {{ settings::Sizes::MAX }}
+             machine imported() -> u64 {{ MAX }}
+             {} {}",
+            keep("qualified_index", "settings::Sizes::MAX + 1"),
+            keep("six", "6"),
+        ),
+    );
+    let checked = compile(&root, root_inputs(&root));
+    // The scope token in `settings.omg` retains its exact `other::Sizes`
+    // selection; the `use` import keeps its own full-path record.
+    assert!(
+        selections(&checked, "other::Sizes", identity(1))
+            .iter()
+            .any(|selection| { checked.symbols.source_text(selection.source_span()) == "Sizes" }),
+        "the scope head retains the foreign carrier selection"
+    );
+    for (machine, oracle) in [("settings::keep", "six"), ("qualified_index", "six")] {
+        assert_same_machine_types(&checked, machine, oracle);
+    }
+    for (path, expected) in [("settings::direct", 5), ("observed", 5), ("imported", 5)] {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| checked.symbols.display_path(machine.symbol, "::") == path)
+            .expect("foreign-carrier constant consumer");
+        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed)
+            .evaluate_machine_symbol_for_invocation_measured(
+                &checked.typed,
+                machine.symbol,
+                vec![],
+                build_time_evaluation::BuildTimeInvocationCustody::Symbol(machine.symbol),
+            )
+            .expect("constant body evaluates");
+        assert_eq!(
+            value.value(),
+            &build_time_evaluation::BuildTimeValue::Int(expected),
+            "{path}"
         );
     }
 }

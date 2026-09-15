@@ -19,7 +19,9 @@
 //! that declaration-side selection custody and its own constant-use occurrence.
 //! Root and module declarations use this same path; no pre-resolution spelling
 //! substitution or whole-forest local-shadowing restriction is needed. Module-owned scoped declarations
-//! additionally select an exact nongeneric carrier in their declaring module.
+//! additionally select an exact nongeneric carrier under their declaring
+//! source's ordinary name law: a module-local carrier outranks imported and
+//! unmoduled candidates, and an exact import exposes a foreign-module carrier.
 //! The authored scope token survives until complete symbol assignment, then joins
 //! the ordinary visibility/selection ledger; the structural value encoder alone
 //! cannot establish attachment ownership. Seeded declarations keep their existing
@@ -1001,10 +1003,13 @@ pub(crate) fn finalize_const_declarations(
         ));
     }
     // Scoped module constants select their carrier independently of scalar
-    // substitution or structural value encoding. Retain that authored selection
-    // before erasing the scope token; a constant's visibility cannot authorize
-    // naming its private carrier. Foreign and generic attachments still need
-    // their complete normalization owners.
+    // substitution or structural value encoding. The scope head resolves under
+    // the declaring source's ordinary name law — a module-local carrier
+    // outranks imported and unmoduled candidates, an exact import exposes a
+    // foreign-module carrier — and the authored selection is retained before
+    // the scope token is erased. A constant's own visibility cannot authorize
+    // naming a private carrier in another package, and generic carriers still
+    // need their complete normalization owners.
     for (declaration, constant_symbol) in pending.iter().zip(&const_symbols) {
         let module = program.symbols.symbol_module(*constant_symbol);
         if declaration.scope.as_str().is_empty() || !module.is_valid() {
@@ -1012,24 +1017,43 @@ pub(crate) fn finalize_const_declarations(
         }
         let carrier = program
             .symbols
-            .find_top_level_by_name_and_kinds_from_source(
+            .lookup_top_level_by_name_and_kinds_from_source_matching(
                 declaration.scope.as_str(),
                 &[SymbolKind::Data],
                 declaration.scope.source_span(),
+                |_| true,
             );
-        let Some(carrier) = carrier.filter(|carrier| {
-            program.symbols.symbol_module(*carrier) == module
-                && program
-                    .symbols
-                    .same_symbol_source_package(*carrier, *constant_symbol)
-                && program.data_definitions.iter().any(|definition| {
-                    definition.symbol == *carrier && definition.type_parameters.is_empty()
-                })
-        }) else {
-            return Err(Diagnostic::error(
-                "module type-scoped constants require an exact nongeneric data carrier in their declaring module",
-            ).with_source_span(declaration.scope.source_span()));
+        let carrier = match carrier {
+            symbols::SymbolLookup::Unique(carrier) => carrier,
+            symbols::SymbolLookup::Ambiguous { first, second } => {
+                return Err(Diagnostic::error(format!(
+                    "module type-scoped constant selects an ambiguous data carrier between `{}` and `{}`",
+                    program.symbols.display_path(first, "::"),
+                    program.symbols.display_path(second, "::"),
+                ))
+                .with_source_span(declaration.scope.source_span()));
+            }
+            symbols::SymbolLookup::NotFound => {
+                return Err(Diagnostic::error(
+                    "module type-scoped constants require an exact nongeneric data carrier selected in their declaring source",
+                ).with_source_span(declaration.scope.source_span()));
+            }
         };
+        // The resolved carrier claims the scope name; ineligible candidates do
+        // not shadow it away to a fallback. A generic carrier, or a private
+        // declaration in another package, keeps the attachment unproved.
+        if !program.data_definitions.iter().any(|definition| {
+            definition.symbol == carrier
+                && definition.type_parameters.is_empty()
+                && (definition.is_public
+                    || program
+                        .symbols
+                        .same_symbol_source_package(carrier, *constant_symbol))
+        }) {
+            return Err(Diagnostic::error(
+                "module type-scoped constants require an exact nongeneric data carrier selected in their declaring source",
+            ).with_source_span(declaration.scope.source_span()));
+        }
         let exposure = if declaration.is_public {
             language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
         } else {
@@ -1560,17 +1584,118 @@ mod module_tests {
     }
 
     #[test]
-    fn scoped_array_attachment_cannot_borrow_another_module_or_generic_owner() {
+    fn scoped_array_attachment_selects_a_foreign_module_carrier() {
+        let declaring = "module settings; use other::Sizes; const Sizes::SIZE: [u8; 1] = [1];";
+        let program = resolve(&["module other; data Sizes {}", declaring])
+            .expect("an exact import exposes the foreign-module carrier");
+        // The `use` import records its own `other::Sizes` selection; the
+        // attachment's record must sit exactly on the scope token.
+        let selection = program
+            .authored_declaration_selections()
+            .iter()
+            .find(|selection| {
+                let span = selection.source_span().span;
+                selection.source_span().source_id == SourceId(1)
+                    && &declaring[span.start..span.end] == "Sizes"
+                    && matches!(
+                        selection.target(),
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                            if program.symbols.display_path(target.selected_symbol(), "::") == "other::Sizes")
+            })
+            .expect("attachment retains the foreign-carrier selection on the scope token");
+        let span = selection.source_span().span;
+        assert_eq!(&declaring[span.start..span.end], "Sizes");
+    }
+
+    #[test]
+    fn scoped_attachment_prefers_the_module_local_carrier_over_imports() {
+        let program = resolve(&[
+            "module other; data Sizes {}",
+            "module settings; data Sizes {} use other::Sizes; const Sizes::SIZE: [u8; 1] = [1];",
+        ])
+        .expect("the declaring module's own carrier outranks the import");
+        assert!(
+            program
+                .authored_declaration_selections()
+                .iter()
+                .any(|selection| {
+                    matches!(
+                        selection.target(),
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                            if program.symbols.display_path(target.selected_symbol(), "::") == "settings::Sizes")
+                }),
+            "attachment selects the module-local carrier"
+        );
+    }
+
+    #[test]
+    fn scoped_attachment_falls_back_to_the_unmoduled_carrier() {
+        let program = resolve(&[
+            "data Sizes {}",
+            "module settings; const Sizes::SIZE: [u8; 1] = [1];",
+        ])
+        .expect("an unmoduled carrier remains reachable from a module scope");
+        assert!(
+            program
+                .authored_declaration_selections()
+                .iter()
+                .any(|selection| {
+                    matches!(
+                        selection.target(),
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                            if program.symbols.display_path(target.selected_symbol(), "::") == "Sizes")
+                }),
+            "attachment selects the unmoduled carrier"
+        );
+    }
+
+    #[test]
+    fn scoped_attachment_rejects_ambiguous_or_colliding_foreign_carriers() {
         for (sources, expected) in [
             (
                 vec![
-                    "module other; data Sizes {}",
+                    "module a; data Sizes {}",
+                    "module b; data Sizes {}",
+                    "module settings; use a::Sizes; use b::Sizes; const Sizes::SIZE: [u8; 1] = [1];",
+                ],
+                "ambiguous",
+            ),
+            (
+                vec![
+                    "module other; data Sizes { case SIZE; }",
                     "module settings; use other::Sizes; const Sizes::SIZE: [u8; 1] = [1];",
+                ],
+                "collides with the case",
+            ),
+        ] {
+            let diagnostics = resolve(&sources).expect_err("the carrier selection must stay exact");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(expected)),
+                "{expected}: {diagnostics:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn scoped_array_attachment_cannot_borrow_a_generic_or_absent_owner() {
+        for (sources, expected) in [
+            (
+                vec!["module settings; data Sizes<T> {} const Sizes::SIZE: [u8; 1] = [1];"],
+                "exact nongeneric data carrier",
+            ),
+            (
+                // The module-local generic carrier claims `Sizes`; the scope
+                // head cannot shadow it away to the imported nongeneric owner.
+                vec![
+                    "module other; data Sizes {}",
+                    "module settings; data Sizes<T> {} use other::Sizes; const Sizes::SIZE: [u8; 1] = [1];",
                 ],
                 "exact nongeneric data carrier",
             ),
             (
-                vec!["module settings; data Sizes<T> {} const Sizes::SIZE: [u8; 1] = [1];"],
+                vec!["module settings; const Sizes::SIZE: [u8; 1] = [1];"],
                 "exact nongeneric data carrier",
             ),
         ] {
