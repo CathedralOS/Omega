@@ -1165,6 +1165,7 @@ dependencies = [
  "target-operations",
  "terminal-codec",
  "terminal-psi",
+ "x86-encoding",
 ]
 
 [[package]]
