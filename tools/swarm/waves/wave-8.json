@@ -266,6 +266,18 @@
       ],
       "suggested_first_slice": "Backfill for the landed selected-abi-validation slot. Complete one supported target/OS matrix class in calling-conventions — callable or unwind rows for linux/windows/darwin per plans.rs, with drift/coverage tests. Encoding and object matrices likely need isa-* or object crates held by SPILL-REALIZATION — if the slice crosses there, report blocked rather than claiming them.",
       "backfill_for": "selected-abi-validation"
+    },
+    {
+      "name": "registered-callback-lifetime",
+      "board": "TASKS.md",
+      "item": "REGISTERED-CALLBACK-LIFETIME",
+      "host": "linux",
+      "probe_only": true,
+      "owning_paths": [
+        "omega-rust/omega/backend/runtime/component-publication"
+      ],
+      "suggested_first_slice": "Backfill for the landed build-semantic-exclusions slot. Model successful registration as a linear external root with capacity bounding live registrations (not emitted thunks) — extend the pinned generic chain in component-publication tests (registration owns an exact component-era lease through rejection/retry/replacement/cleanup). backend/runtime/external-roots is owned by wave sibling installed-program-roots — if the slice crosses there, report blocked. Windows callback acceptance is unavailable on this host; report it as such.",
+      "backfill_for": "build-semantic-exclusions"
     }
   ]
 }
