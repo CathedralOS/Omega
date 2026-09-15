@@ -522,6 +522,134 @@ fn indexed_ind_declaration(arena: &mut TermArena) -> Declaration {
     Declaration::definition(4, statement, body)
 }
 
+/// `indexCorrect` — the scheme's index-soundness theorem, a proved
+/// declaration rather than a conversion fact:
+///
+/// ```text
+/// indexCorrect : Π I A B out next. Π(i : I). Π(t : IW i).
+///                Id I (out (rootOf t)) i
+/// indexCorrect := λI.λA.λB.λout.λnext.λi.λt.
+///                iindW[l,u,v,l] I A B out next Q s i t
+/// ```
+///
+/// where `rootOf t = indW(λ(_ : W A B). A, λa.λk.λih.a, fst t)` extracts
+/// the underlying tree's root label and `Q i' t' = Id I (out (rootOf t'))
+/// i'` is the induction motive at level `w := l`. The step
+/// `s = λa.λg.λih. refl I (out a)` is the whole proof obligation: it
+/// checks at `Q (out a) (isup a g)` because `fst (isup a g)` computes to
+/// `sup A B a (λb. fst (g b))` — the `isup` definition unfolds under a
+/// *neutral* `g` — whose `indW` root is `a`, so the motive's landing is
+/// `Id I (out a) (out a)`. The eliminator's conclusion `Q i t` then
+/// holds for an arbitrary `t : IW i`, constructor or neutral.
+///
+/// The declaration references the scheme at its `INDEXED_*` positions,
+/// so it must sit at a position ≥ 5 of a signature whose prefix is
+/// [`indexed_scheme`]. Universe-polymorphic over the description's
+/// `l, u, v`; the eliminator's motive level `w` is instantiated to `l`,
+/// the level `Id I` lands at.
+fn indexed_correctness_declaration(arena: &mut TermArena) -> Declaration {
+    // `rootOf`'s step `λa.λk.λih.a`: the `ih` domain `Π(_ : B a). A` is
+    // `Π(b : B a). motive (k b)` with the constant motive `λ_.A` already
+    // β-reduced — one conversion step at the domain comparison.
+    let root_step = lam(
+        "a",
+        v("A"),
+        lam(
+            "k",
+            pi("b", app(v("B"), v("a")), w(v("A"), v("B"))),
+            lam("_", pi("_", app(v("B"), v("a")), v("A")), v("a")),
+        ),
+    );
+    let root_of = |tree: Syntax| {
+        app(
+            v("out"),
+            indw(
+                lam("_", w(v("A"), v("B")), v("A")),
+                root_step.clone(),
+                fst(tree),
+            ),
+        )
+    };
+    // `Q = λ(i' : I). λ(t' : IW i'). Id I (out (rootOf t')) i'`.
+    let motive = lam(
+        "i2",
+        v("I"),
+        lam("t2", iw(v("i2")), id(v("I"), root_of(v("t2")), v("i2"))),
+    );
+    // `s = λa.λg.λih. refl I (out a)` with `ih`'s domain written as the
+    // eliminator supplies it: `Π(b : B a). Q (next a b) (g b)`.
+    let step = lam(
+        "a",
+        v("A"),
+        lam(
+            "g",
+            pi(
+                "b",
+                app(v("B"), v("a")),
+                iw(app(app(v("next"), v("a")), v("b"))),
+            ),
+            lam(
+                "ih",
+                pi(
+                    "b",
+                    app(v("B"), v("a")),
+                    app(
+                        app(motive.clone(), app(app(v("next"), v("a")), v("b"))),
+                        app(v("g"), v("b")),
+                    ),
+                ),
+                refl(v("I"), app(v("out"), v("a"))),
+            ),
+        ),
+    );
+    let statement = pi_description(pi(
+        "i",
+        v("I"),
+        pi("t", iw(v("i")), id(v("I"), root_of(v("t")), v("i"))),
+    ));
+    let body = lam_description(lam(
+        "i",
+        v("I"),
+        lam(
+            "t",
+            iw(v("i")),
+            apps(
+                scheme_at(
+                    INDEXED_IND,
+                    vec![
+                        Level::Parameter(0),
+                        Level::Parameter(1),
+                        Level::Parameter(2),
+                        Level::Parameter(0),
+                    ],
+                ),
+                [
+                    v("I"),
+                    v("A"),
+                    v("B"),
+                    v("out"),
+                    v("next"),
+                    motive,
+                    step,
+                    v("i"),
+                    v("t"),
+                ],
+            ),
+        ),
+    ));
+    let statement = build(arena, &mut Vec::new(), &statement);
+    let body = build(arena, &mut Vec::new(), &body);
+    Declaration::definition(3, statement, body)
+}
+
+/// The index-soundness theorem of [`indexed_scheme`] as a checked
+/// declaration — see `indexCorrect` above. Append it to a signature
+/// whose first five positions are the scheme, then cite it through
+/// `Term::Constant` like any other proved declaration.
+pub fn indexed_correctness(arena: &mut TermArena) -> Declaration {
+    indexed_correctness_declaration(arena)
+}
+
 /// The five declarations of the derived indexed-family scheme, in
 /// signature order: `IndexedAt`, `IW`, `iwPack`, `isup`, `iindW` occupy
 /// positions 0–4 and reference only each other. Append them to the front

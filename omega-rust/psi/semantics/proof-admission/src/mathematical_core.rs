@@ -156,6 +156,17 @@
 //! being propositional — never a conversion — keeps a quotient's
 //! representative unextractable.
 
+//! [`theorems`] adds the first named theorems proved *inside* the
+//! declaration model: `identity_substitution` — transport along `Id`
+//! over an arbitrary predicate — and [`indexed_correctness`], the
+//! derived scheme's index-soundness theorem `∀(i : I). ∀(t : IW i).
+//! out (rootOf t) ≡ i` proved by `iindW` itself. They are ordinary
+//! checked definitions, so a certificate can cite them through
+//! `Term::Constant` and the receiver re-decides both the theorem's own
+//! proof and the citing judgment — the "real theorem certificate" the
+//! board names, with exact assumption closure over the stored
+//! signature.
+//!
 mod certificate;
 mod conversion;
 mod indexed;
@@ -166,6 +177,7 @@ mod substitution;
 mod term;
 #[cfg(test)]
 mod tests;
+mod theorems;
 mod typing;
 
 pub use certificate::{
@@ -174,7 +186,8 @@ pub use certificate::{
 pub use conversion::Budget;
 pub use conversion::{DEFAULT_CONVERSION_STEPS, convertible, weak_head_normalize};
 pub use indexed::{
-    INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily, indexed_scheme,
+    INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily,
+    indexed_correctness, indexed_scheme,
 };
 pub use quotient::{
     QUOTIENT, QUOTIENT_BETA, QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_TRANS, QUOTIENT_IS_SET,
@@ -186,4 +199,5 @@ pub use signature::{
 };
 pub use substitution::{instantiate_levels, shift, substitute};
 pub use term::{Level, Sort, Term, TermArena, TermHandle};
+pub use theorems::identity_substitution;
 pub use typing::{Context, CoreError, check_type, infer_sort, infer_type};
