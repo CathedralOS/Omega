@@ -1,6 +1,15 @@
-//! Shared admission for store-to-load forwarding: locate the named `Load64`,
-//! walk the same block back to the exact eight-byte `Store` that last wrote
+//! Shared admission for store-to-load forwarding: locate the named load,
+//! walk the same block back to the exact same-width `Store` that last wrote
 //! its place range, and prove no intervening instruction can disturb it.
+//!
+//! `Load64` pairs with an eight-byte `Store` and forwards to `CopyI64`.
+//! `Load32`/`Load16`/`Load8` pair with a `Store` of exactly the load's width
+//! at the identical byte offset and forward to `ZeroExtendU32`/`ZeroExtendU16`/
+//! `ZeroExtendU8`: a same-width store then load round-trips the stored
+//! register's low bits through the target's own byte order, so the rewrite
+//! needs no endianness assumption. A wider or shifted store covering only
+//! part of the read rejects — no selected extract can slice a register's
+//! middle bytes.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! forwarded place blocks on any overlapping or dynamic-extent write and on
@@ -34,19 +43,24 @@ pub(super) struct Admission<'source> {
     /// requires the proposed roster to drop exactly this row.
     pub load_access: usize,
     pub copy: &'source RegisterInstructionConstraint,
+    /// The replacement kind: `CopyI64` for a full-width forward, the matching
+    /// `ZeroExtend` for an exact-width sub-word forward. Every form shares the
+    /// target's plain `[use, def]` copy row.
+    pub kind: SelectedInstructionKind,
 }
 
 /// One exact byte range within one place root.
 struct Forwarded {
     place: PlaceId,
     byte_offset: u32,
+    byte_count: u32,
 }
 
 impl Forwarded {
     /// Exact rows intersect when their half-open byte intervals share a byte;
     /// widened to u64 so edge offsets cannot wrap.
     fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
-        u64::from(access.byte_offset) < u64::from(self.byte_offset) + 8
+        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
             && u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count)
     }
@@ -58,6 +72,7 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
     let forwarded = Forwarded {
         place,
         byte_offset: 8,
+        byte_count: 8,
     };
     let length = semantic_vocabulary::ValueId::new(3).unwrap();
     let obligation = semantic_vocabulary::ObligationId::new(4).unwrap();
@@ -127,11 +142,15 @@ pub(super) fn admit<'source>(
         .ok_or(StoredLoadForwardingError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let forwarded_load = &block.instructions[load_index];
-    let SelectedInstructionKind::Load64 { byte_offset } = forwarded_load.kind else {
-        return Err(StoredLoadForwardingError::UnsupportedInstruction);
+    let (byte_offset, width): (u32, u32) = match forwarded_load.kind {
+        SelectedInstructionKind::Load8 { byte_offset } => (byte_offset, 1),
+        SelectedInstructionKind::Load16 { byte_offset } => (byte_offset, 2),
+        SelectedInstructionKind::Load32 { byte_offset } => (byte_offset, 4),
+        SelectedInstructionKind::Load64 { byte_offset } => (byte_offset, 8),
+        _ => return Err(StoredLoadForwardingError::UnsupportedInstruction),
     };
     // The read's semantic identity: exactly one roster row, one place root,
-    // and the same eight bytes the instruction encodes.
+    // and the same bytes the instruction encodes.
     let mut rows = function
         .memory_accesses
         .iter()
@@ -143,13 +162,14 @@ pub(super) fn admit<'source>(
     if rows.next().is_some()
         || read.role != SelectedMemoryAccessRole::ReadPlace
         || read.byte_offset != byte_offset
-        || read.byte_count != 8
+        || read.byte_count != width
     {
         return Err(StoredLoadForwardingError::UnsupportedPair);
     }
     let forwarded = Forwarded {
         place: read.place,
         byte_offset: read.byte_offset,
+        byte_count: width,
     };
     // The load's result must be defined only here; the copy keeps the register.
     let output = single_def(forwarded_load)?;
@@ -183,7 +203,7 @@ pub(super) fn admit<'source>(
         return Err(StoredLoadForwardingError::ConstraintMismatch);
     }
     // Walk back to the last writer of the forwarded range. The first
-    // potentially interfering access decides: an exact full-range referent
+    // potentially interfering access decides: an exact same-width referent
     // store forwards; anything else rejects.
     let mut found = None;
     for candidate_index in (0..load_index).rev() {
@@ -247,6 +267,17 @@ pub(super) fn admit<'source>(
     {
         return Err(StoredLoadForwardingError::ConstraintMismatch);
     }
+    // The replacement keeps the load's exact read width: a same-width store
+    // and load round-trip the register's low bits in the target's own byte
+    // order, so `ZeroExtend` reconstructs the loaded value without any
+    // endianness assumption. Selection already pairs these normalization
+    // kinds with the target's plain copy row.
+    let kind = match forwarded.byte_count {
+        8 => SelectedInstructionKind::CopyI64,
+        4 => SelectedInstructionKind::ZeroExtendU32,
+        2 => SelectedInstructionKind::ZeroExtendU16,
+        _ => SelectedInstructionKind::ZeroExtendU8,
+    };
     let steps = plan
         .functions
         .iter()
@@ -273,6 +304,7 @@ pub(super) fn admit<'source>(
         output,
         load_access,
         copy,
+        kind,
     })
 }
 
@@ -321,9 +353,12 @@ fn interferes(forwarded: &Forwarded, access: &SelectedMemoryAccess) -> bool {
     }
 }
 
-/// The found writer must be a `Store` of all eight bits at the identical row:
-/// one `WritePlace` access, matching byte offset, and a clean `[pointer,
-/// value]` operand shape on the target's own constraint row.
+/// The found writer must be a `Store` of the read's exact width at the
+/// identical row: one `WritePlace` access, matching byte offset and byte
+/// count, and a clean `[pointer, value]` operand shape on the target's own
+/// constraint row. A wider, narrower, or shifted writer cannot produce the
+/// read's bytes from one register without an extract the selected vocabulary
+/// does not carry.
 fn forwarding_source(
     instruction: &SelectedInstruction,
     forwarded: &Forwarded,
@@ -333,12 +368,12 @@ fn forwarding_source(
     let reject = || StoredLoadForwardingError::AliasingWrite;
     let SelectedInstructionKind::Store {
         byte_offset,
-        byte_size: 8,
+        byte_size,
     } = instruction.kind
     else {
         return Err(reject());
     };
-    if byte_offset != forwarded.byte_offset {
+    if byte_offset != forwarded.byte_offset || u32::from(byte_size) != forwarded.byte_count {
         return Err(reject());
     }
     let mut rows = function
@@ -352,7 +387,7 @@ fn forwarding_source(
         || row.role != SelectedMemoryAccessRole::WritePlace
         || row.place != forwarded.place
         || row.byte_offset != forwarded.byte_offset
-        || row.byte_count != 8
+        || row.byte_count != forwarded.byte_count
     {
         return Err(reject());
     }
@@ -470,7 +505,7 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), StoredLoa
 pub(super) fn forwarded(admitted: &Admission<'_>) -> SelectedInstruction {
     SelectedInstruction {
         id: admitted.load_id,
-        kind: SelectedInstructionKind::CopyI64,
+        kind: admitted.kind,
         constraint: admitted.copy.key,
         operands: admitted
             .copy

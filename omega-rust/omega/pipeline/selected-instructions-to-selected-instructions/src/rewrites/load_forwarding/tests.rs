@@ -602,6 +602,187 @@ fn harmless_accesses_and_private_slots_still_forward() {
     forward(&spill, &environment).unwrap();
 }
 
+/// The fixture narrowed to an exact-width sub-word pair: `Store { byte_size }`
+/// and the matching `Load8`/`Load16`/`Load32` with `byte_count`-matched rows.
+fn narrowed(target: NativeTarget, byte_size: u8) -> ValidatedStoredLoadForwarding {
+    mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let store = environment.constraint(keys.store.unwrap()).unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        let (kind, key) = match byte_size {
+            1 => (
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                keys.load8,
+            ),
+            2 => (
+                SelectedInstructionKind::Load16 { byte_offset: 0 },
+                keys.load16,
+            ),
+            _ => (
+                SelectedInstructionKind::Load32 { byte_offset: 0 },
+                keys.load32,
+            ),
+        };
+        let load = environment.constraint(key.unwrap()).unwrap();
+        let mut rewritten = instruction(LOAD, kind, load, &[POINTER, OUTPUT]);
+        rewritten.provenance.operations = vec![OperationId::new(2).unwrap()];
+        rewritten.provenance.values = vec![ValueId::new(4).unwrap()];
+        function.blocks[0].instructions[3] = rewritten;
+        function.memory_accesses[0].byte_count = u32::from(byte_size);
+        function.memory_accesses[1].byte_count = u32::from(byte_size);
+    })
+}
+
+#[test]
+fn sub_width_loads_forward_through_exact_width_stores() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for (byte_size, expected) in [
+            (1u8, SelectedInstructionKind::ZeroExtendU8),
+            (2, SelectedInstructionKind::ZeroExtendU16),
+            (4, SelectedInstructionKind::ZeroExtendU32),
+        ] {
+            let source = narrowed(target, byte_size);
+            let source_load = source.transformed().functions[0].blocks[0].instructions[3].clone();
+            let result = forward(&source, &environment).unwrap();
+            let function = &result.transformed().functions[0];
+            let rewritten = &function.blocks[0].instructions[3];
+            assert_eq!(rewritten.id, LOAD);
+            assert_eq!(rewritten.kind, expected);
+            assert_eq!(rewritten.constraint, environment.selected_keys().copy_i64);
+            assert_eq!(rewritten.operands.len(), 2);
+            assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+            assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
+            assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+            assert_eq!(rewritten.operands[1].access, RegisterOperandAccess::Def);
+            assert_eq!(rewritten.provenance, source_load.provenance);
+            assert_eq!(
+                function
+                    .memory_accesses
+                    .iter()
+                    .map(|access| (access.role, access.byte_count))
+                    .collect::<Vec<_>>(),
+                vec![(SelectedMemoryAccessRole::WritePlace, u32::from(byte_size))]
+            );
+            // Replay restores the complete source by content.
+            validate_stored_load_forwarding(
+                &source,
+                0,
+                LOAD,
+                &environment,
+                budget(),
+                result.transformed().clone(),
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn sub_width_loads_reject_wider_shifted_or_mismatched_sources() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A wider store keeps bytes the one-byte read cannot name portably: byte
+    // order is the target's, so only an exact-width writer forwards.
+    let wider = mutated(target, |function, environment| {
+        let load = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[3] = instruction(
+            LOAD,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            load,
+            &[POINTER, OUTPUT],
+        );
+        function.memory_accesses[1].byte_count = 1;
+    });
+    assert_eq!(
+        forward(&wider, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A byte read inside a wider store's range is not the forwarded value.
+    let shifted = mutated(target, |function, environment| {
+        let load = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[3] = instruction(
+            LOAD,
+            SelectedInstructionKind::Load8 { byte_offset: 4 },
+            load,
+            &[POINTER, OUTPUT],
+        );
+        function.memory_accesses[1].byte_offset = 4;
+        function.memory_accesses[1].byte_count = 1;
+    });
+    assert_eq!(
+        forward(&shifted, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A roster width disagreeing with the load kind is not the read's
+    // identity; the pair is unsupported rather than a bad forward.
+    let mismatched = mutated(target, |function, environment| {
+        let load = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[3] = instruction(
+            LOAD,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            load,
+            &[POINTER, OUTPUT],
+        );
+    });
+    assert_eq!(
+        forward(&mismatched, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // A store row claiming one byte while the instruction writes eight leaves
+    // the read's neighbors unaccounted.
+    let narrower_row = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let load = environment.constraint(keys.load8.unwrap()).unwrap();
+        function.blocks[0].instructions[3] = instruction(
+            LOAD,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            load,
+            &[POINTER, OUTPUT],
+        );
+        function.memory_accesses[0].byte_count = 1;
+        function.memory_accesses[1].byte_count = 1;
+    });
+    assert_eq!(
+        forward(&narrower_row, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+}
+
+#[test]
+fn sub_width_replay_rejects_a_full_width_copy() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = narrowed(target, 1);
+    let result = forward(&source, &environment).unwrap();
+    let mut proposed = result.transformed().clone();
+    proposed.functions[0].blocks[0].instructions[3].kind = SelectedInstructionKind::CopyI64;
+    assert_eq!(
+        validate_stored_load_forwarding(&source, 0, LOAD, &environment, budget(), proposed)
+            .unwrap_err(),
+        StoredLoadForwardingError::ReplayMismatch
+    );
+}
+
 #[test]
 fn calls_hosted_effects_and_use_violations_reject() {
     let target = NativeTarget::linux_x64();
