@@ -131,6 +131,41 @@ pub(super) fn validate_layout(
                 .checked_add(u64::from(placed.size_bytes))
                 .ok_or(Error::GeometryOverflow)?;
         }
+        // The stable-address-loan roster is recovered from the physical
+        // address operations themselves, never from the producer's claims:
+        // a materialized frame address on an activation-local non-spill
+        // slot loans that coordinate to the pointer's observers, and no
+        // other access does. Allocator spill materializations are private
+        // reload windows consumed inside the same window, so they cannot
+        // appear. The canonical roster is ascending and duplicate-free,
+        // which exact equality with the recovered set enforces.
+        let stable_address_loans = source
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter_map(|instruction| match instruction.address {
+                Some(physical_instructions::PhysicalAddressOperation::FrameAddress {
+                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                    ..
+                }) if !matches!(
+                    slot,
+                    selected_instructions::LocalStorageSlotId::Spill { .. }
+                ) =>
+                {
+                    Some(slot)
+                }
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if row.stable_address_loans != stable_address_loans
+            || stable_address_loans
+                .iter()
+                .any(|loan| !row.local_storage_slots.iter().any(|slot| slot.id == *loan))
+        {
+            return Err(Error::NonCanonicalLayout);
+        }
         let preservation_offset =
             if source.local_storage_slots.is_empty() && storage.slots.is_empty() {
                 outgoing

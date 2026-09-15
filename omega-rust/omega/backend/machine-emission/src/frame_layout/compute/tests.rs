@@ -62,6 +62,7 @@ fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
             true,
             std::slice::from_ref(&outgoing),
             &[],
+            Vec::new(),
             8,
             vec![save],
         )
@@ -87,6 +88,7 @@ fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
             true,
             &[outgoing],
             &[],
+            Vec::new(),
             0,
             Vec::new(),
         )
@@ -126,6 +128,7 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
             true,
             &[],
             std::slice::from_ref(&local),
+            Vec::new(),
             0,
             Vec::new(),
         )
@@ -149,6 +152,7 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
                 true,
                 &[],
                 &[local.clone(), local.clone()],
+                Vec::new(),
                 0,
                 Vec::new()
             )
@@ -201,6 +205,7 @@ fn outgoing_pointer_slots_reserve_storage_on_every_host_abi() {
             true,
             std::slice::from_ref(&slot),
             &[],
+            Vec::new(),
             0,
             Vec::new(),
         )
@@ -216,6 +221,7 @@ fn outgoing_pointer_slots_reserve_storage_on_every_host_abi() {
                 false,
                 &[slot],
                 &[],
+                Vec::new(),
                 0,
                 Vec::new()
             )
@@ -276,6 +282,7 @@ fn large_frames_commit_through_an_exact_probe_roster() {
             false,
             &[],
             std::slice::from_ref(&local),
+            Vec::new(),
             0,
             Vec::new(),
         )
@@ -295,6 +302,7 @@ fn large_frames_commit_through_an_exact_probe_roster() {
             false,
             &[],
             std::slice::from_ref(&small),
+            Vec::new(),
             0,
             Vec::new(),
         )
@@ -336,6 +344,7 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
             false,
             &[],
             &slots,
+            Vec::new(),
             0,
             Vec::new(),
         )
@@ -361,6 +370,7 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
         false,
         &[],
         &over,
+        Vec::new(),
         0,
         Vec::new(),
     )
@@ -424,6 +434,7 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
             contains_call,
             &[],
             &locals,
+            Vec::new(),
             save_area,
             saves,
         )
@@ -467,6 +478,7 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
             false,
             &[],
             &[spill(0)],
+            Vec::new(),
             0,
             Vec::new(),
         )
@@ -483,6 +495,7 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
         false,
         &[],
         &[],
+        Vec::new(),
         0,
         Vec::new(),
     )
@@ -506,6 +519,7 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
             false,
             &[],
             &[],
+            Vec::new(),
             area,
             Vec::new(),
         )
@@ -541,6 +555,7 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
             true,
             &[],
             &[],
+            Vec::new(),
             area,
             slots,
         )
@@ -564,6 +579,7 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
             true,
             &[],
             &[],
+            Vec::new(),
             u64::MAX,
             Vec::new(),
         ),

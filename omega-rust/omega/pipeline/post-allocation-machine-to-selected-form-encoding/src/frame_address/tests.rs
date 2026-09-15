@@ -48,6 +48,7 @@ fn fixture() -> (
             local_storage_slots: vec![machine_code::LocalStorageFrameSlot {
                 id, frame_offset_bytes: 0, size_bytes: 16, alignment_bytes: 8,
             }],
+            stable_address_loans: vec![id],
             callee_save_slots: Vec::new(),
             return_address: machine_code::ReturnAddressFrameCustody::CallerActivationStack {
                 post_prologue_offset_bytes: 16, size_bytes: 8,
@@ -589,4 +590,49 @@ fn compiler_spill_slot_addresses_bind_register_identity_and_exact_store_bounds()
     frame.functions[0].local_storage_slots[0].id = slot;
     frame.functions[0].frame_size_bytes = 7;
     assert!(resolve(&function, Some(&frame), &instruction).is_err());
+}
+
+#[test]
+fn materialized_local_addresses_resolve_only_through_the_stable_address_loan_roster() {
+    let (mut function, mut frame, mut instruction) = fixture();
+    let slot = function.local_storage_slots[0].id;
+    let resolved = resolve(&function, Some(&frame), &instruction).unwrap();
+    validate_address(&function, Some(&frame), &instruction, resolved).unwrap();
+    // A loan the validated layout did not record cannot resolve, and a
+    // roster naming different storage cannot stand in for it.
+    for mutation in 0..3 {
+        let mut changed = frame.clone();
+        match mutation {
+            0 => changed.functions[0].stable_address_loans.clear(),
+            1 => {
+                changed.functions[0].stable_address_loans = vec![LocalStorageSlotId::Boundary {
+                    operation: OperationId::new(3).unwrap(),
+                }]
+            }
+            _ => {
+                changed.functions[0].stable_address_loans = vec![LocalStorageSlotId::Structural {
+                    operation: slot.operation().unwrap(),
+                    place: PlaceId::new(7).unwrap(),
+                }]
+            }
+        }
+        assert!(resolve(&function, Some(&changed), &instruction).is_err());
+        assert!(validate_address(&function, Some(&changed), &instruction, resolved).is_err());
+    }
+    // An allocator spill slot's private reload materialization is not a
+    // loan: it resolves while unrostered and rejects a rostered claim.
+    let spill = LocalStorageSlotId::Spill {
+        register: selected_instructions::VirtualRegisterId(9),
+    };
+    function.local_storage_slots[0].id = spill;
+    frame.functions[0].local_storage_slots[0].id = spill;
+    instruction.address = Some(Address::FrameAddress {
+        slot: FrameStorageSlotId::Local(spill),
+        byte_offset: 0,
+    });
+    let resolved = resolve(&function, Some(&frame), &instruction).unwrap();
+    validate_address(&function, Some(&frame), &instruction, resolved).unwrap();
+    frame.functions[0].stable_address_loans = vec![spill];
+    assert!(resolve(&function, Some(&frame), &instruction).is_err());
+    assert!(validate_address(&function, Some(&frame), &instruction, resolved).is_err());
 }

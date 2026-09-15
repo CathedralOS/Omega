@@ -73,6 +73,20 @@ pub(super) fn validate_frame_root(
                 .filter(|end| *end <= row.frame_size_bytes)
                 .ok_or(Error::ArtifactMismatch)?;
         }
+        // The loan roster stays canonical and closed over the placed local
+        // slots; exact equality with the materialized addresses is the
+        // frame-layout replay's authority, checked upstream.
+        if row
+            .stable_address_loans
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+            || row
+                .stable_address_loans
+                .iter()
+                .any(|loan| !row.local_storage_slots.iter().any(|slot| slot.id == *loan))
+        {
+            return Err(Error::ArtifactMismatch);
+        }
         if row.callee_save_slots.iter().any(|slot| {
             slot.frame_offset_bytes < local_end
                 || slot
@@ -176,6 +190,24 @@ fn frame_displacement(
         .zip(i64::try_from(geometry.red_zone_resident_bytes).ok())
         .and_then(|(offset, resident)| offset.checked_sub(resident))
         .ok_or(Error::ArtifactMismatch)
+}
+
+/// A materialized activation-local address resolves only through the
+/// validated stable-address-loan roster: a non-spill materialization is a
+/// loan the layout must have recorded, while an allocator spill
+/// materialization is a private reload window that must stay unrostered.
+fn check_address_loan(
+    geometry: &FunctionTargetFrameLayout,
+    slot: selected_instructions::LocalStorageSlotId,
+) -> Result<(), Error> {
+    let spill = matches!(
+        slot,
+        selected_instructions::LocalStorageSlotId::Spill { .. }
+    );
+    if geometry.stable_address_loans.contains(&slot) == spill {
+        return Err(Error::ArtifactMismatch);
+    }
+    Ok(())
 }
 
 pub(super) fn resolve(
@@ -285,6 +317,10 @@ pub(super) fn resolve(
         }
         Address::Store64 { slot, byte_offset } | Address::FrameAddress { slot, byte_offset } => {
             let geometry = function_geometry(function, frame)?;
+            if let (Address::FrameAddress { .. }, FrameStorageSlotId::Local(id)) = (symbolic, slot)
+            {
+                check_address_loan(geometry, id)?;
+            }
             let (start, size, limit, local) = slot_region(function, geometry, slot)?;
             let width = if matches!(symbolic, Address::Store64 { .. }) {
                 8
@@ -464,6 +500,10 @@ pub(super) fn validate_address(
         } if candidate.displacement == i64::from(byte_offset) => Ok(()),
         Address::Store64 { slot, byte_offset } | Address::FrameAddress { slot, byte_offset } => {
             let geometry = function_geometry(function, frame)?;
+            if let (Address::FrameAddress { .. }, FrameStorageSlotId::Local(id)) = (symbolic, slot)
+            {
+                check_address_loan(geometry, id)?;
+            }
             let (start, size, limit, local) = slot_region(function, geometry, slot)?;
             let width = if matches!(symbolic, Address::Store64 { .. }) {
                 8_u64
