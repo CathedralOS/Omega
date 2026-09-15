@@ -1,7 +1,6 @@
-use super::{
-    BuildStagedOutputTree, MAX_STAGED_OUTPUT_ENTRIES, ReplayedBuildOutputEntry, diagnostics,
-    replayed_output_tree,
-};
+use super::{BuildStagedOutputTree, ReplayedBuildOutputEntry, replayed_output_tree};
+use crate::staged_output_tree::MAX_STAGED_OUTPUT_ENTRIES;
+use crate::staged_output_tree::diagnostics;
 use diagnostics::Diagnostic;
 
 /// Reconstruct the bounded ordered Output-directory grammar as a complete

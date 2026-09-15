@@ -1,9 +1,14 @@
-use super::{
-    BuildStagedOutputTree, MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES,
-    RetainedStagedOutputEntry, RetainedStagedOutputEntryKind, canonical_symlink_target,
-    commitment_for_retained_entries, diagnostics, reserve_path_bytes, retained_native_path,
-    validate_retained_tree,
-};
+use super::BuildStagedOutputTree;
+use crate::materialization::retained_native_path;
+use crate::materialization::validate_retained_tree;
+use crate::portable_paths::canonical_symlink_target;
+use crate::portable_paths::reserve_path_bytes;
+use crate::staged_output_tree::MAX_STAGED_OUTPUT_ENTRIES;
+use crate::staged_output_tree::MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES;
+use crate::staged_output_tree::RetainedStagedOutputEntry;
+use crate::staged_output_tree::RetainedStagedOutputEntryKind;
+use crate::staged_output_tree::commitment_for_retained_entries;
+use crate::staged_output_tree::diagnostics;
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -212,10 +217,9 @@ pub fn replayed_output_tree(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        MAX_STAGED_OUTPUT_ENTRIES, ReplayedBuildOutputEntry, RetainedStagedOutputEntryKind,
-        replayed_output_tree,
-    };
+    use super::{ReplayedBuildOutputEntry, replayed_output_tree};
+    use crate::staged_output_tree::MAX_STAGED_OUTPUT_ENTRIES;
+    use crate::staged_output_tree::RetainedStagedOutputEntryKind;
     use crate::{empty, replayed_empty_directories, replayed_files};
 
     #[test]
@@ -333,7 +337,7 @@ mod tests {
 
     #[test]
     fn charges_symbolic_link_targets_to_the_shared_path_byte_ceiling() {
-        let target = vec![b'a'; crate::MAX_STAGED_OUTPUT_PATH_BYTES];
+        let target = vec![b'a'; crate::staged_output_tree::MAX_STAGED_OUTPUT_PATH_BYTES];
         assert!(
             replayed_output_tree(&[ReplayedBuildOutputEntry::symbolic_link(b"link", &target)])
                 .is_err()
