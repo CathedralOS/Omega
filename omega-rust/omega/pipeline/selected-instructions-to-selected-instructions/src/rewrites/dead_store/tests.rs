@@ -1495,3 +1495,29 @@ fn cross_block_replay_rejects_mutated_proposals() {
         DeadStoreEliminationError::ReplayMismatch
     );
 }
+
+/// Two runs over the identical source produce the identical validated result,
+/// and the published plan is a legal second input: the sealed transformed
+/// program already sits at the rule's fixed point, so the removed store no
+/// longer exists and the surviving store has no later covering write.
+#[test]
+fn elimination_is_deterministic_and_terminal() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let first = eliminate(&fixture(target), &environment).unwrap();
+    let second = eliminate(&fixture(target), &environment).unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. Re-running on
+    // it is terminal: the dead store is already gone,
+    assert_eq!(
+        eliminate_selected_dead_store(&first, 0, STORE, &environment, budget()).unwrap_err(),
+        DeadStoreEliminationError::SourceMismatch
+    );
+    // and the covering store's own bytes are never rewritten, so no second
+    // elimination can fire on it.
+    assert_eq!(
+        eliminate_selected_dead_store(&first, 0, KILLER, &environment, budget()).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedPair
+    );
+}

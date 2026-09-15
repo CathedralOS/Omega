@@ -766,3 +766,72 @@ fn replay_rejects_anything_but_the_exact_copy() {
         );
     }
 }
+
+/// The admission scan is accounted: its step count covers both the
+/// instruction enumeration and the producer scan, so one fewer validation
+/// step than the exact requirement rejects while the exact requirement runs.
+#[test]
+fn validation_budget_covers_the_producer_scan() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(
+        target,
+        SelectedInstructionKind::Load8 { byte_offset: 0 },
+        keys(&environment).load8.unwrap(),
+        &[POINTER, SOURCE],
+        SelectedInstructionKind::ZeroExtendU16,
+    );
+    // The fixture needs seven steps: one per block plus one per instruction
+    // for the enumeration, then one per instruction for the producer scan.
+    let under = OptimizationWorkBudget::new(100, 100, 6, 100, 100).unwrap();
+    assert_eq!(
+        remove_selected_redundant_extension(&source, 0, EXTENSION, &environment, under)
+            .unwrap_err(),
+        RedundantExtensionError::WorkBudgetExceeded
+    );
+    let exact = OptimizationWorkBudget::new(100, 100, 7, 100, 100).unwrap();
+    remove_selected_redundant_extension(&source, 0, EXTENSION, &environment, exact).unwrap();
+}
+
+/// Two runs over the identical source produce the identical validated result,
+/// and the published plan is a legal second input: the sealed transformed
+/// program already sits at the rule's fixed point — the extension keeps its
+/// instruction identity as the emitted copy, so a second removal at the same
+/// site finds no extension shape to admit.
+#[test]
+fn removal_is_deterministic_and_terminal() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let first = remove(
+        &fixture(
+            target,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            keys(&environment).load8.unwrap(),
+            &[POINTER, SOURCE],
+            SelectedInstructionKind::ZeroExtendU16,
+        ),
+        &environment,
+    )
+    .unwrap();
+    let second = remove(
+        &fixture(
+            target,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            keys(&environment).load8.unwrap(),
+            &[POINTER, SOURCE],
+            SelectedInstructionKind::ZeroExtendU16,
+        ),
+        &environment,
+    )
+    .unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. Re-running on
+    // it is terminal: instruction EXTENSION is the emitted CopyI64 now, not
+    // a carrier extension.
+    assert_eq!(
+        remove_selected_redundant_extension(&first, 0, EXTENSION, &environment, budget())
+            .unwrap_err(),
+        RedundantExtensionError::UnsupportedInstruction
+    );
+}
