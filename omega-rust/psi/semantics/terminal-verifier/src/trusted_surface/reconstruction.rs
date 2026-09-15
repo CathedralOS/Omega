@@ -407,7 +407,7 @@ static FACT_FIELD_STORE_LEAF_EQUATION: TrustedSurfaceEntry = TrustedSurfaceEntry
     ],
     implementation: &[
         OPERATION_FACTS,
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/structural_paths.rs",
     ],
     soundness: TRUSTED,
 };

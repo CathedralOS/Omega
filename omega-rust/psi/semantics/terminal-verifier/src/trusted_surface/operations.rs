@@ -46,8 +46,7 @@ const TS_PRIMITIVE_PLACE: &str =
     "omega-rust/psi/semantics/terminal-semantics/src/primitive_place.rs";
 const VAL_REFERENCES: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/references.rs";
-const VAL_STRUCTURAL_OPS: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations.rs";
+const VAL_STRUCTURAL_OPS: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/structural_paths.rs";
 const VAL_STRUCTURAL_SCALAR: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_scalar_fields.rs";
 const VAL_STRUCTURAL_BYTES: &str =
