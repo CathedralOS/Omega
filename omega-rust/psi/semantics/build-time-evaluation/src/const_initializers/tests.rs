@@ -215,6 +215,52 @@ fn concrete_invocation_rejects_arithmetic_guards_that_hold_or_trap() {
 }
 
 #[test]
+fn concrete_invocation_discharges_comparison_actuals_from_entry_provenance() {
+    // A Boolean actual is entry provenance, not only scalar annotation:
+    // `gate(value != 0)` retains the comparison over the caller's entry so the
+    // concrete probe can decide it. The local `armed` spells the same origin
+    // through an immutable initializer.
+    let evaluated = evaluate(
+        "machine gate(flag: bool) -> u64
+        crashes Abort flag
+        { transition { !flag -> 7 } crash Abort; }
+        machine forward(value: u64) -> u64 { gate(value != 0) }
+        machine inspect(value: u64) -> u64
+        { let armed: bool = value != 0 && value < 9; gate(armed) }
+        const DISCHARGED: u64 = forward(0);
+        const INSPECTED: u64 = inspect(9);",
+    )
+    .expect("comparison actuals discharge guarded calls through entry provenance");
+    integer_encoding(&evaluated, "DISCHARGED", 7);
+    integer_encoding(&evaluated, "INSPECTED", 7);
+    for source in [
+        // `3 != 0` is true: the Abort route is confirmed, not merely unproven.
+        "machine gate(flag: bool) -> u64
+        crashes Abort flag
+        { transition { !flag -> 7 } crash Abort; }
+        machine forward(value: u64) -> u64 { gate(value != 0) }
+        const UNUSED: u64 = forward(3);",
+        // `10 != 0 && 10 > 9` is true through the local initializer: the
+        // Abort route is confirmed rather than discharged.
+        "machine gate(flag: bool) -> u64
+        crashes Abort flag
+        { transition { !flag -> 7 } crash Abort; }
+        machine inspect(value: u64) -> u64
+        { let armed: bool = value != 0 && value > 9; gate(armed) }
+        const UNUSED: u64 = inspect(10);",
+    ] {
+        let diagnostics =
+            evaluate(source).expect_err("a confirmed crash route must survive concrete discharge");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("retains unhandled")),
+            "must reject through admission, not an interpreter failure: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn concrete_invocation_discharges_authored_requires_at_snapshot_arguments() {
     // The conservative closure fence rejects any authored `requires` because a
     // context-free evaluation cannot prove it. A concrete invocation is not

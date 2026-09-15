@@ -2116,9 +2116,13 @@ Owners include
   constrained/target-dependent and floating/NaN declaration evaluation, including
   unused initializers.
   Extend concrete failure discharge beyond the ordinary scalar invocation route
-  in `build-time-evaluation/src/const_initializers/invocations.rs`: arithmetic
-  guard expressions and unknown saved-entry origins need their existing checked
-  evidence, not successful interpretation or provider-body inspection. Concrete
+  in `build-time-evaluation/src/const_initializers/invocations.rs`: builtin
+  comparison and logical actuals now transport through saved-entry provenance
+  (`typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`), so concrete
+  probes decide them from checked evidence rather than widening to Truth. Casts,
+  indexed reads, call-produced and other unprovable origins still widen
+  conservatively and need their own checked evidence, not successful
+  interpretation or provider-body inspection. Concrete
   `requires` discharge remains fenced by `admission/closure_validation.rs`.
   Floating identities need determined bits. Preserve the source-free
   `machine_initializers::` module/index
