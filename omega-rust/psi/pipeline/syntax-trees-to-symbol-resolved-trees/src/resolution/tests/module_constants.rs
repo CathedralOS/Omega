@@ -1,4 +1,4 @@
-use super::{ResolutionRequest, resolve};
+use crate::resolution::{ResolutionRequest, resolve};
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use source::{SourceId, SourceSpan, Span};
 use source_files_to_tokens::Lexer;
