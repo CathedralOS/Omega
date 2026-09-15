@@ -1,6 +1,6 @@
 //! Shared admission for dead-store elimination: locate the named `Store`,
-//! prove its exact `WritePlace` row, then walk the same block forward to the
-//! first access on the dead place and require it to be the covering store.
+//! prove its exact `WritePlace` row, then walk forward to the first access on
+//! the dead place and require it to be the covering store.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! dead place interferes when it can observe the stored bytes or leave them
@@ -10,12 +10,23 @@
 //! Instructions without a row are admitted only when their kind cannot reach
 //! semantic storage: private-slot frame accesses and pure register work.
 //! Calls, hosted effects, and unaccounted writers reject.
+//!
+//! The walk is not confined to one block: reaching a block's end without
+//! interference continues through its terminator's successor edges when every
+//! edge names one block, since each path forward from the dead store then
+//! reaches that block — a join there is harmless because coverage is
+//! forward-looking. The terminator's roster rows decide first; each crossed
+//! edge's transports may not write or retire the dead place's storage. A
+//! terminator with no successors, edges fanning out to distinct blocks, and
+//! re-entering a walked block each leave an uncovered path, so they end the
+//! walk in rejection.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedTerminator,
 };
 use semantic_vocabulary::PlaceId;
 
@@ -111,40 +122,107 @@ pub(super) fn admit<'source>(
     place_store_shape(dead_store, environment)?;
     // Walk forward to the first access that can reach the dead bytes. It must
     // be an exact covering store of the same range; anything else leaves the
-    // bytes observable or only partially overwritten.
-    let mut found = None;
-    for (candidate_index, candidate) in block.instructions.iter().enumerate().skip(store_index + 1)
-    {
-        reject_barrier(candidate)?;
-        let mut has_row = false;
-        let mut interfered = false;
-        for access in function
+    // bytes observable or only partially overwritten. Reaching a block's end
+    // without interference crosses into its only successor block — every edge
+    // out naming one block means each path forward from the store arrives
+    // there — checking the terminator's roster rows and each crossed edge's
+    // transports on the way.
+    let mut visited = vec![false; function.blocks.len()];
+    let mut crossed = Vec::new();
+    let mut interval = 0usize;
+    let mut cursor = block_index;
+    let mut cursor_start = store_index + 1;
+    let (killer_block, killer_index) = loop {
+        visited[cursor] = true;
+        let current = &function.blocks[cursor];
+        let mut found = None;
+        for (candidate_index, candidate) in
+            current.instructions.iter().enumerate().skip(cursor_start)
+        {
+            reject_barrier(candidate)?;
+            let mut has_row = false;
+            let mut interfered = false;
+            for access in function
+                .memory_accesses
+                .iter()
+                .filter(|access| access.instruction == candidate.id)
+            {
+                has_row = true;
+                interfered |= interferes(&dead, access);
+            }
+            if interfered {
+                covering_source(candidate, &dead, function, environment)?;
+                found = Some(candidate_index);
+                break;
+            }
+            if !has_row {
+                reject_unaccounted(candidate)?;
+            }
+        }
+        if let Some(candidate_index) = found {
+            interval = interval
+                .checked_add(candidate_index + 1 - cursor_start)
+                .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
+            break (cursor, candidate_index);
+        }
+        interval = interval
+            .checked_add(current.instructions.len() - cursor_start)
+            .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
+        // The terminator instruction sits between the body and the crossed
+        // edges, so its roster rows decide first; a terminator kind never
+        // carries the covering store.
+        let terminator = terminator_instruction(&current.terminator);
+        if function
             .memory_accesses
             .iter()
-            .filter(|access| access.instruction == candidate.id)
+            .any(|access| access.instruction == terminator.id && interferes(&dead, access))
         {
-            has_row = true;
-            interfered |= interferes(&dead, access);
+            return Err(DeadStoreEliminationError::InterveningAccess);
         }
-        if interfered {
-            covering_source(candidate, &dead, function, environment)?;
-            found = Some(candidate_index);
-            break;
+        // Every path forward must reach one block: a terminator with no
+        // successors lets the bytes escape to the boundary, and edges to
+        // distinct blocks admit a path the covering store never runs on.
+        let edges = successors(&current.terminator);
+        let Some(first) = edges.first() else {
+            return Err(DeadStoreEliminationError::UnsupportedPair);
+        };
+        if edges.iter().any(|edge| edge.block != first.block) {
+            return Err(DeadStoreEliminationError::UnsupportedPair);
         }
-        if !has_row {
-            reject_unaccounted(candidate)?;
+        for edge in &edges {
+            edge_unobserved(edge, &dead)?;
         }
-    }
-    let killer_index = found.ok_or(DeadStoreEliminationError::UnsupportedPair)?;
+        interval = interval
+            .checked_add(edges.len())
+            .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
+        crossed.push(current.id);
+        let next = function
+            .blocks
+            .iter()
+            .position(|candidate| candidate.id == first.block)
+            .ok_or(DeadStoreEliminationError::SourceMismatch)?;
+        // Re-entering a walked block closes a cycle that never covers.
+        if visited[next] {
+            return Err(DeadStoreEliminationError::UnsupportedPair);
+        }
+        cursor = next;
+        cursor_start = 0;
+    };
     // A boundary settlement positioned inside the dead interval is an event a
-    // boundary could observe through; positions outside it only shift.
-    for settlement in function
-        .boundary_settlements
-        .iter()
-        .filter(|settlement| settlement.block == block.id)
-    {
+    // boundary could observe through; positions outside it only shift. The
+    // interval covers the store's block after the removed store, every fully
+    // crossed block, and the covering block through the covering store.
+    for settlement in function.boundary_settlements.iter() {
         let position = settlement.instruction_index as usize;
-        if store_index < position && position <= killer_index {
+        if settlement.block == block.id {
+            if store_index < position && (killer_block != block_index || position <= killer_index) {
+                return Err(DeadStoreEliminationError::InterveningAccess);
+            }
+        } else if crossed.contains(&settlement.block)
+            || (killer_block != block_index
+                && settlement.block == function.blocks[killer_block].id
+                && position <= killer_index)
+        {
             return Err(DeadStoreEliminationError::InterveningAccess);
         }
     }
@@ -156,7 +234,7 @@ pub(super) fn admit<'source>(
                 total.checked_add(block.instructions.len())?.checked_add(1)
             })
         })
-        .and_then(|total| total.checked_add(killer_index.checked_sub(store_index)?))
+        .and_then(|total| total.checked_add(interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| DeadStoreEliminationError::IdentityOverflow)?
@@ -337,6 +415,72 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), DeadStore
         }
         _ => Err(DeadStoreEliminationError::UnsupportedInstruction),
     }
+}
+
+/// The successor edges a terminator can take: a jump's single edge or a
+/// conditional's two legs. Returns and hosted exits have none.
+fn successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
+    match terminator {
+        SelectedTerminator::Jump { successor, .. } => vec![successor],
+        SelectedTerminator::ConditionalBranch {
+            when_nonzero,
+            when_zero,
+            ..
+        } => vec![when_nonzero, when_zero],
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        }
+        | SelectedTerminator::ConditionalBranchI64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        } => vec![when_less, when_not_less],
+        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+            Vec::new()
+        }
+    }
+}
+
+/// The instruction a terminator positions at the end of its block. Its roster
+/// rows sit between the block's body and any crossed edge.
+fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
+    match terminator {
+        SelectedTerminator::HostedExitProcess { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
+        | SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Return { instruction, .. } => instruction,
+    }
+}
+
+/// A crossed edge must not touch the dead place's storage. Register
+/// transports cannot reach memory, but a structural destination, the case
+/// custody slot, or a custody discard naming the dead place writes or retires
+/// its bytes inside the dead interval.
+fn edge_unobserved(
+    successor: &SelectedSuccessor,
+    dead: &Dead,
+) -> Result<(), DeadStoreEliminationError> {
+    for binding in &successor.structural_bindings {
+        let destination = match binding.transport {
+            SelectedStructuralTransport::Unused => continue,
+            SelectedStructuralTransport::WholeValue { destination, .. }
+            | SelectedStructuralTransport::Descriptor { destination, .. } => destination,
+        };
+        if destination.structural_place() == Some(dead.place) {
+            return Err(DeadStoreEliminationError::InterveningAccess);
+        }
+    }
+    if let Some(case) = &successor.structural_case
+        && (case.slot.structural_place() == Some(dead.place)
+            || case.trivial_affine_discards.contains(&dead.place))
+    {
+        return Err(DeadStoreEliminationError::InterveningAccess);
+    }
+    Ok(())
 }
 
 /// The block's boundary settlements after removing the instruction at

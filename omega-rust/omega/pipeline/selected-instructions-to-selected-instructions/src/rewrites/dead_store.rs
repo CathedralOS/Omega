@@ -30,10 +30,23 @@
 //! memory-capable instruction without a row, every call, and every hosted
 //! effect conservatively blocks elimination.
 //!
-//! Removing the store shortens the block's instruction vector, so boundary
+//! The walk is not confined to one block: reaching a block's end without
+//! interference continues through its terminator's successor edges when every
+//! edge names one block — each path forward from the store then arrives
+//! there, so a covering store in that block still rewrites the dead bytes
+//! before any observer. A join at a crossed block is harmless because
+//! coverage looks forward. Terminator roster rows decide before each crossed
+//! edge's transports, which may not write or retire the dead place's storage.
+//! A terminator without successors, edges fanning out to distinct blocks, and
+//! re-entering a walked block each leave a path the covering store never runs
+//! on, so they end the walk unproven.
+//!
+//! Removing the store shortens its block's instruction vector, so boundary
 //! settlements positioned after it shift one ordinal earlier. Settlement
-//! positions between the removed store and its covering store are rejected
-//! outright: a boundary event in that interval could observe the dead bytes.
+//! positions inside the dead interval — after the removed store in its block,
+//! anywhere in a fully crossed block, or at or before the covering store in
+//! its block — are rejected outright: a boundary event in that interval could
+//! observe the dead bytes.
 //! Proposal and independent replay share only the admission predicates and
 //! the settlement remap. Validation consumes the proposed program, requires
 //! the block, roster, and settlements to equal the independently computed
