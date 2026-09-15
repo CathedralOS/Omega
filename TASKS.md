@@ -1827,7 +1827,7 @@ Owners include
   two `BoundNominalCallbackPlacement`s carrying `NativePlace::Field`
   destinations, exact conformance applications, and an authenticated two-entry
   catalog — no raw code pointer, no duplicated placement authority. At
-  `6a49ecbdce` the telescope admission is landed: `build_call_operation` and
+  `888fb154ff` the telescope admission is landed: `build_call_operation` and
   `build_static_boundary_requirements`
   (`flow/terminal_unit/{calls,control}.rs`) discharge each `Machine{Nominal}`
   signature type parameter through a `nominal_machine_use` at the exact site
