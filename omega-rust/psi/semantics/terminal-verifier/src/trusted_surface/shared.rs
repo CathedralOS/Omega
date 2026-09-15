@@ -243,7 +243,7 @@ rows! {
         "a structural field store whose canonical write path may resolve",
         "propositions still observing the exact write after exact scalar capture are removed; an unresolvable path forgets the entire root",
         &["scope:place-substitution", "scope:field-value-snapshots"],
-        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/structural_operations.rs")]
+        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/structural_operations/structural_paths.rs")]
     );
     INV_BYTE_WRITE => (
         "invalidation:byte-sequence-write",
@@ -601,7 +601,7 @@ rows! {
         "structural field stores and their canonical write paths",
         "stores validate and resolve their write paths before invalidation and leaf equations are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/structural_operations.rs")]
+        &[tv!( "validation/structural_operations/structural_paths.rs")]
     );
     FORM_STRUCTURAL_SCALAR => (
         "formation:structural-scalar-fields",
