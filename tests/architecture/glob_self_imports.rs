@@ -19,8 +19,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Exact no-growth ratchets: (crate directory, files carrying a glob
-/// self-import under its `src/`).
-const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[];
+/// self-import anywhere under it: `src/`, `tests/`, `examples/`, `benches/`).
+const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
+    ("omega-rust/omega/compiler/compiler", 55),
+    ("tests/native-differential", 100),
+];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -68,6 +71,10 @@ fn count_glob_self_import_files(directory: &Path) -> usize {
             .unwrap_or_else(|error| panic!("read entry under {}: {error}", directory.display()))
             .path();
         if path.is_dir() {
+            let nested_crate = path.join("Cargo.toml").is_file();
+            if nested_crate || path.file_name().is_some_and(|name| name == "target") {
+                continue;
+            }
             count += count_glob_self_import_files(&path);
         } else if path.extension().is_some_and(|extension| extension == "rs")
             && file_carries_glob_self_import(&path)
@@ -78,11 +85,13 @@ fn count_glob_self_import_files(directory: &Path) -> usize {
     count
 }
 
-/// Every crate directory under `omega-rust/` that has a `Cargo.toml` and a
-/// `src/` tree, as workspace-relative paths.
+/// Every crate directory under `omega-rust/`, `tests/`, or `tools/` that has
+/// a `Cargo.toml` and a `src/` tree, as workspace-relative paths.
 fn crate_directories(root: &Path) -> Vec<String> {
     let mut crates = Vec::new();
-    collect_crate_directories(root, &root.join("omega-rust"), &mut crates);
+    for tree in ["omega-rust", "tests", "tools"] {
+        collect_crate_directories(root, &root.join(tree), &mut crates);
+    }
     crates.sort();
     crates
 }
@@ -114,7 +123,7 @@ fn glob_self_imports_never_grow_per_crate() {
     let root = workspace_root();
     let mut regressions = Vec::new();
     for crate_directory in crate_directories(&root) {
-        let count = count_glob_self_import_files(&root.join(&crate_directory).join("src"));
+        let count = count_glob_self_import_files(&root.join(&crate_directory));
         let ceiling = GLOB_SELF_IMPORT_CEILINGS
             .iter()
             .find_map(|(directory, ceiling)| (*directory == crate_directory).then_some(*ceiling))
@@ -145,7 +154,7 @@ fn glob_self_import_ceilings_are_still_exact() {
             ));
             continue;
         }
-        let count = count_glob_self_import_files(&root.join(crate_directory).join("src"));
+        let count = count_glob_self_import_files(&root.join(crate_directory));
         if count < *ceiling {
             stale.push(format!(
                 "{crate_directory}: {count} files, entry says {ceiling}; lower it (or delete it at zero)"
