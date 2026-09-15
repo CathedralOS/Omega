@@ -1,8 +1,7 @@
 //! Optimizer module role: stage group. Closed inventory and explicit foreign-row policy replay.
 
+use super::TerminalAuthorityPolicyRow;
 use effects::{TerminalAuthorityClass, TerminalAuthorityDisposition, TerminalMechanismIdentity};
-
-use super::*;
 
 mod checked_physical_rows;
 mod filesystem_cohorts;

@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{import_plan, selected_plan_from_exact_evidence};
 #[test]
 fn compact_report_claim_cannot_substitute_different_exact_import_plan() {
     let selected_plan = import_plan(b"selected_leaf", target::TargetProfile::LinuxX64);

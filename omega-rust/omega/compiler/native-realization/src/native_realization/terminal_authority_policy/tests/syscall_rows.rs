@@ -1,11 +1,14 @@
 //! Exact direct-syscall receiving-policy admission.
 
+use super::super::{
+    TerminalAuthorityPolicyBuildError, current_terminal_authority_policy,
+    terminal_authority_policy_with_rows,
+};
+use super::{TerminalMechanismIdentity, row};
 use effects::{
     CheckedSyscallArgumentContractIdentity, SyscallTerminalMechanismIdentity,
     TerminalAuthorityClass,
 };
-
-use super::*;
 
 fn syscall(
     target: target::TargetProfile,

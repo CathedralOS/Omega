@@ -1,6 +1,5 @@
 //! Import coverage joins and checked direct-syscall mechanism derivation.
-
-use super::*;
+use super::{ProviderBinding, import_plan};
 use crate::native_realization::providers::settlements::validate_source_evaluated_import_coverage;
 
 const REQUIREMENT: &str = "omega::test::Foreign::leaf()";

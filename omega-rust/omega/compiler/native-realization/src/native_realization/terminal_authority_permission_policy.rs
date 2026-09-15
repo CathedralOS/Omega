@@ -141,7 +141,11 @@ fn permission_policy_identity(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ServiceSchemaDigest, TerminalAuthorityDisposition,
+        TerminalAuthorityPermissionPolicyBuildError, TerminalAuthorityPermissionPolicyRow,
+        terminal_authority_permission_policy_with_rows,
+    };
     use effects::{TerminalAuthorityClass, provider_plan::ServiceSchema};
 
     fn schema(marker: &str) -> ServiceSchemaDigest {

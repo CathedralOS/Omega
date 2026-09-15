@@ -1,5 +1,5 @@
 use super::conditional_fixture::Comparison;
-use super::*;
+use super::{OptimizedFragmentPublicationRequest, conditional_fixture, emit_optimized_fragments};
 use optimization_core::{Optimization, OptimizationSelections};
 use semantic_vocabulary::IntegerSign;
 

@@ -111,7 +111,7 @@ pub(crate) fn lower_realization_input(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{lower_realization_input, prepare_native_realization_input};
     use proof_admission::{AdmissionAcceptance, AdmissionProfile};
     use semantic_vocabulary::{AdmissionSiteId, EvidenceIdentity, ProfileDecisionId};
 
