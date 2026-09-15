@@ -1,4 +1,7 @@
-use super::{ExpressionNode, Lexer, TypeReferenceNode, parse_syntax_trees};
+use crate::parser::parse_syntax_trees;
+use source_files_to_tokens::Lexer;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::types::TypeReferenceNode;
 #[test]
 fn range_end_kind_and_authored_endpoints_survive_tree_copy() {
     for endpoint in [
