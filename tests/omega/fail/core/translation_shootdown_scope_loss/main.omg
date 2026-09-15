@@ -4,7 +4,29 @@
 use omega::language::core::assembly;
 use omega::language::core::extent;
 
-boundary data Mapping [linear];
+data TranslationActivationFact {
+    identity: u64;
+}
+
+data TranslationCompletionFact {
+    identity: u64;
+}
+
+data TranslationInstallObligations {
+    facts: [TranslationActivationFact; 2];
+}
+
+data TranslationReleaseObligations {
+    facts: [TranslationCompletionFact; 2];
+}
+
+boundary data MappingToken [linear];
+
+data Mapping [linear] {
+    token: MappingToken;
+    install: TranslationInstallObligations;
+    release: TranslationReleaseObligations;
+}
 
 domain Mapping::Pending
 established by TranslationAuthority::map;
@@ -23,8 +45,12 @@ data Unmapped {
 }
 
 boundary trait TranslationAuthority {
-    machine map(source: Extent in Granted, destination: Extent in Granted)
-        -> Mapping
+    machine map(
+        source: Extent in Granted,
+        destination: Extent in Granted,
+        install: TranslationInstallObligations,
+        release: TranslationReleaseObligations
+    ) -> Mapping
     requires
         source.length == destination.length
     ensures
@@ -51,7 +77,20 @@ requires
     source.length == destination.length
 reaches TranslationAuthority + MachineControl
 {
-    let pending: Mapping in Pending = authority.map(source, destination);
+    let install: TranslationInstallObligations = TranslationInstallObligations {
+        facts: [
+            TranslationActivationFact { identity: 1 },
+            TranslationActivationFact { identity: 2 }
+        ],
+    };
+    let release: TranslationReleaseObligations = TranslationReleaseObligations {
+        facts: [
+            TranslationCompletionFact { identity: 3 },
+            TranslationCompletionFact { identity: 4 }
+        ],
+    };
+    let pending: Mapping in Pending =
+        authority.map(source, destination, install, release);
     let installed: Mapping in Installed = authority.activate(pending);
     let unmapped: Unmapped = authority.unmap(installed);
     let shootdown: Shootdown in Owed = unmapped.shootdown;

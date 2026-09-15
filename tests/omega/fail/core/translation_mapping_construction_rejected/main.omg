@@ -1,11 +1,34 @@
-// Numeric page-walk validation grants no mapping authority, and the mapping
-// carrier is opaque boundary data: it has no public constructor, so source
-// cannot spell a value carrying the `Installed` state `unmap` requires --
-// only the provider's establishing routes mint it
-// (wiki/spec/resources/extents.md).
+// Numeric page-walk validation grants no mapping authority. The mapping
+// carrier is an ordinary linear record so the authored obligation sets stay
+// readable on it, but its provider identity is opaque boundary data: it has
+// no public constructor, so source cannot spell a value carrying the
+// `Installed` state `unmap` requires -- only the provider's establishing
+// routes mint it (wiki/spec/resources/extents.md).
 use omega::language::core::extent;
 
-boundary data Mapping [linear];
+data TranslationActivationFact {
+    identity: u64;
+}
+
+data TranslationCompletionFact {
+    identity: u64;
+}
+
+data TranslationInstallObligations {
+    facts: [TranslationActivationFact; 2];
+}
+
+data TranslationReleaseObligations {
+    facts: [TranslationCompletionFact; 2];
+}
+
+boundary data MappingToken [linear];
+
+data Mapping [linear] {
+    token: MappingToken;
+    install: TranslationInstallObligations;
+    release: TranslationReleaseObligations;
+}
 
 domain Mapping::Pending
 established by TranslationAuthority::map;
@@ -24,8 +47,12 @@ data Unmapped {
 }
 
 boundary trait TranslationAuthority {
-    machine map(source: Extent in Granted, destination: Extent in Granted)
-        -> Mapping
+    machine map(
+        source: Extent in Granted,
+        destination: Extent in Granted,
+        install: TranslationInstallObligations,
+        release: TranslationReleaseObligations
+    ) -> Mapping
     requires
         source.length == destination.length
     ensures
@@ -41,12 +68,27 @@ boundary trait TranslationAuthority {
 machine forged_mapping_is_unqualified(authority: &TranslationAuthority)
 reaches TranslationAuthority
 {
-    // Spelling the provider-owned carrier's runtime fields is rejected
+    // Spelling the provider-owned token's runtime fields is rejected
     // outright: no forged value ever reaches `unmap`'s `Installed`
-    // requirement.
+    // requirement, even though the obligation sets themselves are ordinary
+    // authored data.
     let forged: Mapping = Mapping {
-        root: 1,
-        invocation: 2,
+        token: MappingToken {
+            root: 1,
+            invocation: 2,
+        },
+        install: TranslationInstallObligations {
+            facts: [
+                TranslationActivationFact { identity: 1 },
+                TranslationActivationFact { identity: 2 }
+            ],
+        },
+        release: TranslationReleaseObligations {
+            facts: [
+                TranslationCompletionFact { identity: 3 },
+                TranslationCompletionFact { identity: 4 }
+            ],
+        },
     };
     authority.unmap(forged);
 }
