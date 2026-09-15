@@ -5,6 +5,7 @@ use super::{
     validate,
 };
 use crate::calling_policy_plans::materialized_boundary_signature_from_abi;
+use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
 use calling_conventions::{CallSignature, LayoutPlanId, NativeParameterId, ValueShape};
 use layout::{
     TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
@@ -129,7 +130,6 @@ fn direct_and_two_hop_catalogs_replay_with_distinct_root_and_terminal_layouts() 
 
 #[test]
 fn named_catalog_preserves_existing_boundary_application_bytes() {
-    use crate::calling_policy_plans::boundary_plan_application_identity;
     use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 
     for mut signature in [signature_fixture(), two_hop_fixture()] {
