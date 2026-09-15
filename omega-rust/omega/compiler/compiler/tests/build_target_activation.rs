@@ -1299,7 +1299,7 @@ machine Main::main(&mut self) {
     let fused64: f64 = F64::fused_multiply_add(2.0f64, 3.0f64, 4.0f64);
     self.emit();
 }
-machine Main::emit(&mut self) {
+machine Main::emit(&mut self) reaches Console {
     let value: i32 = Arithmetic::identity(7);
     self.console.write_line("mixed execution");
     self.console.exit_process(value);

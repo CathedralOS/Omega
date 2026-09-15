@@ -39,7 +39,7 @@ data RegistrarUser {
     specification: Spread<ForeignRecord>;
 }
 
-machine RegistrarUser::configure(&mut self) {
+machine RegistrarUser::configure(&mut self) reaches WindowRegistrar {
     WindowRegistrar::register<CallbackProvider::call, CallbackProvider::call>(&self.specification);
 }
 
@@ -317,10 +317,6 @@ fn repeated_callback_registrars_keep_distinct_ordered_terminal_occurrences() {
         call,
         &format!("{call}\n    HookRegistrar::install<HookProvider::call>(3u64, 4u64);"),
     );
-    let source = source.replace(
-        "machine Main::main(&mut self) {",
-        "machine Main::main(&mut self) reaches HookRegistrar {",
-    );
     fs::write(&fixture.main, source).expect("write repeated callback calls");
     let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "repeated"))
         .and_then(compiler::CompileOutcomes::into_single_report)
@@ -496,6 +492,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.application_name().map(str::to_owned),
         proposal.post_terminal_optimizations().clone(),
         proposal.program_entry().clone(),
+        proposal.checked_program_entry().clone(),
         proposal.selected_provider_plans().clone(),
         proposal.external_binding_rows().to_vec(),
         proposal.package_terminal_authority_permissions().to_vec(),
@@ -543,6 +540,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.application_name().map(str::to_owned),
             proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
+            proposal.checked_program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
             proposal.package_terminal_authority_permissions().to_vec(),
@@ -574,6 +572,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.application_name().map(str::to_owned),
             proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
+            proposal.checked_program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
             proposal.package_terminal_authority_permissions().to_vec(),
@@ -600,6 +599,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.application_name().map(str::to_owned),
         proposal.post_terminal_optimizations().clone(),
         proposal.program_entry().clone(),
+        proposal.checked_program_entry().clone(),
         proposal.selected_provider_plans().clone(),
         proposal.external_binding_rows().to_vec(),
         proposal.package_terminal_authority_permissions().to_vec(),
@@ -640,6 +640,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.application_name().map(str::to_owned),
             proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
+            proposal.checked_program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
             proposal.package_terminal_authority_permissions().to_vec(),
@@ -675,6 +676,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.application_name().map(str::to_owned),
         proposal.post_terminal_optimizations().clone(),
         proposal.program_entry().clone(),
+        proposal.checked_program_entry().clone(),
         proposal.selected_provider_plans().clone(),
         proposal.external_binding_rows().to_vec(),
         proposal.package_terminal_authority_permissions().to_vec(),
@@ -712,6 +714,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.application_name().map(str::to_owned),
         proposal.post_terminal_optimizations().clone(),
         proposal.program_entry().clone(),
+        proposal.checked_program_entry().clone(),
         proposal.selected_provider_plans().clone(),
         proposal.external_binding_rows().to_vec(),
         proposal.package_terminal_authority_permissions().to_vec(),

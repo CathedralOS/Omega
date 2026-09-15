@@ -4558,7 +4558,7 @@ fn native_package_entrypoint_uses_the_same_reconciled_binding_mode() {
         r#"use dep::values;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition ANSWER == 42 { true -> yes() _ -> no() }
     state yes(&mut self) { self.console.exit_process(0); }
     state no(&mut self) { self.console.exit_process(1); }
@@ -4891,7 +4891,7 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         root.join("main.omg"),
         r#"use accepted_console::console;
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.exit_process(70);
 }
 "#,
@@ -5186,6 +5186,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             proposal.application_name().map(str::to_owned),
             proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
+            proposal.checked_program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
             vec![retained_permission.clone(), retained_permission.clone()],
@@ -5244,6 +5245,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 proposal.application_name().map(str::to_owned),
                 proposal.post_terminal_optimizations().clone(),
                 proposal.program_entry().clone(),
+                proposal.checked_program_entry().clone(),
                 proposal.selected_provider_plans().clone(),
                 proposal.external_binding_rows().to_vec(),
                 permissions,
@@ -5517,7 +5519,7 @@ fn accepted_package_filesystem_binding_requires_exact_owner_path_and_schema() {
         root.join("main.omg"),
         r#"use host_services::filesystem_host;
 data Main { filesystem: FilesystemHost; descriptor: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.descriptor = self.filesystem.create("probe.txt", 438);
 }
 
@@ -5659,7 +5661,20 @@ invokes filesystem;
         bound.error, None,
         "the exact accepted declaration symbol should route the filesystem provider",
     );
-    let substituted_program = accepted_compilation.clone();
+    // A second compilation of the same source is a distinct checked program:
+    // `CheckedCompilation` derefs into a shared `Arc<CheckedTrees>`, so cloning
+    // the compilation would reuse the exact inner program address and defeat
+    // the binding's program-identity check. Recompile to obtain a genuinely
+    // different checked program whose raw symbol coordinate must not rejoin.
+    let substituted_program = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![accepted.clone()])
+                .expect("exact accepted binding names the ordinary dependency"),
+        ),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("the identical source compiles into a second checked program");
     let substituted = checked_interpreter::interpret_entry_with_options(
         &substituted_program,
         "Main::main",
@@ -6161,7 +6176,7 @@ fn package_native_physical_evidence_gate_borrows_exact_supported_evidence() {
         exit_root.join("main.omg"),
         r#"use host_services::console;
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.exit_process(70);
 }
 "#,

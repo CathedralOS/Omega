@@ -144,6 +144,7 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
             proposal.application_name().map(str::to_owned),
             proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
+            proposal.checked_program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             rows,
             proposal.package_terminal_authority_permissions().to_vec(),
@@ -237,7 +238,15 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
 /// pipeline. `Ok` means native emission succeeded; `Err` carries every
 /// rendered diagnostic.
 fn compile_called_leaf(leaf_declaration: &str) -> Result<(), Vec<String>> {
-    let root = std::env::temp_dir().join(format!("omega-called-leaf-{}", std::process::id()));
+    // Each call needs its own fixture directory: tests in this target run in
+    // parallel and a process-wide path lets one test overwrite or delete the
+    // other's source while its compile is still reading it.
+    static NEXT_FIXTURE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let root = std::env::temp_dir().join(format!(
+        "omega-called-leaf-{}-{}",
+        std::process::id(),
+        NEXT_FIXTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+    ));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("create called-leaf fixture");
     let main = root.join("main.omg");
