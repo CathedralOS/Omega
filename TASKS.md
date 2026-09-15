@@ -2135,6 +2135,18 @@ Owners include
   float-meaning evaluation retain their separate supply routes. Unsupported
   migration/execution paths must fail closed, not fall back to builtin arithmetic.
 
+  Front slice landed (linw1, parser admission only): `parse_machine` accepts an
+  optional closed-vocabulary token after `machine`, records it as
+  `syntax_trees::item::Machine::spelling`, and rejects tokens on `satisfies`
+  realizations, `boundary requirement`, and conformance members
+  (`tokens-to-syntax-trees/src/parser/machine.rs`, `item.rs`; tests in
+  `parser/tests/properties_and_requirements.rs`). Next frontier: carry
+  `spelling` into symbol-resolved/typed/checked representations
+  (`lowering/machine.rs` notes the current inert drop), then operand-directed
+  selection, semantic-home ownership and duplicate checks, `operator`
+  introducer removal, supply-mode wiring, Terminal codec, and native call
+  realization per the acceptance above.
+
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) in
   `syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs`,
