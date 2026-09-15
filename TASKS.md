@@ -1449,6 +1449,34 @@ Owners include
   indices, derivation indices, and mutual/nested families per the
   acceptance below, then connect the model to source elaboration.
 
+  Landed: the length-indexed vector, mutual and nested families —
+  `indexed_vector`, `indexed_mutual` and `indexed_nested` each check
+  `isup` construction and `iindW` computation with a visible
+  constructor and an arbitrary neutral child function, the nested
+  case a level-indexed rose tree whose payload is `Σ(k : Nat). Vec k`
+  — plus the conversion reflexivity fast path that keeps shared
+  `IndexedAt`/`IW` spines shared. Exact assumption closures and
+  budgeted step/arena receipts are pinned per family.
+
+  Landed: level instantiation on the derived scheme in
+  `indexed_levels` — a producer declares `vecOf : Π(E : Type u).
+  Π(n : Nat). Type u` and `consVec` once at level arity 1, with
+  `Parameter(0)` inside the scheme constants' level arguments, and
+  one checked signature runs the family at `[0]` (vectors of
+  booleans) and `[1]` (vectors of types). `iindW[0,1,0,1]` computes
+  on a cons node with the induction hypothesis landing at the
+  predecessor index one universe up; wrong element universes,
+  wrong level-argument counts, out-of-scope parameters and
+  descriptions claimed at mismatched sorts each reject with their
+  exact error. The level-polymorphic `consVec` judgment travels as
+  a `level_arity`-1 certificate through the canonical wire —
+  byte-identical re-encode, independent re-verification, closure
+  exactly the three `Nat` axioms — and a forged closed arity
+  rejects `UnboundLevelParameter`. Next: connect the model to
+  source elaboration or a real theorem certificate per the
+  acceptance below; do not keep expanding the disconnected
+  framework.
+
   Implement the pinned reference core and selected
   [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,
   two-element type, W-induction and checked derived indexed families. No second
