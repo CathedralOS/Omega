@@ -1,5 +1,6 @@
+use super::super::{CheckedTrees, ExpressionHandle};
 use super::tests::checked;
-use super::*;
+use super::{Evaluator, Value};
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 

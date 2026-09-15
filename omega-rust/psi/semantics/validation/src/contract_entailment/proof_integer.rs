@@ -1,7 +1,9 @@
 //! Mathematical integer recognition and ordered Exact proof coercion.
 
-use super::*;
-
+use super::{
+    BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, ProofFact,
+    TypedTrees,
+};
 fn proof_builtin_type(
     program: &TypedTrees,
     mut reference: typed_trees::types::TypeReferenceHandle,

@@ -481,7 +481,10 @@ fn collect_statement_nodes(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, LandedIntegerType, PrimitiveType,
+        TypedTrees, UnaryOperator, integer_embedding, primitive_range,
+    };
     use numerics::arithmetic::ArithmeticDomain;
     use numerics::literals::{IntegerLanding, IntegerLiteral};
     use typed_trees::expression::{TableBinaryExpression, TableUnaryExpression};

@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    BTreeMap, BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
+    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
+    SymbolHandle, TypedTrees, proof_integer_expression, proof_nat_cast,
+};
 pub(super) enum Judgment {
     Proven,
     /// Disproved purely by folding both sides to constants.
@@ -1479,7 +1482,11 @@ mod tests;
 
 #[cfg(test)]
 mod embedding_tests {
-    use super::*;
+    use super::super::{ProofFact, SignatureContractKind, proof_integer_nonnegative};
+    use super::{
+        BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Polynomial, TypedTrees,
+        proof_nat_cast,
+    };
     use numerics::arithmetic::ArithmeticDomain;
     use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
     use typed_trees::expression::TableBinaryExpression;

@@ -5,7 +5,14 @@
 //! total denotation, for both concrete and abstract contract owners.
 
 use super::guard_narrowing::{comparison_bound, narrow_env_by_condition};
-use super::*;
+use super::{
+    ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
+    Machine, PrimitiveType, ProofFact, SignatureContractKind, State, TypeReferenceHandle,
+    TypeReferenceNode, TypedTrees, ValueEnv, abstract_shift_count, analyze,
+    arithmetic_operator_spelling, exact_division_definedness, is_arithmetic, literal_i64,
+    place_path, primitive_name, primitive_range, range_constraint_interval,
+    resolve_named_float_arithmetic,
+};
 
 /// Reject runtime-control arithmetic from proof positions. A contract is a
 /// total proposition: it may compare or bitwise-inspect a Trapping-qualified

@@ -1,6 +1,8 @@
 //! Non-observing projected captures; later uses retain ordinary borrow checks.
-
-use super::*;
+use super::{
+    ExpressionNode, Machine, ReferenceAccess, State, StatementNode, SymbolHandle,
+    TypeReferenceNode, TypedTrees, WriteOnlyRoot, receiver,
+};
 use typed_trees::statement::TableLocalData;
 
 pub(super) fn admitted(

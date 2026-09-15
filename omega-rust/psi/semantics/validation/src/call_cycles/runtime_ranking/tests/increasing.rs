@@ -1,5 +1,6 @@
+use super::super::{ExpressionHandle, RankingRangeCallProgress};
 use super::ranges::progress;
-use super::*;
+use super::{admitted, typed_source};
 
 const INCREASING: &str = "data Main {}
 machine Main::first(&mut self, limit: u64, cursor: u64, capacity: u64)

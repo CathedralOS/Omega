@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
+    trap,
+};
 impl<'program> Evaluator<'program> {
     pub(super) fn selected_boundary_adapter(
         &self,

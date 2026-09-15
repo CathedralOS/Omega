@@ -1,5 +1,9 @@
-use super::*;
-
+use super::super::{TypeConstraintNode, argument_matches_type_reference_handle};
+use super::{
+    ExpressionHandle, ExpressionNode, ReferenceAccess, TypeReferenceHandle, TypeReferenceNode,
+    TypedTrees, declared_value_type, place_forwards_mutable_reference, projected_matches_reference,
+    reference_type_matches,
+};
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

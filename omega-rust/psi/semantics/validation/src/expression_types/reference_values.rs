@@ -3,8 +3,10 @@
 //! Type matching does not manufacture a loan. Forwarding additionally anchors
 //! the current-state binding and checks every enclosing reference permission;
 //! a mutable leaf behind shared storage cannot authorize an exclusive call.
-
-use super::*;
+use super::{
+    ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    named_value_type_reference,
+};
 use language_semantics::ReferenceAccess;
 
 /// Reference correspondence does not form a loan. Array-to-slice adaptation

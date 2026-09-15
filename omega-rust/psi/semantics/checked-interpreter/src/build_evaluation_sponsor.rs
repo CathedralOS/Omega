@@ -469,7 +469,7 @@ impl Drop for BuildEvaluationLiveFilesystemHandleLease {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 
     #[test]
     fn limits_reject_zero_and_expose_version_seven_schema() {

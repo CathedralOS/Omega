@@ -6,8 +6,9 @@
 //! resolution stays separate: materializing a value grants no source-place
 //! assignment or borrowing authority.
 
-use super::*;
-
+use super::{
+    Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, Value, unsupported,
+};
 impl Evaluator<'_> {
     pub(super) fn eval_read_cell(
         &mut self,

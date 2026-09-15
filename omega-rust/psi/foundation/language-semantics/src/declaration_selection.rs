@@ -599,7 +599,13 @@ impl<'ledger> IntoIterator for &'ledger AuthoredDeclarationSelections {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionFinalizationError,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
+        AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
+        AuthoredDeclarationSelectionSuffixRebaseError, AuthoredDeclarationSelections,
+        CompilerDerivedSelectionPartition, SourceSpan, SymbolHandle,
+    };
     use source::{SourceId, Span};
 
     fn source_span(start: usize, end: usize) -> SourceSpan {

@@ -2563,7 +2563,12 @@ fn win32_error_code(error: &std::io::Error) -> i32 {
 
 #[cfg(test)]
 mod sponsor_provider_tests {
-    use super::*;
+    use super::{
+        DirectoryEntrySnapshotKind, EACCES, Path, PathBuf, RealFs, SponsorPreparation,
+        canonical_grants, canonical_metadata_values, canonical_relative_path,
+        read_only_open_bypasses_sponsor, real_directory_entries, real_path, resolve_for_check,
+        resolve_parent_for_check, sponsor_preparation,
+    };
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(1);

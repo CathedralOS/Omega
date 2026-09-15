@@ -1,7 +1,10 @@
 //! Symbolic value bounds use immutable, exact current-machine const binders.
 //! No selected application supplies premises for the retained generic body.
-
-use super::*;
+use super::{
+    BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, Machine,
+    Polynomial, StrictArithmeticBindingValue, StrictArithmeticSymbolBinding, SymbolHandle,
+    TypedTrees,
+};
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::state::State;

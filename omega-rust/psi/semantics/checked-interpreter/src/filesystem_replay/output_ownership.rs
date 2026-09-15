@@ -158,7 +158,12 @@ pub(crate) fn output_change_file_owner_attempt(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FilesystemLogicalHandleIdentity, FilesystemLogicalHandleInputResolution,
+        FilesystemOperationAttempt, FilesystemOperationAttemptOutcome, FilesystemOperationResult,
+        FilesystemOutputChangeFileOwnerReplayRecord, output_change_file_owner_attempt,
+        output_change_file_owner_record_from_attempt,
+    };
     use crate::{
         EvaluationObservations, FilesystemAuthorizedPath, FilesystemGrantAccess,
         FilesystemGrantRootIdentity, FilesystemInputOutputTreeReplayRecord,

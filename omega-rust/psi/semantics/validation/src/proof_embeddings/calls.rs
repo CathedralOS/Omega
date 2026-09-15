@@ -1,7 +1,10 @@
 //! Denotational-call admission below a proof integer embedding.
 
-use super::*;
-
+use super::{
+    Diagnostic, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceHandle,
+    TypeReferenceNode, TypedTrees, collect_expression_nodes, expression_type_reference,
+    is_exact_embed_call, primitive_range,
+};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedIntegerEmbeddingCall {
     pub call_expression: ExpressionHandle,
@@ -166,7 +169,7 @@ fn argument_has_exact_type(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ExpressionNode, validate_integer_embedding_calls};
 
     #[test]
     fn nested_state_substitution_cannot_reuse_the_machine_entry_totality_candidate() {

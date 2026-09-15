@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    ExpressionHandle, ExpressionNode, PermissionProvenance, TypedTrees,
+    expression_permission_provenance,
+};
 #[test]
 fn nested_static_constructor_namespace_is_not_a_live_operand() {
     let source = "data Inner { value: u64; }

@@ -3,8 +3,11 @@
 //! neither can silently omit an operand/cast boundary handled by the other.
 //! Grants belong to immediate child occurrences, not merely shared handles;
 //! result joins forward destinations without owning dispatch inputs.
-
-use super::*;
+use super::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, PrimitiveType, TypedTrees,
+    anonymous_numeric_value, has_anonymous_operator_meaning, integer_landing_warning,
+    land_anonymous_integer_expression, land_integer_value,
+};
 use crate::literals::expression_children::children;
 use diagnostics::Diagnostic;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -610,7 +613,11 @@ fn append_tree(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BinaryOperator, ExpressionHandle, ExpressionNode, StatementNode, TransitionTargetNode,
+        TypedTrees, anonymous_integer_landing_warnings, append_destination_literals,
+        call_argument_destinations,
+    };
 
     mod arrays;
     mod match_results;

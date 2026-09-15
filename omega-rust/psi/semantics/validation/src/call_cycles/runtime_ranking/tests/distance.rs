@@ -1,5 +1,6 @@
+use super::super::RankingRangeCallProgress;
 use super::ranges::progress;
-use super::*;
+use super::{RankProjection, admitted, typed_source};
 
 const DISTANCE: &str = "data Main {}
 machine Main::scan_a(&mut self, index: u64 [0..=4], limit: u64 [0..=4])

@@ -1267,7 +1267,11 @@ fn usize_to_u64(value: usize) -> Result<u64, FilesystemSponsorError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FilesystemSponsor, FilesystemSponsorEntry, FilesystemSponsorError, FilesystemSponsorLimits,
+        FilesystemSponsorNamespaceEntryKind, FilesystemSponsorPath, FilesystemSponsorSnapshot,
+        Path,
+    };
 
     fn limits(entries: u64, total: u64, extent: u64) -> FilesystemSponsorLimits {
         FilesystemSponsorLimits {

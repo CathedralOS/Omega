@@ -58,7 +58,7 @@ impl FrameInference {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{AggregateMove, FrameInference, PlaceSegment, StoredLocalOrigins, SymbolHandle};
 
     fn local(symbol: SymbolHandle, variant: SymbolHandle) -> StoredLocalOrigins {
         StoredLocalOrigins {

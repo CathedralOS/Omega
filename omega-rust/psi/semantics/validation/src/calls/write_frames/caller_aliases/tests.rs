@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    AssignmentWriteTarget, CallerWriteSite, FrameInference, Machine, StateWriteQuery,
+    StatementNode, TopLevelSymbols, TypedTrees, caller_aliases_at_site, close_caller_aliases,
+    walk_state_write_prefix,
+};
 use crate::CallFrameResolver;
 
 fn typed(source: &str) -> TypedTrees {

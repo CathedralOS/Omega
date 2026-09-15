@@ -5,8 +5,11 @@
 //! to it; losing the point would lose valid static endpoints. Fixed-width kernels
 //! still check each typed operation and operand landing, before interval fallback.
 //! Declared singleton ranges on parameters/fields do not become static values.
-
-use super::*;
+use super::{
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
+    PrimitiveType, State, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    enforced_declared_range, primitive_range,
+};
 use language_core::OperatorSpelling;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;

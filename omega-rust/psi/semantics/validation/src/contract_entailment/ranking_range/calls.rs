@@ -1,8 +1,12 @@
 //! Cross-machine scalar rank transport with optional authored ranges. Each side
 //! retains its own template; call substitution is not local-state correspondence.
 
-use super::*;
-
+use super::super::StrictArithmeticExpressionBinding;
+use super::{
+    BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
+    PrimitiveType, RankingRangeMeasure, State, TypedTrees, collect_guard, entry_comparisons,
+    exact_integer_parameter, integer_bindings, lengths, meanings, projections,
+};
 mod endpoint_pins;
 pub(crate) use endpoint_pins::{RankingRangeCallEdge, mixed_call_endpoints_are_pinned};
 

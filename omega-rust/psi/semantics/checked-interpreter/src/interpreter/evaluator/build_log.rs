@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value};
 const BUILD_LOG_FACET_TYPE: &str = "$OmegaBuildLogFacet";
 
 impl<'program> Evaluator<'program> {

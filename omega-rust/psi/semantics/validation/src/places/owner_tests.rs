@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    TypeReferenceNode, TypedTrees, data_definition_for_type, declared_member_path_type,
+    exact_attached_field, machine_attached_data,
+};
 use crate::symbols::MachineSymbols;
 use symbols::SymbolHandle;
 use typed_trees::name::Identifier;

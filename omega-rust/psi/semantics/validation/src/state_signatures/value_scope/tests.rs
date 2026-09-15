@@ -1,5 +1,4 @@
-use super::*;
-
+use super::TypedTrees;
 fn parse(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

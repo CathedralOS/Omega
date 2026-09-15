@@ -65,7 +65,10 @@ pub fn ieee_float_range_ordered(minimum: IeeeFloatValue, maximum: IeeeFloatValue
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExpressionHandle, IeeeFloatValue, PrimitiveType, TypedTrees, closed_float_range_endpoint,
+        ieee_float_range_ordered,
+    };
     use typed_trees::types::TypeConstraintNode;
     use typed_trees::types::TypeReferenceHandle;
 

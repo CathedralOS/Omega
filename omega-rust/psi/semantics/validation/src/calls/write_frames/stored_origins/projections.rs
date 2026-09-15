@@ -463,7 +463,9 @@ fn unconstrained_type(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExpressionHandle, PlaceSegment, StoredLocalOrigins, TypedTrees, project_stored_origins,
+    };
     use crate::calls::write_frames::stored_origins::StoredWriteOrigin;
     use crate::calls::write_frames::{FramePathPrecision, FramePlaceOrigin, FrameSourcePlace};
     use symbols::SymbolHandle;

@@ -1,4 +1,4 @@
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, SymbolKind, TypedTrees, exact_self_field};
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 use symbols::SymbolHandle;

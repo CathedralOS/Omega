@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, IntegerLanding,
+    IntegerLiteral, LandedIntegerType, PrimitiveType, TypedTrees,
+    evaluate_anonymous_numeric_comparison, land_anonymous_integer_expression,
+    land_anonymous_integer_expression_with_warning,
+};
 use typed_trees::expression::TableBinaryExpression;
 
 mod anonymous_dispatch;

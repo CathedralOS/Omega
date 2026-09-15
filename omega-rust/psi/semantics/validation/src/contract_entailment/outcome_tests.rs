@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    ExpressionNode, ProofFact, StatementNode, TransitionGuardNode, TypedTrees,
+    entailment_covers_all_exits,
+};
 use crate::proven_machine_contract_expressions;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;

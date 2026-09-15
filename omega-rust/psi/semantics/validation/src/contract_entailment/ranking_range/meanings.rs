@@ -1,6 +1,7 @@
 //! The existing declaration/custody owner, not token spelling, admits arithmetic.
-
-use super::*;
+use super::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State, TypedTrees, fields, lengths,
+};
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::UnaryOperator;
 use typed_trees::types::TypeReferenceHandle;

@@ -9,8 +9,7 @@
 //! body, initializer, or provider executes -- the query is a logical lookup
 //! over the authored frontier.
 
-use super::*;
-
+use super::{BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value};
 /// The compiler-created `Build.product` facet value inside the canonical
 /// Build activation. An authored `BuildProduct {}` has the same static shape
 /// but never this marker name, so it cannot perform the query.

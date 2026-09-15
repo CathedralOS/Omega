@@ -241,7 +241,10 @@ fn parameter_is_slice(program: &TypedTrees, parameter: &StateParameter) -> bool 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BinaryOperator, ExpressionHandle, ExpressionNode, StateParameter, TypeReferenceNode,
+        TypedTrees, slice_tail_strictly_decreases,
+    };
     use symbols::SymbolHandle;
     use typed_trees::expression::{
         Expression, NamePath, TableBinaryExpression, TableIndexedExpression, TableMemberExpression,

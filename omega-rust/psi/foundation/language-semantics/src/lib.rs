@@ -872,7 +872,15 @@ impl QualificationEvidenceOrigin {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPermission,
+        CarryPolicy, CarrySuspension, DomainEstablishmentRoute, DomainPredicateBody,
+        ExternalBindingId, ExternalBindingIdentity, ExternalBindingMechanism, ExternalBindingTable,
+        MachineSupplyMode, MachineTerminationPlan, Multiplicity, QualificationEvidenceOrigin,
+        RankingViewId, RankingWitness, SemanticDomainId, SemanticDomainTable, ServiceReachId,
+        ServiceReachRowId, ServiceReachRowTable, ServiceReachTable, SuspensionInterface,
+        SuspensionPlan, TerminationGuarantee, TerminationInterface,
+    };
 
     #[test]
     fn semantic_domain_table_is_deterministic_and_idempotent() {

@@ -536,7 +536,12 @@ pub(super) fn record_representation_implies(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FixedArrayLength, HashSet, MAX_RECAST_REPRESENTATION_DEPTH, RepresentationBudget,
+        TypeReferenceHandle, TypeReferenceNode, TypedTrees, mutable_record_type_representation,
+        mutable_type_representation, repeat_representation, repeat_representation_with_stride,
+        shared_projection_type_representation,
+    };
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols};
     use typed_trees::data::{
         DataDefinition, DataField, DataMember, TypeParameter, TypeParameterKind,

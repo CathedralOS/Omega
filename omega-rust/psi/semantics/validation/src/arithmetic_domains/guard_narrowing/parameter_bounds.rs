@@ -1,7 +1,9 @@
 //! Exact immutable operand bounds project through the current builtin guard.
 
-use super::*;
-
+use super::{
+    ExpressionHandle, ExpressionNode, Machine, State, TypedTrees, ValueEnv, comparison_interval,
+    negate_comparison, place_path,
+};
 pub(super) fn narrow(
     program: &TypedTrees,
     machine: &Machine,

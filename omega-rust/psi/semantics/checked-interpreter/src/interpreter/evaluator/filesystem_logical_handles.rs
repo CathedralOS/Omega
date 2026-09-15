@@ -201,7 +201,10 @@ fn remove_identity(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
+        FilesystemLogicalHandles,
+    };
 
     #[test]
     fn provider_token_reuse_gets_a_fresh_logical_identity() {

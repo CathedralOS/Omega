@@ -193,7 +193,10 @@ fn contract_occurrence_owner(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypedTrees, reserved_result_owner,
+        reserved_result_place, type_reference,
+    };
 
     const PROJECTED_RESULT: &str = "data Message { case Empty; case Data(value: u8); }
         data Inner { message: Message; }

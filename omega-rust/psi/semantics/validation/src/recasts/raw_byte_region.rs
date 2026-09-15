@@ -204,7 +204,9 @@ pub(super) fn record_view_type_is_fact_free(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        HashSet, TypeReferenceHandle, TypeReferenceNode, TypedTrees, record_view_type_is_fact_free,
+    };
     use typed_trees::data::{DataDefinition, DataField, DataMember};
     use typed_trees::name::Identifier;
 

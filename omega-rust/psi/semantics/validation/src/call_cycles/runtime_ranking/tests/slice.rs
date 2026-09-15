@@ -1,5 +1,6 @@
+use super::super::RankingRangeCallProgress;
 use super::ranges::progress;
-use super::*;
+use super::{RankProjection, admitted, typed_source};
 
 const SLICES: &str = "data Main {}
 machine Main::scan_a(&mut self, items: &[u64], capacity: u64)

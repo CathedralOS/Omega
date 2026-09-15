@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    Cell, EvalResult, Evaluator, FixedArrayLength, Frame, Halt, HashSet, MutableRecordProjection,
+    MutableRecordProjectionStep, PrimitiveType, TypeReferenceHandle, TypeReferenceNode, Value,
+    interpreter_f32_from_bits, interpreter_f32_to_bits, trap, wrap_to_width,
+};
 impl<'program> Evaluator<'program> {
     pub(super) fn assemble_scalar_byte_region(
         &self,

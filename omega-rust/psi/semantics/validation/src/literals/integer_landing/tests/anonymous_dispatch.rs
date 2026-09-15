@@ -1,4 +1,7 @@
-use super::*;
+use super::super::{
+    land_anonymous_integer_expression_with_selected_match_arms, select_anonymous_numeric_match_arm,
+};
+use super::{ExpressionHandle, ExpressionNode, PrimitiveType, TypedTrees};
 use typed_trees::expression::TableMatchExpression;
 
 fn parsed_dispatch(subject: &str, arms: &str) -> (TypedTrees, TableMatchExpression) {

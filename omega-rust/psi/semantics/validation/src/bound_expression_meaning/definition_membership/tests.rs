@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    ExpressionHandle, ExpressionNode, HandleSpan, ProofFact, SymbolHandle, TableBinaryExpression,
+    TypedTrees, has_exact_data_case_membership_meaning, has_exact_domain_case_membership_meaning,
+};
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

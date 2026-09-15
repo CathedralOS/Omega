@@ -2,7 +2,11 @@
 //! An earlier operand can expose a slot even when its helper frame is empty.
 
 use super::super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
-use super::super::*;
+use super::super::{
+    ExpressionHandle, ExpressionNode, FrameInference, FramePlaceOrigin, Machine, StateParameter,
+    StateWriteQuery, TopLevelSymbols, TypedTrees, caller_aliases, local_aliases, stored_origins,
+    walk_state_write_prefix,
+};
 
 /// A checked local carrier can capture a reference binding without exposing
 /// it to another machine. Every call operand inside that initializer still

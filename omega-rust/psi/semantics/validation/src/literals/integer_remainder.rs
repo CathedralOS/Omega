@@ -73,7 +73,10 @@ fn is_anonymous_numeric_expression(program: &TypedTrees, expression: ExpressionH
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BinaryOperator, ExpressionHandle, ExpressionNode, TypedTrees,
+        is_anonymous_numeric_expression, validate_anonymous_remainders,
+    };
     use numerics::literals::IntegerLiteral;
     use typed_trees::expression::TableBinaryExpression;
 

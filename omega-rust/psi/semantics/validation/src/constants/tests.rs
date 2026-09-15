@@ -1,4 +1,4 @@
-use super::*;
+use super::{DataMember, TypeReferenceHandle, TypeReferenceNode, TypedTrees, validate_constants};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;

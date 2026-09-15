@@ -1,4 +1,18 @@
-use super::*;
+use super::{
+    BuildEvaluationLiveFilesystemHandleLease, BuildEvaluationSponsor, EvalResult, Evaluator,
+    ExpressionHandle, FIND_DATA_OUTPUT_BYTES, FilesystemEvaluationHaltKind,
+    FilesystemHostOperation, FilesystemHostResultKind, FilesystemLogicalHandleInput,
+    FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
+    FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource,
+    FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
+    FilesystemOperationResult, Frame, Halt, MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES,
+    PreparedByteOutput, PreparedFilesystemCall, PreparedFilesystemLogicalHandleOutput,
+    PreparedFilesystemLogicalHandlePlan, PreparedFilesystemMutableObservationPlan,
+    PreparedFilesystemPreparation, STAT_OUTPUT_BYTES, VIRTUAL_GID, VIRTUAL_MTIME_SECS, VIRTUAL_UID,
+    Value, VirtualFd, checked_directory_name_snapshot_total,
+    checked_directory_record_snapshot_total, dirent_record_chunk, filesystem_logical_handles,
+    host_open_flags, pack_dirent_records, portable_directory_entry_name, synthetic_handle_fd, trap,
+};
 use crate::{
     FilesystemByteOperand, FilesystemMetadataField, FilesystemMetadataObservation,
     FilesystemMetadataObservationKind, FilesystemMutableByteOperandResolution,
@@ -2531,7 +2545,24 @@ mod tests {
         PreparedFilesystemLogicalHandleRetirement, PreparedI64Output, PreparedTransferCount,
         checked_filesystem_transfer_count,
     };
-    use super::*;
+    use super::super::{
+        MAX_DIRECTORY_ENTRY_NAME_BYTES, MAX_DIRECTORY_SNAPSHOT_BYTES, TypedTrees,
+        dirent_record_extent,
+    };
+    use super::{
+        BuildEvaluationSponsor, Evaluator, FIND_DATA_OUTPUT_BYTES, FilesystemHostOperation,
+        FilesystemLogicalHandleInput, FilesystemLogicalHandleInputResolution,
+        FilesystemLogicalHandleKind, FilesystemObservationProvider, FilesystemObservedByteRegion,
+        FilesystemObservedByteRegionKind, FilesystemOperationAttempt,
+        FilesystemOperationAttemptOutcome, FilesystemOperationResult,
+        FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
+        FilesystemRootedPathOperandResolution, FilesystemScalarOperand, Halt,
+        MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, PreparedByteOutput, PreparedFilesystemCall,
+        PreparedFilesystemLogicalHandleOutput, VIRTUAL_GID, VIRTUAL_UID, Value,
+        checked_directory_name_snapshot_total, checked_directory_record_snapshot_total,
+        checked_observation_evidence_total, pack_dirent_records, portable_directory_entry_name,
+        replay_prepared_inputs_match,
+    };
     use crate::{
         BuildEvaluationSponsorLimits, FilesystemGrantRootIdentity, FilesystemScalarOperandValue,
     };

@@ -1,6 +1,9 @@
 //! Token selection from a generic machine's authored conformance requirements.
-
-use super::*;
+use super::{
+    Machine, StateSignature, SymbolHandle, TraitTypeBinding, TraitTypeBindingTarget,
+    TypeReferenceHandle, TypedTrees, trait_definition_by_symbol,
+    type_references_match_with_trait_bindings,
+};
 use language_core::OperatorSpelling;
 
 /// Select a requirement identity, not a concrete conformance realization.

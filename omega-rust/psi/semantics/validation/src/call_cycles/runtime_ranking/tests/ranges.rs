@@ -1,5 +1,8 @@
-use super::*;
-
+use super::super::{
+    ExpressionHandle, RankingRangeCallMember, RankingRangeCallProgress, TransitionGuardNode,
+    TransitionTargetNode, prove_ranking_range_call,
+};
+use super::{RankProjection, StatementNode, TypedTrees, admitted, typed_source};
 const RANGED: &str = "data Main {}
 machine Main::first(&mut self, lower: u64, remaining: u64, upper: u64)
 requires lower <= remaining && remaining <= upper;

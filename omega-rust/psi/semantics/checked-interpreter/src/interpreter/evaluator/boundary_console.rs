@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    DataMember, EvalResult, Evaluator, FilesystemHostOperation, Frame, Halt, SymbolHandle,
+    TableCall, Value, is_canonical_host_method,
+};
 impl<'program> Evaluator<'program> {
     /// Resolve one call target through an exact compiler-selected filesystem
     /// boundary before any provider authority is touched. Package-aware

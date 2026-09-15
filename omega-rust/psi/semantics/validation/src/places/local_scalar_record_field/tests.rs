@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    DataMember, ExpressionHandle, ExpressionNode, PrimitiveType, SymbolHandle, TypeReferenceNode,
+    TypedTrees, local_scalar_record_field,
+};
 use typed_trees::statement::StatementNode;
 
 fn fixture() -> (TypedTrees, SymbolHandle, SymbolHandle, ExpressionHandle) {

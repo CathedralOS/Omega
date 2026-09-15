@@ -1,6 +1,9 @@
 //! Modular result bounds from exact, builtin normal-return contract facts.
-
-use super::*;
+use super::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine, ProofFact,
+    SignatureContractKind, State, TypeReferenceHandle, TypedTrees, ValueEnv, guard_narrowing,
+    literal_interval, primitive_range, range_constraint_interval,
+};
 use language_core::OperatorSpelling;
 
 pub(super) fn normal_return_interval(

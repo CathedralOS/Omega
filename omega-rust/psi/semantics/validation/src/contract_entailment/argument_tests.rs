@@ -1,6 +1,10 @@
 //! Simultaneous mathematical argument substitution, independent of source admission.
-
-use super::*;
+use super::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, StrictArithmeticBindingValue,
+    StrictArithmeticExpressionBinding, StrictArithmeticImplicationJudgment,
+    StrictArithmeticSymbolBinding, TypedTrees, strict_arithmetic_expression_implication,
+    strict_arithmetic_expression_implication_with_arguments,
+};
 use arena::HandleSpan;
 use numerics::literals::IntegerLiteral;
 use symbols::SymbolHandle;

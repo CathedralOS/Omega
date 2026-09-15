@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{DataDefinition, Evaluator, Machine, State};
 /// Exact typed-program lookup shared by evaluator responsibilities. These
 /// helpers preserve declaration identity and do not perform leaf fallback.
 impl<'program> Evaluator<'program> {

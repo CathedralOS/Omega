@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    ExpressionHandle, FactPlan, FrameSourcePlace, Machine, PlaceRoot, PlaceSegment, State,
+    StatementNode, SymbolHandle, TypedTrees,
+};
 use arena::HandleSpan;
 use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
 use typed_trees::expression::{

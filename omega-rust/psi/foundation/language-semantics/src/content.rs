@@ -615,7 +615,14 @@ fn encode_string(value: &str, output: &mut Vec<u8>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BigInt, CanonicalIntervalSet, ContentAlgebraIdentity, ContentConservationEquation,
+        ContentConservationTerm, ContentFieldSegment, ContentIntervalExpression, ContentPlaceRoot,
+        ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
+        ContentScalarExpression, ContentStructuralPlace, IntervalSetError, NaturalInterval,
+        SemanticDomainId, SymbolHandle, conservation_report_fingerprint,
+        projection_report_fingerprint,
+    };
 
     fn natural(value: u64) -> BigInt {
         BigInt::from_u64(value)

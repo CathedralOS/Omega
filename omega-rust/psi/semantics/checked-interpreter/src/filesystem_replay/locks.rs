@@ -234,7 +234,13 @@ fn lock_attempt(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FilesystemLogicalHandleIdentity, FilesystemOperationAttemptOutcome,
+        FilesystemOperationResult, FilesystemOutputFileOperationReplayRecord,
+        FilesystemOutputFileReplayRecord, FilesystemOutputLockReplayRecord,
+        MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS, output_lock_attempts,
+        output_lock_record_from_attempts, validate_output_lock_replay,
+    };
     use crate::FilesystemGrantRootIdentity;
 
     fn identity(value: u64) -> FilesystemLogicalHandleIdentity {
