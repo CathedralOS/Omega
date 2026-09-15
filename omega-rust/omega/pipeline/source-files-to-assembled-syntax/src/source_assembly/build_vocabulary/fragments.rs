@@ -22,6 +22,7 @@ pub(super) const DECLARATIONS: &str = r#"pub data Optimization {
     case SelectedIncomingU12CompareImmediate;
     case CheckedTreeProductPruning;
     case SelectedIncomingLiteralExtensionElimination;
+    case SelectedIncomingU12Load8IndexedOffset;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -48,6 +49,7 @@ pub data Optimizations {
     selected_incoming_u12_compare_immediate: u8 in Trapping;
     checked_tree_product_pruning: u8 in Trapping;
     selected_incoming_literal_extension_elimination: u8 in Trapping;
+    selected_incoming_u12_load8_indexed_offset: u8 in Trapping;
 }
 "#;
 
@@ -76,6 +78,7 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
         Optimization::SelectedIncomingU12CompareImmediate -> selected_incoming_u12_compare_immediate()
         Optimization::CheckedTreeProductPruning -> checked_tree_product_pruning()
         Optimization::SelectedIncomingLiteralExtensionElimination -> selected_incoming_literal_extension_elimination()
+        Optimization::SelectedIncomingU12Load8IndexedOffset -> selected_incoming_u12_load8_indexed_offset()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -168,6 +171,10 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
 
     state selected_incoming_literal_extension_elimination(&mut self) {
         self.selected_incoming_literal_extension_elimination = self.selected_incoming_literal_extension_elimination + 1;
+    }
+
+    state selected_incoming_u12_load8_indexed_offset(&mut self) {
+        self.selected_incoming_u12_load8_indexed_offset = self.selected_incoming_u12_load8_indexed_offset + 1;
     }
 }
 "#;

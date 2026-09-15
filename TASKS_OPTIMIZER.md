@@ -462,8 +462,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   rather than a fixed operand (226 crate lib tests pass, including firing
   on both targets plus decision-field corruption and wrong-position
   negatives; the replay re-derives the grammar from the consumer kind and
-  recorded operand position alone). Remaining: further unit roles and
-  non-isolated effect relationships — memory, trap, stack, and
+  recorded operand position alone).
+  `PairMachineEffects::IndexedPointerReadFold { index_operand }` declares
+  the first non-isolated relationship — an indexed pointer read folded to
+  an immediate-offset read — and `LOAD8_INDEXED_U12` folds a
+  `MaterializeI64` index at operand 1 of `Load8Indexed` into `Load8`'s
+  byte offset under `LiteralFoldPolicy::LOAD8_INDEXED_V1`, bounded at 4095
+  by the aarch64 displacement field (crate `nextest`: 235 pass, including
+  firing on both Linux targets, the unencodable-4096 boundary,
+  decision-field substitution, and wrong-policy negatives; the validator
+  restates the relationship independently as `indexed_read_fold_admission`
+  instead of reusing the pair descriptor). Remaining: further unit roles
+  and the other non-isolated relationships — trap-, stack-, and
   control-flow-carrying forms still have no descriptor variant.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension

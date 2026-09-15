@@ -18,10 +18,14 @@
 //! [`MachineEffectDeclaration`] must satisfy, and the operand shape carries
 //! the consumer-grammar dimension: whether the folded literal is a binary
 //! consumer's right `Use` operand, a commutative binary consumer's left
-//! `Use` operand, or a unary consumer's sole `Use` operand. When a rule
-//! needs shape data beyond those — a non-isolated effect relationship or
-//! further operand roles — extend this struct rather than re-inlining kind
-//! matches in compute.
+//! `Use` operand, or a unary consumer's sole `Use` operand. Beyond the
+//! isolated machine-effect surface, [`PairMachineEffects::IndexedPointerReadFold`]
+//! declares the first non-isolated relationship: a consumer that reads memory
+//! through the folded index and a rewritten form that reads the same bytes
+//! through a materialized byte offset. When a rule needs shape data beyond
+//! those — a further non-isolated effect relationship or further operand
+//! roles — extend this struct rather than re-inlining kind matches in
+//! compute.
 
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandConstraint,
@@ -159,14 +163,37 @@ pub enum PairMachineEffects {
     /// form declares no implicit uses or clobbers; its implicit definitions
     /// are the declared result channel under `PairResultDisposition`.
     Isolated,
+    /// The consumer reads memory through a pointer plus an index operand the
+    /// fold removes; the rewritten form reads the same pointer through a
+    /// materialized byte offset. `index_operand` is the consumer operand
+    /// position the literal victim occupies — it must equal the operand
+    /// shape's declared victim position.
+    ///
+    /// The eliminated producer stays effect-isolated, as under
+    /// [`Isolated`](Self::Isolated). The consumer and rewritten declarations
+    /// must carry an identical non-unit surface — pointer-read memory, the
+    /// same trap, barrier, call, and cleanup behavior — and every consumer
+    /// alternative must be an indexed pointer read whose index is exactly
+    /// `index_operand`, matched by a direct pointer read over the same
+    /// pointer operand and byte count in every rewritten alternative, with
+    /// pairwise-equal stack, trap, and control encodings. The unit-traffic
+    /// relation is unchanged: no implicit uses on either side, every unit the
+    /// consumer defines still defined by every rewritten alternative, and no
+    /// implicit uses or clobbers on the rewritten form.
+    IndexedPointerReadFold {
+        /// The consumer operand position carrying the folded index register.
+        index_operand: u16,
+    },
 }
 
 impl PairMachineEffects {
     /// Whether the eliminated producer's catalog declaration is
     /// effect-isolated including every implicit unit it could have written.
+    /// Every landed pair requires this surface: removing the producer must
+    /// drop nothing machine-visible.
     pub fn admits_producer(self, declaration: &MachineEffectDeclaration) -> bool {
         match self {
-            Self::Isolated => {
+            Self::Isolated | Self::IndexedPointerReadFold { .. } => {
                 isolated_declaration(declaration)
                     && declaration.alternatives.iter().all(|alternative| {
                         isolated_alternative(alternative)
@@ -178,11 +205,17 @@ impl PairMachineEffects {
         }
     }
 
-    /// Whether the admitted consumer's catalog declaration is
-    /// effect-isolated outside its unit surface, and whether the rewrite may
-    /// replace that surface with `rewritten`'s: no implicit uses at all, and
-    /// every implicit definition covered by every alternative the rewritten
-    /// form could select.
+    /// Whether the admitted consumer's catalog declaration satisfies the
+    /// pair's declared relationship to `rewritten`. For [`Isolated`](Self::Isolated)
+    /// the consumer is effect-isolated outside its unit surface and the
+    /// rewrite may replace that surface wholesale: no implicit uses at all,
+    /// and every implicit definition covered by every alternative the
+    /// rewritten form could select. For
+    /// [`IndexedPointerReadFold`](Self::IndexedPointerReadFold) the consumer
+    /// is the indexed pointer read: the two declarations share the same
+    /// non-unit surface, and every consumer alternative's encoded indexed
+    /// read at the folded operand position is matched by every rewritten
+    /// alternative's direct read over the same pointer and byte count.
     pub fn admits_consumer(
         self,
         declaration: &MachineEffectDeclaration,
@@ -197,12 +230,33 @@ impl PairMachineEffects {
                             && implicit_defs_covered(alternative, rewritten)
                     })
             }
+            Self::IndexedPointerReadFold { index_operand } => {
+                declaration.memory == MachineMemoryEffect::ReadPointerV1
+                    && declaration.memory == rewritten.memory
+                    && declaration.trap == rewritten.trap
+                    && declaration.barrier == rewritten.barrier
+                    && declaration.call == rewritten.call
+                    && declaration.cleanup == rewritten.cleanup
+                    && declaration.alternatives.iter().all(|alternative| {
+                        rewritten.alternatives.iter().all(|rewritten_alternative| {
+                            indexed_pointer_read_matches(
+                                alternative,
+                                rewritten_alternative,
+                                index_operand,
+                            )
+                        })
+                    })
+            }
         }
     }
 
-    /// Whether the rewritten form's catalog declaration is effect-isolated
-    /// and declares no implicit unit uses or clobbers beyond its result
-    /// channel.
+    /// Whether the rewritten form's catalog declaration satisfies the pair's
+    /// declared shape. [`Isolated`](Self::Isolated) requires an
+    /// effect-isolated form with no implicit unit uses or clobbers beyond
+    /// its result channel; [`IndexedPointerReadFold`](Self::IndexedPointerReadFold)
+    /// requires the plain pointer-read form whose alternatives all read
+    /// memory through a pointer operand and byte offset, fall through, leave
+    /// the stack unchanged, and declare no implicit uses or clobbers.
     pub fn admits_rewritten(self, declaration: &MachineEffectDeclaration) -> bool {
         match self {
             Self::Isolated => {
@@ -213,8 +267,63 @@ impl PairMachineEffects {
                             && alternative.encoded.implicit_unit_clobbers.is_empty()
                     })
             }
+            Self::IndexedPointerReadFold { .. } => {
+                declaration.memory == MachineMemoryEffect::ReadPointerV1
+                    && declaration.alternatives.iter().all(|alternative| {
+                        matches!(
+                            alternative.encoded.memory,
+                            MachineEncodedMemoryEffect::ReadPointerV1 { .. }
+                        ) && alternative.encoded.stack == MachineEncodedStackEffect::UnchangedV1
+                            && alternative.encoded.control
+                                == MachineEncodedControlEffect::FallThroughV1
+                            && alternative.encoded.implicit_unit_uses.is_empty()
+                            && alternative.encoded.implicit_unit_clobbers.is_empty()
+                    })
+            }
         }
     }
+}
+
+/// The indexed pointer read a `consumer` alternative encodes is the read
+/// `rewritten`'s alternative performs once the fold replaces the index
+/// register with a byte offset: same pointer operand, same byte count, the
+/// folded operand position as the index, and pairwise-identical stack,
+/// trap, control, and implicit-unit surface — no implicit uses on either
+/// side, every unit the consumer defines still defined, and no clobbers on
+/// the rewritten form.
+fn indexed_pointer_read_matches(
+    consumer: &MachineAlternative,
+    rewritten: &MachineAlternative,
+    index_operand: u16,
+) -> bool {
+    let (
+        MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+            pointer_operand,
+            index_operand: index,
+            byte_count,
+        },
+        MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand: rewritten_pointer,
+            byte_count: rewritten_bytes,
+        },
+    ) = (consumer.encoded.memory, rewritten.encoded.memory)
+    else {
+        return false;
+    };
+    index == index_operand
+        && pointer_operand == rewritten_pointer
+        && byte_count == rewritten_bytes
+        && consumer.encoded.stack == rewritten.encoded.stack
+        && consumer.encoded.trap == rewritten.encoded.trap
+        && consumer.encoded.control == rewritten.encoded.control
+        && consumer.encoded.implicit_unit_uses.is_empty()
+        && consumer
+            .encoded
+            .implicit_unit_defs
+            .iter()
+            .all(|unit| rewritten.encoded.implicit_unit_defs.contains(unit))
+        && rewritten.encoded.implicit_unit_uses.is_empty()
+        && rewritten.encoded.implicit_unit_clobbers.is_empty()
 }
 
 /// Every implicit unit `consumer`'s alternative defines remains defined no
@@ -397,6 +506,41 @@ impl SelectedInstructionPairRule {
         Self::SIGN_EXTEND_I32_LITERAL_FOLD,
     ];
 
+    /// Eliminate `MaterializeI64` feeding the index operand of
+    /// `Load8Indexed`: the indexed byte read rewrites to the direct-offset
+    /// `Load8` whose `byte_offset` is the folded literal. The rewrite
+    /// preserves the read — the consumer's `ReadIndexedPointerV1`
+    /// alternatives and the rewritten form's `ReadPointerV1` alternatives
+    /// name the same pointer and byte count — while the may-fault trap
+    /// surface is identical on both forms, so no trap behavior the fold
+    /// removes is left unobserved.
+    ///
+    /// The immediate bound is the narrowest byte-offset field any target's
+    /// `Load8` encoder admits: aarch64 `ldrb` carries a 12-bit unsigned
+    /// scaled offset, so a target-independent rule declares 4095 even though
+    /// x86-64's disp32 form would admit more.
+    pub const LOAD8_INDEXED_U12: Self = {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::Load8Indexed,
+            rewritten: MachineSemanticKind::Load8,
+            operand_shape: PairOperandShape::BinaryRightLiteral,
+            immediate_limit: 4095,
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::Isolated,
+            machine_effects: PairMachineEffects::IndexedPointerReadFold { index_operand: 1 },
+        };
+        assert!(
+            matches!(
+                rule.machine_effects,
+                PairMachineEffects::IndexedPointerReadFold { index_operand }
+                    if index_operand == rule.victim_operand()
+            ),
+            "the folded operand is the indexed read's index operand"
+        );
+        rule
+    };
+
     pub const fn producer(self) -> MachineSemanticKind {
         self.producer
     }
@@ -495,6 +639,7 @@ impl SelectedInstructionPairRule {
             MachineSemanticKind::ExactSubtractI64Immediate => Some(keys.subtract_i64_immediate),
             MachineSemanticKind::CompareI64Immediate => Some(keys.compare_i64_immediate),
             MachineSemanticKind::MaterializeI64 => Some(keys.materialize_i64),
+            MachineSemanticKind::Load8 => keys.load8,
             _ => None,
         }
     }
@@ -550,6 +695,11 @@ impl SelectedInstructionPairRule {
             ) if machine_semantic_kind(kind) == self.consumer => {
                 scalar_materialize_value(immediate, result_scalar?)
                     .map(|value| SelectedInstructionKind::MaterializeI64 { value })
+            }
+            (MachineSemanticKind::Load8, SelectedInstructionKind::Load8Indexed) => {
+                u32::try_from(immediate)
+                    .ok()
+                    .map(|byte_offset| SelectedInstructionKind::Load8 { byte_offset })
             }
             _ => None,
         }

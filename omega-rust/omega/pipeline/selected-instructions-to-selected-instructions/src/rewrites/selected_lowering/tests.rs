@@ -53,11 +53,12 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_exact_subtract());
     assert!(policy.enables_compare());
     assert!(policy.enables_extension());
+    assert!(policy.enables_load8_indexed());
 }
 
 #[test]
 fn catalog_rows_declare_symbolic_instruction_pairs() {
-    let [add, subtract, compare, _extension] = SELECTED_LOWERING_RULE_CATALOG;
+    let [add, subtract, compare, _extension, indexed] = SELECTED_LOWERING_RULE_CATALOG;
     for entry in [subtract, compare] {
         let &[pair] = entry.payload().pairs() else {
             panic!("the subtract and compare families each declare one pair rule")
@@ -147,10 +148,49 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         })
     );
 
+    // The indexed byte-load family declares the first non-isolated
+    // machine-effect relationship: the folded operand is the index register
+    // and the rewritten form is the direct-offset `Load8`.
+    let &[indexed_rule] = indexed.payload().pairs() else {
+        panic!("the indexed byte-load family declares one pair rule")
+    };
+    assert_eq!(indexed_rule, SelectedInstructionPairRule::LOAD8_INDEXED_U12);
+    assert_eq!(indexed_rule.producer(), MachineSemanticKind::MaterializeI64);
+    assert_eq!(indexed_rule.consumer(), MachineSemanticKind::Load8Indexed);
+    assert_eq!(indexed_rule.rewritten(), MachineSemanticKind::Load8);
+    assert_eq!(indexed_rule.immediate_limit(), 4095);
+    assert!(indexed_rule.admits_immediate(4095));
+    assert!(!indexed_rule.admits_immediate(4096));
+    assert_eq!(
+        indexed_rule.operand_shape(),
+        PairOperandShape::BinaryRightLiteral
+    );
+    assert_eq!(indexed_rule.victim_operand(), 1);
+    assert_eq!(indexed_rule.result(), PairResultDisposition::ScalarRegister);
+    assert_eq!(indexed_rule.unit_effects(), PairUnitEffects::Isolated);
+    assert_eq!(
+        indexed_rule.machine_effects(),
+        PairMachineEffects::IndexedPointerReadFold { index_operand: 1 }
+    );
+    assert_eq!(
+        indexed_rule.rewrite_consumer(SelectedInstructionKind::Load8Indexed, 12, None),
+        Some(SelectedInstructionKind::Load8 { byte_offset: 12 })
+    );
+    // Payloads that cannot encode a 32-bit byte offset cannot rewrite, even
+    // though the 12-bit fold bound already rejects them upstream.
+    assert_eq!(
+        indexed_rule.rewrite_consumer(SelectedInstructionKind::Load8Indexed, u64::MAX, None),
+        None
+    );
+    assert_eq!(
+        indexed_rule.rewrite_consumer(SelectedInstructionKind::Load8 { byte_offset: 1 }, 12, None),
+        None
+    );
+
     // Every landed rule's rewrite is unit-effect isolated: no implicit unit
     // uses or clobbers and no operand unit bindings beyond the declared
     // result channel.
-    for entry in [add, subtract, compare] {
+    for entry in [add, subtract, compare, indexed] {
         for pair in entry.payload().pairs() {
             assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
         }
@@ -179,6 +219,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::EXTENSION_V1).collect::<Vec<_>>(),
         SelectedInstructionPairRule::EXTENSION_LITERAL_FOLDS.to_vec()
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::LOAD8_INDEXED_V1).collect::<Vec<_>>(),
+        vec![SelectedInstructionPairRule::LOAD8_INDEXED_U12]
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -230,6 +274,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         compare_rule.immediate_constraint_key(&keys),
         Some(keys.compare_i64_immediate)
     );
+    assert_eq!(indexed_rule.immediate_constraint_key(&keys), keys.load8);
 }
 
 #[test]
@@ -248,6 +293,7 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
             SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
             SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
+            SelectedInstructionPairRule::LOAD8_INDEXED_U12,
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -293,9 +339,9 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             declaration
         };
 
-        // Every landed pair admits its own triple of real declarations on
-        // both targets, whatever flag traffic the target's consumer row
-        // actually carries.
+        // Every landed isolated pair admits its own triple of real
+        // declarations on both targets, whatever flag traffic the target's
+        // consumer row actually carries.
         for rule in [
             SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
             SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
@@ -320,6 +366,35 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             assert!(
                 rule.machine_effects().admits_rewritten(rewritten),
                 "{rule:?} rewritten on {target:?}"
+            );
+        }
+
+        // The indexed byte-load pair admits its own triple on both targets:
+        // an isolated producer, the indexed pointer read, and the
+        // direct-offset read.
+        {
+            let rule = SelectedInstructionPairRule::LOAD8_INDEXED_U12;
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // The relationship is directional: the direct-offset form is not
+            // an indexed read, so swapping consumer and rewritten cannot
+            // satisfy the fold.
+            assert!(
+                !rule.machine_effects().admits_consumer(rewritten, consumer),
+                "{rule:?} swapped roles on {target:?}"
             );
         }
 
@@ -355,7 +430,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
 
 #[test]
 fn extension_elimination_rules_fold_unary_consumers_to_materializations() {
-    let [.., extension] = SELECTED_LOWERING_RULE_CATALOG;
+    let extension = SELECTED_LOWERING_RULE_CATALOG[3];
     let pairs = extension.payload().pairs();
     assert_eq!(
         pairs,

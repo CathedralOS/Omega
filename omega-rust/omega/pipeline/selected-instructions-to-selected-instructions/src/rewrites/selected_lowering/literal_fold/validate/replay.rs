@@ -13,8 +13,8 @@ use crate::{
 };
 
 use super::constraints::{
-    ValidationImmediateRows, effect_declaration, isolated_effect_alternative,
-    isolated_effect_declaration, isolated_rewritten_declaration,
+    ValidationImmediateRows, effect_declaration, indexed_read_fold_admission,
+    isolated_effect_alternative, isolated_effect_declaration, isolated_rewritten_declaration,
 };
 
 pub(super) fn reconstruct_literal_fold(
@@ -182,6 +182,13 @@ fn reconstruct_action(
             rows.materialize,
             MachineSemanticKind::MaterializeI64,
         ),
+        // The indexed byte load folds its operand-1 index literal into the
+        // direct-offset `Load8` form, bound to the `Load8` row.
+        SelectedInstructionKind::Load8Indexed => (
+            SourceShape::BinaryImmediate,
+            rows.load8,
+            MachineSemanticKind::Load8,
+        ),
         _ => (
             SourceShape::BinaryImmediate,
             None,
@@ -318,6 +325,31 @@ fn reconstruct_action(
             function: function_index,
         },
     )?;
+    // The consumer/rewritten relationship differs per fold family. The
+    // isolated folds replace an isolated surface wholesale; the indexed
+    // byte-load fold is memory-carrying, so its admission binds the two
+    // declarations' pointer-read surface pairwise — the read survives the
+    // rewrite — instead of requiring isolation.
+    let fold_surface_admitted = match consumer.kind {
+        SelectedInstructionKind::Load8Indexed => indexed_read_fold_admission(
+            consumer_declaration,
+            rewritten_declaration,
+            shape.victim_operand(),
+        ),
+        _ => {
+            isolated_effect_declaration(consumer_declaration)
+                && consumer_declaration.alternatives.iter().all(|alternative| {
+                    isolated_effect_alternative(alternative)
+                        && alternative.encoded.implicit_unit_uses.is_empty()
+                        && alternative.encoded.implicit_unit_defs.iter().all(|unit| {
+                            rewritten_declaration.alternatives.iter().all(|rewritten| {
+                                rewritten.encoded.implicit_unit_defs.contains(unit)
+                            })
+                        })
+                })
+                && isolated_rewritten_declaration(rewritten_declaration)
+        }
+    };
     if !isolated_effect_declaration(producer_declaration)
         || !producer_declaration.alternatives.iter().all(|alternative| {
             isolated_effect_alternative(alternative)
@@ -325,18 +357,7 @@ fn reconstruct_action(
                 && alternative.encoded.implicit_unit_defs.is_empty()
                 && alternative.encoded.implicit_unit_clobbers.is_empty()
         })
-        || !isolated_effect_declaration(consumer_declaration)
-        || !consumer_declaration.alternatives.iter().all(|alternative| {
-            isolated_effect_alternative(alternative)
-                && alternative.encoded.implicit_unit_uses.is_empty()
-                && alternative.encoded.implicit_unit_defs.iter().all(|unit| {
-                    rewritten_declaration
-                        .alternatives
-                        .iter()
-                        .all(|rewritten| rewritten.encoded.implicit_unit_defs.contains(unit))
-                })
-        })
-        || !isolated_rewritten_declaration(rewritten_declaration)
+        || !fold_surface_admitted
     {
         return Err(LiteralFoldError::EffectSurfaceMismatch {
             function: function_index,
@@ -561,6 +582,16 @@ fn rebuild_function(
                 SelectedInstructionKind::MaterializeI64 { value },
             )
         }
+        SelectedInstructionKind::Load8Indexed => (
+            rows.load8,
+            SelectedInstructionKind::Load8 {
+                byte_offset: u32::try_from(action.immediate).map_err(|_| {
+                    LiteralFoldError::UnsupportedImmediate {
+                        function: function_index,
+                    }
+                })?,
+            },
+        ),
         _ => (None, consumer.kind),
     };
     let row = row
