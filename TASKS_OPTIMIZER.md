@@ -265,7 +265,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **GENERAL-LICM.** Implement motion only through transformations that
   invalidate and reconstruct component, loop-carried custody, ranking,
   provenance, effect, and fuel evidence. The dedicated countdown zero/one
-  relocation is not general LICM authority.
+  relocation is not general LICM authority. The unique-entry preheader
+  boundary relocates scalar constant leaves and side-effect-free scalar
+  computations, and its invariant discovery resolves member parameters
+  transitively across component-internal edges to the representative every
+  reaching edge agrees on, rebinding moved operands to the
+  preheader-visible anchor. Remaining: non-scalar families, profitability,
+  and motion beyond the unique-entry preheader.
 
 ## Lowering and instruction selection
 
