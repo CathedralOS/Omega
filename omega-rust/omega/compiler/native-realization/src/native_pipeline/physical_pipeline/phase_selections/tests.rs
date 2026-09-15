@@ -23,6 +23,8 @@ fn selected_lowering_catalog_selections_pass_the_physical_gate() {
         Optimization::SelectedIncomingU12ExactSubtractImmediate,
         Optimization::SelectedIncomingU12CompareImmediate,
         Optimization::SelectedIncomingLiteralExtensionElimination,
+        Optimization::SelectedIncomingU12Load8IndexedOffset,
+        Optimization::SelectedIncomingLiteralCopyMaterialization,
     ] {
         let selections = PostTerminalOptimizationSelections::new(
             OptimizationSelections::new([optimization]).unwrap(),

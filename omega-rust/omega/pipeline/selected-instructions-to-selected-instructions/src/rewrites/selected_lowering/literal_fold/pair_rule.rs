@@ -387,7 +387,8 @@ pub enum PairOperandShape {
     /// Unary consumer: the literal victim is the sole `Use` operand (operand
     /// index 0). The rewritten instruction consumes no register input — the
     /// fold recomputes the consumer's constant output directly, as in the
-    /// extension-elimination rules whose rewritten form is a `MaterializeI64`.
+    /// extension-elimination and copy-materialization rules whose rewritten
+    /// form is a `MaterializeI64`.
     UnaryLiteral,
 }
 
@@ -447,7 +448,12 @@ impl SelectedInstructionPairRule {
         machine_effects: PairMachineEffects::Isolated,
     };
 
-    const EXTENSION_FOLD: Self = Self {
+    /// Shared base of the unary materialization folds: `MaterializeI64`
+    /// feeding a sole-`Use` consumer rewrites into a direct
+    /// `MaterializeI64` of the constant the consumer computes — the
+    /// extension's folded output bits, or the literal itself under `CopyI64`.
+    /// `consumer` is a placeholder each concrete rule overrides.
+    const UNARY_MATERIALIZE_FOLD: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::MaterializeI64,
         rewritten: MachineSemanticKind::MaterializeI64,
@@ -463,38 +469,38 @@ impl SelectedInstructionPairRule {
     /// literal's low eight bits materialized directly.
     pub const ZERO_EXTEND_U8_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::ZeroExtendU8,
-        ..Self::EXTENSION_FOLD
+        ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `ZeroExtendU16`: the result is the
     /// literal's low sixteen bits materialized directly.
     pub const ZERO_EXTEND_U16_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::ZeroExtendU16,
-        ..Self::EXTENSION_FOLD
+        ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `ZeroExtendU32`: the result is the
     /// literal's low thirty-two bits materialized directly.
     pub const ZERO_EXTEND_U32_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::ZeroExtendU32,
-        ..Self::EXTENSION_FOLD
+        ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `SignExtendI8`: the result is the
     /// sign extension of the literal's low eight bits materialized directly.
     pub const SIGN_EXTEND_I8_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::SignExtendI8,
-        ..Self::EXTENSION_FOLD
+        ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `SignExtendI16`: the result is the
     /// sign extension of the literal's low sixteen bits materialized directly.
     pub const SIGN_EXTEND_I16_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::SignExtendI16,
-        ..Self::EXTENSION_FOLD
+        ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `SignExtendI32`: the result is the
     /// sign extension of the literal's low thirty-two bits materialized
     /// directly.
     pub const SIGN_EXTEND_I32_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::SignExtendI32,
-        ..Self::EXTENSION_FOLD
+        ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// The six unary extension-elimination rules, in extension-kind order.
     pub const EXTENSION_LITERAL_FOLDS: [Self; 6] = [
@@ -505,6 +511,14 @@ impl SelectedInstructionPairRule {
         Self::SIGN_EXTEND_I16_LITERAL_FOLD,
         Self::SIGN_EXTEND_I32_LITERAL_FOLD,
     ];
+
+    /// Eliminate `MaterializeI64` feeding `CopyI64`: the copy's output is
+    /// the literal itself, so the fold materializes it directly at the
+    /// copy's destination register — a copy of a constant is the constant.
+    pub const COPY_LITERAL_FOLD: Self = Self {
+        consumer: MachineSemanticKind::CopyI64,
+        ..Self::UNARY_MATERIALIZE_FOLD
+    };
 
     /// Eliminate `MaterializeI64` feeding the index operand of
     /// `Load8Indexed`: the indexed byte read rewrites to the direct-offset
@@ -595,15 +609,16 @@ impl SelectedInstructionPairRule {
     }
 
     /// The constant payload the rewritten instruction embeds for `literal`:
-    /// the literal itself for the immediate forms, or the extension's exact
-    /// output bits for the unary extension folds. The result is the recorded
-    /// `immediate` in [`crate::LiteralFoldAction`].
+    /// the literal itself for the immediate forms and the copy fold, or the
+    /// extension's exact output bits for the unary extension folds. The
+    /// result is the recorded `immediate` in [`crate::LiteralFoldAction`].
     pub fn fold_immediate(self, literal: u64) -> Option<u64> {
         match self.operand_shape {
             PairOperandShape::BinaryRightLiteral | PairOperandShape::BinaryLeftLiteral => {
                 Some(literal)
             }
             PairOperandShape::UnaryLiteral => match self.consumer {
+                MachineSemanticKind::CopyI64 => Some(literal),
                 MachineSemanticKind::ZeroExtendU8 => Some(literal & 0xFF),
                 MachineSemanticKind::ZeroExtendU16 => Some(literal & 0xFFFF),
                 MachineSemanticKind::ZeroExtendU32 => Some(literal & 0xFFFF_FFFF),
@@ -648,9 +663,9 @@ impl SelectedInstructionPairRule {
     ///
     /// `immediate` is the payload [`fold_immediate`](Self::fold_immediate)
     /// computed for the folded literal. `result_scalar` is the scalar type of
-    /// the consumer's `Def` operand when it has one; the extension folds
-    /// require it so the materialized constant sign-matches and is admitted by
-    /// the result register's declared integer type.
+    /// the consumer's `Def` operand when it has one; the materialization
+    /// folds require it so the materialized constant sign-matches and is
+    /// admitted by the result register's declared integer type.
     pub fn rewrite_consumer(
         self,
         kind: SelectedInstructionKind,
@@ -691,7 +706,8 @@ impl SelectedInstructionPairRule {
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::SignExtendI8
                 | SelectedInstructionKind::SignExtendI16
-                | SelectedInstructionKind::SignExtendI32),
+                | SelectedInstructionKind::SignExtendI32
+                | SelectedInstructionKind::CopyI64),
             ) if machine_semantic_kind(kind) == self.consumer => {
                 scalar_materialize_value(immediate, result_scalar?)
                     .map(|value| SelectedInstructionKind::MaterializeI64 { value })

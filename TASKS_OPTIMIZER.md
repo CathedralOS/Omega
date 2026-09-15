@@ -352,12 +352,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   materialized `IntegerValue` from the consumer kind and the surviving
   result register's scalar type; a `windows_x86_64` return-only build
   replays to `ValidatedOptimizedProjection`
-  (`compiler/tests/optimizer_extension_elimination.rs`). The
-  `phase_selections/tests.rs` enable-list addition was deferred at recovery
-  time because that file sat under a live `ENTRY-CONTENT-ROOTS` claim; it
-  remains a follow-up for the next slice.
-  Remaining: further families (address-mode folding, constant
-  materialization) one exact named family at a time.
+  (`compiler/tests/optimizer_extension_elimination.rs`). Landed: the
+  constant-materialization family —
+  `Optimization::SelectedIncomingLiteralCopyMaterialization` (tag 25)
+  enables `COPY_V1` and the `COPY_LITERAL_FOLD` unary pair rule
+  (`MaterializeI64` + `CopyI64` → `MaterializeI64` of the literal itself at
+  the copy's destination). The fold admits the full u64 literal domain — no
+  narrowing — so the copy's result register must admit the literal. The
+  independent replay binds the shared `MaterializeI64` constraint row under
+  a second policy-gated slot so a copy fold cannot replay under the
+  extension selection alone; a `windows_x86_64` return-only build replays to
+  `ValidatedOptimizedProjection`
+  (`compiler/tests/optimizer_copy_materialization.rs`). The deferred
+  `phase_selections/tests.rs` enable-list addition landed with it
+  (indexed-load and copy rows both listed now).
+  Remaining: further families (address-mode folding) one exact named family
+  at a time.
 
 - **SELECTED-ABI-VALIDATION.** Validate ABI operands, calls, clobbers, effects,
   traps, provenance, cleanup, and logical fuel across every selected rule.

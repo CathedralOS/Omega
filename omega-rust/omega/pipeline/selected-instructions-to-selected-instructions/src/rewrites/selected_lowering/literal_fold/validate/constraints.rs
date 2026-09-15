@@ -18,6 +18,11 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// The `MaterializeI64` row the unary extension folds rewrite into; bound
     /// only when the extension-elimination policy bit is selected.
     pub(super) materialize: Option<&'a RegisterInstructionConstraint>,
+    /// The `MaterializeI64` row the copy fold rewrites into — the same
+    /// constraint row the extension folds bind, gated separately so a fold
+    /// the selection did not enable cannot replay under the other family's
+    /// policy.
+    pub(super) copy: Option<&'a RegisterInstructionConstraint>,
     /// The `Load8` row the indexed byte-load fold rewrites into; bound only
     /// when the load-indexed policy bit is selected and the environment
     /// declares the row.
@@ -57,11 +62,15 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_extension()
         .then(|| find(keys.materialize_i64))
         .transpose()?;
+    let copy = policy
+        .enables_copy()
+        .then(|| find(keys.materialize_i64))
+        .transpose()?;
     let load8 = match (policy.enables_load8_indexed(), keys.load8) {
         (true, Some(key)) => Some(find(key)?),
         _ => None,
     };
-    for row in [add, subtract, compare, materialize, load8]
+    for row in [add, subtract, compare, materialize, copy, load8]
         .into_iter()
         .flatten()
     {
@@ -96,6 +105,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             isolated_rewritten_declaration,
         ),
         (
+            copy,
+            MachineSemanticKind::MaterializeI64,
+            isolated_rewritten_declaration,
+        ),
+        (
             load8,
             MachineSemanticKind::Load8,
             pointer_read_rewritten_declaration,
@@ -113,6 +127,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         subtract,
         compare,
         materialize,
+        copy,
         load8,
         catalog,
     })

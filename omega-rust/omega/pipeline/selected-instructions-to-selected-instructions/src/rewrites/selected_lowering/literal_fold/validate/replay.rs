@@ -151,7 +151,8 @@ fn reconstruct_action(
     // whose row the kind owns; exact addition is commutative, so an operand-0
     // literal derives the left-fold grammar while operand 1 derives the right
     // fold. Unary extension consumers fold into a direct `MaterializeI64` of
-    // the extension's exact output bits.
+    // the extension's exact output bits, and a unary copy consumer folds into
+    // a direct `MaterializeI64` of the literal itself.
     let (shape, row, rewritten) = match consumer.kind {
         SelectedInstructionKind::ExactAddI64 { .. } => (
             if future_use.operand == 0 {
@@ -180,6 +181,15 @@ fn reconstruct_action(
         | SelectedInstructionKind::SignExtendI32 => (
             SourceShape::UnaryExtension,
             rows.materialize,
+            MachineSemanticKind::MaterializeI64,
+        ),
+        // The copy materializes its literal input directly: the rewritten
+        // form is `MaterializeI64`, bound through the copy policy's own row
+        // gate so an unselected copy fold cannot replay under the extension
+        // policy's binding.
+        SelectedInstructionKind::CopyI64 => (
+            SourceShape::UnaryCopy,
+            rows.copy,
             MachineSemanticKind::MaterializeI64,
         ),
         // The indexed byte load folds its operand-1 index literal into the
@@ -217,6 +227,10 @@ fn reconstruct_action(
                 function: function_index,
             },
         )?,
+        // The copy's constant output is the literal itself; the
+        // `MaterializeI64` row it rewrites into bounds the payload only by
+        // what the result register's scalar type admits, checked at rebuild.
+        SourceShape::UnaryCopy => literal_u64,
     };
     let result = match (shape, consumer.operands.as_slice()) {
         (SourceShape::BinaryImmediate, [left, right, result]) => {
@@ -264,7 +278,7 @@ fn reconstruct_action(
             }
             None
         }
-        (SourceShape::UnaryExtension, [input, result]) => {
+        (SourceShape::UnaryExtension | SourceShape::UnaryCopy, [input, result]) => {
             if input.access != RegisterOperandAccess::Use
                 || input.virtual_register != candidate.victim
                 || result.access != RegisterOperandAccess::Def
@@ -370,7 +384,7 @@ fn reconstruct_action(
     // grammar records its folded input.
     let surviving = match shape {
         SourceShape::BinaryLeftImmediate => consumer.operands[1].virtual_register,
-        SourceShape::BinaryImmediate | SourceShape::UnaryExtension => {
+        SourceShape::BinaryImmediate | SourceShape::UnaryExtension | SourceShape::UnaryCopy => {
             consumer.operands[0].virtual_register
         }
     };
@@ -391,19 +405,20 @@ fn reconstruct_action(
 /// The consumer source grammar the validator admits: the binary immediate
 /// forms whose literal is the right `Use` operand, the commutative binary
 /// immediate form whose literal is the left `Use` operand, or the unary
-/// extension forms whose literal is the sole operand.
+/// extension and copy forms whose literal is the sole operand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
     BinaryLeftImmediate,
     UnaryExtension,
+    UnaryCopy,
 }
 
 impl SourceShape {
     const fn victim_operand(self) -> u16 {
         match self {
             Self::BinaryImmediate => 1,
-            Self::BinaryLeftImmediate | Self::UnaryExtension => 0,
+            Self::BinaryLeftImmediate | Self::UnaryExtension | Self::UnaryCopy => 0,
         }
     }
 }
@@ -557,7 +572,8 @@ fn rebuild_function(
         | SelectedInstructionKind::ZeroExtendU32
         | SelectedInstructionKind::SignExtendI8
         | SelectedInstructionKind::SignExtendI16
-        | SelectedInstructionKind::SignExtendI32 => {
+        | SelectedInstructionKind::SignExtendI32
+        | SelectedInstructionKind::CopyI64 => {
             // The folded materialization must declare the exact constant the
             // result register's scalar type admits; the validator recomputes
             // it from the action payload and the surviving result register.
@@ -577,10 +593,14 @@ fn rebuild_function(
                     function: function_index,
                 },
             )?;
-            (
-                rows.materialize,
-                SelectedInstructionKind::MaterializeI64 { value },
-            )
+            // The copy fold binds its own policy-gated row; the extension
+            // consumers bind theirs.
+            let row = if consumer.kind == SelectedInstructionKind::CopyI64 {
+                rows.copy
+            } else {
+                rows.materialize
+            };
+            (row, SelectedInstructionKind::MaterializeI64 { value })
         }
         SelectedInstructionKind::Load8Indexed => (
             rows.load8,
