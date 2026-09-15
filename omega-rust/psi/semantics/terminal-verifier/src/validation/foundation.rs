@@ -1771,10 +1771,16 @@ pub(super) fn resolve_structural_path_in_types(
                 let field = fields
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
-                next
+                match &field.field_type {
+                    StructuralFieldType::Structural(next) => *next,
+                    leaf => {
+                        let shape = leaf.canonical_leaf_shape()?;
+                        *types
+                            .iter()
+                            .find(|(_, declaration)| declaration.shape == shape)
+                            .map(|(id, _)| id)?
+                    }
+                }
             }
             (
                 StructuralPathSegment::FixedIndex(index),
@@ -1928,10 +1934,17 @@ pub(super) fn resolve_structural_path(
                 let field = fields
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
-                next
+                match &field.field_type {
+                    StructuralFieldType::Structural(next) => *next,
+                    leaf => {
+                        let shape = leaf.canonical_leaf_shape()?;
+                        module
+                            .structural_types
+                            .iter()
+                            .find(|declaration| declaration.shape == shape)
+                            .map(|declaration| declaration.id)?
+                    }
+                }
             }
             (
                 StructuralPathSegment::FixedIndex(index),
