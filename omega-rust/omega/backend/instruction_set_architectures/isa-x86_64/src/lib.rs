@@ -8,8 +8,6 @@ mod fma;
 mod frame_protocol;
 mod ieee_float;
 mod machine_effects;
-mod mov_r32_imm32_i64_materialization;
-mod mov_r64_imm32_sign_extended_i64_materialization;
 mod post_handoff_writer;
 mod preservation_storage;
 mod register_model;
@@ -31,7 +29,6 @@ pub use register_model::{
 };
 mod selected_form_encoding;
 mod semantic_unit_wrapper_encoding;
-mod xor_zero_i64_materialization;
 
 pub use fma::{
     DecodedScalarFmaFormat, DecodedVfmadd132Scalar, decode_vfmadd132_scalar, encode_vfmadd132sd,
@@ -49,22 +46,6 @@ pub use ieee_float::{
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
     x86_64_machine_effect_catalog,
-};
-pub use mov_r32_imm32_i64_materialization::{
-    ValidatedX86_64MovR32Imm32I64Materialization, X86_64DecodedMovR32Imm32I64Materialization,
-    X86_64MovR32Imm32I64MaterializationError, X86_64MovR32Imm32I64MaterializationFootprint,
-    decode_x86_64_mov_r32_imm32_i64_materialization,
-    encode_x86_64_mov_r32_imm32_i64_materialization,
-    validate_x86_64_mov_r32_imm32_i64_materialization,
-};
-pub use mov_r64_imm32_sign_extended_i64_materialization::{
-    ValidatedX86_64MovR64Imm32SignExtendedI64Materialization,
-    X86_64DecodedMovR64Imm32SignExtendedI64Materialization,
-    X86_64MovR64Imm32SignExtendedI64MaterializationError,
-    X86_64MovR64Imm32SignExtendedI64MaterializationFootprint,
-    decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
-    encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
-    validate_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
 };
 pub use post_handoff_writer::{
     encode_generated_post_handoff_writer_bytes,
@@ -105,6 +86,27 @@ pub use selected_form_encoding::hosted_read_byte::{
     validate_x86_64_selected_hosted_read_byte_form,
 };
 pub use selected_form_encoding::hosted_write_byte::decode_x86_64_selected_hosted_write_byte_i32;
+pub use selected_form_encoding::materialization::mov_r32_imm32::{
+    ValidatedX86_64MovR32Imm32I64Materialization, X86_64DecodedMovR32Imm32I64Materialization,
+    X86_64MovR32Imm32I64MaterializationError, X86_64MovR32Imm32I64MaterializationFootprint,
+    decode_x86_64_mov_r32_imm32_i64_materialization,
+    encode_x86_64_mov_r32_imm32_i64_materialization,
+    validate_x86_64_mov_r32_imm32_i64_materialization,
+};
+pub use selected_form_encoding::materialization::mov_r64_imm32_sign_extended::{
+    ValidatedX86_64MovR64Imm32SignExtendedI64Materialization,
+    X86_64DecodedMovR64Imm32SignExtendedI64Materialization,
+    X86_64MovR64Imm32SignExtendedI64MaterializationError,
+    X86_64MovR64Imm32SignExtendedI64MaterializationFootprint,
+    decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
+    encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
+    validate_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
+};
+pub use selected_form_encoding::materialization::xor_zero::{
+    ValidatedX86_64XorZeroI64Materialization, X86_64DecodedXorZeroI64Materialization,
+    decode_x86_64_xor_zero_i64_materialization, encode_x86_64_xor_zero_i64_materialization,
+    validate_x86_64_xor_zero_i64_materialization,
+};
 pub use selected_form_encoding::{
     ValidatedX86_64SelectedFormEncoding, ValidatedX86_64SelectedScalarCallTemplate,
     X86_64_SCALAR_CALL_OPCODE_OFFSET, X86_64_SCALAR_CALL_PATCH_OFFSET,
@@ -144,11 +146,6 @@ pub use semantic_unit_wrapper_encoding::{
     encode_x86_64_semantic_unit_wrapper_template,
     resolve_x86_64_semantic_unit_wrapper_private_continuation,
     validate_x86_64_resolved_semantic_unit_wrapper, validate_x86_64_semantic_unit_wrapper_template,
-};
-pub use xor_zero_i64_materialization::{
-    ValidatedX86_64XorZeroI64Materialization, X86_64DecodedXorZeroI64Materialization,
-    decode_x86_64_xor_zero_i64_materialization, encode_x86_64_xor_zero_i64_materialization,
-    validate_x86_64_xor_zero_i64_materialization,
 };
 
 use diagnostics::Diagnostic;

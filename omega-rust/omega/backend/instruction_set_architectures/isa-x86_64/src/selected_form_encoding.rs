@@ -18,6 +18,7 @@ pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_read_byte;
 pub(crate) mod hosted_write_byte;
 mod jump;
+pub(crate) mod materialization;
 pub use hosted_write_byte::{
     encode_x86_64_selected_hosted_write_byte_form, validate_x86_64_selected_hosted_write_byte_form,
 };
