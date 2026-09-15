@@ -32,6 +32,15 @@ pub(super) trait CapturedValue: Sized {
         expression: &CheckedScalarExpression,
         values: &mut CallValues<Self>,
     ) -> Option<Self>;
+    /// Fallback for an argument with no live snapshot: its runtime value must
+    /// still satisfy the formal's declared scalar type, so that declaration —
+    /// at worst the raw carrier — bounds the incoming value.
+    fn formal_fallback(
+        _program: &typed_trees::TypedTrees,
+        _parameter: &typed_trees::signature::StateParameter,
+    ) -> Option<Self> {
+        None
+    }
 }
 
 impl CapturedValue for ScalarValue {
@@ -144,6 +153,15 @@ impl CapturedValue for IntegerRange {
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
         crate::values::bounds::evaluate(expression, values)
+    }
+
+    fn formal_fallback(
+        program: &typed_trees::TypedTrees,
+        parameter: &typed_trees::signature::StateParameter,
+    ) -> Option<Self> {
+        let primitive = program.primitive_type_reference(parameter.type_reference)?;
+        crate::values::bounds::declared_bounds(program, parameter.type_reference, primitive)
+            .or_else(|| crate::values::bounds::primitive_range(primitive))
     }
 }
 

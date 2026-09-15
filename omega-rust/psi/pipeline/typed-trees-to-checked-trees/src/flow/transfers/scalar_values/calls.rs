@@ -128,29 +128,35 @@ pub(super) fn capture_call<Value: CapturedValue>(
                     &live,
                 );
             }
-            if Value::REQUIRES_SELECTED_ARGUMENTS {
-                return None;
-            }
+            // No selected binding. Every argument is still bounded by its
+            // formal's declared scalar type — at worst the raw carrier — and
+            // a mutable formal's incoming value lives in the caller's storage
+            // (`&mut place` lends the place's current contents), so read its
+            // live snapshot before falling back to the declared invariant.
             if let Some(value) = Value::literal(program.expression_table.expression(*argument)) {
                 return Some(value);
             }
-            let place = canonical_place_from_expression_in_state(
+            let parameter = parameters.get(argument_index)?;
+            if Value::REQUIRES_SELECTED_ARGUMENTS && !parameter.is_mutable {
+                return Value::formal_fallback(program, parameter);
+            }
+            if let Some(place) = canonical_place_from_expression_in_state(
                 program,
                 caller_state,
                 statement_index,
                 *argument,
-            )?;
-            if !place.segments.iter().all(|segment| {
+            ) && place.segments.iter().all(|segment| {
                 matches!(
                     segment,
                     facts::PlaceSegment::Field { .. }
                         | facts::PlaceSegment::Case { .. }
                         | facts::PlaceSegment::FixedIndex { .. }
                 )
-            }) {
-                return None;
+            }) && let Some(value) = Value::at_place(&place, &live)
+            {
+                return Some(value);
             }
-            Value::at_place(&place, &live)
+            Value::formal_fallback(program, parameter)
         })
         .collect::<Option<Vec<_>>>()?;
     let plans = context.scalar_expressions;

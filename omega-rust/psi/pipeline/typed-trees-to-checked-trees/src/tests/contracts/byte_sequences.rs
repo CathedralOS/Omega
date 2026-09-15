@@ -464,6 +464,81 @@ fn declared_ranges_do_not_bound_mutably_borrowed_storage() {
 }
 
 #[test]
+fn effectful_nested_call_arguments_keep_the_return_bounds_live() {
+    // A selected scalar operand carries no hidden write footprint: a Unit
+    // call nested inside the converting callee still lets the returned byte
+    // prove the output predicate. An operand without a retained selected
+    // form stays opaque and rejects.
+    for (definitions, callee_body, succeeds) in [
+        (
+            "machine observe(value: u64) {}",
+            "observe(value + 1); ((value % 10 + 48) as u8 in Wrapping) as u8",
+            true,
+        ),
+        (
+            "machine observe(value: u64) {}",
+            "observe(value % 10); ((value % 10 + 48) as u8 in Wrapping) as u8",
+            true,
+        ),
+        (
+            "machine poke(cell: &mut u64) { cell = 255; }",
+            "let mut scratch: u64 = 0; poke(&mut scratch); ((value % 10 + 48) as u8 in Wrapping) as u8",
+            false,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            {definitions}
+            machine digit(value: u64) -> u8 {{ {callee_body} }}
+            machine write(output: &mut [u8; 4], position: u64 [0..=3], unknown: u64)
+            requires output in Ascii
+            ensures output in Ascii {{ output[position] = digit(unknown); }}
+            "#
+        );
+        check(&source, succeeds);
+    }
+}
+
+#[test]
+fn mutable_formal_call_results_read_the_lent_places_incoming_value() {
+    // A `mut` formal's incoming value is the caller's lent storage read at
+    // the call point: a live local snapshot wins, storage behind an exclusive
+    // borrow still supplies the formal's declared carrier, and nothing is
+    // guessed from the callee's own later writes alone.
+    for (body, succeeds) in [
+        (
+            "let mut scratch: u64 = 0; output[position] = digit(&mut scratch, unknown);",
+            true,
+        ),
+        ("output[position] = digit(&mut pad.cell, unknown);", true),
+        (
+            "let mut scratch: u64 = 65; output[position] = widen(&mut scratch);",
+            true,
+        ),
+        (
+            // The lent snapshot 300 wraps concretely to 44, which is Ascii.
+            "let mut scratch: u64 = 300; output[position] = widen(&mut scratch);",
+            true,
+        ),
+        ("output[position] = widen(&mut pad.cell);", false),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            data Pad {{ cell: u64; }}
+            machine digit(mut scratch: u64, value: u64) -> u8 {{ scratch = value; ((scratch % 10 + 48) as u8 in Wrapping) as u8 }}
+            machine widen(mut scratch: u64) -> u8 {{ (scratch as u8 in Wrapping) as u8 }}
+            machine write(output: &mut [u8; 4], pad: &mut Pad, position: u64 [0..=3], unknown: u64)
+            requires output in Ascii
+            ensures output in Ascii {{ {body} }}
+            "#
+        );
+        check(&source, succeeds);
+    }
+}
+
+#[test]
 fn concatenation_uses_the_shared_predicate_law_without_domain_names() {
     for (predicate, literal, succeeds) in [
         ("ascii_only", "ascii", true),
