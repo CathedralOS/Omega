@@ -300,6 +300,46 @@ explicit evidence; it must not select a different downstream representation.
 dependency direction and semantic shape. A wrong-direction dependency fails
 there, not at `cargo check`.
 
+### Discoverability architecture
+
+Every crate must have an obvious starting point that explains its responsibility
+through code. For an operation-owning crate, its domain entry file owns the
+high-level flow: input preparation, phase ordering or dispatch, subordinate work,
+and result/error handling. `lib.rs` wiring, re-exports, and a prose file map do
+not substitute for that orchestration.
+
+Use [main.rs](omega-rust/omega/src/main.rs) and
+[compiler.rs](omega-rust/omega/compiler/compiler/src/compiler.rs) as the gold
+standard: the former shows startup and typed invocation dispatch; the latter
+shows shared preparation, per-target checks, product selection, and outcomes.
+Copy their visible orchestration principle, not their filenames or line counts.
+Representation and utility crates may start with their principal data structure
+and cohesive operations; do not invent an execution pipeline where none exists.
+
+Apply the same structure recursively within each meaningful subordinate flow.
+A child owning a multi-step operation must expose its own sequencing and decisions,
+then delegate narrower mechanisms beneath that owner. One good crate root with
+all remaining work scattered among sibling folders does not satisfy this rule.
+Siblings must name distinct responsibilities at the same level of abstraction,
+not become catch-all collections of leftover code. Stop at cohesive leaves;
+recursive discoverability does not require a new folder or forwarding function
+for every operation.
+
+Before an organization change, name the reader's concrete question and the
+current navigation failure. Afterward, follow the changed route from crate entry
+through subordinate orchestration to the actual decision and result handling.
+Explain what became easier to find. Consolidation, moving orchestration upward,
+or leaving a cohesive file intact may be better than splitting it. Smaller files,
+more topic folders, and unchanged contiguous source chunks with new labels are
+not evidence of improved architecture.
+
+Keep tests grouped by the behavior or contract they verify, with discoverable
+fixtures. Test partitioning alone does not complete a production-discoverability
+assignment. When moves change module-qualified test names or reader paths, update
+their documented commands, filters, and source-reading checks and verify that the
+intended tests are still selected. Do not expand into unrelated cleanup merely to
+produce another organization commit.
+
 ### Compositional lowering
 
 Source-shape admission is a code-rot warning: supported assignment, call, branch,

@@ -124,6 +124,23 @@ and proof, custody, and trust checks. Prefer the existing representation and
 provider route. A single bounded change normally needs one agent; delegate only
 independent useful work that justifies its briefing and review cost.
 
+For an explicitly assigned discoverability/architecture change, apply
+[Discoverability architecture](../../../AGENTS.md#discoverability-architecture).
+The customer outcome is a clearer route to a named operation, not a set of smaller
+files. Before editing, identify that operation, its crate entry, and the point
+where sequencing or ownership becomes hard to follow. Compare the route with
+[main.rs](../../../omega-rust/omega/src/main.rs) and
+[compiler.rs](../../../omega-rust/omega/compiler/compiler/src/compiler.rs).
+
+Keep high-level orchestration visible at the crate entry and at subordinate
+multi-step owners; do not stop at the crate root and leave its sibling folders as
+dumping grounds. Trace the affected route to the actual work and result handling
+afterward. Report the specific navigation improvement and verify affected test
+selectors and source readers. File counts, size reductions, and test-only splits
+are not the acceptance condition. Stop when the named navigation problem is
+resolved; do not choose the next large file as an automatic continuation. This
+does not authorize unrelated architecture work during a compiler behavior task.
+
 Select checks from the affected behavior under
 [validation scope](../../../AGENTS.md#validation-scope). A bug fix needs a witnessed
 regression. Read the harness before filtering: fixture-path filters and nextest
@@ -175,6 +192,10 @@ routing and assignment requirements. Keep that policy in AGENTS.md. Give the wor
 its exact worktree/revision and canonical skill path, objective, design anchors,
 edit ownership, dependencies, acceptance, and escalation conditions. Refine the
 owning board only when it lacks context needed for the assignment.
+
+For discoverability assignments, include the reader's question, the affected
+entry-to-operation route, and the recursive orchestration requirement above.
+Assign an ownership/navigation outcome, never a quota of files to split.
 
 Give each worker a distinct question or edit responsibility using the existing
 evidence. Independent review should challenge assumptions and check correctness,
