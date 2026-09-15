@@ -1673,6 +1673,14 @@ Owners include
   terminal plans retain `WriteOnlyBorrow` with exact `Field`/`FixedIndex`
   segments; see `typed-trees-to-checked-trees/tests/write_only_call_arguments.rs`.
 
+  Scalar-leaf projections now compose through ordinary borrow calls:
+  `mutate(&mut self.value)` and `fill(&write self.value)` verify, admit through
+  Omega optimization, lower, publish and execute on host — one canonical
+  leaf-shape resolution joins verifier, codec, interpreter, optimization
+  catalog, `scalar_graph_input` reference preparation and target replay.
+  Restored-parent `let` bindings still fail upstream in
+  `typed-trees-to-checked-trees/src/flow` (live NOMINAL-FIELD-FLOW claim).
+
   Remaining acceptance: escaping carriers, dynamic indexes (Psi cannot yet
   prove runtime bounds: "cannot prove index `i` is within length 4"), and
   computed IEEE stores (Psi does not select `a + b`: "no source-independent
