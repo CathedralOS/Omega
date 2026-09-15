@@ -55,11 +55,20 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_extension());
     assert!(policy.enables_load8_indexed());
     assert!(policy.enables_copy());
+    assert!(policy.enables_byte_view_address());
 }
 
 #[test]
 fn catalog_rows_declare_symbolic_instruction_pairs() {
-    let [add, subtract, compare, _extension, indexed, copy] = SELECTED_LOWERING_RULE_CATALOG;
+    let [
+        add,
+        subtract,
+        compare,
+        _extension,
+        indexed,
+        copy,
+        address_offset,
+    ] = SELECTED_LOWERING_RULE_CATALOG;
     for entry in [subtract, compare] {
         let &[pair] = entry.payload().pairs() else {
             panic!("the subtract and compare families each declare one pair rule")
@@ -205,10 +214,75 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(copy_rule.machine_effects(), PairMachineEffects::Isolated);
     assert_eq!(copy_rule.immediate_limit(), u64::MAX);
 
+    // The byte-view address family folds the projection's operand-1 offset
+    // literal into the constant-offset `AddressOffset` form: the operand-0
+    // `Use` base survives and the operand-2 `Def` is the result. The shared
+    // 12-bit bound is the aarch64 `add` immediate's encoding limit, the
+    // narrowest any target's address-offset row admits.
+    let &[address_offset_rule] = address_offset.payload().pairs() else {
+        panic!("the byte-view address family declares one pair rule")
+    };
+    assert_eq!(
+        address_offset_rule,
+        SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12
+    );
+    assert_eq!(
+        address_offset_rule.producer(),
+        MachineSemanticKind::MaterializeI64
+    );
+    assert_eq!(
+        address_offset_rule.consumer(),
+        MachineSemanticKind::ByteViewAddress
+    );
+    assert_eq!(
+        address_offset_rule.rewritten(),
+        MachineSemanticKind::AddressOffset
+    );
+    assert_eq!(address_offset_rule.immediate_limit(), 4095);
+    assert!(address_offset_rule.admits_immediate(4095));
+    assert!(!address_offset_rule.admits_immediate(4096));
+    assert_eq!(
+        address_offset_rule.operand_shape(),
+        PairOperandShape::BinaryRightLiteral
+    );
+    assert_eq!(address_offset_rule.victim_operand(), 1);
+    assert_eq!(
+        address_offset_rule.result(),
+        PairResultDisposition::ScalarRegister
+    );
+    assert_eq!(
+        address_offset_rule.unit_effects(),
+        PairUnitEffects::Isolated
+    );
+    assert_eq!(
+        address_offset_rule.machine_effects(),
+        PairMachineEffects::Isolated
+    );
+    assert_eq!(
+        address_offset_rule.rewrite_consumer(SelectedInstructionKind::ByteViewAddress, 12, None),
+        Some(SelectedInstructionKind::AddressOffset { byte_offset: 12 })
+    );
+    assert_eq!(
+        address_offset_rule.rewrite_consumer(
+            SelectedInstructionKind::ByteViewAddress,
+            u64::MAX,
+            None
+        ),
+        None
+    );
+    assert_eq!(
+        address_offset_rule.rewrite_consumer(
+            SelectedInstructionKind::AddressOffset { byte_offset: 1 },
+            12,
+            None
+        ),
+        None
+    );
+
     // Every landed rule's rewrite is unit-effect isolated: no implicit unit
     // uses or clobbers and no operand unit bindings beyond the declared
     // result channel.
-    for entry in [add, subtract, compare, indexed, copy] {
+    for entry in [add, subtract, compare, indexed, copy, address_offset] {
         for pair in entry.payload().pairs() {
             assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
         }
@@ -245,6 +319,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::COPY_V1).collect::<Vec<_>>(),
         vec![SelectedInstructionPairRule::COPY_LITERAL_FOLD]
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1).collect::<Vec<_>>(),
+        vec![SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12]
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -301,6 +379,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         copy_rule.immediate_constraint_key(&keys),
         Some(keys.materialize_i64)
     );
+    assert_eq!(
+        address_offset_rule.immediate_constraint_key(&keys),
+        keys.address_offset
+    );
 }
 
 #[test]
@@ -321,6 +403,7 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
             SelectedInstructionPairRule::LOAD8_INDEXED_U12,
             SelectedInstructionPairRule::COPY_LITERAL_FOLD,
+            SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -377,8 +460,10 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         ]
         .into_iter()
         .chain(SelectedInstructionPairRule::EXTENSION_LITERAL_FOLDS)
-        .chain([SelectedInstructionPairRule::COPY_LITERAL_FOLD])
-        {
+        .chain([
+            SelectedInstructionPairRule::COPY_LITERAL_FOLD,
+            SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
+        ]) {
             assert_eq!(rule.machine_effects(), PairMachineEffects::Isolated);
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());

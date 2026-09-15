@@ -199,6 +199,15 @@ fn reconstruct_action(
             rows.load8,
             MachineSemanticKind::Load8,
         ),
+        // The byte-view address projection folds its operand-1 offset
+        // literal into the constant-offset `AddressOffset` form, bound to
+        // the `AddressOffset` row: the surviving operand-0 `Use` is the
+        // base and the operand-2 `Def` is the result.
+        SelectedInstructionKind::ByteViewAddress => (
+            SourceShape::BinaryImmediate,
+            rows.address_offset,
+            MachineSemanticKind::AddressOffset,
+        ),
         _ => (
             SourceShape::BinaryImmediate,
             None,
@@ -403,9 +412,12 @@ fn reconstruct_action(
 }
 
 /// The consumer source grammar the validator admits: the binary immediate
-/// forms whose literal is the right `Use` operand, the commutative binary
-/// immediate form whose literal is the left `Use` operand, or the unary
-/// extension and copy forms whose literal is the sole operand.
+/// forms whose literal is the right `Use` operand — including the
+/// three-operand `Load8Indexed` and `ByteViewAddress` projections whose
+/// operand-1 `Use` is the folded index or offset and whose operand-2 `Def`
+/// is the result — the commutative binary immediate form whose literal is
+/// the left `Use` operand, or the unary extension and copy forms whose
+/// literal is the sole operand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
@@ -605,6 +617,16 @@ fn rebuild_function(
         SelectedInstructionKind::Load8Indexed => (
             rows.load8,
             SelectedInstructionKind::Load8 {
+                byte_offset: u32::try_from(action.immediate).map_err(|_| {
+                    LiteralFoldError::UnsupportedImmediate {
+                        function: function_index,
+                    }
+                })?,
+            },
+        ),
+        SelectedInstructionKind::ByteViewAddress => (
+            rows.address_offset,
+            SelectedInstructionKind::AddressOffset {
                 byte_offset: u32::try_from(action.immediate).map_err(|_| {
                     LiteralFoldError::UnsupportedImmediate {
                         function: function_index,

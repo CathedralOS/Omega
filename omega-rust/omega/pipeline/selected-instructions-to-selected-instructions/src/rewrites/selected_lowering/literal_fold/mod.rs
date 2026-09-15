@@ -26,10 +26,11 @@ pub use validate::validate_literal_fold;
 
 /// Fold one classified incoming literal into its immediately following enabled
 /// consumer: an unsigned-12-bit literal at either operand of the commutative
-/// exact-add, at the right operand of exact-subtract/compare, or at the index
-/// operand of the indexed byte load into the matching immediate or
-/// direct-offset form, or an unsigned 64-bit literal through a unary extension
-/// or copy into a direct `MaterializeI64`.
+/// exact-add, at the right operand of exact-subtract/compare, at the index
+/// operand of the indexed byte load, or at the offset operand of the
+/// byte-view address projection into the matching immediate or
+/// constant-offset form, or an unsigned 64-bit literal through a unary
+/// extension or copy into a direct `MaterializeI64`.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

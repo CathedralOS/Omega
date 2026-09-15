@@ -42,12 +42,14 @@ impl LiteralFoldPolicy {
     const EXTENSION_BIT: u8 = 1 << 3;
     const LOAD8_INDEXED_BIT: u8 = 1 << 4;
     const COPY_BIT: u8 = 1 << 5;
+    const BYTE_VIEW_ADDRESS_BIT: u8 = 1 << 6;
     const KNOWN_BITS: u8 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
         | Self::EXTENSION_BIT
         | Self::LOAD8_INDEXED_BIT
-        | Self::COPY_BIT;
+        | Self::COPY_BIT
+        | Self::BYTE_VIEW_ADDRESS_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -75,6 +77,12 @@ impl LiteralFoldPolicy {
     /// the literal at the copy's destination register.
     pub const COPY_V1: Self = Self {
         enabled_rules: Self::COPY_BIT,
+    };
+    /// Address-mode folding: fold a materialized incoming literal through its
+    /// sole `ByteViewAddress` consumer's offset operand into the
+    /// constant-offset `AddressOffset` form the literal names.
+    pub const BYTE_VIEW_ADDRESS_V1: Self = Self {
+        enabled_rules: Self::BYTE_VIEW_ADDRESS_BIT,
     };
 
     pub(crate) const fn empty() -> Self {
@@ -113,6 +121,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_copy(self) -> bool {
         self.enabled_rules & Self::COPY_BIT != 0
+    }
+
+    pub const fn enables_byte_view_address(self) -> bool {
+        self.enabled_rules & Self::BYTE_VIEW_ADDRESS_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u8 {
