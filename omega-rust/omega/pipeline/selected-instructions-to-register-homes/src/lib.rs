@@ -30,8 +30,6 @@ mod output;
 mod preservation;
 mod register_allocation;
 mod rewrites;
-#[cfg(test)]
-mod selected_rewrite_tests;
 mod unsequenced_spill_stages;
 
 // The entry and its route.

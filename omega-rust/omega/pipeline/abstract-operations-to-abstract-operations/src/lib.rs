@@ -7,14 +7,13 @@
 //!
 //! Start at [`optimize_abstract_operations`] in `abstract_optimization.rs`: it
 //! admits the artifact, builds the verified unit, runs the selected passes
-//! through [`pass_manager`] over the rules that [`rule_registry`] orders, and
+//! through [`pass_manager`] over the rules that `rules::registry` orders, and
 //! publishes the validated plan through [`publication`].
 mod abstract_optimization;
 mod analyses;
 mod pass_manager;
 mod publication;
 mod ranked_rewrites;
-mod rule_registry;
 mod rules;
 pub mod validation;
 
@@ -52,7 +51,7 @@ pub(crate) use analyses::{
 };
 pub use pass_manager::*;
 pub use ranked_rewrites::*;
-pub use rule_registry::{
+pub use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError, RuleScheduleKey,
 };
