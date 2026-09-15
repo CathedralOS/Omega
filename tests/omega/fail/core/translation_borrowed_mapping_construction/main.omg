@@ -1,0 +1,68 @@
+// The borrowed-source carrier is ordinary data, but its provider identity
+// half is not: `BorrowedMappingToken` is opaque boundary data with no
+// public constructor, so source cannot assemble a `BorrowedMapping` and
+// requalify it `Installed` -- only the provider's establishing routes mint
+// the token (wiki/spec/resources/extents.md "Mapping and reclamation").
+use omega::language::core::extent;
+
+boundary data BorrowedMappingToken [linear];
+
+data BorrowedMapping [linear] {
+    token: BorrowedMappingToken;
+    held_source: &Extent in Granted;
+}
+
+domain BorrowedMapping::Pending
+established by TranslationAuthority::map_borrowed;
+
+domain BorrowedMapping::Installed
+established by TranslationAuthority::activate_borrowed;
+
+data UnmappedBorrowed {
+    destination: Extent in Granted;
+    shootdown: &Extent in Granted;
+}
+
+boundary trait TranslationAuthority {
+    machine map_borrowed(
+        source: &Extent in Granted,
+        destination: Extent in Granted
+    ) -> BorrowedMapping
+    requires
+        source.length == destination.length
+    ensures
+        result in BorrowedMapping::Pending;
+
+    machine activate_borrowed(pending: BorrowedMapping in Pending)
+        -> BorrowedMapping
+    ensures
+        result in BorrowedMapping::Installed;
+
+    machine unmap_borrowed(active: BorrowedMapping in Installed)
+        -> UnmappedBorrowed;
+}
+
+machine forged_borrowed_is_unqualified(
+    authority: &TranslationAuthority,
+    source: Extent in Granted
+) -> UnmappedBorrowed
+reaches TranslationAuthority
+{
+    // Spelling the provider-owned token's runtime fields is rejected
+    // outright: no forged carrier ever reaches `unmap_borrowed`'s
+    // `Installed` requirement.
+    let forged: BorrowedMapping = BorrowedMapping {
+        token: BorrowedMappingToken {
+            identity: 7,
+        },
+        held_source: &source,
+    };
+    let installed: BorrowedMapping in Installed = forged;
+    authority.unmap_borrowed(installed)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
