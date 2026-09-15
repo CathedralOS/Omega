@@ -15,7 +15,8 @@ mod subslice_tests;
 #[cfg(test)]
 mod case_membership_tests;
 
-use super::{OperationSemanticError, OperationSemanticTag};
+use super::OperationSemanticError;
+use crate::semantic_rows::OperationSemanticTag;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectResultShape {
@@ -1329,15 +1330,16 @@ pub fn structural_effect_leaf_observation(
 mod tests {
     use super::{
         IntegerSign, IntegerType, ObligationId, Operation, OperationKind, OperationSemanticError,
-        OperationSemanticTag, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
-        StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,
-        StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy, StructuralEffectGoalShape,
-        StructuralEffectObservation, StructuralEffectResultShape, StructuralEffectSemanticRow,
+        PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralEffectAction,
+        StructuralEffectCustody, StructuralEffectExternalEffect, StructuralEffectFrontierPolicy,
+        StructuralEffectFuelPolicy, StructuralEffectGoalShape, StructuralEffectObservation,
+        StructuralEffectResultShape, StructuralEffectSemanticRow,
         exact_structural_effect_semantic_row_in, structural_effect_leaf_observation,
         structural_effect_leaf_observation_in, structural_effect_semantic_row,
     };
     use std::collections::BTreeSet;
 
+    use crate::structural_effect::OperationSemanticTag;
     use semantic_vocabulary::{OperationId, StructuralFieldId, ValueId};
     use terminal_psi::{OperationResult, ValueDeclaration};
 

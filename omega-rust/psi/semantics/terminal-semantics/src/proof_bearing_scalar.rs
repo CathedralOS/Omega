@@ -19,13 +19,16 @@ use semantic_vocabulary::{
 use terminal_psi::{Operation, OperationKind};
 
 use super::{
-    OperationSemanticError, OperationSemanticTag, ScalarLeafCrashPolicy, ScalarLeafDenotation,
-    ScalarLeafFactShape, ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape,
-    ScalarLeafOperandShape, ScalarLeafResultShape, integer_type, value_term,
+    OperationSemanticError, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
+    ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
+    ScalarLeafResultShape,
 };
 
 mod canonical_goal;
 mod elision;
+use crate::scalar_leaf_semantics::integer_type;
+use crate::scalar_leaf_semantics::value_term;
+use crate::semantic_rows::OperationSemanticTag;
 pub use canonical_goal::CanonicalScalarGoal;
 use canonical_goal::canonical_goal;
 pub use elision::{ProofBearingScalarLeafElision, elidable_proof_bearing_scalar_leaf};
@@ -716,15 +719,16 @@ pub fn proof_bearing_scalar_leaf_semantics(
 mod tests {
     use super::{
         ArithmeticDomain, INTEGER_POLICY_BOUND_TAGS, IntegerPolicyPrimitive, IntegerType,
-        ObligationId, OperationSemanticError, OperationSemanticTag,
-        ProofBearingIntegerPolicyBinding, ProofBearingScalarSemanticRow, Proposition,
-        ScalarLeafCrashPolicy, ScalarLeafFactShape, ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy,
-        ScalarLeafGoalShape, ScalarLeafResultShape, ScalarTerm, catalog_goal_shape,
-        exact_proof_bearing_scalar_semantic_row_in, proof_bearing_integer_policy_binding,
-        proof_bearing_scalar_leaf_semantics, validate_proof_bearing_scalar_semantic_rows,
+        ObligationId, OperationSemanticError, ProofBearingIntegerPolicyBinding,
+        ProofBearingScalarSemanticRow, Proposition, ScalarLeafCrashPolicy, ScalarLeafFactShape,
+        ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafResultShape,
+        ScalarTerm, catalog_goal_shape, exact_proof_bearing_scalar_semantic_row_in,
+        proof_bearing_integer_policy_binding, proof_bearing_scalar_leaf_semantics,
+        validate_proof_bearing_scalar_semantic_rows,
     };
     use std::collections::{BTreeMap, BTreeSet};
 
+    use crate::semantic_rows::OperationSemanticTag;
     use semantic_vocabulary::{IntegerSign, OperationId, ScalarType, ValueId};
     use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
