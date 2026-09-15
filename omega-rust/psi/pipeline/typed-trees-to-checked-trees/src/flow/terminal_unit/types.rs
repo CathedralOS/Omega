@@ -953,7 +953,7 @@ fn partial_affine_source_contents_are_owned(
     })
 }
 
-pub(super) struct ShapeCollector<'program> {
+pub(crate) struct ShapeCollector<'program> {
     pub(super) program: &'program TypedTrees,
     pub(super) types: BTreeMap<String, CheckedUnitStructuralTypePlan>,
     pub(super) domains: Vec<CheckedUnitStructuralDomainPlan>,

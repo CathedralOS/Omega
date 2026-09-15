@@ -2,16 +2,23 @@
 //! in scalar computations. Parameter projections reuse established storage;
 //! local construction remains independently restricted to supported whole values.
 use super::super::CheckedUnitStructuralFieldType;
-use super::{
-    CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralTypeShape, ExpressionNode,
-    Multiplicity, PrimitiveType, StateParameter, StatementNode, SymbolHandle, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees,
-};
 use crate::flow::projected_argument_path;
+use crate::flow::terminal_unit::CheckedStructuralAccess;
+use crate::flow::terminal_unit::CheckedUnitStructuralArgumentPlan;
+use crate::flow::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
+use crate::flow::terminal_unit::CheckedUnitStructuralTypeShape;
+use crate::flow::terminal_unit::ExpressionNode;
+use crate::flow::terminal_unit::Multiplicity;
+use crate::flow::terminal_unit::PrimitiveType;
 use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::StateParameter;
+use crate::flow::terminal_unit::StatementNode;
+use crate::flow::terminal_unit::SymbolHandle;
+use crate::flow::terminal_unit::TypeReferenceHandle;
+use crate::flow::terminal_unit::TypeReferenceNode;
+use crate::flow::terminal_unit::TypedTrees;
 use crate::flow::terminal_unit::base_type_identity;
-use crate::flow::terminal_unit::calls::exact_structural_borrow_access;
+use crate::flow::terminal_unit::calls::structural_arguments::exact_structural_borrow_access;
 use crate::flow::terminal_unit::parameter_qualifications;
 use crate::flow::terminal_unit::structural_access_for_type_reference;
 

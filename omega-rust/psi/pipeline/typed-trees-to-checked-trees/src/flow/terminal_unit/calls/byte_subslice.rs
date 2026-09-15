@@ -1,11 +1,17 @@
 //! Immutable byte ranges retain their source and evaluated endpoint expressions.
-use super::{
-    CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralParameterPlan, ExpressionNode, Multiplicity, PrimitiveType,
-    TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-};
 use crate::flow::byte_sequence_carrier;
+use crate::flow::terminal_unit::CheckFacts;
+use crate::flow::terminal_unit::CheckedScalarExpressionRole;
+use crate::flow::terminal_unit::CheckedStructuralAccess;
+use crate::flow::terminal_unit::CheckedUnitStructuralArgumentPlan;
+use crate::flow::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
+use crate::flow::terminal_unit::CheckedUnitStructuralParameterPlan;
+use crate::flow::terminal_unit::ExpressionNode;
+use crate::flow::terminal_unit::Multiplicity;
+use crate::flow::terminal_unit::PrimitiveType;
+use crate::flow::terminal_unit::TypeReferenceHandle;
+use crate::flow::terminal_unit::TypeReferenceNode;
+use crate::flow::terminal_unit::TypedTrees;
 use crate::flow::terminal_unit::byte_sequence_type_identity;
 use crate::flow::terminal_unit::structural_access_for_type_reference;
 use typed_trees::expression::ExpressionHandle;

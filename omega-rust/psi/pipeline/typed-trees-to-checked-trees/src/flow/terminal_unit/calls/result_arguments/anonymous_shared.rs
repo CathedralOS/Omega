@@ -1,9 +1,9 @@
 //! A shared call retains and then disposes the actual temporary owner.
-use super::super::MachineSupplyMode;
 use super::{
     CheckFacts, ExpressionNode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, StatementNode, SymbolHandle, TypedTrees,
 };
+use crate::flow::terminal_unit::MachineSupplyMode;
 use crate::flow::terminal_unit::is_unit;
 use crate::flow::terminal_unit::state_flow;
 

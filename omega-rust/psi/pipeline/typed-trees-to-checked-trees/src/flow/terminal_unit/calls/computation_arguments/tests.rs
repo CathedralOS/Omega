@@ -1,14 +1,17 @@
 use super::super::super::scalar_targets::registered_structural_graph_target;
 use super::super::super::structural_scalar_graph_signature;
-use super::super::{
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-};
 use super::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity,
     PrimitiveType, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::flow::structural_computation_argument;
+use crate::flow::terminal_unit::CheckedScalarExpressionRole;
+use crate::flow::terminal_unit::CheckedUnitEffectOperationPlan;
+use crate::flow::terminal_unit::CheckedUnitStructuralPathSegment;
+use crate::flow::terminal_unit::PermissionAccess;
+use crate::flow::terminal_unit::PermissionClaimIdentity;
+use crate::flow::terminal_unit::PermissionEventKind;
+use crate::flow::terminal_unit::PermissionEventSource;
 use crate::flow::terminal_unit::calls::computation_arguments::owned_parameter_argument;
 use crate::flow::terminal_unit::terminal_field_identity;
 
