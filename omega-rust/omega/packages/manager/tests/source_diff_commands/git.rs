@@ -1,5 +1,7 @@
 use super::fixture::*;
+use package_manager::declarations::DependencyPurpose;
 use package_manager::{PackageCommand, PackageCommandStatus};
+use package_source::ImmutableSourceResolution;
 
 include!("offline.rs");
 
@@ -173,6 +175,270 @@ fn unavailable_old_git_source_preserves_policy_comparison_without_selector_fallb
             assert_eq!(
                 fixture.lock().targets()[0].baselines(),
                 accepted.targets()[0].baselines()
+            );
+        },
+    );
+}
+
+/// `(purpose, alias, selected commit)` for the root's accepted lock edges.
+fn root_git_edges(fixture: &Fixture) -> Vec<(DependencyPurpose, String, String)> {
+    let lock = fixture.lock();
+    let subject = lock.targets()[0].source();
+    let mut edges = subject
+        .dependency_requests()
+        .iter()
+        .filter(|edge| edge.requester() == subject.root().selected().key())
+        .map(|edge| {
+            let ImmutableSourceResolution::Git { commit, .. } = edge.selected().resolution() else {
+                panic!("fixture dependency selections are Git resolutions");
+            };
+            (
+                edge.purpose(),
+                edge.alias().as_str().to_owned(),
+                commit.to_hex(),
+            )
+        })
+        .collect::<Vec<_>>();
+    edges.sort();
+    edges
+}
+
+fn git_source(member: &str, revision: &str) -> String {
+    format!(
+        "Source::Git {{ repository: \"{REPOSITORY}\", revision: \"{revision}\", selection: PackageSelection::Named {{ package: \"{member}\" }} }}"
+    )
+}
+
+#[test]
+fn update_selects_a_build_scope_alias_and_retargets_its_git_row() {
+    run(
+        "update_selects_a_build_scope_alias_and_retargets_its_git_row",
+        |fixture| {
+            let original = fixture.commit();
+            // The root authors only a build-purpose Git edge: a selector that
+            // update must refresh and a row `--to` must rewrite in the build
+            // scope rather than reporting a missing root Git dependency.
+            fixture.write(
+                "root/build.omg",
+                &format!(
+                    "machine build(builder: &mut Build) {{\n builder.package(\"consumer\");\n builder.build_depend_as(\"host\", {});\n}}\n",
+                    git_source("exact-math", "HEAD"),
+                ),
+            );
+            assert_eq!(
+                fixture
+                    .execute(PackageCommand::Update {
+                        packages: Vec::new(),
+                        revision: None,
+                    })
+                    .unwrap()
+                    .status,
+                PackageCommandStatus::Published
+            );
+            assert_eq!(
+                root_git_edges(fixture),
+                [(
+                    DependencyPurpose::Build,
+                    "host".to_owned(),
+                    original.clone()
+                )]
+            );
+
+            fixture.write(
+                "repository/modules/selected/main.omg",
+                "pub machine value() -> u64 { 23 }\n",
+            );
+            let moved = fixture.commit();
+            assert_ne!(moved, original);
+
+            // The build alias selects its package for refresh; nothing else
+            // in the graph is touched.
+            let updated = fixture
+                .execute(PackageCommand::Update {
+                    packages: vec!["host".into()],
+                    revision: None,
+                })
+                .unwrap();
+            assert_eq!(
+                updated.status,
+                PackageCommandStatus::Published,
+                "{}",
+                updated.report
+            );
+            assert_eq!(
+                root_git_edges(fixture),
+                [(DependencyPurpose::Build, "host".to_owned(), moved.clone())]
+            );
+
+            // `--to` rewrites the build row's requested revision in place and
+            // republishes it under the same purpose, never as a product row.
+            // The fixture server permits fetching advertised exact objects,
+            // so the retargeted commit needs a ref naming it.
+            fixture.git(&["tag", "retargeted-source", &original]);
+            let retargeted = fixture
+                .execute(PackageCommand::Update {
+                    packages: vec!["host".into()],
+                    revision: Some(original.clone()),
+                })
+                .unwrap();
+            assert_eq!(
+                retargeted.status,
+                PackageCommandStatus::Published,
+                "{}",
+                retargeted.report
+            );
+            let build = fixture.read("root/build.omg");
+            assert!(
+                build.contains("builder.build_depend_as(\"host\""),
+                "{build}"
+            );
+            assert!(!build.contains("builder.depend"), "{build}");
+            assert!(
+                build.contains(&format!("revision: \"{original}\"")),
+                "{build}"
+            );
+            assert_eq!(
+                root_git_edges(fixture),
+                [(DependencyPurpose::Build, "host".to_owned(), original)]
+            );
+        },
+    );
+}
+
+#[test]
+fn update_to_retargets_both_scope_rows_of_a_dual_purpose_package() {
+    run(
+        "update_to_retargets_both_scope_rows_of_a_dual_purpose_package",
+        |fixture| {
+            let original = fixture.commit();
+            // One package serves both purposes under two independently
+            // authorized rows. The single source pin cannot split, so `--to`
+            // rewrites each scope's row rather than leaving a divergent
+            // build request that could never resolve one custody.
+            let request = git_source("exact-math", &original);
+            fixture.write(
+                "root/build.omg",
+                &format!(
+                    "machine build(builder: &mut Build) {{\n builder.package(\"consumer\");\n builder.depend_as(\"tool\", {request});\n builder.build_depend_as(\"tool\", {request});\n}}\n"
+                ),
+            );
+            assert_eq!(
+                fixture
+                    .execute(PackageCommand::Update {
+                        packages: Vec::new(),
+                        revision: None,
+                    })
+                    .unwrap()
+                    .status,
+                PackageCommandStatus::Published
+            );
+
+            fixture.write(
+                "repository/modules/selected/main.omg",
+                "pub machine value() -> u64 { 29 }\n",
+            );
+            let moved = fixture.commit();
+            let updated = fixture
+                .execute(PackageCommand::Update {
+                    packages: vec!["tool".into()],
+                    revision: Some(moved.clone()),
+                })
+                .unwrap();
+            assert_eq!(
+                updated.status,
+                PackageCommandStatus::Published,
+                "{}",
+                updated.report
+            );
+            let build = fixture.read("root/build.omg");
+            for operation in ["depend_as", "build_depend_as"] {
+                assert!(
+                    build.contains(&format!(
+                        "builder.{operation}(\"tool\", Source::Git {{ repository: \"{REPOSITORY}\", revision: \"{moved}\""
+                    )),
+                    "{build}"
+                );
+            }
+            assert_eq!(
+                root_git_edges(fixture),
+                [
+                    (DependencyPurpose::Product, "tool".to_owned(), moved.clone()),
+                    (DependencyPurpose::Build, "tool".to_owned(), moved),
+                ]
+            );
+        },
+    );
+}
+
+#[test]
+fn update_shared_cross_scope_alias_refreshes_both_selections() {
+    run(
+        "update_shared_cross_scope_alias_refreshes_both_selections",
+        |fixture| {
+            fixture.commit();
+            // One spelling authorizes a different package per scope: refresh
+            // covers both selections, while `--to` still requires one.
+            fixture.write(
+                "root/build.omg",
+                &format!(
+                    "machine build(builder: &mut Build) {{\n builder.package(\"consumer\");\n builder.depend_as(\"shared\", {});\n builder.build_depend_as(\"shared\", {});\n}}\n",
+                    git_source("exact-math", "HEAD"),
+                    git_source("other-library", "HEAD"),
+                ),
+            );
+            assert_eq!(
+                fixture
+                    .execute(PackageCommand::Update {
+                        packages: Vec::new(),
+                        revision: None,
+                    })
+                    .unwrap()
+                    .status,
+                PackageCommandStatus::Published
+            );
+
+            fixture.write(
+                "repository/modules/selected/main.omg",
+                "pub machine value() -> u64 { 31 }\n",
+            );
+            let moved = fixture.commit();
+
+            // `--to` cannot retarget one authored revision when the spelling
+            // selects a different package per scope.
+            let error = fixture
+                .execute(PackageCommand::Update {
+                    packages: vec!["shared".into()],
+                    revision: Some(moved.clone()),
+                })
+                .unwrap_err()
+                .to_string();
+            assert!(
+                error.contains("--to requires exactly one package or root dependency alias"),
+                "{error}"
+            );
+
+            let updated = fixture
+                .execute(PackageCommand::Update {
+                    packages: vec!["shared".into()],
+                    revision: None,
+                })
+                .unwrap();
+            assert_eq!(
+                updated.status,
+                PackageCommandStatus::Published,
+                "{}",
+                updated.report
+            );
+            assert_eq!(
+                root_git_edges(fixture),
+                [
+                    (
+                        DependencyPurpose::Product,
+                        "shared".to_owned(),
+                        moved.clone()
+                    ),
+                    (DependencyPurpose::Build, "shared".to_owned(), moved),
+                ]
             );
         },
     );
