@@ -1,15 +1,24 @@
 //! Result operands retain exact source access, ownership, and projected storage.
-use super::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StateParameter,
-    StatementNode, SymbolHandle, TypedTrees,
-};
+use crate::flow::terminal_unit::CheckFacts;
+use crate::flow::terminal_unit::CheckedStructuralAccess;
+use crate::flow::terminal_unit::CheckedUnitStructuralArgumentPlan;
+use crate::flow::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
+use crate::flow::terminal_unit::CheckedUnitStructuralPathSegment;
+use crate::flow::terminal_unit::CheckedUnitStructuralResultBindingPlan;
+use crate::flow::terminal_unit::ExpressionNode;
+use crate::flow::terminal_unit::Multiplicity;
+use crate::flow::terminal_unit::PermissionAccess;
+use crate::flow::terminal_unit::PermissionClaimIdentity;
+use crate::flow::terminal_unit::PermissionEventKind;
+use crate::flow::terminal_unit::PermissionEventSource;
 use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::StateParameter;
+use crate::flow::terminal_unit::StatementNode;
+use crate::flow::terminal_unit::SymbolHandle;
+use crate::flow::terminal_unit::TypedTrees;
 use crate::flow::terminal_unit::base_type_identity;
-use crate::flow::terminal_unit::calls::exact_structural_argument_access;
-use crate::flow::terminal_unit::calls::projected_argument_path_with_identity;
+use crate::flow::terminal_unit::calls::argument_paths::projected_argument_path_with_identity;
+use crate::flow::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
 use crate::flow::terminal_unit::shared_plain_affine_referent;
 use crate::flow::terminal_unit::state_flow;
 use crate::flow::terminal_unit::structural_access_for_type_reference;

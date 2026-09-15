@@ -1,6 +1,7 @@
-use super::super::{CheckFacts, StatementNode};
 use super::{CheckedStructuralAccess, ExpressionNode, SymbolHandle, TypedTrees};
-use crate::flow::terminal_unit::calls::exact_structural_argument_access;
+use crate::flow::terminal_unit::CheckFacts;
+use crate::flow::terminal_unit::StatementNode;
+use crate::flow::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
 
 struct ForwardingFixture {
     program: TypedTrees,

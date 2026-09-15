@@ -1,6 +1,9 @@
 //! A bare reference parameter reads its carrier without weakening its referent.
-use super::{CheckedStructuralAccess, ExpressionNode, SymbolHandle, TypedTrees};
 use crate::flow::byte_sequence_carrier;
+use crate::flow::terminal_unit::CheckedStructuralAccess;
+use crate::flow::terminal_unit::ExpressionNode;
+use crate::flow::terminal_unit::SymbolHandle;
+use crate::flow::terminal_unit::TypedTrees;
 use crate::flow::terminal_unit::structural_access_for_type_reference;
 
 pub(super) fn preserves_mutable_referent(
@@ -273,7 +276,7 @@ fn preceding_byte_loan_preserves_carrier(
     if matching.next().is_some()
         || parameter.is_self
         || parameter.is_const
-        || !(super::fixed_byte_array_mutable_view_is_admitted(
+        || !(crate::flow::terminal_unit::calls::boundary_admission::fixed_byte_array_mutable_view_is_admitted(
             program,
             source.type_reference,
             parameter.type_reference,

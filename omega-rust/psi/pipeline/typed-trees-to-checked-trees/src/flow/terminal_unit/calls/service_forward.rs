@@ -1,8 +1,11 @@
 //! Exact admission for one source-visible routed-Service forwarding hop.
-use super::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralParameterPlan, Multiplicity, StatementNode, TypedTrees,
-};
+use crate::flow::terminal_unit::CheckFacts;
+use crate::flow::terminal_unit::CheckedStructuralAccess;
+use crate::flow::terminal_unit::CheckedUnitStructuralArgumentPlan;
+use crate::flow::terminal_unit::CheckedUnitStructuralParameterPlan;
+use crate::flow::terminal_unit::Multiplicity;
+use crate::flow::terminal_unit::StatementNode;
+use crate::flow::terminal_unit::TypedTrees;
 use crate::flow::terminal_unit::is_unit;
 use crate::flow::terminal_unit::state_flow;
 use crate::flow::terminal_unit::structural_access_for_type_reference;
