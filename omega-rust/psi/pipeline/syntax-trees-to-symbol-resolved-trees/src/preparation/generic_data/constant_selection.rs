@@ -136,31 +136,6 @@ impl<'base> ConstantSelection<'base> {
         (retained.symbols.get(selected).kind == kind).then_some(selected)
     }
 
-    // This selects normalization identity under source strata. Domain lowering
-    // retains each authored occurrence; final package admission independently
-    // checks its declaration visibility and direct dependency authority.
-    pub(super) fn current_domain_source_matches(
-        &self,
-        definition: &syntax_trees::item::DomainDefinition,
-        reference: &Identifier,
-    ) -> bool {
-        let Some(symbol) = self.symbols.find_top_level_by_name_and_kinds_from_source(
-            definition.name.as_str(),
-            &[SymbolKind::Domain],
-            definition.name.source_span(),
-        ) else {
-            return false;
-        };
-        self.symbols
-            .source_reference_can_see_symbol(reference.source_span(), symbol)
-            && (!reference.as_str().contains("::")
-                || self.symbols.find_top_level_by_name_and_kinds_from_source(
-                    reference.as_str(),
-                    &[SymbolKind::Domain],
-                    reference.source_span(),
-                ) == Some(symbol))
-    }
-
     pub(super) fn retained_domain_identity(
         &self,
         carrier: &Identifier,
@@ -200,6 +175,59 @@ impl<'base> ConstantSelection<'base> {
         candidates.next().is_none().then_some(selected)
     }
 
+    /// Whether one top-level domain symbol is visible to `reference` and
+    /// reachable under module name law for the authored spelling — qualified
+    /// paths name their exact declaration, relative and leaf spellings need
+    /// the module's own source or a narrow import, and unmoduled domains keep
+    /// root scope.
+    fn domain_symbol_is_reachable(
+        &self,
+        symbol: symbols::SymbolHandle,
+        authored: &str,
+        reference: source::SourceSpan,
+    ) -> bool {
+        self.symbols.get(symbol).kind == SymbolKind::Domain
+            && self
+                .symbols
+                .source_reference_can_see_symbol(reference, symbol)
+            && crate::symbols::domain_name_reaches(
+                &self.symbols,
+                symbol,
+                self.symbols.name(symbol),
+                authored,
+                reference,
+            )
+    }
+
+    /// Whether the authored spelling reaches an in-forest domain declaration
+    /// under module name law, including generic families `domain` excludes.
+    /// When `domain` returns `None` this distinguishes absence — nothing was
+    /// reachable, so a retained-base owner may still be selected — from a
+    /// contested spelling whose reachable in-forest candidates the resolver
+    /// will pool and reject or own itself.
+    pub(super) fn contested_domain(
+        &self,
+        syntax: &SyntaxTrees,
+        authored: &str,
+        reference: source::SourceSpan,
+    ) -> bool {
+        self.symbols
+            .child_handles(self.symbols.root())
+            .into_iter()
+            .flatten()
+            .filter(|symbol| self.domain_symbol_is_reachable(*symbol, authored, reference))
+            .any(|symbol| {
+                let Some(span) = self.symbols.symbol_source_span(symbol) else {
+                    return false;
+                };
+                syntax.root_items().any(|item| {
+                    matches!(item, Item::Domain(definition)
+                        if definition.name.source_span() == span
+                            && definition.name.as_str() == self.symbols.name(symbol))
+                })
+            })
+    }
+
     /// Select one non-generic declared domain under module name law for a
     /// pre-resolution fact evaluation. This is the same selection the full
     /// resolver later applies to the fact's retained path: qualified spellings
@@ -222,18 +250,7 @@ impl<'base> ConstantSelection<'base> {
         let children = self.symbols.child_handles(self.symbols.root())?;
         let mut pool = Vec::new();
         for symbol in children {
-            if self.symbols.get(symbol).kind != SymbolKind::Domain
-                || !self
-                    .symbols
-                    .source_reference_can_see_symbol(reference, symbol)
-                || !crate::symbols::domain_name_reaches(
-                    &self.symbols,
-                    symbol,
-                    self.symbols.name(symbol),
-                    authored,
-                    reference,
-                )
-            {
+            if !self.domain_symbol_is_reachable(symbol, authored, reference) {
                 continue;
             }
             let Some(span) = self.symbols.symbol_source_span(symbol) else {

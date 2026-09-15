@@ -74,19 +74,12 @@ pub(crate) fn validate_with_const_resolution_mode(
     // and generated references carry the selected owner's logical path.
     // Non-generic module domains and their operator homes resolve by the same
     // namespace rules: qualified semantic identity, module-local precedence,
-    // and import-gated relative spellings. Two remaining surfaces still fence:
-    // generic templates (open index telescopes and carrier binders share the
-    // generic-template normalization queue) and same-named domain siblings
-    // (compile-time domain-fact evaluation still selects by declared spelling,
-    // so a collision could discharge facts against the wrong owner).
-    let domain_names_collide = |definition: &syntax_trees::item::DomainDefinition| {
-        syntax.root_items().any(|item| {
-            let Item::Domain(other) = item else {
-                return false;
-            };
-            !std::ptr::eq(other, definition) && other.name.as_str() == definition.name.as_str()
-        })
-    };
+    // and import-gated relative spellings. Const-fact evaluation and
+    // constrained-argument identity select their exact owner through that law,
+    // so same-spelled non-generic siblings no longer collide. Generic
+    // templates still fence: open index telescopes and carrier binders share
+    // the generic-template normalization queue, whose family and binder
+    // surfaces do not yet carry module ownership.
     for item in syntax.root_items() {
         let unsupported = match item {
             Item::Domain(definition)
@@ -94,8 +87,6 @@ pub(crate) fn validate_with_const_resolution_mode(
             {
                 if !definition.type_parameters.is_empty() {
                     Some((&definition.name, "module-owned generic domains require namespace-aware template normalization"))
-                } else if domain_names_collide(definition) {
-                    Some((&definition.name, "module-owned domains sharing a declared name with another domain require exact const-evaluation ownership"))
                 } else {
                     None
                 }
@@ -614,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn module_generic_templates_and_same_named_domain_siblings_remain_fenced() {
+    fn module_generic_templates_remain_fenced() {
         for (sources, message) in [
             (
                 &["module units; domain<T> T::Distance;"][..],
@@ -623,17 +614,6 @@ mod tests {
             (
                 &["module units; operator copy<T>(value: T) -> T;"][..],
                 "namespace-aware template normalization",
-            ),
-            (
-                &["domain u64::Distance; module units; domain u64::Distance;"][..],
-                "exact const-evaluation ownership",
-            ),
-            (
-                &[
-                    "module units; domain u64::Distance;",
-                    "module rooms; domain u64::Distance;",
-                ][..],
-                "exact const-evaluation ownership",
             ),
         ] {
             let syntax = parse(sources);
@@ -644,5 +624,87 @@ mod tests {
                 "{sources:?}: {diagnostics:?}"
             );
         }
+    }
+
+    #[test]
+    fn same_named_domain_siblings_discharge_const_facts_against_their_exact_owner() {
+        // The module leaf reaches its own domain; the root sibling neither
+        // competes nor supplies its requirement. `3 > 0` holds for the
+        // module-local `Distance` while the root `3 > 5` would refute.
+        let syntax = parse(&[
+            "domain u64::Distance requires self > 5;",
+            "module units; domain u64::Distance requires self > 0; data Bound<const N: u64> where N in Distance, { value: u64; } data Use { value: Bound<3>; }",
+        ]);
+        let normalized = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("the module-local domain owns the membership fact");
+        crate::resolve(crate::ResolutionRequest::new(&normalized))
+            .expect("the discharged instance resolves");
+
+        // The same generic at the root selects the root domain, whose
+        // requirement `3 > 5` is false.
+        let syntax = parse(&[
+            "domain u64::Distance requires self > 5;",
+            "module units; domain u64::Distance requires self > 0;",
+            "data Bound<const N: u64> where N in Distance, { value: u64; } data Use { value: Bound<3>; }",
+        ]);
+        let diagnostics = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect_err("the root domain owns and refutes the membership fact");
+        assert!(
+            diagnostics[0].message.contains("is false"),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn constrained_generic_arguments_select_their_module_domain_owner() {
+        use syntax_trees::item::DataMember;
+        use syntax_trees::types::TypeConstraintNode;
+        use syntax_trees::types::TypeReferenceNode;
+        let syntax = parse(&[
+            "data Cell<T> { value: T; } domain u64::Distance requires self > 5; data Root { value: Cell<u64 in Distance>; }",
+            "module units; domain u64::Distance requires self > 0; data Holder { value: Cell<u64 in Distance>; }",
+        ]);
+        let normalized = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("same-named domain siblings select their exact owners");
+        let mut owners = normalized
+            .root_items()
+            .filter_map(|item| {
+                let Item::Data(data) = item else {
+                    return None;
+                };
+                data.generic_instance?;
+                let [DataMember::Field(field)] = normalized.tables.items.data_members(data.members)
+                else {
+                    return None;
+                };
+                let TypeReferenceNode::Constrained { constraints, .. } = normalized
+                    .tables
+                    .type_references
+                    .type_reference(field.type_reference)
+                else {
+                    return None;
+                };
+                let [TypeConstraintNode::Domain(domain)] =
+                    normalized.tables.type_references.constraints(*constraints)
+                else {
+                    return None;
+                };
+                Some(domain.name.source_span().source_id)
+            })
+            .collect::<Vec<_>>();
+        owners.sort_by_key(|source| source.0);
+        assert_eq!(
+            owners,
+            [SourceId(0), SourceId(1)],
+            "each instance retains the constraint authored in its own module"
+        );
+        crate::resolve(crate::ResolutionRequest::new(&normalized))
+            .expect("each instance's retained spelling resolves its own domain");
     }
 }

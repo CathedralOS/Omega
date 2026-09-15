@@ -379,44 +379,94 @@ pub(super) fn closed_argument_identity(
                         name,
                         arguments: _,
                     }) => {
-                        // Module-owned domains remain fenced. Root domains still
-                        // select one declaration rather than equating their text.
-                        let mut candidates =
-                            syntax.root_item_handles().iter().copied().filter(|handle| {
-                                let Item::Domain(domain) = syntax.root_item(*handle) else {
-                                    return false;
-                                };
-                                let matching_name = domain.name.as_str() == name.as_str()
-                                    || (!name.as_str().contains("::")
-                                        && domain.name.as_str().rsplit("::").next()
-                                            == Some(name.as_str()));
-                                matching_name
-                                    && closed_argument_identity(
+                        if let Some(selection) = selection {
+                            // The constraint's domain is selected by the same
+                            // module name law resolution applies: qualified
+                            // spellings name one exact declaration, relative and
+                            // leaf spellings prefer the reference's own module,
+                            // and narrow imports expose only the selected
+                            // declaration. Competing owners or an unreachable
+                            // same-spelled declaration decline rather than
+                            // equating rendered text.
+                            match selection.domain(syntax, name.as_str(), name.source_span()) {
+                                Some(domain) => {
+                                    if closed_argument_identity(
                                         syntax,
-                                        selection,
+                                        Some(selection),
                                         domain.target_type,
                                         false,
                                     )
                                     .as_ref()
-                                        == Some(&base)
-                                    && selection.is_none_or(|selection| {
-                                        selection.current_domain_source_matches(domain, name)
-                                    })
-                            });
-                        if let Some(declaration) = candidates.next() {
+                                        != Some(&base)
+                                    {
+                                        return None;
+                                    }
+                                    let declaration = syntax
+                                        .root_item_handles()
+                                        .iter()
+                                        .copied()
+                                        .find(|handle| {
+                                            matches!(syntax.root_item(*handle), Item::Domain(candidate)
+                                                if std::ptr::eq(candidate, domain))
+                                        })?;
+                                    ClosedConstraintIdentity::Declaration(declaration)
+                                }
+                                None => {
+                                    // `domain` returned no settled owner. When
+                                    // the spelling still reaches an in-forest
+                                    // declaration — competing owners or a
+                                    // generic family — the constraint declines
+                                    // rather than rescuing a retained domain
+                                    // through a contested name law selection.
+                                    // With nothing reachable, a retained-base
+                                    // domain remains a lawful identity.
+                                    if selection.contested_domain(
+                                        syntax,
+                                        name.as_str(),
+                                        name.source_span(),
+                                    ) {
+                                        return None;
+                                    }
+                                    let TypeReferenceNode::Named(carrier) = syntax
+                                        .type_references
+                                        .type_reference(*base_type)
+                                    else {
+                                        return None;
+                                    };
+                                    ClosedConstraintIdentity::RetainedDeclaration(
+                                        selection.retained_domain_identity(carrier, name)?,
+                                    )
+                                }
+                            }
+                        } else {
+                            // Headerless forests cannot run import-aware
+                            // selection; only a unique same-carrier declaration
+                            // stands for the constraint, and same-spelled
+                            // siblings still decline rather than equating text.
+                            let mut candidates =
+                                syntax.root_item_handles().iter().copied().filter(|handle| {
+                                    let Item::Domain(domain) = syntax.root_item(*handle) else {
+                                        return false;
+                                    };
+                                    let matching_name = domain.name.as_str() == name.as_str()
+                                        || (!name.as_str().contains("::")
+                                            && domain.name.as_str().rsplit("::").next()
+                                                == Some(name.as_str()));
+                                    matching_name
+                                        && closed_argument_identity(
+                                            syntax,
+                                            None,
+                                            domain.target_type,
+                                            false,
+                                        )
+                                        .as_ref()
+                                            == Some(&base)
+                                });
+                            let declaration = candidates.next()?;
                             if candidates.next().is_some() {
                                 return None;
                             }
                             ClosedConstraintIdentity::Declaration(declaration)
-                        } else {
-                            let TypeReferenceNode::Named(carrier) =
-                                syntax.type_references.type_reference(*base_type)
-                            else {
-                                return None;
-                            };
-                            ClosedConstraintIdentity::RetainedDeclaration(
-                                selection?.retained_domain_identity(carrier, name)?,
-                            )
                         }
                     }
                     TypeConstraintNode::Range { .. } => ClosedConstraintIdentity::Range(
