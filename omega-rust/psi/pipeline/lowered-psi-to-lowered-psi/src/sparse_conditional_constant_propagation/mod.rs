@@ -10,9 +10,12 @@
 //! rule when it is also selected.
 //!
 //! Propositions, ranking rows, and custody sidecars name value identities
-//! without listing direct uses: folding never removes an identity, a ranked
-//! machine is left unchanged, and proof-bearing closures stay frozen until
-//! proof-context transport is implemented.
+//! without listing direct uses: folding never removes an identity, and a
+//! ranked machine is left unchanged. Inside a proof-bearing module a fold
+//! survives only while the reconstructed proof question is unchanged; a fold
+//! the question cannot carry verbatim refuses, leaving the complete closure
+//! as authored until proof-context transport lets the question move with the
+//! rewrite.
 //!
 //! The scan proposes folds; the independent verifier re-derives the literal
 //! for each rewritten operation and checks the exact before/after relation
@@ -32,19 +35,35 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
         .map_err(PsiOptimizationStageError::InvalidModule)?;
     let questions = reconstruct_optimizable_terminal_obligations(validated)
         .map_err(PsiOptimizationStageError::InvalidModule)?;
-    let mut after = before.clone();
     // Call composition can include a callee's axioms in another machine's
-    // obligation. Protect the complete closure, not just the obligation owner.
-    if questions.obligations().is_empty() {
-        for machine in &mut after.semantic_module.machines {
-            folding::fold(machine);
-        }
+    // obligation: the verifier's reconstructed-question check is the refusal
+    // boundary for the complete closure, not just the obligation owner.
+    let proof_bearing = !questions.obligations().is_empty();
+    let mut after = before.clone();
+    for machine in &mut after.semantic_module.machines {
+        folding::fold(machine);
     }
-    validate_sparse_conditional_constant_propagation(
+    if let Err(error) = validate_sparse_conditional_constant_propagation(
         &before.semantic_module,
         &after.semantic_module,
-    )
-    .map_err(PsiOptimizationStageError::InvalidSparseConditionalConstantPropagationRewrite)?;
+    ) {
+        // Without proof-context transport a proof-bearing input keeps only a
+        // rewrite the reconstructed question survives unchanged; a refused
+        // rewrite leaves the module as authored.
+        if proof_bearing
+            && matches!(
+                error,
+                terminal_verifier::SparseConditionalConstantPropagationRewriteError::InvalidModule(
+                    _
+                ) | terminal_verifier::SparseConditionalConstantPropagationRewriteError::ChangedProofQuestion
+            )
+        {
+            return Ok(before);
+        }
+        return Err(
+            PsiOptimizationStageError::InvalidSparseConditionalConstantPropagationRewrite(error),
+        );
+    }
     if let Some(debug) = after.debug_map.as_mut() {
         debug.semantic = terminal_codec::terminal_psi_identity(&after.semantic_module)
             .map_err(PsiOptimizationStageError::InvalidSemantic)?;

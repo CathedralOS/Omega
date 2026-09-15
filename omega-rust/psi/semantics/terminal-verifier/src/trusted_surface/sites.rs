@@ -281,12 +281,17 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-semantics/src/proof_bearing_scalar.rs",
-        sha256: Some("96929d227c9337d8baf2939597e632c15c20a525aa3c414f7dacea1761054be4"),
+        sha256: Some("a548b1a99b9a760b4b51e04a6664f7317f10343964e9bad283caa802d477da92"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-semantics/src/proof_bearing_scalar/canonical_goal.rs",
         sha256: Some("080eb93280f3a4947d47c8ee2b4eceaeaedd5bef35cd098dda91226b7dbb1ea5"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/terminal-semantics/src/proof_bearing_scalar/elision.rs",
+        sha256: Some("00e659c02dab94a991b5fb78816d9d671457aeb4f50f9f0b1127cf30064480f4"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -341,7 +346,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/optimization.rs",
-        sha256: Some("ac047cc5dbeae71f1cca9b7cea539237166a76fa9ed9712f3d1bc88d9a7e41f2"),
+        sha256: Some("c8291776229c7e097a1e0dadc929507aa985615dc6cda9f339c96a6819ac9581"),
         inventory_machinery: false,
     },
     ImplementationSite {

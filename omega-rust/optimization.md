@@ -25,9 +25,10 @@ The [Psi X-to-X entrance](psi/pipeline/lowered-psi-to-lowered-psi/src/lib.rs)
 consumes complete unsealed `LoweredPsi`, validates both sides, and returns the
 only optimization-stage result accepted by Terminal publication. Its
 [Psi-local catalog](psi/representations/optimization/src/optimization_selections/catalog.rs)
-does not import native target vocabulary. Identity execution, the admitted
-copy-propagation, global-value-numbering, constant-propagation, and
-dead-pure-scalar passes run here; other named passes reject until ported.
+does not import native target vocabulary. Every catalog selection runs here —
+control-flow cleanup, sparse conditional constant propagation, copy
+propagation, global value numbering, dead pure scalar elimination, and
+proof-check elision — each under an independent before/after verifier check.
 Copy propagation collapses a scalar block parameter bound to the same
 resolved value on every inventoried incoming
 edge, substituting the resolved source at direct scalar uses and dropping the
@@ -39,10 +40,17 @@ survivor, the first match in reverse postorder, at every direct scalar use.
 Sparse conditional constant propagation folds a goal-free scalar leaf
 operation whose scalar operands all resolve to known literals into the
 matching integer or Boolean constant in place, iterating to a fixed point
-while keeping every operation, result, and value identity; ranked machines,
-static reach bindings, and proof-bearing closures stay frozen, and
-propositions, proof projections, suspension frontiers, ranking evidence, and
-recorded source-call joins keep the exact identities they name. The
+while keeping every operation, result, and value identity; ranked machines
+and static reach bindings stay frozen; inside a proof-bearing module a
+rewrite survives only while the reconstructed proof question is unchanged —
+a rewrite the question cannot carry verbatim refuses, leaving the complete
+closure as authored until proof-context transport lets the question move
+with it — and propositions, proof projections, suspension frontiers, ranking
+evidence, and recorded source-call joins keep the exact identities they name.
+Proof-check elision removes a check only when canonical goal replay resolves
+its proposition to the kernel's Truth; checked divides without a goal-free
+form, certificate-reserved obligations, and non-scalar-leaf proof bearers
+keep their checks. The
 execution record survives canonical Terminal encoding and independent decoding.
 
 The [post-Terminal abstract phase](omega/pipeline/abstract-operations-to-abstract-operations/src/abstract_optimization.rs)

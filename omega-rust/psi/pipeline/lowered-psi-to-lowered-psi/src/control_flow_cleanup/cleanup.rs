@@ -27,10 +27,10 @@ pub(super) fn cleanup(
     let mut literals = BTreeMap::new();
     for block in &machine.blocks {
         for operation in &block.operations {
-            if let OperationKind::BooleanConstant { value } = &operation.kind {
-                if let Some(result) = operation.result.scalar() {
-                    literals.insert(result.id, *value);
-                }
+            if let OperationKind::BooleanConstant { value } = &operation.kind
+                && let Some(result) = operation.result.scalar()
+            {
+                literals.insert(result.id, *value);
             }
         }
     }
@@ -167,10 +167,10 @@ fn removable_block(
         {
             return false;
         }
-        if let Some(result) = operation.result.scalar() {
-            if evidence.values.contains(&result.id) || sidecar_values.contains(&result.id) {
-                return false;
-            }
+        if let Some(result) = operation.result.scalar()
+            && (evidence.values.contains(&result.id) || sidecar_values.contains(&result.id))
+        {
+            return false;
         }
     }
     if block.parameters.iter().any(|parameter| {

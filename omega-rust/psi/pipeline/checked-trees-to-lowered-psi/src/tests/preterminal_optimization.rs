@@ -279,6 +279,63 @@ fn dead_scalar_selection_preserves_proof_questions_and_rejects_unchecked_context
 }
 
 #[test]
+fn dead_scalar_selection_rewrites_where_the_reconstructed_question_does_not_reach() {
+    // The refusal boundary is the reconstructed question, not obligation
+    // presence: an obligation owned by the callee keeps that machine's exit
+    // axioms, so a dead chain in the caller still leaves while the clause and
+    // the bundle survive verbatim.
+    let mut lowered =
+        lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
+    lowered.semantic_module.machines[1]
+        .contract
+        .ensures
+        .push(ContractClause {
+            obligation: ObligationId::new(4242).unwrap(),
+            proposition: Proposition::Truth,
+        });
+    let dead = Operation {
+        static_reach_binding: None,
+        id: OperationId::new(4242).unwrap(),
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(4242).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        }),
+        kind: OperationKind::BooleanConstant { value: true },
+    };
+    lowered.semantic_module.machines[0].blocks[0]
+        .operations
+        .push(dead.clone());
+    if let Some(debug) = lowered.debug_map.as_mut() {
+        debug.semantic = terminal_psi_identity(&lowered.semantic_module).unwrap();
+    }
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::DeadPureScalarElimination]).unwrap(),
+    )
+    .expect("a rewrite the reconstructed question cannot see still executes");
+    assert!(
+        !optimized.lowered().semantic_module.machines[0].blocks[0]
+            .operations
+            .iter()
+            .any(|operation| operation.id == dead.id),
+        "the proof-disjoint dead operation leaves the caller"
+    );
+    assert_eq!(
+        optimized.lowered().semantic_module.machines[1]
+            .contract
+            .ensures,
+        lowered.semantic_module.machines[1].contract.ensures,
+        "the obligation survives verbatim"
+    );
+    assert_eq!(
+        optimized.lowered().proof_bundle,
+        lowered.proof_bundle,
+        "the proof bundle is byte-identical"
+    );
+}
+
+#[test]
 fn invalid_input_fails_before_selected_rule_dispatch() {
     let mut lowered =
         lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
