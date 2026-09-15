@@ -1,5 +1,5 @@
 use super::{CheckedOperatorFacts, ClosedScalarContractValue, TypedTrees};
-use crate::facts::build_closed_scalar_value_contract_plan;
+use crate::facts::contract_plan_facts::build_closed_scalar_value_contract_plan;
 use crate::facts::scalar_contract_tests::typed;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
