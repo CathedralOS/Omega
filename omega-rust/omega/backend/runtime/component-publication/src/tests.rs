@@ -1,8 +1,9 @@
 use super::{
     ArtifactId, ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraPublicationReceipt,
     InstalledCodeId, InstalledRootLedger, InstalledRunnableComponent, ProgramLocalRootEpochLeaseId,
-    ProvisionedExternalStackSet, RunnableComponentEraLedger, admit_external_stack_domain_lease,
-    bind_installed_runnable_component, seal_external_stack_provision,
+    ProvisionedExternalStackSet, ProvisionedRootInstallError, RunnableComponentEraLedger,
+    admit_external_stack_domain_lease, bind_installed_runnable_component,
+    seal_external_stack_provision,
 };
 use std::collections::BTreeSet;
 
@@ -556,6 +557,21 @@ fn callback_root_candidate(code: &InstalledCode, entry: EntryStubId) -> External
     let provider = root_id(702, RootProviderId::from_normalized_identity);
     let relation = root_id(706, NestingRelationId::from_normalized_identity);
     let boundary = callback_boundary();
+    callback_root_candidate_on_stack(
+        entry,
+        callback_stack(root, provider, relation, &boundary, code, entry),
+    )
+}
+
+/// The callback candidate shape with an explicit bound stack composition, so
+/// tests can admit compositions whose bound inputs span more than one root.
+fn callback_root_candidate_on_stack(
+    entry: EntryStubId,
+    realization: BoundEpochStackComposition,
+) -> ExternalRootCandidate {
+    let root = root_id(701, ExternalRootId::from_normalized_identity);
+    let provider = root_id(702, RootProviderId::from_normalized_identity);
+    let relation = root_id(706, NestingRelationId::from_normalized_identity);
     ExternalRootCandidate {
         identity: root,
         entry,
@@ -585,7 +601,7 @@ fn callback_root_candidate(code: &InstalledCode, entry: EntryStubId) -> External
         )),
         stack: StackResourceColumn {
             ceiling_bytes: 8192,
-            realization: callback_stack(root, provider, relation, &boundary, code, entry),
+            realization,
             validation_receipt: root_id(750, StackValidationReceiptId::from_normalized_identity),
         },
         logical_fuel: LogicalFuelResourceColumn {
@@ -1245,4 +1261,179 @@ fn external_root_install_rejoins_exact_admitted_stack_provision() {
         .runnable
         .admit_external_stack_provision(replacement)
         .expect_err("external stack provision is pinned while a root is live");
+}
+
+/// The provision lane rejoins every bound epoch input in the artifact-wide
+/// composition against the retained installed occurrence — the complete
+/// installed-code context, not the compact installed-code and artifact
+/// identities. Two placements issued the same compact identities cannot be
+/// told apart by the old join, so bound stack evidence bound to one
+/// occurrence could ride on stack supply retained for the other.
+///
+/// A cohort input bound to the foreign placement rejects at the provision
+/// gate even though the installed root's own entry binding — the only input
+/// the ledger's install check visits — is exact. Rejection returns the
+/// validated root, slot, and admission so the corrected composition retries.
+#[test]
+fn external_stack_provision_rejects_cohort_evidence_for_another_occurrence() {
+    let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
+    let mut fixture = unprovisioned_runnable_fixture_at(600, 0x1000);
+    let other = unprovisioned_runnable_fixture_at(600, 0x9000);
+    assert_eq!(
+        fixture.installed_code, other.installed_code,
+        "occurrences collide on compact installed-code identity"
+    );
+    assert_eq!(
+        fixture.runnable.installed().artifact(),
+        other.runnable.installed().artifact(),
+        "occurrences collide on compact artifact identity"
+    );
+    assert_ne!(
+        fixture.runnable.installed().receipt_context(),
+        other.runnable.installed().receipt_context(),
+        "different exact placements retain distinct installed occurrence evidence"
+    );
+
+    // The artifact-wide bound composition retains the installed root's input
+    // bound to this occurrence beside a cohort root's input bound to the
+    // other placement under colliding compact identities.
+    let boundary = callback_boundary();
+    let relation = root_id(706, NestingRelationId::from_normalized_identity);
+    let own_stack = callback_stack(
+        root_id(701, ExternalRootId::from_normalized_identity),
+        root_id(702, RootProviderId::from_normalized_identity),
+        relation,
+        &boundary,
+        fixture.runnable.installed(),
+        private_entry,
+    );
+    let foreign_stack = callback_stack(
+        root_id(771, ExternalRootId::from_normalized_identity),
+        root_id(772, RootProviderId::from_normalized_identity),
+        relation,
+        &boundary,
+        other.runnable.installed(),
+        private_entry,
+    );
+    let relation_evidence = StackNestingRelation {
+        identity: relation,
+        edges: BTreeSet::new(),
+    };
+    let merged = compose_bound_entry_stack_epochs(
+        &relation_evidence,
+        own_stack
+            .inputs()
+            .chain(foreign_stack.inputs())
+            .map(|(_, input)| input),
+    )
+    .expect("cross-occurrence cohort composition");
+    let cohort_validated = validate_external_root(
+        callback_root_candidate_on_stack(private_entry, merged),
+        &boundary,
+    )
+    .expect("cross-occurrence cohort root");
+    let slot = RootSlotAuthority::from_admitted_owner(
+        root_id(720, RootSlotId::from_normalized_identity),
+        root_id(721, RootSlotOwnerId::from_normalized_identity),
+    );
+    let execution = ProviderExecution::from_admitted_provider(
+        root_id(754, ProviderExecutionId::from_normalized_identity),
+        &cohort_validated,
+        Some(OpaqueProviderExitAssurance::AcceptedClaim {
+            realization: ProviderExitRealization {
+                control: cohort_validated.boundary().call.entry_control,
+                restored_state: cohort_validated.boundary().state.restored_state,
+            },
+            validation_receipt: root_id(704, TrustReceiptId::from_normalized_identity),
+        }),
+    )
+    .expect("cohort provider execution");
+    let admission = RootAdmission::from_admitted_provider(
+        root_id(722, RootAdmissionId::from_normalized_identity),
+        &cohort_validated,
+        &execution,
+        fixture.runnable.installed(),
+        &slot,
+        cohort_validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("cohort root admission");
+
+    // The retained provision binds this occurrence and covers the composed
+    // demand; only the cohort input's foreign occurrence context rejects.
+    let covering = callback_stack_provision(fixture.runnable.installed());
+    fixture
+        .runnable
+        .admit_external_stack_provision(covering)
+        .expect("covering provision admitted while no roots are live");
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let error = runtime
+        .install(cohort_validated, slot, admission)
+        .expect_err("cohort bound epoch evidence naming another occurrence rejects");
+    assert!(
+        matches!(*error, ProvisionedRootInstallError::Provision { .. }),
+        "rejection must come from the provision lane before ledger custody"
+    );
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("different installed-code occurrence than the retained stack provision"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let (_, slot, _) = (*error).into_parts();
+    drop(runtime);
+
+    // The rejected inputs return for correction: the same composition with
+    // every bound input on the retained occurrence admits and installs.
+    let cohort_own = callback_stack(
+        root_id(771, ExternalRootId::from_normalized_identity),
+        root_id(772, RootProviderId::from_normalized_identity),
+        relation,
+        &boundary,
+        fixture.runnable.installed(),
+        private_entry,
+    );
+    let clean = compose_bound_entry_stack_epochs(
+        &relation_evidence,
+        own_stack
+            .inputs()
+            .chain(cohort_own.inputs())
+            .map(|(_, input)| input),
+    )
+    .expect("same-occurrence cohort composition");
+    let clean_validated = validate_external_root(
+        callback_root_candidate_on_stack(private_entry, clean),
+        &boundary,
+    )
+    .expect("same-occurrence cohort root");
+    let clean_execution = ProviderExecution::from_admitted_provider(
+        root_id(754, ProviderExecutionId::from_normalized_identity),
+        &clean_validated,
+        Some(OpaqueProviderExitAssurance::AcceptedClaim {
+            realization: ProviderExitRealization {
+                control: clean_validated.boundary().call.entry_control,
+                restored_state: clean_validated.boundary().state.restored_state,
+            },
+            validation_receipt: root_id(704, TrustReceiptId::from_normalized_identity),
+        }),
+    )
+    .expect("same-occurrence provider execution");
+    let clean_admission = RootAdmission::from_admitted_provider(
+        root_id(722, RootAdmissionId::from_normalized_identity),
+        &clean_validated,
+        &clean_execution,
+        fixture.runnable.installed(),
+        &slot,
+        clean_validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("same-occurrence root admission");
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let root = runtime
+        .install(clean_validated, slot, clean_admission)
+        .expect("same-occurrence cohort composition installs under the retained provision");
+    assert_eq!(
+        root.root(),
+        root_id(701, ExternalRootId::from_normalized_identity)
+    );
 }
