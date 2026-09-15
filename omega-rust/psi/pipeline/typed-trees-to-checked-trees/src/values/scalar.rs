@@ -37,7 +37,7 @@ mod constant_array_projection;
 mod primitive_reference_read;
 mod semantic_casts;
 mod structural_fields;
-pub(crate) use structural_fields::resolve_structural_parameter_path;
+pub(crate) use structural_fields::{exclusive_reference, resolve_structural_parameter_path};
 use structural_fields::{structural_data, structural_parameter_field_path};
 mod contract_entry;
 mod result_contract;

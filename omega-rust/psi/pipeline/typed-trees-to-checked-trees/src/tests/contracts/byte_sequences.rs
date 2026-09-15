@@ -330,6 +330,139 @@ fn concatenation_reads_the_prewrite_value_for_an_inplace_append() {
 }
 
 #[test]
+fn call_result_bounds_survive_a_local_landing() {
+    // A completed call-result snapshot keeps its captured bounds at the
+    // local's place; the retained call provenance must not mask them. An
+    // opaque or wide call result still cannot prove the byte predicate.
+    for (definitions, body, succeeds) in [
+        (
+            "machine digit(value: u64) -> u8 { ((value % 10 + 48) as u8 in Wrapping) as u8 }",
+            "let saved: u8 = digit(unknown); output[position] = saved;",
+            true,
+        ),
+        (
+            "machine digit(value: u64) -> u8 { ((value % 10 + 48) as u8 in Wrapping) as u8 }",
+            "let saved: u8 = digit(unknown); let copy: u8 = saved; output[position] = copy;",
+            true,
+        ),
+        (
+            "machine byte(value: u64) -> u8 { (value as u8 in Wrapping) as u8 }",
+            "let saved: u8 = byte(unknown); output[position] = saved;",
+            false,
+        ),
+        (
+            "machine byte(scratch: &mut u64, value: u64) -> u8 { scratch = value; ((scratch % 10 + 48) as u8 in Wrapping) as u8 }",
+            "let mut scratch: u64 = 0; let saved: u8 = byte(&mut scratch, unknown); output[position] = saved;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            {definitions}
+            machine write(output: &mut [u8; 4], position: u64 [0..=3], unknown: u64)
+            requires output in Ascii
+            ensures output in Ascii {{ {body} }}
+            "#
+        );
+        check(&source, succeeds);
+    }
+}
+
+#[test]
+fn declared_ranges_bound_frozen_storage_reads() {
+    // A declared range constraint is the storage invariant every checked
+    // write enforced; it bounds reads of immutable parameters and their
+    // fields even when no narrower value snapshot is live. This is carrier
+    // evidence only -- never domain membership or initialization.
+    for (data_decl, unknown_decl, body, succeeds) in [
+        (
+            "data Input { value: u64 [0..=9]; }",
+            "u64",
+            "output[position] = (input.value as u8 in Wrapping) + 48;",
+            true,
+        ),
+        (
+            "data Input { value: u64 [0..=9]; }",
+            "u64 [0..=9]",
+            "output[position] = (unknown as u8 in Wrapping) + 48;",
+            true,
+        ),
+        (
+            "data Input { value: u64 [0..=9]; }",
+            "u64",
+            "let byte: u64 [0..=9] = input.value; output[position] = (byte as u8 in Wrapping) + 48;",
+            true,
+        ),
+        (
+            "data Input { value: u64 [0..=90]; }",
+            "u64",
+            "output[position] = (input.value as u8 in Wrapping) + 48;",
+            false,
+        ),
+        (
+            "data Input { value: u64; }",
+            "u64",
+            "output[position] = (input.value as u8 in Wrapping) + 48;",
+            false,
+        ),
+        (
+            "data Input { value: u64 [0..=9]; }",
+            "u64 [0..=200]",
+            "output[position] = (unknown as u8 in Wrapping) + 48;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            {data_decl}
+            machine write(output: &mut [u8; 4], input: Input, position: u64 [0..=3], unknown: {unknown_decl})
+            requires output in Ascii
+            ensures output in Ascii {{ {body} }}
+            "#
+        );
+        check(&source, succeeds);
+    }
+}
+
+#[test]
+fn declared_ranges_do_not_bound_mutably_borrowed_storage() {
+    // A `mut` local or `&mut` parameter field can be reborrowed into a call
+    // whose own pointee type drops the declared range, so the declared bound
+    // is no read invariant there: after `corrupt`, only the carrier is known.
+    for (input_decl, body) in [
+        (
+            "input: Input",
+            "let mut local: u64 [0..=9] = 5; corrupt(&mut local); output[position] = (local as u8 in Wrapping) + 48;",
+        ),
+        (
+            "input: &mut Input",
+            "corrupt(&mut input.value); output[position] = (input.value as u8 in Wrapping) + 48;",
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            data Input {{ value: u64 [0..=9]; }}
+            machine corrupt(value: &mut u64) {{ value = 400; }}
+            machine write(output: &mut [u8; 4], {input_decl}, position: u64 [0..=3])
+            requires output in Ascii
+            ensures output in Ascii {{ {body} }}
+            "#
+        );
+        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
+            .expect_err("borrowed storage must not retain its declared range");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+            "{body}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn concatenation_uses_the_shared_predicate_law_without_domain_names() {
     for (predicate, literal, succeeds) in [
         ("ascii_only", "ascii", true),

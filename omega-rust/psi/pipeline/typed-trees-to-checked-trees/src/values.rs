@@ -56,7 +56,7 @@ pub(crate) use scalar::scalar_qualified_call_expression;
 pub(crate) use scalar::{
     CallArrayConstruction, build_checked_scalar_expression_plans,
     build_checked_value_computation_plans, call_array_constructions,
-    evaluate_closed_boolean_expression, is_scalar_return_call,
+    evaluate_closed_boolean_expression, exclusive_reference, is_scalar_return_call,
     lower_float_parameter_range_requirements, lower_integer_parameter_range_requirements,
     lower_machine_entry_boolean_expression, lower_machine_entry_crash_contract_expression,
     lower_machine_parameter_boolean_expression, lower_scalar_contract_predicate,

@@ -139,7 +139,7 @@ pub(super) fn structural_parameter_field_path(
         ExpressionNode::Indexed(indexed) => {
             let position =
                 structural_parameter_field_path(program, parameters, indexed.collection, fields)?;
-            let (_, _, collection_type) =
+            let (_, _, collection_type, _) =
                 resolve_structural_parameter_path(program, parameters, position, fields)?;
             if !indexed_read_has_builtin_meaning(
                 program,
@@ -369,6 +369,11 @@ fn exact_self_parameter<'program>(
     None
 }
 
+/// The resolved path is `frozen` when the root parameter and every
+/// intermediate receiver are immutable: no `mut` formal and no exclusive
+/// reference. Declared constraints on frozen storage are read invariants;
+/// mutable storage can be reborrowed through a pointee type that drops them,
+/// so only the live snapshots speak for it.
 pub(crate) fn resolve_structural_parameter_path(
     program: &TypedTrees,
     parameters: &[StateParameter],
@@ -378,12 +383,14 @@ pub(crate) fn resolve_structural_parameter_path(
     symbols::SymbolHandle,
     Vec<facts::PlaceSegment>,
     TypeReferenceHandle,
+    bool,
 )> {
     let parameter = parameters.get(usize::try_from(position).ok()?)?;
     if !parameter.symbol.is_valid() {
         return None;
     }
     let mut receiver = parameter.type_reference;
+    let mut frozen = !parameter.is_mutable && !exclusive_reference(program, receiver);
     let mut segments = Vec::new();
     let mut selected_case = None;
     for segment in path {
@@ -452,10 +459,30 @@ pub(crate) fn resolve_structural_parameter_path(
                 receiver = field.type_reference;
             }
         }
+        if exclusive_reference(program, receiver) {
+            frozen = false;
+        }
     }
     selected_case
         .is_none()
-        .then_some((parameter.symbol, segments, receiver))
+        .then_some((parameter.symbol, segments, receiver, frozen))
+}
+
+/// Whether this reference resolves through an exclusive borrow (`&mut`/`&w`).
+/// Shared references keep their referent frozen for the borrow's lifetime.
+pub(crate) fn exclusive_reference(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> bool {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => reference = *referee,
+            TypeReferenceNode::Reference { access, .. } => return access.is_exclusive(),
+            _ => return false,
+        }
+    }
 }
 
 pub(super) fn fixed_index_element_type(
@@ -701,7 +728,7 @@ pub(super) fn structural_parameter_place(
         });
     }
     let parameter_position = u32::try_from(parameter_position).ok()?;
-    let (resolved_root, segments, type_reference) =
+    let (resolved_root, segments, type_reference, _) =
         resolve_structural_parameter_path(program, parameters, parameter_position, &path)?;
     if crate::flow::normalized_event_place_root(program, facts::PlaceRoot::Symbol(resolved_root))
         != root

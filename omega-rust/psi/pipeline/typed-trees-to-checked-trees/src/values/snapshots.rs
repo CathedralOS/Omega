@@ -39,7 +39,7 @@ impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> super::ScalarValueS
         if path.is_empty() {
             return None;
         }
-        let (symbol, segments, _) = super::resolve_structural_parameter_path(
+        let (symbol, segments, _, _) = super::resolve_structural_parameter_path(
             self.program,
             self.parameters,
             parameter_position,
@@ -193,7 +193,8 @@ fn payloads_at_place<'a>(
             semantic.context_view(context).facts().filter_map(|fact| {
                 if !matches!(
                     fact.payload,
-                    FactPayload::AssignedValue { .. } | FactPayload::AssignedScalarValue { .. }
+                    FactPayload::AssignedValue { .. }
+                        | FactPayload::AssignedScalarValue { .. }
                         | FactPayload::AssignedIntegerBounds { .. }
                 ) {
                     return None;
@@ -205,13 +206,27 @@ fn payloads_at_place<'a>(
                 // transfer context and point. Keep unknown calls at other
                 // points as blockers; never let one path's snapshot mask them.
                 if let FactPayload::AssignedValue { value } = fact.payload
-                    && matches!(program.expression_table.expression(value), ExpressionNode::Call(_))
+                    && matches!(
+                        program.expression_table.expression(value),
+                        ExpressionNode::Call(_)
+                    )
                     && semantic.context_view(context).facts().any(|snapshot| {
                         snapshot.place == fact.place
                             && snapshot.point == fact.point
                             && snapshot.origin == fact.origin
-                            && matches!(snapshot.payload, FactPayload::AssignedScalarValue { value }
-                                if !matches!(semantic.scalar_values.get(value), ScalarValue::Unknown))
+                            && match snapshot.payload {
+                                FactPayload::AssignedScalarValue { value } => !matches!(
+                                    semantic.scalar_values.get(value),
+                                    ScalarValue::Unknown
+                                ),
+                                // A captured call-result range is the same
+                                // completed snapshot at bounds precision. It
+                                // still proves nothing about the exact value.
+                                FactPayload::AssignedIntegerBounds { bounds } => {
+                                    semantic.integer_ranges.is_valid(bounds)
+                                }
+                                _ => false,
+                            }
                     })
                 {
                     return None;
