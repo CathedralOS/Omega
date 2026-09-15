@@ -6,32 +6,27 @@
 //!
 //! Writers currently panic on inconsistent input instead of emitting partial
 //! evidence. Their negative tests retain those rejection conditions.
+//!
+//! `manifests/` holds one module per manifest and `encoding/` the
+//! coordinates and value encodings they share; `test_support.rs` builds the
+//! checked programs the manifest tests observe.
 
-mod capability_manifest;
-mod carry_manifest;
-mod claim_outcome_manifest;
-mod executable_tcb_manifest;
-mod index_compatibility_manifest;
-mod machine_contract_manifest;
-mod manifest_coordinates;
-mod manifest_values;
-mod qualification_manifest;
-mod task_activation_manifest;
-
-pub use capability_manifest::{
+pub use manifests::capability_manifest::{
     capability_manifest_json, capability_manifest_json_with_composition,
     capability_manifest_json_with_selection,
 };
-pub use carry_manifest::carry_manifest_json;
-pub use claim_outcome_manifest::claim_outcome_manifest_json;
-pub use executable_tcb_manifest::{
+pub use manifests::carry_manifest::carry_manifest_json;
+pub use manifests::claim_outcome_manifest::claim_outcome_manifest_json;
+pub use manifests::executable_tcb_manifest::{
     executable_tcb_manifest_json, executable_tcb_manifest_set_json,
     executable_tcb_manifest_value_json,
 };
-pub use index_compatibility_manifest::index_compatibility_manifest_json;
-pub use machine_contract_manifest::machine_contract_manifest_json;
-pub use qualification_manifest::qualification_evidence_manifest_json;
-pub use task_activation_manifest::task_activation_manifest_json;
+pub use manifests::index_compatibility_manifest::index_compatibility_manifest_json;
+pub use manifests::machine_contract_manifest::machine_contract_manifest_json;
+pub use manifests::qualification_manifest::qualification_evidence_manifest_json;
+pub use manifests::task_activation_manifest::task_activation_manifest_json;
 
+mod encoding;
+mod manifests;
 #[cfg(test)]
 mod test_support;

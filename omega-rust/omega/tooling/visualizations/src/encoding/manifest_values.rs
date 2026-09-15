@@ -1,9 +1,9 @@
 //! Shared JSON encoding for strings, permission identities, and carry policies.
 
-use crate::manifest_coordinates::{state_label_from_symbol, symbol_label};
+use crate::encoding::manifest_coordinates::{state_label_from_symbol, symbol_label};
 use checked_trees::CheckedTrees;
 
-pub(super) fn push_claim_identity_json(
+pub(crate) fn push_claim_identity_json(
     json: &mut String,
     program: &CheckedTrees,
     identity: language_semantics::PermissionClaimIdentity,
@@ -31,7 +31,7 @@ pub(super) fn push_claim_identity_json(
     }
 }
 
-pub(super) fn push_carry_policy_json(output: &mut String, policy: language_semantics::CarryPolicy) {
+pub(crate) fn push_carry_policy_json(output: &mut String, policy: language_semantics::CarryPolicy) {
     use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
     output.push_str("{\"suspension\": ");
@@ -69,7 +69,7 @@ pub(super) fn push_carry_policy_json(output: &mut String, policy: language_seman
     output.push('}');
 }
 
-pub(super) fn push_json_strings(json: &mut String, values: &[String]) {
+pub(crate) fn push_json_strings(json: &mut String, values: &[String]) {
     for (index, value) in values.iter().enumerate() {
         if index > 0 {
             json.push_str(", ");
@@ -78,7 +78,7 @@ pub(super) fn push_json_strings(json: &mut String, values: &[String]) {
     }
 }
 
-pub(super) fn push_json_string(output: &mut String, value: &str) {
+pub(crate) fn push_json_string(output: &mut String, value: &str) {
     output.push('"');
     for ch in value.chars() {
         match ch {
@@ -96,7 +96,7 @@ pub(super) fn push_json_string(output: &mut String, value: &str) {
     }
     output.push('"');
 }
-pub(super) fn push_permission_event_source_json(
+pub(crate) fn push_permission_event_source_json(
     json: &mut String,
     program: &CheckedTrees,
     source: language_semantics::PermissionEventSource,
