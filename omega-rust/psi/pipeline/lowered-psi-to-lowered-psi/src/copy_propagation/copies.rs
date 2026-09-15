@@ -260,8 +260,7 @@ mod tests {
     //! Machine-level boundary coverage for cases a validated module cannot
     //! express: cycles, ranking evidence, positional case payloads, retained
     //! proof values, and declaration mismatches.
-
-    use super::*;
+    use super::{BTreeSet, BlockId, TerminalMachine, Terminator, ValueId, propagate};
     use semantic_vocabulary::{
         ContractId, EdgeId, MachineId, PlaceId, Proposition, ScalarQualificationSetId, ScalarType,
         StructuralCaseId, StructuralFieldId,

@@ -283,8 +283,10 @@ mod tests {
     //! Machine-level boundary coverage for cases a validated module cannot
     //! express: ranking evidence, retained proof values, reach bindings, and
     //! result-declaration mismatches.
-
-    use super::*;
+    use super::{
+        BTreeSet, BlockId, OperationKind, TerminalMachine, Terminator, ValueDeclaration, ValueId,
+        deduplicate,
+    };
     use semantic_vocabulary::{
         ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
         ScalarType,

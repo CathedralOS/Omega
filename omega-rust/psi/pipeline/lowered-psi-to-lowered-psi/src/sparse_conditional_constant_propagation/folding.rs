@@ -86,7 +86,7 @@ pub(super) fn fold(machine: &mut TerminalMachine) {
 #[cfg(test)]
 mod tests {
     //! Machine-level boundary cases a validated module cannot express.
-    use super::*;
+    use super::{OperationKind, TerminalMachine, ValueId, fold};
     use semantic_vocabulary::{
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
         ObligationId, OperationId, ScalarType,

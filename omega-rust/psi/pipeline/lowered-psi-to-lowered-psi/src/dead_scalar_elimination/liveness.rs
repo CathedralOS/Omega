@@ -304,7 +304,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{O, TerminalMachine, Terminator, ValueId, eliminate, inputs};
     use semantic_vocabulary::{ObligationId, PlaceId, StructuralFieldId};
 
     #[test]
