@@ -1820,29 +1820,32 @@ Owners include
   fields or addresses. Acceptance: one outbound registrar closes without a raw
   code pointer or duplicated placement authority.
 
-  Resume (swarm-w8, `d05158a9de`, Linux x86-64): the outbound registrar already
-  closes at the checked level. `compile_to_checked` over
+  Resume (swarm-w8, Linux x86-64): the outbound registrar already closes at
+  the checked level. `compile_to_checked` over
   `tests/callback_materialization_closure.omg` plus a reachable
   `WindowRegistrar::register<P::call, P::call>(&self.specification)` use binds
   two `BoundNominalCallbackPlacement`s carrying `NativePlace::Field`
   destinations, exact conformance applications, and an authenticated two-entry
-  catalog — no raw code pointer, no duplicated placement authority. Terminal
-  custody then fails: `build_call_operation`
-  (`omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit/calls.rs`)
-  rejects the register boundary call because
-  `admitted_native_callback_telescope` requires
-  `signature.native_callback_parameters` to declare every `machine` type
-  parameter; the layout-slot contract carries both binders through the record
-  layout with none. Instrumented gate: only the telescope condition fires;
-  receiver routing, `&self.specification` presentation, mutability, and result
-  checks all admit. Next: admit each `Machine{Nominal}` signature type
-  parameter joined to a `nominal_machine_use` at the exact site (ordinal plus
-  satisfaction row) without requiring an ABI `native callback` parameter — the
-  `PrivateCallbackSlot` conformance supplies the destination. That path sat in
-  the NOMINAL-FIELD-FLOW claim when witnessed; coordinate a handoff if it is
-  still held. After admission, `validate_direct_callback_thunk_shape` admits
-  only the u64→u64 identity leaf and `admitted_native_callbacks` rejects field
-  materializations — the next custody stages once a use reaches Terminal.
+  catalog — no raw code pointer, no duplicated placement authority. At
+  `6a49ecbdce` the telescope admission is landed: `build_call_operation` and
+  `build_static_boundary_requirements`
+  (`flow/terminal_unit/{calls,control}.rs`) discharge each `Machine{Nominal}`
+  signature type parameter through a `nominal_machine_use` at the exact site
+  (ordinal plus satisfaction row), taking the binder's destination from an ABI
+  `native callback` entry where the ordinal declares one and otherwise
+  requiring the use's retained `callback_placement` — the evaluated boundary
+  calling plan the `PrivateCallbackSlot` conformance supplied. Witness:
+  `reachable_private_callback_registrar_binds_its_terminal_occurrence`
+  (`cargo nextest run -p compiler --test callback_terminal_custody`) — the call
+  emits its `BoundaryCall`, reaches Terminal, and replays the authored-use
+  join; failure no longer reads "0 Terminal registrar occurrences". Custody
+  now stops inside `produce_callback_thunk_artifact`:
+  `lower_bounded_callback_identity_machine`
+  (`omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/machine_lowering.rs`)
+  reports "bounded callback body has no checked scalar graph" for the void
+  provider body — ahead of `validate_direct_callback_thunk_shape` (u64→u64
+  identity leaf only) and `admitted_native_callbacks`'s field-cohort
+  rejection, the remaining custody stages.
 
 - **REGISTERED-CALLBACK-LIFETIME.** Model successful registration as a linear
   external root and unregister as the operation that ends it before releasing
