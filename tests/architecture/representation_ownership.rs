@@ -59,7 +59,7 @@ fn selected_form_encoding_data_outlives_its_producer() {
     }
     assert!(!data.contains("post_allocation_machine_to_post_allocation_machine::"));
     assert!(!data.contains("pub struct StagedOptimizedSelectedFormEncoding {"));
-    let admission = std::fs::read_to_string(stage.join("model.rs")).unwrap();
+    let admission = std::fs::read_to_string(stage.join("selected_form_encoding/model.rs")).unwrap();
     assert!(admission.contains("Arc<SelectedFormEncoding>"));
     assert!(admission.contains("pub fn shared_program("));
     assert!(!admission.contains("pub fn from_program("));
@@ -1452,11 +1452,11 @@ fn effect_analysis_does_not_depend_on_optimizer_history() {
     // algorithms. Sharing that interface does not authorize stage ancestry.
     assert!(source.contains("ValidatedSelectedAnalysis"));
     let construction = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/construction/mod.rs",
+        "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/post_allocation_machine.rs",
     )).unwrap();
     assert!(construction.contains("analyze_machine_effects(selected, environment)"));
     let validation = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/validation.rs",
+        "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/post_allocation_machine/validation.rs",
     ))
     .unwrap();
     assert!(
