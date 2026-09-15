@@ -707,4 +707,136 @@ mod tests {
         crate::resolve(crate::ResolutionRequest::new(&normalized))
             .expect("each instance's retained spelling resolves its own domain");
     }
+
+    #[test]
+    fn same_leaf_generic_family_contests_the_non_generic_sibling() {
+        use std::sync::Arc;
+        // A leaf spelling reaches both a non-generic sibling and a generic
+        // family. Resolution pools both owners and declines the ambiguous
+        // selection, so const-fact evaluation must retain the obligation
+        // instead of discharging it against the non-generic sibling.
+        let text = "domain u64::Tagged requires self > 5; domain<T> T::Tagged; data Bound<const N: u64> where N in Tagged, { value: u64; } data Use { value: Bound<7>; }";
+        let mut map = source::SourceMap::default();
+        let source_id = map
+            .add(std::path::PathBuf::from("tagged.omg"), text.to_owned())
+            .source_id;
+        let mut syntax = SyntaxTrees::default();
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse");
+        let sources = Arc::new(map);
+        let normalized = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest {
+                syntax,
+                sources: Some(sources.clone()),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            },
+        )
+        .expect("a contested membership is retained, not discharged");
+        let instance = normalized
+            .root_items()
+            .find_map(|item| match item {
+                Item::Data(data) if data.generic_instance.is_some() => Some(data),
+                _ => None,
+            })
+            .expect("one synthesized instance");
+        assert_eq!(
+            normalized
+                .tables
+                .items
+                .proof_facts(instance.where_facts)
+                .len(),
+            1,
+            "the contested membership stays a checked obligation"
+        );
+        let program = crate::resolve(crate::ResolutionRequest {
+            syntax: &normalized,
+            sources: Some(sources),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("the retained obligation still resolves");
+        let instance = program
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name.as_str() == "Bound<7>")
+            .expect("the concrete instance");
+        let [symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
+            program.proof_facts(instance.where_facts)
+        else {
+            panic!("the retained fact is a membership")
+        };
+        assert!(
+            !membership.domain_symbol.is_valid(),
+            "resolution pools the generic family and declines the ambiguous owner"
+        );
+    }
+
+    #[test]
+    fn module_local_domain_outranks_a_same_leaf_root_generic_family() {
+        // Module-local precedence pools generic families with every other
+        // candidate: the module's own non-generic domain still owns the leaf.
+        let syntax = parse(&[
+            "domain<T> T::Tagged requires self > 5;",
+            "module units; domain u64::Tagged requires self > 0; data Bound<const N: u64> where N in Tagged, { value: u64; } data Use { value: Bound<7>; }",
+        ]);
+        let normalized = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        )
+        .expect("the module-local owner discharges the fact");
+        let instance = normalized
+            .root_items()
+            .find_map(|item| match item {
+                Item::Data(data) if data.generic_instance.is_some() => Some(data),
+                _ => None,
+            })
+            .expect("one synthesized instance");
+        assert!(
+            normalized
+                .tables
+                .items
+                .proof_facts(instance.where_facts)
+                .is_empty(),
+            "7 > 0 discharges under the module-local owner"
+        );
+        crate::resolve(crate::ResolutionRequest::new(&normalized))
+            .expect("the discharged instance resolves");
+    }
+
+    #[test]
+    fn same_leaf_generic_family_declines_constrained_argument_identity() {
+        use std::sync::Arc;
+        // A constrained argument cannot record the non-generic sibling as its
+        // domain owner while a generic family contests the same leaf: the
+        // identity declines and the open application stays for resolution.
+        let text = "domain u64::Tagged; domain<T> T::Tagged; data Cell<T> { value: T; } data Root { value: Cell<u64 in Tagged>; }";
+        let mut map = source::SourceMap::default();
+        let source_id = map
+            .add(std::path::PathBuf::from("tagged.omg"), text.to_owned())
+            .source_id;
+        let mut syntax = SyntaxTrees::default();
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse");
+        let sources = Arc::new(map);
+        let normalized = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest {
+                syntax,
+                sources: Some(sources.clone()),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            },
+        )
+        .expect("a contested constraint still normalizes");
+        assert!(
+            normalized
+                .root_items()
+                .all(|item| !matches!(item, Item::Data(data) if data.generic_instance.is_some())),
+            "no instance may claim the contested domain owner"
+        );
+        crate::resolve(crate::ResolutionRequest {
+            syntax: &normalized,
+            sources: Some(sources),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("the open application resolves downstream");
+    }
 }
