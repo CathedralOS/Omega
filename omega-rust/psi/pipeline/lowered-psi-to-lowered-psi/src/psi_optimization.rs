@@ -1,12 +1,6 @@
-//! Optimizer module role: executable entrance. The target-neutral pass
-//! driver and the carriers every pass respects.
+//! Execute selected target-neutral passes and return their validated publication result.
 
-mod model;
-pub(crate) mod ranked;
-pub(crate) mod retained;
-mod validation;
-
-pub use model::{PsiOptimizationStageError, PsiOptimizationStageResult};
+use crate::optimization_error::PsiOptimizationStageError;
 
 use crate::{
     control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering,
@@ -15,7 +9,11 @@ use crate::{
 use lowered_psi::LoweredPsi;
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_codec::PsiOptimizationExecutionRecord;
-use validation::validate_carrier;
+use terminal_codec::{
+    ProofBundleFingerprint, proof_bundle_fingerprint, terminal_psi_identity, validate_debug_map,
+};
+use terminal_psi::TerminalPsiIdentity;
+use terminal_verifier::validate_module_for_optimization;
 
 /// Execute the selected target-neutral optimization phase over the complete
 /// unsealed Psi product.
@@ -64,4 +62,64 @@ pub fn run_psi_optimization(
     Ok(PsiOptimizationStageResult::new(
         lowered, selections, execution,
     ))
+}
+
+fn validate_carrier(
+    lowered: &LoweredPsi,
+) -> Result<(TerminalPsiIdentity, ProofBundleFingerprint), PsiOptimizationStageError> {
+    validate_module_for_optimization(&lowered.semantic_module)
+        .map_err(PsiOptimizationStageError::InvalidModule)?;
+    let semantic = terminal_psi_identity(&lowered.semantic_module)
+        .map_err(PsiOptimizationStageError::InvalidSemantic)?;
+    let proof = proof_bundle_fingerprint(&lowered.proof_bundle)
+        .map_err(PsiOptimizationStageError::InvalidProof)?;
+    if let Some(debug_map) = lowered.debug_map.as_ref() {
+        validate_debug_map(&lowered.semantic_module, debug_map)
+            .map_err(PsiOptimizationStageError::InvalidDebugMap)?;
+    }
+    Ok((semantic, proof))
+}
+
+/// Validated output of the selected target-neutral Psi optimization phase.
+///
+/// Terminal publication accepts this type rather than an unvalidated lowering
+/// result. Empty selection is an executed identity transformation. A selected
+/// pass has no route until its rewrite and independent validator operate on
+/// this complete carrier, including proof, debug, and source-custody sidecars.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[must_use = "Terminal publication requires the validated Psi optimization result"]
+pub struct PsiOptimizationStageResult {
+    lowered: LoweredPsi,
+    selections: PsiOptimizationSelections,
+    execution: PsiOptimizationExecutionRecord,
+}
+
+impl PsiOptimizationStageResult {
+    const fn new(
+        lowered: LoweredPsi,
+        selections: PsiOptimizationSelections,
+        execution: PsiOptimizationExecutionRecord,
+    ) -> Self {
+        Self {
+            lowered,
+            selections,
+            execution,
+        }
+    }
+
+    pub const fn lowered(&self) -> &LoweredPsi {
+        &self.lowered
+    }
+
+    pub const fn selections(&self) -> &PsiOptimizationSelections {
+        &self.selections
+    }
+
+    pub const fn execution(&self) -> &PsiOptimizationExecutionRecord {
+        &self.execution
+    }
+
+    pub fn into_lowered(self) -> LoweredPsi {
+        self.lowered
+    }
 }

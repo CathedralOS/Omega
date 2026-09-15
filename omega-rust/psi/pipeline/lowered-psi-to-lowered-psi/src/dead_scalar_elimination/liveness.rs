@@ -19,7 +19,7 @@ pub(super) fn eliminate(
     // Ranking evidence pins the covered components' parameter tables and
     // keeps the values it names live wherever they are declared; parameters
     // on blocks outside the covered components follow the ordinary rule.
-    let coverage = crate::psi_optimization::ranked::ranked_coverage(machine);
+    let coverage = crate::retained_identities::ranked_coverage::ranked_coverage(machine);
     let mut pending = retained_values.to_vec();
     pending.extend(coverage.values.iter().copied());
     for operation in &operations {

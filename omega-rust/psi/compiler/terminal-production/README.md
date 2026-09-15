@@ -11,6 +11,11 @@ Enter [terminal_production.rs](src/terminal_production.rs). The sequence is
 Publication consumes the validated optimization-stage result, not an unoptimized
 producer-private shortcut.
 
+[Optimization ownership](../../pipeline/lowered-psi-to-lowered-psi/README.md)
+keeps shared retention policy separate from pass execution.
+[Publication ownership](../../pipeline/lowered-psi-to-terminal-psi/README.md)
+separates canonical sealing from checked boundary-operator occurrence replay.
+
 `TerminalProductionRequest` carries the checked trees, selected machine, and
 exact Psi optimization selection. Its artifact, checked-scope, callback-custody,
 and ProgramEntry methods share lowering/optimization and publication operations
