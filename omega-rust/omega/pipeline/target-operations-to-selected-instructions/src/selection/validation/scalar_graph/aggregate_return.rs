@@ -1,5 +1,11 @@
 //! Independently check incoming fragments or home loads and exact return registers.
-use super::*;
+use super::{
+    LegalizedScalarFunction, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedTerminator, ValidatedRegisterConstraintCatalog, ValueLocation,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::row;
 use selected_instructions::{FrameStorageSlotId, SelectedMemoryAccessRole};
 
 pub(super) fn validate(

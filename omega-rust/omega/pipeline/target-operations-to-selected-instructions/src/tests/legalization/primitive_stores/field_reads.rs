@@ -1,5 +1,13 @@
 //! Field identities survive independent once-only scalar observations.
-use super::*;
+use super::{
+    AbstractOperation, AbstractResult, BindingRelevance, FuelScheduleIdentity, IntegerSign,
+    LegalizedScalarInstructionKind, NativeTarget, OperationId, PlaceId, ScalarType,
+    StructuralAccess, StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType,
+    StructuralTypeId, StructuralTypeShape, TargetUnitOperation, ValueId, fixture,
+};
+use crate::legalize_target_operations;
+use crate::tests::legalization::primitive_stores::integer;
+use crate::validate_legalized_operations;
 use abstract_operations::AbstractFunctionResult;
 use semantic_vocabulary::EdgeId;
 

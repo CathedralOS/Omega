@@ -1,5 +1,13 @@
 //! Reentry executes the establishment store in its original loop block.
-use super::*;
+use super::super::{
+    BlockId, EdgeId, EffectLink, FuelSettlement, LegalizedScalarBlock, LegalizedScalarTerminator,
+    PsiProvenance, ValueDefinitionSite,
+};
+use super::{
+    OperationId, PlaceId, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints,
+    build,
+};
+use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
 use legalized_operations::LegalizedScalarSuccessor;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin};
 

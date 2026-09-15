@@ -1,5 +1,10 @@
 //! Raw selection/replay tests; provider admission is exercised by native integration.
-use super::*;
+use super::{
+    EdgeId, IntegerSign, IntegerType, IntegerValue, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, LegalizedScalarTerminator, ScalarType, SelectedFunction,
+    SelectedInstructionKind, SelectedSelectionConstraints, SelectedTerminator, ValueId, build,
+    fixture,
+};
 use semantic_vocabulary::BoundaryMachineId;
 
 #[test]

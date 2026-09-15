@@ -1,7 +1,12 @@
 //! IEEE order from exact representation intervals, without floating instructions.
 //! Positive and negative NaNs occupy the two intervals above their infinities.
 //! Magnitude order reverses for two negatives; both zero encodings compare equal.
-use super::*;
+use super::{
+    Builder, IntegerSign, IntegerValue, LegalizedScalarInstructionKind, ScalarType,
+    SelectedInstructionKind, SelectedInstructionProvenance, ValueDefinitionSite, ValueId,
+    VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
 use semantic_vocabulary::{IeeeFloatComparisonOperation as Relation, IeeeFloatFormat, IntegerType};
 
 pub(super) fn emit(

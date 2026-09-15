@@ -1,5 +1,16 @@
 //! Input row and control contracts. Whole-unit validation owns SSA and effect-chain validity.
-use super::*;
+use super::{
+    AbstractOperation, IntegerSign, OptimizationNode, PsiOptimizationFunction, PsiProvenance,
+    ScalarType, ValueDefinitionSite, ValueId, scalar_shape,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::exact_cast_has_native_carriers;
+use crate::legalization::scalar_graph_input::integer_call_shape;
+use crate::legalization::scalar_graph_input::integer_type;
+use crate::legalization::scalar_graph_input::supports_signed_wrapping_remainder;
+use crate::legalization::scalar_graph_input::u8_type;
+use crate::legalization::scalar_graph_input::u64_type;
+use crate::legalization::scalar_graph_input::value_type;
 use optimization_unit::OptimizationBlock;
 use semantic_vocabulary::OperationId;
 pub(in crate::legalization) fn instruction(

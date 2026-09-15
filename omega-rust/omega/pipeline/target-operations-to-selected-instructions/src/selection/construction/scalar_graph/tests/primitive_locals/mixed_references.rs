@@ -1,6 +1,16 @@
 //! Two original output references remain distinct from local scratch and call results.
+use super::super::{
+    LegalizedScalarParameter, SelectedFixedInputConstraint, ValueDefinitionSite, ValueLocation,
+};
 use super::hostile::append;
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, LegalizedScalarArgument, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, OperationId, PlaceId, SelectedFunction,
+    SelectedInstructionKind, SelectedSelectionConstraints, StructuralAccess,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    ValueId, ValueShape, build, evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
 
 #[test]
 fn mixed_incoming_primitive_references_and_local_reject_swapped_output_pointers() {

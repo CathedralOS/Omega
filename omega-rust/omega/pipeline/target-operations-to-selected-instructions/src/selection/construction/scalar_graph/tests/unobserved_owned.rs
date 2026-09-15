@@ -1,5 +1,11 @@
 //! Raw projection controls; complete native admission is exercised by source tests.
-use super::*;
+use super::super::VirtualRegisterOrigin;
+use super::{
+    BlockId, CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, LegalizedScalarTerminator, ScalarType,
+    SelectedSelectionConstraints, SelectedTerminator, StructuralTypeId, ValueShape,
+    VirtualRegisterId, build, evaluate_call_plan,
+};
 use terminal_psi::{
     BindingRelevance, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,

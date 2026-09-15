@@ -1,6 +1,14 @@
 //! Retain original backing with exact integer offset and length homes.
 use super::byte_views::backing_pointer;
-use super::*;
+use super::{
+    Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::ByteViewHomes;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::transport_register;
 
 pub(super) fn create(
     function: &LegalizedScalarFunction,

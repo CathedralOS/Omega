@@ -2,7 +2,11 @@
 //! Encoding follows the closed realization. The receiving target validator keeps
 //! admitted provider execution distinct from an exact compiler-builtin identity;
 //! projecting the mechanism must not relabel the provider as a compiler builtin.
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, MachineId, PsiOptimizationFunction,
+    TargetOperationPlan,
+};
+use crate::LegalizationError;
 use semantic_vocabulary::OperationId;
 use target_operations::{BoundaryRealization, TargetUnitOperation};
 

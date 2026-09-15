@@ -1,5 +1,9 @@
 //! Every retained case field participates in identity and independent replay.
-use super::*;
+use super::{
+    BlockId, EdgeId, OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId,
+    ValueId, fixture,
+};
+use crate::legalization::scalar_graph_input::u32_type;
 use legalized_operations::LegalizedScalarTerminator;
 use optimization_unit::ValueDefinitionSite;
 

@@ -1,5 +1,13 @@
 //! Transfer mechanics only: no claim of source cycle admission or native execution.
-use super::*;
+use super::{
+    FuelSettlement, IntegerSign, PsiProvenance, ScalarType, SelectedBlock, SelectedBlockId,
+    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSelectionConstraints, SelectedSuccessor,
+    SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
+    ValidatedRegisterConstraintCatalog, ValueDefinitionSite, ValueId, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin, project,
+};
+use crate::selection::edge_transfers::prepare;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedStructuralBinding,

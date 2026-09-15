@@ -2,7 +2,11 @@
 //! Packed expansions own an instruction-local temporary, never a source value.
 //! The caller retains the exact place/offset/width access record; the physical
 //! constraints keep scratch and early-written outputs disjoint from live inputs.
-use super::*;
+use super::{
+    Builder, IntegerSign, ScalarType, SelectedInstructionId, SelectedInstructionKind,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
 
 pub(super) fn load(
     builder: &mut Builder<'_>,

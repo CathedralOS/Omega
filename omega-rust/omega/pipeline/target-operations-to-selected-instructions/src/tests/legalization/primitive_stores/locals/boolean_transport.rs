@@ -1,5 +1,12 @@
 //! Scalar-result graphs preserve Boolean reads through ordinary edge bindings.
-use super::*;
+use super::super::AbstractParameter;
+use super::{
+    AbstractOperation, AbstractResult, FuelScheduleIdentity, IntegerSign, IntegerValue,
+    NativeTarget, OperationId, ScalarType, ValueId, fixture,
+};
+use crate::legalize_target_operations;
+use crate::tests::legalization::primitive_stores::integer;
+use crate::validate_legalized_operations;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunctionResult, AbstractSuccessor, ValueBinding,
 };

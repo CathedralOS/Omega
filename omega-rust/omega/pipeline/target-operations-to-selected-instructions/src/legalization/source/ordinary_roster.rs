@@ -1,6 +1,7 @@
 //! Project every function through the common graph validator.
-
-use super::*;
+use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
+use crate::LegalizationError;
+use crate::legalization::source::SourceFunctionRosters;
 
 pub(super) fn derive_remaining(
     rosters: &mut SourceFunctionRosters,

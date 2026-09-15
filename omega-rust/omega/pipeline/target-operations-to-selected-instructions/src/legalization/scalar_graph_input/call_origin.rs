@@ -2,7 +2,11 @@
 //! Selected authority is retained by ValidatedOptimizedTargetOperations with its
 //! independently admitted installation. This raw-plan reader checks semantic
 //! and physical correspondence; catalog membership alone does not select a provider.
-use super::*;
+use super::{
+    AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, OptimizationNode,
+    PsiOptimizationFunction, TargetOperationPlan,
+};
+use crate::LegalizationError;
 use target_operations::{NativeCallOrigin, TargetUnitOperation};
 
 /// Return ordinary call mechanics only after checking the retained boundary cut.

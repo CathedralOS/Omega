@@ -1,7 +1,12 @@
 //! Independent replay of the IEEE interval construction.
 //! Reconstruct the exact relation, constants, operand registers and each Boolean
 //! intermediate from the legal instruction; never invoke the producer.
-use super::*;
+use super::{
+    IntegerSign, IntegerValue, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance, ValueDefinitionSite, ValueId, VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
 use semantic_vocabulary::{IeeeFloatComparisonOperation as Relation, IeeeFloatFormat, IntegerType};
 
 pub(super) fn validate(

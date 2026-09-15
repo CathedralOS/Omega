@@ -1,5 +1,13 @@
 //! Owned aggregate actuals rejoin their exact incoming storage or dominating producer.
-use super::*;
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::target;
+
+use super::{
+    AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction,
+    StructuralMultiplicity, StructuralPlaceKind, TargetOperationPlan,
+};
+use crate::legalization::scalar_graph_input::structural_case;
+use crate::legalization::scalar_graph_input::structural_parameters;
 
 pub(super) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
@@ -56,7 +64,7 @@ pub(super) fn reconstruct(
             .functions
             .iter()
             .find(|function| function.machine == caller.machine)
-            .and_then(super::structural_parameters)
+            .and_then(structural_parameters)
             .and_then(|parameters| {
                 parameters
                     .iter()
@@ -74,7 +82,7 @@ pub(super) fn reconstruct(
         }
         retained.placement.clone().into()
     } else {
-        let (producer, result) = super::structural_case::source_result(caller, argument.place)?;
+        let (producer, result) = structural_case::source_result(caller, argument.place)?;
         if result.structural_type != destination.structural_type
             || result.multiplicity != destination.multiplicity
             || !result.claims.is_empty()
@@ -131,11 +139,7 @@ pub(super) fn reconstruct(
                 .ok_or(invalid.clone())?;
         if (producer_site.0 == call_site.0 && producer_site.1 >= call_site.1)
             || (producer_site.0 != call_site.0
-                && !super::target::control_flow::sources::dominates(
-                    caller,
-                    producer_site.0,
-                    call_site.0,
-                ))
+                && !target::control_flow::sources::dominates(caller, producer_site.0, call_site.0))
             || !caller.structural_places.iter().any(|place| {
                 place.id == result.place
                     && place.kind

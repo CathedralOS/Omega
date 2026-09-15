@@ -2,7 +2,13 @@
 //! Edge bridges write the destination slot directly. Delaying this pure address
 //! calculation avoids keeping every future descriptor pointer live across calls;
 //! it neither moves the slot nor reads its not-yet-initialized contents.
-use super::*;
+use super::{
+    Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccess, SelectedMemoryAccessRole,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
 };

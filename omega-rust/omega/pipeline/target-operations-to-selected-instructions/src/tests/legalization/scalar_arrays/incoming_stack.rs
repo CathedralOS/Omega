@@ -1,5 +1,9 @@
 //! Inline incoming bytes retain ABI coordinates, exact widths and place identity.
-use super::*;
+use super::{
+    FuelScheduleIdentity, OperationId, PlaceId, ScalarType, StructuralMultiplicity,
+    StructuralTypeId, StructuralTypeShape, ValueId, fixture,
+};
+use crate::legalize_target_operations;
 use selected_instructions::{
     FrameStorageSlotId, SelectedInstructionKind as Instruction, VirtualRegisterOrigin,
 };

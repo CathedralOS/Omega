@@ -1,5 +1,11 @@
 //! Place-backed ABI transport in the ordinary instruction stream.
-use super::*;
+use super::{
+    Builder, IndirectPointerLocation, IntegerSign, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, RegisterConstraintKey, RegisterOperandAccess, ScalarType,
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    StructuralAccess, ValueLocation, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
 use crate::selection::byte_view_homes::ByteViewHomes;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
 use selected_instructions::{

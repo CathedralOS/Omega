@@ -1,5 +1,12 @@
 //! Narrow payload widths remain separate from target-selected stack slot spacing.
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, FrameStorageSlotId, IntegerSign, IntegerType,
+    LegalizedScalarArgument, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    LegalizedScalarParameter, ScalarType, SelectedFunction, SelectedInstructionKind,
+    SelectedSelectionConstraints, ValueDefinitionSite, ValueId, ValueLocation, build,
+    evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::projected_borrows;
 
 fn narrow_stack_call(
     target: target::NativeTarget,

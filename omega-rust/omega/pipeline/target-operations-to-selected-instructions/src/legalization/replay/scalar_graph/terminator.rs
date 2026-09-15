@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, Error, LegalizedScalarReturnValue,
+    LegalizedScalarSuccessor, LegalizedScalarTerminator,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input;
 pub(super) fn validate(
     actual: &LegalizedScalarTerminator,
     node: &optimization_unit::OptimizationNode,

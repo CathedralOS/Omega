@@ -1,5 +1,13 @@
 //! Independently replay byte observations from descriptor and derived value homes.
-use super::*;
+use super::{
+    IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::provenance;
+use crate::selection::validation::scalar_graph::structural::result;
 
 // Store through the original backing pointer; the descriptor itself is unchanged.
 pub(super) fn write(

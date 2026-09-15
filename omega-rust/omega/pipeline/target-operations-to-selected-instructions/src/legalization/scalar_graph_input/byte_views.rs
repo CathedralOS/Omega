@@ -1,5 +1,10 @@
 //! Exact borrowed structural headers for observations, writes and calls.
-use super::*;
+use super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, CallPlan,
+    CallingPolicy, PsiOptimizationFunction, ScalarType, TargetFunction, ValueDefinitionSite,
+    scalar_shape,
+};
+use crate::LegalizationError;
 
 #[cfg(test)]
 mod tests;

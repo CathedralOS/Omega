@@ -1,5 +1,13 @@
 //! Independent control and canonical block-order replay.
-use super::*;
+use super::{
+    IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType,
+    SelectedFunction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
+    ValidatedRegisterConstraintCatalog, ValueLocation, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::row;
 use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarComparison as Comparison, LegalizedScalarReturnValue,
     LegalizedScalarSuccessor, LegalizedScalarTerminator,

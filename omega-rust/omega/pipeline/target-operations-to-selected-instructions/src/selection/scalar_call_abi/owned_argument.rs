@@ -1,5 +1,8 @@
 //! Rejoin owned aggregate actuals to exact incoming backing or a produced home.
-use super::*;
+use super::{
+    CallSignature, LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
+    StructuralAccess, evaluate_call_plan,
+};
 use legalized_operations::LegalizedScalarInstructionKind;
 
 pub(super) fn validate_owned_arguments(

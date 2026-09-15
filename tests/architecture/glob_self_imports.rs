@@ -27,10 +27,6 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
         53,
     ),
     (
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
-        182,
-    ),
-    (
         "omega-rust/omega/semantics/optimization-unit-semantics",
         158,
     ),

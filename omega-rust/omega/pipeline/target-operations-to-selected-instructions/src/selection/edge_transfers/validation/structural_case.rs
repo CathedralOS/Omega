@@ -1,5 +1,12 @@
 //! Receive edge-local case loads before recovering the unmaterialized source edge.
-use super::*;
+use super::super::SelectedSuccessor;
+use super::{
+    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSelectionConstraints, SelectedSuccessorRole,
+    SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
+use crate::selection::edge_transfers::invalid;
 use selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport as Transport, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,

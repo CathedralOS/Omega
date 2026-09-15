@@ -1,5 +1,9 @@
 //! Input-only case custody. Construction and replay produce separate outputs.
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, OptimizationNode, PsiOptimizationFunction,
+    PsiProvenance,
+};
+use crate::LegalizationError;
 use semantic_vocabulary::{OperationId, PlaceId};
 use terminal_psi::StructuralOperationResult;
 

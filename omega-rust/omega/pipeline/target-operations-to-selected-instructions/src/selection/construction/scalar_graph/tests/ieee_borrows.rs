@@ -1,5 +1,12 @@
 //! Independent selection replay controls; these raw fixtures do not claim source admission.
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, LegalizedScalarArgument, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, LegalizedScalarParameter, ScalarType,
+    SelectedFixedInputConstraint, SelectedFunction, SelectedInstructionKind,
+    SelectedSelectionConstraints, ValueDefinitionSite, ValueId, ValueLocation, build,
+    evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::projected_borrows;
 use semantic_vocabulary::IeeeFloatFormat;
 
 fn fixture(target: target::NativeTarget, format: IeeeFloatFormat) -> LegalizedScalarFunction {

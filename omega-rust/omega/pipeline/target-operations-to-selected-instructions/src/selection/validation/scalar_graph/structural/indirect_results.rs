@@ -1,5 +1,14 @@
 //! Hidden result storage uses the declared result place and the native CallPlan.
-use super::*;
+use super::super::SelectedTerminator;
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedMemoryAccessRole, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::local_storage;
+use crate::selection::validation::scalar_graph::structural::register;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(in crate::selection) fn entry(

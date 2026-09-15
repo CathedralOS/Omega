@@ -1,5 +1,12 @@
 //! Exact record stores survive independent replay across native targets.
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, LegalizedScalarArgument, LegalizedScalarCall,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, LegalizedScalarReturnValue,
+    LegalizedScalarTerminator, MachineId, NativeCallOrigin, OperationId, PsiProvenance,
+    RegisterOperandAccess, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints,
+    SelectedTerminator, StructuralTypeId, ValueId, ValueLocation, ValueShape, build,
+    evaluate_call_plan,
+};
 fn record_fixture(target: target::NativeTarget, count: u16) -> LegalizedScalarFunction {
     let mut source = super::scalar_arrays::array_fixture(target, count);
     let scalar = source.blocks[0].instructions[0].result.unwrap().scalar_type;

@@ -1,5 +1,13 @@
 //! Raw legalization fixtures exercise selection custody, not source admission.
-use super::*;
+use super::super::{SelectedInstructionError, VirtualRegisterOrigin};
+use super::{
+    CallSignature, CallingPolicy, FuelSettlement, IntegerSign, IntegerType, IntegerValue,
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    LegalizedScalarReturnValue, LegalizedValueDefinition, OperationId, PsiProvenance, ScalarType,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, StructuralTypeId,
+    ValueDefinitionSite, ValueId, ValueShape, VirtualRegisterId, build, evaluate_call_plan,
+    fixture, returned,
+};
 use semantic_vocabulary::{ObligationId, PlaceId};
 
 fn view_result(place: PlaceId) -> terminal_psi::StructuralOperationResult {

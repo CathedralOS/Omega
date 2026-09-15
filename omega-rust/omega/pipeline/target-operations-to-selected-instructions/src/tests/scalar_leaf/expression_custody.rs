@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AbstractFunctionResult, AbstractOperation, AbstractParameter, AbstractResult, EdgeId,
+    OperationId, ScalarType, ValueId, fixture,
+};
+use crate::legalize_target_operations;
+use crate::validate_legalized_operations;
 use target_operations::{TargetControlTerminator, TargetScalarExpression};
 
 #[test]

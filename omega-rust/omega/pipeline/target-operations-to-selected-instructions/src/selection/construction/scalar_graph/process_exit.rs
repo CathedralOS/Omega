@@ -1,5 +1,9 @@
 //! Collapse an admitted final boundary and its nominal source return into native exit.
-use super::*;
+use super::{
+    Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedBlockId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedTerminator,
+};
+use crate::SelectedInstructionError;
 use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarReturnValue, LegalizedScalarTerminator,
 };

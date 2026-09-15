@@ -1,5 +1,11 @@
 //! Exact non-observing writes through original borrowed pointers.
-use super::*;
+use super::{
+    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
+    StructuralAccess, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::invalid;
 
 pub(super) fn emit(
     source: &LegalizedScalarFunction,

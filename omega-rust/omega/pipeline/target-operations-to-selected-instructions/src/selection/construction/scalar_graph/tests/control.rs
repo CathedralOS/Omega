@@ -1,5 +1,15 @@
 //! Current CFG projection, including out-of-order source blocks and exact edge bindings.
-use super::*;
+use super::super::SelectedBlockId;
+use super::{
+    BlockId, CallSignature, CallingPolicy, EdgeId, EffectLink, FuelSettlement, IntegerSign,
+    IntegerType, IntegerValue, LegalizedScalarBlock, LegalizedScalarFunction,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarParameter,
+    LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarTerminator,
+    LegalizedValueDefinition, OperationId, PsiProvenance, ScalarType, SelectedFixedInputConstraint,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, SelectedTerminator,
+    ValueDefinitionSite, ValueId, ValueLocation, ValueShape, VirtualRegisterId, build,
+    evaluate_call_plan, fixture, returned,
+};
 use abstract_operations::ValueBinding;
 use legalized_operations::{LegalizedScalarComparison as Comparison, LegalizedScalarSuccessor};
 use optimization_unit::ValueDefinition;

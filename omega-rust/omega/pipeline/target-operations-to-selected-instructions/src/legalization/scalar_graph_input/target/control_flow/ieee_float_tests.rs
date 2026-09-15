@@ -1,5 +1,10 @@
 //! Float calls, arrivals and comparisons share the independently replayed graph.
-use super::*;
+use super::super::super::MachineId;
+use super::super::{BlockId, ValueId, ValueLocation};
+use super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, ScalarType,
+    TargetUnitOperation,
+};
 use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractResult, ValueBinding};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IeeeFloatComparisonOperation, IeeeFloatFormat, OperationId,

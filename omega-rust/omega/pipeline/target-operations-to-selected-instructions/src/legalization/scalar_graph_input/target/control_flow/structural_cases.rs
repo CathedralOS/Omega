@@ -1,6 +1,10 @@
 //! Case layout correspondence after exact operation and abstract custody replay.
-
-use super::*;
+use super::super::super::scalar_shape;
+use super::super::BlockId;
+use super::{
+    AbstractOperationPlan, PsiOptimizationFunction, TargetControlGraph, TargetUnitOperation,
+};
+use crate::legalization::scalar_graph_input::target::control_flow::sources;
 use semantic_vocabulary::PlaceId;
 use target_operations::{
     TargetBoundaryResult, TargetControlCaseSuccessor, TargetStructuralHomeRequirement,

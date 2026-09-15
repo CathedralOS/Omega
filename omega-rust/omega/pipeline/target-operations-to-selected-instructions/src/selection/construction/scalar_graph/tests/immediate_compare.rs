@@ -1,5 +1,9 @@
 //! Direct scalar-graph selection of equality comparisons against unsigned U12 literals.
-use super::*;
+use super::{
+    BlockId, IntegerValue, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueDefinitionSite,
+    ValueId, build,
+};
 use legalized_operations::LegalizedScalarComparison as Comparison;
 
 fn source_with_literal(

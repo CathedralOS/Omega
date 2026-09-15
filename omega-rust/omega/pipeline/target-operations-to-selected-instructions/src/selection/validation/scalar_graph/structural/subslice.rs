@@ -1,6 +1,14 @@
 //! Reconstruct root backing and the bounded integer offset/length induction.
 use super::byte_views::backing_pointer;
-use super::*;
+use super::{
+    IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::ByteViewHomes;
+use crate::selection::validation::scalar_graph::structural::result;
 
 pub(super) fn create(
     function: &LegalizedScalarFunction,

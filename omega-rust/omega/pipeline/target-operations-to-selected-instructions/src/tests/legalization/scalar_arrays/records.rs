@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    FuelScheduleIdentity, OperationId, PlaceId, ScalarType, StructuralTypeShape,
+    TargetStructuralHomeLayout, TargetUnitOperation, ValueShape, fixture,
+};
+use crate::legalize_target_operations;
+use crate::tests::legalization::scalar_arrays::K;
+use crate::tests::legalization::scalar_arrays::O;
+use crate::validate_legalized_operations;
 
 fn record_fixture() -> (
     abstract_operations::AbstractOperationPlan,

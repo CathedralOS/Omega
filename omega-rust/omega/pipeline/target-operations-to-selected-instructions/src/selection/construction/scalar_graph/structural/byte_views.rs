@@ -1,5 +1,13 @@
 //! Select byte observations from descriptor and derived value homes.
-use super::*;
+use super::{
+    Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::provenance;
+use crate::selection::construction::scalar_graph::structural::transport_register;
 
 // Store through the original backing pointer; the descriptor itself is unchanged.
 pub(super) fn write(

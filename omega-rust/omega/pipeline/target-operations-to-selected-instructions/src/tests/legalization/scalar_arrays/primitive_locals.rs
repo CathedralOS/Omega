@@ -1,6 +1,11 @@
 //! Aggregate and primitive places retain independent producer and type custody.
-
-use super::*;
+use super::{
+    FuelScheduleIdentity, OperationId, PlaceId, ScalarType, StructuralMultiplicity,
+    StructuralTypeId, ValueId, fixture,
+};
+use crate::legalize_target_operations;
+use crate::tests::legalization::scalar_arrays::O;
+use crate::validate_legalized_operations;
 
 #[test]
 fn scalar_array_roster_composes_exact_primitive_local_producers() {

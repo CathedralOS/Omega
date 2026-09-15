@@ -1,5 +1,12 @@
 //! Exact control block replay into the scalar graph, without executable target rows.
-use super::*;
+use super::super::{AbstractFunctionResult, ScalarType};
+use super::{
+    AbstractFunction, AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction,
+    PsiOptimizationUnit, TargetFunction, TargetOperationPlan, TargetScalarExpression,
+    TargetUnitOperation,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::target::Checker;
 use target_operations::{TargetControlGraph, TargetControlSuccessor, TargetControlTerminator};
 #[cfg(test)]
 mod ieee_float_tests;

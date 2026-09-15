@@ -1,6 +1,12 @@
 //! Descriptor reads retain exact source, displacement, and replay custody.
-use super::*;
 
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, LegalizedScalarParameter, LegalizedScalarReturnValue,
+    ScalarType, SelectedFixedInputConstraint, SelectedFunction, SelectedInstructionKind,
+    SelectedSelectionConstraints, StructuralTypeId, ValueDefinitionSite, ValueId, ValueLocation,
+    ValueShape, build, evaluate_call_plan, fixture, returned,
+};
 #[test]
 fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
     for target in [

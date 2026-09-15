@@ -1,5 +1,10 @@
 //! Float-bank entry parameters retain IEEE identity in integer-ABI array results.
-use super::*;
+use super::{
+    FuelScheduleIdentity, ScalarType, StructuralTypeShape, TargetUnitOperation, ValueId, fixture,
+};
+use crate::legalize_target_operations;
+use crate::tests::legalization::scalar_arrays::O;
+use crate::validate_legalized_operations;
 use abstract_operations::AbstractParameter;
 use semantic_vocabulary::IeeeFloatFormat;
 

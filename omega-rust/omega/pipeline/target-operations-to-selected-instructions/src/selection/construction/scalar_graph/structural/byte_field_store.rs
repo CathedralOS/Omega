@@ -2,7 +2,17 @@
 //! indexed replacement addresses one byte in that same original inline backing.
 //! Capacity never supplies readable source extent; unused destination bytes are
 //! not observed or cleared. ISA-local scratch/control is not source control flow.
-use super::*;
+use super::{
+    Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::byte_views;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::provenance;
+use crate::selection::construction::scalar_graph::structural::transport_register;
 
 pub(super) fn replace(
     function: &LegalizedScalarFunction,

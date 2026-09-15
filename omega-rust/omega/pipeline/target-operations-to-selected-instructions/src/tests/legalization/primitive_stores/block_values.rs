@@ -1,5 +1,11 @@
 //! Stores use the value selected by the exact receiving block's scalar telescope.
-use super::*;
+use super::{
+    AbstractOperation, AbstractParameter, FuelScheduleIdentity, IntegerSign, NativeTarget,
+    ScalarType, TargetUnitOperation, TargetUnitWriteOnlyPrimitiveStoreSource, ValueId, fixture,
+};
+use crate::legalize_target_operations;
+use crate::tests::legalization::primitive_stores::integer;
+use crate::validate_legalized_operations;
 use abstract_operations::{AbstractBlockEntry, AbstractSuccessor, ValueBinding};
 use semantic_vocabulary::{BlockId, EdgeId};
 

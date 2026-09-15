@@ -1,6 +1,7 @@
 //! Canonical identity encoding for ordinary selected control.
-
-use super::*;
+use super::SelectedTerminator;
+use crate::selection::identity::encode_instruction;
+use crate::selection::identity::encode_successor;
 
 pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTerminator) {
     match terminator {
@@ -63,7 +64,12 @@ pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTermin
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{
+        SelectedBlockId, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+        SelectedInstructionProvenance, SelectedSuccessor,
+    };
+    use super::SelectedTerminator;
+    use crate::selection::identity::ordinary::encode_terminator;
     use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
     use semantic_vocabulary::{BlockId, EdgeId};
 

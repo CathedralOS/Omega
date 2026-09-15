@@ -1,5 +1,11 @@
 //! Establish the exact ordered array payload in one activation-local home.
-use super::*;
+use super::{
+    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::local_storage;
+use crate::selection::construction::scalar_graph::structural::provenance;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(super) fn establish(

@@ -1,5 +1,11 @@
 //! Independently replay resultless argument transport and the exact Unit call row.
-use super::*;
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess, ValueLocation,
+    VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
 use selected_instructions::SelectedCallContract;
 

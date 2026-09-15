@@ -1,5 +1,18 @@
 //! Uncanned scalar CFG shapes and signed comparison custody.
-use super::*;
+use super::{
+    AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, IntegerSign, IntegerType,
+    IntegerValue, ScalarType, fixture,
+};
+use crate::legalize_target_operations;
+use crate::select_instructions;
+use crate::selection_constraints;
+use crate::tests::shared_return::assert_return_bridges;
+use crate::tests::shared_return::block;
+use crate::tests::shared_return::edge;
+use crate::tests::shared_return::operation;
+use crate::tests::shared_return::value;
+use crate::validate_legalized_operations;
+use crate::validate_selected_instructions;
 use legalized_operations::{LegalizedScalarComparison, LegalizedScalarInstructionKind};
 fn expanded(
     native: target::NativeTarget,

@@ -1,5 +1,12 @@
 //! Incoming pointer-bit transport controls over raw selection and independent replay.
-use super::*;
+use super::super::{IndirectPointerLocation, SelectedInstructionProvenance, VirtualRegisterOrigin};
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarArgument,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, LegalizedScalarParameter, ScalarType,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueDefinitionSite,
+    ValueId, ValueLocation, ValueShape, build, evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::projected_borrows;
 use calling_conventions::ValuePlacement;
 use selected_instructions::FrameStorageSlotId;
 

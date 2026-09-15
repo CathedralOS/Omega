@@ -1,5 +1,13 @@
 //! Independently replay incoming parameter placements and durable entry copies.
-use super::*;
+use super::{
+    IndirectPointerLocation, LegalizedScalarArgument, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, SelectedInstructionKind, SelectedInstructionProvenance,
+    StructuralAccess, ValueLocation, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::register;
+use crate::selection::validation::scalar_graph::structural::result;
 
 pub(in crate::selection) fn entry(
     source: &LegalizedScalarFunction,

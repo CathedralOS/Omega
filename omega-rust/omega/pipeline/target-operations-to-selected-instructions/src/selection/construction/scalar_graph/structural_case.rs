@@ -1,5 +1,10 @@
 //! Observe the source sum tag; payload observations belong to selected edges.
-use super::*;
+use super::{
+    Builder, IntegerSign, LegalizedScalarFunction, ScalarType, SelectedBlock, SelectedBlockId,
+    SelectedInstructionId, SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
 use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarTerminator, LegalizedStructuralCaseSuccessor,
 };

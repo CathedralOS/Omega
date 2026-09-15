@@ -1,5 +1,14 @@
 //! Complete record storage is published only after all field writes.
-use super::*;
+use super::super::{IntegerValue, ValueId};
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
+    VirtualRegisterId, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::local_storage;
+use crate::selection::validation::scalar_graph::structural::provenance;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 pub(super) fn establish(
     source: &LegalizedScalarFunction,

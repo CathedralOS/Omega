@@ -1,5 +1,12 @@
 //! Replay the exact ordered payload stores and activation-local array home.
-use super::*;
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstruction, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::local_storage;
+use crate::selection::validation::scalar_graph::structural::provenance;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(super) fn establish(

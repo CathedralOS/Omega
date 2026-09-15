@@ -1,5 +1,11 @@
 //! Scalar-result calls copy typed arguments and retain their actual result home.
-use super::*;
+use super::{
+    Builder, LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess, VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::row;
+use crate::selection::construction::scalar_graph::structural;
 use legalized_operations::LegalizedScalarInstruction;
 
 /// Snapshot the projected pointer, then place its bits in the exact outgoing ABI slot.

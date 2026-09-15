@@ -1,5 +1,10 @@
 //! Join a hosted scalar occurrence to its admitted execution and exact SSA input.
-use super::*;
+use super::super::{CallSignature, CallingPolicy, ScalarType, ValueShape, evaluate_call_plan};
+use super::{
+    AbstractOperation, AbstractOperationPlan, PsiOptimizationUnit, TargetUnitOperation, ValueId,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::i32_type;
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetBoundaryResult,
     TargetUnitScalarArgumentSource,

@@ -1,5 +1,17 @@
 //! Owned ABI backing is reconstructed independently of pointer-bit transport.
-use super::*;
+use super::super::{
+    AbstractOperationPlan, AbstractParameter, PsiOptimizationUnit, StructuralMultiplicity,
+    StructuralParameterDeclaration, TargetOperationPlan,
+};
+use super::{
+    AbstractFunctionResult, AbstractOperation, AbstractResult, BindingRelevance, EdgeId,
+    FuelScheduleIdentity, IntegerSign, NativeTarget, OperationId, PlaceId, StructuralAccess,
+    StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType, StructuralTypeShape,
+    ValueId, fixture,
+};
+use crate::legalize_target_operations;
+use crate::tests::legalization::primitive_stores::integer;
+use crate::validate_legalized_operations;
 use calling_conventions::{
     IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement,
 };

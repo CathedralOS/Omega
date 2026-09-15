@@ -1,5 +1,9 @@
 //! Realize one admitted byte-output occurrence in operation-owned frame storage.
-use super::*;
+use super::{
+    Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedBlockId,
+    SelectedInstructionKind, SelectedInstructionProvenance,
+};
+use crate::SelectedInstructionError;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
     LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,

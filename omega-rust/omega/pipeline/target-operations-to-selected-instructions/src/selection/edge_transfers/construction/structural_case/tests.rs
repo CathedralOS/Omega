@@ -1,5 +1,14 @@
 //! Raw edge construction checks, not source-admission or native execution claims.
-use super::*;
+use super::super::super::{
+    FuelSettlement, PsiProvenance, SelectedInstruction, ValueDefinitionSite,
+};
+
+use super::{
+    IntegerSign, IntegerType, ScalarType, SelectedBlockId, SelectedCasePayloadTransport,
+    SelectedInstructionKind, SelectedLocalStorageSlot, SelectedSelectionConstraints,
+    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin, prepare,
+};
 use selected_instructions::{
     LocalStorageSlotId, SelectedCasePayloadBinding, SelectedStructuralCaseEdge,
 };

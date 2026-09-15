@@ -1,5 +1,13 @@
 //! Shared descriptor calls retain the original pointer and independent replay.
-use super::*;
+use super::super::{IndirectPointerLocation, SelectedInstructionId, VirtualRegisterOrigin};
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarArgument,
+    LegalizedScalarCall, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    LegalizedScalarReturnValue, MachineId, NativeCallOrigin, OperationId, PsiProvenance,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, StructuralTypeId,
+    ValueDefinitionSite, ValueId, ValueLocation, ValueShape, VirtualRegisterId, build,
+    evaluate_call_plan, fixture, returned,
+};
 mod literal_storage;
 mod mixed;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};

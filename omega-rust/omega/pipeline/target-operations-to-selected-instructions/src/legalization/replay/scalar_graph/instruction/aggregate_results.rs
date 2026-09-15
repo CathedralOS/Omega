@@ -1,6 +1,12 @@
 //! Replay aggregate construction, structural call results and case observations.
 //! Observations rejoin the nominal root and case without consuming the aggregate.
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, Error, LegalizedScalarArgument,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, NativeCallOrigin,
+    PsiOptimizationUnit, ScalarType, TargetOperationPlan,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input;
 
 pub(super) fn validate(
     actual: &LegalizedScalarInstruction,

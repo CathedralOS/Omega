@@ -1,6 +1,13 @@
 //! Reconstruct literal stores and descriptor homes from the retained raw payload.
 use super::local_storage::{address, store};
-use super::*;
+use super::{
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId, SelectedInstructionKind,
+    VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::provenance;
+use crate::selection::validation::scalar_graph::structural::result;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};

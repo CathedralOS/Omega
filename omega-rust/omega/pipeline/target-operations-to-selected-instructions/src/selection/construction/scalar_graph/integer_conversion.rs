@@ -1,5 +1,9 @@
 //! Select proof-bearing exact casts and infallible widening with explicit raw-width normalization.
-use super::*;
+use super::{
+    Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance, VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
 use legalized_operations::LegalizedScalarInstruction;
 
 pub(super) fn emit(

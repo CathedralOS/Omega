@@ -1,5 +1,13 @@
 //! Nested shared receivers retain the root pointer and exact field displacement.
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarArgument,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType, SelectedFunction,
+    SelectedInstructionKind, SelectedSelectionConstraints, StructuralAccess,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueShape, build,
+    evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::borrowed_calls;
 
 fn shared_record_call(native: target::NativeTarget, projected: bool) -> LegalizedScalarFunction {
     let mut source = borrowed_calls::borrowed_call(native);

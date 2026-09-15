@@ -1,5 +1,7 @@
 //! Canonical virtual-register identity, including exact instruction-local scratch custody.
-use super::*;
+use super::{ValueDefinitionSite, VirtualRegister, VirtualRegisterOrigin};
+use crate::selection::identity::encode_option_u16;
+use crate::selection::identity::encode_scalar_type;
 
 pub(super) fn encode(bytes: &mut Vec<u8>, register: &VirtualRegister) {
     bytes.extend_from_slice(&register.id.0.to_le_bytes());
