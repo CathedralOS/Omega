@@ -31,7 +31,7 @@ pub(super) fn compile_report(
 /// comparison meanings. Portable verification alone cannot establish this
 /// source/provider association, and this check grants no native execution.
 pub fn validate_lowered_ieee_float_comparison_custody(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     lowered: &lowered_psi::LoweredPsi,
 ) -> Result<(), Vec<Diagnostic>> {
     float_comparisons::associate(
@@ -52,7 +52,7 @@ pub fn validate_lowered_ieee_float_comparison_custody(
 /// the target-owned native-realization proposal. It does not assemble a
 /// compiler report or enter native realization.
 pub(super) fn produce_retained_terminal_artifact(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_report::RetainedTerminalArtifact, Vec<Diagnostic>> {
@@ -120,7 +120,7 @@ pub(super) fn produce_retained_terminal_artifact(
 }
 
 fn project_terminal_native_realization_proposal(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
@@ -331,7 +331,7 @@ fn project_terminal_native_realization_proposal(
 /// operation still coexist. The locator remains the target package's only
 /// contribution; the registrar requirement owns its complete physical plan.
 fn callback_closed_external_binding_rows(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     terminal_module: &terminal_psi::TerminalModule,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     callback_occurrences: &[compilation_report::TerminalCallbackOccurrenceProposal],
@@ -449,7 +449,7 @@ fn callback_closed_external_binding_rows(
 }
 
 fn produce_callback_thunk_artifact(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     placement: &backend_plan::BoundNominalCallbackPlacement,
 ) -> Result<compilation_report::TerminalCallbackThunkArtifact, Vec<Diagnostic>> {
@@ -573,7 +573,7 @@ fn validate_direct_callback_thunk_shape(
 }
 
 pub(super) fn project_terminal_boundary_application_coverage(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
@@ -585,7 +585,7 @@ pub(super) fn project_terminal_boundary_application_coverage(
 }
 
 fn project_terminal_boundary_application_realizations(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     demands: &boundary_applications::TerminalBoundaryApplicationDemands,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {
@@ -679,7 +679,7 @@ fn project_terminal_boundary_application_realizations(
 }
 
 fn project_compiler_intrinsic_application_realization(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
 ) -> Result<
     (
@@ -834,7 +834,7 @@ fn project_compiler_intrinsic_application_realization(
 }
 
 fn project_terminal_boundary_application_demands(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationDemands, Vec<Diagnostic>> {
@@ -890,7 +890,7 @@ fn project_terminal_boundary_application_demands(
 }
 
 fn project_boundary_application(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
 ) -> Result<boundary_applications::BoundaryApplication, Vec<Diagnostic>> {
     if application.arguments.is_empty() {
@@ -960,7 +960,7 @@ fn project_boundary_application(
 }
 
 fn canonical_boundary_nominal_identity(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     symbol: symbols::SymbolHandle,
     role: &str,
 ) -> Result<boundary_applications::BoundaryNominalIdentity, Vec<Diagnostic>> {
@@ -979,7 +979,7 @@ fn canonical_boundary_nominal_identity(
 }
 
 fn canonical_boundary_type_identity(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Result<boundary_applications::BoundaryTypeIdentity, Vec<Diagnostic>> {
     let identity = checked

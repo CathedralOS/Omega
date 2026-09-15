@@ -1,13 +1,13 @@
 //! Admit and execute the build machine, then type its generated-source continuation.
 
 use super::CheckedChildExecution;
-use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::phase_transitions::{
+use crate::checking::phase_transitions::{
     resolve_seeded_syntax_extension, symbol_resolved_trees_to_seeded_base,
     syntax_trees_to_symbol_resolved_trees, type_seeded_extension,
 };
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
+use package_compilation::PackageCompilationInputs;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -61,7 +61,7 @@ pub(super) fn evaluate_build_and_continue(
     let application = syntax.application.clone();
     let mut frontend = lower_checked_frontend(syntax, target_name, package_inputs, timings)?;
     let package_authority_verdict = if let Some(package_inputs) = package_inputs {
-        Some(crate::pipeline::package::declaration_admission::validate_authored_declaration_selections_before_build(
+        Some(crate::package::declaration_admission::validate_authored_declaration_selections_before_build(
             frontend.typed(),
             package_inputs,
             &generated_source_custody,
@@ -248,18 +248,16 @@ impl CheckedFrontend {
 struct AdmittedBuildCheckpoint {
     frontend: CheckedFrontend,
     admitted_build: build_evaluation::AdmittedBuildProgram,
-    package_authority_verdict: Option<
-        crate::pipeline::package::declaration_admission::AuthoredDeclarationAuthorityVerdict,
-    >,
+    package_authority_verdict:
+        Option<crate::package::declaration_admission::AuthoredDeclarationAuthorityVerdict>,
     base_sources: Arc<source::SourceMap>,
 }
 
 struct ExecutedBuildCheckpoint {
     frontend: CheckedFrontend,
     computed_build_config: build_evaluation::ComputedBuildConfig,
-    package_authority_verdict: Option<
-        crate::pipeline::package::declaration_admission::AuthoredDeclarationAuthorityVerdict,
-    >,
+    package_authority_verdict:
+        Option<crate::package::declaration_admission::AuthoredDeclarationAuthorityVerdict>,
     base_sources: Arc<source::SourceMap>,
 }
 

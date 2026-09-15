@@ -49,7 +49,8 @@ tokens = { path = "../../../psi/representations/tokens" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 artifacts = { path = "../../tooling/artifacts" }
-source-files-to-assembled-syntax = { path = "../source-files-to-assembled-syntax" }
+assembled-syntax-to-checked-compilation = { path = "../../pipeline/assembled-syntax-to-checked-compilation" }
+source-files-to-assembled-syntax = { path = "../../pipeline/source-files-to-assembled-syntax" }
 bounded-process = { path = "../../tooling/bounded-process", optional = true }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }

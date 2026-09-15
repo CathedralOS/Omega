@@ -1,9 +1,11 @@
-use super::*;
+use super::{CompileTimings, ImmutableSourceParseCheckpoint, PackageCompilationInputs};
 use package_compilation::{
     PackageDependencyBinding, PackageGeneratedSourceBundle, PackageSourceBinding,
     PackageSourceConsumptionCommitment,
 };
 use std::fs;
+use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);

@@ -6,7 +6,7 @@
 //! the identity boundary; each named member must route through its owning
 //! transform here rather than selecting a different pipeline.
 
-use crate::pipeline::phase_transitions::CheckedProgramSurface;
+use crate::checking::phase_transitions::CheckedProgramSurface;
 use diagnostics::Diagnostic;
 use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 use std::sync::Arc;
@@ -23,7 +23,7 @@ use typed_trees_to_checked_trees::{
 /// itself. Returns the surface — transformed only by named members — and the
 /// identity-bearing product selection evidence; `None` when no checked-tree
 /// optimization ran.
-pub(in crate::pipeline) fn execute(
+pub(crate) fn execute(
     mut checked: CheckedProgramSurface,
     effective: &OptimizationSelections,
     product_root_machines: Vec<symbols::SymbolHandle>,

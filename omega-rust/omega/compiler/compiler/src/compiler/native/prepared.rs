@@ -2,7 +2,6 @@
 
 use super::{admission, realization};
 use crate::CompileReport;
-use crate::compiler::optimization::rollback;
 use crate::compiler::request::ValidatedTargetCompilation;
 use diagnostics::Diagnostic;
 
@@ -15,9 +14,9 @@ pub(in crate::compiler) struct NativeInputReuseKey {
 
 pub(in crate::compiler) struct PreparedNativeCompilation {
     pub(super) request: ValidatedTargetCompilation,
-    pub(super) checked: crate::pipeline::CheckedCompilation,
+    pub(super) checked: crate::CheckedCompilation,
     pub(super) admission: admission::NativeCompilationAdmission,
-    pub(super) rollback: rollback::OptimizationRollbackSettlement,
+    pub(super) rollback: assembled_syntax_to_checked_compilation::OptimizationRollbackSettlement,
     pub(super) terminal: realization::PreparedTerminalNativeArtifact,
     pub(super) production_subject: Option<crate::ProductionCompilationSubject>,
     pub(super) source_file_count: usize,
@@ -26,9 +25,9 @@ pub(in crate::compiler) struct PreparedNativeCompilation {
 impl PreparedNativeCompilation {
     pub(in crate::compiler::native) fn new(
         request: ValidatedTargetCompilation,
-        checked: crate::pipeline::CheckedCompilation,
+        checked: crate::CheckedCompilation,
         admission: admission::NativeCompilationAdmission,
-        rollback: rollback::OptimizationRollbackSettlement,
+        rollback: assembled_syntax_to_checked_compilation::OptimizationRollbackSettlement,
         terminal: realization::PreparedTerminalNativeArtifact,
         production_subject: Option<crate::ProductionCompilationSubject>,
         source_file_count: usize,

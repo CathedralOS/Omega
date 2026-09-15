@@ -1,6 +1,10 @@
-use super::*;
+use super::{
+    CompilerIntrinsicExecutionIdentity, ProviderPlan, SelectedProviderReviewProvenance,
+    derive_selected_intrinsic_settlement_proposals,
+};
 use crate::{ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance};
 use effects::provider_plan::{ProviderBinding, ProviderPlanRow};
+use std::collections::BTreeSet;
 use target_operations::CompilerBuiltinExecution;
 
 fn selected_plan(

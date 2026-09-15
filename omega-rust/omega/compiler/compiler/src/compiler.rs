@@ -3,16 +3,15 @@
 //! The target loop owns sequencing and failure isolation. Product owners build
 //! their artifacts and reports; native input reuse belongs to this invocation.
 
-use crate::pipeline::checked_entry::PreparedCheckedSource;
 use crate::{
     CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome, RequestedCompileProduct,
     admit_checked_compilation,
 };
+use assembled_syntax_to_checked_compilation::{PreparedCheckedSource, run_on_compile_thread};
 use diagnostics::Diagnostic;
 
 pub(crate) mod admission;
-pub(crate) mod execution;
-mod native;
+pub(crate) mod native;
 mod native_checked;
 pub(crate) mod optimization;
 pub(crate) mod options;
@@ -25,7 +24,7 @@ pub(crate) mod terminal_product;
 /// Invalid requests reject before source acquisition. Shared preparation failures
 /// are reported for every target. Publication remains a separate operation.
 pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnostic>> {
-    execution::run_on_compile_thread(move || {
+    run_on_compile_thread(move || {
         let request = request.validate_for_execution()?;
         let source = PreparedCheckedSource::prepare(
             &request.shared.root_path,
@@ -41,8 +40,11 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
         for (target, source) in request.targets.into_iter().zip(sources) {
             let profile = target.profile;
             let compile_target = || {
+                let options = target.options();
                 let checked = source?.check(
-                    target.options(),
+                    &options.root_path,
+                    options.target_name.as_deref(),
+                    options.build_dir(),
                     target.package_inputs(),
                     &target.configuration.optimization_rollback,
                 )?;

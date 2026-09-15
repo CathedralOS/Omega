@@ -1,4 +1,4 @@
-use crate::pipeline::CheckedCompilation;
+use crate::CheckedCompilation;
 use crate::{CompileOutputKind, CompileReport};
 
 /// One native production report paired with the exact checked compilation

@@ -6,11 +6,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "impl BuildOptimizationAdmission",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/compiler/src/pipeline/optimization/build_vocabulary/mod.rs",
+        path: "omega-rust/omega/pipeline/source-files-to-assembled-syntax/src/source_assembly/build_vocabulary/mod.rs",
         coordination_marker: "fn install(base: &str)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/compiler/src/pipeline/optimization/checked_handoff/mod.rs",
+        path: "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/optimization/checked_handoff/mod.rs",
         coordination_marker: "fn retain(",
     },
     RequiredCoordinationEntrance {
@@ -22,7 +22,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn execute(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/compiler/src/compiler/optimization/rollback/mod.rs",
+        path: "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs",
         coordination_marker: "fn settle(",
     },
 ];

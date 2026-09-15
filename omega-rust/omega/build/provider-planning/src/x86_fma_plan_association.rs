@@ -396,7 +396,12 @@ const fn slot_for_builtin(builtin: BuiltinFunction) -> Option<X86ScalarFmaSlot> 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AdmittedX86ScalarFmaProvider, BuiltinFunction, CheckedNamedOperatorUseFact, CheckedTrees,
+        CompilerIntrinsicExecutionIdentity, ProviderBinding, ProviderPlan,
+        SelectedProviderReviewProvenance, SymbolHandle, TargetProfile, X86ScalarFmaSlot,
+        bind_checked_x86_scalar_fma_plan_associations, exact_selected_plan_index,
+    };
     use crate::{ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance};
     use checked_trees::CheckedProviderPlanCommitment;
     use effects::SelectedProviderPlanFacts;

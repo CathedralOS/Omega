@@ -3,13 +3,13 @@
 
 use super::build_continuation::BuiltCheckedProgram;
 use super::const_evaluation;
-use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::phase_transitions::{
+use crate::checking::phase_transitions::{
     SelectedExecutionSettlementInput, SelectedExecutionSettlementSurface,
     TypedToCheckedSettlementInput, settle_selected_execution, typed_trees_to_checked_trees,
 };
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
+use package_compilation::PackageCompilationInputs;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct CheckedExecution {
@@ -35,8 +35,7 @@ pub(super) struct CheckedExecution {
         Vec<representation_planning::OpaqueRepresentationSelection>,
     pub(super) boundary_calling_plan_realizations:
         Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
-    pub(super) optimization:
-        crate::pipeline::optimization::checked_handoff::CheckedOptimizationHandoff,
+    pub(super) optimization: crate::optimization::checked_handoff::CheckedOptimizationHandoff,
     /// Identity-bearing checked-tree product selection evidence, present only
     /// when the effective build selection named `CheckedTreeProductPruning`.
     pub(super) product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
@@ -89,11 +88,10 @@ pub(super) fn check_selected_execution(
     let subsystem = build_config.subsystem;
     let application_intent = build_config.application_intent;
     let application_identifier = build_config.application_identifier.clone();
-    let optimization =
-        crate::pipeline::optimization::checked_handoff::CheckedOptimizationHandoff::retain(
-            build_config.optimizations.clone(),
-            optimization_report,
-        );
+    let optimization = crate::optimization::checked_handoff::CheckedOptimizationHandoff::retain(
+        build_config.optimizations.clone(),
+        optimization_report,
+    );
     // Compatibility demands are semantic checks, not report-mode behavior.
     // Validate them on the canonical checked route even when no auxiliary
     // artifact writer is requested by the outer compiler coordinator.
@@ -185,7 +183,7 @@ pub(super) fn check_selected_execution(
         package_inputs,
     )?;
     if let Some(package_inputs) = package_inputs {
-        crate::pipeline::package::declaration_admission::validate_authored_declaration_selections(
+        crate::package::declaration_admission::validate_authored_declaration_selections(
             &checked.program,
             package_inputs,
         )?;
@@ -210,7 +208,7 @@ pub(super) fn check_selected_execution(
                 .map(|binding| binding.implementation_symbol)
                 .collect(),
         };
-    let (checked, product_selection) = crate::pipeline::optimization::checked_trees::execute(
+    let (checked, product_selection) = crate::optimization::checked_trees::execute(
         checked,
         effective_optimizations.effective(),
         product_root_machines.into_iter().collect(),

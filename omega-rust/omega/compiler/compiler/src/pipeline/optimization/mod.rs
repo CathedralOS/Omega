@@ -1,4 +1,0 @@
-//! Optimizer module role: stage group. Compiler-facing optimization hooks.
-
-pub(super) mod checked_handoff;
-pub(super) mod checked_trees;

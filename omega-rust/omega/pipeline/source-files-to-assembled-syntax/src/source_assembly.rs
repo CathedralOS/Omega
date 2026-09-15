@@ -895,7 +895,15 @@ fn assemble_syntax(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AssembledSyntax, BUILD_PRELUDE, CompileTimings, ImportQueue, PackageCompilationInputs,
+        RetainedGeneratedSyntaxExtension, RetainedGeneratedSyntaxUnit, SourceStorage, SyntaxTrees,
+        append_dependency_generated_sources_to_storage, construct_build_prelude,
+        generated_source_logical_path, retain_generated_syntax_extension,
+    };
+    use std::path::Path;
+    use std::path::PathBuf;
+    use std::sync::Arc;
 
     struct GeneratedSourcePackages {
         directory: PathBuf,
