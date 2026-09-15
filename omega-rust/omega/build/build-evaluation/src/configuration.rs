@@ -1,5 +1,6 @@
 //! Concrete build intent and extraction from the evaluated Build value.
 
+use crate::behavior_exclusions::AuthoredBehaviorExclusion;
 use crate::{RootBinding, WireCompatibilityDemand, optimization};
 use build_time_evaluation::BuildTimeValue;
 use optimization_core::OptimizationSelections;
@@ -100,6 +101,13 @@ pub struct BuildConfig {
     /// ordinary artifacts and never weaken ordinary checking or select a
     /// different pipeline.
     pub pcc: PccRequests,
+    /// Behavior exclusions (wiki/spec/build/behavior_exclusions.md): the
+    /// authored `builder.exclude_crash(...)` product-admission requirements
+    /// harvested statically from the root build machine's checked call scope,
+    /// each retaining its exact toolchain case identity and authored span.
+    /// These rows declare what the selected executable composition must not
+    /// reach; the admission join itself consumes them later.
+    pub behavior_exclusions: Vec<AuthoredBehaviorExclusion>,
 }
 
 /// The two independent optional proof-product selections retained from
@@ -146,6 +154,7 @@ impl Default for BuildConfig {
             wire_compatibility_demands: Vec::new(),
             root_bindings: Vec::new(),
             pcc: PccRequests::default(),
+            behavior_exclusions: Vec::new(),
         }
     }
 }
@@ -326,6 +335,7 @@ pub(super) fn extract_build_config(
             wire_compatibility_demands: Vec::new(),
             root_bindings: Vec::new(),
             pcc,
+            behavior_exclusions: Vec::new(),
         },
         optimization_report,
     ))

@@ -570,6 +570,14 @@ pub data CompositionMode [copy] {
     case Fused;
     case Independent;
 }
+// Compiler-owned crash-cause vocabulary for build behavior exclusions
+// (wiki/spec/build/behavior_exclusions.md). `builder.exclude_crash(case)`
+// selects a product-admission requirement over the exact selected executable
+// composition; it never masks effects on ordinary callable contracts.
+pub data CrashCause [copy] {
+    case Trap;
+    case Abort;
+}
 // compiler-owned TargetProfile declaration
 // compiler-owned X86DeploymentFeatures declaration
 // compiler-owned optimization declarations
@@ -666,6 +674,14 @@ pub machine Build::member(&mut self, path: &[u8]) {
 // Artifact-only application modifier: a declaration statement harvested
 // statically; the declared body is the evaluator no-op.
 pub machine Build::artifact_only(&mut self) {
+}
+// Behavior exclusion (wiki/spec/build/behavior_exclusions.md): a
+// product-admission requirement that the selected executable composition
+// contains no reachable site of the named crash cause. The selection is
+// harvested statically with its authored span from the build machine's
+// checked call scope; the declared body is the evaluator no-op, and a
+// declaration that permits Trap cannot override it.
+pub machine Build::exclude_crash(&mut self, cause: CrashCause) {
 }
 pub machine BuildSource::resolve(&self, relative: &[u8]) -> BuildPath {
     BuildPath {}
@@ -1580,17 +1596,19 @@ mod tests {
             })
             .collect::<Vec<_>>();
         dependency_methods.sort_by_key(|machine| machine.name.as_str());
-        assert_eq!(dependency_methods.len(), 7);
+        assert_eq!(dependency_methods.len(), 9);
         assert_eq!(dependency_methods[0].name.as_str(), "Build::application");
-        assert_eq!(dependency_methods[1].name.as_str(), "Build::build_depend");
+        assert_eq!(dependency_methods[1].name.as_str(), "Build::artifact_only");
+        assert_eq!(dependency_methods[2].name.as_str(), "Build::build_depend");
         assert_eq!(
-            dependency_methods[2].name.as_str(),
+            dependency_methods[3].name.as_str(),
             "Build::build_depend_as"
         );
-        assert_eq!(dependency_methods[3].name.as_str(), "Build::depend");
-        assert_eq!(dependency_methods[4].name.as_str(), "Build::depend_as");
-        assert_eq!(dependency_methods[5].name.as_str(), "Build::member");
-        assert_eq!(dependency_methods[6].name.as_str(), "Build::package");
+        assert_eq!(dependency_methods[4].name.as_str(), "Build::depend");
+        assert_eq!(dependency_methods[5].name.as_str(), "Build::depend_as");
+        assert_eq!(dependency_methods[6].name.as_str(), "Build::exclude_crash");
+        assert_eq!(dependency_methods[7].name.as_str(), "Build::member");
+        assert_eq!(dependency_methods[8].name.as_str(), "Build::package");
 
         let parameter_names = |machine: &syntax_trees::item::Machine| {
             let [entry] = syntax_trees.items.state_handles(machine.states) else {
@@ -1604,18 +1622,20 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(parameter_names(dependency_methods[0]), ["self", "name"]);
-        assert_eq!(parameter_names(dependency_methods[1]), ["self", "source"]);
+        assert_eq!(parameter_names(dependency_methods[1]), ["self"]);
+        assert_eq!(parameter_names(dependency_methods[2]), ["self", "source"]);
         assert_eq!(
-            parameter_names(dependency_methods[2]),
+            parameter_names(dependency_methods[3]),
             ["self", "alias", "source"]
         );
-        assert_eq!(parameter_names(dependency_methods[3]), ["self", "source"]);
+        assert_eq!(parameter_names(dependency_methods[4]), ["self", "source"]);
         assert_eq!(
-            parameter_names(dependency_methods[4]),
+            parameter_names(dependency_methods[5]),
             ["self", "alias", "source"]
         );
-        assert_eq!(parameter_names(dependency_methods[5]), ["self", "path"]);
-        assert_eq!(parameter_names(dependency_methods[6]), ["self", "name"]);
+        assert_eq!(parameter_names(dependency_methods[6]), ["self", "cause"]);
+        assert_eq!(parameter_names(dependency_methods[7]), ["self", "path"]);
+        assert_eq!(parameter_names(dependency_methods[8]), ["self", "name"]);
         assert!(!syntax_trees.root_items().any(|item| matches!(
             item,
             syntax_trees::item::Item::Machine(machine)

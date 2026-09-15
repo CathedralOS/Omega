@@ -21,12 +21,20 @@
 //! The report distinguishes a witnessed prohibited site from an evidence gap:
 //! both fail admission, but a conservative possible path is not labeled a
 //! runtime execution. Dynamic calls carry no per-target coverage in this
-//! slice and are reported as gaps. There is no authoring surface or admission
-//! join yet; `establish_behavior_exclusions` consumes an already-selected
-//! entry roster.
+//! slice and are reported as gaps. `establish_behavior_exclusions` consumes
+//! an already-selected entry roster.
+//!
+//! The build authoring surface is `builder.exclude_crash(CrashCause::X)`, a
+//! toolchain Build machine harvested statically from the root build entry's
+//! checked call scope (see `declarations::harvest_behavior_exclusions`).
+//! Authored selections retain their exact declaration symbol, selecting
+//! machine, and source span so the product-admission join can reproduce and
+//! audit the canonical union independently. There is no service-exclusion
+//! authoring surface or admission join yet.
 
 use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, OperationId, ServiceId};
 use std::collections::VecDeque;
+use symbols::SymbolHandle;
 use terminal_psi::{CrashCause, OperationKind, TerminalMachine, TerminalModule, Terminator};
 
 /// One exact exclusion selected by the build root.
@@ -90,6 +98,53 @@ impl BehaviorExclusions {
         self.services.sort_unstable();
         self.services.dedup();
     }
+}
+
+/// One authored exclusion kind with its exact typed-stage declaration
+/// identity. The terminal-facing [`BehaviorExclusion`] set derives from these
+/// rows at the product-admission join, once selected service identities exist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredBehaviorExclusionKind {
+    /// `builder.exclude_crash(CrashCause::X)`: the terminal crash cause plus
+    /// the exact toolchain `CrashCause` case symbol the authored value named.
+    CrashCause {
+        cause: CrashCause,
+        case_symbol: SymbolHandle,
+    },
+}
+
+/// One authored exclusion selection retained from the root build machine's
+/// checked call scope. Rows keep their authored occurrence provenance;
+/// repeated selections of the same kind union idempotently at the join, so
+/// authored order cannot change the resulting admission requirement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredBehaviorExclusion {
+    pub kind: AuthoredBehaviorExclusionKind,
+    /// The typed machine that spelled the selection. A specialization
+    /// template and its instances retain the same authored span under their
+    /// own machine symbols.
+    pub selecting_machine: SymbolHandle,
+    pub source_span: source::SourceSpan,
+}
+
+impl AuthoredBehaviorExclusion {
+    /// The canonical exclusion this authored row selects.
+    pub const fn exclusion(&self) -> BehaviorExclusion {
+        match self.kind {
+            AuthoredBehaviorExclusionKind::CrashCause { cause, .. } => {
+                BehaviorExclusion::CrashCause(cause)
+            }
+        }
+    }
+}
+
+/// The canonical union a set of authored rows selects. Duplicates and
+/// authored order collapse under the same deduplication the terminal-side
+/// checker consumes.
+pub fn authored_behavior_exclusion_set(
+    exclusions: &[AuthoredBehaviorExclusion],
+) -> BehaviorExclusions {
+    BehaviorExclusions::from_selections(exclusions.iter().map(AuthoredBehaviorExclusion::exclusion))
 }
 
 /// The executable coordinate where a possible excluded behavior is retained.
