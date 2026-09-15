@@ -1,5 +1,6 @@
-use super::{
-    lower_seeded_extension, retained_typed_base_is_exact_prefix, seeded_plain_data_inputs,
+use super::seeded_plain_data_inputs;
+use crate::lowerer::seeded_continuation::{
+    lower_seeded_extension, retained_typed_base_is_exact_prefix,
 };
 use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
 

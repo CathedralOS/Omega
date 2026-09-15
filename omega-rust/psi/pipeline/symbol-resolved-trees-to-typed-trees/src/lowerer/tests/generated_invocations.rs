@@ -1,6 +1,6 @@
-use super::{
+use super::seeded_plain_data_inputs;
+use crate::lowerer::seeded_continuation::{
     SeededContinuationError, lower_seeded_extension, retained_typed_base_is_exact_prefix,
-    seeded_plain_data_inputs,
 };
 use typed_trees::signature::AuthoredInvocationTarget;
 
