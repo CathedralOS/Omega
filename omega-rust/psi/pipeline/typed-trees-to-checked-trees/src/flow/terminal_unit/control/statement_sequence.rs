@@ -16,21 +16,14 @@ use super::{
     StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::flow::ScalarCalleePlans;
-use crate::flow::terminal_unit::ExpectedCallValueResult;
-use crate::flow::terminal_unit::ShapeCollector;
-use crate::flow::terminal_unit::base_type_identity;
-use crate::flow::terminal_unit::bind_structural_call_result;
-use crate::flow::terminal_unit::build_call_operation;
-use crate::flow::terminal_unit::checked_boolean_contains_short_circuit;
-use crate::flow::terminal_unit::checked_structural_result_type;
-use crate::flow::terminal_unit::checked_unit_structural_result_local;
-use crate::flow::terminal_unit::control::bind_scalar_call_result;
-use crate::flow::terminal_unit::control::call_occurrences;
-use crate::flow::terminal_unit::is_unit;
-use crate::flow::terminal_unit::machine_binders;
-use crate::flow::terminal_unit::parameter_qualifications;
-use crate::flow::terminal_unit::scalar_expression_local_at;
-use crate::flow::terminal_unit::structural_operands;
+use crate::flow::terminal_unit::control::{bind_scalar_call_result, call_occurrences};
+use crate::flow::terminal_unit::returns::checked_boolean_contains_short_circuit;
+use crate::flow::terminal_unit::{
+    ExpectedCallValueResult, ShapeCollector, base_type_identity, bind_structural_call_result,
+    build_call_operation, checked_structural_result_type, checked_unit_structural_result_local,
+    is_unit, machine_binders, parameter_qualifications, scalar_expression_local_at,
+    structural_operands,
+};
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
 /// Completion forwards a whole parameter only when its exact output contract

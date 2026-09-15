@@ -9,15 +9,13 @@ use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitCallCoordinate, Identifier, MachineSupplyMode,
     ServiceReachSummary, StatementNode, TypedTrees,
 };
-use crate::flow::terminal_unit::ShapeCollector;
-use crate::flow::terminal_unit::dynamic_scalar_calls::checked_call_service_reach;
-use crate::flow::terminal_unit::dynamic_scalar_calls::checked_rebound_dynamic_selection;
-use crate::flow::terminal_unit::dynamic_scalar_calls::checked_self_attachment_source;
-use crate::flow::terminal_unit::dynamic_scalar_calls::checked_source_argument;
-use crate::flow::terminal_unit::is_unit;
-use crate::flow::terminal_unit::machine_binders;
-use crate::flow::terminal_unit::state_flow;
-use crate::flow::terminal_unit::structural_access_for_type_reference;
+use crate::flow::terminal_unit::dynamic_scalar_calls::realization_bodies::checked_call_service_reach;
+use crate::flow::terminal_unit::dynamic_scalar_calls::scalar_call_plans::{
+    checked_rebound_dynamic_selection, checked_self_attachment_source, checked_source_argument,
+};
+use crate::flow::terminal_unit::{
+    ShapeCollector, is_unit, machine_binders, state_flow, structural_access_for_type_reference,
+};
 
 pub(super) enum CheckedDynamicUnitCall {
     Direct(checked_trees::CheckedDynamicUnitCallPlan),

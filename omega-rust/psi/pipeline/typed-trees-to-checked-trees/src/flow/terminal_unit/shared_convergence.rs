@@ -8,7 +8,7 @@ use super::{
     CheckedScalarExpressionRole, CheckedStructuralScalarReturnCleanupAction, PrimitiveType,
     SymbolHandle,
 };
-use crate::flow::terminal_unit::checked_boolean_contains_short_circuit;
+use crate::flow::terminal_unit::returns::checked_boolean_contains_short_circuit;
 
 pub(super) fn checked_shared_boolean_convergence(
     facts: &CheckFacts,

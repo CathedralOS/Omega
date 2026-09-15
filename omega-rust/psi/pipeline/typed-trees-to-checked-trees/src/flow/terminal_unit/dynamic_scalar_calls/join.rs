@@ -7,7 +7,7 @@ use super::{
     SymbolHandle, TypedTrees,
 };
 use crate::flow::terminal_unit::ShapeCollector;
-use crate::flow::terminal_unit::dynamic_scalar_calls::inbound_call_site_counts;
+use crate::flow::terminal_unit::dynamic_scalar_calls::scalar_call_transactions::inbound_call_site_counts;
 
 pub(super) fn promote_two_predecessor_dynamic_scalar_joins(
     program: &TypedTrees,
