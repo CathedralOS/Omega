@@ -323,9 +323,11 @@ mod tests {
     use crate::CheckedTreeProductRootsError;
     use crate::product_pruning::MachineIndex;
     use crate::product_pruning::collect_machine_edges;
+    use crate::product_pruning::rewrite::validate_pruned_product;
     use crate::product_pruning::selection_identity;
     use crate::prune_checked_tree_product;
     use source_files_to_tokens::Lexer;
+    use std::collections::HashSet;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
@@ -600,6 +602,256 @@ mod tests {
                 .selection
                 .retained_machines()
                 .contains(&boundary_symbol)
+        );
+    }
+
+    #[test]
+    fn the_pruned_product_is_a_fixed_point_for_the_same_plan() {
+        let program = checked(
+            r#"
+            machine helper() -> u64 { 40u64 }
+            machine unused() -> u64 { 2u64 }
+            pub machine main() -> u64 { helper() }
+            "#,
+        );
+        let root = machine_named(&program.typed, "main").symbol;
+        let plan =
+            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
+        let first = prune_checked_tree_product(program, &plan).expect("first prune");
+        assert!(!first.selection.pruned_machines().is_empty());
+        let retained = first.selection.retained_machines().to_vec();
+
+        // The published outcome is itself a legal `CheckedTrees`: replaying
+        // the same plan against it is a legal second input that finds no
+        // remaining candidate, so the product is a fixed point rather than
+        // merely reconstructible.
+        let second = prune_checked_tree_product(first.checked, &plan).expect("fixed-point prune");
+        assert_eq!(second.selection.roots().machines(), &[root]);
+        assert_eq!(second.selection.retained_machines(), retained.as_slice());
+        assert!(second.selection.pruned_machines().is_empty());
+        assert_eq!(
+            second.selection.identity(),
+            selection_identity(&[root], &retained, &[])
+        );
+        assert_eq!(
+            second
+                .checked
+                .typed
+                .machines()
+                .iter()
+                .map(|machine| machine.symbol)
+                .collect::<Vec<_>>(),
+            retained
+        );
+    }
+
+    #[test]
+    fn empty_roots_retain_only_the_interface_surface() {
+        let mut program = checked(
+            r#"
+            machine helper() -> u64 { 40u64 }
+            machine unused() -> u64 { 2u64 }
+            pub machine main() -> u64 { helper() }
+            "#,
+        );
+        let authored: Vec<SymbolHandle> = program
+            .typed
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
+            .collect();
+        let boundary_symbol = {
+            let boundary = Machine {
+                symbol: SymbolHandle::from_arena_index(
+                    authored
+                        .iter()
+                        .map(|symbol| symbol.arena_index())
+                        .max()
+                        .expect("a machine symbol must exist")
+                        + 1,
+                ),
+                supply_mode: language_semantics::MachineSupplyMode::Boundary,
+                body_is_present: false,
+                ..Default::default()
+            };
+            let symbol = boundary.symbol;
+            program.typed.push_machine(boundary);
+            symbol
+        };
+        // The phase entrance rejects an empty root set before running the
+        // transform; the transform itself still defines the canonical
+        // boundary: with no roots, only interface surface survives.
+        let plan = CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([]).expect("roots"));
+        let outcome = prune_checked_tree_product(program, &plan).expect("prune");
+        assert_eq!(outcome.selection.retained_machines(), &[boundary_symbol]);
+        assert_eq!(outcome.selection.pruned_machines(), authored.as_slice());
+        assert_eq!(outcome.checked.typed.machines().len(), 1);
+        assert_eq!(
+            outcome.checked.typed.machines()[0].supply_mode,
+            language_semantics::MachineSupplyMode::Boundary
+        );
+    }
+
+    #[test]
+    fn independent_product_validation_rejects_roster_corruption() {
+        let program = checked(
+            r#"
+            machine helper() -> u64 { 40u64 }
+            machine unused() -> u64 { 2u64 }
+            pub machine main() -> u64 { helper() }
+            "#,
+        );
+        let root = machine_named(&program.typed, "main").symbol;
+        let helper = machine_named(&program.typed, "helper").symbol;
+        let plan =
+            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
+        let outcome = prune_checked_tree_product(program, &plan).expect("prune");
+        let retained: HashSet<SymbolHandle> = outcome
+            .selection
+            .retained_machines()
+            .iter()
+            .copied()
+            .collect();
+        let pruned: HashSet<SymbolHandle> = outcome
+            .selection
+            .pruned_machines()
+            .iter()
+            .copied()
+            .collect();
+
+        // A retained roster missing a surviving machine fails the
+        // machine-table count and names the unretained symbol.
+        let mut shrunk = retained.clone();
+        shrunk.remove(&helper);
+        let failures = validate_pruned_product(
+            &outcome.checked,
+            &shrunk,
+            &pruned,
+            outcome.selection.roots(),
+        )
+        .expect_err("a shrunk retained roster must reject");
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("pruned machine table holds"))
+        );
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("unretained machine symbol"))
+        );
+
+        // A foreign symbol inflating the retained roster fails the same count
+        // check.
+        let mut inflated = retained.clone();
+        inflated.insert(SymbolHandle::from_arena_index(999_999));
+        let failures = validate_pruned_product(
+            &outcome.checked,
+            &inflated,
+            &pruned,
+            outcome.selection.roots(),
+        )
+        .expect_err("an inflated retained roster must reject");
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("pruned machine table holds"))
+        );
+
+        // Marking a retained machine as pruned rejects the still-open edge
+        // that names it.
+        let mut poisoned = pruned.clone();
+        poisoned.insert(helper);
+        let failures = validate_pruned_product(
+            &outcome.checked,
+            &retained,
+            &poisoned,
+            outcome.selection.roots(),
+        )
+        .expect_err("a retained machine marked pruned must reject");
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("still references pruned machine"))
+        );
+
+        // A root absent from the pruned machine table is rejected.
+        let absent_roots =
+            CheckedTreeProductRoots::new([SymbolHandle::from_arena_index(424_242)]).expect("roots");
+        let failures = validate_pruned_product(&outcome.checked, &retained, &pruned, &absent_roots)
+            .expect_err("an absent product root must reject");
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("product root symbol"))
+        );
+    }
+
+    #[test]
+    fn root_order_is_canonicalized_in_the_selection() {
+        let program = checked(
+            r#"
+            machine other() -> u64 { 1u64 }
+            pub machine main() -> u64 { other() }
+            pub machine second() -> u64 { other() }
+            "#,
+        );
+        let main = machine_named(&program.typed, "main").symbol;
+        let second = machine_named(&program.typed, "second").symbol;
+
+        let forward = prune_checked_tree_product(
+            program.clone(),
+            &CheckedTreeProductPruning::new(
+                CheckedTreeProductRoots::new([main, second]).expect("roots"),
+            ),
+        )
+        .expect("forward prune");
+        let reverse = prune_checked_tree_product(
+            program,
+            &CheckedTreeProductPruning::new(
+                CheckedTreeProductRoots::new([second, main]).expect("roots"),
+            ),
+        )
+        .expect("reverse prune");
+        // Root input order is canonicalized at admission: both permutations
+        // publish the same roots, rosters, and selection identity.
+        assert_eq!(forward.selection, reverse.selection);
+    }
+
+    #[test]
+    fn selection_identity_rejects_swapped_and_truncated_rosters() {
+        let program = checked(
+            r#"
+            machine helper() -> u64 { 40u64 }
+            machine unused() -> u64 { 2u64 }
+            pub machine main() -> u64 { helper() }
+            "#,
+        );
+        let root = machine_named(&program.typed, "main").symbol;
+        let plan =
+            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
+        let outcome = prune_checked_tree_product(program, &plan).expect("prune");
+        let retained = outcome.selection.retained_machines();
+        let pruned = outcome.selection.pruned_machines();
+        assert!(!pruned.is_empty());
+
+        // The commitment binds the exact rosters in role order: swapping the
+        // roles or truncating either side is a different selection.
+        assert_eq!(
+            outcome.selection.identity(),
+            selection_identity(&[root], retained, pruned)
+        );
+        assert_ne!(
+            outcome.selection.identity(),
+            selection_identity(&[root], pruned, retained)
+        );
+        assert_ne!(
+            outcome.selection.identity(),
+            selection_identity(&[root], &retained[..retained.len() - 1], pruned)
+        );
+        assert_ne!(
+            outcome.selection.identity(),
+            selection_identity(&[root], retained, &pruned[..pruned.len() - 1])
         );
     }
 }
