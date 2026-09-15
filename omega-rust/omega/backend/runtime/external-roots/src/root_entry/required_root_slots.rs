@@ -130,7 +130,7 @@ impl InstalledRequiredRootSlot {
         self.root
     }
 
-    pub(super) fn matches_root(&self, root: &InstalledExternalRoot<'_>) -> bool {
+    pub(crate) fn matches_root(&self, root: &InstalledExternalRoot<'_>) -> bool {
         self.root == root.root
             && self.required.slot == root.slot
             && self.required.owner == root.owner

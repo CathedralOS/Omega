@@ -2498,12 +2498,13 @@ fn component_candidate_replay_keeps_compact_identity_report_only() {
 #[test]
 fn program_local_root_cohort_keys_do_not_collapse_to_compact_schema_identity() {
     let root = workspace_root();
-    let cohort_path =
-        root.join("omega-rust/omega/backend/runtime/external-roots/src/program_local_roots.rs");
+    let cohort_path = root.join(
+        "omega-rust/omega/backend/runtime/external-roots/src/program_local/program_local_roots.rs",
+    );
     let cohort = std::fs::read_to_string(&cohort_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", cohort_path.display()));
     let extent_path =
-        root.join("omega-rust/omega/backend/runtime/external-roots/src/program_local_extents.rs");
+        root.join("omega-rust/omega/backend/runtime/external-roots/src/program_local/program_local_extents.rs");
     let extents = std::fs::read_to_string(&extent_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", extent_path.display()));
 
@@ -2547,8 +2548,9 @@ fn component_era_artifact_occurrence_joins_require_strong_installation_evidence(
         root.join("omega-rust/omega/backend/runtime/component-publication/src/lib.rs");
     let publication = std::fs::read_to_string(&publication_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", publication_path.display()));
-    let cohort_path =
-        root.join("omega-rust/omega/backend/runtime/external-roots/src/program_local_roots.rs");
+    let cohort_path = root.join(
+        "omega-rust/omega/backend/runtime/external-roots/src/program_local/program_local_roots.rs",
+    );
     let cohort = std::fs::read_to_string(&cohort_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", cohort_path.display()));
 
@@ -4631,7 +4633,7 @@ fn external_root_progress_rejoins_the_exact_selected_provider_closure() {
     );
 
     let installation_path = root.join(
-        "omega-rust/omega/backend/runtime/external-roots/src/progress_profile_installation.rs",
+        "omega-rust/omega/backend/runtime/external-roots/src/root_entry/progress_profile_installation.rs",
     );
     let installation = std::fs::read_to_string(&installation_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
@@ -4958,8 +4960,9 @@ fn uefi_target_layout_fingerprint_is_report_only_beside_exact_replay() {
         "target-owned UEFI layout FNV must be report-only beside complete structural replay",
     );
 
-    let lifecycle_path =
-        root.join("omega-rust/omega/backend/runtime/external-roots/src/uefi_bootstrap.rs");
+    let lifecycle_path = root.join(
+        "omega-rust/omega/backend/runtime/external-roots/src/platform_bringup/uefi_bootstrap.rs",
+    );
     let lifecycle = std::fs::read_to_string(&lifecycle_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", lifecycle_path.display()));
     assert!(
@@ -4977,7 +4980,7 @@ fn external_root_execution_summaries_are_report_only_beside_exact_evidence() {
     let root = workspace_root();
     let runtime = root.join("omega-rust/omega/backend/runtime/external-roots/src");
 
-    let validation = std::fs::read_to_string(runtime.join("root_validation.rs"))
+    let validation = std::fs::read_to_string(runtime.join("root_entry/root_validation.rs"))
         .expect("read external-root validation");
     assert!(
         validation.contains("selected_provider_closure_report_fingerprint: u64")
@@ -4992,7 +4995,7 @@ fn external_root_execution_summaries_are_report_only_beside_exact_evidence() {
         "validated external roots must retain exact root/contract evidence beside compact reports",
     );
 
-    let execution = std::fs::read_to_string(runtime.join("provider_execution.rs"))
+    let execution = std::fs::read_to_string(runtime.join("root_entry/provider_execution.rs"))
         .expect("read provider execution");
     assert!(
         execution.contains("root_evidence: ValidatedExternalRoot")
@@ -5037,7 +5040,7 @@ fn external_root_execution_summaries_are_report_only_beside_exact_evidence() {
 fn external_root_stack_and_logical_work_fingerprints_are_report_only() {
     let root = workspace_root();
     let runtime = root.join("omega-rust/omega/backend/runtime/external-roots/src");
-    let fixed = std::fs::read_to_string(runtime.join("fixed_fuel.rs"))
+    let fixed = std::fs::read_to_string(runtime.join("stack_and_fuel/fixed_fuel.rs"))
         .expect("read external-root fixed fuel");
     assert!(
         fixed.contains("composition_evidence: FixedFuelCompositionEvidence")
@@ -5047,7 +5050,7 @@ fn external_root_stack_and_logical_work_fingerprints_are_report_only() {
         "logical-work FNV values must remain report-only beside exact graph evidence",
     );
 
-    let stack = std::fs::read_to_string(runtime.join("stack_demand.rs"))
+    let stack = std::fs::read_to_string(runtime.join("stack_and_fuel/stack_demand.rs"))
         .expect("read external-root stack composition");
     assert!(
         stack.contains("composition_evidence: StackCompositionEvidence")
@@ -5059,7 +5062,7 @@ fn external_root_stack_and_logical_work_fingerprints_are_report_only() {
         "ordinary stack FNV values must remain report-only beside exact nesting evidence",
     );
 
-    let epochs = std::fs::read_to_string(runtime.join("epoch_stack_demand.rs"))
+    let epochs = std::fs::read_to_string(runtime.join("stack_and_fuel/epoch_stack_demand.rs"))
         .expect("read external-root epoch stack composition");
     let pure_composition = epochs
         .split_once("pub struct EpochStackComposition {")

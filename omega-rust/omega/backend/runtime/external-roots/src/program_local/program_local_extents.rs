@@ -8,7 +8,7 @@ use language_semantics::content::{CanonicalIntervalSet, NaturalInterval};
 use numerics::bignum::BigInt;
 use semantic_vocabulary::ContentAlgebraKind;
 
-use super::{
+use crate::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity, ExternalRootDiagnostic,
     ProgramLocalRootEpochAggregateCapacity, ProgramLocalRootInstallationLedger,
     RetiredProgramLocalRootOccurrence,
