@@ -2110,9 +2110,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         compiler_terminal.contains(".project_psi()")
             && compiler_terminal
                 .contains("optimization_selections: psi_optimizations.selections().clone()")
-            && compiler_terminal.contains(".produce_with_callback_custody(")
+            && compiler_terminal.contains(".produce_program_entry_with_callback_custody(")
             && compiler_terminal.contains(".project_post_terminal()"),
-        "the retained Terminal-product route must project executed Psi selections into publication and pending physical selections into its companion"
+        "the retained Terminal-product route must project executed Psi selections into publication and pending physical selections into its companion, carrying the checked ProgramEntry receipt"
     );
     assert!(
         compilation_report.contains("post_terminal_optimizations:")

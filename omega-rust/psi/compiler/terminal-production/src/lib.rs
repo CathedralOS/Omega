@@ -7,9 +7,7 @@
 
 mod terminal_production;
 pub use terminal_production::{
-    CallbackCustodyTerminalArtifactProductionError, CheckedProgramEntryFusedServiceField,
-    CheckedProgramEntryReceiverEligibility, CheckedProgramEntryReceiverProjection,
-    CheckedProgramEntryTerminalReceipt, ProducedProgramEntryTerminalArtifact,
+    CallbackCustodyTerminalArtifactProductionError, ProducedProgramEntryTerminalArtifact,
     ProducedTerminalArtifact, ProducedTerminalArtifactWithCallbackCustody,
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalMachineSelection,
     TerminalProductionRequest,

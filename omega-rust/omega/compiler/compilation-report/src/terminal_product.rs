@@ -295,7 +295,7 @@ pub struct TerminalNativeRealizationProposal {
     /// independently admitted authority; `validate_for_artifact` binds it to
     /// the retained source signature and canonical semantic identity so a
     /// drifted receipt cannot enter custody beside a valid artifact.
-    checked_program_entry: terminal_production::CheckedProgramEntryTerminalReceipt,
+    checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     selected_provider_plans: effects::SelectedProviderPlanFacts,
     external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
     package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
@@ -320,7 +320,7 @@ impl TerminalNativeRealizationProposal {
         application_name: Option<String>,
         post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
         program_entry: build_evaluation::SelectedCompilerProgramEntry,
-        checked_program_entry: terminal_production::CheckedProgramEntryTerminalReceipt,
+        checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
         selected_provider_plans: effects::SelectedProviderPlanFacts,
         external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
         mut package_terminal_authority_permissions: Vec<
@@ -898,9 +898,7 @@ impl TerminalNativeRealizationProposal {
     /// re-entry. Validation binds it to this proposal's selected source
     /// signature and canonical Terminal identity; settlement independently
     /// re-derives the complete join before trusting it.
-    pub const fn checked_program_entry(
-        &self,
-    ) -> &terminal_production::CheckedProgramEntryTerminalReceipt {
+    pub const fn checked_program_entry(&self) -> &terminal_psi::CheckedProgramEntryTerminalReceipt {
         &self.checked_program_entry
     }
 

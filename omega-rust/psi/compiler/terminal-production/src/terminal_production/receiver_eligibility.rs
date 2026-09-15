@@ -11,69 +11,12 @@ use checked_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
 };
 use checked_trees::{CheckedTerminalMachineSelection, CheckedTrees};
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use terminal_psi::{StructuralAccess, StructuralFieldType, StructuralTypeShape, TerminalModule};
-
-/// Checked projection of the source receiver into the Terminal entry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedProgramEntryReceiverProjection {
-    Retained {
-        terminal_self: PlaceId,
-        source_position: u32,
-    },
-    Erased {
-        source_position: u32,
-    },
-}
-
-/// An exact source Bound-service field requiring separate root establishment.
-/// This correspondence carries no selected-plan or installation authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedProgramEntryFusedServiceField {
-    field_identity: String,
-    carrier_type_identity: String,
-}
-
-impl CheckedProgramEntryFusedServiceField {
-    pub fn field_identity(&self) -> &str {
-        &self.field_identity
-    }
-
-    pub fn carrier_type_identity(&self) -> &str {
-        &self.carrier_type_identity
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedProgramEntryReceiverEligibility {
-    source_receiver_type_identity: String,
-    owned_receiver_type_identity: String,
-    projection: CheckedProgramEntryReceiverProjection,
-    terminal_receiver_type: StructuralTypeId,
-    fused_service_fields: Vec<CheckedProgramEntryFusedServiceField>,
-}
-
-impl CheckedProgramEntryReceiverEligibility {
-    pub fn source_receiver_type_identity(&self) -> &str {
-        &self.source_receiver_type_identity
-    }
-
-    pub fn owned_receiver_type_identity(&self) -> &str {
-        &self.owned_receiver_type_identity
-    }
-
-    pub const fn projection(&self) -> CheckedProgramEntryReceiverProjection {
-        self.projection
-    }
-
-    pub const fn terminal_receiver_type(&self) -> StructuralTypeId {
-        self.terminal_receiver_type
-    }
-
-    pub fn fused_service_fields(&self) -> &[CheckedProgramEntryFusedServiceField] {
-        &self.fused_service_fields
-    }
-}
+use semantic_vocabulary::StructuralTypeId;
+use terminal_psi::{
+    CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverEligibility,
+    CheckedProgramEntryReceiverProjection, StructuralAccess, StructuralFieldType,
+    StructuralTypeShape, TerminalModule,
+};
 
 pub(super) fn derive(
     checked: &CheckedTrees,
@@ -233,27 +176,27 @@ pub(super) fn derive(
         {
             return None;
         }
-        fused_service_fields.push(CheckedProgramEntryFusedServiceField {
+        fused_service_fields.push(CheckedProgramEntryFusedServiceField::new(
             field_identity,
-            carrier_type_identity: carrier.carrier_type_identity,
-        });
+            carrier.carrier_type_identity,
+        ));
     }
-    fused_service_fields.sort_by(|left, right| left.field_identity.cmp(&right.field_identity));
+    fused_service_fields.sort_by(|left, right| left.field_identity().cmp(right.field_identity()));
     if fused_service_fields
         .windows(2)
-        .any(|pair| pair[0].field_identity == pair[1].field_identity)
+        .any(|pair| pair[0].field_identity() == pair[1].field_identity())
     {
         return None;
     }
-    Some(CheckedProgramEntryReceiverEligibility {
-        source_receiver_type_identity: checked
+    Some(CheckedProgramEntryReceiverEligibility::new(
+        checked
             .normalized_type_identity(receiver.type_reference)
             .into_string(),
         owned_receiver_type_identity,
         projection,
         terminal_receiver_type,
         fused_service_fields,
-    })
+    ))
 }
 
 fn zero_valid_record_storage(

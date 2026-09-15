@@ -29,7 +29,6 @@ target = { path = "../../representations/target" }
 target-operations = { path = "../../representations/target-operations" }
 trust-model = { path = "../../build/trust-model" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
-terminal-production = { path = "../../../psi/compiler/terminal-production" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"

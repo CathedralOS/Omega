@@ -455,7 +455,6 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-codec",
- "terminal-production",
  "terminal-psi",
  "trust-model",
 ]
@@ -2258,6 +2257,7 @@ dependencies = [
  "language-semantics",
  "semantic-vocabulary",
  "sha2",
+ "symbols",
 ]
 
 [[package]]
