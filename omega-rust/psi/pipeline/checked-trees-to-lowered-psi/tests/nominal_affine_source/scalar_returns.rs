@@ -1,5 +1,15 @@
-use super::*;
-
+use super::{
+    AcceptTerminalEffects, AdmissionProfile, Lexer, OperationKind, Proposition, ResolutionRequest,
+    ScalarTerm, ScalarType, StructuralTypeShape, TerminalAffineCleanupAction,
+    TerminalArtifactInterpretError, TerminalExecutionResult, TerminalInterpretError,
+    TerminalMachineResult, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
+    TerminalStructuralValue, Terminator, decode_module, decode_proof_bundle,
+    derive_fixed_entry_fuel, encode_module, encode_proof_section,
+    interpret_terminal_artifact_with_effect_handler_measured,
+    interpret_terminal_artifact_with_structural_boolean_fields_measured,
+    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
+    validate_fixed_entry_fuel,
+};
 const SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}

@@ -1,4 +1,17 @@
-use super::*;
+use super::{
+    AdmissionProfile, BindingRelevance, ByteSequenceCarrier, ClaimTransfer, CrashCause,
+    CrashRouteBucket, CrashRouteGuard, EntryClaim, FuelChargeSite, IntegerSign, IntegerType,
+    IntegerValue, ModuleError, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
+    ScalarType, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralResultClaimTransfer,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalFuelMeter, TerminalMachineResult, TerminalModule,
+    TerminalScalarValue, TerminalStructuralValue, Terminator, ValueDeclaration, VerificationError,
+    claim_id, decode_module, edge_id, encode_module, encode_proof_section,
+    internal_structural_call_module, machine_id, operation_id, place_id, structural_domain_id,
+    structural_field_id, structural_type_id, value_id, verify_module,
+};
 use semantic_vocabulary::StructuralPlaceKind;
 
 #[path = "affine_identity_calls/result_uses.rs"]

@@ -1,4 +1,13 @@
-use super::*;
+use super::{
+    BindingRelevance, IntegerSign, IntegerType, IntegerValue, Operation, OperationKind,
+    OperationResult, ScalarType, StructuralCaseDeclaration, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, decode_module, edge_id, encode_module, obligation_id,
+    operation_id, place_id, semantic_fingerprint, structural_case_id, structural_field_id,
+    structural_type_id, unit_fixture, value_id,
+};
 use terminal_psi::ScalarCaseField;
 
 fn fixture() -> TerminalModule {

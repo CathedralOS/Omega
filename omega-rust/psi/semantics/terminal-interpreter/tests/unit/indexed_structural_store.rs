@@ -1,5 +1,13 @@
-use super::*;
-
+use super::{
+    AdmissionProfile, FuelChargeSite, IntegerSign, IntegerType, IntegerValue, Operation,
+    OperationKind, OperationResult, ProofBundle, ScalarType, StructuralAccess, StructuralArgument,
+    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
+    TerminalMachineResult, TerminalModule, TerminalScalarValue, TerminalStructuralValue,
+    Terminator, ValueDeclaration, block_id, contract_id, edge_id, empty_contract, encode_module,
+    encode_proof_section, machine_id, operation_id, place_id, structural_scalar_field_call_module,
+    structural_type_id, value_id, verify_module,
+};
 #[test]
 fn canonical_indexed_store_rejects_bounds_and_carrier_path_corruption() {
     let field = StructuralPathSegment::Field("item".into());

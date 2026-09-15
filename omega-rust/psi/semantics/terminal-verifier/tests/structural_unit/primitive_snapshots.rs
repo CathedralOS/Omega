@@ -1,4 +1,14 @@
-use super::*;
+use super::{
+    AdmissionProfile, Block, CanonicalStructuralPathSegment, CertificateEnvelope, ContractClause,
+    EvidenceIdentity, EvidenceRoute, ObligationEvidence, Operation, OperationKind, OperationResult,
+    ProofBundle, ProofNode, ProofRule, ProofSystemMarker, Proposition, ScalarTerm, ScalarType,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, block_id, contract_id,
+    edge_id, machine_id, obligation_id, operation_id, place_id, signed_i8, structural_type_id,
+    validate_module, value_id, verify_module, write_only_primitive_store_module,
+};
 use terminal_verifier::reconstruct_terminal_obligations;
 
 fn term(raw: u64) -> ScalarTerm {

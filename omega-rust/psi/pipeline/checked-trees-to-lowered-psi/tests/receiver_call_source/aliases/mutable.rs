@@ -1,5 +1,5 @@
 //! Mutable carrier access remains distinct at every erased reborrow edge.
-use super::*;
+use super::{OperationKind, StructuralAccess, checked_from_source, source};
 use checked_trees::BorrowAccessKind;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;

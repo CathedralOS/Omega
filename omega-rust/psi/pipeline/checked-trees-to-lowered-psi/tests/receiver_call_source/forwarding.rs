@@ -1,7 +1,12 @@
 //! Transitive receiver retention and provisional shared-receiver erasure.
 
-use super::*;
-
+use super::{
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan, IntegerValue, OperationKind, OperationResult,
+    StructuralAccess, StructuralMultiplicity, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalMachineResult, TerminalStructuralValue, Terminator,
+    checked_from_source, unit_plan,
+};
 #[test]
 fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order() {
     let declarations = [

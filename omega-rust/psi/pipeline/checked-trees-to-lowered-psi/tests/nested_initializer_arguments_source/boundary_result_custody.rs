@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{CheckedUnitEffectOperationPlan, ExpressionNode, StatementNode, checked, main_machine};
 const SOURCE: &str = r#"
     pub data Token { flag: bool; }
     boundary trait Factory { machine create() -> Token reaches Factory; }

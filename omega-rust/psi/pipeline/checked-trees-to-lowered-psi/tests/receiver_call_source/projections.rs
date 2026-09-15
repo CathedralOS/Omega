@@ -1,6 +1,8 @@
 //! Exact mutable and write-only receiver subloans from plain record fields.
-
-use super::*;
+use super::{
+    IntegerSign, IntegerType, OperationKind, ScalarType, StructuralAccess, StructuralFieldType,
+    StructuralTypeShape, checked_from_source,
+};
 use checked_trees::CheckedUnitStructuralPathSegment;
 use terminal_psi::StructuralPathSegment;
 

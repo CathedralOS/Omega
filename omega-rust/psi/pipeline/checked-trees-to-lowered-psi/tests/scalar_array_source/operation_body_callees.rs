@@ -1,7 +1,10 @@
 //! Transitive scalar helpers retain complete ordered bodies, storage and custody.
 
-use super::*;
-
+use super::super::{CheckedScalarExpressionRole, PrimitiveType, StatementNode};
+use super::{
+    TerminalExecutionResult, TerminalScalarValue, WRITE, assert_array, byte, checked_source,
+    execute, reject,
+};
 #[test]
 fn scalar_array_local_control_keeps_prefix_effects_and_call_result_storage() {
     let source =

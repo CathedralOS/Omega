@@ -1,7 +1,13 @@
 //! Borrowed arguments do not transfer owned custody, regardless of multiplicity.
 
-use super::*;
-
+use super::{
+    ModuleError, Operation, OperationKind, OperationResult, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, block_id,
+    boundary_id, contract_id, edge_id, hard_root_module, machine_id, operation_id, place_id,
+    reconstruct_structural_ownership_frontiers, structural_parameter, structural_type_id,
+    validate_module,
+};
 #[test]
 fn affine_borrows_remain_reusable_across_internal_and_boundary_calls() {
     for access in [

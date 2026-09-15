@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    CheckedScalarBindingDestination, CheckedScalarComputationKind, CheckedScalarExpression,
+    CheckedUnitStructuralArgumentSourcePlan, OperationKind, SOURCE, TWO_LOCALS, publish_original,
+    reject,
+};
 #[test]
 fn scalar_local_graph_rejects_erased_and_swapped_binding_destinations() {
     let original = publish_original(TWO_LOCALS);

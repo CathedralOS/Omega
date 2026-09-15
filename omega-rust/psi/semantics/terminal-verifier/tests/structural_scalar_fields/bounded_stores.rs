@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    CanonicalStructuralPathSegment, IntegerValue, OperationKind, Proposition, ScalarTerm,
+    ScalarType, StructuralAccess, StructuralFieldType, StructuralTypeShape, TerminalModule, id,
+    integer_type, reconstruct_operation_obligations, structural_scalar_field_module,
+    validate_module,
+};
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker,

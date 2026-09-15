@@ -1,5 +1,12 @@
-use super::*;
-
+use super::{
+    AdmissionProfile, Block, FuelChargeSite, Operation, OperationKind, OperationResult,
+    ProofBundle, ScalarType, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, SuccessorEdge, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, block_id, count, edge_id, encode_module,
+    encode_proof_section, operation_id, place_id, scalar_case_call_module, structural_type_id,
+    value_id, verify_module,
+};
 fn transported_case() -> TerminalModule {
     let mut module = scalar_case_call_module();
     let caller = &mut module.machines[0];

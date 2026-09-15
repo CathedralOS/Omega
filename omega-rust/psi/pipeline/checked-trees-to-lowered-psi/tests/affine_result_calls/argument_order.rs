@@ -1,5 +1,9 @@
-use super::*;
-
+use super::{
+    AdmissionProfile, FuelChargeSite, IntegerSign, IntegerType, IntegerValue, OperationKind,
+    OperationResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalFuelMeter, TerminalScalarValue, TerminalStructuralValue, Terminator, checked,
+    decode_module, decode_proof_bundle, encode_module, encode_proof_section, lower_machine,
+};
 fn assert_order(source: &str, arguments: &[TerminalScalarValue], expected: &[(usize, usize)]) {
     let checked = checked(source);
     let lowered = lower_machine(&checked, "Main::caller").expect("mixed arguments lower");

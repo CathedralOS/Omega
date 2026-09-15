@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    IntegerSign, IntegerType, ModuleError, ObligationId, OutcomeSpecificEnsure,
+    OutcomeSpecificGuard, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralAccess,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, payloadless_guard_module,
+    validate_module,
+};
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralFieldId};
 
 #[test]

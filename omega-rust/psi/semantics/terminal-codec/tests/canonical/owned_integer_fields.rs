@@ -1,5 +1,12 @@
-use super::*;
-
+use super::{
+    BindingRelevance, EntryClaim, Operation, OperationKind, OperationResult, ScalarType,
+    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, claim_id, decode_module,
+    edge_id, encode_module, i32_type, operation_id, place_id, structural_field_id,
+    structural_type_id, unit_fixture, value_id,
+};
 fn owned_field(multiplicity: StructuralMultiplicity) -> TerminalModule {
     let mut module = unit_fixture();
     let record = structural_type_id(901);

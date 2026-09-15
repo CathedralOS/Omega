@@ -1,6 +1,12 @@
 //! Scalar results remain observable across literal-backed, repeated and nested calls.
 use super::byte_sequence_read::{certificate, guarded_module, integer, scalar};
-use super::*;
+use super::{
+    AdmissionProfile, IntegerSign, IntegerType, IntegerValue, Operation, OperationKind,
+    OperationResult, RecordingHandler, StructuralAccess, StructuralArgument, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalMachineResult,
+    TerminalModule, TerminalScalarValue, Terminator, block_id, contract_id, decode_module, edge_id,
+    encode_module, encode_proof_section, machine_id, operation_id, place_id, value_id,
+};
 
 pub(super) fn module(bytes: Vec<u8>, byte_index: u64, nested: bool) -> TerminalModule {
     let mut module = guarded_module(bytes, byte_index);

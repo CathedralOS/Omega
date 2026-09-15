@@ -1,5 +1,8 @@
-use super::*;
-
+use super::super::Block;
+use super::{
+    BlockId, EdgeId, ModuleError, OperationId, PlaceId, StructuralAccess, StructuralMultiplicity,
+    TerminalModule, Terminator, id, length_operation, validate_module, view_cycle,
+};
 fn block_view(access: StructuralAccess, multiplicity: StructuralMultiplicity) -> TerminalModule {
     let mut module = view_cycle();
     let machine = &mut module.machines[0];

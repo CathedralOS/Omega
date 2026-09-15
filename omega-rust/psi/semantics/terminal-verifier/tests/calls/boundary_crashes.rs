@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    AdmissionProfile, CrashCause, CrashRouteBucket, CrashRouteGuard, IntegerSign, IntegerType,
+    ModuleError, OperationKind, ProofBundle, Proposition, PropositionId, ScalarTerm, ScalarType,
+    StructuralMultiplicity, StructuralTypeId, TerminalModule, VerificationError,
+    boolean_declaration, boolean_value, boundary_call_module, boundary_id, machine_id, place_id,
+    provider_candidate_module, validate_module, value_id, verify_module,
+};
 use terminal_psi::CrashPredicateTerm;
 use terminal_verifier::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
 

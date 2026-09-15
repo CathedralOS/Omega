@@ -1,5 +1,11 @@
 //! Scalar-result calls consume only established, exact shared byte-view sources.
-use super::*;
+use super::{
+    AdmissionProfile, Block, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, Terminator, block_id,
+    boolean_declaration, call_module, edge_id, machine_id, operation_id, structural_type_id,
+    value_id, verify_module,
+};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
     StructuralPathSegment,

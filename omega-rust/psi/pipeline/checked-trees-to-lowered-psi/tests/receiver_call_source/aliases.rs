@@ -1,7 +1,9 @@
 //! Erased source-local carriers preserve the existing direct parameter subloan.
 
-use super::*;
-
+use super::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, OperationKind,
+    StructuralAccess, checked_from_source, unit_plan,
+};
 #[path = "aliases/projected.rs"]
 mod projected;
 

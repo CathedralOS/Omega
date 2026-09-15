@@ -1,5 +1,12 @@
-use super::*;
-
+use super::{
+    AcceptTerminalEffects, AdmissionProfile, EvidenceRoute, IntegerSign, IntegerType, Lexer,
+    OperationKind, OperationResult, ProofRule, ResolutionRequest, ScalarType, StructuralFieldType,
+    StructuralMultiplicity, StructuralTypeShape, TerminalAffineCleanupAction,
+    TerminalExecutionResult, TerminalMachineResult, TerminalStructuralValue, Terminator,
+    decode_module, decode_proof_bundle, encode_module, encode_proof_section,
+    interpret_terminal_artifact_with_effect_handler_measured, lower_symbol_resolved_trees,
+    lower_typed_trees, parse_syntax_trees, resolve,
+};
 const SOURCE: &str = r#"
     data Token {}
     machine Token::drop(&mut self) {}

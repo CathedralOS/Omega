@@ -1,7 +1,19 @@
 use super::byte_sequence_read::{
     emit_byte, finish, guarded_module, integer, scalar, successor, unsigned_type,
 };
-use super::*;
+use super::{
+    AdmissionProfile, Block, CertificateEnvelope, EntryClaim, EvidenceIdentity, EvidenceRoute,
+    FuelChargeSite, IntegerSign, IntegerType, IntegerValue, ModuleError, ObligationEvidence,
+    Operation, OperationKind, OperationResult, ProofBundle, ProofNode, ProofRule,
+    ProofSystemMarker, Proposition, RecordingHandler, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralDomainId, StructuralMultiplicity, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultClaimBinding, TerminalEffect, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalModule,
+    TerminalScalarValue, Terminator, ValueDeclaration, block_id, boundary_id, claim_id,
+    contract_id, decode_module, edge_id, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured, machine_id, obligation_id, operation_id, place_id,
+    structural_type_id, value_id, verify_module,
+};
 
 fn result(place: u64) -> OperationResult {
     OperationResult::Structural(terminal_psi::StructuralOperationResult {

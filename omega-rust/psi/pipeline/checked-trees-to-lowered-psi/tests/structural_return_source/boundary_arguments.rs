@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    AdmissionProfile, Lexer, RESULT_BOUNDARY_CUSTODY_SOURCE, ResolutionRequest,
+    ResultBoundaryHandler, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
+    TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue, Terminator,
+    decode_module, encode_module, encode_proof_section, lower_symbol_resolved_trees,
+    lower_typed_trees, parse_syntax_trees, resolve,
+};
 use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
 };

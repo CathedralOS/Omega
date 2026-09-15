@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    AdmissionProfile, Block, BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, ObligationId,
+    Operation, OperationId, OperationKind, OperationResult, PlaceId, ProofBundle, Proposition,
+    ScalarTerm, ScalarType, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    TerminalModule, Terminator, ValueDeclaration, ValueId, id, unranked_scalar_cycle,
+    validate_module_for_interpretation, verify_module_for_interpretation,
+};
 use semantic_vocabulary::{BoundaryMachineId, StructuralCaseId, StructuralFieldId};
 use terminal_psi::{
     BindingRelevance, BoundaryMachineDeclaration, BoundaryMachineResult,

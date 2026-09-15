@@ -1,5 +1,12 @@
-use super::*;
-
+use super::{
+    AdmissionProfile, Operation, OperationKind, OperationResult, ProofBundle, RecordingHandler,
+    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeShape, TerminalEffect, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalModule,
+    TerminalStructuralValue, Terminator, boundary_id, byte_sequence_literal_module, decode_module,
+    edge_id, encode_module, encode_proof_section, operation_id, place_id, structural_type_id,
+    verify_module,
+};
 pub(super) fn borrowed_boundary_module(access: StructuralAccess) -> TerminalModule {
     let mut module = byte_sequence_literal_module(Vec::new());
     module.structural_types[0].identity = "test::Resource".into();

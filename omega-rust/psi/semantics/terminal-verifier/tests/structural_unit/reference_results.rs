@@ -1,6 +1,15 @@
 //! Returned permission must preserve its parent through arbitrary ordinary work.
-
-use super::*;
+use super::{
+    AdmissionProfile, Block, BoundaryMachineDeclaration, ContractClause, ModuleError, Operation,
+    OperationKind, OperationResult, PlaceId, ProofBundle, Proposition, ScalarTerm, ScalarType,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, block_id, boundary_id,
+    contract_id, edge_id, empty_contract, machine_id, obligation_id, operation_id, place_id,
+    signed_i8, structural_type_id, validate_module, value_id, verify_module,
+    write_only_primitive_store_module,
+};
 use terminal_psi::{StructuralOperationResult, StructuralReferenceResultSource};
 
 fn argument(place: u64, through_reference: bool) -> StructuralArgument {

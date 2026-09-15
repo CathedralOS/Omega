@@ -1,5 +1,9 @@
-use super::*;
-
+use super::{
+    BlockId, EdgeId, ModuleError, Operation, OperationId, OperationKind, OperationResult, PlaceId,
+    ScalarType, StructuralAccess, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    ValueId, block_reader, id, integer_type, validate_module,
+};
 fn returning() -> TerminalModule {
     let mut module = block_reader(integer_type(), StructuralMultiplicity::Affine);
     let machine = &mut module.machines[0];

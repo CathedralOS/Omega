@@ -1,5 +1,11 @@
-use super::*;
-
+use super::{
+    BindingRelevance, CanonicalStructuralPathSegment, CodecError, ContractClause, IntegerSign,
+    IntegerType, Proposition, ScalarTerm, ScalarType, StructuralAccess, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
+    StructuralTypeShape, decode_module, encode_module, obligation_id, place_id,
+    structural_field_id, structural_type_id, unit_fixture,
+};
 #[test]
 fn decoding_rejects_nonexistent_fields_in_write_only_contracts() {
     for is_requirement in [true, false] {

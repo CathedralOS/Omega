@@ -1,4 +1,14 @@
-use super::*;
+use super::super::TerminalInterpretError;
+use super::{
+    AdmissionProfile, BoundaryMachineDeclaration, FuelChargeSite, Operation, OperationKind,
+    OperationResult, ProducePair, ProofBundle, StructuralAccess, StructuralArgument,
+    StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape, TerminalEffect,
+    TerminalEffectHandler, TerminalEffectRejection, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalFuelMeter, TerminalMachineResult, TerminalModule,
+    TerminalStructuralValue, Terminator, boundary_id, decode_module, edge_id, encode_module,
+    encode_proof_section, field, machine_id, operation_id, place_id, produced_partial_module,
+    start, structural_type_id, verify_module,
+};
 use terminal_interpreter::{
     ProviderInstallationSelection, admit_provider_installation_from_artifact,
 };

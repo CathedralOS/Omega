@@ -1,5 +1,13 @@
-use super::*;
-
+use super::super::{block_id, contract_id};
+use super::{
+    AdmissionProfile, FuelChargeSite, Operation, OperationKind, OperationResult, ProofBundle,
+    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalFuelMeter, TerminalMachineResult, TerminalModule,
+    TerminalStructuralValue, Terminator, decode_module, discard, edge_id, encode_module,
+    encode_proof_section, identity_call_module, machine_id, nested_shape, operation_id, place_id,
+    structural_type_id, verify, verify_module,
+};
 fn result_consumer_module() -> TerminalModule {
     let mut module = identity_call_module(&[]);
     let mut consumer = module.machines[1].clone();

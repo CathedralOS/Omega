@@ -1,6 +1,8 @@
 //! Standalone Unit expressions perform work without becoming scalar values.
-
-use super::*;
+use super::{
+    ExpressionNode, Lexer, ResolutionRequest, StatementNode, checked, lower_symbol_resolved_trees,
+    parse_syntax_trees, resolve,
+};
 use checked_trees::CheckedScalarExpressionRole;
 
 fn source(result: &str, callee_result: &str, body: &str) -> String {

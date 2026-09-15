@@ -1,6 +1,14 @@
 //! Exact natural countdown evidence using the existing ranked-SCC test rules.
-
-use super::*;
+use super::super::{
+    CertificateEnvelope, EvidenceIdentity, EvidenceRoute, ObligationEvidence, ProofBundle,
+    ProofNode, ProofRule, ProofSystemMarker, Proposition, ScalarTerm, obligation_id,
+};
+use super::{
+    AdmissionProfile, IntegerValue, ModuleError, Operation, OperationKind, OperationResult,
+    ScalarType, SuccessorEdge, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    block_id, constant, edge_id, expected, local_module, observe_local_identities, operation_id,
+    run, scalar, validate_module, value_id, verify_module,
+};
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, RecursiveComponentCertificate,
     RecursiveEdgeCertificate,

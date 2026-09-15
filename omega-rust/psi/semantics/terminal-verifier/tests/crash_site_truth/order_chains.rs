@@ -1,7 +1,10 @@
 //! Each incoming crash path must establish every link of a strict order chain.
 
-use super::*;
-
+use super::{
+    BlockId, IntegerSign, IntegerType, Operation, OperationId, OperationKind, OperationResult,
+    ScalarTerm, ScalarType, TerminalModule, Terminator, ValueDeclaration, block, branch_module,
+    crash, declaration, rejects_guard, successor, term_boolean, value, verify,
+};
 fn ordered_branch(first_strict: bool, second_strict: bool) -> TerminalModule {
     let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
     let scalar_type = ScalarType::Integer(integer);

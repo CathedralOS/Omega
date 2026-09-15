@@ -3,8 +3,12 @@
 //! operation families, whether the construction sits in the preheader or
 //! inside the ranked component.
 
-use super::*;
-
+use super::{
+    BlockId, ModuleError, Operation, OperationId, OperationKind, OperationResult, PlaceId,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueId, id,
+    ranked_countdown, validate_module_representation,
+};
 #[test]
 fn cyclic_machine_rejects_scalar_array_establishment_at_the_eligibility_fence() {
     for block_position in [0, 2] {

@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    CheckedUnitEffectOperationPlan, IntegerSign, IntegerType, IntegerValue, OperationKind,
+    OperationResult, TerminalScalarValue, Terminator, checked, lower_machine, typed,
+};
 const DECLARATIONS: &str = "data Value { number: u64; }
     machine forward(value: Value) -> Value { value }
     machine Main::consume(value: Value) {}

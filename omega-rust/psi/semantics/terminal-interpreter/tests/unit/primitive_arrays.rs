@@ -1,6 +1,17 @@
 //! Borrowed scalar callees and the caller's array must observe one backing.
-
-use super::*;
+use super::{
+    AdmissionProfile, BindingRelevance, FuelChargeSite, IntegerSign, IntegerType, IntegerValue,
+    ModuleError, Operation, OperationKind, OperationResult, ProofBundle, ScalarType,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalFuelMeter, TerminalMachineResult, TerminalModule, TerminalScalarValue,
+    TerminalStructuralValue, Terminator, ValueDeclaration, VerificationError, block_id,
+    contract_id, decode_module, edge_id, empty_contract, encode_module, encode_proof_section,
+    machine_id, operation_id, place_id, structural_field_id, structural_type_id, value_id,
+    verify_module, write_only_primitive_call_module,
+};
 use terminal_interpreter::TerminalStructuralByteArrayValue;
 use terminal_verifier::validate_module;
 

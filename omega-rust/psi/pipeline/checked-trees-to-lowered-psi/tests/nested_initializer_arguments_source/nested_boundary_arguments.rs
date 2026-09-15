@@ -1,6 +1,9 @@
 use super::boundary_result_moves::{ObserveMoves, source};
 use super::later_results::encoded_locals;
-use super::*;
+use super::{
+    AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalExecutionResult, checked,
+    decode_module, decode_proof_bundle, main_machine, unsigned,
+};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{OperationKind, OperationResult, Terminator};

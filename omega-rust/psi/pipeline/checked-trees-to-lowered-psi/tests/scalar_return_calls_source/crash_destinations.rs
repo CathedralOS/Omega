@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    IntegerSign, IntegerType, IntegerValue, TerminalArtifactInterpretError,
+    TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
+    encode_module, encode_proof_section, encoded, execute,
+};
 #[test]
 fn scalar_dispatch_executes_only_its_selected_crash_fallback() {
     for (cause, expected) in [

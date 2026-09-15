@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    AdmissionProfile, CrashCause, CrashRouteBucket, CrashRouteGuard, IntegerSign, IntegerType,
+    ModuleError, PlaceId, ProofBundle, Proposition, ScalarTerm, ScalarType, StructuralMultiplicity,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TerminalMachineResult,
+    TerminalModule, Terminator, boolean_value, boundary_id, call_module, edge_id, machine_id,
+    provider_candidate_module, validate_module, value_id, verify_module,
+};
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, CrashPredicateTerm,
     ProviderParameterRefinement, ProviderSignatureParameter, StructuralAccess,

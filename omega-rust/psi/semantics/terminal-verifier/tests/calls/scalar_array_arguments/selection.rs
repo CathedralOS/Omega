@@ -1,6 +1,13 @@
 //! Array availability follows dominance; unrestricted values carry no disposal debt.
-
-use super::*;
+use super::super::{
+    Block, Proposition, ScalarTerm, boolean_value, obligation_id, reconstruct_terminal_obligations,
+    semantic_axiom_evidence,
+};
+use super::{
+    AdmissionProfile, ModuleError, OperationKind, ProofBundle, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalMachineResult, TerminalModule, Terminator, array_call, block_id,
+    boolean_declaration, edge_id, place_id, validate_module, value_id, verify_module,
+};
 use terminal_psi::SuccessorEdge;
 
 fn jump(edge: u64, target: u64) -> Terminator {

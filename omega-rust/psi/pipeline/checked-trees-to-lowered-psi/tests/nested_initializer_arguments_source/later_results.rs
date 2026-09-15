@@ -1,5 +1,9 @@
-use super::*;
-
+use super::{
+    AdmissionProfile, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, ExpressionNode,
+    ObserveResults, StatementNode, TerminalArtifactInterpretError, TerminalExecutionResult,
+    TerminalInterpretError, TerminalScalarValue, checked, decode_module, decode_proof_bundle,
+    encode_module, encode_proof_section, execute, main_machine, scalar_source, unsigned,
+};
 pub(super) fn encoded_locals(
     checked: &checked_trees::CheckedTrees,
     names: &[&str],

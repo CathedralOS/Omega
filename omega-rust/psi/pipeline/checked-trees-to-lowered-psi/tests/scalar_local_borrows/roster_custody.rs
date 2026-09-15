@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    CheckedScalarBindingDestination, Expectations, SOURCE, TWO_LOCALS, execute, publish_original,
+    reject, unsigned,
+};
 #[test]
 fn deleting_only_the_last_assignment_cannot_skip_its_store_before_return() {
     let source = SOURCE.replace("\n    snapshot\n", "\n    slot\n");

@@ -1,7 +1,14 @@
 //! Projected attenuation preserves write-only access and the bounded leaf shape.
 
-use super::*;
-
+use super::{
+    AdmissionProfile, EntryClaim, ModuleError, Operation, OperationKind, OperationResult,
+    ProofBundle, ScalarType, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, ValueId, claim_id, edge_id, machine_id,
+    operation_id, place_id, projected_unit_call_module, structural_type_id, validate_module,
+    verify_module,
+};
 fn indexed_attenuation_module() -> TerminalModule {
     let mut module = projected_unit_call_module();
     module.structural_domains.clear();

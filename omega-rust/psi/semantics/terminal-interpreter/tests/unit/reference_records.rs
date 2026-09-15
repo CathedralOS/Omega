@@ -1,6 +1,17 @@
 //! A record moves reference permission, then releases it before restored use.
-
-use super::*;
+use super::{
+    AdmissionProfile, BindingRelevance, Block, FuelChargeSite, IntegerSign, IntegerType,
+    IntegerValue, Operation, OperationKind, OperationResult, ProofBundle, ScalarType,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalInterpretError,
+    TerminalMachineResult, TerminalModule, TerminalScalarValue, TerminalStructuralPrimitiveValue,
+    TerminalStructuralValue, Terminator, ValueDeclaration, block_id, contract_id, edge_id,
+    encode_module, encode_proof_section, machine_id, operation_id, place_id,
+    reference_release_module, structural_field_id, structural_type_id, value_id,
+    write_only_primitive_call_module,
+};
 use terminal_psi::{RecordFieldInitializer, RecordFieldValue};
 
 fn record_reference_module() -> TerminalModule {

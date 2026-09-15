@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    AdmissionProfile, Block, IntegerSign, IntegerType, IntegerValue, ProofBundle, ScalarType,
+    TerminalExecutionResult, TerminalInterpretError, TerminalMachineResult, TerminalModule,
+    TerminalScalarValue, Terminator, ValueDeclaration, block_id, decode_module, edge_id,
+    encode_module, encode_proof_section, interpret_terminal_artifact_measured, unit_module,
+    value_id,
+};
 use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, ScalarQualificationSetId};
 use terminal_psi::{ScalarDomainDeclaration, ScalarQualificationCoercion, ScalarQualificationSet};
 
