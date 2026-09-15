@@ -1,9 +1,9 @@
-use super::{
+use crate::plan_policy::authorization::validate_operation_ordering;
+use crate::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
     AtomicAccessOperation, BorrowPolarity, EffectFootprint, EffectiveSupplyKind,
     LogicalFieldExtent, ObservationModel, PrimitiveAccessRequest, ValidatedPlacementPlan,
 };
-use crate::authorization::validate_operation_ordering;
 use language_core::atomic::AtomicOrderingPlan;
 /// Operation subset accepted by ordinary Stable primitive lowering.
 ///
@@ -24,8 +24,8 @@ pub enum StablePrimitiveOperation {
 #[derive(Debug)]
 #[must_use = "Stable primitive access retains its exact placed authority"]
 pub struct StablePrimitiveAccessRequest<'view, 'extent> {
-    pub(super) request: PrimitiveAccessRequest<'view, 'extent>,
-    pub(super) operation: StablePrimitiveOperation,
+    pub(crate) request: PrimitiveAccessRequest<'view, 'extent>,
+    pub(crate) operation: StablePrimitiveOperation,
 }
 
 impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
@@ -165,7 +165,7 @@ fn validate_stable_primitive_request(
 #[derive(Debug)]
 #[must_use = "Stable compound mutation retains its exact placed authority"]
 pub struct StableCompoundMutationAccessRequest<'view, 'extent> {
-    pub(super) request: PrimitiveAccessRequest<'view, 'extent>,
+    pub(crate) request: PrimitiveAccessRequest<'view, 'extent>,
 }
 
 impl<'view, 'extent> StableCompoundMutationAccessRequest<'view, 'extent> {
@@ -300,8 +300,8 @@ pub enum ExternalPrimitiveOperation {
 #[derive(Debug)]
 #[must_use = "External primitive access retains its exact placed authority"]
 pub struct ExternalPrimitiveAccessRequest<'view, 'extent> {
-    pub(super) request: PrimitiveAccessRequest<'view, 'extent>,
-    pub(super) operation: ExternalPrimitiveOperation,
+    pub(crate) request: PrimitiveAccessRequest<'view, 'extent>,
+    pub(crate) operation: ExternalPrimitiveOperation,
 }
 
 impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
@@ -451,8 +451,8 @@ fn validate_external_primitive_request(
 #[derive(Debug)]
 #[must_use = "Atomic primitive access retains its exact placed authority"]
 pub struct AtomicPrimitiveAccessRequest<'view, 'extent> {
-    pub(super) request: PrimitiveAccessRequest<'view, 'extent>,
-    pub(super) operation: AtomicAccessOperation,
+    pub(crate) request: PrimitiveAccessRequest<'view, 'extent>,
+    pub(crate) operation: AtomicAccessOperation,
 }
 
 impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {

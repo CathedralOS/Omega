@@ -9,8 +9,8 @@
 //! operation, observe storage, or establish target lowering.
 
 #[cfg(test)]
-use super::PlacementPlanId;
-use super::{
+use crate::PlacementPlanId;
+use crate::{
     AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, ExternalPrimitiveAccessRequest,
 };
 
@@ -57,7 +57,7 @@ impl<'view, 'extent> CorrespondedExternalPrimitiveAccessRequest<'view, 'extent> 
     }
 
     #[cfg(test)]
-    pub(super) fn replace_request_plan_for_test(
+    pub(crate) fn replace_request_plan_for_test(
         &mut self,
         placement: PlacementPlanId,
     ) -> PlacementPlanId {
@@ -65,7 +65,7 @@ impl<'view, 'extent> CorrespondedExternalPrimitiveAccessRequest<'view, 'extent> 
     }
 
     #[cfg(test)]
-    pub(super) fn replace_correspondence_for_test(
+    pub(crate) fn replace_correspondence_for_test(
         &mut self,
         correspondence: &'view AdmittedSchemaDeviceCorrespondence,
     ) -> &'view AdmittedSchemaDeviceCorrespondence {

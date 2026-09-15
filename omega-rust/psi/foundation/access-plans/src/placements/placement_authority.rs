@@ -2,28 +2,30 @@
 
 use extents::{LoanPolarity, ResidentClaimId};
 
-use super::owned_atomic_resident_custody::validate_owned_atomic_resident_authority;
-use super::owned_resident_custody::validate_resident_observation;
-use super::{
+use crate::placements::owned_atomic_resident_custody::validate_owned_atomic_resident_authority;
+use crate::placements::owned_resident_custody::replay_owned_admission_resources;
+use crate::placements::owned_resident_custody::validate_owned_content_binding;
+use crate::placements::owned_resident_custody::validate_provider_content_binding;
+use crate::placements::owned_resident_custody::validate_resident_observation;
+use crate::placements::placement_admission::validate_placement_admission;
+use crate::{
     AccessPlanDiagnostic, AdmittedResourceProfile, AdmittedSchemaDeviceCorrespondence,
     BorrowPolarity, EstablishedBorrowedAtomicResidentPlacement,
     EstablishedBorrowedResidentPlacement, EstablishedOwnedAtomicPlacement,
     EstablishedOwnedPlacement, PlacedOccurrenceId, PlacedView, PlacementAdmissionId,
     PlacementResourceCompatibility, ResourceProfileReceiptId, ValidatedPlacementPlan,
 };
-use crate::owned_resident_custody::replay_owned_admission_resources;
-use crate::owned_resident_custody::validate_owned_content_binding;
-use crate::owned_resident_custody::validate_provider_content_binding;
-use crate::placement_admission::validate_placement_admission;
 
 /// Private lifetime witness for the exact authority that justified a placed
 /// access. Owned Stable access retains the whole established carrier rather
 /// than reducing provider content custody to a bare Extent reference.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
-pub(super) enum PlacementAuthorityRef<'view, 'extent> {
+pub(crate) enum PlacementAuthorityRef<'view, 'extent> {
     Borrowed(&'view PlacedView<'extent>),
-    CorrespondedBorrowed(&'view super::SchemaCorrespondedPlacedView<'extent>),
+    CorrespondedBorrowed(
+        &'view crate::placements::schema_correspondence::SchemaCorrespondedPlacedView<'extent>,
+    ),
     BorrowedResident(&'view EstablishedBorrowedResidentPlacement<'extent>),
     BorrowedAtomicResident(&'view EstablishedBorrowedAtomicResidentPlacement<'extent>),
     EstablishedOwned(&'view EstablishedOwnedPlacement),
@@ -31,7 +33,7 @@ pub(super) enum PlacementAuthorityRef<'view, 'extent> {
 }
 
 impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
-    pub(super) const fn base(self) -> u64 {
+    pub(crate) const fn base(self) -> u64 {
         match self {
             Self::Borrowed(view) => view.loan.base(),
             Self::CorrespondedBorrowed(view) => view.view().loan.base(),
@@ -42,7 +44,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) const fn placement_plan(self) -> &'view ValidatedPlacementPlan {
+    pub(crate) const fn placement_plan(self) -> &'view ValidatedPlacementPlan {
         match self {
             Self::Borrowed(view) => &view.plan,
             Self::CorrespondedBorrowed(view) => &view.view().plan,
@@ -53,7 +55,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) const fn profile_receipt(self) -> ResourceProfileReceiptId {
+    pub(crate) const fn profile_receipt(self) -> ResourceProfileReceiptId {
         match self {
             Self::Borrowed(view) => view.profile_receipt,
             Self::CorrespondedBorrowed(view) => view.view().profile_receipt,
@@ -64,7 +66,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) const fn profile(self) -> &'view AdmittedResourceProfile {
+    pub(crate) const fn profile(self) -> &'view AdmittedResourceProfile {
         match self {
             Self::Borrowed(view) => &view.profile,
             Self::CorrespondedBorrowed(view) => &view.view().profile,
@@ -75,7 +77,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) fn replay_resources(
+    pub(crate) fn replay_resources(
         self,
     ) -> Result<PlacementResourceCompatibility, AccessPlanDiagnostic> {
         match self {
@@ -109,7 +111,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) fn replay_resident_content(
+    pub(crate) fn replay_resident_content(
         self,
         transition: &str,
     ) -> Result<(), AccessPlanDiagnostic> {
@@ -123,7 +125,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             .and_then(|()| {
                 validate_resident_observation(
                     established.placement_plan(),
-                    super::ObservationModel::Stable,
+                    crate::access_plan::ObservationModel::Stable,
                     transition,
                 )
             }),
@@ -135,7 +137,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             .and_then(|()| {
                 validate_resident_observation(
                     established.placement_plan(),
-                    super::ObservationModel::Atomic,
+                    crate::access_plan::ObservationModel::Atomic,
                     transition,
                 )
             }),
@@ -144,7 +146,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
                     .and_then(|()| {
                         validate_resident_observation(
                             established.placement_plan(),
-                            super::ObservationModel::Stable,
+                            crate::access_plan::ObservationModel::Stable,
                             transition,
                         )
                     })
@@ -162,7 +164,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         })
     }
 
-    pub(super) fn replay_correspondence(
+    pub(crate) fn replay_correspondence(
         self,
         transition: &str,
     ) -> Result<(), AccessPlanDiagnostic> {
@@ -178,14 +180,14 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) const fn correspondence(self) -> Option<&'view AdmittedSchemaDeviceCorrespondence> {
+    pub(crate) const fn correspondence(self) -> Option<&'view AdmittedSchemaDeviceCorrespondence> {
         match self {
             Self::CorrespondedBorrowed(view) => Some(view.correspondence()),
             _ => None,
         }
     }
 
-    pub(super) const fn resources(self) -> &'view PlacementResourceCompatibility {
+    pub(crate) const fn resources(self) -> &'view PlacementResourceCompatibility {
         match self {
             Self::Borrowed(view) => &view.resources,
             Self::CorrespondedBorrowed(view) => &view.view().resources,
@@ -196,7 +198,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) const fn admission(self) -> PlacementAdmissionId {
+    pub(crate) const fn admission(self) -> PlacementAdmissionId {
         match self {
             Self::Borrowed(view) => view.admission,
             Self::CorrespondedBorrowed(view) => view.view().admission,
@@ -207,7 +209,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) const fn source_loan(self) -> BorrowPolarity {
+    pub(crate) const fn source_loan(self) -> BorrowPolarity {
         let polarity = match self {
             Self::Borrowed(view) => view.loan.polarity(),
             Self::CorrespondedBorrowed(view) => view.view().loan.polarity(),
@@ -221,7 +223,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) const fn resident_claim(self) -> Option<ResidentClaimId> {
+    pub(crate) const fn resident_claim(self) -> Option<ResidentClaimId> {
         match self {
             Self::Borrowed(_) | Self::CorrespondedBorrowed(_) => None,
             Self::BorrowedResident(established) => Some(established.resident_claim()),
@@ -231,7 +233,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
-    pub(super) const fn placed_occurrence(self) -> Option<PlacedOccurrenceId> {
+    pub(crate) const fn placed_occurrence(self) -> Option<PlacedOccurrenceId> {
         match self {
             Self::Borrowed(_) | Self::CorrespondedBorrowed(_) => None,
             Self::BorrowedResident(established) => Some(established.occurrence()),

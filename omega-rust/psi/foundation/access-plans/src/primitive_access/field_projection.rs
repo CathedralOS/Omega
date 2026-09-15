@@ -3,18 +3,18 @@
 use extents::ResidentClaimId;
 use language_core::atomic::MemoryOrdering;
 
-use super::{
+use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::plan_policy::authorization::authorize_descriptor;
+use crate::{
     AccessFieldKey, AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
     AtomicAccessOperation, AuthorizedFieldAccess, BorrowPolarity, BoundaryReach, EffectFootprint,
     EffectiveFieldSupply, ObservationModel, PlacedOccurrenceId, PlacementAdmissionId,
     PlacementPlanId, PlacementResourceCompatibility, PrimitiveAccessRequest,
     ResourceProfileReceiptId, ValidatedPlacementPlan,
 };
-use crate::authorization::authorize_descriptor;
-use crate::placement_authority::PlacementAuthorityRef;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn project_placed_field<'view, 'extent>(
+pub(crate) fn project_placed_field<'view, 'extent>(
     plan: &ValidatedPlacementPlan,
     profile_receipt: ResourceProfileReceiptId,
     resources: &PlacementResourceCompatibility,
@@ -109,18 +109,18 @@ pub(super) fn project_placed_field<'view, 'extent>(
 /// this pure projection to a sealed memory event.
 #[derive(Debug)]
 pub struct PlacedFieldProjection<'view, 'extent> {
-    descriptor: super::FieldAccessDescriptor,
+    descriptor: crate::access_plan::FieldAccessDescriptor,
     current_borrow: BorrowPolarity,
     source_loan: BorrowPolarity,
-    pub(super) primitive_address: u64,
-    pub(super) plan: PlacementPlanId,
+    pub(crate) primitive_address: u64,
+    pub(crate) plan: PlacementPlanId,
     profile_receipt: ResourceProfileReceiptId,
-    pub(super) supply: EffectiveFieldSupply,
+    pub(crate) supply: EffectiveFieldSupply,
     reach: BoundaryReach,
     admission: PlacementAdmissionId,
-    pub(super) resident_claim: Option<ResidentClaimId>,
-    pub(super) placed_occurrence: Option<PlacedOccurrenceId>,
-    pub(super) _authority: PlacementAuthorityRef<'view, 'extent>,
+    pub(crate) resident_claim: Option<ResidentClaimId>,
+    pub(crate) placed_occurrence: Option<PlacedOccurrenceId>,
+    pub(crate) _authority: PlacementAuthorityRef<'view, 'extent>,
 }
 
 impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {

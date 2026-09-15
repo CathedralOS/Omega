@@ -10,23 +10,23 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
-use super::owned_resident_custody::validate_resident_observation;
-use super::{
+use crate::placements::owned_resident_custody::replay_owned_admission_resources;
+use crate::placements::owned_resident_custody::validate_owned_content_binding;
+use crate::placements::owned_resident_custody::validate_resident_observation;
+use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::primitive_access::field_projection::project_placed_field;
+use crate::{
     AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, ObservationModel,
     OwnedPlacementAdmission, PlacedFieldProjection, PlacedOccurrenceId, PlacementAdmissionId,
     PlacementResourceCompatibility, ResourceProfileReceiptId, ValidatedPlacementPlan,
 };
-use crate::field_projection::project_placed_field;
-use crate::owned_resident_custody::replay_owned_admission_resources;
-use crate::owned_resident_custody::validate_owned_content_binding;
-use crate::placement_authority::PlacementAuthorityRef;
 
 /// Dormant provider-established content for one exact Atomic-only placement.
 #[derive(Debug)]
 #[must_use = "dormant Atomic resident content retains linear Extent and content custody"]
 pub struct DormantOwnedAtomicResident {
-    pub(super) admission: OwnedPlacementAdmission,
-    pub(super) content: ProviderExistingContentGrant,
+    pub(crate) admission: OwnedPlacementAdmission,
+    pub(crate) content: ProviderExistingContentGrant,
 }
 
 /// One active owned Atomic view carrying the same resident claim and one fresh
@@ -35,7 +35,7 @@ pub struct DormantOwnedAtomicResident {
 #[must_use = "active owned Atomic placement retains linear resident custody"]
 pub struct EstablishedOwnedAtomicPlacement {
     pub(super) admission: OwnedPlacementAdmission,
-    pub(super) content: ProviderExistingContentGrant,
+    pub(crate) content: ProviderExistingContentGrant,
     pub(super) occurrence: PlacedOccurrenceId,
 }
 
@@ -196,7 +196,9 @@ impl EstablishedOwnedAtomicPlacement {
         self.admission.profile_receipt
     }
 
-    pub(super) const fn profile(&self) -> &super::AdmittedResourceProfile {
+    pub(super) const fn profile(
+        &self,
+    ) -> &crate::resources::resource_profile_admission::AdmittedResourceProfile {
         &self.admission.profile
     }
 

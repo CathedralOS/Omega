@@ -10,19 +10,19 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
-use super::owned_atomic_resident_custody::validate_owned_atomic_resident_authority;
-use super::owned_resident_custody::{
+use crate::placements::owned_atomic_resident_custody::validate_owned_atomic_resident_authority;
+use crate::placements::owned_resident_custody::{
     validate_provider_content_binding, validate_resident_observation,
 };
-use super::{
+use crate::placements::placement_admission::validate_placement_admission;
+use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::primitive_access::field_projection::project_placed_field;
+use crate::{
     AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
     DormantOwnedAtomicResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
     PlacementAdmissionId, PlacementResourceCompatibility, ResourceProfileReceiptId,
     ValidatedPlacementPlan,
 };
-use crate::field_projection::project_placed_field;
-use crate::placement_admission::validate_placement_admission;
-use crate::placement_authority::PlacementAuthorityRef;
 
 impl DormantOwnedAtomicResident {
     /// Borrow the whole Atomic resident range through a shared placed
@@ -306,7 +306,7 @@ impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_plan_for_test(
+    pub(crate) fn replace_plan_for_test(
         &mut self,
         plan: ValidatedPlacementPlan,
     ) -> ValidatedPlacementPlan {
@@ -314,7 +314,7 @@ impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_admission_for_test(
+    pub(crate) fn replace_admission_for_test(
         &mut self,
         admission: PlacementAdmissionId,
     ) -> PlacementAdmissionId {
@@ -322,7 +322,7 @@ impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_content_for_test(
+    pub(crate) fn replace_content_for_test(
         &mut self,
         content: &'resident ProviderExistingContentGrant,
     ) -> &'resident ProviderExistingContentGrant {

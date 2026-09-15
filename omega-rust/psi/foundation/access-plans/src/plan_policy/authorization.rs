@@ -1,6 +1,6 @@
 use language_core::atomic::AtomicOrderingPlan;
 
-use super::{
+use crate::{
     AccessOperation, AccessPlanDiagnostic, AtomicAccessOperation, BorrowPolarity, EffectFootprint,
     FieldAccessDescriptor, ObservationModel,
 };
@@ -23,7 +23,7 @@ pub const fn effect_footprints_conflict(
     }
 }
 
-pub(super) fn authorize_descriptor(
+pub(crate) fn authorize_descriptor(
     descriptor: &FieldAccessDescriptor,
     current_borrow: BorrowPolarity,
     source_loan: BorrowPolarity,
@@ -90,7 +90,7 @@ pub(super) fn authorize_descriptor(
     }
 }
 
-pub(super) fn validate_operation_ordering(
+pub(crate) fn validate_operation_ordering(
     operation: AccessOperation,
 ) -> Result<(), AccessPlanDiagnostic> {
     let AccessOperation::Atomic(operation) = operation else {

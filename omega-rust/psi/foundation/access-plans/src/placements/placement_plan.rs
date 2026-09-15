@@ -1,7 +1,7 @@
 //! The placement plan joining a layout, an access plan and a boundary reach,
 //! and its validated form with the content interpretation it seals.
 
-use crate::normalized_identities::{
+use crate::plan_policy::normalized_identities::{
     authoritative_placement_interpretation, non_authoritative_placement_compatibility_fingerprint,
 };
 use crate::validate_access_plan;
