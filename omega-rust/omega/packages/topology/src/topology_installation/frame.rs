@@ -113,7 +113,7 @@ pub fn decode_frame(bytes: &[u8]) -> Result<Frame, FrameError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Frame, FrameError, MAX_PAYLOAD_BYTES, decode_frame, encode_frame};
 
     #[test]
     fn a_frame_round_trips() {
