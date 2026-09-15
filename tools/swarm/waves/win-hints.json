@@ -1,0 +1,82 @@
+{
+  "wave": "win-hints",
+  "max_acu_limit": 4,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "win-hints"],
+  "owner_label_prefix": "Jarod / win-hints",
+  "exclusions": [
+    "MATCH-SELECTIVE-LOWERING",
+    "GENERAL-CYCLIC-EXECUTION",
+    "SPILL-REALIZATION",
+    "ENTRY-CONTENT-ROOTS",
+    "STRICT-FLOAT-RANGES",
+    "SELECTED-ABI-VALIDATION",
+    "RUNTIME-VALUE-GENERICS",
+    "TARGET-SEMANTIC-APPLICATIONS",
+    "BOOTSTRAP-RUNTIME-SOURCE",
+    "BUILD-DEPENDENCY-PURPOSES",
+    "OMEGA-D",
+    "EVALUATED-FOREIGN-BINDINGS",
+    "CUSTODY-MUTATION-COVERAGE",
+    "PCC-PRODUCT-PUBLICATION",
+    "PROOF-KERNEL-CORE",
+    "EXACT-SELECTION-FAMILIES",
+    "GENERAL-LICM",
+    "FLOAT-PROVIDERS",
+    "OPERATOR-MACHINE-SUPPLY",
+    "STRUCTURAL-BORROW-IDENTITY",
+    "MODULE-NAMESPACE-RESOLUTION"
+  ],
+  "sessions": [
+    {
+      "name": "nominal-field-flow",
+      "board": "TASKS.md",
+      "item": "NOMINAL-FIELD-FLOW",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/field_domain.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values/bounds",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/contracts",
+        "omega-rust/psi/representations/flow-effects",
+        "samples/cli/games/dungeon_crawler_cli"
+      ],
+      "suggested_first_slice": "Bind live field coverage for one collection element family through indexing or a call boundary — corrupted elements and stale aliased fields reject. The dungeon RoomLookup/MazeBuilder acceptance is the outer witness; pick the smallest seam that produces a real rejection."
+    },
+    {
+      "name": "build-snapshot-outputs",
+      "board": "TASKS.md",
+      "item": "BUILD-SNAPSHOT-OUTPUTS",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation",
+        "omega-rust/omega/build/build-output",
+        "omega-rust/omega/compiler/compiler/src"
+      ],
+      "suggested_first_slice": "Extend the landed build_snapshot inventory binding one step — e.g. narrowed inputs or deterministic snapshot reads with a tamper/substitution rejection witness. The board's progress notes mark the current seam; land one bounded piece, not the whole item."
+    },
+    {
+      "name": "filesystem-release-contract",
+      "board": "TASKS.md",
+      "item": "FILESYSTEM-RELEASE-CONTRACT",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy"
+      ],
+      "suggested_first_slice": "The checked-interpreter leg already landed (FilesystemSourceNativeHandleQueryChainReplayRecord). Realize the retained occurrence record through native realization replay in terminal_authority_policy: one occurrence-specific close evidence row; stale or substituted proof rejects. Extend your claim if the real seam sits elsewhere under native_realization/ or psi validation."
+    },
+    {
+      "name": "crash-guard-cost",
+      "board": "TASKS.md",
+      "item": "CRASH-GUARD-COST",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/crashes.rs",
+        "wiki/drafts/test_cycle_measurements.md"
+      ],
+      "suggested_first_slice": "Measure cumulative phase costs on the documented package-review route on this Windows host and attribute the repeated classification named in the item. Land either the measurement evidence (appended to test_cycle_measurements.md) or a bounded repeated-work removal in checks/crashes.rs that preserves crash-guard outcomes."
+    }
+  ]
+}
