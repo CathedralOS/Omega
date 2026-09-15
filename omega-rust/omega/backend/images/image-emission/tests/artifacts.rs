@@ -5452,9 +5452,11 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
-    // This fixture contains neither an owned stack-pointer home nor an X8 result.
-    // Its format-96 payload differs from format 95 only in the marker.
-    // Reconstruct framing independently of the production helper and pin both.
+    // Format 97 extends the image-section header with the complete-custody
+    // fields: both final extents and both placed-inventory digests. The marker
+    // is checked before the body, so a relabeled payload cannot masquerade as
+    // a predecessor format. Reconstruct framing independently of the
+    // production helper and pin both identities.
     use sha2::{Digest, Sha256};
     let independent_fingerprint = |payload: &[u8]| {
         let mut digest = Sha256::new();
@@ -5467,7 +5469,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     predecessor_payload[8..10].copy_from_slice(&95_u16.to_le_bytes());
     assert_eq!(
         independent_fingerprint(&predecessor_payload),
-        "73c29b1d33c492230c54795da1ff2f9dc0054ddf44c4a2f3e21c6e630b368376"
+        "1ef54fa0ef7023a644c22ca05a534fb30ae99cf4475be0e457db3a92ee116bf0"
     );
     assert_eq!(
         decode_installation_record(&predecessor_payload),
@@ -5475,13 +5477,13 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(
         independent_fingerprint(&bytes),
-        "628df2e366c243ebcdb9c4d2166f0a1c56bbb8da23edabffce1417401d122062"
+        "993625e0a3ed61ccffe36655e2c0f4b09ca52c28b1dabab60da93a4f55a0bf58"
     );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "628df2e366c243ebcdb9c4d2166f0a1c56bbb8da23edabffce1417401d122062"
+        "993625e0a3ed61ccffe36655e2c0f4b09ca52c28b1dabab60da93a4f55a0bf58"
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a
@@ -5513,6 +5515,73 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
             InstallationError::ImageBindingMismatch
         ))
     ));
+}
+
+/// A record seals only the placed-inventory identities: replay must prove the
+/// image's retained rows still classify every final byte, leave nothing
+/// unclassified, and stay consistent with the claimed section layout. Drifting
+/// the image's retained inventory after the record was built rejects as
+/// placement-custody failure — before any record-field comparison.
+#[test]
+fn installation_record_rejects_drifted_complete_image_placement() {
+    let plan = internal_call_plan(NativeTarget::linux_x64());
+    let artifact = build_object_artifact(&plan).expect("artifact");
+    let image = emit_executable_image(&artifact, 3).expect("Linux image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(11).expect("profile"))
+        .expect("installation record");
+    validate_installation_record(&record, &image).expect("exact image binding");
+
+    // Dropping a classified executable region leaves final text bytes the
+    // sealed inventory no longer accounts for.
+    let mut missing = image.clone();
+    missing
+        .output_mut_for_test()
+        .executable_regions
+        .regions
+        .pop();
+    assert_eq!(
+        validate_installation_record(&record, &missing),
+        Err(InstallationError::InvalidImagePlacementCustody)
+    );
+
+    // A substituted placed address can no longer replay against the region's
+    // own section offset.
+    let mut substituted = image.clone();
+    substituted.output_mut_for_test().executable_regions.regions[0].address += 0x1000;
+    assert_eq!(
+        validate_installation_record(&record, &substituted),
+        Err(InstallationError::InvalidImagePlacementCustody)
+    );
+
+    // The initialized-data inventory is sealed the same way: an inflated
+    // claimed extent cannot replay over the exact final data bytes.
+    let mut inflated = image.clone();
+    inflated.output_mut_for_test().data_regions.data_byte_count += 8;
+    assert_eq!(
+        validate_installation_record(&record, &inflated),
+        Err(InstallationError::InvalidImagePlacementCustody)
+    );
+
+    // The Mach-O lane runs the same custody gate plus thunk↔binding-slot
+    // pairing; this image has no imports, so pairing is vacuous and region
+    // custody alone must reject the drift.
+    let macho_plan = internal_call_plan(NativeTarget::macos_arm64());
+    let macho_artifact = build_object_artifact(&macho_plan).expect("Mach-O artifact");
+    let macho_image = emit_executable_image(&macho_artifact, 3).expect("Mach-O image");
+    let macho_record =
+        build_installation_record(&macho_image, ProfileDecisionId::new(13).expect("profile"))
+            .expect("Mach-O installation record");
+    validate_installation_record(&macho_record, &macho_image).expect("exact Mach-O binding");
+    let mut macho_drifted = macho_image.clone();
+    macho_drifted
+        .output_mut_for_test()
+        .executable_regions
+        .regions
+        .pop();
+    assert_eq!(
+        validate_installation_record(&macho_record, &macho_drifted),
+        Err(InstallationError::InvalidImagePlacementCustody)
+    );
 }
 
 /// Shared one-field-substitution driver for installation-header coverage: a
@@ -5687,6 +5756,36 @@ fn installation_header_rejects_every_one_field_substitution() {
             "image_sections.layout.bss_address",
             Box::new(|record| {
                 record.image_sections_mut_for_test().layout.bss_address += 0x1000;
+            }),
+        ),
+        // The complete-custody extents and sealed inventory digests remain
+        // representable above their floor; only the image join exposes drift.
+        (
+            "image_sections.final_text_byte_count",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().final_text_byte_count += 8;
+            }),
+        ),
+        (
+            "image_sections.final_data_byte_count",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().final_data_byte_count += 8;
+            }),
+        ),
+        (
+            "image_sections.executable_inventory_digest",
+            Box::new(|record| {
+                record
+                    .image_sections_mut_for_test()
+                    .executable_inventory_digest =
+                    image::PlacedExecutableRegionInventoryDigest::from_digest([0x55; 32]);
+            }),
+        ),
+        (
+            "image_sections.data_inventory_digest",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().data_inventory_digest =
+                    image::PlacedDataRegionInventoryDigest::from_digest([0x55; 32]);
             }),
         ),
         (
@@ -5945,6 +6044,34 @@ fn installation_header_rejects_every_one_field_substitution() {
             Box::new(|record| {
                 record.image_sections_mut_for_test().final_data_fingerprint =
                     image_emission::InitializedDataFingerprint::for_test([0x33; 32]);
+            }),
+            InstallationError::InvalidImageSectionLayout,
+        ),
+        // The complete final extents can never contract below the
+        // compiler-authored spans they contain, and neither sealed inventory
+        // digest may be absent.
+        (
+            "image_sections.final_text_byte_count::below_compiler_text",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().final_text_byte_count -= 1;
+            }),
+            InstallationError::InvalidImageSectionLayout,
+        ),
+        (
+            "image_sections.executable_inventory_digest::absent",
+            Box::new(|record| {
+                record
+                    .image_sections_mut_for_test()
+                    .executable_inventory_digest =
+                    image::PlacedExecutableRegionInventoryDigest::from_digest([0; 32]);
+            }),
+            InstallationError::InvalidImageSectionLayout,
+        ),
+        (
+            "image_sections.data_inventory_digest::absent",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().data_inventory_digest =
+                    image::PlacedDataRegionInventoryDigest::from_digest([0; 32]);
             }),
             InstallationError::InvalidImageSectionLayout,
         ),

@@ -985,6 +985,140 @@ fn admit_imports(
         .collect()
 }
 
+/// Run the executable-installation ladder over one canonical artifact image:
+/// container admission, placement-authority claim, materialization under the
+/// supplied symbolic resolver, frozen placement, final validation, and the
+/// installation receipt. The result is the `InstalledCode` occurrence that
+/// `bind_installed_artifact` may join to the emitted image only when the
+/// artifact carries the complete encoded bytes and the resolver materializes
+/// the complete final image.
+fn install_flattened_macho_image(
+    code: Vec<u8>,
+    entries: Vec<executable_installation::ArtifactEntry>,
+    relocations: Vec<executable_installation::DecodedArtifactRelocation>,
+    placement_base: u64,
+    resolve: impl FnMut(layout_plans::RelocationTarget) -> Option<u64>,
+) -> executable_installation::InstalledCode {
+    let scope = layout_plans::ArtifactInstallationScopeId::from_normalized_identity(0x5001)
+        .expect("artifact installation scope");
+    let constraints = layout_plans::PlacementConstraints::new(
+        None,
+        16,
+        layout_plans::PlacementPhase::Load,
+        None,
+        Some(scope),
+    )
+    .expect("placement constraints");
+    let extent_len = u64::try_from(code.len()).expect("extent length");
+    let contracts = executable_installation::MachineContractSetId::from_normalized_identity(0x5002)
+        .expect("contract set");
+    let footprint = executable_installation::MachineFootprintId::from_normalized_identity(0x5003)
+        .expect("footprint");
+    let artifact = executable_installation::Artifact::from_canonical_decode(
+        executable_installation::ArtifactId::from_normalized_identity(0x5004)
+            .expect("artifact identity"),
+        target::NativeTarget::macos_arm64().architecture,
+        code,
+        contracts,
+        footprint,
+        executable_installation::PlacementPlanId::from_normalized_identity(0x5005)
+            .expect("placement plan"),
+        constraints,
+        executable_installation::EntrySetId::from_normalized_identity(0x5006).expect("entry set"),
+        entries,
+        executable_installation::RelocationSetId::from_normalized_identity(0x5007)
+            .expect("relocation set"),
+        relocations,
+        executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+            contracts,
+            b"test-machine-contracts-v1",
+            footprint,
+            b"test-machine-footprint-v1",
+            None,
+            Some((scope, b"test-installation-scope-v1")),
+        ),
+    )
+    .expect("canonical artifact");
+    let admitted = executable_installation::admit_executable(
+        &artifact,
+        executable_installation::ArtifactAdmissionEvidence::from_validator(
+            executable_installation::AdmissionReceiptId::from_normalized_identity(0x5008)
+                .expect("admission receipt"),
+            &artifact,
+            true,
+        ),
+    )
+    .expect("admitted artifact");
+    let rights = extents::ExtentRights::from_normalized_identities([
+        extents::ExtentRightId::from_normalized_identity(0x5009).expect("extent right"),
+    ]);
+    let extent = extents::ExtentRootGrant::from_admitted_provider(
+        extents::ExtentProviderIssuance::from_normalized_identities([
+            0x500a, 0x500b, 0x500c, 0x500d, 0x500e, 0x500f, 0x5010, 0x5011, 0x5012, 0x5013, 0x5014,
+            0x5015, 0x5016,
+        ])
+        .expect("extent issuance"),
+        extents::ExtentLineageId::from_normalized_identity(0x5017).expect("lineage"),
+        extents::AddressSpaceId::from_normalized_identity(0x5018).expect("address space"),
+        rights.clone(),
+        extents::ExtentProvenanceId::from_normalized_identity(0x5019).expect("provenance"),
+        extents::MappingEraId::from_normalized_identity(0x501a).expect("era"),
+    )
+    .mint(placement_base, extent_len)
+    .expect("placement extent");
+    let placement = executable_installation::CodePlacementAuthority::from_admitted_provider(
+        executable_installation::CodePlacementId::from_normalized_identity(0x501b)
+            .expect("placement"),
+        executable_installation::InstallationScopeId::from_normalized_identity(0x501c)
+            .expect("installation scope"),
+        executable_installation::InstallationAudience::DormantLocal,
+        &extent,
+        rights,
+        constraints,
+        layout_plans::PlacementSite {
+            base_address: placement_base,
+            phase: layout_plans::PlacementPhase::Load,
+            machine_regime: None,
+            installation_scope: Some(scope),
+        },
+    )
+    .claim(extent)
+    .expect("placement claim");
+    let materialized =
+        executable_installation::materialize_admitted_artifact(&admitted, &placement, resolve)
+            .expect("materialized artifact");
+    let frozen = executable_installation::materialize_and_freeze(
+        &admitted,
+        placement,
+        materialized.clone(),
+        executable_installation::MaterializationReceipt::from_materialized(
+            &materialized,
+            executable_installation::MachineFootprintId::from_normalized_identity(0x501d)
+                .expect("materialized footprint"),
+            true,
+        ),
+    )
+    .expect("frozen artifact");
+    let validation = executable_installation::FinalValidationCertificate::from_validator(
+        executable_installation::FinalValidationId::from_normalized_identity(0x501e)
+            .expect("validation"),
+        &frozen,
+        true,
+    );
+    let validated = executable_installation::validate_final_placement(frozen, &validation)
+        .expect("validated artifact");
+    let authority = executable_installation::InstallAuthority::from_admitted_provider(&validated);
+    let receipt = executable_installation::InstallationReceipt::from_provider(
+        executable_installation::InstalledCodeId::from_normalized_identity(0x501f)
+            .expect("installed code"),
+        &validated,
+        true,
+        executable_installation::WxEnforcement::HardwareEnforced,
+    );
+    executable_installation::install_validated(validated, authority, receipt)
+        .expect("installed code")
+}
+
 fn realize_linux_dynamic(
     retained: compilation_report::RetainedTerminalArtifact,
     receipt: u64,
@@ -1529,6 +1663,252 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     )
     .expect("installation replays the admitted foreign stack demand");
     assert_eq!(installation_demand, object_demand);
+
+    // Complete imported-image custody must hold before installed publication:
+    // the placed executable/data inventories classify every final byte, the
+    // exercised import thunk decodes to its exact paired binding slot, and the
+    // installed occurrence binds the complete encoded and materialized images.
+    // A matching compiler prefix plus a resolver-claimed thunk address is not
+    // placement custody.
+    let memory = image_emission::project_installed_artifact_memory_images(
+        artifact.object(),
+        artifact.image(),
+    )
+    .expect("complete imported-image placement projects over the final image");
+    let thunk_offset = {
+        // The import thunk is the only writer-appended executable region: it
+        // occupies the final twelve bytes of placed text.
+        let output = artifact.image().output();
+        let offset = output
+            .final_text_bytes
+            .len()
+            .checked_sub(12)
+            .expect("one appended thunk");
+        let matches = output
+            .executable_regions
+            .regions
+            .iter()
+            .filter(|region| region.section_offset == offset && region.byte_count == 12)
+            .count();
+        assert_eq!(matches, 1, "exactly one placed import thunk ends the text");
+        u64::try_from(offset).expect("thunk offset")
+    };
+    {
+        let slots = artifact
+            .image()
+            .output()
+            .data_regions
+            .regions
+            .iter()
+            .filter(|region| region.byte_count == 8)
+            .count();
+        assert_eq!(slots, 1, "exactly one placed import binding slot");
+    }
+    // The admitted call must branch to the placed thunk start.
+    let final_branch = u32::from_le_bytes(
+        artifact.image().output().final_text_bytes
+            [object_relocation.offset..object_relocation.offset + 4]
+            .try_into()
+            .expect("final branch instruction"),
+    );
+    let branch_target =
+        object_relocation.offset as i64 + i64::from((final_branch << 6) as i32 >> 4);
+    assert_eq!(
+        branch_target,
+        i64::try_from(thunk_offset).expect("thunk offset"),
+        "the admitted call must branch to the placed import thunk",
+    );
+
+    const PLACEMENT_BASE: u64 = 0x0001_0000;
+    let entry_stub =
+        layout_plans::EntryStubId::from_normalized_identity(0x5101).expect("entry stub");
+    let thunk_stub =
+        layout_plans::EntryStubId::from_normalized_identity(0x5102).expect("thunk entry stub");
+    let entry_offset =
+        u64::try_from(artifact.object().entry_function().text_offset).expect("entry text offset");
+    let import_relocation = executable_installation::DecodedArtifactRelocation {
+        kind: executable_installation::ArtifactRelocationKind::Aarch64Branch26,
+        destination_offset: u64::try_from(object_relocation.offset).expect("relocation offset"),
+        target: layout_plans::RelocationTarget::Entry(thunk_stub),
+        addend: object_relocation.addend,
+    };
+    let install_complete = || {
+        install_flattened_macho_image(
+            memory.encoded().to_vec(),
+            vec![
+                executable_installation::ArtifactEntry::from_canonical_decode(
+                    entry_stub,
+                    entry_offset,
+                ),
+                executable_installation::ArtifactEntry::from_canonical_decode(
+                    thunk_stub,
+                    thunk_offset,
+                ),
+            ],
+            vec![import_relocation],
+            PLACEMENT_BASE,
+            move |target| {
+                (target == layout_plans::RelocationTarget::Entry(thunk_stub))
+                    .then_some(PLACEMENT_BASE + thunk_offset)
+            },
+        )
+    };
+    // The source-imported component reaches installed publication only with
+    // complete custody: canonical bytes keep the compiler prefix plus the
+    // emitted thunk and zeroed binding slot, and the frozen image equals the
+    // complete relocated final image.
+    let bound = image_emission::bind_installed_artifact(
+        artifact.object().clone(),
+        artifact.image().clone(),
+        installation.clone(),
+        install_complete(),
+    )
+    .expect("the imported Mach-O image binds complete installed-code custody");
+    assert_eq!(bound.installation(), &installation);
+    assert_eq!(bound.image().output().final_image_imports, 1);
+
+    // A resolver-returned thunk address cannot substitute for retained
+    // placement: an artifact whose code omits the thunk and binding slot —
+    // while its resolver still claims the thunk's would-be address — must not
+    // reach installed publication.
+    let truncated = install_flattened_macho_image(
+        artifact.object().text_bytes().to_vec(),
+        vec![
+            executable_installation::ArtifactEntry::from_canonical_decode(entry_stub, entry_offset),
+        ],
+        vec![import_relocation],
+        PLACEMENT_BASE,
+        move |target| {
+            (target == layout_plans::RelocationTarget::Entry(thunk_stub))
+                .then_some(PLACEMENT_BASE + thunk_offset)
+        },
+    );
+    let error = image_emission::bind_installed_artifact(
+        artifact.object().clone(),
+        artifact.image().clone(),
+        installation.clone(),
+        truncated,
+    )
+    .expect_err("a compiler-prefix artifact whose resolver claims an uninstalled thunk address must not bind");
+    assert!(
+        error.diagnostic().contains("materialized"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    // With complete canonical bytes, a resolver that substitutes a different
+    // in-extent address for the thunk materializes a different branch and
+    // still cannot join the bound image.
+    let misresolved = install_flattened_macho_image(
+        memory.encoded().to_vec(),
+        vec![
+            executable_installation::ArtifactEntry::from_canonical_decode(entry_stub, entry_offset),
+            executable_installation::ArtifactEntry::from_canonical_decode(thunk_stub, thunk_offset),
+        ],
+        vec![import_relocation],
+        PLACEMENT_BASE,
+        move |target| {
+            (target == layout_plans::RelocationTarget::Entry(thunk_stub))
+                .then_some(PLACEMENT_BASE + thunk_offset - 4)
+        },
+    );
+    assert!(
+        image_emission::bind_installed_artifact(
+            artifact.object().clone(),
+            artifact.image().clone(),
+            installation.clone(),
+            misresolved,
+        )
+        .is_err(),
+        "a substituted thunk resolution must not materialize the bound image",
+    );
+
+    // Every retained placement row is required independently: removing or
+    // substituting either the thunk's or the binding slot's placed region
+    // must reject the image for both record validation and the installed
+    // artifact join.
+    let thunk_offset_usize = usize::try_from(thunk_offset).expect("thunk offset");
+    let slot_offset = artifact
+        .image()
+        .output()
+        .data_regions
+        .regions
+        .iter()
+        .find(|region| region.byte_count == 8)
+        .expect("placed binding slot")
+        .section_offset;
+    let placement_mutations: Vec<(&str, Box<dyn Fn(&mut image_emission::ExecutableImage)>)> = vec![
+        (
+            "missing thunk placement",
+            Box::new(move |image| {
+                image
+                    .output_mut_for_test()
+                    .executable_regions
+                    .regions
+                    .retain(|region| {
+                        !(region.section_offset == thunk_offset_usize && region.byte_count == 12)
+                    });
+            }),
+        ),
+        (
+            "missing binding-slot placement",
+            Box::new(move |image| {
+                image
+                    .output_mut_for_test()
+                    .data_regions
+                    .regions
+                    .retain(|region| {
+                        !(region.section_offset == slot_offset && region.byte_count == 8)
+                    });
+            }),
+        ),
+        (
+            "substituted thunk placement",
+            Box::new(move |image| {
+                let region = image
+                    .output_mut_for_test()
+                    .executable_regions
+                    .regions
+                    .iter_mut()
+                    .find(|region| {
+                        region.section_offset == thunk_offset_usize && region.byte_count == 12
+                    })
+                    .expect("placed thunk region");
+                region.address += 0x2000;
+            }),
+        ),
+        (
+            "substituted binding-slot placement",
+            Box::new(move |image| {
+                let region = image
+                    .output_mut_for_test()
+                    .data_regions
+                    .regions
+                    .iter_mut()
+                    .find(|region| region.section_offset == slot_offset && region.byte_count == 8)
+                    .expect("placed binding-slot region");
+                region.address += 8;
+            }),
+        ),
+    ];
+    for (label, mutate) in placement_mutations {
+        let mut mutated = artifact.image().clone();
+        mutate(&mut mutated);
+        assert_eq!(
+            image_emission::validate_installation_record(&installation, &mutated),
+            Err(image_emission::InstallationError::InvalidImagePlacementCustody),
+            "{label}: complete-custody replay must reject it",
+        );
+        assert!(
+            image_emission::bind_installed_artifact(
+                artifact.object().clone(),
+                mutated,
+                installation.clone(),
+                install_complete(),
+            )
+            .is_err(),
+            "{label}: the installed artifact join must reject it",
+        );
+    }
 
     let parts = artifact.into_parts();
     let mut missing_provider = replay_native_artifact_parts(&parts);

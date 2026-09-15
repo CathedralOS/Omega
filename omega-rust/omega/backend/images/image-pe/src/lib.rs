@@ -68,7 +68,8 @@
 
 use diagnostics::Diagnostic;
 use image::{
-    ExecutableImageOutput, FinalImage, apply_x86_64_relocations, place_executable_regions,
+    ExecutableImageOutput, FinalImage, apply_x86_64_relocations, place_data_regions,
+    place_executable_regions,
 };
 
 mod bytes;
@@ -111,6 +112,7 @@ pub fn emit_pe_x86_64_executable(
     apply_x86_64_relocations(&mut image, &layout, "PE direct executable")?;
     validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
+    let data_regions = place_data_regions(&image, layout)?;
 
     let entry_rva = pe_entry_rva(&image)?;
 
@@ -230,5 +232,6 @@ pub fn emit_pe_x86_64_executable(
         imports: image.symbol_table.imports.len(),
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
+        data_regions,
     })
 }

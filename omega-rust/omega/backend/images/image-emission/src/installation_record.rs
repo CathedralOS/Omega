@@ -124,7 +124,9 @@ use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128
 
 // The current vocabulary includes owned incoming stack pointers and AArch64's
 // dedicated indirect-result register. Earlier envelopes cannot carry those roles.
-pub const INSTALLATION_FORMAT_MARKER: u16 = 96;
+// Marker 97 seals complete placed-region inventory identities for the bound
+// image; marker 96 records carry no complete-custody digests.
+pub const INSTALLATION_FORMAT_MARKER: u16 = 97;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -548,6 +550,19 @@ pub struct InstalledImageSections {
     /// remain in the bound image but outside this immutable-table projection.
     pub data_byte_count: usize,
     pub final_data_fingerprint: InitializedDataFingerprint,
+    /// Complete final `.text` extent, including image-writer import thunks.
+    /// `final_text_byte_count >= text_byte_count` always holds.
+    pub final_text_byte_count: usize,
+    /// Complete final initialized-data extent, including image-writer binding
+    /// slots and alignment padding.
+    pub final_data_byte_count: usize,
+    /// Strong identity of the complete placed executable-region inventory:
+    /// addresses, exact bytes, origin classes, and gaps for every `.text`
+    /// byte. This is the sealed claim the installed artifact must replay.
+    pub executable_inventory_digest: image::PlacedExecutableRegionInventoryDigest,
+    /// Strong identity of the complete placed initialized-data inventory,
+    /// covering compiler data plus writer-installed binding slots.
+    pub data_inventory_digest: image::PlacedDataRegionInventoryDigest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1313,11 +1328,53 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
     Ok(record)
 }
 
+/// Independently replay the image's retained placed-region inventories over
+/// its exact final bytes. A record only claims the sealed inventory digests;
+/// this replay proves the retained rows actually classify every byte the
+/// image says it installed, that no byte remains unclassified, and that each
+/// Mach-O import thunk pairs with its placed binding slot.
+fn validate_complete_image_placement(image: &ExecutableImage) -> Result<(), InstallationError> {
+    let output = image.output();
+    image::validate_placed_executable_region_inventory(
+        &output.executable_regions,
+        &output.final_text_bytes,
+    )
+    .map_err(|_| InstallationError::InvalidImagePlacementCustody)?;
+    image::validate_placed_data_region_inventory(&output.data_regions, &output.final_data_bytes)
+        .map_err(|_| InstallationError::InvalidImagePlacementCustody)?;
+    if output
+        .executable_regions
+        .unclassified_gaps
+        .first()
+        .is_some()
+        || output.data_regions.unclassified_gaps.first().is_some()
+    {
+        return Err(InstallationError::InvalidImagePlacementCustody);
+    }
+    if output.final_text_bytes.len() != output.executable_regions.text_byte_count
+        || output.final_data_bytes.len() != output.data_regions.data_byte_count
+        || output.final_image_layout.text_address != output.executable_regions.text_address
+        || output.final_image_layout.data_address != output.data_regions.data_address
+    {
+        return Err(InstallationError::InvalidImagePlacementCustody);
+    }
+    if image.target().object_format == ObjectFormat::MachO {
+        image_macho::validate_macho_aarch64_import_binding_pairing(
+            &output.final_text_bytes,
+            &output.executable_regions,
+            &output.data_regions,
+        )
+        .map_err(|_| InstallationError::InvalidImagePlacementCustody)?;
+    }
+    Ok(())
+}
+
 pub fn validate_installation_record(
     record: &InstallationRecord,
     image: &ExecutableImage,
 ) -> Result<(), InstallationError> {
     validate_record_shape(record)?;
+    validate_complete_image_placement(image)?;
     let expected_private_functions = image
         .private_functions()
         .iter()
@@ -1545,6 +1602,10 @@ fn installed_image_sections(image: &ExecutableImage) -> InstalledImageSections {
         text_byte_count,
         data_byte_count,
         final_data_fingerprint: fingerprint_initialized_data(final_compiler_data),
+        final_text_byte_count: image.output().final_text_bytes.len(),
+        final_data_byte_count: image.output().final_data_bytes.len(),
+        executable_inventory_digest: image.output().executable_regions.inventory_digest,
+        data_inventory_digest: image.output().data_regions.inventory_digest,
     }
 }
 
@@ -2212,6 +2273,10 @@ pub enum InstallationError {
     CountNotRepresentable(&'static str),
     MissingCompilerTextValidation,
     InvalidCompilerTextDerivationDigest,
+    /// The retained placed-region inventories do not replay over the exact
+    /// final image bytes, leave image bytes unclassified, or break the
+    /// thunk↔binding-slot pairing an imported image requires.
+    InvalidImagePlacementCustody,
     ImageBindingMismatch,
 }
 

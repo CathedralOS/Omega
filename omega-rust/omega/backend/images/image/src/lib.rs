@@ -128,14 +128,18 @@ mod x86_64_relocations;
 pub use aarch64_relocations::apply_aarch64_relocations;
 pub use builder::{FinalImageInput, build_final_image};
 pub use final_image::{
-    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest, FinalImage,
-    FinalImageImport, FinalImageImportPlan, FinalImageLayout, FinalImageMemory,
-    FinalImageRelocation, FinalImageRelocationTable, FinalImageSection, FinalImageSymbol,
-    FinalImageSymbolDigest, FinalImageSymbolHandle, FinalImageSymbolTable, PlacedExecutableGap,
-    PlacedExecutableGapBytesDigest, PlacedExecutableRegion, PlacedExecutableRegionBytesDigest,
-    PlacedExecutableRegionInventory, PlacedExecutableRegionInventoryDigest,
-    StateFootprintEvidenceDigest, bind_compiler_entry_footprint, final_image_symbol_digest,
-    place_executable_regions, validate_placed_executable_region_inventory,
+    FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
+    FinalExecutableTextDigest, FinalImage, FinalImageImport, FinalImageImportPlan,
+    FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
+    FinalImageSection, FinalImageSymbol, FinalImageSymbolDigest, FinalImageSymbolHandle,
+    FinalImageSymbolTable, FinalInitializedDataDigest, PlacedDataGap, PlacedDataGapBytesDigest,
+    PlacedDataRegion, PlacedDataRegionBytesDigest, PlacedDataRegionInventory,
+    PlacedDataRegionInventoryDigest, PlacedExecutableGap, PlacedExecutableGapBytesDigest,
+    PlacedExecutableRegion, PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
+    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest,
+    bind_compiler_entry_footprint, final_image_symbol_digest, place_data_regions,
+    place_executable_regions, validate_placed_data_region_inventory,
+    validate_placed_executable_region_inventory,
 };
 pub use footprint_certificate::{
     FINAL_FOOTPRINT_CERTIFICATE_MARKER, FinalFootprintCertificate, FinalFootprintCertificateDigest,

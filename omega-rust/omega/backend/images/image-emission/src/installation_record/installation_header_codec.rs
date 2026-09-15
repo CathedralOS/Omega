@@ -73,6 +73,18 @@ pub(super) fn encode_installation_header(
             .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
     );
     bytes.extend_from_slice(record.image_sections.final_data_fingerprint.as_bytes());
+    push_u64(
+        bytes,
+        u64::try_from(record.image_sections.final_text_byte_count)
+            .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
+    );
+    push_u64(
+        bytes,
+        u64::try_from(record.image_sections.final_data_byte_count)
+            .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
+    );
+    bytes.extend_from_slice(record.image_sections.executable_inventory_digest.as_bytes());
+    bytes.extend_from_slice(record.image_sections.data_inventory_digest.as_bytes());
     bytes.extend_from_slice(
         record
             .compiler_text_validation
@@ -194,6 +206,14 @@ pub(super) fn decode_installation_header(
         data_byte_count: usize::try_from(reader.u64()?)
             .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
         final_data_fingerprint: super::InitializedDataFingerprint(reader.array()?),
+        final_text_byte_count: usize::try_from(reader.u64()?)
+            .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
+        final_data_byte_count: usize::try_from(reader.u64()?)
+            .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
+        executable_inventory_digest: image::PlacedExecutableRegionInventoryDigest::from_digest(
+            reader.array()?,
+        ),
+        data_inventory_digest: image::PlacedDataRegionInventoryDigest::from_digest(reader.array()?),
     };
     let encoded_text_digest = EncodedCompilerTextDigest::from_digest(reader.array()?);
     let final_compiler_text_digest = FinalCompilerTextDigest::from_digest(reader.array()?);

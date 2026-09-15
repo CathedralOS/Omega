@@ -9,8 +9,9 @@ use calling_conventions::{
 };
 use diagnostics::Diagnostic;
 use image::{
-    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImportPlan,
-    FinalImageLayout, FinalImageSection, FinalImageSymbolHandle,
+    FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
+    FinalImage, FinalImageImportPlan, FinalImageLayout, FinalImageSection, FinalImageSymbolHandle,
+    PlacedDataRegionInventory, PlacedExecutableRegionInventory,
 };
 use object_file::SymbolKind;
 use target::{ForeignLocatorCandidate, NormalizedForeignLocator, TargetProfile};
@@ -217,10 +218,16 @@ pub(crate) fn install_import_thunks(
         let symbol_handle = prepared_import.symbol_handle;
         let symbol = prepared_import.symbol;
         let text_offset = image.memory.text.len();
-        image
-            .memory
-            .data
-            .resize(align_to(image.memory.data.len(), 8), 0);
+        let unpadded_data_len = image.memory.data.len();
+        image.memory.data.resize(align_to(unpadded_data_len, 8), 0);
+        if image.memory.data.len() != unpadded_data_len {
+            image.data_regions.push(FinalDataRegion {
+                origin: FinalDataRegionOrigin::AlignmentPadding,
+                section_offset: unpadded_data_len,
+                byte_count: image.memory.data.len() - unpadded_data_len,
+                symbol: String::new(),
+            });
+        }
         let data_offset = image.memory.data.len();
         image.memory.text.extend([0u8; 12]);
         image.memory.data.extend([0u8; 8]);
@@ -236,6 +243,12 @@ pub(crate) fn install_import_thunks(
             byte_count: 12,
             symbol: symbol.clone(),
             footprint: None,
+        });
+        image.data_regions.push(FinalDataRegion {
+            origin: FinalDataRegionOrigin::ImportBindingSlot,
+            section_offset: data_offset,
+            byte_count: 8,
+            symbol: symbol.clone(),
         });
 
         let dylib_ordinal = dylibs
@@ -440,6 +453,121 @@ fn write_u32_at(text: &mut [u8], offset: usize, value: u32) -> Result<(), Diagno
     };
     slot.copy_from_slice(&value.to_le_bytes());
     Ok(())
+}
+
+/// Replay the exact thunk↔binding-slot pairing against the placed region
+/// inventories. Every import thunk must decode to a canonical ADRP/LDR/BR
+/// sequence that loads its binding slot, and each exercised thunk must pair
+/// with exactly one placed binding slot naming the same symbol — and vice
+/// versa. A resolver-returned address or an unrecorded slot cannot substitute
+/// for this placed custody.
+pub fn validate_macho_aarch64_import_binding_pairing(
+    final_text_bytes: &[u8],
+    executable_regions: &PlacedExecutableRegionInventory,
+    data_regions: &PlacedDataRegionInventory,
+) -> Result<(), Diagnostic> {
+    let thunks: Vec<_> = executable_regions
+        .regions
+        .iter()
+        .filter(|region| region.origin == FinalExecutableRegionOrigin::ImportThunk)
+        .collect();
+    let slots: Vec<_> = data_regions
+        .regions
+        .iter()
+        .filter(|region| region.origin == FinalDataRegionOrigin::ImportBindingSlot)
+        .collect();
+
+    let mut bound = Vec::with_capacity(thunks.len());
+    for thunk in &thunks {
+        bound.push((thunk, thunk_bound_pointer_address(final_text_bytes, thunk)?));
+    }
+    for (thunk, bound_address) in &bound {
+        let matching = slots
+            .iter()
+            .filter(|slot| {
+                slot.symbol == thunk.symbol
+                    && slot.address == *bound_address
+                    && slot.byte_count == 8
+                    && slot.address.checked_sub(data_regions.data_address)
+                        == Some(slot.section_offset as u64)
+            })
+            .count();
+        if matching != 1 {
+            return Err(Diagnostic::error(format!(
+                "Mach-O import thunk `{}` must bind exactly one placed binding slot at its decoded pointer address; found {matching}",
+                thunk.symbol
+            )));
+        }
+    }
+    for slot in &slots {
+        let matching = bound
+            .iter()
+            .filter(|(thunk, bound_address)| {
+                thunk.symbol == slot.symbol && *bound_address == slot.address
+            })
+            .count();
+        if matching != 1 {
+            return Err(Diagnostic::error(format!(
+                "Mach-O import binding slot `{}` must be loaded by exactly one placed thunk; found {matching}",
+                slot.symbol
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Decode the canonical `ADRP x16, page; LDR x16, [x16, #scaled*8]; BR x16`
+/// thunk sequence and return the initialized-data pointer address it loads.
+fn thunk_bound_pointer_address(
+    final_text_bytes: &[u8],
+    region: &image::PlacedExecutableRegion,
+) -> Result<u64, Diagnostic> {
+    let end = region.section_offset.checked_add(12).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "Mach-O import thunk `{}` range overflows",
+            region.symbol
+        ))
+    })?;
+    let bytes = final_text_bytes
+        .get(region.section_offset..end)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "Mach-O import thunk `{}` is out of final .text bounds",
+                region.symbol
+            ))
+        })?;
+    let adrp = u32::from_le_bytes(bytes[0..4].try_into().expect("four-byte ADRP"));
+    let ldr = u32::from_le_bytes(bytes[4..8].try_into().expect("four-byte LDR"));
+    let br = u32::from_le_bytes(bytes[8..12].try_into().expect("four-byte BR"));
+    if adrp & 0x9f00_001f != 0x9000_0010 || ldr & 0xffc0_03ff != 0xf940_0210 || br != 0xd61f_0200 {
+        return Err(Diagnostic::error(format!(
+            "Mach-O import thunk `{}` does not match ADRP X16; LDR X16, [X16, #imm]; BR X16",
+            region.symbol
+        )));
+    }
+    let immediate = i64::from((((adrp >> 5) & 0x7ffff) << 2) | ((adrp >> 29) & 0b11));
+    // Sign-extend the 21-bit page delta.
+    let page_delta = (immediate << 43) >> 43;
+    let slot_page = (region.address & !0xfff)
+        .checked_add_signed(page_delta.checked_mul(4096).ok_or_else(|| {
+            Diagnostic::error(format!(
+                "Mach-O import thunk `{}` page delta overflows",
+                region.symbol
+            ))
+        })?)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "Mach-O import thunk `{}` bound page overflows",
+                region.symbol
+            ))
+        })?;
+    let scaled_offset = u64::from((ldr >> 10) & 0xfff);
+    slot_page.checked_add(scaled_offset * 8).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "Mach-O import thunk `{}` bound pointer address overflows",
+            region.symbol
+        ))
+    })
 }
 
 #[cfg(test)]

@@ -2456,6 +2456,10 @@ fn validate_installed_dynamic_conformance(
         || sections.final_data_fingerprint.as_bytes() == &[0; 32]
         || (sections.data_byte_count == 0
             && sections.final_data_fingerprint != fingerprint_initialized_data(&[]))
+        || sections.final_text_byte_count < sections.text_byte_count
+        || sections.final_data_byte_count < sections.data_byte_count
+        || sections.executable_inventory_digest.as_bytes() == &[0; 32]
+        || sections.data_inventory_digest.as_bytes() == &[0; 32]
     {
         return Err(InstallationError::InvalidImageSectionLayout);
     }

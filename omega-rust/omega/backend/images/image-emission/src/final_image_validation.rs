@@ -87,6 +87,11 @@ fn validate_terminal_image_with_import_count(
             artifact.data_bytes().len(),
             output,
         )?;
+        image_macho::validate_macho_aarch64_import_binding_pairing(
+            &output.final_text_bytes,
+            &output.executable_regions,
+            &output.data_regions,
+        )?;
     }
     if output.final_image_imports != expected_imports {
         return Err(Diagnostic::error(
@@ -103,11 +108,18 @@ fn validate_terminal_image_with_import_count(
     if output.final_image_layout.text_address != output.executable_regions.text_address
         || output.final_text_bytes.len() != output.executable_regions.text_byte_count
         || output.final_image_layout.text_address == 0
+        || output.final_image_layout.data_address != output.data_regions.data_address
+        || output.final_data_bytes.len() != output.data_regions.data_byte_count
     {
         return Err(Diagnostic::error(
-            "terminal-Psi image section layout does not match its exact executable inventory",
+            "terminal-Psi image section layout does not match its exact placed inventories",
         ));
     }
+    image::validate_placed_executable_region_inventory(
+        &output.executable_regions,
+        &output.final_text_bytes,
+    )?;
+    image::validate_placed_data_region_inventory(&output.data_regions, &output.final_data_bytes)?;
     if !output.final_data_bytes.is_empty() {
         let text_end = output
             .final_image_layout
@@ -125,6 +137,12 @@ fn validate_terminal_image_with_import_count(
     if let Some(gap) = output.executable_regions.unclassified_gaps.first() {
         return Err(Diagnostic::error(format!(
             "terminal-Psi executable inventory left {} unclassified byte(s) at .text offset {}",
+            gap.byte_count, gap.section_offset
+        )));
+    }
+    if let Some(gap) = output.data_regions.unclassified_gaps.first() {
+        return Err(Diagnostic::error(format!(
+            "terminal-Psi data inventory left {} unclassified byte(s) at .data offset {}",
             gap.byte_count, gap.section_offset
         )));
     }

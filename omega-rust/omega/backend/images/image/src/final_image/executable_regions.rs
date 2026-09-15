@@ -591,7 +591,7 @@ pub(crate) fn state_footprint_evidence_digest(
     StateFootprintEvidenceDigest::from_digest(digest.finalize().into())
 }
 
-fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
+pub(crate) fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(domain);
     digest.update((bytes.len() as u64).to_le_bytes());
@@ -599,7 +599,7 @@ fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     digest.finalize().into()
 }
 
-fn byte_report_fingerprint(bytes: &[u8]) -> u64 {
+pub(crate) fn byte_report_fingerprint(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     fingerprint_bytes(&mut hash, bytes);
     hash
@@ -650,7 +650,7 @@ fn executable_inventory_report_fingerprint(
     hash
 }
 
-fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
+pub(crate) fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
     for byte in bytes {
         *hash ^= u64::from(*byte);
         *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);

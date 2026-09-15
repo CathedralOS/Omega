@@ -152,10 +152,12 @@ impl std::fmt::Display for InstalledArtifactMemoryProjectionError {
 
 impl std::error::Error for InstalledArtifactMemoryProjectionError {}
 
-/// Reconstruct the exact compiler-authored pre/post-relocation section images
-/// expected by the installation provider. Image-writer thunks and their mutable
-/// binding slots, other mutable initialized data, and BSS remain outside this
-/// bounded lane.
+/// Reconstruct the exact pre/post-relocation section images expected by the
+/// installation provider over the COMPLETE final image: compiler-authored
+/// text and initialized data plus every image-writer-generated region (import
+/// thunks, binding slots, alignment padding). BSS remains outside this lane.
+/// The placed-region inventories must replay over the retained final bytes
+/// with no unclassified gap before this projection is produced.
 pub fn project_installed_artifact_memory_images(
     object: &ObjectArtifact,
     image: &ExecutableImage,
@@ -179,7 +181,46 @@ pub fn project_installed_artifact_memory_images(
             "terminal object/image section byte counts or text placement differ".into(),
         ));
     }
-    let data_offset = if object.data_bytes().is_empty() {
+    image::validate_placed_executable_region_inventory(
+        &output.executable_regions,
+        &output.final_text_bytes,
+    )
+    .map_err(|diagnostic| {
+        InstalledArtifactMemoryProjectionError(format!(
+            "executable placement inventory does not replay over final text: {diagnostic}"
+        ))
+    })?;
+    image::validate_placed_data_region_inventory(&output.data_regions, &output.final_data_bytes)
+        .map_err(|diagnostic| {
+            InstalledArtifactMemoryProjectionError(format!(
+                "initialized-data placement inventory does not replay over final data: {diagnostic}"
+            ))
+        })?;
+    if let Some(gap) = output.executable_regions.unclassified_gaps.first() {
+        return Err(InstalledArtifactMemoryProjectionError(format!(
+            "executable placement left {} unclassified byte(s) at .text offset {}",
+            gap.byte_count, gap.section_offset
+        )));
+    }
+    if let Some(gap) = output.data_regions.unclassified_gaps.first() {
+        return Err(InstalledArtifactMemoryProjectionError(format!(
+            "initialized-data placement left {} unclassified byte(s) at .data offset {}",
+            gap.byte_count, gap.section_offset
+        )));
+    }
+    if object.target().object_format == target::ObjectFormat::MachO {
+        image_macho::validate_macho_aarch64_import_binding_pairing(
+            &output.final_text_bytes,
+            &output.executable_regions,
+            &output.data_regions,
+        )
+        .map_err(|diagnostic| {
+            InstalledArtifactMemoryProjectionError(format!(
+                "Mach-O import thunk/binding-slot pairing drifted: {diagnostic}"
+            ))
+        })?;
+    }
+    let data_offset = if output.final_data_bytes.is_empty() {
         None
     } else {
         let offset = output
@@ -187,7 +228,7 @@ pub fn project_installed_artifact_memory_images(
             .data_address
             .checked_sub(output.final_image_layout.text_address)
             .and_then(|offset| usize::try_from(offset).ok())
-            .filter(|offset| *offset >= object.text_bytes().len())
+            .filter(|offset| *offset >= output.final_text_bytes.len())
             .ok_or_else(|| {
                 InstalledArtifactMemoryProjectionError(
                     "terminal initialized-data placement overlaps text or is not representable"
@@ -196,11 +237,18 @@ pub fn project_installed_artifact_memory_images(
             })?;
         Some(offset)
     };
-    let encoded =
-        flatten_installed_sections(object.text_bytes(), object.data_bytes(), data_offset)?;
+    // The canonical artifact bytes keep the compiler's unrelocated prefixes and
+    // the writer-generated suffixes exactly as emitted: thunks are patched by
+    // the image writer and binding slots arrive as zeroed pointers the loader
+    // binds at load time, so neither carries provider-side relocations.
+    let mut encoded_text = object.text_bytes().to_vec();
+    encoded_text.extend_from_slice(&output.final_text_bytes[object.text_bytes().len()..]);
+    let mut encoded_data = object.data_bytes().to_vec();
+    encoded_data.extend_from_slice(&output.final_data_bytes[object.data_bytes().len()..]);
+    let encoded = flatten_installed_sections(&encoded_text, &encoded_data, data_offset)?;
     let materialized = flatten_installed_sections(
-        &output.final_text_bytes[..object.text_bytes().len()],
-        &output.final_data_bytes[..object.data_bytes().len()],
+        &output.final_text_bytes,
+        &output.final_data_bytes,
         data_offset,
     )?;
     Ok(InstalledArtifactMemoryImages {

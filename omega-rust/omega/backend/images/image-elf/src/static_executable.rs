@@ -7,7 +7,7 @@
 use diagnostics::Diagnostic;
 use image::{
     ExecutableImageOutput, FinalImage, FinalImageLayout, apply_aarch64_relocations,
-    apply_x86_64_relocations, place_executable_regions,
+    apply_x86_64_relocations, place_data_regions, place_executable_regions,
 };
 
 mod headers;
@@ -81,6 +81,7 @@ fn emit_elf_executable(
 
     apply_relocations(&mut image, &layout, "ELF direct image")?;
     let executable_regions = place_executable_regions(&image, layout)?;
+    let data_regions = place_data_regions(&image, layout)?;
 
     let mut bytes = Vec::with_capacity(sections.data_offset + image.memory.data.len());
     write_elf_header(
@@ -116,6 +117,7 @@ fn emit_elf_executable(
         imports: image.symbol_table.imports.len(),
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
+        data_regions,
     })
 }
 

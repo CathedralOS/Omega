@@ -3,8 +3,8 @@
 //! reused handle before storing it.
 
 use crate::final_image::{
-    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImport,
-    FinalImageImportPlan, FinalImageRelocation, FinalImageSymbol,
+    FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
+    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageRelocation, FinalImageSymbol,
 };
 use crate::symbols::{final_image_section, final_image_symbol_handle};
 use arena::Handle;
@@ -47,6 +47,22 @@ pub(super) fn copy_object_executable_regions(image: &mut FinalImage, object: &Ob
                 footprint: None,
             }),
     );
+}
+
+/// Classify the complete object-authored initialized-data image as one
+/// compiler row. Writers that append their own `.data` regions (Mach-O
+/// binding slots) push their own rows after this prefix; the placed inventory
+/// then has to account for every byte.
+pub(super) fn copy_object_data_regions(image: &mut FinalImage) {
+    if image.memory.data.is_empty() {
+        return;
+    }
+    image.data_regions.push(FinalDataRegion {
+        origin: FinalDataRegionOrigin::CompilerData,
+        section_offset: 0,
+        byte_count: image.memory.data.len(),
+        symbol: String::new(),
+    });
 }
 
 pub(super) fn copy_object_imports(image: &mut FinalImage, object: &ObjectPlan) {
