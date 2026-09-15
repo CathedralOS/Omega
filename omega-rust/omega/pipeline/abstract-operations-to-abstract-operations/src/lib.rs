@@ -15,6 +15,7 @@ mod pass_manager;
 mod publication;
 mod ranked_rewrites;
 mod rules;
+mod state_specialization;
 pub mod validation;
 
 pub use abstract_optimization::{AbstractOptimizationError, optimize_abstract_operations};
@@ -97,4 +98,10 @@ pub use rules::{
     WrappingIntegerSubtractConstantsRule, built_in_psi_registries,
     built_in_psi_registries_for_selections, built_in_psi_registry,
     built_in_psi_registry_for_selections,
+};
+pub use state_specialization::{
+    AppliedStateArgumentSpecialization, SpecializedStateEdge, StateArgumentSpecializationCandidate,
+    StateArgumentSpecializationError, ValidatedStateArgumentSpecialization,
+    apply_state_argument_specialization, propose_state_argument_specializations,
+    validate_state_argument_specialization,
 };
