@@ -438,8 +438,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   definitions, and the producer admits constraint-row and consumer operand
   shapes through it (crate `nextest`: 157 pass; a `CompareI64` consumer
   carrying a scalar-result shape now rejects as `ConsumerMismatch` instead
-  of indexing past the row). Remaining: further unit roles and the effects,
-  trap, memory, stack, and control-flow dimensions.
+  of indexing past the row). `PairUnitEffects` covers implicit-unit uses,
+  clobbers, and operand unit bindings; `PairMachineEffects` covers the
+  memory, trap, stack, control-flow, barrier, call, and cleanup surface;
+  `PairOperandShape` now carries `BinaryLeftLiteral` — the commuted
+  exact-add grammar folding the literal at operand 0 through the same
+  `ExactAddI64Immediate` row — so the exact-add selection declares one pair
+  per operand position and the recorded action binds the surviving register
+  rather than a fixed operand (226 crate lib tests pass, including firing
+  on both targets plus decision-field corruption and wrong-position
+  negatives; the replay re-derives the grammar from the consumer kind and
+  recorded operand position alone). Remaining: further unit roles and
+  non-isolated effect relationships — memory, trap, stack, and
+  control-flow-carrying forms still have no descriptor variant.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
   removal, address folding, compare/test selection, and scheduling only where
