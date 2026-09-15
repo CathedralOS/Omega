@@ -1,8 +1,8 @@
+use super::ReviewOnlyCandidateClosureCommitment;
 use super::commitments::{derive_candidate_closure_commitment, derive_candidate_graph_commitment};
 use super::format::{
     row_kind_tag, row_kind_token, source_location_role_tag, source_location_role_token,
 };
-use super::*;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{

@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    GIT_LOCATOR_BYTE_LIMIT, GIT_REVISION_BYTE_LIMIT, GitExecutionTransport, GitSourceRequest,
+    GitSourceRequestError, LocalSourceLimits, SOURCE_BYTE_ABSOLUTE_LIMIT,
+    SOURCE_DEPTH_ABSOLUTE_LIMIT, SOURCE_ENTRY_ABSOLUTE_LIMIT, git_cache_identity,
+};
 #[test]
 fn git_request_validates_transport_and_emits_sanitized_identity() {
     let https = GitSourceRequest::new(

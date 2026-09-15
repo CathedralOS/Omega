@@ -1,5 +1,9 @@
 use super::super::diff::{Edit, render_hunks};
-use super::*;
+use super::{
+    BoundedOutput, DiffBudget, PackageSourcePatchError, PackageSourcePatchLimits,
+    PackageSourcePatchSide, SourceLine, SourceResolveError, myers_diff, render_entry,
+    render_package_source_patch, source_line_count, split_lines,
+};
 use crate::resolution::source::resolve_external_local_package_source;
 use package_source::local::resolution_observations::VerifiedPackageSourceEntryKind;
 use package_source::{ExternalSourceContext, LocalSourceLimits};

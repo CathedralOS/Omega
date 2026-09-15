@@ -1,5 +1,12 @@
-use super::*;
-
+use super::{
+    Arc, CANONICAL_DIRECTORY_MODE, GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS,
+    GIT_SNAPSHOT_METADATA, GIT_SNAPSHOT_SOURCE, GitBlobBytes, GitExecutionTransport, GitTreeEntry,
+    GitTreeEntryKind, LocalSourceLimits, Path, PathBuf, SourceResolveError, SourceResolverStorage,
+    create_git_source, git_cache_entry_root, git_snapshot_metadata, local_git_request,
+    make_snapshot_read_only, make_tree_owner_writable, publish_git_member_snapshot, raw_os_bytes,
+    read_git_blobs_batch_from_path, resolve_git_source, resolve_materialized_source, run_test_git,
+    run_test_git_with_input, temp_root, test_system_git_executor,
+};
 fn authenticated_single_file_member_tree(repository: &Path) -> (String, Vec<GitTreeEntry>) {
     let bytes = b"machine Main::main() {}\n".to_vec();
     let blob = run_test_git_with_input(repository, ["rev-parse", "HEAD:main.omg"], b"");

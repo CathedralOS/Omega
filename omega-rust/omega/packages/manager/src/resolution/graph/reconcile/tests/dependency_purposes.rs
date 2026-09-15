@@ -1,4 +1,7 @@
-use super::super::*;
+use super::super::{
+    PackageSourceClosureLimits, PackageSourceClosureResolutionError,
+    resolve_package_source_closure, resolve_package_source_closure_with_indexed_limits,
+};
 use super::support::*;
 use crate::declarations::dependencies::read::DependencyPurpose;
 use std::cell::RefCell;

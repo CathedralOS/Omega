@@ -1,4 +1,13 @@
-use super::*;
+use super::super::super::{
+    PackageLock, Path, PreparedLocalProject, ResolvedPackageSourceClosure, SourceResolverStorage,
+};
+use super::super::{PathBuf, temporary_root};
+use super::{
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, ExternalSourceContext,
+    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, LOCAL_PROJECT_CONTEXT,
+    LocalSourceLimits, PackageLockTarget, PackageSourceClosureLimits, PrepareLocalProjectError,
+    TargetProfile, compile_resolved_package_reviews, fs, prepare_with_storage,
+};
 use crate::resolution::graph::resolve_external_local_project_closure_with_storage;
 use crate::review::SemanticBindingReview;
 

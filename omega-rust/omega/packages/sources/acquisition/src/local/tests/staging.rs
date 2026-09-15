@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    LocalSourceLimits, SourceRelativePath, SourceResolveError, make_tree_owner_writable,
+    resolve_local_source, resolve_local_source_snapshot_in_lane, resolve_materialized_source,
+    temp_root,
+};
 use crate::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
 use crate::storage::{RetainedStorageLane, SourceResolverStorage};
 use sha2::{Digest, Sha256};

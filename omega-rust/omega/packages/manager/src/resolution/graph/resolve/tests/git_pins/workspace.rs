@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Fixture, GitAcquisitionCache, GitDependencyPins, GitExactRevisionAcquisition, package_key,
+    resolve, test_git_head,
+};
 use crate::resolution::graph::CanonicalDependencySourceRequest;
 
 #[test]

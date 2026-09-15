@@ -301,7 +301,10 @@ fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Decoder, Encoder, GitCommitId, GitTreeId, ImmutableSourceResolution, decode_resolution,
+        encode_resolution,
+    };
 
     #[test]
     fn canonical_git_resolution_rejects_content_not_derived_from_its_tree() {

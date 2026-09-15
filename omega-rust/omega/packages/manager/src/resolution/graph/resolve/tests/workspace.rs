@@ -1,5 +1,11 @@
-use super::*;
-
+use super::super::{
+    ExternalSourceContext, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
+    PackageSourceClosureResolutionError, ResolveDependencySourceError,
+    ResolveWorkspacePackageClosureError, SourceLineage, SourceRelativePath, SourceResolverStorage,
+    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+    resolve_workspace_package_closure_with_storage,
+};
+use super::{fixture_lineage, fixture_root, temp_root, write_application, write_package};
 #[test]
 fn resolves_explicit_workspace_path_closure() {
     let cache_base = temp_root("fixture-cache");

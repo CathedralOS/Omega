@@ -188,7 +188,9 @@ fn reachable_package_keys(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BTreeSet, PackageCompilationInputError, PackageCompilationScope, package_compilation_inputs,
+    };
     use crate::declarations::dependencies::read::DependencySourceRequest;
     use crate::declarations::{PackageKey, PackageName};
     use crate::resolution::graph::PackageRootSourceRequest;

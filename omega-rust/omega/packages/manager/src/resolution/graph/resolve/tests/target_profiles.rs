@@ -1,6 +1,9 @@
 //! The selected target remains invocation identity, never dependency selection.
-
-use super::*;
+use super::super::{
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, Path,
+    ResolveExternalLocalPackageClosureError, resolve_external_local_package_closure,
+};
+use super::{temp_root, write_package};
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
     ResolvedPackageSourceClosure,

@@ -1,6 +1,9 @@
 //! Exact root objects select members without materializing unrelated payloads.
-
-use super::*;
+use super::{
+    GitExactRevisionAcquisition, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
+    SourceResolveError, resolve_git_workspace_member_at_revision_in_lanes,
+    resolve_git_workspace_member_at_revision_in_lanes_with_primary_git,
+};
 mod fixtures;
 mod planner;
 mod submodules;

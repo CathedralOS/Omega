@@ -1,5 +1,12 @@
-use super::*;
-
+use super::super::{
+    GitCommitId, GitSourceRequest, GitTreeId, PathBuf, SourceResolverStorage,
+    create_git_source_with_format, git_cache_identity, make_tree_owner_writable, run_test_git,
+    run_test_git_with_input, temp_root, test_system_git_executor,
+};
+use super::{
+    GitExactRevisionAcquisition, LocalSourceLimits, ResolvedGitSource, SourceResolveError,
+    local_git_request, resolve_git_source_at_revision_in_lane,
+};
 pub(super) struct Fixture {
     pub(super) repository: PathBuf,
     storage_base: PathBuf,

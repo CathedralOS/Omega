@@ -1,5 +1,8 @@
-use super::*;
-
+use super::super::GitCommitId;
+use super::{
+    Fixture, GIT_CACHE_METADATA, GitExactRevisionAcquisition, LocalSourceLimits,
+    SourceResolveError, local_git_request, resolve_git_source_at_revision_in_lane,
+};
 #[test]
 fn exact_tree_and_algorithm_mismatches_reject_without_selector_fallback() {
     let fixture = Fixture::new("exact-revision-wrong-objects");

@@ -17,7 +17,7 @@ pub(crate) fn authored_workspace_member_path(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{WorkspaceMemberPath, authored_workspace_member_path, source_relative_path};
 
     #[test]
     fn boundary_conversion_preserves_canonical_path_bytes() {

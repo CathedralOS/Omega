@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitObjectIdAlgorithm, GitTreeId,
+    IdentityError, ImmutableSourceResolution, SourceContentDigest, SourceLineage,
+    SourceRelativePath, WorkspaceLineageIdentity, WorkspaceMemberLineage,
+};
 fn lineage(locator: &str) -> SourceLineage {
     SourceLineage::git(locator).unwrap()
 }

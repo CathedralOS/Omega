@@ -101,7 +101,7 @@ pub(in crate::lock) fn read(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{PackagePolicyAcceptance, Reader, Writer, read};
     use package_evidence::{
         encoding::PackagePolicyTextRecoveryLimits, record::PackagePolicyBaseline,
     };

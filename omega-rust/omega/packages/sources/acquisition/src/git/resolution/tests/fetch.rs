@@ -1,5 +1,11 @@
-use super::*;
-
+use super::{
+    Command, GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, LocalSourceLimits,
+    SourceResolveError, bounded_git_fetch_arguments, create_git_cache_entry, create_git_source,
+    git_cache_entry_root, git_cache_identity, local_git_request, make_tree_owner_writable,
+    open_absolute_directory_nofollow, resolve_git_source, resolve_verified_git_cache_entry,
+    run_test_git, run_test_git_with_input, temp_root, test_system_git_executor,
+    verify_git_cache_root_custody,
+};
 #[test]
 fn git_source_fetches_only_the_selected_revision_depth() {
     let (repo, _) = create_git_source("git-shallow");

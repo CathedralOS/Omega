@@ -21,10 +21,7 @@ use std::path::{Path, PathBuf};
 /// Exact no-growth ratchets: (crate directory, files carrying a glob
 /// self-import under its `src/`).
 const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
-    ("omega-rust/omega/compiler/native-realization", 21),
-    ("omega-rust/omega/packages/manager", 58),
     ("omega-rust/omega/packages/review/evidence", 90),
-    ("omega-rust/omega/packages/sources/acquisition", 31),
     (
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
         53,

@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    PackageClosureValidationError, ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode,
+    ResolvedSourceIdentity,
+};
 use crate::declarations::DependencyPurpose;
 use crate::declarations::PackageName;
 use crate::declarations::{AliasName, PackageKey};

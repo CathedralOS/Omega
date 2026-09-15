@@ -1,6 +1,6 @@
 //! Shared fixture construction and local Git operations for traversal tests.
+use super::super::{Path, PathBuf, SourceLineage};
 
-use super::*;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 

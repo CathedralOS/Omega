@@ -1,5 +1,10 @@
-use super::*;
-
+use super::super::{
+    GitSourceRequest, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
+    PackageSourceClosureResolutionError, ResolveDependencySourceError,
+    ResolveGitPackageClosureError, SourceResolverStorage, git_root_request_matches,
+    resolve_git_package_closure_with_storage,
+};
+use super::{GitTransportProfile, run_test_git, temp_root, write_application, write_package};
 #[test]
 fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     let repository = temp_root("git-root-repository");

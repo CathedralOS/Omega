@@ -1,4 +1,14 @@
-use super::*;
+use super::super::super::{
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, Path, PathBuf,
+    SourceRelativePath, SourceResolverStorage, resolve_external_local_project_closure_with_options,
+    resolve_staged_external_local_project_closure_with_options,
+};
+use super::super::{run_test_git, temp_root, write_application};
+use super::{
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
+    GitResolutionOptions, ResolveExternalLocalPackageClosureError, ResolvedPackageSourceClosure,
+    write_package,
+};
 use package_source::local::staging::stage_local_source_replacement_in_lane;
 use sha2::{Digest, Sha256};
 use std::process::Command;

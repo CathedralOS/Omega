@@ -342,7 +342,9 @@ impl std::error::Error for CompileResolvedPackageReviewsError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CompileResolvedPackageReviewsError, PackageCompilationInputError, PackageKey, PathBuf,
+    };
     use crate::declarations::PackageName;
     use package_source::SourceLineage;
 

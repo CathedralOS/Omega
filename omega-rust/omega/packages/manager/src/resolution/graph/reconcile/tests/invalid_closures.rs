@@ -1,4 +1,7 @@
-use super::super::*;
+use super::super::{
+    PackageSourceClosureLimitKind, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
+    resolve_package_source_closure, resolve_package_source_closure_with_limits,
+};
 use super::support::*;
 use crate::resolution::graph::PackageClosureValidationError;
 use std::collections::BTreeMap;

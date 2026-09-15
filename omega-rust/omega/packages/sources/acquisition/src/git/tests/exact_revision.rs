@@ -1,6 +1,9 @@
 //! Persisted exact revisions never refresh or acquire an operation-local pin.
-
-use super::*;
+use super::{
+    GIT_CACHE_METADATA, GitExactRevisionAcquisition, GitObjectIdAlgorithm, LocalSourceLimits,
+    SourceResolveError, local_git_request, resolve_git_source_at_revision_in_lane,
+    resolve_git_source_at_revision_in_lane_with_primary_git, resolve_git_source_in_lane,
+};
 use crate::observations::resolved::ResolvedGitSource;
 mod failures;
 mod fixtures;

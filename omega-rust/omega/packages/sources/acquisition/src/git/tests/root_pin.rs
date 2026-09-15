@@ -1,6 +1,10 @@
 //! Whole-root operation-local pins never refresh a mutable selector.
-
-use super::*;
+use super::{
+    GIT_CACHE_METADATA, GitSourceRequest, LocalSourceLimits, PathBuf, SourceResolveError,
+    SourceResolverStorage, create_git_source, git_cache_identity, local_git_request,
+    make_tree_owner_writable, resolve_git_source_from_pin_in_lane, run_test_git,
+    run_test_git_with_input, temp_root, test_system_git_executor,
+};
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 
 struct Fixture {

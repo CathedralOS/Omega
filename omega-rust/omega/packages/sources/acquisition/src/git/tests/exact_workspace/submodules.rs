@@ -1,5 +1,7 @@
-use super::*;
-
+use super::super::{GitCommitId, GitTreeId, run_test_git, run_test_git_with_input};
+use super::{
+    Fixture, GitExactRevisionAcquisition, GitWorkspaceProjectionError, Planner, SourceResolveError,
+};
 const MISSING_COMMIT: &str = "1111111111111111111111111111111111111111";
 
 fn add_submodule(fixture: &mut Fixture, manifest: &str, link: &str) {

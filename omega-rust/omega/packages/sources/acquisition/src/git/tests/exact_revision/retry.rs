@@ -1,5 +1,8 @@
-use super::*;
-
+use super::super::{GIT_CACHE_REPOSITORY, PathBuf, resolve_git_source_from_pin_in_lane};
+use super::{
+    Fixture, GIT_CACHE_METADATA, GitExactRevisionAcquisition, LocalSourceLimits, ResolvedGitSource,
+    SourceResolveError, local_git_request, resolve_git_source_in_lane,
+};
 fn ordinary(fixture: &Fixture) -> Result<ResolvedGitSource, SourceResolveError> {
     resolve_git_source_in_lane(
         &fixture.request,
