@@ -307,10 +307,10 @@ fn general_scalar_prefix_and_successors_require_exact_facts_and_custody() {
                             || expression.role != role
                     });
             }
-            let plans = crate::flow::build_checked_unit_effect_plans(
+            let plans = crate::execution::build_checked_unit_effect_plans(
                 &checked.typed,
                 &facts,
-                crate::flow::ScalarCalleePlans {
+                crate::execution::ScalarCalleePlans {
                     boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                     structural_returns: &facts.flow.terminal_structural_scalar_returns,
                 },

@@ -1,5 +1,5 @@
 use super::PrimitiveType;
-use crate::flow::shared_integer_runtime_parameter_positions_for_test;
+use crate::execution::shared_integer_runtime_parameter_positions_for_test;
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{CheckedIntegerBinaryKind, CheckedScalarExpression};

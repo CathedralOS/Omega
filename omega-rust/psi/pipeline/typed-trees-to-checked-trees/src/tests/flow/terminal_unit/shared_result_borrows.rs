@@ -254,10 +254,10 @@ fn shared_result_reads_require_exact_captured_borrow_access() {
             }
             _ => changed.borrow.calls.get_mut(call_handle).call_ordinal = 1,
         }
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &original.typed,
             &changed,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },

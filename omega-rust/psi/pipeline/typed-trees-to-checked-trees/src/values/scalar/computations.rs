@@ -904,7 +904,7 @@ impl Builder<'_, '_> {
                             crate::find_state_in_machine(self.program, self.machine, self.state)?;
                         structural_arguments.push(
                             checked_trees::CheckedScalarComputationStructuralArgument::Place(
-                                crate::flow::structural_computation_argument(
+                                crate::execution::structural_computation_argument(
                                     self.program,
                                     self.borrow,
                                     self.machine,

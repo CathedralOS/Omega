@@ -4,7 +4,9 @@
 //! it also owns the open-index normalization and static machine-call
 //! specialization steps that package orchestration reuses on typed snapshots.
 //! `execution::selected_execution` owns rebuilding plans after provider
-//! settlement. Fact population lives in `facts`, flow and value analysis in
+//! settlement; `execution::finalize_execution` owns initial plan completion.
+//! Executable builders live under execution, separately from temporal flow.
+//! Fact population lives in `facts`, flow and value analysis in
 //! `flow` and `values`, and the remaining folders each own one checking
 //! concern. This root preserves the crate API and wires the subsystems.
 
@@ -12,7 +14,56 @@ mod authored_selections;
 mod checking;
 mod checks;
 mod conformance;
-mod execution;
+mod execution {
+    #[path = "control_cleanup.rs"]
+    pub(crate) mod terminal_cleanup;
+    #[path = "debug_metadata.rs"]
+    pub(crate) mod terminal_debug;
+    #[path = "scalar/plan_scalar.rs"]
+    pub(crate) mod terminal_scalar;
+    #[path = "unit/plan_unit.rs"]
+    pub(crate) mod terminal_unit;
+    pub(crate) use terminal_cleanup::build_checked_structural_control_cleanup_plans;
+    pub(crate) use terminal_debug::build_checked_terminal_debug_plans;
+    pub(crate) use terminal_scalar::{
+        build_checked_scalar_graph_plans, build_checked_terminal_machine_selections,
+        finalize_checked_scalar_graph_plans, finalize_scalar_unit_operations,
+    };
+    pub(crate) use terminal_unit::ScalarCalleePlans;
+    pub(crate) use terminal_unit::calls::projected_argument_path;
+    pub(crate) use terminal_unit::control::build_checked_structural_unit_control_plans;
+    pub(crate) use terminal_unit::returns::{
+        build_checked_boundary_scalar_return_plans,
+        build_checked_primitive_store_scalar_return_plans,
+        build_checked_structural_call_return_plans, build_checked_structural_return_plans,
+        build_checked_structural_scalar_return_plans, reconcile_primitive_store_scalar_returns,
+    };
+    #[cfg(test)]
+    pub(crate) use terminal_unit::shared_convergence::shared_integer_runtime_parameter_positions_for_test;
+    pub(crate) use terminal_unit::structural_computation_argument;
+    pub(crate) use terminal_unit::types::byte_sequence_carrier;
+    pub(crate) use terminal_unit::{
+        build_checked_nominal_affine_unit_cleanup_plans,
+        build_checked_partial_affine_unit_cleanup_plans, build_checked_unit_effect_plans,
+    };
+    #[cfg(test)]
+    pub(crate) fn exact_two_field_record_projection_for_test(
+        program: &typed_trees::TypedTrees,
+        root_type: typed_trees::types::TypeReferenceHandle,
+        moved_field: symbols::SymbolHandle,
+        target_type: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<(String, String, String, String)> {
+        terminal_unit::exact_two_field_record_projection(
+            program,
+            root_type,
+            moved_field,
+            target_type,
+        )
+    }
+    pub(crate) mod execution_plans;
+    pub(crate) mod finalize_execution;
+    pub(crate) mod selected_execution;
+}
 mod facts;
 mod labels;
 mod lookup;

@@ -3,11 +3,16 @@
 This stage checks typed programs and retains checked facts. Start at
 [checking.rs](src/checking.rs): specialization, validation, checked facts,
 execution plans, and publication are visible there in order.
+[finalize_execution.rs](src/execution/finalize_execution.rs) consumes completed
+check facts, finalizes scalar graphs, assembles structural control and return
+plans, then completes affine cleanup. It returns the facts only after cleanup
+diagnostics clear; the checker never publishes an intermediate plan set.
 [selected_execution.rs](src/execution/selected_execution.rs) owns rebuilding execution
 plans after provider settlement; [lib.rs](src/lib.rs) wires the public API.
 Both paths use [execution_plans.rs](src/execution/execution_plans.rs) for independent
 scalar returns, Unit closure, then dependent structural returns. It returns owned
-plans and diagnostics; each caller retains its own cleanup and publication point.
+plans and diagnostics; initial finalization owns dependent cleanup while selected
+rebuilding preserves its narrower transactional publication point.
 Public borrow requirements are in
 [loan resources and compatibility](../../../../wiki/spec/terminal-psi/loans.md).
 Authored declaration custody and carried-type dependency production are described
@@ -61,6 +66,7 @@ on rejection the original checked trees remain unchanged.
 | `flow/`, `flow/call_phases.rs` | Entry facts, call requires, invalidation, guarantees, exits, and transfer order. |
 | `flow/place/`, `flow/domain/` | Canonical places and dependency-overlap invalidation. |
 | `flow/ownership/` | Type-multiplicity-based moves, drops, argument routes, and result storage. |
+| `execution/scalar/`, `execution/unit/`, `execution/control_cleanup.rs` | Executable graph discovery, callee closure, return plans and checked cleanup construction. |
 | `values/` | Ranking, initializer, argument, transition, and nested-expression origins. |
 | `checks/contracts/`, `checks/ranges/`, `checks/termination/` | Proof consumers and diagnostics, not competing durable fact models. |
 
@@ -70,6 +76,13 @@ normalized public contracts; source-dependent call-route substitution belongs in
 `facts/crash_calls.rs`. Package projection may read an earlier coherent
 representation and join checked acceptance afterward. It must not invent a
 new semantic stage merely to collect package rows.
+
+The transform's temporal `flow/` owner does not construct or re-export executable
+plans. Execution reads its canonical place, mutation, ownership and contract-call
+queries. Preliminary fact construction calls execution for graph discovery;
+post-check finalization completes those graphs from accepted ownership evidence.
+The existing `CheckFacts::flow.terminal_*` storage remains unchanged: storage
+location does not assign the transform's implementation ownership.
 
 Checked evidence contains semantic receipt identities, not target placements,
 provider selection, ABI/layout policy, or physical activation plans. Source
@@ -559,7 +572,7 @@ entry arithmetic, and mutable value-origin transport remain distinct work.
 
 ## Scalar convergence inputs
 
-[shared_convergence.rs](src/flow/terminal_unit/shared_convergence.rs) collects
+[shared_convergence.rs](src/execution/unit/shared_convergence.rs) collects
 runtime inputs by walking supported scalar operations. Arithmetic association,
 cast-chain length, and combinations of exact and proof-free operations do not
 select separate producer families. Collection establishes input coordinates and

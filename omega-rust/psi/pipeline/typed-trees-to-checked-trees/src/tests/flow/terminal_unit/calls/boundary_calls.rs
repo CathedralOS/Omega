@@ -141,10 +141,10 @@ fn static_boundary_reaches_keep_every_direct_intrinsic_and_parameter_call() {
         let empty = language_semantics::ServiceReachRowTable::EMPTY_ROW;
         assert_ne!(call.service_reach.transitive, empty);
         call.service_reach.transitive = empty;
-        let plans = crate::flow::build_checked_unit_effect_plans(
+        let plans = crate::execution::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },

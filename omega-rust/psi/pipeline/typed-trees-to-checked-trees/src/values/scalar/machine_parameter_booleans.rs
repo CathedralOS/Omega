@@ -241,7 +241,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     });
                 }
                 Some(_) => return None,
-                None if crate::flow::byte_sequence_carrier(program, type_reference, &[])
+                None if crate::execution::byte_sequence_carrier(program, type_reference, &[])
                     .is_some() =>
                 {
                     let mut left = CheckedStructuralParameterField {

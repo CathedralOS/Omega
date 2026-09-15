@@ -63,7 +63,7 @@ pub(super) fn structural_byte_length(
         // The shared carrier classifier distinguishes a bounded byte field's
         // live length from a raw fixed array's static capacity.
         || !matches!(
-            crate::flow::byte_sequence_carrier(program, selected_type, &[]),
+            crate::execution::byte_sequence_carrier(program, selected_type, &[]),
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
         )
     {
