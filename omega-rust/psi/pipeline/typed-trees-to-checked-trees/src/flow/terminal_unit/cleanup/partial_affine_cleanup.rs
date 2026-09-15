@@ -6,6 +6,7 @@ use crate::flow::terminal_unit::cleanup::cleanup_evidence::{
     service_reach_plan_is_empty,
 };
 use crate::flow::terminal_unit::cleanup::residuals;
+use crate::flow::terminal_unit::control::checked_unit_structural_result_local;
 use crate::flow::terminal_unit::{
     BTreeMap, CheckFacts, CheckedPartialAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
@@ -14,9 +15,8 @@ use crate::flow::terminal_unit::{
     CheckedUnitStructuralTypePlan, ExpectedCallValueResult, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PrimitiveType,
     ShapeCollector, SignatureContractKind, StatementNode, TypedTrees, build_call_operation,
-    checked_unit_structural_result_local, control, entry_claims, is_unit, machine_binders,
-    parameter_root_symbol, partial_affine_structural_signature, state_flow,
-    type_graph_requires_nominal_drop,
+    control, entry_claims, is_unit, machine_binders, parameter_root_symbol,
+    partial_affine_structural_signature, state_flow, type_graph_requires_nominal_drop,
 };
 
 pub(crate) fn build_partial_affine_unit_cleanup_machine(

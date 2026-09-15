@@ -16,13 +16,15 @@ use super::{
     StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::flow::ScalarCalleePlans;
-use crate::flow::terminal_unit::control::{bind_scalar_call_result, call_occurrences};
+use crate::flow::terminal_unit::control::call_occurrences;
+use crate::flow::terminal_unit::control::call_results::bind_scalar_call_result;
+use crate::flow::terminal_unit::control::call_results::bind_structural_call_result;
+use crate::flow::terminal_unit::control::call_results::checked_structural_result_type;
+use crate::flow::terminal_unit::control::call_results::checked_unit_structural_result_local;
 use crate::flow::terminal_unit::returns::checked_boolean_contains_short_circuit;
 use crate::flow::terminal_unit::{
-    ExpectedCallValueResult, ShapeCollector, base_type_identity, bind_structural_call_result,
-    build_call_operation, checked_structural_result_type, checked_unit_structural_result_local,
-    is_unit, machine_binders, parameter_qualifications, scalar_expression_local_at,
-    structural_operands,
+    ExpectedCallValueResult, ShapeCollector, base_type_identity, build_call_operation, is_unit,
+    machine_binders, parameter_qualifications, scalar_expression_local_at, structural_operands,
 };
 use checked_trees::CheckedUnitStructuralReturnPlan;
 

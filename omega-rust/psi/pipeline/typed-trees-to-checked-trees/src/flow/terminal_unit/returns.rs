@@ -35,10 +35,10 @@ use super::{
     Diagnostic, ExpressionNode, MachineSupplyMode, Multiplicity, StatementNode, TypeReferenceNode,
     TypedTrees,
 };
-use crate::flow::terminal_unit::{
-    ShapeCollector, build_boundary_machine, build_static_boundary_requirements,
-};
+use crate::flow::terminal_unit::ShapeCollector;
 
+use crate::flow::terminal_unit::control::build_boundary_machine;
+use crate::flow::terminal_unit::control::build_static_boundary_requirements;
 use crate::flow::terminal_unit::returns::affine_and_case_returns::{
     build_claim_free_affine_structural_return_machine, build_payloadless_case_return_machine,
 };
