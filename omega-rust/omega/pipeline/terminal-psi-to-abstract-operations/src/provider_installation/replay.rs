@@ -9,7 +9,8 @@
 
 use super::error::ProviderInstallationError;
 use super::model::AdmittedInstalledProviderCall;
-use crate::shared::*;
+use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractOperationPlan};
+use terminal_psi::{ProviderCandidateConformance, StructuralMultiplicity};
 
 pub(super) fn replay_installed_provider_calls(
     plan: &AbstractOperationPlan,

@@ -1,5 +1,7 @@
 //! Optimizer module role: executable entrance. Selected CFG to selected CFG.
 
+pub(crate) mod optimization_output;
+
 use crate::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
     SelectedInstructionOptimizationOutput, StagedOptimizedLiveRanges,

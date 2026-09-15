@@ -2,6 +2,7 @@
 //! Provider installation admits only an exactly replayed abstract plan.
 //! Optimization selection does not change the Terminal-to-abstract projection.
 
+use abstract_operations::AbstractOperationPlan;
 mod admission;
 mod error;
 mod model;
@@ -12,7 +13,6 @@ pub use model::{
     AdmittedInstalledProviderCall, AdmittedProviderInstallation, SelectedProviderAdapter,
 };
 
-use crate::shared::*;
 use admission::admit_provider_installation_with_projection;
 
 pub fn admit_provider_installation(

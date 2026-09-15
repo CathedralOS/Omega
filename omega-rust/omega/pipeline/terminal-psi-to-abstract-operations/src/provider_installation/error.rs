@@ -1,5 +1,5 @@
 use crate::artifact_admission::ArtifactLoweringError;
-use crate::shared::*;
+use semantic_vocabulary::{MachineId, OperationId};
 
 #[derive(Debug)]
 pub enum ProviderInstallationError {

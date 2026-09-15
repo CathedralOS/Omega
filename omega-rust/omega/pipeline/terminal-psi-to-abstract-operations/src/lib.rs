@@ -10,7 +10,6 @@ mod artifact_admission;
 mod lowering;
 mod optimization;
 mod provider_installation;
-mod shared;
 
 pub use artifact_admission::{
     AdmittedArtifactPlan, AdmittedNativeArtifact, AdmittedOptimizationArtifact,

@@ -1,5 +1,4 @@
-use crate::shared::*;
-
+use abstract_operations::AbstractOperationPlan;
 /// Required optimizer input produced only after canonical artifact decoding,
 /// Terminal-Psi validation, proof reconstruction, and evidence admission.
 ///

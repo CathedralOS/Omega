@@ -1,9 +1,8 @@
 use super::{VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnitBuildError};
 
 #[cfg(test)]
-use crate::shared::*;
 #[cfg(test)]
-use semantic_vocabulary::{EdgeId, Proposition};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, ObligationId, OperationId, Proposition};
 
 pub(super) fn project_proof_questions(
     input: &VerifiedPsiOptimizationInput,

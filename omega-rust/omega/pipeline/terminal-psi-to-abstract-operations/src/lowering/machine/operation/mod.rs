@@ -18,8 +18,9 @@ use std::collections::BTreeMap;
 use abstract_operations::AbstractOperation;
 use terminal_psi::TerminalMachine;
 
-use super::{LoweredAffineLocal, ScalarType, StructuralLiteral};
+use super::{LoweredAffineLocal, StructuralLiteral};
 use crate::lowering::LoweringError;
+use semantic_vocabulary::ScalarType;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_operation(

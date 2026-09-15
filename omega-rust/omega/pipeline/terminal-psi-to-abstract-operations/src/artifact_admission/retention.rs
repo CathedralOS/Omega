@@ -1,7 +1,8 @@
 use super::error::ArtifactLoweringError;
 use crate::lowering::lower_decoded_optimizable_module;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
-use crate::shared::*;
+use abstract_operations::AbstractOperationPlan;
+use terminal_verifier::VerifiedOptimizableTerminalModule;
 
 /// One canonical optimizer-admitted program plus its exact plan-laid input
 /// roster. Construction is private to artifact admission so the roster cannot
