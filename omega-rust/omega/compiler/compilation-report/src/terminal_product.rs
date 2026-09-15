@@ -306,6 +306,11 @@ pub struct TerminalNativeRealizationProposal {
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     checked_boundary_operator_scope:
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    /// Canonical union of the authored `builder.exclude_*` selections the
+    /// producing build required. It is retained beside the artifact so a
+    /// source-free consumer replays the identical absence policy against the
+    /// committed semantic subject; it grants no exclusion authority itself.
+    behavior_exclusions: build_evaluation::BehaviorExclusions,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -333,6 +338,7 @@ impl TerminalNativeRealizationProposal {
         boundary_application_demands: boundary_applications::TerminalBoundaryApplicationDemands,
         boundary_application_realizations: boundary_applications::TerminalBoundaryApplicationRealizations,
         checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+        behavior_exclusions: build_evaluation::BehaviorExclusions,
     ) -> Result<Self, &'static str> {
         let boundary_application_coverage =
             boundary_applications::TerminalBoundaryApplicationCoverage::new(
@@ -368,6 +374,7 @@ impl TerminalNativeRealizationProposal {
             ieee_float_comparison_occurrences,
             boundary_application_coverage,
             checked_boundary_operator_scope,
+            behavior_exclusions,
         };
         proposal.validate_for_artifact(artifact)?;
         Ok(proposal)
@@ -484,6 +491,33 @@ impl TerminalNativeRealizationProposal {
             );
         }
         self.validate_fused_program_entry_establishments(&module)?;
+        // The retained exclusion union is a source-free admission policy over
+        // this artifact's committed semantics: a consumer replays the same
+        // Terminal-closure absence check the producing build enforced, so a
+        // proposal whose retained policy the artifact cannot satisfy never
+        // reaches realization. The producing admission gate additionally
+        // checked the unoptimized closure committed as this artifact's
+        // optimization input; this replay re-verifies the published subject.
+        match build_evaluation::establish_behavior_exclusions(
+            &module,
+            &[module.entry],
+            &self.behavior_exclusions,
+            &self.selected_provider_plans,
+        )
+        .verdict()
+        {
+            build_evaluation::BehaviorExclusionVerdict::Satisfied => {}
+            build_evaluation::BehaviorExclusionVerdict::Prohibited => {
+                return Err(
+                    "Terminal native proposal retains a possible behavior its authored exclusions prohibit",
+                );
+            }
+            build_evaluation::BehaviorExclusionVerdict::InsufficientEvidence => {
+                return Err(
+                    "Terminal native proposal cannot establish the absence its authored exclusions require",
+                );
+            }
+        }
         for demand in self.boundary_application_coverage.demands().rows() {
             let matching_operations = module
                 .machines
@@ -936,6 +970,14 @@ impl TerminalNativeRealizationProposal {
         &self,
     ) -> &[TerminalIeeeFloatComparisonOccurrenceProposal] {
         &self.ieee_float_comparison_occurrences
+    }
+
+    /// Canonical union of the authored behavior exclusions this artifact's
+    /// build required. The producing admission gate enforced it over the
+    /// unoptimized selected-entry closure; consumers replay it against the
+    /// retained artifact semantics through `validate_for_artifact`.
+    pub const fn behavior_exclusions(&self) -> &build_evaluation::BehaviorExclusions {
+        &self.behavior_exclusions
     }
 
     /// Non-caller-authored checked D29 scope retained before the checked

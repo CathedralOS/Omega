@@ -5197,6 +5197,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             proposal.boundary_application_demands().clone(),
             proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
+            proposal.behavior_exclusions().clone(),
         )
         .is_err(),
         "retained Terminal proposal must reject duplicate package permission coordinates",
@@ -5256,6 +5257,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 proposal.boundary_application_demands().clone(),
                 proposal.boundary_application_realizations().clone(),
                 proposal.checked_boundary_operator_scope().clone(),
+                proposal.behavior_exclusions().clone(),
             )
             .expect("syntactically valid reconstructed proposal");
             compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(

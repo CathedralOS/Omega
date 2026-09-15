@@ -2344,6 +2344,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             proposal.boundary_application_demands().clone(),
             proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
+            proposal.behavior_exclusions().clone(),
         )
         .is_err(),
         "a target-profile substitution must not re-enter Terminal product custody",

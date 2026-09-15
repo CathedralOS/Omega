@@ -82,19 +82,32 @@ fn behavior_exclusion_diagnostics(
         authored.len()
     )));
     for prohibited in &report.prohibited {
-        diagnostics.push(Diagnostic::error(format!(
+        let mut diagnostic = Diagnostic::error(format!(
             "behavior exclusion violated: {} is reachable in Terminal machine {} at {}",
             describe_exclusion(prohibited.exclusion),
             prohibited.machine,
             describe_site(module, &prohibited.site),
-        )));
+        ));
+        // The rejection points at the authored `exclude_*` selection that
+        // named the requirement, not an internal Terminal coordinate.
+        if let Some(row) = authored
+            .iter()
+            .find(|row| row.exclusion() == prohibited.exclusion)
+        {
+            diagnostic = diagnostic.with_source_span(row.source_span);
+        }
+        diagnostics.push(diagnostic);
     }
     for gap in &report.gaps {
-        diagnostics.push(Diagnostic::error(format!(
+        let mut diagnostic = Diagnostic::error(format!(
             "behavior exclusion evidence is insufficient: {} at {}",
             describe_gap(&gap.kind),
             describe_location(gap.machine, gap.block, gap.operation),
-        )));
+        ));
+        if let Some(first) = authored.first() {
+            diagnostic = diagnostic.with_source_span(first.source_span);
+        }
+        diagnostics.push(diagnostic);
     }
     diagnostics
 }

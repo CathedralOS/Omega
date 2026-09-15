@@ -564,6 +564,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.boundary_application_demands().clone(),
         proposal.boundary_application_realizations().clone(),
         proposal.checked_boundary_operator_scope().clone(),
+        proposal.behavior_exclusions().clone(),
     )
     .expect("artifact-local proposal replay does not own checked placement spelling");
     assert!(
@@ -612,6 +613,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.boundary_application_demands().clone(),
             proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
+            proposal.behavior_exclusions().clone(),
         )
         .is_err(),
         "a non-boundary Terminal operation cannot replace the registrar call",
@@ -638,6 +640,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.boundary_application_demands().clone(),
             proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
+            proposal.behavior_exclusions().clone(),
         )
         .is_err(),
         "duplicate placement occurrence rows must reject",
@@ -671,6 +674,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.boundary_application_demands().clone(),
         proposal.boundary_application_realizations().clone(),
         proposal.checked_boundary_operator_scope().clone(),
+        proposal.behavior_exclusions().clone(),
     )
     .expect("artifact-local replay cannot infer the checked native telescope");
     assert!(
@@ -712,6 +716,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.boundary_application_demands().clone(),
             proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
+            proposal.behavior_exclusions().clone(),
         )
         .is_err(),
         "a callback-thunk role for another placement index must reject",
@@ -748,6 +753,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.boundary_application_demands().clone(),
         proposal.boundary_application_realizations().clone(),
         proposal.checked_boundary_operator_scope().clone(),
+        proposal.behavior_exclusions().clone(),
     )
     .expect("artifact-only proposal replay cannot reconstruct checked continuation handles");
     assert!(
@@ -780,6 +786,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.boundary_application_demands().clone(),
         proposal.boundary_application_realizations().clone(),
         proposal.checked_boundary_operator_scope().clone(),
+        proposal.behavior_exclusions().clone(),
     )
     .expect("artifact-local replay permits an empty occurrence catalog");
     let (artifact, placements, _) = retained.into_parts();

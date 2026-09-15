@@ -155,6 +155,7 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
             proposal.boundary_application_demands().clone(),
             proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
+            proposal.behavior_exclusions().clone(),
         )
     };
 
