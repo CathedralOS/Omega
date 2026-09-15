@@ -514,11 +514,26 @@ pub(super) fn clone_specialized_machine(
     )?;
     substitute_cloned_type_parameters(source, program, candidate, type_start)?;
     reject_runtime_bound_static_occurrences(program, candidate, &cloned)?;
+    // A transition between cloned states forwards the containing state's
+    // realized `Value` subjects, in telescope order, as trailing ordinary
+    // arguments — the same subjects a rewritten call site appends.
+    let state_transition_subjects: Vec<Vec<(typed_trees::name::Identifier, SymbolHandle)>> =
+        state_realized_parameters
+            .iter()
+            .map(|realized| {
+                realized
+                    .iter()
+                    .zip(realized_parameters.iter())
+                    .map(|((_, symbol), (_, name, _))| (name.clone(), *symbol))
+                    .collect()
+            })
+            .collect();
     rewrite_cloned_calls(
         source,
         program,
         candidate,
         &state_symbols,
+        &state_transition_subjects,
         expression_start,
         cloned.states,
     );

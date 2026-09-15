@@ -93,8 +93,10 @@ machine build(builder: &mut Build) {
     }
 }
 
-/// Collect every in-module `Call` operation across all of a machine's blocks
-/// as `(callee, arguments, obligation count)` rows in authored order.
+/// Collect every in-module direct call operation across all of a machine's
+/// blocks as `(callee, scalar arguments, obligation count)` rows in authored
+/// order. `CallUnit`/`CallStructuralScalar` carry the receiver and claims on
+/// their own lanes; the scalar tuple stays directly comparable.
 fn calls(module: &TerminalModule, machine: MachineId) -> Vec<(MachineId, Vec<ValueId>, usize)> {
     module
         .machines
@@ -106,6 +108,18 @@ fn calls(module: &TerminalModule, machine: MachineId) -> Vec<(MachineId, Vec<Val
         .flat_map(|block| &block.operations)
         .filter_map(|operation| match &operation.kind {
             OperationKind::Call {
+                callee,
+                arguments,
+                requirement_obligations,
+                ..
+            }
+            | OperationKind::CallUnit {
+                callee,
+                arguments,
+                requirement_obligations,
+                ..
+            }
+            | OperationKind::CallStructuralScalar {
                 callee,
                 arguments,
                 requirement_obligations,
@@ -577,6 +591,82 @@ machine Main::main(&mut self) reaches Trace {
         &published,
         &[3, 5, 30],
         "each read returns the captured subject its preceding write stored",
+        &array_backing(&published, 8),
+    );
+}
+
+/// A multi-state template cloned for a runtime `Value` subject carries the
+/// realized subject as a trailing parameter on every cloned state, so a `->`
+/// transition between them owes the target that appended subject exactly as a
+/// rewritten call site does. `allowed` stores its forwarded subject into one
+/// literal-indexed field slot; `denied` receives its own forwarded subject and
+/// stores it into another. The second call's distinct runtime subject reuses
+/// the same dynamic body, and the whole chain replays through Terminal.
+#[test]
+fn runtime_bound_subject_survives_state_transitions() {
+    let published = publish(
+        "transitioned-subject",
+        r#"
+use omega::language::core::external_binding;
+
+boundary trait Trace { machine record(value: u64); }
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+
+data Main {
+    values: [u8; 8];
+}
+
+machine Main::walk<Count: u8>(&mut self, n: u8) {
+    transition n == 3 {
+        true -> allowed(n)
+        false -> denied()
+    }
+    state allowed(&mut self, n: u8) {
+        self.values[3] = Count;
+    }
+    state denied(&mut self) {
+        self.values[4] = Count;
+    }
+}
+
+machine Main::main(&mut self) reaches Trace {
+    let n: u8 = 3;
+    self.walk<n>(n);
+    let stored: u8 = self.values[3];
+    Trace::record(stored as u64);
+    let m: u8 = 4;
+    self.walk<m>(m);
+    let forwarded: u8 = self.values[4];
+    Trace::record(forwarded as u64);
+}
+"#,
+    );
+    let module = &published.module;
+    let entry_calls = calls(module, module.entry);
+    assert_eq!(
+        entry_calls.len(),
+        2,
+        "entry places the two `walk` calls; Trace::record stays a boundary call"
+    );
+    assert_eq!(
+        entry_calls[0].0, entry_calls[1].0,
+        "distinct runtime subjects share the one transitioned dynamic body"
+    );
+    assert_eq!(
+        entry_calls[0].1.len(),
+        2,
+        "the transitioned call carries the authored argument and the captured subject"
+    );
+    assert_eq!(
+        module.machines.len(),
+        2,
+        "entry plus one dynamic multi-state body, no per-value bodies"
+    );
+
+    replay(
+        &published,
+        &[3, 4],
+        "each transition arm stores its own forwarded subject where main observes it",
         &array_backing(&published, 8),
     );
 }
