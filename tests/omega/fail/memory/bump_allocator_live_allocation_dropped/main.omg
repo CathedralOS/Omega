@@ -1,0 +1,74 @@
+// Reset is only reachable after full return: an issued allocation is linear
+// qualified custody, so a strategy that abandons it — keeping the tail and
+// never returning the allocation — is rejected. The pass-side sibling
+// (`tests/omega/pass/memory/bump_allocator_canary`) spells the compliant
+// shape: every issued extent is consumed by `reset` before the backing is
+// recomposed.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Split {
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
+}
+
+boundary trait ExtentPartition {
+    machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
+    ensures
+        Granted::content(old(&whole))
+        == separate(
+            Granted::content(&result.taken),
+            Granted::content(&result.rest),
+        );
+}
+
+data Bump {
+    tail: Extent in Granted & Vacant;
+    remaining: u64;
+}
+
+data Issued {
+    strategy: Bump;
+    allocation: Extent in Granted & Vacant;
+}
+
+machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
+requires
+    length <= strategy.remaining
+reaches ExtentPartition
+{
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let parts: Split = partition.split(tail, length);
+    let taken: Extent in Granted & Vacant = parts.taken;
+    let rest: Extent in Granted & Vacant = parts.rest;
+    Issued {
+        strategy: Bump {
+            tail: rest,
+            remaining: strategy.remaining - length,
+        },
+        allocation: taken,
+    }
+}
+
+machine abandon(
+    partition: &ExtentPartition,
+    whole: Extent in Granted & Vacant,
+    capacity: u64
+) -> Extent
+requires
+    48 <= capacity;
+    capacity == whole.length
+reaches ExtentPartition
+{
+    let issued: Issued = allocate(
+        partition,
+        Bump { tail: whole, remaining: capacity },
+        16,
+    );
+    let tail: Extent in Granted & Vacant = issued.strategy.tail;
+    tail as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

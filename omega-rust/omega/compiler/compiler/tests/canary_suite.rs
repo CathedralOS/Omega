@@ -1730,6 +1730,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "wire/wire_compatibility_migration_retired_identity_reuse",
     "wire/wire_codec_ambiguous_schema_receiver",
     "wire/wire_codec_schema_identity_buffer_bound",
+    "memory/bump_allocator_live_allocation_dropped",
 ];
 
 #[path = "canary_suite/entry_and_abi.rs"]
