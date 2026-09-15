@@ -1097,7 +1097,7 @@ fn compiler_executable_review_identity_stays_retired() {
 fn compiler_builtins_never_masquerade_as_provider_execution_evidence() {
     let root = workspace_root();
     let settlements = std::fs::read_to_string(
-        root.join("omega-rust/omega/compiler/compiler/src/compiler/intrinsic_settlements.rs"),
+        root.join("omega-rust/omega/build/provider-planning/src/compiler_intrinsics.rs"),
     )
     .expect("read compiler intrinsic proposals");
     for retired in [

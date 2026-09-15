@@ -1,5 +1,7 @@
 //! Scoped Source/Output authority, staging custody, and sponsored host access.
 
+pub mod preparation;
+
 use crate::{BuildCanonicalSourceMetadataIdentity, observations::BuildCapturedSourceInventory};
 use build_output::{
     BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture,

@@ -92,10 +92,7 @@ pub(super) fn check_selected_execution(
     // Compatibility demands are semantic checks, not report-mode behavior.
     // Validate them on the canonical checked route even when no auxiliary
     // artifact writer is requested by the outer compiler coordinator.
-    crate::pipeline::reporting::wire::validate_wire_protocol(
-        &typed,
-        &build_config.wire_compatibility_demands,
-    )?;
+    build_evaluation::validate_wire_protocol(&typed, &build_config.wire_compatibility_demands)?;
     // A semantic-only checked compilation has no selected target and therefore
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one
@@ -113,13 +110,13 @@ pub(super) fn check_selected_execution(
             program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
         }),
     )?;
-    let crate::pipeline::provider::selection::CheckedProviderSelection {
+    let build_evaluation::CheckedProviderSelection {
         provider_plans,
         evaluated_via_bindings,
         selected_provider_plan_facts,
         selected_provider_provenance,
         external_binding_rows,
-    } = crate::pipeline::provider::selection::settle_checked_providers(
+    } = build_evaluation::settle_checked_providers(
         &mut typed,
         selected_target_machine_declarations,
         selected_target_profile,

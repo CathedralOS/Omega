@@ -48,12 +48,15 @@ mod filesystem_scope;
 mod observation_identity;
 mod observations;
 mod optimization;
+mod provider_settlement;
 mod replay_eligibility;
 mod replay_record;
 mod selection;
+pub mod target_machines;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod vocabulary;
+mod wire_protocol;
 
 pub use observation_identity::BuildObservationIdentity;
 
@@ -147,7 +150,10 @@ use vocabulary::{
     target_build_vocabulary, validate_immutable_build_target,
 };
 
+pub use filesystem_scope::preparation::prepare_filesystem_scope;
+pub use provider_settlement::{CheckedProviderSelection, settle_checked_providers};
 pub use vocabulary::is_build_machine;
+pub use wire_protocol::validate_wire_protocol;
 
 /// Invocation-level request to execute one build occurrence against a
 /// captured immutable source snapshot and to require the named outputs to

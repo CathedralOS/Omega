@@ -1,3 +1,7 @@
+//! Wire-protocol compatibility: every declared wire schema, era and
+//! migration is validated against the build's compatibility demands, and
+//! the report the compiler emits is built from the same walk.
+
 use arena::HandleSpan;
 use artifacts::{
     WireCaseReportEntry, WireCompatibilityDemandReportEntry, WireCompatibilityFactReport,
@@ -8,9 +12,9 @@ use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::wire::{WireMember, WireSchema};
 
-pub(in crate::pipeline) fn validate_wire_protocol(
+pub fn validate_wire_protocol(
     typed: &TypedTrees,
-    compatibility_demands: &[build_evaluation::WireCompatibilityDemand],
+    compatibility_demands: &[crate::WireCompatibilityDemand],
 ) -> Result<(), Vec<Diagnostic>> {
     validate_wire_protocol_report(&build_wire_protocol_report(typed, compatibility_demands))
 }
@@ -58,7 +62,7 @@ struct SchemaRow {
 
 fn build_wire_protocol_report(
     typed: &TypedTrees,
-    compatibility_demands: &[build_evaluation::WireCompatibilityDemand],
+    compatibility_demands: &[crate::WireCompatibilityDemand],
 ) -> WireProtocolReport {
     let mut rows = typed
         .wire_schemas()
@@ -253,7 +257,7 @@ fn stable_wire_report_identity<'a>(
 fn compatibility_demand_report(
     typed: &TypedTrees,
     rows: &[SchemaRow],
-    demand: &build_evaluation::WireCompatibilityDemand,
+    demand: &crate::WireCompatibilityDemand,
 ) -> WireCompatibilityDemandReportEntry {
     let local = select_era_path(
         &demand.local_schema,
@@ -442,7 +446,7 @@ fn select_era_path<'a, T>(
 fn schema_selection_detail(
     local: &EraSelection<&WireSchemaReportEntry>,
     peer: &EraSelection<&WireSchemaReportEntry>,
-    demand: &build_evaluation::WireCompatibilityDemand,
+    demand: &crate::WireCompatibilityDemand,
 ) -> String {
     if matches!(local, EraSelection::Missing) && matches!(peer, EraSelection::Missing) {
         return format!(

@@ -7,9 +7,9 @@ use std::collections::BTreeSet;
 /// Rejoin the rows retained before checked-state destruction to the exact
 /// package-acceptance policy supplied independently at retained re-entry.
 /// Unlike the receiving policy, this set admits no unrelated extra rows.
-pub(super) fn validate_retained_package_terminal_authority_permissions(
+pub fn validate_retained_package_terminal_authority_permissions(
     retained: &[ServiceTerminalAuthorityPermission],
-    accepted: &native_realization::TerminalAuthorityPermissionPolicy,
+    accepted: &crate::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     if retained == accepted.rows() {
         Ok(())
@@ -23,9 +23,9 @@ pub(super) fn validate_retained_package_terminal_authority_permissions(
 /// Rejoin every package-approved permission to the independently supplied
 /// receiving policy. The receiving policy may contain rows for other
 /// artifacts, but it may neither omit nor alter an approved row.
-pub(super) fn validate_package_terminal_authority_permissions<'a>(
+pub fn validate_package_terminal_authority_permissions<'a>(
     permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
-    policy: &native_realization::TerminalAuthorityPermissionPolicy,
+    policy: &crate::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();

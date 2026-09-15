@@ -36,15 +36,15 @@ use typed_trees::TypedTrees;
 /// mutation. This carrier owns their deterministic full-name roster and
 /// consumes it exactly once when rebinding the corresponding typed machines.
 #[derive(Debug)]
-pub(crate) struct SelectedTargetMachineDeclarations {
+pub struct SelectedTargetMachineDeclarations {
     provider_default_machine_names: Vec<String>,
     selected_machine_origins: Vec<(String, String)>,
     all_machine_origins: Vec<(String, String)>,
 }
 
-pub(crate) struct SettledTargetMachineDeclarations {
-    pub(crate) provider_defaults: Vec<provider_planning::ProviderSelection>,
-    pub(crate) origins: Vec<provider_planning::SelectedTargetMachineOrigin>,
+pub struct SettledTargetMachineDeclarations {
+    pub provider_defaults: Vec<provider_planning::ProviderSelection>,
+    pub origins: Vec<provider_planning::SelectedTargetMachineOrigin>,
 }
 
 impl SelectedTargetMachineDeclarations {
@@ -67,7 +67,7 @@ impl SelectedTargetMachineDeclarations {
     /// target-declaration roster retained before the authored frontend was
     /// admitted. The extension is selected in place, while this carrier is
     /// consumed into the combined base-plus-extension custody.
-    pub(crate) fn filter_generated_extension(
+    pub fn filter_generated_extension(
         mut self,
         syntax: &mut SyntaxTrees,
         target_name: Option<&str>,
@@ -94,7 +94,7 @@ impl SelectedTargetMachineDeclarations {
 
     /// Resolve the retained target-owned provider-default producers and
     /// preserve each producer's exact authored row order and identity.
-    pub(crate) fn settle_provider_defaults(
+    pub fn settle_provider_defaults(
         self,
         typed: &TypedTrees,
     ) -> Result<SettledTargetMachineDeclarations, Vec<Diagnostic>> {
@@ -112,7 +112,7 @@ impl SelectedTargetMachineDeclarations {
                 )));
                 continue;
             };
-            match build_evaluation::harvest_provider_selections(typed, machine) {
+            match crate::harvest_provider_selections(typed, machine) {
                 Ok(mut machine_defaults) => defaults.append(&mut machine_defaults),
                 Err(mut errors) => diagnostics.append(&mut errors),
             }
@@ -146,7 +146,7 @@ impl SelectedTargetMachineDeclarations {
     }
 }
 
-pub(crate) fn filter_target_machines(
+pub fn filter_target_machines(
     syntax: &mut SyntaxTrees,
     target_name: Option<&str>,
 ) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {

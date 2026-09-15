@@ -11,6 +11,7 @@
 
 pub mod approval;
 pub mod calling_policy_plans;
+pub mod compiler_intrinsics;
 pub mod component_progress;
 pub mod evaluated_via_bindings;
 mod provider_planning;

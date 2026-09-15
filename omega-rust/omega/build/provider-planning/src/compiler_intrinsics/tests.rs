@@ -1,8 +1,6 @@
 use super::*;
+use crate::{ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance};
 use effects::provider_plan::{ProviderBinding, ProviderPlanRow};
-use provider_planning::{
-    ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance,
-};
 use target_operations::CompilerBuiltinExecution;
 
 fn selected_plan(

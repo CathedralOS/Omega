@@ -15,7 +15,7 @@ use std::sync::Arc;
 pub(super) struct BuiltCheckedProgram {
     pub(super) typed: typed_trees::TypedTrees,
     pub(super) selected_target_machine_declarations:
-        crate::pipeline::provider::target_machines::SelectedTargetMachineDeclarations,
+        build_evaluation::target_machines::SelectedTargetMachineDeclarations,
     pub(super) pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub(super) computed_build_config: build_evaluation::ComputedBuildConfig,
     /// The validated `builder.application` declaration retained from source
@@ -70,7 +70,7 @@ pub(super) fn evaluate_build_and_continue(
     } else {
         None
     };
-    let build_machine_filesystem_scope = crate::pipeline::build_scope::prepare_filesystem_scope(
+    let build_machine_filesystem_scope = build_evaluation::prepare_filesystem_scope(
         root_path,
         package_inputs,
         build_dir,
@@ -207,7 +207,7 @@ pub(super) fn evaluate_build_and_continue(
 struct CheckedFrontend {
     typing: CheckedFrontendTyping,
     selected_target_machine_declarations:
-        crate::pipeline::provider::target_machines::SelectedTargetMachineDeclarations,
+        build_evaluation::target_machines::SelectedTargetMachineDeclarations,
     build_source_id: Option<source::SourceId>,
     pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
 }
@@ -304,7 +304,7 @@ fn lower_checked_frontend(
     let (syntax_trees, pre_check) = evaluated.into_syntax_and_pre_check();
     syntax.syntax_trees = syntax_trees;
     let selected_target_machine_declarations =
-        crate::pipeline::provider::target_machines::filter_target_machines(
+        build_evaluation::target_machines::filter_target_machines(
             &mut syntax.syntax_trees,
             target_name,
         )?;
@@ -333,14 +333,14 @@ fn try_seeded_extension(
     base_sources: &Arc<source::SourceMap>,
     extension: source_assembly::RetainedGeneratedSyntaxExtension,
     selected_target_machine_declarations:
-        crate::pipeline::provider::target_machines::SelectedTargetMachineDeclarations,
+        build_evaluation::target_machines::SelectedTargetMachineDeclarations,
     target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<
     (
         typed_trees::TypedTrees,
-        crate::pipeline::provider::target_machines::SelectedTargetMachineDeclarations,
+        build_evaluation::target_machines::SelectedTargetMachineDeclarations,
         Vec<build_time_evaluation::PreCheckEvaluation>,
     ),
     Vec<Diagnostic>,
