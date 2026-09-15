@@ -4,7 +4,7 @@
 //! reference core (Gilbert, Cockx, Sozeau and Tabareau, *Definitional
 //! Proof-Irrelevance without K*, sections 3.1-3.6) plus three primitives
 //! of the selected [W-based inductive
-//! profile](../../../../wiki/spec/proofs/inductive_profile.md): the
+//! profile](../../../../../wiki/spec/proofs/inductive_profile.md): the
 //! two-element type `Two` with `zero`/`one` introduction and dependent
 //! `caseTwo` elimination computing on each constructor, the relevant
 //! identity type `Id A x y` with `refl` introduction and dependent `J`
@@ -128,9 +128,20 @@
 //! with its `Constant` references (term tags 17-20, the signature
 //! section between the term table and the judgment roots) through the
 //! canonical wire and re-verify after decode.
+//!
+//! [`indexed`] completes the profile's derived-indexed-family layer:
+//! the encoding `IndexedAt(i, sup a k) ≡ Id I (out a) i × Π(b : B a).
+//! IndexedAt (next a b) (k b)` and `IW i ≡ Σ (t : W A B). IndexedAt i
+//! t` are ordinary universe-polymorphic declarations — built once,
+//! checked parametrically by `check_signature`, and applied through
+//! `Constant` spines — not a second primitive inductive mechanism. Its
+//! derived `isup`/`iindW` carry definitional constructor computation
+//! through pair eta and typed function eta with a neutral child
+//! function, exactly the dependency the profile names.
 
 mod certificate;
 mod conversion;
+mod indexed;
 mod signature;
 mod substitution;
 mod term;
@@ -143,6 +154,9 @@ pub use certificate::{
 };
 pub use conversion::Budget;
 pub use conversion::{DEFAULT_CONVERSION_STEPS, convertible, weak_head_normalize};
+pub use indexed::{
+    INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily, indexed_scheme,
+};
 pub use signature::{
     Declaration, Signature, assumption_closure, check_signature, judgment_assumption_closure,
 };
