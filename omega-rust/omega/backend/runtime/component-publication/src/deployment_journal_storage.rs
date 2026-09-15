@@ -121,6 +121,11 @@ impl DurablyStoredComponentDeploymentJournal {
         self.byte_compatibility_report_fingerprint
     }
 
+    #[cfg(test)]
+    pub fn record_mut_for_test(&mut self) -> &mut ComponentDeploymentJournalRecord {
+        &mut self.record
+    }
+
     pub fn validate(&self) -> Result<(), ComponentDeploymentJournalStorageDiagnostic> {
         validate_regular_file(&self.path)?;
         let bytes = std::fs::read(&self.path).map_err(|error| {
