@@ -17,10 +17,12 @@ use super::owned_resident_custody::{
 use super::{
     AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
     DormantOwnedAtomicResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
-    PlacementAdmissionId, PlacementAuthorityRef, PlacementResourceCompatibility,
-    ResourceProfileReceiptId, ValidatedPlacementPlan, project_placed_field,
-    validate_placement_admission,
+    PlacementAdmissionId, PlacementResourceCompatibility, ResourceProfileReceiptId,
+    ValidatedPlacementPlan,
 };
+use crate::field_projection::project_placed_field;
+use crate::placement_admission::validate_placement_admission;
+use crate::placement_authority::PlacementAuthorityRef;
 
 impl DormantOwnedAtomicResident {
     /// Borrow the whole Atomic resident range through a shared placed

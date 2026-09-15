@@ -8,11 +8,14 @@ use super::owned_resident_custody::validate_resident_observation;
 use super::{
     AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
     DormantOwnedResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
-    PlacementAdmissionId, PlacementAuthorityRef, PlacementResourceCompatibility,
-    ResourceProfileReceiptId, ValidatedPlacementPlan, project_placed_field,
-    validate_owned_resident_authority, validate_placement_admission,
-    validate_provider_content_binding,
+    PlacementAdmissionId, PlacementResourceCompatibility, ResourceProfileReceiptId,
+    ValidatedPlacementPlan,
 };
+use crate::field_projection::project_placed_field;
+use crate::owned_resident_custody::validate_owned_resident_authority;
+use crate::owned_resident_custody::validate_provider_content_binding;
+use crate::placement_admission::validate_placement_admission;
+use crate::placement_authority::PlacementAuthorityRef;
 use extents::{
     ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLoan, LoanPolarity,
     ProviderExistingContentGrant, ResidentClaimId,

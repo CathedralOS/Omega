@@ -10,9 +10,11 @@ use super::{
     EstablishedBorrowedResidentPlacement, EstablishedOwnedAtomicPlacement,
     EstablishedOwnedPlacement, PlacedOccurrenceId, PlacedView, PlacementAdmissionId,
     PlacementResourceCompatibility, ResourceProfileReceiptId, ValidatedPlacementPlan,
-    replay_owned_admission_resources, validate_owned_content_binding, validate_placement_admission,
-    validate_provider_content_binding,
 };
+use crate::owned_resident_custody::replay_owned_admission_resources;
+use crate::owned_resident_custody::validate_owned_content_binding;
+use crate::owned_resident_custody::validate_provider_content_binding;
+use crate::placement_admission::validate_placement_admission;
 
 /// Private lifetime witness for the exact authority that justified a placed
 /// access. Owned Stable access retains the whole established carrier rather

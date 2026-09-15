@@ -1,9 +1,10 @@
 use super::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
-    AtomicAccessOperation, AtomicOrderingPlan, BorrowPolarity, EffectFootprint,
-    EffectiveSupplyKind, LogicalFieldExtent, ObservationModel, PrimitiveAccessRequest,
-    ValidatedPlacementPlan, validate_operation_ordering,
+    AtomicAccessOperation, BorrowPolarity, EffectFootprint, EffectiveSupplyKind,
+    LogicalFieldExtent, ObservationModel, PrimitiveAccessRequest, ValidatedPlacementPlan,
 };
+use crate::authorization::validate_operation_ordering;
+use language_core::atomic::AtomicOrderingPlan;
 /// Operation subset accepted by ordinary Stable primitive lowering.
 ///
 /// Compound mutation needs its distinct bounded read-patch-write realization;

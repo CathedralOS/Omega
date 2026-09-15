@@ -1,9 +1,104 @@
 use super::{
-    AccessPlanDiagnostic, AtomicCapability, BaseCongruence, EffectiveFieldSupply,
-    EffectiveSupplyKind, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
-    PlacementResourceCompatibility, ResourceRegion, ValidatedPlacementPlan,
-    ValidatedResourceProfile,
+    AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalRead, ExternalReadBehavior,
+    FieldAccess, ResourceRegion, ValidatedPlacementPlan, ValidatedResourceProfile,
 };
+use crate::{AccessFieldKey, PlacementPlanId, ResourceProfileId};
+
+/// Normalized power-of-two constraint on the concrete loan base.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BaseCongruence {
+    pub(crate) modulus: u64,
+    pub(crate) residue: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EffectiveSupplyKind {
+    Stable,
+    External,
+    Atomic,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EffectiveFieldSupply {
+    pub(crate) key: AccessFieldKey,
+    pub(crate) field: String,
+    pub(crate) offset: u64,
+    pub(crate) width_bits: u16,
+    pub(crate) alignment_bytes: u64,
+    pub(crate) kind: EffectiveSupplyKind,
+}
+
+/// Sealed result of joining one normalized placement demand with one
+/// normalized provider profile before a concrete loan is admitted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacementResourceCompatibility {
+    pub(crate) placement: PlacementPlanId,
+    profile: ResourceProfileId,
+    pub(crate) base: BaseCongruence,
+    pub(crate) fields: Vec<EffectiveFieldSupply>,
+}
+
+impl BaseCongruence {
+    pub const fn modulus(self) -> u64 {
+        self.modulus
+    }
+
+    pub const fn residue(self) -> u64 {
+        self.residue
+    }
+
+    pub const fn admits(self, base: u64) -> bool {
+        base % self.modulus == self.residue
+    }
+}
+
+impl EffectiveFieldSupply {
+    pub const fn key(&self) -> AccessFieldKey {
+        self.key
+    }
+
+    pub fn field(&self) -> &str {
+        &self.field
+    }
+
+    pub const fn offset(&self) -> u64 {
+        self.offset
+    }
+
+    pub const fn width_bits(&self) -> u16 {
+        self.width_bits
+    }
+
+    pub const fn alignment_bytes(&self) -> u64 {
+        self.alignment_bytes
+    }
+
+    pub const fn kind(&self) -> EffectiveSupplyKind {
+        self.kind
+    }
+}
+
+impl PlacementResourceCompatibility {
+    pub const fn placement(&self) -> PlacementPlanId {
+        self.placement
+    }
+
+    pub const fn profile(&self) -> ResourceProfileId {
+        self.profile
+    }
+
+    pub const fn base_congruence(&self) -> BaseCongruence {
+        self.base
+    }
+
+    pub fn fields(&self) -> &[EffectiveFieldSupply] {
+        &self.fields
+    }
+
+    pub(crate) fn field(&self, key: AccessFieldKey) -> Option<&EffectiveFieldSupply> {
+        self.fields.iter().find(|field| field.key == key)
+    }
+}
 
 /// Join one normalized placement demand with one normalized provider profile.
 ///
