@@ -2,8 +2,10 @@
 //! Graph and ordered-operation bodies share the same predicate meaning. Only
 //! their execution schedules differ; normal guarantees still use the declared
 //! result pseudo-value and require independently reconstructed return proofs.
-
-use super::*;
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, IntegerValue,
+    LoweringError, Proposition, ScalarTerm, ValueDeclaration, unsupported,
+};
 #[cfg(test)]
 use crate::proofs::contract_predicates::canonical_equality;
 use crate::proofs::contract_predicates::{PredicateTerms, connective};
@@ -103,7 +105,8 @@ fn strict_result_bound(left: ScalarTerm, right: ScalarTerm) -> Proposition {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{IntegerSign, IntegerType, ScalarType, ValueId};
+    use super::{Proposition, ScalarTerm, strict_result_bound};
 
     mod parameter_namespace;
 

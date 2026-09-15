@@ -266,7 +266,12 @@ impl NominalMachineUseFacts {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckedCallbackPlacementIdentity, CheckedCallbackResourceReceipt,
+        CheckedEntryResourceEnvelope, CheckedMachineContractEnvelopeIdentity,
+        CheckedMachineContractRefinement, CheckedNominalMachineUse, ExpressionHandle,
+        NominalMachineUseFacts, NominalMachineUseSite, SymbolHandle,
+    };
     use crate::MachineContractCommitment;
 
     fn nominal_use(selected_machine_index: u32) -> CheckedNominalMachineUse {

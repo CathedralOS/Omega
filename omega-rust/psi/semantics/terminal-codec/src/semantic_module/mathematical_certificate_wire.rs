@@ -800,7 +800,11 @@ fn decode_root(reader: &mut Reader<'_>, handles: &[TermHandle]) -> Result<TermHa
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CodecError, FORMAT_MARKER, Level, MAGIC, MAX_MATHEMATICAL_LEVEL_DEPTH,
+        MathematicalCertificate, Sort, Term, TermArena, TermHandle,
+        decode_mathematical_certificate, encode_mathematical_certificate,
+    };
 
     fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
         arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))

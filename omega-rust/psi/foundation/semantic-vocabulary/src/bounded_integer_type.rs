@@ -50,7 +50,7 @@ impl BoundedIntegerType {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BoundedIntegerType, IntegerType, IntegerValue};
     use crate::IntegerSign;
 
     #[test]

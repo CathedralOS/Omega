@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalStructuralValue,
+    checked_source,
+};
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,

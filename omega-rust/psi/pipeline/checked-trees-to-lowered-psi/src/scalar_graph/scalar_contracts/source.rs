@@ -3,8 +3,11 @@
 //! reserved result; value correspondence independently checks operators/literals.
 //! Successful conversion is not proof: emitted return edges must establish each
 //! guarantee, and a crash supplies neither a result nor its postconditions.
-
-use super::*;
+use super::super::{CheckedIntegerComparisonKind, CheckedTrees, PrimitiveType};
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, LoweringError,
+    namespace, unsupported,
+};
 use checked_trees::domain::ProofFact;
 use checked_trees::signature::SignatureContractKind;
 

@@ -1,6 +1,9 @@
 //! Short-circuit Boolean decision lowering and terminal control emission.
-
-use super::*;
+use super::{
+    Block, BlockId, LoweringError, QualifiedScalarType, SuccessorEdge, Terminator,
+    ValueDeclaration, ValueId, block_id, contains_short_circuit,
+    direct_expression_contains_short_circuit, edge_id, emit_boolean_expression, value_id,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;

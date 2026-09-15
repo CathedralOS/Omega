@@ -1,6 +1,9 @@
 //! Non-scalar graph effects consume completed operands without adding value slots.
-
-use super::*;
+use super::{
+    LoweringError, Operation, OperationKind, OperationResult, ValueDeclaration,
+    emit_direct_expression, lookup_machine_id, lower_checked_crash_route_buckets, unsupported,
+    validate_direct_parameter_types,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;

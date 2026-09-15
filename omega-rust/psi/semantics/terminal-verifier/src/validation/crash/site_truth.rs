@@ -1,7 +1,7 @@
 //! Crash predicates are claims proved from entry and reconstructed CFG facts.
 
-use super::*;
-
+use super::super::machine_value_context;
+use super::{ModuleError, Proposition, TerminalModule, Terminator, entry_requirements};
 pub(in crate::validation) fn validate_site_guard_truth(
     module: &TerminalModule,
 ) -> Result<(), ModuleError> {

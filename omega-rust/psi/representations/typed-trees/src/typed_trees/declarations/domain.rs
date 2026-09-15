@@ -382,7 +382,10 @@ pub fn declared_domain_implies(
 
 #[cfg(test)]
 mod symbol_only_proof_tests {
-    use super::*;
+    use super::{
+        DomainDefinition, HandleSpan, ProofFact, ProofMembershipFact, SymbolHandle,
+        TypeReferenceHandle, TypedTrees, declared_domain_implies, supports_symbol_only_proof,
+    };
 
     #[test]
     fn indexed_membership_cannot_enter_a_symbol_only_implication_chain() {

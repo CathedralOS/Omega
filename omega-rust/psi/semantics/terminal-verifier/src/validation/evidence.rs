@@ -1,5 +1,9 @@
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, EvidenceContractLaneKind, EvidenceTermId, IntegerSign, IntegerType,
+    MachineId, ModuleError, PlaceId, Proposition, PropositionBinderArgumentKind,
+    PropositionBinderKind, PropositionEvidence, PropositionId, ScalarType, StructuralTypeShape,
+    TerminalMachine, TerminalMachineResult, TerminalModule,
+};
 pub(super) fn validate_evidence_contract_lanes(
     module: &TerminalModule,
     machines: &BTreeMap<MachineId, &TerminalMachine>,

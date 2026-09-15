@@ -5,8 +5,13 @@
 //! The same leaf declaration can occur below several children of one root.
 //! Bind the complete checked subject to its canonical carrier path, rather than
 //! conflating reads by final field identity or projected type alone.
-
-use super::*;
+use super::super::{
+    PrimitiveType, StructuralFieldId, StructuralFieldType, StructuralTypeDeclaration,
+    StructuralTypeShape, terminal_scalar_type,
+};
+use super::{
+    CheckedScalarComputationKind, CheckedTrees, LoweringError, ScalarType, storage, unsupported,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::data::DataMember;

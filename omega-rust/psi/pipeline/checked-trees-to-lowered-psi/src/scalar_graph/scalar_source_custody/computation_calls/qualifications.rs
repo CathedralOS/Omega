@@ -7,7 +7,11 @@
 //! and canonical indexed instances. The scalar qualification owner supplies the
 //! same declaration replay to the closure's canonical Terminal catalog.
 
-use super::*;
+use super::super::super::ArithmeticDomain;
+use super::{
+    CheckedScalarComputationHandle, CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError,
+    PrimitiveType, unsupported,
+};
 use crate::scalar_graph::scalar_qualifications::declared_atoms;
 use checked_trees::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,

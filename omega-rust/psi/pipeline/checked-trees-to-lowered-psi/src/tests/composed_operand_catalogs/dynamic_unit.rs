@@ -1,6 +1,8 @@
 //! Dynamic result continuations retain complete ordinary Unit closures.
-
-use super::*;
+use super::{
+    CheckedTrees, DYNAMIC_CONTINUATION_SOURCE, LoweredPsi, OperationKind, Terminator,
+    checked_source, lower_machine, roundtrip,
+};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,

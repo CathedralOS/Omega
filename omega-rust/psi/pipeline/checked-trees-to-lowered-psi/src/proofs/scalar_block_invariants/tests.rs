@@ -1,4 +1,4 @@
-use super::*;
+use super::{ObligationId, Proposition, ScalarBlockInvariantArrival, restore_seeds};
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use terminal_psi::ScalarBlockInvariant;
 

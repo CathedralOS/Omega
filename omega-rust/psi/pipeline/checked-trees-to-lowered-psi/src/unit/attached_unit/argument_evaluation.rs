@@ -1,6 +1,18 @@
 //! Scalar operand evaluation within an existing machine's structural frontier.
-
-use super::*;
+use super::super::{
+    BlockId, QualifiedScalarType, StructuralAccess, StructuralArgument,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, SuccessorEdge, ValueId, block_id,
+    boolean_decision_block_count, contains_short_circuit, emit_boolean_expression,
+    emit_reserved_boolean_tuple_stage_blocks, emit_scalar_binding, lower_boolean_value_decision,
+    scalar_carriers,
+};
+use super::{
+    Block, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
+    LoweringError, Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ScalarType,
+    StructuralMultiplicity, StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense,
+    direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
+    terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
+};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;

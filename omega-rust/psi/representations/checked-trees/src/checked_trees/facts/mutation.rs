@@ -30,7 +30,7 @@ pub struct StateWriteFramePlan {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{MachineMutationFact, MutationFacts, StateWriteFramePlan, SymbolHandle};
 
     #[test]
     fn mutation_facts_use_exact_machine_identity_and_default_to_absence() {

@@ -1,4 +1,9 @@
-use super::*;
+use super::super::{BTreeSet, CheckedIntegerComparisonKind, value_id};
+use super::{
+    BTreeMap, CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
+    Proposition, ScalarTerm, ScalarType, ValueDeclaration, integer_scalar_type,
+    lower_structural_runtime_requirement, substitute_runtime_requirement_scalar_values,
+};
 use numerics::arithmetic::ArithmeticDomain;
 
 fn boolean_parameter() -> ValueDeclaration {

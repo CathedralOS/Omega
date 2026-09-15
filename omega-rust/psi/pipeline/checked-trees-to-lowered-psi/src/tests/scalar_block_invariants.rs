@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    IntegerValue, LoweredPsi, OperationKind, ProofBundle, Proposition, ScalarTerm, ScalarType,
+    checked_source, finalize_operation_proofs, lower_machine, obligation_id,
+};
 use proof_admission::AdmissionProfile;
 
 fn fixture() -> LoweredPsi {

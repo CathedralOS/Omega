@@ -1,7 +1,11 @@
 //! Exact empty or whole-root linear custody through both conditional arms.
 
-use super::*;
-
+use super::super::super::{CarryPolicy, CheckedUnitEntryClaimPlan, PermissionClaimIdentity};
+use super::super::{
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
+    Multiplicity, unsupported,
+};
+use super::{CheckedTrees, LoweringError};
 #[derive(Clone, Copy)]
 pub(super) enum ComposedCustody {
     Empty,

@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    BTreeMap, ExecutableMachine, OperationKind, PlaceId, StructuralFieldId, StructuralPathSegment,
+    StructuralRuntimePlace, StructuralScalarRuntimeField, StructuralTypeDeclaration,
+    StructuralTypeId, TerminalInterpretError, TerminalScalarValue,
+    TerminalStructuralScalarFieldValue, TerminalStructuralValue, bind,
+};
 use crate::terminal_interpreter::{
     StructuralAccess, StructuralMultiplicity, bind_structural_arguments,
 };

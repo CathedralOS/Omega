@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlTerminatorPlan, CheckedTrees,
+    admission,
+};
 fn fixture() -> (CheckedTrees, CheckedComposedUnitControlMachinePlan) {
     let source = r#"
         data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }

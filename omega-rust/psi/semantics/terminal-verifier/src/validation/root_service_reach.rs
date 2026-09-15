@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{BTreeMap, BTreeSet, ModuleError, OperationKind, TerminalModule};
 /// Reconstruct the selected entry's exact executable service closure.
 ///
 /// Fixed declarations and executable operations both contribute concrete reach.

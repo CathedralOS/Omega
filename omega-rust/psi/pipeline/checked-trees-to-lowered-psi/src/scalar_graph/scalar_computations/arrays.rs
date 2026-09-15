@@ -3,8 +3,16 @@
 //! Reserving a place does not establish its value. Only the constructor effect
 //! in the selected evaluation path does so; Terminal independently checks that
 //! this producer dominates each use. No array payload crosses a block parameter.
-
-use super::*;
+use super::super::{
+    Operation, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration,
+    allocate_dense, emit_direct_expression, place_id,
+};
+use super::{
+    CheckedScalarComputationKind, CheckedTrees, Computation, LoweringError, ScalarType,
+    unsupported, validate_direct_parameter_types,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarArrayConstruction;

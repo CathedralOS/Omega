@@ -1,6 +1,9 @@
 //! Fixed-extent writes through an exact unrestricted mutable view parameter.
-use super::*;
 
+use super::{
+    ModuleError, OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralMultiplicity,
+    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
+};
 pub(super) fn validate_destination(
     module: &TerminalModule,
     machine: &TerminalMachine,

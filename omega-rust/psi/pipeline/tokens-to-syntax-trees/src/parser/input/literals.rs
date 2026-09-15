@@ -112,7 +112,7 @@ const FLOAT_SUFFIXES: &[&str] = &["f32", "f64"];
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{FloatLiteralKind, validate_float_literal};
 
     #[test]
     fn real_float_suffix_is_retired_with_a_directed_diagnostic() {

@@ -1,6 +1,19 @@
 //! Result-bearing boundary custody lowering.
-
-use super::*;
+use super::{
+    BoundaryMachineDeclaration, BoundaryMachineResult, CheckedBoundaryMachinePlan,
+    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+    DomainSemanticId, LoweredPsi, LoweringError, ProofBundle, SemanticDomainId, ServiceDeclaration,
+    ServiceId, ServiceReachId, ServiceReachSummary, StructuralDomainDeclaration,
+    StructuralDomainId, StructuralDomainRequirement, StructuralTypeId, TerminalModule,
+    VocabularyMarker, boundary_machine_id, checked_unit_boundary_identity,
+    collect_installation_machine_contract_services, collect_published_contract_services,
+    collect_service_summary, content_conservation, contract_id, dense_identity,
+    finalize_operation_proofs, lookup_domain_id, lookup_service_id, lookup_type_id,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    lower_published_service_ceiling, lower_root_service_reach, lower_structural_type_plans,
+    lower_unit_parameters, machine_id, service_id, structural_domain_id, terminal_scalar_type,
+    unsupported,
+};
 use crate::machine_dispatch::SourceMappedLowered;
 use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScalarCalls;
 use crate::unit::attached_unit::argument_evaluation;

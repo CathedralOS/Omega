@@ -458,7 +458,14 @@ fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CURRENT_ENTRY, OperationSemanticCustody, OperationSemanticRow, OperationSemanticTag,
+        RECONSTRUCTION_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
+        TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SEMANTICS_SOURCE, TrustAcceptingPolicy,
+        TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
+        VERIFIER_SOURCE, VERIFIER_VALIDATION_SOURCE, current_terminal_trust_graph, dependencies,
+        validate_terminal_trust_graph,
+    };
 
     #[test]
     fn representation_source_closure_retains_every_concept_file_exactly() {

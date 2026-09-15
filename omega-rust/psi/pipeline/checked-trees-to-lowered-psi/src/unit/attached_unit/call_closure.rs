@@ -1,7 +1,11 @@
 //! Exact checked Unit call-closure and identity validation.
 
-use super::*;
-
+use super::super::CheckedTerminalSignatureEligibility;
+use super::{
+    CheckedBoundaryMachinePlan, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, UnitBody, structural_calls,
+    unsupported,
+};
 pub(crate) fn checked_unit_call_closure_including(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,

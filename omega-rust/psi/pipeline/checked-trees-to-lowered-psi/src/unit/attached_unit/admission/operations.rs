@@ -1,15 +1,18 @@
 //! Validate each operation's exact source, callee, transfer and boundary custody.
 
+use super::super::super::{
+    CheckedBoundaryMachineResultPlan, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, LoweringError, terminal_scalar_type, unsupported,
+};
 use super::super::selected_operator::{
     validate_selected_operator_scalar_call, validate_selected_operator_structural_call,
     validate_selected_operator_structural_scalar_call,
 };
 use super::super::{
-    CheckedBoundaryMachineResultPlan, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, LoweringError, UnitBody, checked_unit_target_reach_matches,
-    primitive_locals, provider_attachments, reference_results, retain_exact_checked_flow_call,
-    retain_exact_flow_call, retain_exact_unit_boundary, scalar_arrays, scalar_structural_calls,
-    structural_calls, structural_values, terminal_scalar_type, unique_unit_boundary, unsupported,
+    UnitBody, checked_unit_target_reach_matches, primitive_locals, provider_attachments,
+    reference_results, retain_exact_checked_flow_call, retain_exact_flow_call,
+    retain_exact_unit_boundary, scalar_arrays, scalar_structural_calls, structural_calls,
+    structural_values, unique_unit_boundary,
 };
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedBoundaryMachinePlan;

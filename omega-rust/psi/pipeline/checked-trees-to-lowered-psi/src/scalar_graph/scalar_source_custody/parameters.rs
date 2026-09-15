@@ -1,7 +1,9 @@
 //! Rejoin mutable entry storage to the exact current-state parameter frontier.
 
-use super::*;
-
+use super::super::Multiplicity;
+use super::{
+    CheckedTrees, LoweringError, authored_state, supported_mutable_parameter, unsupported,
+};
 mod owned;
 mod owned_types;
 

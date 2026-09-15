@@ -1,7 +1,13 @@
 //! Shared structural-type retention for structural result and control lanes.
 
-use super::*;
-
+use super::{
+    BTreeSet, ByteSequenceCarrier, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, IeeeFloatFormat, LoweringError, PrimitiveType,
+    StructuralAccess, StructuralCaseDeclaration, StructuralCaseId, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    TerminalModule, allocate_dense, dense_identity, lookup_type_id, structural_field_id,
+    structural_type_id, terminal_scalar_type, unsupported,
+};
 fn reference_access(
     access: checked_trees::CheckedStructuralAccess,
 ) -> Result<StructuralAccess, LoweringError> {

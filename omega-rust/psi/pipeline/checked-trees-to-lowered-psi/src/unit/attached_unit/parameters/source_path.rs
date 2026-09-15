@@ -1,6 +1,5 @@
 //! Authored structural paths shared by parameter and call-result operands.
-
-use super::*;
+use super::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 

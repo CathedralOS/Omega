@@ -1,7 +1,13 @@
 //! Checked provider requirements projected into Terminal attachment roots.
 
-use super::*;
-
+use super::super::{
+    BoundaryMachineId, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, StructuralFieldType, StructuralTypeDeclaration,
+};
+use super::{
+    LoweringError, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, allocate_dense, place_id, unsupported,
+};
 mod source;
 pub(super) use source::validate_call_source;
 

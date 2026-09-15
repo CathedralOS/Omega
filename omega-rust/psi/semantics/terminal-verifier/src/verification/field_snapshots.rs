@@ -134,7 +134,7 @@ fn capture_scalar(term: &mut ScalarTerm, captures: &[(ScalarTerm, ScalarTerm)]) 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Proposition, ScalarTerm, capture_proposition, retain};
     use semantic_vocabulary::{
         IntegerSign, IntegerType, PlaceId, ScalarType, StructuralFieldId, ValueId,
     };

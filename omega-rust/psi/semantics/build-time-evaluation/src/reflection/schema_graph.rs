@@ -1357,7 +1357,11 @@ fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNode]) -> u64
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FieldDescription, SchemaNode, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
+        SymbolHandle, TypedTrees, construct_semantic_schema_graph, graph_revision,
+        replay_semantic_schema_graph,
+    };
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};

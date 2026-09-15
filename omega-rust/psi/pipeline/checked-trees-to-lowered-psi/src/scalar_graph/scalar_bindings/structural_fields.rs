@@ -1,7 +1,13 @@
 //! Bind source field identities to the exact emitted receiver declaration.
 
-use super::*;
-
+use super::super::{
+    CheckedUnitStructuralPathSegment, StructuralFieldId, StructuralFieldType, StructuralTypeId,
+    StructuralTypeShape,
+};
+use super::{
+    LoweringError, PlaceId, ScalarType, StructuralAccess, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, unsupported,
+};
 #[cfg(test)]
 mod tests;
 

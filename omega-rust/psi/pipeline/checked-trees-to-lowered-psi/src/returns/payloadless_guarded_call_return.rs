@@ -1,7 +1,12 @@
 //! Exact zero-input payloadless guarded call returned through identity arms.
 
-use super::*;
-
+use super::{
+    Block, CheckedTrees, LoweredPsi, LoweringError, MachineContract, Operation, OperationKind,
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration, TerminalMachine,
+    TerminalMachineResult, Terminator, block_id, contract_id, edge_id,
+    lower_payloadless_case_return_machine, machine_id, operation_id, place_id, unsupported,
+};
 pub(crate) fn lower_payloadless_guarded_call_return_machine(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,

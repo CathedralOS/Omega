@@ -145,7 +145,7 @@ impl std::ops::DerefMut for OperationBuffer {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{LoweringError, OperationBuffer, SourceCallCoordinate, ValueDeclaration};
     use crate::terminal_identities::value_id;
     use semantic_vocabulary::ScalarType;
 

@@ -187,7 +187,10 @@ fn decode_multiplicity(reader: &mut Reader<'_>) -> Result<StructuralMultiplicity
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Reader, StructuralMultiplicity, StructuralResultDeclaration, Writer,
+        decode_function_result, encode_function_result,
+    };
     use semantic_vocabulary::{PlaceId, StructuralTypeId};
     use terminal_psi::{
         StructuralAccess, StructuralArgument, StructuralPathSegment,

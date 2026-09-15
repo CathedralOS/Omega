@@ -1,6 +1,11 @@
 //! Source correspondence and ordered emission for bounded byte-field replacement.
-
-use super::*;
+use super::{
+    CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind,
+    OperationResult, PrimitiveType, StructuralFieldType, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, ValueDeclaration, allocate_dense, obligation_id, place_id,
+    structural_type_id, terminal_scalar_type, unsupported, value_id,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
@@ -180,7 +185,7 @@ pub(crate) fn emit(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{StructuralTypeShape, existing_literal_view_type, literal_view_type};
 
     #[test]
     fn shared_literal_carrier_requires_exact_prepared_declaration() {

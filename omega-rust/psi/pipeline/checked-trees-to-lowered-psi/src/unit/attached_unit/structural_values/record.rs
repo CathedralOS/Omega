@@ -1,5 +1,12 @@
 //! Complete fields in authored order before committing a declaration-ordered record.
-use super::*;
+use super::super::super::{StructuralAccess, StructuralArgument, StructuralFieldType};
+use super::super::{
+    CheckedScalarExpressionRole, LoweringError, Multiplicity, Operation, OperationKind,
+    OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    allocate_dense, lookup_type_id, obligation_id, place_id, unsupported,
+};
+use super::emission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 impl emission::Emission<'_, '_, '_> {

@@ -473,7 +473,10 @@ impl RationalInterval {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BigRational, BinaryOperator, ExpressionNode, RationalBounds, RationalInterval,
+        RationalLattice, excludes_zero,
+    };
     use numerics::bignum::BigInt;
 
     fn fraction(numerator: i64, denominator: i64) -> BigRational {

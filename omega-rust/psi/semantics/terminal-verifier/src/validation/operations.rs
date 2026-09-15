@@ -1,7 +1,10 @@
 //! Validates terminal operation operands against exact SSA value types.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, BoundaryMachineDeclaration, IntegerSign, IntegerType, MachineId,
+    ModuleError, OperationId, OperationKind, ScalarType, StructuralAccess, TerminalMachine,
+    TerminalModule, ValueId,
+};
 pub(super) fn validate_operation_operands(
     module: &TerminalModule,
     machine: &TerminalMachine,

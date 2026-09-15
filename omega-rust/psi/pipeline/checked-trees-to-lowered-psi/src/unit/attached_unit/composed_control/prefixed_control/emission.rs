@@ -1,6 +1,15 @@
 //! Terminal emission for the finite scalar-prefix acyclic family.
+use super::super::super::super::{
+    BlockId, CheckedComposedUnitControlTerminatorPlan, SuccessorEdge, block_id,
+};
+use super::super::super::{
+    Block, MachineContract, ScalarType, TerminalMachine, TerminalMachineResult, Terminator,
+    ValueDeclaration, allocate_dense, contract_id, edge_id, emit_direct_expression, lookup_type_id,
+    lower_checked_scalar_expression, lower_installation_machine_service_ceiling, machine_id,
+    validate_direct_parameter_types, value_id,
+};
 
-use super::*;
+use super::{CheckedTrees, LoweringError, SourceMappedLowered};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 pub(super) fn emit(

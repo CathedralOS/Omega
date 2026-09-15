@@ -4,8 +4,13 @@
 //! names the original referent. Record construction relocates only the key.
 //! Disposal removes descriptor subtrees, not the storage they permit access to.
 //! Loan ancestry and disposal order are independently checked before execution.
-
-use super::*;
+use super::{
+    BTreeMap, OperationResult, PlaceId, StructuralAccess, StructuralAffineDiscard,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralRuntimePlace, StructuralTypeId, StructuralTypeShape,
+    SuspendedCall, SuspendedCallResult, TerminalExecution, TerminalInterpretError,
+    TerminalStructuralValue, resolve_structural_arguments, resolve_structural_path_type,
+};
 use terminal_psi::{Operation, StructuralResultDeclaration};
 
 /// Disposition ends carrier custody, never the captured primitive backing.

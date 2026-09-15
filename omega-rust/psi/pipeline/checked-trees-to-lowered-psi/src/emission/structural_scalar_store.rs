@@ -1,7 +1,12 @@
 //! Shared checked custody replay for scalar stores through structural fields.
 
-use super::*;
-
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitStructuralPathSegment,
+    LoweringError, OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralAccess,
+    StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    ValueId, allocate_dense, obligation_id, terminal_scalar_type, unsupported,
+};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StoreAccessPolicy {
     MutableOnly,

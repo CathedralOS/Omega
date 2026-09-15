@@ -920,7 +920,12 @@ fn hex_lower(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AdmissionProfile, CodecError, PSI_TERMINAL_VERIFIED_GUARANTEE, PccDependency, PccGuarantee,
+        PccIncompleteness, PccProductKind, PccProofSidecar, PccReceiverPolicy,
+        PccVerificationOutcome, admission_profile_identity, pcc_artifact_commitment,
+        verify_pcc_claim_fields, verify_psi_proof_sidecar,
+    };
 
     fn sample_sidecar() -> PccProofSidecar {
         PccProofSidecar::new(

@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    CheckedScalarDispatchPattern, CheckedStructuralValueKind, CheckedTrees,
+    CheckedUnitEffectOperationPlan, SymbolHandle, validate,
+};
 fn checked() -> CheckedTrees {
     let source = "data Tag { case First; case Second; }
         machine choose(selector: u64) -> Tag {

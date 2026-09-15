@@ -1,6 +1,9 @@
 //! Declaration-owned payload validity precedes atomic record establishment.
-
-use super::*;
+use super::{
+    ModuleError, Obligation, ObligationClass, Operation, OperationKind, Proposition,
+    ReconstructedOperationObligation, ReconstructedTerminalObligationOwner, ScalarType,
+    TerminalMachine, TerminalModule,
+};
 use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarTerm};
 
 pub(super) fn append(

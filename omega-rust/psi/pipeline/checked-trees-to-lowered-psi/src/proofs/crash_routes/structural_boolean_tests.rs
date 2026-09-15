@@ -1,6 +1,12 @@
 //! Owner tests for structural crash predicates, not fabricated source evidence.
-
-use super::*;
+use super::{
+    CanonicalStructuralPathSegment, CheckedBooleanExpression, CheckedIntegerComparisonKind,
+    CheckedScalarExpression, IeeeFloatFormat, IeeeFloatStructuralField, LoweringError,
+    PrimitiveType, Proposition, ScalarTerm, ScalarType, StructuralFieldType,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalCrashCause, ValueDeclaration, integer_scalar_type,
+    lower_structural_crash_route_buckets,
+};
 use semantic_vocabulary::PsiSemanticId;
 use terminal_psi::{StructuralAccess, StructuralFieldDeclaration, StructuralMultiplicity};
 

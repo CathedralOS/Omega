@@ -3,8 +3,28 @@
 //! This lane shares descriptor/application infrastructure with scalar dynamic
 //! dispatch, but its operations and machines are Unit-typed throughout. It
 //! never allocates a value id or scalar result carrier.
-
-use super::*;
+use super::{
+    Block, CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralPathSegment,
+    ClosedConformanceApplication, ClosedConformanceCallableResult,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, DynamicLoweringLane,
+    LoweredDynamicRealization, LoweredPsi, LoweredSourceCallOccurrence, LoweringError,
+    Multiplicity, Operation, OperationKind, OperationResult, ProofBundle, StructuralAccess,
+    StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
+    TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
+    TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog,
+    TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalParameterDynamicDispatch, TerminalReboundDynamicDescriptor, Terminator,
+    VocabularyMarker, allocate_dense, block_id, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint, dynamic_parameter_interface, edge_id,
+    empty_terminal_contract, evidence_lowering, exact_empty_machine_service_ceiling,
+    exact_machine_service_summary, lookup_type_id, lower_dynamic_structural_types_for_source,
+    lower_initial_rebound_application, lower_installation_machine_service_ceiling,
+    lower_root_service_reach, machine_id, operation_id, place_id,
+    terminal_projected_source_multiplicity_for, terminal_structural_multiplicity, unsupported,
+    validate_and_lower_dynamic_source, validate_empty_contract, validate_empty_service_summary,
+    validate_forwarded_dynamic_call_coordinates, validate_parameter_forwarding_call,
+};
 use checked_trees::{
     CheckedDynamicUnitCallOrigin, CheckedDynamicUnitCallPlan, CheckedReboundDynamicUnitCallPlan,
 };

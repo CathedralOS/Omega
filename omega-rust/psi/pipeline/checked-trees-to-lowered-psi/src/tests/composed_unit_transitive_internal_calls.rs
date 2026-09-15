@@ -1,7 +1,9 @@
 //! One-call acyclic target closure beneath composed Unit leaves.
 
-use super::*;
-
+use super::{
+    CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind,
+    checked_source, lower_machine,
+};
 fn checked_transitive_internal_calls() -> checked_trees::CheckedTrees {
     checked_source(
         r#"

@@ -1,7 +1,11 @@
 //! Complete, atomic establishment of a selected scalar payload.
 
 use super::operations::require_defined;
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, ModuleError, OperationKind, PlaceId, ScalarType, StructuralFieldType,
+    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, TerminalModule, ValueId,
+};
 
 pub(super) fn plain_type(module: &TerminalModule, structural_type: StructuralTypeId) -> bool {
     module

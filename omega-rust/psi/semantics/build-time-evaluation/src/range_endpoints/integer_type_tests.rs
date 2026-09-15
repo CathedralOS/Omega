@@ -1,5 +1,8 @@
 use super::integer_type::IntegerPosition;
-use super::*;
+use super::{
+    ExpressionNode, TypeConstraintNode, TypeReferenceHandle, TypedTrees,
+    evaluate_const_range_endpoints_with_authority,
+};
 use numerics::bignum::BigInt;
 use typed_trees::types::TypeReferenceNode;
 

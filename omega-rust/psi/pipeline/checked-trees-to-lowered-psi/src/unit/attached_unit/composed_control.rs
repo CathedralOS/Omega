@@ -1,5 +1,5 @@
 //! Exact composed Unit control routed by checked topology.
-use super::*;
+use super::{CheckedTrees, LoweringError};
 mod admission;
 pub(super) mod callable;
 mod catalogs;

@@ -1036,7 +1036,15 @@ mod order_substitution_tests;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AcceptedPremise, AcceptedProofRule, BTreeSet, IntegerAffineBoundConversionError,
+        IntegerAffineWitness, IntegerAffineWitnessError, IntegerCastBoundConversionError,
+        IntegerCastChainWitnessError, IntegerCorrelatedForbiddenRootConversionError,
+        IntegerCorrelatedForbiddenRootWitnessError, IntegerMathTerm, IntegerValue, ProofError,
+        ProofNode, ProofRule, Proposition, PropositionContext, ScalarTerm, ValueId,
+        accept_certificate, accept_certificate_with_machine_parameters, check_certificate,
+        lift_fixed_integer_relation,
+    };
     use crate::{
         CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, IntegerCastChainWitness,
         IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment,

@@ -1,6 +1,11 @@
 //! Rejoin every retained state, call, and edge before admitting the graph.
-
-use super::*;
+use super::super::super::super::{CheckedComposedUnitControlTerminatorPlan, PrimitiveType};
+use super::super::super::{
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
+    CheckedScalarExpressionRole, Multiplicity, ScalarType, unsupported,
+};
+use super::super::{CheckedTrees, LoweringError};
+use super::{CheckedComposedUnitControlMachinePlan, edges, scalars, successors, topology};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use checked_trees::types::TypeReferenceNode;
 

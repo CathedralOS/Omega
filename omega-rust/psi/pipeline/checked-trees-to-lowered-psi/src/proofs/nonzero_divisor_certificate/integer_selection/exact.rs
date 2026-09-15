@@ -103,7 +103,7 @@ fn equality_chain(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ProofRule, Proposition, prove};
     use proof_admission::check_certificate;
     use semantic_vocabulary::{
         IntegerSign, IntegerType, PropositionContext, ScalarTerm, ScalarType, ValueId,

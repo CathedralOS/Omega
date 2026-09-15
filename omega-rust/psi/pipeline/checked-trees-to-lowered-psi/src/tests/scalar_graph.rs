@@ -1,6 +1,11 @@
 //! Scalar-graph module assembly regressions.
-
-use super::*;
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
+    LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions, LoweringError,
+    ScalarType, SymbolHandle, TERMINAL_MACHINE_IDENTITY_STRIDE, Terminator, block_id,
+    build_scalar_graph_module, checked_source, contract_id, edge_id, lower_machine, machine_id,
+    value_id,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{

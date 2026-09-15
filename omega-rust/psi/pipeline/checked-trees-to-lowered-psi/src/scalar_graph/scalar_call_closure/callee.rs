@@ -1,6 +1,10 @@
 //! Exact scalar-call signatures retain the kind of checked body that owns them.
-
-use super::*;
+use super::super::{
+    CheckedBoundaryScalarReturnMachinePlan, CheckedStructuralScalarReturnMachinePlan,
+    CheckedUnitStructuralParameterPlan, ScalarType, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, terminal_scalar_type,
+};
+use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
 
 pub(crate) enum CheckedScalarCallee<'checked> {

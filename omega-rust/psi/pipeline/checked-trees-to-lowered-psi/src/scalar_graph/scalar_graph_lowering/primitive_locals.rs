@@ -1,7 +1,10 @@
 //! Scalar-local referents share the enclosing call closure's place/type namespace.
 
-use super::*;
-
+use super::super::{StructuralTypeId, allocate_dense, lookup_type_id, place_id};
+use super::{
+    CheckedScalarMachineGraph, CheckedTrees, LoweringError, PlaceId, ScalarType, source_custody,
+    terminal_scalar_type, unsupported,
+};
 pub(crate) struct PrimitiveLocal {
     pub symbol: symbols::SymbolHandle,
     pub statement_ordinal: u32,

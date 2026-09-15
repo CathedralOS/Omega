@@ -1,7 +1,12 @@
 //! Host result carriers and their exact binding to a verified boundary result.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, BoundaryMachineDeclaration, BoundaryMachineResult, CrashCause,
+    OperationResult, PlaceId, StructuralAffineDiscard, StructuralMultiplicity,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TerminalCrash,
+    TerminalCrashSite, TerminalEffect, TerminalExecution, TerminalInterpretError,
+    TerminalScalarValue, TerminalStructuralValue, ValueId,
+};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEffectResult {
     /// A no-successor outcome, permitted only by the boundary's published

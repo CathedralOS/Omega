@@ -340,10 +340,13 @@ impl std::error::Error for PsiOptimizationExecutionRecordDecodeError {}
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        ProofBundleFingerprint, PsiOptimizationExecutionRecord,
+        PsiOptimizationExecutionRecordError, decode_psi_optimization_execution_record,
+        encode_psi_optimization_execution_record,
+    };
     use optimization::{PsiOptimization, PsiOptimizationSelections};
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-    use super::*;
 
     fn semantic(byte: u8) -> TerminalPsiIdentity {
         TerminalPsiIdentity {

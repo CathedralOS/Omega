@@ -1,7 +1,14 @@
 //! Eligibility for cyclic scalar work, owned inputs, locals, views, and receivers.
 
+use super::super::{
+    OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceKind,
+};
 use super::super::{block_views, byte_sequence_subslice, primitive_storage};
-use super::*;
+use super::{
+    ModuleError, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator,
+};
 
 /// Eligibility carries no proof or dominance authority. The caller runs the
 /// ordinary operand, view, successor, and frontier checks after this fence.

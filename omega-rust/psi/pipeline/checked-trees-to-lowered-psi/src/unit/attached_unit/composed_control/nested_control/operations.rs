@@ -1,7 +1,6 @@
 //! Independent admission and emission of control-state operation prefixes.
 
-use super::*;
-
+use super::super::super::CheckedUnitEffectOperationPlan;
 pub(super) fn validate(state: &checked_trees::CheckedComposedUnitControlStatePlan) -> bool {
     state
         .operations

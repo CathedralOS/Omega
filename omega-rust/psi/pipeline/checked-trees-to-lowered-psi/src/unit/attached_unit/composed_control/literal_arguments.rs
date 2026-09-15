@@ -1,6 +1,11 @@
 //! Materialize immutable literals at their selected call and authored argument position.
-
-use super::*;
+use super::super::super::ByteSequenceCarrier;
+use super::super::{
+    CheckedUnitEffectOperationPlan, Operation, OperationKind, OperationResult, PlaceId,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape, ValueDeclaration,
+    allocate_dense, lookup_type_id, place_id, unsupported,
+};
+use super::{CheckedTrees, LoweringError, catalogs};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 pub(super) fn evaluate(

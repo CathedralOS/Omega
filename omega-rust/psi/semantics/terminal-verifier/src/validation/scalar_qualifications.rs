@@ -3,8 +3,10 @@
 //! Declarations carry locally defined, obligation-free tags. Ordinary values
 //! cannot implicitly gain or lose them: only a catalogued successor binding
 //! introduces or erases membership, creating a distinct SSA value without an opcode.
-
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, ModuleError, OperationKind, TerminalMachine, TerminalModule, Terminator,
+    ValueId,
+};
 use semantic_vocabulary::{ScalarDomainId, ScalarQualificationSetId};
 use terminal_psi::{ScalarQualificationCoercion, ValueDeclaration};
 

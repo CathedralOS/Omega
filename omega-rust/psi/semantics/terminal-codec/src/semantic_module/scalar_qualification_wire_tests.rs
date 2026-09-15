@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CodecError, Reader, ScalarDomainDeclaration, ScalarQualificationCatalog,
+    ScalarQualificationCoercion, ScalarQualificationSet, ScalarQualificationSetId, Writer, decode,
+    encode, validate,
+};
 use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, ScalarType};
 
 fn catalog() -> ScalarQualificationCatalog {

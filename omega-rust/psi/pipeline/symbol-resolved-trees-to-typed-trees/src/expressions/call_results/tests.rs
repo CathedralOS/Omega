@@ -1,4 +1,4 @@
-use super::*;
+use super::{ExpressionNode, SymbolHandle, computed_receiver_method_target, resolved};
 use crate::lower_symbol_resolved_trees;
 use source_files_to_tokens::Lexer;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};

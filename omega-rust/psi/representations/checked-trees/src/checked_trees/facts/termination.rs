@@ -135,7 +135,7 @@ pub struct MachineTerminationFact {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{MachineTerminationFact, MachineTerminationPlan, SymbolHandle, TerminationFacts};
     use language_semantics::{RankingWitness, TerminationGuarantee, TerminationInterface};
 
     #[test]

@@ -1780,7 +1780,16 @@ impl MergeError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AddressSpaceId, CompletionObligations, Extent, ExtentContentCustodyReceiptId,
+        ExtentContentInterpretation, ExtentContentInterpretationId, ExtentContentValidityReceiptId,
+        ExtentDiagnostic, ExtentLineageId, ExtentLoan, ExtentProgramLocalOrigin,
+        ExtentProvenanceId, ExtentProviderIssuance, ExtentRightId, ExtentRights, ExtentRootGrant,
+        ExternalBorrowerId, ExternalCompletionFactId, ExternalCompletionReceipt,
+        ExternalLoanDirection, ExternalLoanGrant, ExternalLoanId, ExternalReachMechanism,
+        ExternalReachReceipt, ExternalReachReceiptId, LoanPolarity, MappingEraId, ResidentClaimId,
+        ValidatedExtentGeometry, begin_external_loan,
+    };
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
         constructor(identity).expect("normalized identity")

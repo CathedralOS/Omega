@@ -1,4 +1,14 @@
-use super::*;
+use super::super::{
+    Block, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, Operation, OperationKind,
+    PrimitiveType, Terminator, ValueDeclaration, block_id, emit_direct_expression,
+    emit_inlined_boolean_value_blocks, lower_boolean_value_decision,
+    validate_direct_parameter_types, value_id,
+};
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
+    PlaceId, ScalarBindings, ScalarType, StructuralAccess, StructuralArgument,
+    terminal_scalar_type,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::boolean_control::LoweredBooleanDecisionExit;

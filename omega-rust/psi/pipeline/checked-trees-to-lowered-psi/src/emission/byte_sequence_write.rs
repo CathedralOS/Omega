@@ -1,5 +1,12 @@
 //! Source-bound writes through exact whole mutable byte views.
-use super::*;
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, Operation, OperationKind,
+    OperationResult, PrimitiveType, StructuralAccess, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    ValueDeclaration, allocate_dense, direct_expression_contains_short_circuit,
+    emit_direct_expression, obligation_id, terminal_scalar_type, unsupported,
+    validate_direct_parameter_types, value_id,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::{CheckedByteSequenceWritePlan, expression::ExpressionNode};

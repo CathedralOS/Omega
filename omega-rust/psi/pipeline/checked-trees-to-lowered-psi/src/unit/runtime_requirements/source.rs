@@ -5,8 +5,11 @@
 //! prevents a same-typed predicate substitution. Source order and duplicates are
 //! checked before canonical publication; callers then owe each published slot
 //! before importing guarantees, even if actual substitution makes slots equal.
-
-use super::*;
+use super::super::{CheckedIntegerComparisonKind, CheckedTrees, ClosedScalarContractValue};
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
+    integer_scalar_type, unsupported,
+};
 use checked_trees::domain::ProofFact;
 use checked_trees::signature::SignatureContractKind;
 use checked_trees::types::{TypeConstraintNode, TypeReferenceNode};

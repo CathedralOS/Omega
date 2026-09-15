@@ -200,7 +200,7 @@ semantic_id!(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ClaimId, FuelScheduleIdentity, PackageKeyIdentity, ValueId};
 
     #[test]
     fn semantic_ids_reject_the_reserved_zero_value() {

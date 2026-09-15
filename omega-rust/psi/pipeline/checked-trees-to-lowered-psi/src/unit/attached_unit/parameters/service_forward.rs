@@ -1,7 +1,6 @@
 //! Independent raw checked-to-Terminal replay for one routed-Service hop.
 
-use super::*;
-
+use super::{CheckedTrees, LoweringError, Multiplicity, unsupported};
 pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
     let plans = &checked.facts.flow.terminal_unit_effects.machines;
     for caller in plans {

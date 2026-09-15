@@ -1,6 +1,10 @@
 //! Source-independent retention of checked foreign shared-borrow custody.
-
-use super::*;
+use super::{
+    BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineId, BoundaryMachineResult,
+    CheckedTrees, ContentPlaceVersion, DomainSemanticId, LoweringError, Multiplicity,
+    StructuralAccess, StructuralMultiplicity, TerminalModule, checked_unit_boundary_identity,
+    content_conservation, unsupported,
+};
 use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 fn unconstrained_type(checked: &CheckedTrees, mut ty: TypeReferenceHandle) -> TypeReferenceHandle {

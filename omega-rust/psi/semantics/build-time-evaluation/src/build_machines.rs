@@ -300,7 +300,7 @@ pub fn evaluate_build_machine_arguments_measured_with_sponsor(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BuildMachineExecutionMode, BuildMachineFilesystemAccess};
     use checked_interpreter::{
         FilesystemGrantRootIdentity, FilesystemInputOutputTreeReplayRecord,
         FilesystemOutputChangeFileOwnerReplayRecord, FilesystemOutputFileOperationReplayRecord,

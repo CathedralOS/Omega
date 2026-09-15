@@ -1,7 +1,19 @@
 //! Recursive nested-record byte derivation and staging.
 
-use super::*;
-
+use super::{
+    AggregateFieldSchema, AggregateFieldValue, BuildTimeValue, ByteOrder,
+    ConventionalNestedRecordSumPathLayoutReport, ConventionalRecordSumPathsLayoutReport,
+    DataDefinition, DataMember, DataShapeKind, DerivedNestedRecordSumMaterialization,
+    DerivedNestedRecordSumsMaterialization, DerivedRecursiveNestedSumsMaterialization,
+    EncodedOuterField, MaterializationDiagnostic, NestedPathsView, SumReachability, TypedTrees,
+    ValidatedConstNestedSumRecordOccurrenceMaterialization,
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization, encode_typed_owned_value,
+    exact_named_data, exact_struct_fields, field_occurrence_matches,
+    materialize_aggregate_layout_into, normalized_schema_report_fingerprint, record_sum_profile,
+    recursive, reflected_field_layout, reject_sum_array_type, unique_data_by_name,
+    validate_const_materializable_record_with_conventional_sums, validate_outer_layout,
+    validate_outer_record_owner, validate_value, value_kind,
+};
 pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
     typed: &TypedTrees,
     schema_name: &str,

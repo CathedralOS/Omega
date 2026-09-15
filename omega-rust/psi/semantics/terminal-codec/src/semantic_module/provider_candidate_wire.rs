@@ -161,7 +161,10 @@ pub fn decode_provider_candidate_record(
 }
 #[cfg(test)]
 mod record_tests {
-    use super::*;
+    use super::{
+        CodecError, ProviderCandidateConformance, ProviderRefinement, ProviderSignature,
+        decode_provider_candidate_record, encode_provider_candidate_record,
+    };
     fn candidate() -> ProviderCandidateConformance {
         ProviderCandidateConformance {
             boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),

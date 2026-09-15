@@ -2304,7 +2304,13 @@ impl std::error::Error for IntegerAffineBoundConversionError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckedIntegerAffineForm, CheckedIntegerEndpointStep, IntegerAffineBoundConversionError,
+        IntegerAffineWitness, IntegerAffineWitnessError, IntegerMathTerm, IntegerType,
+        IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType,
+        check_integer_affine_bound_conversion, check_integer_affine_witness,
+        integer_affine_truth_bounds, integer_affine_wrapping_evidence, map_integer_affine_bound,
+    };
     use semantic_vocabulary::{IntegerSign, ValueId};
 
     fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {

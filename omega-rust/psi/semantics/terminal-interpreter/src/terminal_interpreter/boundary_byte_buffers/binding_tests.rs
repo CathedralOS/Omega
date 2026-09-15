@@ -1,4 +1,16 @@
-use super::*;
+use super::super::{
+    BTreeSet, Block, BlockId, ExecutableMachine, MachineId, OperationId, OperationKind, PlaceId,
+    StructuralAffineDiscard, StructuralFieldId, StructuralOperationResult,
+    StructuralTypeDeclaration, StructuralTypeId, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalMachineResult, Terminator, primitive_storage,
+};
+use super::{
+    BTreeMap, ByteSequenceBinding, ByteSequenceCarrier, ByteSequenceView, StructuralAccess,
+    StructuralArgument, StructuralByteSequenceRuntimeField, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralRuntimePlace, StructuralTypeShape, TerminalExecution, TerminalStructuralValue,
+    resolve_structural_arguments,
+};
 use semantic_vocabulary::EdgeId;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};

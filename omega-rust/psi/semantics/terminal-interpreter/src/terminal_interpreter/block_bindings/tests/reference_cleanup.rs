@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    BlockId, EdgeId, PlaceId, ScalarType, StructuralAccess, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, TerminalExecutionStatus, TerminalFuelMeter,
+    TerminalMachineResult, TerminalScalarValue, TerminalStructuralValue, Terminator,
+    ValueDeclaration, ValueId, execution,
+};
 use crate::terminal_interpreter::StructuralRuntimePlace;
 use terminal_psi::{StructuralAffineDiscard, TerminalAffineCleanupAction};
 

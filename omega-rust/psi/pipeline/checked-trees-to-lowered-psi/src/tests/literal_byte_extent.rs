@@ -1,7 +1,10 @@
 //! Canonical proof production for a measured source-produced literal.
 
-use super::*;
-
+use super::{
+    IntegerValue, LoweredPsi, LoweringError, Operation, OperationKind, OperationResult,
+    PrimitiveType, ValueDeclaration, checked_source, lower_machine, obligation_id, operation_id,
+    terminal_scalar_type, value_id,
+};
 /// The literal and call are source-produced. The added Terminal read exercises
 /// proof closure, not source correspondence for literal indexing.
 fn fixture(literal: &str, byte_index: u128) -> LoweredPsi {

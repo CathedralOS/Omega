@@ -1,7 +1,13 @@
 //! Structural Unit control-flow regression families.
 
-use super::*;
-
+use super::{
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTrees, ConformancePublication, IntegerValue,
+    LoweringError, Multiplicity, Operation, OperationKind, PrimitiveType, ScalarType,
+    StructuralPlaceKind, SuccessorEdge, SymbolHandle, Terminator, ValueDeclaration, block_id,
+    checked_source, edge_id, hard_root_checked_fixture, lower_machine, lower_selected_machine,
+    lower_structural_unit_control_machine, place_id, select_terminal_machine, value_id,
+};
 #[test]
 fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
     let checked = checked_source(

@@ -228,7 +228,7 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
 
 #[cfg(test)]
 mod resource_tests {
-    use super::*;
+    use super::{CodecError, Reader};
     use crate::semantic_module::wire::decode_counted;
 
     #[test]

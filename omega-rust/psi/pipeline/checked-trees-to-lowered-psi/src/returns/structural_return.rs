@@ -1,7 +1,17 @@
 //! General structural-result transfer lowering.
 
-use super::*;
-
+use super::{
+    BTreeMap, Block, CarryPolicy, CheckedStructuralReturnMachinePlan, CheckedTrees,
+    DomainSemanticId, EntryClaim, LoweredPsi, LoweringError, MachineContract, Multiplicity,
+    Operation, OperationKind, PermissionClaimIdentity, ProofBundle, RESULT_STRUCTURAL_PLACE_ID,
+    SemanticDomainId, StructuralDomainDeclaration, StructuralDomainId, StructuralMultiplicity,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeId,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    VocabularyMarker, allocate_dense, block_id, claim_id, content_conservation, contract_id,
+    dense_identity, edge_id, lookup_domain_id, lookup_type_id, lower_content_identity_reshuffles,
+    lower_structural_type_plans, lower_unit_parameters, machine_id, operation_id, place_id,
+    structural_domain_id, unsupported,
+};
 pub(crate) fn lower_structural_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralReturnMachinePlan,

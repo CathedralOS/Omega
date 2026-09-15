@@ -246,15 +246,20 @@ impl<Member: std::fmt::Debug> std::error::Error for RecursiveComponentError<Memb
 
 #[cfg(test)]
 mod tests {
-    use semantic_vocabulary::{
-        AdmissionSiteId, BlockId, ProfileDecisionId, PropositionId, PsiSemanticId,
+    use super::{
+        AdmissionProfile, BTreeSet, CertificateObligation, ContractId, EvidenceError,
+        EvidenceRoute, Obligation, Proposition, PropositionContext, RecursiveComponentAcceptance,
+        RecursiveComponentCertificate, RecursiveComponentError, RecursiveComponentObligation,
+        RecursiveEdgeCertificate, RecursiveEdgeObligation, verify_recursive_component,
+        verify_recursive_obligation,
     };
-
-    use super::*;
     use crate::{
         AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind,
         AuthorizedAdmission, CertificateEnvelope, ObligationClass, ProofNode, ProofRule,
         ProofSystemMarker,
+    };
+    use semantic_vocabulary::{
+        AdmissionSiteId, BlockId, ProfileDecisionId, PropositionId, PsiSemanticId,
     };
 
     fn id<T: PsiSemanticId>(raw: u64) -> T {

@@ -426,7 +426,11 @@ fn plan_revision(plan: &RuntimeVisitationPlan) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MemberKind, RuntimeVisitationPlan, SelectionChoice, SelectionRequirement,
+        SelectionSnapshot, TypedTrees, VisitationOperation, plan_revision,
+        replay_runtime_visitation_plan,
+    };
     use crate::reflection::{
         SchemaQueryAuthority, ScopedSelectionReceiver, SelectionCoverage, SelectionProjection,
         SemanticSchemaGraph, construct_semantic_schema_graph,

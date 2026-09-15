@@ -1,4 +1,4 @@
-use super::*;
+use super::{ExpressionNode, TypeConstraintNode, TypeReferenceNode};
 use source_files_to_tokens::Lexer;
 use syntax_trees::item::{DataMember, Item};
 

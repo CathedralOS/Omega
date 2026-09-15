@@ -526,11 +526,15 @@ pub enum FloatMeaningProjectionVerificationError {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        FloatMeaning, FloatMeaningProjection, FloatMeaningProjectionOperation,
+        FloatMeaningProjectionVerificationError, FloatMeaningSource, FloatProjectionOperation,
+        IeeeFloatFormat, ProofOnlyValueType, reconstruct_float_meaning_projection,
+        terminal_contract_identity,
+    };
     use terminal_psi::{
         FloatProjectionInput, FloatProjectionInputId, ProofValueDeclaration, ProofValueId,
     };
-
-    use super::*;
 
     fn projection() -> FloatMeaningProjection {
         FloatMeaningProjection {

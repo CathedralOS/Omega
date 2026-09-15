@@ -1,7 +1,23 @@
 //! Structural type, domain, and service catalog publication for attached Unit
 //! closures.
-
-use super::*;
+use super::super::{
+    BTreeSet, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, DomainSemanticId,
+    InstallationReachDependency, ProgramLocalRootIntroductionSchema, ServiceDeclaration, ServiceId,
+    ServiceReachId, ServiceReachInterface, ServiceReachPlan, ServiceReachRowId, StructuralAccess,
+    StructuralCaseDeclaration, StructuralCaseId, StructuralDomainDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, lower_mixed_cases, lower_mixed_fields,
+    program_local_root_introduction_compatibility_report_identity, service_id,
+    structural_domain_id, structural_field_id, structural_type_id, terminal_byte_sequence_carrier,
+    terminal_structural_field_type,
+};
+use super::{
+    CheckedBoundaryMachinePlan, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitProviderCandidate, LoweringError, SemanticDomainId,
+    ServiceReachSummary, StructuralDomainId, StructuralTypeId, StructuralTypeShape, UnitBody,
+    allocate_dense, content_conservation, dense_identity, lookup_domain_id, lookup_service_id,
+    lookup_type_id, terminal_scalar_type, unique_unit_boundary, unsupported,
+};
 use checked_trees::CheckedUnitStructuralTypePlan;
 
 pub(super) fn lower_program_local_root_introductions(

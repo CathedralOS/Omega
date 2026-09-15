@@ -1,4 +1,4 @@
-use super::*;
+use super::{ProofNode, Proposition};
 use proof_admission::check_certificate;
 use semantic_vocabulary::{PropositionContext, ScalarTerm, ScalarType, ValueId};
 

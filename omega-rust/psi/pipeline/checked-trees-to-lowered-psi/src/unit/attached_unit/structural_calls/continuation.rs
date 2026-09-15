@@ -1,6 +1,8 @@
 //! Rejoin the exact temporary owner and its normal call cleanup.
-
-use super::*;
+use super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
+    StatementNode, shared_temporary, unsupported,
+};
 use checked_trees::CheckedStructuralAccess;
 
 pub(crate) fn validate_cleanup(

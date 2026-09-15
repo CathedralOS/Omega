@@ -1,7 +1,10 @@
 //! Exact whole immutable byte-view observation; control flow owns availability.
 
-use super::*;
-
+use super::{
+    IntegerSign, IntegerType, ModuleError, PlaceId, ScalarType, StructuralAccess,
+    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape, TerminalMachine,
+    TerminalModule,
+};
 pub(super) fn validate(
     module: &TerminalModule,
     machine: &TerminalMachine,

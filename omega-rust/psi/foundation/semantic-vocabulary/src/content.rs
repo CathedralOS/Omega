@@ -376,7 +376,12 @@ fn validate_term(term: &ContentTerm, depth: usize) -> Result<(), PropositionErro
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BTreeMap, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+        ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
+        ContentStructuralPlace, ContentTerm, PlaceId, PropositionError, StructuralPlaceKind,
+        content_conservation_report_fingerprint,
+    };
     use crate::{Proposition, PropositionContext};
 
     fn projection(root: PlaceId, version: ContentPlaceVersion, field: &str) -> ContentTerm {

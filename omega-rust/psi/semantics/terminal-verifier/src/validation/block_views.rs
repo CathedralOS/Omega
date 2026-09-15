@@ -1,7 +1,10 @@
 //! Exact block-local parameter declarations and simultaneous edge bindings.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, BlockId, EdgeId, ModuleError, PlaceId, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
+};
 pub(super) fn parameter(
     machine: &TerminalMachine,
     place: PlaceId,

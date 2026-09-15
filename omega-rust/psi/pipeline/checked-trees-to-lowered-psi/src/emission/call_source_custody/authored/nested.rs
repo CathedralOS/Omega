@@ -1,7 +1,9 @@
 //! Authored preorder call identity across mixed operand evaluation.
 
-use super::*;
-
+use super::{
+    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, SymbolHandle,
+    target_signature, unsupported,
+};
 /// The scalar computation walker checks membership, not preorder identity.
 /// Structural calls may be argument roots or the roots of exact projections.
 /// Scalar computations retain

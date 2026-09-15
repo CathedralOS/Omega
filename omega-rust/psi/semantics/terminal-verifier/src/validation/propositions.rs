@@ -1,7 +1,8 @@
 //! Projects exact structural roots from retained terminal propositions.
 
-use super::*;
-
+use super::{
+    BTreeSet, CanonicalStructuralPathSegment, ContentTerm, PlaceId, Proposition, ScalarTerm,
+};
 /// Unversioned observations of a written root cannot describe its new contents.
 /// Until a checked write frame preserves individual paths, forget the complete
 /// root, including observations nested under logical or arithmetic operators.

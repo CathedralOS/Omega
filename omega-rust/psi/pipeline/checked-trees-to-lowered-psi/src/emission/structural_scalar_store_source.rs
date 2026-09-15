@@ -1,6 +1,9 @@
 //! Independent source occurrence custody for ordered projected scalar stores.
-
-use super::*;
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, LoweringError,
+    terminal_scalar_type, unsupported,
+};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 

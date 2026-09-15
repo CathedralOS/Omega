@@ -1,8 +1,17 @@
 //! Case construction keeps its structural place outside the scalar prefix.
 //! Fields finish in authored order; observation precedes the temporary's
 //! normal-edge disposal, including when only one selective path constructs it.
-
-use super::*;
+use super::super::{
+    Multiplicity, Operation, OperationKind, OperationResult, PlaceId, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    ValueDeclaration, allocate_dense, emit_direct_expression, place_id, terminal_scalar_type,
+};
+use super::{
+    Argument, CheckedScalarComputationKind, CheckedTrees, Computation, Expansion, LoweringError,
+    QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
+    validate_direct_parameter_types,
+};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;

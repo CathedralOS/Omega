@@ -2,8 +2,11 @@
 //! owners never select each other's tags, and write-only parameters supply no
 //! runtime observation even when a proposition already names their active case.
 
-use super::*;
-
+use super::super::{StructuralFieldType, StructuralTypeId, StructuralTypeShape};
+use super::{
+    CheckedTrees, LoweringError, PlaceId, StructuralAccess, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, unsupported,
+};
 /// A local's observed cases belong to its declared type, not to whichever
 /// constructor happened to supply a selected arm.
 #[derive(Clone)]

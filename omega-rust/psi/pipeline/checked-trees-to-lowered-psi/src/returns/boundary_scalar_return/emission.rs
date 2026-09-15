@@ -1,6 +1,21 @@
 //! Boundary-return body emission in an already selected catalog and identity space.
-
-use super::*;
+use super::super::{
+    Block, BoundaryMachineId, CarryPolicy, CompletionReceipt, ContractId, EntryClaim,
+    LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence, MachineContract, MachineId,
+    Operation, OperationKind, PermissionClaimIdentity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
+    TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult, Terminator,
+    ValueDeclaration, allocate_dense, claim_id, edge_id, lookup_claim_id,
+    lower_checked_crash_route_buckets, lower_checked_crash_routes,
+    lower_installation_machine_service_ceiling, lower_structural_arguments, lower_structural_path,
+    validate_transfer_shape, value_id,
+};
+use super::{
+    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+    LoweringError, ServiceId, ServiceReachId, StructuralTypeId, argument_evaluation,
+    checked_requirements, content_conservation, lookup_type_id, terminal_scalar_type, unsupported,
+    validate_boundary_scalar_return,
+};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 

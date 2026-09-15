@@ -1,5 +1,9 @@
-use super::*;
-
+use super::{
+    BTreeSet, ModuleError, OperationId, OperationKind, PlaceId, ScalarType, StructuralArgument,
+    StructuralPathSegment, StructuralTypeId, SuspensionCallPlanError, TerminalMachine,
+    TerminalModule, ValueId, reconstruct_validated_structural_ownership_frontiers,
+    resolve_structural_path,
+};
 pub(super) fn validate_suspension_call_plans(module: &TerminalModule) -> Result<(), ModuleError> {
     if usize::try_from(module.suspension_call_plan_count).ok()
         != Some(module.suspension_call_plans.len())

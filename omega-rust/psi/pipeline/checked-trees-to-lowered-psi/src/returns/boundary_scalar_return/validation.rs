@@ -1,7 +1,10 @@
 //! Source and exact checked target validation shared by boundary-return emitters.
 
-use super::*;
-
+use super::super::checked_unit_target_reach_matches;
+use super::{
+    CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan, CheckedTrees,
+    CheckedUnitEffectOperationPlan, LoweringError, source_custody, unsupported,
+};
 pub(crate) fn validate_boundary_scalar_return<'a>(
     checked: &'a CheckedTrees,
     plan: &CheckedBoundaryScalarReturnMachinePlan,

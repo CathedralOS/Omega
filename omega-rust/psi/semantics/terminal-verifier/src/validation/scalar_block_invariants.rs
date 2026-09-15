@@ -148,13 +148,15 @@ fn scalar_predicate(predicate: &Proposition) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        Block, MachineId, Proposition, StructuralPlaceKind, TerminalMachine, Terminator,
+        scalar_block_invariant_scope,
+    };
     use semantic_vocabulary::{
         BlockId, ContractId, EdgeId, OperationId, PlaceId, ScalarTerm, StructuralFieldId,
         StructuralTypeId,
     };
     use terminal_psi::{MachineContract, StructuralPlaceDeclaration, TerminalMachineResult};
-
-    use super::*;
 
     fn place(raw: u64) -> PlaceId {
         PlaceId::new(raw).unwrap()

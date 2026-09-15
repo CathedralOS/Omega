@@ -1,6 +1,8 @@
 //! Preserve scalar requirements separately from structural qualification claims.
-
-use super::*;
+use super::super::ClosedScalarContractValue;
+use super::{
+    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, LoweringError, memberships, unsupported,
+};
 use checked_trees::domain::ProofFact;
 use checked_trees::signature::SignatureContractKind;
 

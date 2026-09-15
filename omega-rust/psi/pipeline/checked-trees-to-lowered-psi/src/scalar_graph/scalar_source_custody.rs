@@ -1,6 +1,8 @@
 //! Rejoin scalar plans to authored destinations and declaration namespaces.
-
-use super::*;
+use super::{
+    CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
+    PrimitiveType, ScalarType, terminal_scalar_type, unsupported,
+};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,

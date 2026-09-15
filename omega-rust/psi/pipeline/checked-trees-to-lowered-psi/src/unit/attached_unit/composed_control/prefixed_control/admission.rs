@@ -1,7 +1,9 @@
 //! Independent finite-prefix topology and scalar-edge replay.
 
-use super::*;
+use super::super::super::super::{CheckedComposedUnitControlTerminatorPlan, PrimitiveType};
+use super::super::super::unsupported;
 
+use super::{CheckedTrees, LoweringError};
 pub(super) struct AdmittedPrefixed<'a> {
     pub(super) controls: &'a [checked_trees::CheckedComposedUnitControlStatePlan],
     pub(super) dispatch: &'a checked_trees::CheckedComposedUnitControlStatePlan,

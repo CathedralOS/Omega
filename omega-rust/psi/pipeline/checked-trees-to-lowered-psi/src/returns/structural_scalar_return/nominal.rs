@@ -4,8 +4,30 @@
 //! before generating certificates. Materialized results and branch-local facts
 //! change premise indexes; a proof copied from the provisional Unit closure
 //! would not describe the completed scalar caller's live observations.
-
-use super::*;
+use super::super::{
+    BTreeMap, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralScalarIntegerBoundKind,
+    CheckedStructuralScalarIntegerBoundPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, IntegerSign, PlaceId, Proposition, ScalarTerm,
+    StructuralFieldType, StructuralTypeShape, integer_value,
+    lower_nominal_affine_unit_cleanup_machine, normalize_shared_boolean_comparison_leaves,
+    obligation_id, place_id, resolve_shared_boolean_member_fields,
+    retain_additional_structural_types, shared_boolean_runtime_parameters,
+    valid_shared_boolean_runtime_inputs,
+};
+use super::{
+    BTreeSet, Block, CheckedScalarBindingValue, CheckedScalarExpressionRole,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedTrees, LoweredPsi, LoweringError, Multiplicity, PrimitiveType, ScalarType,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction,
+    TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, block_id,
+    boolean_decision_block_count, boolean_local_reference_count, edge_id, emit_direct_expression,
+    emit_inlined_boolean_value_blocks, finalize_operation_proofs,
+    is_branch_free_structural_boolean_expression, is_branch_free_structural_scalar_expression,
+    is_structural_short_circuit_boolean_decision, lower_boolean_value_decision,
+    lower_checked_scalar_expression_at, lower_unit_parameters, source_distribute_boolean_local,
+    terminal_scalar_type, unsupported, validate_boolean_decision_parameter_types,
+    validate_boolean_parameter_types, validate_direct_parameter_types, value_id,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;

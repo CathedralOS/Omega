@@ -1,7 +1,9 @@
 //! Four-state acyclic composed Unit control and scalar-edge replay.
 
-use super::*;
-
+use super::{
+    CheckedComposedUnitControlTerminatorPlan, CheckedTrees, LoweringError, Operation,
+    OperationKind, Terminator, checked_source, lower_machine,
+};
 fn checked_prefixed_control() -> CheckedTrees {
     checked_source(
         r#"

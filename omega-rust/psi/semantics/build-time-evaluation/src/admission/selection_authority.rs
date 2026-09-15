@@ -696,7 +696,11 @@ fn require_selection(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BuildTimeSelectionAuthority, ExpressionHandle, ExpressionNode, PackageCustody,
+        PackageKeyIdentity, TypedTrees, expression_occurrence_violation,
+        late_bound_selection_symbol, unresolved_operator_candidates_are_confined,
+    };
     use source_files_to_tokens::Lexer;
     use tokens_to_syntax_trees::parse_syntax_trees;
 

@@ -1,7 +1,16 @@
 //! Selected boundary-operator structural-scalar return lowering.
 
-use super::*;
-
+use super::super::{
+    CheckedSelectedOperatorStructuralScalarReturnMachinePlan, LoweredSourceCallOccurrence,
+};
+use super::{
+    BTreeSet, Block, CheckedTrees, LoweredPsi, LoweringError, MachineContract, Multiplicity,
+    Operation, OperationKind, StructuralArgument, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult, Terminator,
+    ValueDeclaration, block_id, contract_id, edge_id, finalize_operation_proofs, lookup_type_id,
+    lower_structural_scalar_return_machine_in_namespace, lower_unit_parameters, machine_id,
+    operation_id, terminal_scalar_type, unsupported, value_id,
+};
 pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedSelectedOperatorStructuralScalarReturnMachinePlan,

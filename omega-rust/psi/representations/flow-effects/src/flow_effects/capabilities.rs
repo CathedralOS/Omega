@@ -86,7 +86,7 @@ impl CapabilityFlowPlan {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Arena, CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan, SymbolHandle};
 
     #[test]
     fn capability_flow_kind_names_are_stable() {

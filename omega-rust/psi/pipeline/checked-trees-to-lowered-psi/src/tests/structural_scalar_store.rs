@@ -1,5 +1,9 @@
-use super::*;
-
+use super::{
+    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+    IntegerValue, LoweringError, Operation, OperationKind, OperationResult, PrimitiveType,
+    StructuralAccess, StructuralPathSegment, StructuralTypeShape, Terminator, checked_source,
+    lower_machine,
+};
 #[test]
 fn guarded_bounded_integer_field_increment_publishes_checked_terminal() {
     let checked = checked_source(

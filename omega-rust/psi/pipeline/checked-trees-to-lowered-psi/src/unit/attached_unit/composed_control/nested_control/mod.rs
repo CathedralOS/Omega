@@ -1,7 +1,6 @@
 //! Independent replay of general acyclic Boolean control graphs.
 
-use super::*;
-
+use super::{CheckedTrees, LoweringError, SourceMappedLowered};
 mod admission;
 mod emission;
 mod operations;

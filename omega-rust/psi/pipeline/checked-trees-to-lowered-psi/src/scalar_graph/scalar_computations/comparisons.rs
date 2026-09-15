@@ -4,7 +4,8 @@
 //! subject across failed arms; neither path re-evaluates source expressions here.
 //! Exact selected requirement/application custody remains separate from Omega's
 //! provider authority. Proof-only float equality never supplies executable meaning.
-use super::*;
+use super::super::PrimitiveType;
+use super::{CheckedTrees, Expansion, LoweringError, ScalarType, Site, unsupported};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 

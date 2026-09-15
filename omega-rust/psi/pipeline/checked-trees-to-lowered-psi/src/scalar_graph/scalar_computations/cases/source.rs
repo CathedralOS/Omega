@@ -1,7 +1,9 @@
 //! Rejoin constructor fields before their computations enter the ordinary
 //! operand-scope walk. A matching final type cannot replace source identity.
-
-use super::*;
+use super::{
+    CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument, CheckedTrees,
+    Computation, LoweringError, Multiplicity, fields, unsupported,
+};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(crate) fn construction(

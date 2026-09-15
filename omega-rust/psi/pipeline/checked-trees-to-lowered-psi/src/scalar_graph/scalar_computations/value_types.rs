@@ -4,8 +4,11 @@
 //! exact normal-result signature; a selection must join identical qualifications.
 //! The source-custody pass separately validates every authored occurrence.
 
-use super::*;
-
+use super::super::terminal_scalar_type;
+use super::{
+    CheckedScalarComputationKind, CheckedTrees, Computation, LoweringError,
+    PreparedScalarQualifications, QualifiedScalarType, ScalarType, storage, unsupported,
+};
 pub(crate) fn computation_value_type(
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,

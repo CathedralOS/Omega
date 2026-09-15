@@ -1,6 +1,16 @@
 //! Content conservation, identity reshuffle, and partition regressions.
-
-use super::*;
+use super::{
+    CheckedContentAlgebraIdentity, CheckedContentConservationTerm, CheckedContentPlaceRoot,
+    CheckedContentPlaceSegment, CheckedContentPlaceVersion, CheckedContentStructuralPlace, ClaimId,
+    ContentAlgebra, ContentAlgebraKind, ContentCaseSegment, ContentConservationEquation,
+    ContentConservationOwnerKind, ContentConservationPlan, ContentFieldSegment,
+    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, ContentPlaceSegment,
+    ContentPlaceVersion, ContentTerm, LoweringError, PermissionClaimIdentity,
+    PermissionEventSource, PlaceId, Proposition, RESULT_STRUCTURAL_PLACE_ID, SemanticDomainId,
+    StructuralPlaceDeclaration, StructuralPlaceKind, SymbolHandle, conservation_report_fingerprint,
+    lower_checked_crash_frontier, lower_content_conservation_plan,
+    lower_content_identity_reshuffles, lower_content_partition_compositions, source_projection,
+};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 
 fn source_plan_with_domain(semantic_domain: SemanticDomainId) -> ContentConservationPlan {

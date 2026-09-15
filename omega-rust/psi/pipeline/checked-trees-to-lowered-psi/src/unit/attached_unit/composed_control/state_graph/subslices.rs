@@ -1,6 +1,15 @@
 //! Source-bound exclusive byte windows evaluated only on their selected edge.
-
-use super::*;
+use super::super::super::super::{
+    IntegerValue, PrimitiveType, StructuralParameterDeclaration, ValueId,
+};
+use super::super::super::{
+    CheckedScalarExpressionRole, Operation, OperationKind, OperationResult, PlaceId,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
+    direct_expression_contains_short_circuit, emit_direct_expression, obligation_id,
+    terminal_scalar_type, unsupported, validate_direct_parameter_types,
+};
+use super::super::{CheckedTrees, LoweringError};
+use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};

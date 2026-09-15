@@ -1,6 +1,10 @@
 //! Complete whole, claim-free affine parameter disposal in scalar graphs.
-
-use super::*;
+use super::super::{
+    BlockId, StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction,
+};
+use super::{
+    Block, LoweringError, OperationKind, StructuralParameterDeclaration, Terminator, unsupported,
+};
 use std::collections::VecDeque;
 
 #[cfg(test)]

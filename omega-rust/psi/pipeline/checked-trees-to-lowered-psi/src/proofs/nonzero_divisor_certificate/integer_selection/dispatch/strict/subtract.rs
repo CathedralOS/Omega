@@ -61,7 +61,7 @@ pub(super) fn prove(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{IntegerValue, Proposition, ScalarTerm, prove};
     use proof_admission::check_certificate;
     use semantic_vocabulary::{IntegerSign, IntegerType, PropositionContext, ScalarType, ValueId};
 

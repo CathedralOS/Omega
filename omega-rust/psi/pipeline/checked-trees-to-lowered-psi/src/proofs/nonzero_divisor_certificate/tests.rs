@@ -1,12 +1,14 @@
-use std::collections::BTreeSet;
-
-use super::*;
+use super::{
+    Proposition, PropositionContext, produce_checked_canonical_integer_proof,
+    prove_canonical_integer_proposition,
+};
 use proof_admission::{
     PrimitiveJudgment, ProofRule, accept_certificate, accept_certificate_with_machine_parameters,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
 };
+use std::collections::BTreeSet;
 
 mod byte_subslice;
 mod case_analysis;

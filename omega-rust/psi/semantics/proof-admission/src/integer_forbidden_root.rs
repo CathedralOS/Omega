@@ -678,7 +678,13 @@ impl std::error::Error for IntegerCorrelatedForbiddenRootWitnessError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BTreeSet, CorrelatedAffineBranch, CorrelatedAffineBranchWitness,
+        CorrelatedAffineStepWitness, IntegerCorrelatedForbiddenRootWitness,
+        IntegerCorrelatedForbiddenRootWitnessError, IntegerSign, IntegerType, IntegerValue,
+        Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+        check_integer_correlated_forbidden_root_witness,
+    };
 
     fn i8_type() -> IntegerType {
         IntegerType::new(IntegerSign::Signed, 8).expect("i8")

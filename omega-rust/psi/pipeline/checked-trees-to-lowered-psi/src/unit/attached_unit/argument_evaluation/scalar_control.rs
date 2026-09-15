@@ -1,8 +1,11 @@
 //! The ordered prefix completes before its authored scalar return or dispatch.
 //! Returns use the existing selective evaluator and rejoin with one result;
 //! structural places keep their dominating producers across guarded arms.
-
-use super::*;
+use super::super::CheckedUnitEffectMachinePlan;
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, Evaluation, LoweringError, ValueDeclaration,
+    prepare_shared_qualifications, terminal_scalar_type, unsupported,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{

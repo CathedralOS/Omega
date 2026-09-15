@@ -1,7 +1,16 @@
 //! Hash-free replay equality and non-authoritative report fingerprints.
 
-use super::*;
-
+use super::{
+    BuildTimeValue, ByteOrder, ConventionalNestedRecordSumPathLayoutReport,
+    ConventionalNestedRecordSumPathsLayoutReport, ConventionalRecordSumPathsLayoutReport,
+    ConventionalRecursiveRecordSumPathsLayoutReport,
+    ValidatedConstNestedSumRecordOccurrenceMaterialization,
+    ValidatedConstRecordWithSumMaterialization,
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization,
+    conventional_sum_layout_reports_match_for_replay, field_occurrence_matches, hash_byte,
+    hash_bytes, hash_text, hash_u64, hash_value, layout_plan_reports_match_for_replay,
+    normalized_layout_plan_report_fingerprint,
+};
 pub(super) fn nested_path_reports_match_for_replay(
     left: &ConventionalNestedRecordSumPathLayoutReport,
     right: &ConventionalNestedRecordSumPathLayoutReport,

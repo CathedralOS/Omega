@@ -1,6 +1,5 @@
 //! Source parameter custody for memberships carried outside scalar contracts.
-
-use super::*;
+use super::{CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, LoweringError, unsupported};
 use checked_trees::domain::ProofFact;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::types::{TypeConstraintNode, TypeReferenceNode};

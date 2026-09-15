@@ -1,7 +1,9 @@
 //! Rejoin a direct call's outer declaration even when it has no arguments.
 
-use super::*;
-
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError,
+    ScalarType, SourceRoot, terminal_scalar_type, unsupported,
+};
 pub(super) struct DirectCall<'a> {
     source: SourceRoot,
     target_machine: symbols::SymbolHandle,

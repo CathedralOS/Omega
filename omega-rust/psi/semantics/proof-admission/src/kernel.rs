@@ -128,7 +128,10 @@ impl std::error::Error for KernelError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ClosedIntegerEvaluationError, KernelError, PrimitiveJudgment, Proposition,
+        PropositionContext, ScalarTerm, decide_primitive,
+    };
     use semantic_vocabulary::{IntegerMathTerm, IntegerSign, IntegerType, IntegerValue};
 
     #[test]

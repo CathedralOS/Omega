@@ -1,7 +1,11 @@
 //! Type-directed maximal residual complement for finite records and arrays.
 
-use super::*;
-
+use super::super::CheckedUnitStructuralTypeShape;
+use super::{
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, LoweringError, checked_partial_affine_field_type, unsupported,
+};
 fn validate_type(
     types: &[CheckedUnitStructuralTypePlan],
     current_type: &str,

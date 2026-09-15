@@ -1,6 +1,8 @@
 //! Executable scalar evaluation, separate from pure proposition expressions.
-
-use super::*;
+use super::{
+    Arena, CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, Handle,
+    HandleSpan, SymbolHandle,
+};
 use crate::CheckedUnitStructuralArgumentPlan;
 use typed_trees::types::PrimitiveType;
 

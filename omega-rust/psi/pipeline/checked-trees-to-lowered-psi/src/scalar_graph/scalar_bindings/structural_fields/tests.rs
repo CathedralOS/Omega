@@ -1,4 +1,13 @@
-use super::*;
+use super::super::super::{OperationKind, PrimitiveType, emit_direct_expression};
+use super::super::{
+    CheckedBooleanExpression, CheckedScalarExpression, ScalarBindings, StructuralMultiplicity,
+    terminal_scalar_type,
+};
+use super::{
+    PlaceId, ScalarType, StructuralAccess, StructuralFieldId, StructuralFieldType,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::CheckedStructuralPredicatePathSegment;
 use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};

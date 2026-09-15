@@ -1,6 +1,8 @@
 //! Source-produced fixed-array loans retain initialized backing and exact extent.
-
-use super::*;
+use super::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, StructuralPathSegment,
+    byte_sequence_write, checked_source, lower_machine,
+};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionStatus, TerminalStructuralByteArrayValue,
     TerminalStructuralValue,

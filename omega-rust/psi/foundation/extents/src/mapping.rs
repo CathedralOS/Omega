@@ -1,6 +1,9 @@
+use super::{
+    AddressSpaceId, Extent, ExtentDiagnostic, ExtentLineageId, ExtentLoan, ExtentProvenanceId,
+    ExtentRights, ExtentRootOrigin, LoanPolarity, MappingEraId, ValidatedExtentGeometry,
+    nonzero_identity,
+};
 use std::collections::BTreeSet;
-
-use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MappingGrantId(u64);
@@ -949,7 +952,14 @@ impl UnmappedExtents {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AddressSpaceId, Extent, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId,
+        ExtentRights, ExtentRootOrigin, MappingEraId, MappingGrant, MappingGrantId, MappingId,
+        MappingSourceMode, PendingMap, PendingUnmap, TranslationActivationFactId,
+        TranslationActivationReceipt, TranslationCompletionFactId, TranslationInstallObligations,
+        TranslationReleaseObligations, TranslationReleaseReceipt, map_borrowed, map_owned,
+    };
+    use crate::{ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRightId, ExtentRootGrant};
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
         constructor(identity).expect("normalized identity")

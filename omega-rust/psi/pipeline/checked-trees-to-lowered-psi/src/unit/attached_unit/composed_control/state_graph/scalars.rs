@@ -1,6 +1,11 @@
 //! State-local scalar storage uses the shared source-bound value namespace.
-
-use super::*;
+use super::super::super::super::{StructuralParameterDeclaration, StructuralTypeDeclaration};
+use super::super::super::{
+    CheckedScalarExpressionRole, ValueDeclaration, direct_expression_contains_short_circuit,
+    emit_direct_expression, terminal_scalar_type, unsupported, validate_direct_parameter_types,
+};
+use super::super::{CheckedTrees, LoweringError};
+use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::scalar_graph::scalar_bindings::ScalarBindings;
 use checked_trees::{CheckedScalarBindingDestination, CheckedScalarBindingValue};

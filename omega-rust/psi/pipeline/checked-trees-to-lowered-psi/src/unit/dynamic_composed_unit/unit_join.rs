@@ -3,8 +3,21 @@
 //! The descriptor/control structure is identical to the scalar join. Only the
 //! branch calls, realization results, and helper calls are Unit-typed.
 
-use super::*;
-
+use super::{
+    Block, CheckedStructuralAccess, CheckedTrees, DynamicLoweringLane, LoweredDynamicRealization,
+    LoweredPsi, LoweredSourceCallOccurrence, LoweringError, Operation, OperationKind,
+    OperationResult, ProofBundle, StructuralAccess, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
+    TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalParameterDynamicDispatch, Terminator, ValueDeclaration, VocabularyMarker, block_id,
+    dynamic_parameter_interface, edge_id, empty_terminal_contract, exact_machine_service_summary,
+    join, lookup_type_id, lower_dynamic_structural_types_for_source,
+    lower_installation_machine_service_ceiling, lower_root_service_reach, machine_id, operation_id,
+    place_id, terminal_structural_multiplicity, unit, unsupported,
+    validate_and_lower_dynamic_source, value_id,
+};
 pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedJoinedDynamicUnitCallPlan,

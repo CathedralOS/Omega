@@ -106,7 +106,7 @@ pub struct CallServiceReachRows {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{MachineServiceReachRows, ServiceReachFacts, ServiceReachRowTable, SymbolHandle};
 
     #[test]
     fn owner_projection_preserves_public_empty_and_missing_distinctions() {

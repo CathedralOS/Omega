@@ -184,7 +184,10 @@ impl BoundaryObligationSet {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundaryKind, BoundaryObligationMode, BoundaryObligationSet, BoundaryProofObligation,
+        Identifier,
+    };
 
     fn ident(name: &str) -> Identifier {
         Identifier::generated(name)

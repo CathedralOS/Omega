@@ -1,6 +1,8 @@
 //! Reconstruct closed-case dispatch from the authored result and payload paths.
-
-use super::*;
+use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
+use super::super::super::{CheckedUnitEffectOperationPlan, Multiplicity, unsupported};
+use super::super::{CheckedTrees, LoweringError};
+use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan, edges};
 use checked_trees::data::{DataMember, DataVariant};
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};

@@ -1,7 +1,7 @@
 //! Bind source-checked structural operands to the enclosing machine's places.
 
-use super::*;
-
+use super::super::{Multiplicity, StructuralAccess, terminal_scalar_type};
+use super::{CheckedTrees, LoweringError, StructuralArgument, arrays, cases, storage, unsupported};
 pub(super) fn lower(
     checked: &CheckedTrees,
     target_machine: symbols::SymbolHandle,

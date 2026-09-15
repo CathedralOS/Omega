@@ -1,7 +1,12 @@
 //! Exact source and transfer custody for scalar calls with structural operands.
 
+use super::super::PermissionClaimIdentity;
 use super::parameters::source_path;
-use super::*;
+use super::{
+    CheckedScalarCallee, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, primitive_locals,
+    structural_calls, unsupported,
+};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::types::TypeReferenceNode;
 

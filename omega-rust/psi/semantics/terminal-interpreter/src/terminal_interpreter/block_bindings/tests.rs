@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    BTreeMap, BlockId, ByteSequenceCarrier, PlaceId, StructuralArgument, StructuralPlaceKind,
+    StructuralTypeShape, TerminalExecution, TerminalInterpretError, TerminalScalarValue,
+    TerminalStructuralValue, ValueId,
+};
 use crate::terminal_interpreter::{
     ExecutableMachine, TerminalExecutionResult, TerminalExecutionStatus,
 };

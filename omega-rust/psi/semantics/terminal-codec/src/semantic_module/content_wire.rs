@@ -368,7 +368,14 @@ fn decode_content_structural_place(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentConservationGuarantee,
+        ContentDomainId, ContentPartitionComposition, ContentPlaceVersion,
+        ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, Reader,
+        StructuralPlaceDeclaration, Writer, decode_content_conservation_guarantee,
+        decode_content_partition_composition, encode_content_conservation_guarantee,
+        encode_content_partition_composition,
+    };
     use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 
     fn place() -> ContentStructuralPlace {

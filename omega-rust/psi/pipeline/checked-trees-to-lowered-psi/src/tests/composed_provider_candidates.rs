@@ -1,6 +1,5 @@
 //! Checked state-graph providers retain their exact body and ordinary call closure.
-
-use super::*;
+use super::{Multiplicity, checked_source};
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,

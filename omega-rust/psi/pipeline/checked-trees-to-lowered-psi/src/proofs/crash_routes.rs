@@ -1,6 +1,15 @@
 //! Crash-route and canonical proposition lowering.
-
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, ByteSequenceStructuralField, CanonicalStructuralPathSegment,
+    CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedIntegerBinaryKind,
+    CheckedIntegerComparisonKind, CheckedScalarExpression, CheckedTrees, ClaimId, IeeeFloatFormat,
+    IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, LoweringError,
+    PermissionClaimIdentity, PlaceId, PrimitiveType, Proposition, ScalarTerm, ScalarType,
+    StructuralCaseSubject, StructuralFieldType, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TerminalCrashCause,
+    ValueDeclaration, dense_identity, integer_landing_scalar_type, integer_scalar_type,
+    integer_value, lower_checked_scalar_expression, unsupported, value_id,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::{
@@ -2468,7 +2477,11 @@ fn checked_boolean_scalar_term_from_lowered(
 
 #[cfg(test)]
 mod boolean_connective_tests {
-    use super::*;
+    use super::{
+        CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
+        LoweringError, PrimitiveType, Proposition, ScalarTerm, ScalarType, ValueDeclaration,
+        checked_boolean_proposition, checked_boolean_scalar_term, integer_scalar_type, value_id,
+    };
 
     fn compound_equality() -> CheckedBooleanExpression {
         CheckedBooleanExpression::Equal {
@@ -2684,7 +2697,10 @@ mod boolean_connective_tests {
 
 #[cfg(test)]
 mod runtime_requirement_tests {
-    use super::*;
+    use super::{
+        CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
+        PrimitiveType, Proposition, ScalarTerm, ValueDeclaration, integer_scalar_type, value_id,
+    };
     use crate::unit::runtime_requirements::lower_structural_runtime_requirement;
 
     #[test]

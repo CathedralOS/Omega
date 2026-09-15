@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    IntegerValue, ProofError, ProofNode, ProofRule, Proposition, PropositionContext, ScalarTerm,
+    ValueId, check_certificate, lift_fixed_integer_relation,
+};
 use crate::PrimitiveJudgment;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 

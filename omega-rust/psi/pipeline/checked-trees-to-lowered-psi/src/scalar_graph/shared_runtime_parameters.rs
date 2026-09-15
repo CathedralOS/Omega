@@ -3,8 +3,10 @@
 //! Arithmetic operation trees are emitted compositionally. Runtime-root
 //! collection grants no proof authority; completed operation graphs still need
 //! independently checked canonical certificates for every partial operation.
-
-use super::*;
+use super::{
+    BTreeSet, IntegerType, LoweringError, PlaceId, ScalarType, StructuralFieldId,
+    StructuralParameterDeclaration, StructuralTypeDeclaration,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
@@ -179,7 +181,11 @@ pub(crate) fn normalize_shared_boolean_comparison_leaves(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::IntegerSign;
+    use super::{
+        BTreeSet, IntegerType, LoweredDirectExpression, LoweredIntegerBinaryKind, ScalarType,
+        SharedBooleanRuntimeInput, shared_integer_runtime_parameters,
+    };
 
     fn integer_type() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap())

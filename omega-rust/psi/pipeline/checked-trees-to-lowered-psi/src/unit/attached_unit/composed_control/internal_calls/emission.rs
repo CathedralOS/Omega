@@ -1,6 +1,15 @@
 //! Calls into complete Unit bodies in the shared catalog.
+use super::super::super::super::{
+    ClaimId, PermissionClaimIdentity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+};
+use super::super::super::{
+    CheckedUnitEffectOperationPlan, Operation, OperationKind, OperationResult, PlaceId,
+    SemanticDomainId, StructuralDomainId, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeId, ValueDeclaration, lower_checked_crash_route_buckets,
+    lower_structural_arguments, unsupported, validate_transfer_shape,
+};
+use super::super::{CheckedTrees, LoweringError};
 
-use super::*;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 
 pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(

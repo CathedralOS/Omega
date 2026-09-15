@@ -1,10 +1,9 @@
-use std::cell::Cell;
-
-use super::*;
+use super::{BTreeSet, Proposition, ScalarTerm, ValueId, connected_cases};
 use proof_admission::{ProofRule, accept_certificate};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, PropositionContext, PropositionId, ScalarType,
 };
+use std::cell::Cell;
 
 fn integer_type() -> IntegerType {
     IntegerType::new(IntegerSign::Signed, 8).unwrap()

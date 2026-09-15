@@ -154,7 +154,9 @@ fn complete(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        DefinitionIndex, ProofNode, ProofRule, Proposition, ScalarTerm, ScalarType, prove,
+    };
     use proof_admission::check_certificate;
     use semantic_vocabulary::{
         IntegerSign, IntegerType, IntegerValue, PropositionContext, ValueId,

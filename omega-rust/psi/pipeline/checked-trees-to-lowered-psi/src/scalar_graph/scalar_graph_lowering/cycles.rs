@@ -1,6 +1,11 @@
 //! Prepare invocation-independent storage for an authored scalar state loop.
-
-use super::*;
+use super::super::{allocate_dense, place_id};
+use super::{
+    CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
+    CheckedScalarSuccessor, CheckedTrees, IntegerValue, LoweringError, ScalarType,
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration, source_custody,
+    terminal_scalar_type, unsupported,
+};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use checked_trees::{

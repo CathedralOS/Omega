@@ -1986,7 +1986,16 @@ pub fn contract_report_fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BlockingInterface, CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
+        CheckedMachineResourceEnvelopes, CheckedResourceDerivationObligation,
+        ClosedScalarValueContractPlan, CrashCallSiteLocation, CrashCause, CrashContractCapsule,
+        CrashInterface, CrashPlan, CrashPredicateIdentity, CrashRouteBucket, CrashRouteGuard,
+        CrashSiteLocation, MachineContractCommitment, MachineContractPlan, MachineContractPlans,
+        MachineSupplyMode, RealizedMachineContractEnvelope, SuspensionInterface, SymbolHandle,
+        SynchronousInvocationInterface, TerminationGuarantee, TerminationInterface,
+        contract_report_fingerprint,
+    };
 
     #[test]
     fn compact_equal_machine_contract_substitution_rejects() {

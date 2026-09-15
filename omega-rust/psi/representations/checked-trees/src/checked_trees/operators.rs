@@ -901,7 +901,13 @@ impl CheckedOperatorFacts {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Arena, CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact,
+        CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorOccurrence,
+        CheckedOperatorResolutionStatus, CheckedOperatorResolutionSummary, CheckedOperatorUseFact,
+        CheckedProviderPlanCommitment, CheckedValueOrigin, ExpressionHandle, HandleSpan,
+        OperatorSpelling, SignatureContract, SymbolHandle, TypeReferenceHandle,
+    };
     use numerics::float_semantics::FloatFormat;
 
     #[test]

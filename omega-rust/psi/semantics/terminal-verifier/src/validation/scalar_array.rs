@@ -4,7 +4,10 @@
 //! from the exact ownership frontier, just as for primitive local storage.
 
 use super::operations::require_defined;
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, BlockId, ModuleError, OperationKind, PlaceId, ScalarType, StructuralAccess,
+    StructuralMultiplicity, StructuralPlaceKind, TerminalMachine, TerminalModule, ValueId,
+};
 
 pub(super) fn validate_uses(
     operation: &terminal_psi::Operation,

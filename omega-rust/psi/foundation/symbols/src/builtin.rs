@@ -963,7 +963,10 @@ pub fn builtin_type_member_symbols(
 
 #[cfg(test)]
 mod builtin_ordinal_tests {
-    use super::*;
+    use super::{
+        BuiltinFunction, BuiltinType, BuiltinTypeAtom, SymbolKind, SymbolNameRef,
+        builtin_function_symbols, builtin_type_symbols,
+    };
 
     #[test]
     fn builtin_type_ordinals_track_the_symbol_table() {

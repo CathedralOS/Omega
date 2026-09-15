@@ -7,8 +7,17 @@
 //! affine values move. Retire a moved source name only once construction finishes.
 //! Final live locals rebind in declaration order at the selected cleanup edge;
 //! this preserves disposal order without remapping survivors after every move.
-
-use super::*;
+use super::super::{
+    OperationKind, OperationResult, StructuralFieldId, StructuralFieldType,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    ValueDeclaration, allocate_dense, place_id,
+};
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, Multiplicity, PlaceId,
+    PreparedScalarQualifications, QualifiedScalarType, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, computations, source_custody, storage, unsupported,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{

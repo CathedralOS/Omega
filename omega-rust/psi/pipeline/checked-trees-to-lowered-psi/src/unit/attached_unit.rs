@@ -5,8 +5,27 @@
 //! `admission` retains checked bodies and validates source/call custody;
 //! `signatures` allocates each machine's formals, claims and requirements.
 //! Emission borrows those records in the single shared namespace.
-
-use super::*;
+use super::{
+    Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, ClaimTransfer, CompletionReceipt, ContractClause, LoweredPsi,
+    LoweringError, MachineContract, Multiplicity, Operation, OperationKind, OperationResult,
+    PlaceId, ProofBundle, ProviderCandidateConformance, ProviderParameterRefinement,
+    ProviderRefinement, ProviderSignature, ProviderSignatureParameter, ScalarType,
+    SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TERMINAL_MACHINE_IDENTITY_STRIDE,
+    TERMINAL_UNIT_CALL_OBLIGATION_BASE, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, boundary_machine_id,
+    content_conservation, contract_id, dense_identity, direct_expression_contains_short_circuit,
+    edge_id, emit_direct_expression, finalize_operation_proofs, lookup_claim_id, lookup_domain_id,
+    lookup_machine_id, lookup_service_id, lookup_type_id, lower_boundary_content_guarantees,
+    lower_boundary_crash_routes, lower_checked_crash_route_buckets,
+    lower_checked_scalar_expression, lower_placed_view_input, lower_structural_crash_route_buckets,
+    machine_id, obligation_id, place_id, terminal_scalar_type, unsupported,
+    validate_direct_parameter_types, value_id,
+};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};

@@ -2,8 +2,15 @@
 //! Shared graph callees retain their normal result qualifications and returned
 //! claim frontier; an empty producer custody record is accepted only after the
 //! same reconstruction as a claim-bearing call.
-
-use super::*;
+use super::super::{MachineId, StructuralParameterDeclaration, StructuralTypeDeclaration};
+use super::{
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
+    Multiplicity, Operation, OperationKind, OperationResult, ScalarType, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    ValueDeclaration, allocate_dense, argument_evaluation, lookup_machine_id, lookup_type_id,
+    lower_structural_arguments, place_id, retain_exact_checked_flow_call, terminal_scalar_type,
+    unsupported, validate_transfer_shape,
+};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;

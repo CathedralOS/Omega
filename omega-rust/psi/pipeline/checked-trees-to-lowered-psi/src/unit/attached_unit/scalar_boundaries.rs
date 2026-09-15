@@ -1,7 +1,11 @@
 //! Boundary-wrapper catalog roots belong to the same module as their Unit callers.
 
-use super::*;
-
+use super::super::ServiceReachId;
+use super::{
+    CheckedBoundaryMachinePlan, CheckedScalarCallee, CheckedTrees, CheckedUnitEffectOperationPlan,
+    LoweringError, ServiceReachSummary, checked_unit_boundary_identity,
+    collect_installation_machine_contract_services, collect_service_summary, unsupported,
+};
 pub(super) fn retain_catalog_roots<'checked>(
     checked: &'checked CheckedTrees,
     callees: &[CheckedScalarCallee<'checked>],

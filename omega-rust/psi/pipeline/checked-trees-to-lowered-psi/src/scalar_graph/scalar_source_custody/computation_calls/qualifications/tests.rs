@@ -1,4 +1,9 @@
-use super::*;
+use super::super::super::CheckedScalarExpressionRole;
+use super::super::{CheckedScalarComputationKind, validate_computation_calls};
+use super::{
+    CheckedScalarComputationHandle, CheckedTrees, ExpressionNode, LoweringError, PrimitiveType,
+    TypeReferenceHandle,
+};
 use language_semantics::SemanticDomainId;
 
 fn checked(source: &str) -> CheckedTrees {

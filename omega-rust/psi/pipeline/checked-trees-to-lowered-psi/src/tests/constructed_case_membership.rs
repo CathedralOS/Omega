@@ -1,6 +1,8 @@
 //! Constructor subjects remain real established owners through observation.
-
-use super::*;
+use super::{
+    CheckedTrees, CheckedUnitEffectOperationPlan, OperationKind, OperationResult, PrimitiveType,
+    StructuralMultiplicity, Terminator, checked_source, lower_machine,
+};
 use checked_trees::CheckedScalarComputationKind;
 use checked_trees::expression::ExpressionNode;
 

@@ -156,7 +156,11 @@ pub const fn integer_policy_bridge(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ArithmeticDomain, EXACT_DIVIDE, EXACT_SHIFT, IntegerPolicyBridge, IntegerPolicyPrimitive,
+        IntegerResultLaw, IntegerTrapPredicate, NONZERO_DIVISOR, SHIFT_COUNT, ShiftCountLaw,
+        TRAP_DIVIDE, TRAP_OVERFLOW, TRAP_SHIFT, integer_policy_bridge,
+    };
 
     #[test]
     fn arithmetic_policies_publish_distinct_result_laws() {

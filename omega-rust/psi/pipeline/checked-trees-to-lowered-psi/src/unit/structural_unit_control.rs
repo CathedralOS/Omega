@@ -3,8 +3,18 @@
 //! This module owns checked multi-state control, edge-local transfer cleanup,
 //! and exact join-frontier publication for Unit-result machines.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, Block, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTrees, EdgeId, IntegerSign, IntegerValue,
+    LoweredPsi, LoweringError, MachineContract, Multiplicity, Operation, OperationKind,
+    OperationResult, PlaceId, PrimitiveType, ProofBundle, ScalarType, StructuralPlaceDeclaration,
+    StructuralPlaceKind, SuccessorEdge, TerminalBlockNaturalRank, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
+    allocate_dense, block_id, contract_id, dense_identity, edge_id, finalize_operation_proofs,
+    lookup_type_id, lower_structural_type_plans, lower_unit_parameters, machine_id, obligation_id,
+    operation_id, terminal_scalar_type, unsupported, value_id,
+};
 pub(crate) fn lower_structural_unit_control_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralUnitControlMachinePlan,

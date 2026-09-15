@@ -450,14 +450,18 @@ pub(crate) fn decode_parameter_dynamic_dispatches(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        Reader, Writer, decode_direct_dynamic_dispatches, decode_dynamic_conformance_selections,
+        decode_indirect_dynamic_dispatches, decode_rebound_dynamic_descriptors,
+        encode_direct_dynamic_dispatches, encode_dynamic_conformance_selections,
+        encode_indirect_dynamic_dispatches, encode_rebound_dynamic_descriptors,
+    };
     use semantic_vocabulary::{MachineId, OperationId, PlaceId, PsiSemanticId};
     use terminal_psi::{
         ClosedConformanceApplicationCommitment, StructuralAccess, StructuralArgument,
         TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
         TerminalIndirectDynamicDispatch, TerminalReboundDynamicDescriptor,
     };
-
-    use super::*;
 
     fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
         Identity::new(raw).expect("test identity is nonzero")

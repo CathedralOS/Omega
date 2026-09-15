@@ -1,7 +1,11 @@
 //! Exact route selection for checked composed Unit control.
 
-use super::*;
-
+use super::super::super::CheckedComposedUnitControlTerminatorPlan;
+use super::super::finalize_operation_proofs;
+use super::{
+    CheckedTrees, LoweringError, SourceMappedLowered, admission, catalogs, closed_sum, emission,
+    nested_control, prefixed_control, state_graph,
+};
 pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,

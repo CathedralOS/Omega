@@ -1,6 +1,9 @@
 //! Save one subject in the operand prefix across ordered pattern evaluations.
-
-use super::*;
+use super::super::{CheckedBooleanExpression, CheckedScalarExpression};
+use super::{
+    Argument, CheckedScalarComputationKind, Computation, Expansion, LoweringError,
+    QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
@@ -172,7 +175,15 @@ impl Expansion<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{
+        CheckedScalarComputation, CheckedTrees, Handle, LoweredDirectExpression,
+        LoweredScalarBinding, PreparedScalarQualifications, storage,
+    };
+    use super::{
+        Argument, CheckedBooleanExpression, CheckedScalarComputationKind, CheckedScalarDispatchArm,
+        CheckedScalarDispatchPattern, CheckedScalarExpression, Expansion,
+        LoweredBooleanReturnExpression, LoweredScalarBranchTerminator, ScalarType, Site,
+    };
 
     #[test]
     fn dispatch_expansion_saves_subject_once_and_drops_it_only_on_selection() {

@@ -351,7 +351,10 @@ fn projection(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MAXIMUM_PROOF_DEPTH, MAXIMUM_SEARCH_STEPS, ProofNode, ProofRule, Proposition,
+        PropositionContext, common_consequence, establishes, prove,
+    };
     use proof_admission::check_certificate;
 
     #[test]

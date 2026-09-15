@@ -4,8 +4,10 @@
 //! nodes therefore name their exact authored operation, just as Select nodes
 //! name their conditional. Do not infer a surviving operand from expression
 //! shape: a known result can still require evaluating the left operand's calls.
-
-use super::*;
+use super::{
+    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, authored_expressions,
+    unsupported,
+};
 use checked_trees::expression::BinaryOperator;
 
 /// Payload-only reconstruction cannot consume an explicit semantic transfer.

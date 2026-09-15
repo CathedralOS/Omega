@@ -1,7 +1,10 @@
 //! Reconstruct maximal residual subtrees from finite record/array move paths.
 
-use super::*;
-
+use super::{
+    BTreeSet, OperationKind, PlaceId, StructuralAccess, StructuralFieldType,
+    StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, TerminalMachine, TerminalModule, resolve_structural_path,
+};
 /// Resolve custody from its real owner, independently of any projected use.
 /// Result declarations alone do not establish an affine value or its producer.
 pub(super) fn partial_affine_root_type(

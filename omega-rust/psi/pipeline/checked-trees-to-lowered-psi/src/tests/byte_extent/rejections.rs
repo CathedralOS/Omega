@@ -1,7 +1,12 @@
 //! Rejections for the derived equation at the added Terminal length read.
 
-use super::*;
-
+use super::super::{
+    LoweringError, Proposition, ScalarTerm, StructuralPlaceKind, TerminalMachine, Terminator,
+};
+use super::{
+    IntegerValue, LoweredPsi, OperationKind, OperationResult, PrimitiveType, fixture, operation_id,
+    terminal_scalar_type, value_id,
+};
 fn slice_machine(lowered: &mut LoweredPsi) -> &mut TerminalMachine {
     lowered
         .semantic_module

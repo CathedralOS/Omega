@@ -1,4 +1,11 @@
-use super::*;
+use super::super::{BTreeSet, StructuralAffineDiscard, bind_affine_frontier, remove_affine_root};
+use super::{
+    BTreeMap, BlockId, EdgeId, PlaceId, ScalarType, StructuralAccess, StructuralArgument,
+    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    SuccessorEdge, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalFuelMeter, TerminalInterpretError, TerminalMachineResult, TerminalScalarValue,
+    TerminalStructuralValue, Terminator, ValueDeclaration, ValueId, execution, successor,
+};
 use crate::terminal_interpreter::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, StructuralFieldId};
 use terminal_psi::{

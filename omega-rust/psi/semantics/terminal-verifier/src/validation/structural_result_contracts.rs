@@ -1,7 +1,9 @@
 //! Exact qualification custody shared by structural calls and returns.
 
-use super::*;
-
+use super::{
+    BTreeSet, OperationKind, PlaceId, StructuralDomainId, StructuralFieldType,
+    StructuralMultiplicity, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
+};
 #[derive(Clone, Copy)]
 pub(super) struct StructuralResultSignature<'a> {
     pub(super) structural_type: StructuralTypeId,

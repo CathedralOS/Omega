@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    Block, Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
+    Terminator, ValueDeclaration, borrowed_parameter, decode_module, encode_module, id,
+    unit_module,
+};
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{
     BindingRelevance, RecordFieldInitializer, RecordFieldValue, StructuralFieldDeclaration,

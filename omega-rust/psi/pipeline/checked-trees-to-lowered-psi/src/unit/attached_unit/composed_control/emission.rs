@@ -1,6 +1,27 @@
 //! Three-block Terminal emission after exact admission and catalog projection.
-
-use super::*;
+use super::super::super::{
+    BlockId, CheckedComposedUnitControlTerminatorPlan, CheckedScalarBindingValue, ClaimId,
+    LoweredSourceCallOccurrence, MachineId, PermissionClaimIdentity,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, SuccessorEdge, block_id,
+    lower_checked_scalar_expression_at,
+};
+use super::super::{
+    Block, BoundaryMachineResult, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    CompletionReceipt, LoweredPsi, MachineContract, Operation, OperationKind, OperationResult,
+    PlaceId, ProofBundle, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, content_conservation,
+    contract_id, edge_id, emit_direct_expression, finalize_operation_proofs, lookup_claim_id,
+    lookup_machine_id, lookup_type_id, lower_checked_crash_route_buckets,
+    lower_checked_scalar_expression, lower_installation_machine_service_ceiling,
+    lower_structural_arguments, lower_structural_path, lower_unit_parameters, machine_id, place_id,
+    terminal_scalar_type, unsupported, validate_direct_parameter_types, validate_transfer_shape,
+    value_id,
+};
+use super::{
+    CheckedTrees, LoweringError, SourceMappedLowered, admission, catalogs, custody, internal_calls,
+    literal_arguments, state_graph,
+};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 

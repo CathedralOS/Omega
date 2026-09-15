@@ -1214,7 +1214,11 @@ fn snapshot_revision(snapshot: &SelectionSnapshot) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        SchemaQueryAuthority, ScopedSelectionReceiver, SelectionChoice, SelectionCoverage,
+        SelectionProjection, SelectionRequirement, SelectionSnapshot, SemanticSchemaGraph,
+        SymbolHandle, TypedTrees, replay_selection_snapshot, snapshot_revision,
+    };
     use crate::reflection::construct_semantic_schema_graph;
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;

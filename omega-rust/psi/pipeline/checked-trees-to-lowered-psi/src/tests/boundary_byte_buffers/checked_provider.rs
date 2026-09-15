@@ -1,5 +1,11 @@
 //! Authored checked providers preserve borrowed destination custody across calls.
-use super::*;
+use super::super::LoweringError;
+use super::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, INPUT_SOURCE, OperationKind,
+    TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalStructuralValue, assert_stored_fields, checked_source, lower_machine,
+};
 use checked_trees::CheckedStructuralAccess;
 use terminal_interpreter::{
     ProviderInstallationSelection, admit_provider_installation_from_artifact,

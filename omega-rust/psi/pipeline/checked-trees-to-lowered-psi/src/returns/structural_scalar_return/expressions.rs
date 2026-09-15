@@ -1,7 +1,10 @@
 //! Closed expression-shape validation and Boolean-local distribution for
 //! structural scalar returns.
-
-use super::*;
+use super::super::bind_boolean_decision;
+use super::{
+    LoweringError, ScalarType, contains_short_circuit, lower_boolean_value_decision,
+    validate_boolean_parameter_types,
+};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::boolean_control::LoweredBooleanDecision;

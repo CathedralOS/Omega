@@ -1,7 +1,10 @@
 //! Initialized, claim-free primitive storage and its exact access permissions.
 
-use super::*;
-
+use super::{
+    BTreeSet, ModuleError, OperationId, OperationKind, PlaceId, ScalarType, StructuralAccess,
+    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, TerminalModule,
+};
 pub(super) fn local_result(
     machine: &TerminalMachine,
     place: PlaceId,

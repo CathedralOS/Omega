@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    SymbolHandle, TypeIdentityContext, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    array_length, atom, index,
+};
 use crate::name::Identifier;
 use crate::types::FixedArrayLength;
 use std::cell::Cell;

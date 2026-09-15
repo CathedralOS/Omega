@@ -1,7 +1,9 @@
 //! Bounded, non-recursive conventional-sum reachability.
 
-use super::*;
-
+use super::{
+    DataDefinition, DataMember, DataShapeKind, MaterializationDiagnostic, TypeReferenceNode,
+    TypedTrees, exact_named_data,
+};
 #[derive(Default)]
 pub(super) struct RecordSumProfile {
     pub(super) direct: bool,
@@ -282,7 +284,7 @@ fn symbol_identity(symbol: symbols::SymbolHandle) -> Result<(u32, u32), Material
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{DataMember, SumReachability, TypeReferenceNode};
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};

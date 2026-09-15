@@ -1,7 +1,8 @@
 //! Source-state reachability is independent of descriptor bindings.
 
-use super::*;
-
+use super::super::super::unsupported;
+use super::super::LoweringError;
+use super::{CheckedComposedUnitControlMachinePlan, successors};
 pub(super) fn validate(plan: &CheckedComposedUnitControlMachinePlan) -> Result<(), LoweringError> {
     let mut ready = vec![0];
     let mut visited = vec![false; plan.states.len()];

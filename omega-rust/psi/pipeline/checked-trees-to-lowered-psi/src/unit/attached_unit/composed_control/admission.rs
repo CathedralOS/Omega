@@ -1,6 +1,14 @@
 //! Fail-closed rejoin of the composed carrier to checked flow and contracts.
-
-use super::*;
+use super::super::super::{
+    CheckedBooleanExpression, CheckedComposedUnitControlTerminatorPlan, CheckedScalarBindingValue,
+    CheckedUnitStructuralTypeShape, IntegerValue, PrimitiveType,
+};
+use super::super::{
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity, ScalarType,
+    lower_checked_scalar_expression, retain_exact_unit_boundary, unique_unit_boundary, unsupported,
+};
+use super::{CheckedTrees, LoweringError, custody, internal_calls};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::unit::attached_unit::bodies::UnitBody;
 

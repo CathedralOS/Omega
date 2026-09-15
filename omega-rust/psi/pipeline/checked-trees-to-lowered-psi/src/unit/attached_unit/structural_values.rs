@@ -6,8 +6,7 @@
 //! materializing independent unrestricted storage or transferring affine storage.
 //! Merely relabeling its source place would alias copies and reuse a declaration.
 
-use super::*;
-
+use super::CheckedTrees;
 mod emission;
 mod locals;
 pub(crate) mod record;

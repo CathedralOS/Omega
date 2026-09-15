@@ -7,8 +7,10 @@
 //! source replay. The affine identity family keeps its existing separate emitter;
 //! competing body plans must reject rather than choose whichever path succeeds.
 
-use super::*;
-
+use super::{
+    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitProviderCandidate, LoweringError,
+    Multiplicity, UnitBody, unique_unit_boundary, unsupported,
+};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ProviderBody {
     Callable,

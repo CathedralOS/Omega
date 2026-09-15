@@ -1,6 +1,6 @@
 //! Rejoin bound, temporary, and discarded result sources independently of operands.
-
-use super::*;
+use super::super::Multiplicity;
+use super::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::statement::StatementNode;
 
 /// A discarded invocation produces a value but no source-local binding.

@@ -1,6 +1,8 @@
 //! A guarded field read and a fresh read share only their live cited equality.
-
-use super::*;
+use super::{
+    IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+    integer, prove_canonical_integer_proposition, value,
+};
 use proof_admission::check_certificate;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralFieldId, StructuralPlaceKind,

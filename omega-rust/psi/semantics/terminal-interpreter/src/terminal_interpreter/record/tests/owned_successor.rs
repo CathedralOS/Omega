@@ -1,7 +1,12 @@
 //! Portable successor copies remain independent of a still-dominating source.
 
-use super::*;
-
+use super::{
+    Block, BlockId, ContractId, EdgeId, IntegerValue, MachineId, Operation, OperationId,
+    OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralArgument,
+    StructuralFieldId, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalExecutionResult,
+    TerminalMachineResult, TerminalModule, Terminator, ValueId, getter, getter_call, record_module,
+    run, scalar, unit_module, unsigned,
+};
 fn owned_successor_module() -> TerminalModule {
     let mut module = record_module();
     let mut writer = unit_module().machines.remove(0);

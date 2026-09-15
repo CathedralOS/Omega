@@ -1,6 +1,9 @@
 //! Declaration-owned payload validity precedes atomic case establishment.
-
-use super::*;
+use super::{
+    ModuleError, Obligation, ObligationClass, Operation, OperationKind, Proposition,
+    ReconstructedOperationObligation, ReconstructedTerminalObligationOwner, ScalarType,
+    TerminalMachine, TerminalModule,
+};
 use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarTerm, StructuralCaseSubject};
 
 pub(super) fn append(

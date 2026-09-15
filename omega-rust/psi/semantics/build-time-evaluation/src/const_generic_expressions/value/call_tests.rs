@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CanonicalConstIdentity, CanonicalConstValue, ConstantCalls, Diagnostic, ExpressionHandle,
+    ExpressionNode, LandedIntegerType, Machine, PrimitiveType, Shape, State, TypedTrees,
+    call_value, evaluate, evaluate_with_calls, validate_with_calls,
+};
 use std::cell::Cell;
 
 fn program(body: &str, destination: PrimitiveType) -> (TypedTrees, ExpressionHandle) {

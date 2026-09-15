@@ -1,6 +1,14 @@
 //! Primitive-reference store emission shared by Unit and scalar-result bodies.
-
-use super::*;
+use super::{
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, LoweringError,
+    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, ValueDeclaration,
+    direct_expression_contains_short_circuit, emit_direct_expression,
+    lower_checked_scalar_expression, terminal_scalar_type, unsupported,
+    validate_direct_parameter_types,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;

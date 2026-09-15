@@ -1,7 +1,10 @@
 //! Runtime binding must preserve exclusive referents independently of multiplicity.
 
-use super::*;
-
+use super::{
+    PlaceId, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeId, TerminalInterpretError, TerminalStructuralValue,
+    bind_structural_arguments,
+};
 fn parameter(
     position: u32,
     access: StructuralAccess,

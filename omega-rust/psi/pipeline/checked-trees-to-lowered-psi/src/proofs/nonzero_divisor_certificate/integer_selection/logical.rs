@@ -81,7 +81,7 @@ pub(super) fn prove_disjunction(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Proposition, ScalarTerm, prove_contradiction};
     use proof_admission::check_certificate;
     use semantic_vocabulary::{PropositionContext, ScalarType, ValueId};
 

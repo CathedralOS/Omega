@@ -1,7 +1,12 @@
 //! Bounded structural-scalar realization assembly for selected Unit calls.
 
-use super::*;
-
+use super::super::super::{
+    LoweredSourceCallOccurrence, MachineId, ObligationEvidence, StructuralTypeDeclaration,
+};
+use super::super::{TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, lookup_machine_id};
+use super::{
+    BTreeSet, CheckedTrees, LoweringError, Multiplicity, terminal_scalar_type, unsupported,
+};
 pub(in crate::unit::attached_unit) struct LoweredSelectedStructuralScalarRealizations {
     pub(in crate::unit::attached_unit) machines: Vec<TerminalMachine>,
     pub(in crate::unit::attached_unit) evidence: Vec<ObligationEvidence>,

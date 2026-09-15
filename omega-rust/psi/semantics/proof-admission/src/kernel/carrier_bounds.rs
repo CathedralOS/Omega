@@ -1,4 +1,4 @@
-use super::*;
+use super::{PrimitiveJudgment, Proposition, PropositionContext, ScalarTerm, decide_primitive};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId};
 
 #[test]

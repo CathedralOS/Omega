@@ -1,5 +1,6 @@
 //! Rejoin one invocation before its dense operands enter producer resolution.
 
+use super::super::authored_state;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarComputationKind,
@@ -7,9 +8,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-use super::{
-    authored_state, borrow_rows, owned_arguments, primitive_arguments, shared_nominal_arguments,
-};
+use super::{borrow_rows, owned_arguments, primitive_arguments, shared_nominal_arguments};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 

@@ -1,6 +1,10 @@
 //! Rejoin primitive-reference returns with their complete authored statement roster.
-
-use super::*;
+use super::super::{CheckedUnitEffectOperationPlan, StructuralParameterDeclaration};
+use super::{
+    CheckedScalarExpressionRole, CheckedStructuralScalarReturnMachinePlan, CheckedTrees,
+    LoweringError, Multiplicity, Operation, StructuralTypeDeclaration, ValueDeclaration,
+    unsupported,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::statement::StatementNode;
 

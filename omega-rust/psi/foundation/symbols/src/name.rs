@@ -197,7 +197,7 @@ impl<'name> SymbolNameRef<'name> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{SourceMap, SourceSpan, SymbolName, SymbolNameRef, SymbolNameStorage};
     use source::{SourceId, Span};
 
     #[test]

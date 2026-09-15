@@ -1,7 +1,10 @@
 //! Exact non-observing replacement of an inline bounded byte field.
 
-use super::*;
-
+use super::{
+    ModuleError, OperationKind, OperationResult, StructuralAccess, StructuralFieldType,
+    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape, TerminalMachine,
+    TerminalModule, resolve_structural_path,
+};
 /// Resolve capacity from the destination declaration, never an operation's
 /// asserted bound. Proof reconstruction repeats this same semantic join.
 pub(crate) fn capacity(

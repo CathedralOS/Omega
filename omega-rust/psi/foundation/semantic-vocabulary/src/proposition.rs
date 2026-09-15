@@ -3047,7 +3047,10 @@ impl std::error::Error for PropositionError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
+        PropositionError, ScalarTerm, ScalarType, ValueId,
+    };
 
     #[test]
     fn integer_widening_requires_range_containment_and_preserves_closed_values() {

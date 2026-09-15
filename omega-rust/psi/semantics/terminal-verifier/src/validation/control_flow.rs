@@ -1,7 +1,12 @@
 //! Validates terminal control-flow structure, dominance, and successor bindings.
 
 use super::operations::{require_defined, validate_operation_operands};
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, BlockId, BoundaryMachineDeclaration, ContractClauseKind, EdgeId, MachineId,
+    ModuleError, OperationKind, ScalarType, StructuralAccess, StructuralFieldType,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueId, contracts,
+};
 
 mod unranked_cycles;
 

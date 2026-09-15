@@ -1,5 +1,5 @@
-use super::*;
-
+use super::super::{CheckedTrees, PrimitiveType, Scalar};
+use super::{CheckedCallScalarArgument, ExpressionNode, LoweringError};
 #[test]
 fn eliminated_extent_preserves_collection_evaluation_bounds_and_selection() {
     // This is the existing composed-Unit scalar extent producer fixture, not

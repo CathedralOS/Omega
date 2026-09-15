@@ -1,7 +1,13 @@
 //! Exact checked state-entry claims and their machine-local Terminal identities.
 
-use super::*;
-
+use super::super::{
+    CarryPolicy, CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, ClaimId,
+    EntryClaim, PermissionClaimIdentity, StructuralParameterDeclaration, claim_id,
+};
+use super::{
+    CheckedTrees, LoweringError, Multiplicity, PlaceId, StructuralPlaceKind, TerminalMachineResult,
+    allocate_dense, lookup_claim_id, lower_structural_path, unsupported,
+};
 pub(super) struct LoweredUnitClaims {
     pub(super) entry_claims: Vec<EntryClaim>,
     pub(super) source_claims: Vec<(PermissionClaimIdentity, ClaimId)>,

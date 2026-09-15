@@ -1,8 +1,8 @@
+use super::{Proposition, ScalarTerm, ScalarType, prove};
 use proof_admission::{AcceptedPremise, accept_certificate};
 use semantic_vocabulary::{IntegerSign, IntegerType, PropositionContext, ValueId};
 
 use super::super::{MAXIMUM_SEARCH_STEPS, establishes};
-use super::*;
 
 fn integer() -> IntegerType {
     IntegerType::new(IntegerSign::Signed, 32).unwrap()

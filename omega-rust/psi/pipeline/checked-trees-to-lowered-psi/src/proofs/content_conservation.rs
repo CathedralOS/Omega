@@ -1,6 +1,22 @@
 //! Content conservation, identity reshuffle, and partition-composition lowering.
-
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, BoundaryContentGuarantee, CheckedContentAlgebraIdentity,
+    CheckedContentConservationTerm, CheckedContentPlaceRoot, CheckedContentPlaceSegment,
+    CheckedContentPlaceVersion, CheckedContentProjectionExpression, CheckedContentScalarExpression,
+    CheckedContentStructuralPlace, CheckedTrees, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ClaimContentProjection,
+    ClaimId, ContentAlgebra, ContentAlgebraKind, ContentArithmeticOperator, ContentConservation,
+    ContentConservationEquation, ContentConservationGuarantee, ContentConservationOwnerKind,
+    ContentConservationPlan, ContentDomainId, ContentEntryClaim, ContentIdentityReshuffle,
+    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, ContentPlaceSegment,
+    ContentPlaceSubstitution, ContentPlaceVersion, ContentProjectionExpression,
+    ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
+    LoweringError, PermissionClaimIdentity, PlaceId, Proposition, PropositionContext,
+    SemanticDomainId, StructuralContentProjection, StructuralFieldType,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeShape, conservation_report_fingerprint,
+    lookup_claim_id, unsupported,
+};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 
 /// One checked content equation translated into terminal-Psi identities.

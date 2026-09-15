@@ -2,8 +2,9 @@
 //! Rejoin the selected nominal meaning and parameter occurrence before comparing
 //! the checked observation. This also detects erasure or operand substitution.
 
-use super::*;
-
+use super::{
+    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, authored_state, unsupported,
+};
 pub(crate) fn authored(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,

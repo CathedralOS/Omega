@@ -1,6 +1,12 @@
 //! Composed roots and callable Unit bodies share one selected catalog.
+use super::super::super::super::{ServiceReachPlan, lower_checked_crash_routes};
+use super::super::super::{
+    CheckedBoundaryMachinePlan, CheckedUnitEffectOperationPlan, ServiceReachSummary,
+    collect_installation_machine_contract_services, collect_service_summary, lookup_machine_id,
+    unique_unit_boundary, unsupported,
+};
+use super::super::{CheckedTrees, LoweringError};
 
-use super::*;
 use crate::unit::attached_unit::bodies::UnitBody;
 use crate::unit::attached_unit::{lower_shared_unit_closure, shared_closure::ExternalUnitRoots};
 

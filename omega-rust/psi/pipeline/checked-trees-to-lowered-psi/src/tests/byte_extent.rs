@@ -1,7 +1,10 @@
 //! The writer's strict-decrease obligation, exercised as an actual byte read.
 
-use super::*;
-
+use super::{
+    IntegerValue, LoweredPsi, Operation, OperationKind, OperationResult, PrimitiveType,
+    ValueDeclaration, checked_source, lower_machine, obligation_id, operation_id,
+    terminal_scalar_type, value_id,
+};
 mod rejections;
 
 const SOURCE: &str = r#"

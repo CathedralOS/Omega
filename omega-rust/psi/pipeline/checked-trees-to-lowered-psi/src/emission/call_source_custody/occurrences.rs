@@ -1,6 +1,5 @@
 //! Exact captured expression-call occurrences shared by result and Unit tails.
-
-use super::*;
+use super::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Callers establish the authored destination and signature independently.

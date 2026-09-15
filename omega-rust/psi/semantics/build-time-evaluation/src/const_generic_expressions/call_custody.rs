@@ -720,7 +720,10 @@ impl<'program> Collector<'program> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExpressionHandle, ExpressionNode, Kind, StatementNode, Target, collect, collect_internal,
+        contains_call, validate_retained,
+    };
 
     #[test]
     fn call_closure_keeps_helper_constants_and_calls_without_reclassifying_body_operators() {

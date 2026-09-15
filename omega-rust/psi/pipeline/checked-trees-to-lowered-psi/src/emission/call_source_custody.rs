@@ -1,7 +1,9 @@
 //! Source custody shared by Unit and boundary call operands.
 
-use super::*;
-
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, LoweringError, terminal_scalar_type, unsupported,
+};
 pub(crate) mod authored;
 mod boundary_buffers;
 pub(crate) mod initializers;

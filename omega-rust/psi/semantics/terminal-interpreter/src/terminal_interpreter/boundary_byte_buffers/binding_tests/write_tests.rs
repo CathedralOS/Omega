@@ -1,4 +1,13 @@
-use super::*;
+use super::super::super::{
+    IntegerType, IntegerValue, OperationResult, ScalarType, TerminalScalarValue, ValueId,
+};
+
+use super::{
+    BTreeMap, Block, BlockId, ByteSequenceBinding, ByteSequenceView, EdgeId, MachineId,
+    OperationId, OperationKind, StructuralAccess, StructuralArgument, StructuralPathSegment,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
+    Terminator, argument, enter_provider, execution, field, parameter, place,
+};
 use semantic_vocabulary::{IntegerSign, ObligationId};
 use terminal_psi::{Operation, ValueDeclaration};
 

@@ -1,6 +1,10 @@
 //! Resolve checked-local storage against its current SSA value or primitive place.
-
-use super::*;
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
+    LoweringError, PlaceId, ScalarType, StructuralAccess, StructuralArgument,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    terminal_scalar_type, unsupported,
+};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_source_custody as source_custody;
 

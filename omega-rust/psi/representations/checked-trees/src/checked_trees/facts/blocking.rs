@@ -30,7 +30,7 @@ pub struct MachineBlockingFact {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BlockingFacts, BlockingPlan, MachineBlockingFact, SymbolHandle};
     use language_semantics::BlockingInterface;
 
     #[test]

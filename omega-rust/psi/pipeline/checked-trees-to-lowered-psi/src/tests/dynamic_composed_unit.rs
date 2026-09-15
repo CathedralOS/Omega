@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, LoweringError, Operation, OperationKind,
+    OperationResult, Terminator, ValueDeclaration, checked_source, lower_machine, value_id,
+};
 const DIRECT_DYNAMIC_SOURCE: &str = r#"
     trait Measure {
         machine measure(&self) -> bool;

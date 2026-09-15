@@ -550,6 +550,10 @@ impl ReplayIdentityWriter {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        QuotientCorrespondenceReplayError, RetainedQuotientCorrespondence,
+        replay_non_executable_quotient_correspondence,
+    };
     use language_semantics::quotient_correspondence::{
         CanonicalQuotientCorrespondence, QuotientCallableIdentity,
         QuotientCongruenceCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
@@ -569,8 +573,6 @@ mod tests {
         Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
         VocabularyMarker, retain_non_executable_quotient_correspondence,
     };
-
-    use super::*;
 
     fn callable(name: &str) -> QuotientCallableIdentity {
         QuotientCallableIdentity {

@@ -1,8 +1,19 @@
 //! Parameter, transfer, and structural-argument lowering for attached Unit
 //! closures.
 
-use super::*;
-
+use super::super::{
+    BTreeSet, ByteSequenceCarrier, CheckedUnitEntryClaimPlan, CheckedUnitStructuralPathSegment,
+    ClaimId, PermissionClaimIdentity, ServiceId, ServiceReachId, ServiceReachInterface,
+    ServiceReachPlan, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+};
+use super::{
+    CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, Multiplicity, PlaceId, ScalarType,
+    SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralMultiplicity,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    allocate_dense, lookup_claim_id, lookup_domain_id, lookup_service_id, lookup_type_id, place_id,
+    require_valid_service_row, terminal_scalar_type, unsupported,
+};
 mod service_forward;
 mod source_path;
 pub(crate) use source_path::{expression_producer, source_path, source_place_path};

@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    IntegerAffineWitness, IntegerCastChainWitness, IntegerCorrelatedForbiddenRootWitness,
+    Proposition,
+};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimitiveJudgment {
     Truth,
