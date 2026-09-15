@@ -305,6 +305,19 @@
       ],
       "suggested_first_slice": "Backfill for the landed installed-program-roots slot. The item names the seam: flow-dependent rank-range checks in checks/termination/ranking/ and validation/src/call_cycles/runtime_ranking/. One bounded class \u2014 e.g. exact arrival mappings for diverging rank-input copies or pinned-endpoint premises. checks/termination/progress{,.rs} is owned by wave sibling tpr6 \u2014 do not touch it.",
       "backfill_for": "installed-program-roots"
+    },
+    {
+      "name": "entry-content-roots",
+      "board": "TASKS.md",
+      "item": "ENTRY-CONTENT-ROOTS",
+      "host": "linux",
+      "layer": 1,
+      "owning_paths": [
+        "omega-rust/omega/backend/plans/program-entry-plan",
+        "omega-rust/omega/backend/runtime/external-roots"
+      ],
+      "suggested_first_slice": "Backfill for the landed terminal-authority-review slot. The prior session's named dependency IS this item's next slice: connect ProgramLocalRootInstallationLedger aggregate capacity to actual installed backing — receiver partitions, activation loans, and completion for the same occurrence/epoch, so reconstructed capacity can discharge requirements. external-roots was just released by the landed sibling — claim it as listed. native-realization/src/native_realization.rs is the item's other owner but its terminal_authority* files are sibling-owned; keep to the two claimed paths or report blocked. macOS contract (source/library/std/targets/macos_arm64) is not exercisable on this host — report it.",
+      "backfill_for": "terminal-authority-review"
     }
   ]
 }
