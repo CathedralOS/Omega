@@ -1,7 +1,9 @@
 use super::{
-    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, atom, byte_atom, compound,
-    visit_type_identity_package_owners,
+    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
 };
+use crate::typed_trees::type_system::type_identity::constraint_identity::atom;
+use crate::typed_trees::type_system::type_identity::constraint_identity::byte_atom;
+use crate::typed_trees::type_system::type_identity::constraint_identity::compound;
 type Error = TypeIdentityVisitError;
 type Result<T = ()> = std::result::Result<T, Error>;
 
