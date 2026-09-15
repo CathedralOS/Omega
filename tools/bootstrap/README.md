@@ -28,10 +28,11 @@ materialize any other bytes; those identities are those audited in
 not a proof.
 
 `tools/bootstrap/delta/compiler_env.sh` binds the Delta edge's request entry,
-source manifest, `GammaComposedV1` record, and repacked canonical closure the
-same way against `bootstrap/3_delta/README.md` and `delta_compiler.composed`;
-it also checks the record names the selected evaluator tape and packed
-closure. `tools/bootstrap/epsilon/evaluator_env.sh` binds the
+source manifest, ordered support-member manifest, `GammaComposedV2` record,
+and repacked canonical closure and packed support section the same way
+against `bootstrap/3_delta/README.md` and `delta_compiler.composed`;
+it also checks the record names the selected evaluator tape, packed
+closure, and packed support section. `tools/bootstrap/epsilon/evaluator_env.sh` binds the
 `epsilon_compiler.delta.sources` manifest and repacked evaluator closure
 against `bootstrap/4_epsilon/README.md`. Both refuse before writing when the
 bound bytes differ, including a changed manifest or member.

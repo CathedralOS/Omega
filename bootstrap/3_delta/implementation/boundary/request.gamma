@@ -22,13 +22,21 @@
 (def request_source_incomplete ((requested Int)) Int
   (compiler_failure 2 4 1 12 4194304 requested))
 
+; The sealed input is the DCREQ request followed by the bound support
+; section (bootstrap/3_delta/support/support.gamma.sources packed bytes).
+; A body shorter than its declared extent is malformed inside the request;
+; a missing or short support section is space 5; bytes after the complete
+; frame are malformed at the first trailing offset.
 (def request_admit_body ((length Int) (profile Int)) Int
-  (let expected Int (+ 16 length)
-    (if (lt (input) expected)
+  (let ((body_end Int (+ 16 length))
+        (expected Int (+ (+ 16 length) (support_packed_extent))))
+    (if (lt (input) body_end)
       (request_malformed (input))
       (if (lt expected (input))
         (request_malformed expected)
-        (pair 0 profile)))))
+        (if (lt (input) expected)
+          (support_section_incomplete)
+          (pair 0 profile))))))
 
 (def request_admit_profile () Int
   (let profile Int (request_u32 8)

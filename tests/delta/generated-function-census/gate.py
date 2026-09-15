@@ -75,8 +75,9 @@ def main():
     gate = Path(__file__).resolve().parent
     timeout = positive_timeout("OMEGA_DELTA_CENSUS_SECONDS", 1200)
     compiler = (directory / "compiler.gamma").read_bytes()
-    require_identity("Delta compiler", compiler, 155477,
-                     "08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d")
+    require_identity("Delta compiler", compiler, 146901,
+                     "5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25")
+    support = (directory / "support.bin").read_bytes()
     with (gate / "fixtures.tsv").open(encoding="ascii", newline="") as stream:
         reader = csv.DictReader(stream, delimiter="\t")
         if reader.fieldnames != ["functions", "width", "source_bytes", "source_sha256",
@@ -89,7 +90,8 @@ def main():
         label = f"{row['functions']} authored Delta functions"
         source = source_fixture(int(row["functions"]), int(row["width"]))
         require_identity(label, source, row["source_bytes"], row["source_sha256"])
-        request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
+        request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source))
+                   + source + support)
         receipt = evaluate(directory, compiler, request, timeout, label + " compile")
         require_identity(label + " receipt", receipt, row["receipt_bytes"], row["receipt_sha256"])
         output = evaluate(directory, receipt, b"", timeout, label + " execute")
@@ -98,10 +100,11 @@ def main():
     source = normalization_fixture()
     require_identity("normalization source", source, 530514,
                      "e087fe2574928d6e2917c7b23d438f770fea841eaeebc1bd38a1bb41ffe0cf1c")
-    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
+    request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source))
+               + source + support)
     receipt = evaluate(directory, compiler, request, timeout, "normalization compile")
-    require_identity("normalization receipt", receipt, 3066611,
-                     "5950e25a48b36e742e11fff2aa7438c0b6d1239810c8c6572e201571e56363ae")
+    require_identity("normalization receipt", receipt, 3068269,
+                     "b34e47e954812be2b3191f94821bea5ef1ec63aeba53de149c8a0953a3d033de")
     payload = b"\x00A\x80\xff"
     if evaluate(directory, receipt, payload, timeout, "normalization execute") != payload:
         raise SystemExit("normalization receipt changed binary input/output")

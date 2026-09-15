@@ -18,6 +18,9 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$FRONTEND_BOUNDARY_TMP/compiler.gamma" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 materialize_gamma_evaluator "$FRONTEND_BOUNDARY_TMP/evaluator" >/dev/null
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
+    "$FRONTEND_BOUNDARY_TMP/support.bin"
 
 FRONTEND_BOUNDARY_TMP="$FRONTEND_BOUNDARY_TMP" PYTHONPATH="$GATE_DIR" python3 -B - <<'PY'
 import hashlib
@@ -37,9 +40,10 @@ directory = Path(os.environ["FRONTEND_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
 identity = (len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest())
 if identity != (
-    3421, 155477, "08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d"
+    3329, 146901, "5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
+support = (directory / "support.bin").read_bytes()
 
 REQUEST_MAGIC = b"DCREQ\x01\x00\x00"
 OUTCOME_MAGIC = b"\xffDCOUT\x01\x00"
@@ -65,7 +69,7 @@ def evaluate(program, sealed_input):
 
 
 def request(source):
-    return REQUEST_MAGIC + struct.pack("<II", 1, len(source)) + source
+    return REQUEST_MAGIC + struct.pack("<II", 1, len(source)) + source + support
 
 
 def rejection(code, coordinate, space=1):

@@ -27,7 +27,8 @@
       (emit_span_bytes (+ index 1) end))))
 
 ; Generic packed words and short fixed tokens share the byte-unpacking loop.
-; Longer fixed runtime text uses character literals in bytes.gamma.
+; Bound runtime/adapter text is readable Gamma under support/, copied by
+; support.gamma from the sealed input's bound support section.
 (def emit_ascii
   ((packed Int) (remaining Int) (publish Int) (written Int)) Int
   (if publish

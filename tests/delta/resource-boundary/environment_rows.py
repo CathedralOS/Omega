@@ -15,7 +15,7 @@ def accepted_fixtures():
     return (
         ("generated bindings beyond authored parameters", source,
          852006, "cce2cd1298c4e932fb547128ed5211d4e555c101c2fbeffb21c43b7bd3dadb06",
-         853595, "7301f66783438206beb55294779a1a891113923b6db9a8a6a9073a1ad9466f4f",
+         855253, "38b0bace9f2a6254be281611c11e641cd7263cc82adedcd40d1ae4fd1dd4f64c",
          payload, payload),
     )
 

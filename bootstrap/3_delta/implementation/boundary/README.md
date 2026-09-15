@@ -10,13 +10,22 @@ the generic Gamma application result
 `(pair tag 1)` after writing exactly one frame.
 
 Admission order is complete 16-byte header, first incorrect magic/version/
-reserved byte, full profile ID, declared source provision, then body extent and
-exact end. Profile 1 alone is admitted. In particular, a declared oversized
+reserved byte, full profile ID, declared source provision, then body extent,
+the complete bound support section, and exact end. Profile 1 alone is
+admitted. In particular, a declared oversized
 body yields source incompleteness without reading that body, and profile 2
 remains retired. A truncated fixed header reports its first missing byte even
 when an earlier available header byte is incorrect.
+The sealed input continues past the request's exact end with the packed
+support section — the ordered members of
+[`../../support/support.gamma.sources`](../../support/support.gamma.sources).
+A body shorter than its declared extent is `malformed_request`; an input that
+ends inside the support section is a space-5 `incomplete_support_section` at
+the observed end of input; one byte after the complete sealed input is
+`malformed_request` at that first trailing offset.
 After admission establishes an exact body extent, the canonical source view
-uses the sealed input length minus the 16-byte header. This equals the admitted
+uses the sealed input length minus the 16-byte header and the bound support
+extent. This equals the admitted
 declared length without decoding that header for every scanner bound check.
 Request admission itself still reads and provisions the declared length before
 checking body extent; no source helper runs on a refused request.
@@ -28,8 +37,14 @@ The implemented request-admission outcomes are:
 | 1 Reject | 1 | malformed_request | first missing, incorrect, or trailing byte under the admission order | zero/zero |
 | 1 Reject | 2 | unknown_profile | 8 | zero/zero |
 | 2 Incomplete | 1 | source_bytes | 12 | 4,194,304 / exact declared u32 length |
+| 1 Reject | 1 | incomplete_support_section | 5 bound support section: observed end of input | zero/zero |
+| 1 Reject | 2 | member_mismatch | 5 bound support section: member's absolute sealed-input offset | zero/zero |
 
-All use coordinate space 4. The fixed 40-byte frame contains the eight bytes
+The three request rows use coordinate space 4; the two support rows use
+coordinate space 5, also absolute sealed-input offsets. `member_mismatch` is
+raised by the pipeline's bound-table member validation before any Delta-source
+phase, after admission proves the section's extent is present.
+The fixed 40-byte frame contains the eight bytes
 `ff 44 43 4f 55 54 01 00`, tag at byte 8, space at byte 9, two zero reserved
 bytes, little-endian u32 code at byte 12, and little-endian u64 coordinate,
 limit, and requested fields at bytes 16, 24, and 32. Tag equals process status.
@@ -463,7 +478,7 @@ private overflowing counts are not a missing authored-source refusal case.
 After normalization, the shared serializer counts the complete Gamma payload
 before publishing its first byte. Above 16,777,212 bytes it returns tag 2,
 resource 12, payload coordinate space 2, coordinate and limit 16,777,212, and
-the exact full requested count. Fixed runtime/profile text, declaration
+the exact full requested count. Bound support members, declaration
 separators, and the entry-owned final LF all participate. Count mode writes
 nothing; successful publication follows the same formatting decisions.
 This closes payload-size refusal, not later internal replay failure or every

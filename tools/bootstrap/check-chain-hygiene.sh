@@ -69,6 +69,8 @@ done
   fail "Gamma-authored staged Delta compiler source manifest is absent"
 [ -f "$OMEGA_PATH_DELTA_COMPILER_COMPOSED" ] ||
   fail "staged Delta composed identity is absent"
+[ -f "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" ] ||
+  fail "Delta support-member source manifest is absent"
 [ -x "$OMEGA_REPO_ROOT/tools/bootstrap/check-chain-hygiene.sh" ] ||
   fail "bootstrap topology gate is not executable"
 [ -x "$OMEGA_REPO_ROOT/tests/bootstrap/alpha-beta-edge.sh" ] ||
@@ -191,7 +193,11 @@ for bootstrap_source in \
   "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" \
   "$OMEGA_PATH_DELTA/LANGUAGE.md" \
   "$OMEGA_PATH_DELTA_COMPILER_SOURCE" \
-  "$OMEGA_PATH_DELTA_COMPILER_COMPOSED"
+  "$OMEGA_PATH_DELTA_COMPILER_COMPOSED" \
+  "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
+  "$OMEGA_PATH_DELTA_COMPILER_SUPPORT/bytes.gamma" \
+  "$OMEGA_PATH_DELTA_COMPILER_SUPPORT/conformance.gamma" \
+  "$OMEGA_PATH_DELTA_COMPILER_SUPPORT/adapter.gamma"
 do
   if ! od -An -tu1 -v "$bootstrap_source" | awk '
     {

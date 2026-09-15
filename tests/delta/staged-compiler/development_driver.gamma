@@ -6,7 +6,9 @@
       (second compilation)
       (fail))))
 
-(def source_length () Int (input))
+; The development sealed input is raw Delta source followed by the bound
+; support section; the same custody check covers both entries.
+(def source_length () Int (- (input) (support_packed_extent)))
 
 (def source_read ((index Int)) Int (read index))
 

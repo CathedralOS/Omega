@@ -14,12 +14,12 @@ EPSILON_BYTES = 617354
 EPSILON_SHA256 = "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e"
 DRIVER_BYTES = 2565
 DRIVER_SHA256 = "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38"
-RECEIPT_BYTES = 719826
-RECEIPT_SHA256 = "dd4985c0eb6e1f30bc2178f90dd30e25ae7b842fb544137f606a44e622000f22"
+RECEIPT_BYTES = 721484
+RECEIPT_SHA256 = "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082"
 INVARIANTS_BYTES = 8415
 INVARIANTS_SHA256 = "2bc73c60572ddac4ebbfe9b36d4d0d5f44268b56fc0cbafc14dd2a127f947144"
-INVARIANTS_RECEIPT_BYTES = 721626
-INVARIANTS_RECEIPT_SHA256 = "55560f2c9b7575bc9774416ddbe2c2eb64da8ae8d1ac3ca873f1ba64d887819b"
+INVARIANTS_RECEIPT_BYTES = 723284
+INVARIANTS_RECEIPT_SHA256 = "69d8ec6c48844fdea74f6c3286256b517d55204fe72b52986d91b62cc31c3fa6"
 
 
 def identity(data):
@@ -46,10 +46,11 @@ def evaluate(evaluator, program, sealed_input, timeout):
     )
 
 
-def reconstruct_receipt(evaluator, delta, epsilon, driver, timeout,
+def reconstruct_receipt(evaluator, delta, epsilon, driver, support, timeout,
                         expected_identity, label):
     subject = epsilon + driver
-    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject
+    request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
+               + subject + support)
     started = time.monotonic()
     result = evaluate(evaluator, delta, request, timeout)
     elapsed = time.monotonic() - started
@@ -99,6 +100,7 @@ def main():
 
     epsilon = (temporary / "epsilon_compiler.delta").read_bytes()
     delta = (temporary / "delta_compiler.gamma").read_bytes()
+    support = (temporary / "support.bin").read_bytes()
     driver = driver_path.read_bytes()
     evaluator = temporary / "evaluator"
     if identity(epsilon) != (EPSILON_BYTES, EPSILON_SHA256):
@@ -121,7 +123,7 @@ def main():
     expected = bytes.fromhex(row["expected_hex"])
 
     receipt = reconstruct_receipt(
-        evaluator, delta, epsilon, driver, receipt_timeout,
+        evaluator, delta, epsilon, driver, support, receipt_timeout,
         (RECEIPT_BYTES, RECEIPT_SHA256), "ordinary",
     )
     run_receipt(
@@ -138,7 +140,7 @@ def main():
     if invariant_expected != bytes([1]) * 40:
         raise SystemExit("array-storage invariant expected observation changed")
     invariant_receipt = reconstruct_receipt(
-        evaluator, delta, epsilon, invariant_driver, receipt_timeout,
+        evaluator, delta, epsilon, invariant_driver, support, receipt_timeout,
         (INVARIANTS_RECEIPT_BYTES, INVARIANTS_RECEIPT_SHA256), "invariant",
     )
     run_receipt(

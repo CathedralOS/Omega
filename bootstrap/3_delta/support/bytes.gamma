@@ -1,0 +1,53 @@
+; Byte-rope runtime support member. The compiler copies this member into
+; generated programs whose source uses a Bytes builtin. A rope is
+; (pair length (pair tag payload)) with the following nodes:
+;
+;   tag 0  empty node; only the length bound ever admits indexing
+;   tag 1  singleton byte; payload is the byte value
+;   tag 2  concatenation; payload is (pair left right)
+;
+; The ConformanceBytesV1 adapter adds tag 3 (see conformance.gamma).
+; Every public operation traps with a checked division rather than
+; manufacturing a value outside its contract.
+
+(def $dbe () Int
+  (pair 0 (pair 0 0)))
+
+(def $dbs ((v Int)) Int
+  (if (lt v 0)
+    (/ 1 0)
+    (if (lt v 256)
+      (pair 1 (pair 1 v))
+      (/ 1 0))))
+
+(def $dbl ((v Int)) Int
+  (first v))
+
+(def $dbc ((l Int) (r Int)) Int
+  (let ((ll Int (first l))
+        (rl Int (first r))
+        (n Int (+ ll rl)))
+    (if (lt n ll)
+      (/ 1 0)
+      (pair n (pair 2 (pair l r))))))
+
+(def $dbg ((v Int) (i Int)) Int
+  (if (lt i 0)
+    (/ 1 0)
+    (if (lt i (first v))
+      ($dbgi v i)
+      (/ 1 0))))
+
+(def $dbgi ((v Int) (i Int)) Int
+  (let ((node Int (second v))
+        (tag Int (first node)))
+    (if (eq tag 1)
+      (second node)
+      (if (eq tag 2)
+        (let ((children Int (second node))
+              (left Int (first children))
+              (split Int (first left)))
+          (if (lt i split)
+            ($dbgi left i)
+            ($dbgi (second children) (- i split))))
+        (/ 1 0)))))

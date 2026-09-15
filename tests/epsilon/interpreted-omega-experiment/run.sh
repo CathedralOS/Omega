@@ -32,6 +32,7 @@ DELTA="$TMP/delta_compiler.gamma"
 # Bound materializers refuse before writing when the canonical manifest,
 # members, or packed closure differ from the audited edge records.
 materialize_delta_compiler "$DELTA"
+materialize_delta_support "$TMP/support.bin"
 materialize_epsilon_evaluator "$EPSILON"
 
 if grep -Eq 'EpsilonAlpha|epsilon_alpha_' "$EPSILON"; then
@@ -59,6 +60,7 @@ materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
     EPSILON_SELECTED_CUSTOMER="$EPSILON_SELECTED_CUSTOMER" \
     EPSILON_ALPHA_TAPE="$TMP/customer.tape" \
+    SUPPORT="$TMP/support.bin" \
     EVALUATOR="$TMP/evaluator" python3 - <<'PY'
 import csv
 import hashlib
@@ -202,12 +204,14 @@ if selected_customer:
     print(f"Selected Epsilon customer: {selected_customer}", flush=True)
 
 compiler = Path(os.environ["DELTA"]).read_bytes()
+support = Path(os.environ["SUPPORT"]).read_bytes()
 subject = artifacts["evaluator source"][0] + artifacts["slice driver"][0]
 request = (
     b"DCREQ\x01\x00\x00"
     + struct.pack("<I", 1)
     + struct.pack("<I", len(subject))
     + subject
+    + support
 )
 
 def evaluate(program, sealed_input=b"", timeout=300):
@@ -219,13 +223,13 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 719826:
+if status != 0 or len(receipt) != 721484:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "dd4985c0eb6e1f30bc2178f90dd30e25ae7b842fb544137f606a44e622000f22"
+    "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "

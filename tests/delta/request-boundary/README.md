@@ -20,6 +20,11 @@ The retained controls check:
 - exact and adjacent declared source provision, including an unsigned maximum
   declaration with no body;
 - the first missing or trailing body coordinate before source processing;
+- support-section custody: an absent or truncated bound support section is
+  `incomplete_support_section` in coordinate space 5 at the observed end of
+  input, a corrupt or reordered member is `member_mismatch` at the member's
+  absolute sealed-input offset, and one byte after the complete sealed input
+  remains a space-4 trailing coordinate;
 - strict refusal of raw Delta source at the canonical entry;
 - exact 40-byte DCOUT failures, including status agreement, reserved zeros,
   little-endian fields, and unused-field normalization; and
@@ -34,7 +39,7 @@ The adjacent full-size body instead produces the exact source-provision frame.
 
 Request failures use Reject code 1 `malformed_request`, Reject code 2
 `unknown_profile`, or Incomplete resource 1 `source_bytes`, all in DCREQ
-coordinate space 4. These follow the common frame and bounded order fixed by
+coordinate space 4; bound-support failures use space-5 codes 1 and 2. These follow the common frame and bounded order fixed by
 [request-boundary contract](../../../bootstrap/3_delta/implementation/boundary/README.md)
 and the [current Delta boundary contract](../../../bootstrap/3_delta/LANGUAGE.md#compiler-boundary-family).
 The compiler owns the serialized constants; the gate's expected bytes are

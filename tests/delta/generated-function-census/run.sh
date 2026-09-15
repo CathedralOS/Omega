@@ -23,4 +23,6 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$CENSUS_TMP/compiler.gamma" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 materialize_gamma_evaluator "$CENSUS_TMP/evaluator" >/dev/null
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$CENSUS_TMP/support.bin"
 python3 "$GATE_DIR/gate.py" "$CENSUS_TMP" "$@"

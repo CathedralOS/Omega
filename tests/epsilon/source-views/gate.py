@@ -78,6 +78,7 @@ def check_controls(directory, receipt):
 def main():
     directory = Path(sys.argv[1])
     compiler = (directory / "delta_compiler.gamma").read_bytes()
+    support = (directory / "support.bin").read_bytes()
     subject = ((directory / "epsilon_compiler.delta").read_bytes()
                + (directory / "controls.delta").read_bytes())
     with (GATE / "receipt.tsv").open(encoding="ascii", newline="") as stream:
@@ -87,7 +88,7 @@ def main():
         pins = list(reader)
     if len(pins) != 1:
         raise SystemExit("source views require one exact receipt identity")
-    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject
+    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject + support
     result = evaluate(directory, compiler, request)
     if result.returncode != 0 or result.stderr:
         raise SystemExit(f"source-view compilation failed: {result.returncode}, {result.stderr!r}")

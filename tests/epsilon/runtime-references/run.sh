@@ -20,6 +20,7 @@ trap 'rm -rf -- "$REFERENCE_TMP"' EXIT HUP INT TERM
 # gate-local controls closure is a diagnostic artifact packed directly.
 materialize_epsilon_evaluator "$REFERENCE_TMP/epsilon_compiler.delta"
 materialize_delta_compiler "$REFERENCE_TMP/delta_compiler.gamma"
+materialize_delta_support "$REFERENCE_TMP/support.bin"
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$GATE_DIR/runtime_references.delta.sources" "$REFERENCE_TMP/controls.delta"
 materialize_gamma_evaluator "$REFERENCE_TMP/evaluator" >/dev/null
@@ -35,6 +36,7 @@ from pathlib import Path
 gate = Path(os.environ["GATE_DIR"])
 temporary = Path(os.environ["REFERENCE_TMP"])
 compiler = (temporary / "delta_compiler.gamma").read_bytes()
+support = (temporary / "support.bin").read_bytes()
 subject = ((temporary / "epsilon_compiler.delta").read_bytes()
            + (temporary / "controls.delta").read_bytes())
 expected = bytes.fromhex((gate / "expected.hex").read_text(encoding="ascii"))
@@ -54,7 +56,7 @@ def evaluate(program, sealed_input):
     )
     return process.returncode, process.stdout
 
-request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject
+request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject + support
 status, receipt = evaluate(compiler, request)
 digest = hashlib.sha256(receipt).hexdigest()
 if (status != 0 or len(receipt) != int(identities[0]["bytes"])

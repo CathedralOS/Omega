@@ -35,6 +35,15 @@ head -c "$DELTA_COMPILER_ENTRY_SIZE" "$TMP/compiler.gamma" |
   fail "materialized prefix differs from the canonical entry"
 echo "materialize: packed closure is exactly the bound entry-plus-member bytes"
 
+materialize_delta_support "$TMP/support.bin" ||
+  fail "materialization of the bound support section failed"
+require_bound_identity "materialized support section" "$TMP/support.bin" \
+  "$DELTA_COMPILER_SUPPORT_PACKED_SIZE" \
+  "$DELTA_COMPILER_SUPPORT_PACKED_SHA256" \
+  "bootstrap/3_delta/delta_compiler.composed" ||
+  fail "materialized support section differs from the bound identity"
+echo "materialize: packed support section is exactly the bound member bytes"
+
 cp "$OMEGA_PATH_DELTA_COMPILER_SOURCE" "$TMP/corrupt-entry.gamma"
 if [ "$(od -An -tx1 -j 100 -N1 "$TMP/corrupt-entry.gamma" | tr -d ' ')" = "ff" ]; then
   printf '\000' | dd of="$TMP/corrupt-entry.gamma" bs=1 seek=100 conv=notrunc status=none
@@ -86,6 +95,43 @@ grep -q 'member digest changed' "$TMP/corrupt-member.err" ||
   fail "corrupted member: destination was written"
 echo "member: a one-byte member change is refused during packing"
 
+cp -R "$OMEGA_PATH_DELTA_COMPILER_SUPPORT" "$TMP/support"
+head -c $((DELTA_COMPILER_SUPPORT_MANIFEST_SIZE - 1)) \
+  "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
+  > "$TMP/support/support.gamma.sources"
+rc=0
+(
+  export OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES=$TMP/support/support.gamma.sources
+  materialize_delta_support "$TMP/refused-support-truncated"
+) 2>/dev/null || rc=$?
+[ "$rc" != 0 ] ||
+  fail "truncated support manifest: materialization unexpectedly succeeded"
+[ ! -e "$TMP/refused-support-truncated" ] ||
+  fail "truncated support manifest: destination was written"
+echo "support manifest: a truncated support manifest is refused before packing"
+
+cp "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
+  "$TMP/support/support.gamma.sources"
+CORRUPT_SUPPORT_MEMBER="$TMP/support/bytes.gamma"
+if [ "$(od -An -tc -j 100 -N1 "$CORRUPT_SUPPORT_MEMBER" | tr -d ' ')" = "a" ]; then
+  printf 'b' | dd of="$CORRUPT_SUPPORT_MEMBER" bs=1 seek=100 conv=notrunc status=none
+else
+  printf 'a' | dd of="$CORRUPT_SUPPORT_MEMBER" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES=$TMP/support/support.gamma.sources
+  export OMEGA_PATH_DELTA_COMPILER_SUPPORT=$TMP/support
+  materialize_delta_support "$TMP/refused-support-member"
+) 2>"$TMP/corrupt-support-member.err" || rc=$?
+[ "$rc" != 0 ] ||
+  fail "corrupted support member: materialization unexpectedly succeeded"
+grep -q 'member digest changed' "$TMP/corrupt-support-member.err" ||
+  fail "corrupted support member: refusal did not name the member digest"
+[ ! -e "$TMP/refused-support-member" ] ||
+  fail "corrupted support member: destination was written"
+echo "support member: a one-byte support-member change is refused during packing"
+
 cp "$OMEGA_PATH_DELTA_COMPILER_COMPOSED" "$TMP/corrupt.composed"
 if [ "$(od -An -tx1 -j 40 -N1 "$TMP/corrupt.composed" | tr -d ' ')" = "ff" ]; then
   printf '\000' | dd of="$TMP/corrupt.composed" bs=1 seek=40 conv=notrunc status=none
@@ -105,14 +151,17 @@ echo "composed: a one-byte record change is refused before packing"
 
 for needle in \
   "$GAMMA_EVALUATOR_TAPE_SHA256" "$DELTA_COMPILER_PACKED_SHA256" \
-  "$DELTA_COMPILER_PACKED_SIZE"
+  "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_SUPPORT_PACKED_SHA256" \
+  "$DELTA_COMPILER_SUPPORT_PACKED_SIZE"
 do
   grep -q "$needle" "$OMEGA_PATH_DELTA_COMPILER_COMPOSED" ||
     fail "delta_compiler.composed lacks bound record $needle"
 done
 for needle in \
   "$DELTA_COMPILER_ENTRY_SHA256" "$DELTA_COMPILER_MANIFEST_SHA256" \
-  "$DELTA_COMPILER_COMPOSED_SHA256" "$DELTA_COMPILER_PACKED_SHA256"
+  "$DELTA_COMPILER_SUPPORT_MANIFEST_SHA256" \
+  "$DELTA_COMPILER_COMPOSED_SHA256" "$DELTA_COMPILER_PACKED_SHA256" \
+  "$DELTA_COMPILER_SUPPORT_PACKED_SHA256"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/3_delta/README.md" ||
     fail "bootstrap/3_delta/README.md lacks bound record $needle"

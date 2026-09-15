@@ -230,12 +230,13 @@ The 174,136-byte source must compile to exactly 16,777,212 bytes and that actual
 receipt must execute with empty input and empty successful output. One more
 padding-name byte must return only the 40-byte DCOUT `Incomplete` resource-12
 frame: payload coordinate space 2, coordinate and limit 16,777,212, requested
-16,777,213. This counts fixed runtime text, all separators, and the entry-owned
+16,777,213. This counts the bound support members, all separators, and the
+entry-owned
 final LF. The host constructs authored source and compares observations; it
 does not serialize the expected Gamma artifact. Successful receipt identities
 are measured from the actual source-owned compilation. The exact-limit receipt
 is pinned at SHA256
-`d20cd2be86566d9d5dd78410eb0ef9fb691fef795546f56de9394313e1514f21`.
+`51f105126ea6f4d04829c53b38ea7d88dde3520f64d230ca11bf10b505951d5a`.
 
 The exact-limit receipt plus its four-byte source frame fills Gamma's complete
 request. Its execution therefore uses empty sealed input; adding application
@@ -257,8 +258,8 @@ simultaneous bindings. Gamma validates this unreachable function as well as
 `main`; the former 65,536-row evaluator therefore refused the successful
 compiler receipt with status 3 and empty stdout before application execution.
 
-The 852,006-byte source must publish the same 853,595-byte Gamma receipt,
-SHA256 `7301f66783438206beb55294779a1a891113923b6db9a8a6a9073a1ad9466f4f`,
+The 852,006-byte source must publish the same 855,253-byte Gamma receipt,
+SHA256 `38b0bace9f2a6254be281611c11e641cd7263cc82adedcd40d1ae4fd1dd4f64c`,
 then that actual receipt must return sealed input `00 41 80 ff` unchanged with
 status zero. The selected evaluator provisions 131,072 environment rows in
 already allocated Alpha memory. Neither Delta source semantics nor emission

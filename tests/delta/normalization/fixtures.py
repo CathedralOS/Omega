@@ -18,14 +18,14 @@ def fixtures(full_width=False):
         # One parameter plus these pattern binders fills the active-local provision.
         return [("65535-field compiler completion", wide_pattern_source(65535, 5),
                  0, PAYLOAD, True, 3, None,
-                 "15e856f8acd6429be8a1e25f516c68d3e6f06259bc368bf25e74695a99c3a668", None)]
+                 "72a9939fbe47da8483a72df99100efd4a9eea557ea5b92af712b65d4b4173d7a", None)]
     cases = []
     identity = b"(def main ((source Bytes)) Bytes source)\n"
     boundary = (b"(def deep () Int " + b"(if 1 " * 255 + b"7"
                 + b" 0)" * 255 + b")\n" + identity)
     cases.append(("height 255 preserves receipt", boundary, 0, PAYLOAD,
                   False, 2, 255,
-                  "262c548f1a69a8880f0853ffcde625391304ddf7b7c87f06365e0ce0195625b7"))
+                  "fd1fbfa030d1b0cd224b126c3204ea11d3eba8a2e49c069890ef9424b331a5f3"))
     source = (b"(def deep () Int " + b"(if 1 " * 256 + b"7"
               + b" 0)" * 256 + b")\n"
               b"(def main ((source Bytes)) Bytes (if (eq (deep) 7) source (bytes_empty)))\n")
@@ -133,5 +133,5 @@ def fixtures(full_width=False):
                   0, PAYLOAD, True, 2, None, None, None))
     source = wide_pattern_source(2048, 4)
     cases.append(("2048-field compiler completion", source, 0, PAYLOAD, True, 3,
-                  None, "6c7956785ddd24ff99c344bb2f12ae011fe45a7d35c6c1dda8ca94af1eef6cfc", None))
+                  None, "8703a103cc1967cb70a508a1c65434427fd23e40f1ed0a3b47fab0956f072540", None))
     return cases

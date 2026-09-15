@@ -11,27 +11,36 @@
 
 # Bound Gamma-to-Delta edge subjects. The canonical compiler is not a tape:
 # delta_compiler.gamma is the DCREQ request entry, implementation.gamma.sources
-# is the ordered source authority, and delta_compiler.composed binds the packed
-# entry-plus-member bytes and selected evaluator tape under GammaComposedV1
-# (bootstrap/2_gamma/COMPOSED_ARTIFACT.md). The packed closure identity is the
-# same source-sha256/source-length the composed record and the staged-compiler
-# and normalization compiler.tsv rows pin. A digest here is an identity check
+# is the ordered source authority, support/support.gamma.sources is the ordered
+# runtime/adapter member authority, and delta_compiler.composed binds the packed
+# entry-plus-member bytes, the packed support bytes, and the selected evaluator
+# tape under GammaComposedV2 (bootstrap/2_gamma/COMPOSED_ARTIFACT.md). The packed
+# closure identity is the same source-sha256/source-length the composed record
+# and the staged-compiler and normalization compiler.tsv rows pin; the packed
+# support identity is the same support-sha256/support-length the record pins.
+# A digest here is an identity check
 # that the bytes being materialized are the bound ones; it is not a proof of
-# the compiler. Changing any member, the entry, or the manifest invalidates
-# the dependent evidence and must update every record.
-DELTA_COMPILER_ENTRY_SIZE=717
-DELTA_COMPILER_ENTRY_SHA256=b4edbdaa38f2c308178bcf24a368203c5d30780149ed7f06c4f481dd0b4ec5dd
-DELTA_COMPILER_MANIFEST_SIZE=11136
-DELTA_COMPILER_MANIFEST_SHA256=34db03c999f7c342156b88e0307a86fed2b02424564461f41e65f9212693f8c6
-DELTA_COMPILER_COMPOSED_SIZE=198
-DELTA_COMPILER_COMPOSED_SHA256=d1457dded7d5c8a72213b6b37f62ce9bcfb56fe6e6ae48225186b20ad2f3e703
-DELTA_COMPILER_PACKED_SIZE=155477
-DELTA_COMPILER_PACKED_SHA256=08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d
+# the compiler. Changing any member, the entry, either manifest, or the packed
+# support section invalidates the dependent evidence and must update every
+# record.
+DELTA_COMPILER_ENTRY_SIZE=813
+DELTA_COMPILER_ENTRY_SHA256=f12836610a7d8cb7da7f1288c20d870423cde4497aa8d1a2cf2962e8b24a20f9
+DELTA_COMPILER_MANIFEST_SIZE=11137
+DELTA_COMPILER_MANIFEST_SHA256=0091090d6bb3f22ced94d7274eb6bf601d5c97ba0589a5b098c5c71ec19d732a
+DELTA_COMPILER_COMPOSED_SIZE=298
+DELTA_COMPILER_COMPOSED_SHA256=55a580f4884ca43bd8b1128ae3405fa03806f03ae8eff66838727e068e266df7
+DELTA_COMPILER_PACKED_SIZE=146901
+DELTA_COMPILER_PACKED_SHA256=5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25
+DELTA_COMPILER_SUPPORT_MANIFEST_SIZE=490
+DELTA_COMPILER_SUPPORT_MANIFEST_SHA256=cf20f4a6331c3af516dbed8bc206298d1d1205b4fb4801d025ad4256a5a6d9f3
+DELTA_COMPILER_SUPPORT_PACKED_SIZE=2998
+DELTA_COMPILER_SUPPORT_PACKED_SHA256=cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255
 
-# require_delta_compiler_identity : the canonical entry, manifest, and
+# require_delta_compiler_identity : the canonical entry, manifests, and
 # composed record are the bound files; the composed record names the selected
-# Gamma evaluator and packed closure; and repacking the manifest reproduces
-# exactly the bound closure. Every materialization runs it; tests may call it
+# Gamma evaluator, packed closure, and packed support section; and repacking
+# each manifest reproduces exactly the bound packed bytes. Every
+# materialization runs it; tests may call it
 # directly. bootstrap_sha256 and require_bound_identity live in
 # alpha/seed_env.sh. Repacking needs python3; without it the closure identity
 # cannot be established and the check refuses rather than skipping.
@@ -44,16 +53,23 @@ require_delta_compiler_identity() {
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" \
     "$DELTA_COMPILER_MANIFEST_SIZE" "$DELTA_COMPILER_MANIFEST_SHA256" \
     "bootstrap/3_delta/README.md" || return $?
+  require_bound_identity "support.gamma.sources" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
+    "$DELTA_COMPILER_SUPPORT_MANIFEST_SIZE" \
+    "$DELTA_COMPILER_SUPPORT_MANIFEST_SHA256" \
+    "bootstrap/3_delta/README.md" || return $?
   require_bound_identity "delta_compiler.composed" \
     "$OMEGA_PATH_DELTA_COMPILER_COMPOSED" \
     "$DELTA_COMPILER_COMPOSED_SIZE" "$DELTA_COMPILER_COMPOSED_SHA256" \
     "bootstrap/3_delta/README.md" || return $?
-  DELTA_COMPOSED_EXPECTED="GammaComposedV1
+  DELTA_COMPOSED_EXPECTED="GammaComposedV2
 evaluator-sha256 $GAMMA_EVALUATOR_TAPE_SHA256
 source-sha256 $DELTA_COMPILER_PACKED_SHA256
-source-length $DELTA_COMPILER_PACKED_SIZE"
+source-length $DELTA_COMPILER_PACKED_SIZE
+support-sha256 $DELTA_COMPILER_SUPPORT_PACKED_SHA256
+support-length $DELTA_COMPILER_SUPPORT_PACKED_SIZE"
   [ "$(cat "$OMEGA_PATH_DELTA_COMPILER_COMPOSED")" = "$DELTA_COMPOSED_EXPECTED" ] || {
-    echo "bootstrap artifact: delta_compiler.composed does not bind the selected evaluator and packed closure (bootstrap/2_gamma/COMPOSED_ARTIFACT.md)" >&2
+    echo "bootstrap artifact: delta_compiler.composed does not bind the selected evaluator, packed closure, and packed support section (bootstrap/2_gamma/COMPOSED_ARTIFACT.md)" >&2
     return 3
   }
   command -v python3 >/dev/null 2>&1 || {
@@ -68,9 +84,25 @@ source-length $DELTA_COMPILER_PACKED_SIZE"
       rm -rf -- "$DELTA_IDENTITY_TMP"
       return "$DELTA_IDENTITY_RC"
     }
+  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
+    "$DELTA_IDENTITY_TMP/support.bin" || {
+      DELTA_IDENTITY_RC=$?
+      rm -rf -- "$DELTA_IDENTITY_TMP"
+      return "$DELTA_IDENTITY_RC"
+    }
   require_bound_identity "canonical Delta closure" \
     "$DELTA_IDENTITY_TMP/compiler.gamma" \
     "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_PACKED_SHA256" \
+    "bootstrap/3_delta/delta_compiler.composed" || {
+      DELTA_IDENTITY_RC=$?
+      rm -rf -- "$DELTA_IDENTITY_TMP"
+      return "$DELTA_IDENTITY_RC"
+    }
+  require_bound_identity "canonical Delta support section" \
+    "$DELTA_IDENTITY_TMP/support.bin" \
+    "$DELTA_COMPILER_SUPPORT_PACKED_SIZE" \
+    "$DELTA_COMPILER_SUPPORT_PACKED_SHA256" \
     "bootstrap/3_delta/delta_compiler.composed"
   DELTA_IDENTITY_RC=$?
   rm -rf -- "$DELTA_IDENTITY_TMP"
@@ -87,4 +119,14 @@ materialize_delta_compiler() {
   python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$DELTA_COMPILER_DEST" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
+}
+
+# materialize_delta_support DEST : write the packed bound support section to
+# DEST after the same bound identity check. The sealed input of every Delta
+# compiler invocation is the edge payload followed by these exact bytes.
+materialize_delta_support() {
+  DELTA_SUPPORT_DEST=$1
+  require_delta_compiler_identity || return $?
+  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$DELTA_SUPPORT_DEST"
 }

@@ -7,18 +7,21 @@ it is not a checked refinement certificate or a cumulative pair-allocation bound
 
 The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 155,477 bytes, SHA-256
-`08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d`.
+closure: 146,901 bytes, SHA-256
+`5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../2_gamma/EVALUATOR_PROFILE.md).
 Changes to either executable subject require rechecking the corresponding
 argument; a new source manifest digest alone does not preserve this evidence.
 
-Fixed runtime emission branches once between counting and publication. Balanced
-addition sequences bounded byte sums in publication order without per-chunk
-local bindings or linear syntax depth. The three bodies have one local each and
-heights 12, 13, and 9. Their shared eight-byte writer has no locals or user calls.
-The fixed-source maxima below need no larger provision.
+Runtime emission is support-member custody, not fixed text encoded in the
+emitter. [`support.gamma`](../emission/support.gamma) validates the sealed
+input's trailing 2,998-byte support section with one tail-recursive wrapping
+byte-sum pass per member before any Delta-source phase, then copies each
+member verbatim during publication through a tail-recursive `write`/`read`
+walk while count mode advances by the same bound extent. The three support
+loops carry at most three locals each and no non-tail user calls; the
+fixed-source maxima below need no larger provision.
 
 Sequential binding groups replace 94 nested-let chains containing 309 bindings.
 Expanding each group to nested lets recovers the preceding compiler's expression
@@ -30,7 +33,7 @@ the selected Gamma evaluator validates and executes the grouped syntax directly.
 
 ## Fixed source and call inventory
 
-The compiler contains 366 Gamma definitions. Inspecting every body gives these
+The compiler contains 376 Gamma definitions. Inspecting every body gives these
 maxima, including bodies not reached from the canonical `main`:
 
 | Fixed-source quantity | Maximum | Owning body |
@@ -54,9 +57,10 @@ The evaluator releases that tail context before reusing the current activation.
 
 Weight each caller-to-callee edge by the pending enclosing user calls plus one
 for a non-tail callee activation. Include each call's temporary argument context
-as a local peak. The complete inventory has 64 recursive components. Only three
+as a local peak. The complete inventory has 66 recursive components. Only three
 call sites on recursive cycles have positive weight: two in `capture_sort` and
-one in `emit_decimal`.
+one in `emit_decimal`. The support-member loops (`support_sum_region`,
+`support_check_members`, `emit_support_bytes`) are zero-weight tail edges.
 
 | Non-tail recursive owner | Decreasing quantity | Conservative additional contexts |
 | --- | --- | ---: |
@@ -73,9 +77,9 @@ list, and cursor cycles have only zero-weight tail edges.
 Remove those three bounded edges, collapse zero-weight recursive components,
 and propagate maximum weighted demands from local peaks through the resulting
 acyclic graph. The previous 18-context fixed overhead from `main` remains a
-conservative bound: the fixed-emitter rewrite removes counted-writer calls and
-replaces the recursive unpacking writer with one call containing only primitive
-writes and additions, not additional nested user calls. Reserving 64 for
+conservative bound: the support-member rewrite removes the counted fixed-text
+writers and adds tail-recursive sum and copy loops whose calls sit in tail
+position, not additional nested user calls. Reserving 64 for
 that overhead and adding both recursion allowances, even though their
 deepest paths do not coexist, gives:
 

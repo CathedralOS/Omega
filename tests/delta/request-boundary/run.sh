@@ -18,6 +18,9 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$REQUEST_BOUNDARY_TMP/compiler.gamma" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 materialize_gamma_evaluator "$REQUEST_BOUNDARY_TMP/evaluator" >/dev/null
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
+    "$REQUEST_BOUNDARY_TMP/support.bin"
 
 REQUEST_BOUNDARY_TMP="$REQUEST_BOUNDARY_TMP" python3 - <<'PY'
 import hashlib
@@ -33,9 +36,14 @@ identity = (
     len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest()
 )
 if identity != (
-    3421, 155477, "08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d"
+    3329, 146901, "5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
+
+# The bound support section: the packed support.gamma.sources members that
+# end every sealed compiler input. Its bytes are a custody fixture, not a
+# host model of the runtime.
+support = (directory / "support.bin").read_bytes()
 
 REQUEST_MAGIC = b"DCREQ\x01\x00\x00"
 OUTCOME_MAGIC = b"\xffDCOUT\x01\x00"
@@ -65,7 +73,9 @@ def header(profile=1, length=0):
 
 
 def framed(source):
-    return header(length=len(source)) + source
+    # A complete sealed input is the exact DCREQ request plus the bound
+    # support section.
+    return header(length=len(source)) + source + support
 
 
 def failure(tag, code, coordinate, limit=0, requested=0, space=4):
@@ -82,6 +92,11 @@ cases = []
 
 def malformed(name, request, coordinate):
     cases.append((name, request, failure(1, 1, coordinate)))
+
+
+def support_refusal(name, request, code, coordinate):
+    # Space-5 coordinates are absolute sealed-input offsets.
+    cases.append((name, request, failure(1, code, coordinate, space=5)))
 
 
 complete_header = header()
@@ -120,10 +135,17 @@ for length in (SOURCE_LIMIT + 1, 0x80000000, 0xffffffff):
 malformed("exact provision before missing body", header(length=SOURCE_LIMIT), 16)
 malformed("one-byte body missing", header(length=1), 16)
 malformed("body truncation before source validation", header(length=4) + b"\x00ab", 19)
-malformed("empty declared body with trailing byte", header() + b"\x00", 16)
-malformed("first trailing body byte", header(length=1) + b"\x00xy", 17)
+# A complete body with no or partial support section is a space-5 refusal at
+# the observed end of input, not a malformed request.
+support_refusal("empty declared body with no support section",
+                header(), 1, 16)
+support_refusal("empty declared body with truncated support section",
+                header() + support[:17], 1, 33)
+support_refusal("one-byte body with truncated support section",
+                header(length=1) + b"\x00" + support[:100], 1, 117)
+# A byte after the complete sealed input is still a trailing request byte.
 malformed("valid source with trailing byte", framed(identity_source) + b"x",
-          16 + len(identity_source))
+          16 + len(identity_source) + len(support))
 
 for source in (identity_source, b"; raw Delta is not a request\n" + identity_source):
     malformed("raw source cannot select the diagnostic entry", source, 0)
@@ -134,11 +156,26 @@ exact_body = b"\x00" + b" " * (SOURCE_LIMIT - 1)
 cases.append(("full exact source extent reaches frontend", framed(exact_body),
               failure(1, 3, 0, space=1)))
 malformed("full exact source extent with trailing byte", framed(exact_body) + b"x",
-          16 + SOURCE_LIMIT)
+          16 + SOURCE_LIMIT + len(support))
 cases.append((
     "full adjacent source extent fails provision", framed(exact_body + b" "),
     failure(2, 1, 12, SOURCE_LIMIT, SOURCE_LIMIT + 1),
 ))
+
+# A member whose bytes disagree with the bound table refuses at the member's
+# absolute sealed-input offset before any Delta-source phase. Reordering the
+# packed members is a first-member mismatch.
+support_refusal("corrupt byte-runtime member byte",
+                framed(identity_source)[:-len(support)]
+                + bytes([support[0] ^ 0xff]) + support[1:],
+                2, 16 + len(identity_source))
+support_refusal("corrupt adapter member byte",
+                framed(identity_source)[:-1] + bytes([support[-1] ^ 0xff]),
+                2, 16 + len(identity_source) + 2535)
+support_refusal("reordered support members",
+                header(length=len(identity_source)) + identity_source
+                + support[1464:2535] + support[:1464] + support[2535:],
+                2, 16 + len(identity_source))
 
 # Source-envelope and accepted-frontend schema judgments have their own DCOUT
 # reasons and source coordinates, separate from DCREQ admission coordinates.
@@ -165,7 +202,7 @@ for name, request, expected in cases:
 status, receipt = evaluate(compiler, framed(identity_source))
 receipt_identity = (len(receipt), hashlib.sha256(receipt).hexdigest())
 if status != 0 or receipt_identity != (
-    1410, "d077f379142c5d4501e029e7b13bca7308c572f9d39e24ef02ffda06581b67d4"
+    3068, "da9fe09147bca0388e34281bb03a9c69b5ca0c1718e4c885710f4b9e3e1048f4"
 ):
     raise SystemExit(f"accepted request changed its exact receipt: {status}, {receipt_identity}")
 if evaluate(compiler, framed(identity_source)) != (0, receipt):

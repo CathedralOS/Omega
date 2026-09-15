@@ -34,6 +34,9 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$RESOURCE_BOUNDARY_TMP/compiler.gamma" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 materialize_gamma_evaluator "$RESOURCE_BOUNDARY_TMP/evaluator" >/dev/null
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
+    "$RESOURCE_BOUNDARY_TMP/support.bin"
 
 RESOURCE_BOUNDARY_TMP="$RESOURCE_BOUNDARY_TMP" GATE_DIR="$GATE_DIR" \
     RESOURCE_BOUNDARY_GROUP="$RESOURCE_BOUNDARY_GROUP" \
@@ -60,6 +63,7 @@ from name_storage import accepted_fixtures as accepted_name_storage
 
 directory = Path(os.environ["RESOURCE_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
+support = (directory / "support.bin").read_bytes()
 with (Path(os.environ["GATE_DIR"]) / "compiler.tsv").open(newline="") as stream:
     rows = list(csv.DictReader(stream, delimiter="\t"))
 if len(rows) != 1:
@@ -70,9 +74,11 @@ if identity != expected_identity:
     raise SystemExit(f"Delta resource boundary compiler identity changed: {identity}")
 
 group = os.environ["RESOURCE_BOUNDARY_GROUP"]
-# The long-name regression is opt-in: its successful compilation took 691s.
+# The long-name regression is opt-in: its successful compilation took 691s;
+# the exact payload extent publishes a 16,777,212-byte receipt and took 504s
+# on a contended host.
 # This host watchdog is not a compiler capacity or a DCOUT observation.
-diagnostic_timeout = 1200 if group == "long-name" else 300
+diagnostic_timeout = 1200 if group in ("long-name", "payload") else 300
 if group == "reconstructed-wide":
     diagnostic_timeout = 7200
 function_cases = function_rows() if group == "all" else ()
@@ -115,7 +121,8 @@ def evaluate(name, program, input_bytes):
 def compile_source(name, source, size, digest):
     if len(source) != size or hashlib.sha256(source).hexdigest() != digest:
         raise SystemExit(f"Delta resource boundary {name}: fixture identity changed")
-    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
+    request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source))
+               + source + support)
     return evaluate(name, compiler, request)
 
 

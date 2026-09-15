@@ -19,6 +19,7 @@ trap 'rm -rf -- "$CHECKING_TMP"' EXIT HUP INT TERM
 # members, or packed closure differ from the audited edge records.
 materialize_epsilon_evaluator "$CHECKING_TMP/epsilon_compiler.delta"
 materialize_delta_compiler "$CHECKING_TMP/delta_compiler.gamma"
+materialize_delta_support "$CHECKING_TMP/support.bin"
 materialize_gamma_evaluator "$CHECKING_TMP/evaluator" >/dev/null
 
 GATE_DIR="$GATE_DIR" CHECKING_TMP="$CHECKING_TMP" python3 - <<'PY'
@@ -66,8 +67,10 @@ def evaluate(program, sealed_input, timeout=300):
     )
     return process.returncode, process.stdout
 
+support = (temporary / "support.bin").read_bytes()
 subject = source + driver
-request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject
+request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
+           + subject + support)
 compiler = (temporary / "delta_compiler.gamma").read_bytes()
 status, receipt = evaluate(compiler, request)
 digest = hashlib.sha256(receipt).hexdigest()

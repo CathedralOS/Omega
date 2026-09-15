@@ -1,0 +1,39 @@
+; ConformanceBytesV1 adapter runtime support member. The compiler copies
+; this member after the byte-rope runtime for profile-one programs. The
+; adapter rope adds one node tag:
+;
+;   tag 3  sealed-input view; indexing resolves to (read i)
+;
+; so $pbi costs one pair while preserving the rope's bounds contract.
+
+(def $pbg ((v Int) (i Int)) Int
+  (if (lt i 0)
+    (/ 1 0)
+    (if (lt i (first v))
+      ($pbgi v i)
+      (/ 1 0))))
+
+(def $pbgi ((v Int) (i Int)) Int
+  (let ((node Int (second v))
+        (tag Int (first node)))
+    (if (eq tag 1)
+      (second node)
+      (if (eq tag 2)
+        (let ((children Int (second node))
+              (left Int (first children))
+              (split Int (first left)))
+          (if (lt i split)
+            ($pbgi left i)
+            ($pbgi (second children) (- i split))))
+        (if (eq tag 3)
+          (read i)
+          (/ 1 0))))))
+
+(def $pbi () Int
+  (pair (input) (pair 3 0)))
+
+(def $pbw ((v Int) (i Int) (n Int)) Int
+  (if (eq i n)
+    (pair 0 1)
+    (let emitted Int (write ($pbg v i))
+      ($pbw v (+ i 1) n))))

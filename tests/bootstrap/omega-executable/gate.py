@@ -56,10 +56,12 @@ def main():
     if limit <= 0:
         raise SystemExit("OMEGA_EXECUTABLE_OBSERVATION_SECONDS must be positive")
     subject = (directory / "epsilon_compiler.delta").read_bytes() + options.adapter.read_bytes()
-    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject
+    support = (directory / "support.bin").read_bytes()
+    request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
+               + subject + support)
     receipt = evaluate(directory, (directory / "delta_compiler.gamma").read_bytes(),
                        request, 300, "Epsilon receipt reconstruction")
-    if hashlib.sha256(receipt).hexdigest() != "dd4985c0eb6e1f30bc2178f90dd30e25ae7b842fb544137f606a44e622000f22":
+    if hashlib.sha256(receipt).hexdigest() != "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082":
         raise SystemExit("Epsilon execution receipt differs from the selected gate identity")
     entry = gate / ("controls.epsilon" if options.controls else "main.epsilon")
     customer = (directory / "omega_compiler.epsilon").read_bytes() + entry.read_bytes()

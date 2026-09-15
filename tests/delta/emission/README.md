@@ -44,7 +44,9 @@ responsibility of their existing gates. This gate makes no performance claim.
 `compiler.tsv` pins the complete diagnostic-plus-implementation identity, checked
 before any observation runs.
 
-Fixed runtime publication uses ordinary Gamma character literals, not annotated
-packed integers. The [staged compiler gate](../staged-compiler/run.sh) checks its
-exact emitted runtime text, full receipt counts, and execution. No separate
+Runtime and adapter publication copies the bound support members of
+[`bootstrap/3_delta/support/`](../../../bootstrap/3_delta/support/README.md)
+verbatim from the sealed input, not annotated packed integers or emitter
+character literals. The [staged compiler gate](../staged-compiler/run.sh) checks
+the exact emitted member bytes, full receipt counts, and execution. No separate
 comment language or annotation-agreement checker is needed.
