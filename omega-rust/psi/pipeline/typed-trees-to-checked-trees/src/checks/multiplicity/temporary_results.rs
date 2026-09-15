@@ -3,18 +3,24 @@
 //! A partial move from a temporary has no remaining local owner in which to
 //! retain unselected linear claims. The selected path must carry every live
 //! obligation; ordinary affine siblings may be discarded.
-use super::{
-    CheckFacts, Diagnostic, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionProvenance, SymbolHandle,
-    TypeReferenceNode,
-};
-use crate::checks::multiplicity::claim_paths_are_case_alternatives;
-use crate::checks::multiplicity::event_statement_index;
+use crate::checks::multiplicity::claim_outcomes::claim_paths_are_case_alternatives;
 use crate::checks::multiplicity::linear_claim_frontier;
-use crate::checks::multiplicity::permission_source;
+use crate::checks::multiplicity::linear_validation::event_statement_index;
+use crate::checks::multiplicity::linear_validation::permission_source;
 use crate::checks::type_carries_linear_obligation;
 use crate::checks::type_multiplicity;
 use crate::flow::FlowOwnershipEventSource;
+use arena::HandleSpan;
+use checked_trees::CheckFacts;
+use checked_trees::FlowPermissionEventFact;
+use diagnostics::Diagnostic;
+use language_semantics::Multiplicity;
+use language_semantics::PermissionAccess;
+use language_semantics::PermissionClaimIdentity;
+use language_semantics::PermissionEventKind;
+use language_semantics::PermissionProvenance;
+use symbols::SymbolHandle;
+use typed_trees::types::TypeReferenceNode;
 
 mod projected;
 mod shared;

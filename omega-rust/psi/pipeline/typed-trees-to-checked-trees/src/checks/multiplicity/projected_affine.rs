@@ -1,15 +1,20 @@
 //! A projected affine move transfers a subtree, not its still-live root.
-use super::{
-    CheckFacts, FlowPermissionEventFact, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionProvenance, SymbolHandle, TypeReferenceNode,
-};
-use crate::checks::multiplicity::LinearPlace;
-use crate::checks::multiplicity::event_statement_index;
-use crate::checks::multiplicity::permission_kind_for_move;
-use crate::checks::multiplicity::permission_source;
-use crate::checks::multiplicity::type_reference_is_reference;
+use crate::checks::multiplicity::linear_obligations::LinearPlace;
+use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
+use crate::checks::multiplicity::linear_validation::event_statement_index;
+use crate::checks::multiplicity::linear_validation::permission_kind_for_move;
+use crate::checks::multiplicity::linear_validation::permission_source;
 use crate::checks::type_multiplicity;
 use crate::flow::FlowOwnershipEventSource;
+use checked_trees::CheckFacts;
+use checked_trees::FlowPermissionEventFact;
+use language_semantics::Multiplicity;
+use language_semantics::PermissionAccess;
+use language_semantics::PermissionClaimIdentity;
+use language_semantics::PermissionEventKind;
+use language_semantics::PermissionProvenance;
+use symbols::SymbolHandle;
+use typed_trees::types::TypeReferenceNode;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_transfer(
