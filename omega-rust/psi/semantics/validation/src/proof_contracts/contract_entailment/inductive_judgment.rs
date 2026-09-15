@@ -1,8 +1,10 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode,
     Judgment, Machine, Polynomial, RESULT_BINDER, StatementNode, TransitionGuardNode,
-    TransitionTargetNode, TypedTrees, is_arm_pattern_marker, record_all_expression_stand_downs,
-    record_expression_stand_down,
+    TransitionTargetNode, TypedTrees, is_arm_pattern_marker,
+};
+use crate::proof_contracts::contract_entailment::stand_downs::{
+    record_all_expression_stand_downs, record_expression_stand_down,
 };
 #[cfg(test)]
 mod tests;
