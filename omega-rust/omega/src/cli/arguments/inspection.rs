@@ -45,7 +45,7 @@ pub(super) fn parse_inspect_terminal_arguments(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::parse_inspect_terminal_arguments;
     use std::ffi::OsString;
 
     #[test]

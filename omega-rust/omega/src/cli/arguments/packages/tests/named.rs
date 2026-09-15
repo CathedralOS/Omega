@@ -1,5 +1,7 @@
-use super::*;
-
+use super::super::usage;
+use super::{
+    OsString, PackageCommand, PackageCommandKind, non_utf8, parse, parse_arguments, rejects,
+};
 #[test]
 fn named_git_install_preserves_selection_separately_from_alias() {
     for arguments in [

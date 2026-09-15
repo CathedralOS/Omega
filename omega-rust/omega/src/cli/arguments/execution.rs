@@ -71,7 +71,7 @@ pub(super) fn parse_arguments(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::parse_arguments;
 
     #[test]
     fn probe_rejects_offline_including_after_the_source_or_as_a_value() {

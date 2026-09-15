@@ -67,7 +67,7 @@ fn retain_bound(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{FixedFuel, FixedFuelError, InspectionError, retain_bound};
     use semantic_vocabulary::{BlockId, MachineId};
 
     #[test]

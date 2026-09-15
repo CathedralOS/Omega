@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{PackageCommand, PackageCommandKind, PathBuf, parse, rejects};
 #[test]
 fn install_and_update_accept_offline_before_and_after_selections() {
     for arguments in [["--offline", "source"], ["source", "--offline"]] {

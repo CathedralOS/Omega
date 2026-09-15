@@ -40,7 +40,7 @@ impl Drop for TemporaryOutput {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::TemporaryOutput;
 
     #[test]
     fn overlapping_runs_own_distinct_directories_and_cleanup_only_their_own() {
