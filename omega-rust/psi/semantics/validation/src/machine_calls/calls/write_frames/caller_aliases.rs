@@ -7,9 +7,12 @@
 use super::stored_origins::{StoredLocalOrigins, expand_write_path, place_suffix};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
-    Machine, StateWriteQuery, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
+    Machine, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
     append_place_suffix, statement_value_expression_roots, type_is_caller_isolated_local,
-    type_may_carry_write, walk_state_write_prefix,
+    type_may_carry_write,
+};
+use crate::machine_calls::calls::write_frames::state_write_walk::{
+    StateWriteQuery, walk_state_write_prefix,
 };
 
 pub(super) fn caller_binding_type(
@@ -89,7 +92,7 @@ pub(super) fn caller_name_root_type(
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum CallerWriteSite<'query> {
+pub(crate) enum CallerWriteSite<'query> {
     Call(&'query TableCall),
     Statement(&'query StatementNode),
     Expression(ExpressionHandle),

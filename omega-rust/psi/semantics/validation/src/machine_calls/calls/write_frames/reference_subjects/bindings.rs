@@ -4,8 +4,10 @@
 use super::super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePlaceOrigin, Machine, StateParameter,
-    StateWriteQuery, TopLevelSymbols, TypedTrees, caller_aliases, local_aliases, stored_origins,
-    walk_state_write_prefix,
+    TopLevelSymbols, TypedTrees, caller_aliases, local_aliases, stored_origins,
+};
+use crate::machine_calls::calls::write_frames::state_write_walk::{
+    StateWriteQuery, walk_state_write_prefix,
 };
 
 /// A checked local carrier can capture a reference binding without exposing

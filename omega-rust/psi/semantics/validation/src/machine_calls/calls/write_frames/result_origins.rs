@@ -8,9 +8,10 @@ use super::path_instantiation::aggregate_arguments::{
 use super::stored_origins::canonical_reference_origins;
 use super::{
     Machine, StatementNode, TableCallExpression, TopLevelSymbols, TypeReferenceHandle, TypedTrees,
-    machine_state_by_symbol, walk_state_write_prefix,
+    machine_state_by_symbol,
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
+use crate::machine_calls::calls::write_frames::state_write_walk::walk_state_write_prefix;
 use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
 
 mod input_moves;
@@ -173,7 +174,7 @@ pub(super) fn call_result_origins(
             symbols,
             inference,
             &mut Vec::new(),
-            include_shared.then_some(super::StateWriteQuery::ReferenceResult),
+            include_shared.then_some(crate::machine_calls::calls::write_frames::state_write_walk::StateWriteQuery::ReferenceResult),
         )?;
         for local in &context.stored {
             inference.record_local(local);

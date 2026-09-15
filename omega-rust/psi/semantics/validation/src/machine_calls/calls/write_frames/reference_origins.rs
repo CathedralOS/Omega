@@ -2,11 +2,10 @@
 
 use super::caller_aliases::{CallerWriteSite, caller_binding_type, caller_statement_at_site};
 use super::isolation::{data_definition_has_only_owned_storage, type_is_caller_isolated_local};
-use super::{
-    FramePathPrecision, FramePlaceOrigin, frame_place_path, transparent_call_result_origin,
-};
+use super::{FramePathPrecision, FramePlaceOrigin, frame_place_path};
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
+use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origin;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
