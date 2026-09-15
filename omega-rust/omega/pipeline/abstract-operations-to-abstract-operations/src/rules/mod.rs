@@ -8,6 +8,7 @@
 
 mod catalog;
 mod passes;
+pub(crate) mod registry;
 
 use optimization::PsiOptimizationSelections;
 use optimization_core::OptimizationSelections;

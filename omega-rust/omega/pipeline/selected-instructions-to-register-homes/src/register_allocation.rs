@@ -7,6 +7,9 @@
 //! homes or, on `NoCompatibleHome` pressure, enters `assignment::runtime_spill`.
 //! Every branch publishes one `RetainedAllocation`.
 
+#[cfg(test)]
+mod selected_rewrite_tests;
+
 use crate::assignment::recovery::{
     stage_active_resident_register_allocation, stage_fixed_view_register_allocation,
 };
