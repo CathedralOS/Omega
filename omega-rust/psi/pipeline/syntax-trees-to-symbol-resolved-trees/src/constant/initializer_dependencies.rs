@@ -388,7 +388,7 @@ impl Collector<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use symbols::SymbolKind;
 
     fn prepare(
         text: &str,

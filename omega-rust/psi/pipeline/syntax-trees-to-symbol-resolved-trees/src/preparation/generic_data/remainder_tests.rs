@@ -1,5 +1,11 @@
-use super::*;
+use crate::pre_resolution::GenericDataRequest;
+use crate::pre_resolution::normalize_generic_data;
+use diagnostics::Diagnostic;
 use source_files_to_tokens::Lexer;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::Item;
+use syntax_trees::types::TypeReferenceNode;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn normalize(source: &str) -> Result<SyntaxTrees, Vec<Diagnostic>> {

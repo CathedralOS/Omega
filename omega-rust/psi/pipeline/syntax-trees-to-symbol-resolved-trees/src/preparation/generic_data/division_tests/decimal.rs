@@ -1,4 +1,11 @@
-use super::*;
+use super::{Diagnostic, TypeReferenceNode};
+use crate::preparation::generic_data::division_tests::assert_buffer;
+use crate::preparation::generic_data::division_tests::assert_rejected;
+use crate::preparation::generic_data::division_tests::instance;
+use crate::preparation::generic_data::division_tests::normalize;
+use source::SourceId;
+use source::SourceSpan;
+use source::Span;
 
 #[test]
 fn decimal_const_intermediates_remain_exact_beyond_machine_precision() {

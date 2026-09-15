@@ -1,6 +1,43 @@
 //! Closed-instance discovery, fixed-point synthesis and the ordered rewrite.
-
-use super::*;
+use crate::preparation::generic_data::ClosedArgumentIdentity;
+use crate::preparation::generic_data::ConstFactValue;
+use crate::preparation::generic_data::GenericData;
+use crate::preparation::generic_data::Instantiation;
+use crate::preparation::generic_data::PendingRewrite;
+use crate::preparation::generic_data::canonicalize_closed_domain_indices;
+use crate::preparation::generic_data::closed_constructor_carrier;
+use crate::preparation::generic_data::collect_type_reference_positions;
+use crate::preparation::generic_data::consider_generic_spelling;
+use crate::preparation::generic_data::evaluate_const_fact_expression;
+use crate::preparation::generic_data::evaluate_const_membership_fact;
+use crate::preparation::generic_data::integer_literal_value;
+use crate::preparation::generic_data::normalize_generic_template_const_expressions;
+use crate::preparation::generic_data::qualified_const_name;
+use crate::preparation::generic_data::relabel_closed_data_uses_in_exact_assignments;
+use crate::preparation::generic_data::relabel_closed_data_uses_in_exact_calls_and_returns;
+use crate::preparation::generic_data::relabel_closed_sum_memberships_from_local_types;
+use crate::preparation::generic_data::relabel_unique_closed_sum_paths;
+use crate::preparation::generic_data::replace_const_expression_names_from;
+use crate::preparation::generic_data::selected_data_item;
+use crate::preparation::generic_data::substitute_member;
+use arena::Handle;
+use arena::HandleSpan;
+use diagnostics::Diagnostic;
+use numerics::literals::IntegerLiteral;
+use numerics::literals::IntegerRadix;
+use std::collections::HashMap;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::ConstDefinition;
+use syntax_trees::item::DataDefinition;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::Item;
+use syntax_trees::item::ProofFact;
+use syntax_trees::item::TypeParameterKind;
+use syntax_trees::types::FixedArrayLength;
+use syntax_trees::types::TypeReferenceHandle;
+use syntax_trees::types::TypeReferenceNode;
 
 pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
     syntax: &mut SyntaxTrees,

@@ -1,9 +1,19 @@
-use super::*;
+use crate::ExtensionRequest;
+use crate::ResolutionRequest;
+use crate::resolve_extension;
+use source::SourceMap;
+use source::SourceOrigin;
+use source::SourceResolutionStratum;
+use source_files_to_tokens::Lexer;
+use std::path::PathBuf;
+use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::{DataField, DataMember};
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 use symbols::SymbolHandle;
+use tokens_to_syntax_trees::parse_syntax_trees;
+use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 fn resolve(source: &str) -> SymbolResolvedTrees {
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();

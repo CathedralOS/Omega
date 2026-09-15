@@ -1,6 +1,12 @@
-use super::*;
+use crate::preparation::generic_data::evaluate_const_fact_expression;
+use crate::preparation::generic_data::normalize_generic_data_with_warnings;
+use diagnostics::Diagnostic;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
+use std::collections::HashMap;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::item::Item;
+use syntax_trees::item::ProofFact;
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 fn parse(source: &str) -> SyntaxTrees {

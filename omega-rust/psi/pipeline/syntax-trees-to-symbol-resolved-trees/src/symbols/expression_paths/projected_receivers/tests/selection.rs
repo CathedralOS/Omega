@@ -1,4 +1,7 @@
-use super::*;
+use super::{ExpressionNode, SymbolHandle};
+use crate::ResolutionRequest;
+use source_files_to_tokens::Lexer;
+use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn resolve(source: &str) -> symbol_resolved_trees::SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize receiver");

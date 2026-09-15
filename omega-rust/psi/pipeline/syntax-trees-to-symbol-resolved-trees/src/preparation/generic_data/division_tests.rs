@@ -1,7 +1,18 @@
-use super::*;
+use crate::preparation::generic_data::deduplicate_generic_warnings;
+use crate::preparation::generic_data::normalize_generic_data_with_warnings;
+use crate::preparation::generic_data::substitute_type_reference;
+use diagnostics::Diagnostic;
 use diagnostics::DiagnosticSeverity;
 use source::{SourceId, SourceSpan, Span};
 use source_files_to_tokens::Lexer;
+use std::collections::HashMap;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::DataDefinition;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::Item;
+use syntax_trees::types::FixedArrayLength;
+use syntax_trees::types::TypeReferenceNode;
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 #[path = "division_tests/decimal.rs"]

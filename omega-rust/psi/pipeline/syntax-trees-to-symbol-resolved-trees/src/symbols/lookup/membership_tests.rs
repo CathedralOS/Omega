@@ -1,8 +1,10 @@
 //! Header-level coverage keeps declaration selection independent of the current
 //! source normalization fence on module-owned domain declarations.
-use super::*;
+use crate::symbols::MembershipSelection;
+use crate::symbols::membership_selection;
 use source::{SourceId, SourceMap, SourceSpan, Span};
 use std::{path::PathBuf, sync::Arc};
+use symbols::SymbolKind;
 use symbols::{SymbolNameRef, SymbolTableBuilder};
 
 #[test]

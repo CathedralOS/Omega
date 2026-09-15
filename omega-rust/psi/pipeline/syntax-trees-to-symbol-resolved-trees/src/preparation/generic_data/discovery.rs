@@ -1,6 +1,13 @@
 //! Private discovered templates and pending rewrites; not a program representation.
-
-use super::*;
+use crate::preparation::generic_data::constant_selection;
+use arena::HandleSpan;
+use std::collections::HashMap;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::Item;
+use syntax_trees::item::ProofFact;
+use syntax_trees::types::TypeReferenceHandle;
 
 pub(super) struct GenericData {
     pub(super) declaration: syntax_trees::item::ItemHandle,

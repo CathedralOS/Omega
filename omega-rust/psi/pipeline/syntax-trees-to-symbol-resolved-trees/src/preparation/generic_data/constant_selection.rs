@@ -489,7 +489,8 @@ fn append_variants(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Identifier, SourceScopedTopLevelBinding, SyntaxTrees};
+    use crate::preparation::generic_data::constant_selection::ConstantSelection;
     use source::SourceId;
     use source_files_to_tokens::Lexer;
     use syntax_trees::types::TypeReferenceNode;

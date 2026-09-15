@@ -1,6 +1,19 @@
 //! Constant evaluation: domains.
+use super::super::{
+    CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap,
+    HashSet, Identifier, IntegerLiteral, Item, SyntaxTrees, TypeParameterKind, TypeReferenceHandle,
+    TypeReferenceNode,
+};
 
-use super::*;
+use crate::preparation::generic_data::EvaluatedConst;
+use crate::preparation::generic_data::canonicalize_const_definition;
+use crate::preparation::generic_data::canonicalize_selected_const_definition;
+use crate::preparation::generic_data::collect_data_type_reference_positions;
+use crate::preparation::generic_data::const_integer_type;
+use crate::preparation::generic_data::evaluate_const_argument_expression;
+use crate::preparation::generic_data::syntax_type_identity;
+use crate::preparation::generic_data::validate_const_index_type;
+use crate::preparation::generic_data::validate_syntax_integer_range;
 
 pub(in crate::preparation::generic_data) fn integer_literal_value(
     value: &IntegerLiteral,

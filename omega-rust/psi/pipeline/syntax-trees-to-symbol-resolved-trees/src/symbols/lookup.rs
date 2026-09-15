@@ -427,7 +427,8 @@ mod membership_tests;
 
 #[cfg(test)]
 mod constructor_tests {
-    use super::*;
+    use crate::symbols::constructor_type;
+    use symbols::SymbolKind;
     use symbols::{SymbolNameRef, SymbolTableBuilder};
 
     #[test]

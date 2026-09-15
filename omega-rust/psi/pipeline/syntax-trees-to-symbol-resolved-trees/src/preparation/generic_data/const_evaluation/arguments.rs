@@ -1,6 +1,26 @@
 //! Constant evaluation: arguments.
+use super::super::{
+    BinaryOperator, CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle,
+    ExpressionNode, Handle, HashMap, HashSet, Identifier, Item, SyntaxTrees, TypeParameterKind,
+    TypeReferenceHandle, TypeReferenceNode,
+};
 
-use super::*;
+use crate::preparation::generic_data::GenericData;
+use crate::preparation::generic_data::Instantiation;
+use crate::preparation::generic_data::PendingRewrite;
+use crate::preparation::generic_data::base_is_fully_monomorphizable;
+use crate::preparation::generic_data::canonicalize_const_definition;
+use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
+use crate::preparation::generic_data::canonicalize_selected_const_definition;
+use crate::preparation::generic_data::canonicalize_selected_index_expression;
+use crate::preparation::generic_data::closed_argument_identity;
+use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
+use crate::preparation::generic_data::const_integer_in_envelope;
+use crate::preparation::generic_data::integer_literal_value;
+use crate::preparation::generic_data::monomorphizable_argument_slugs;
+use crate::preparation::generic_data::selected_generic_data;
+use crate::preparation::generic_data::syntax_type_identity;
+use crate::preparation::generic_data::validate_syntax_integer_range;
 
 /// If `type_reference` is a `Base<Args..>` spelling of a fully-monomorphizable
 /// generic data definition, record the rewrite-to-plain-name and the (deduped)

@@ -1,6 +1,20 @@
 //! Membership and sum-pattern relabeling.
-
-use super::super::*;
+use super::super::{
+    DataMember, ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, Item, StatementNode,
+    SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
+};
+use crate::preparation::generic_data::ConstructorFrontier;
+use crate::preparation::generic_data::Instantiation;
+use crate::preparation::generic_data::closed_constructor_carrier;
+use crate::preparation::generic_data::collect_statement_expression_handles;
+use crate::preparation::generic_data::concrete_machine_state_handles;
+use crate::preparation::generic_data::constant_selection;
+use crate::preparation::generic_data::constructor_carrier_span;
+use crate::preparation::generic_data::constructor_path_name;
+use crate::preparation::generic_data::expected_instance;
+use crate::preparation::generic_data::selected_case_value;
+use crate::preparation::generic_data::selected_constructor;
+use syntax_trees::expression::ExpressionHandle;
 
 /// Destructure syntax lowers to `subject in Base::Case` before this pass. When
 /// the subject is a state parameter or local with an exact synthesized type,
@@ -268,6 +282,7 @@ pub(in crate::preparation::generic_data) fn closed_sum_path(
 
 #[cfg(test)]
 mod tests {
+
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };

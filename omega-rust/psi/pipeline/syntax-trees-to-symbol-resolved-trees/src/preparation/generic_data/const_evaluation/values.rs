@@ -10,9 +10,16 @@
 //! component type. A suffixed leaf has already landed: erasing that carrier or
 //! arithmetic domain would equate a differently typed value with this component,
 //! even when its numeric payload fits. Check the landing before encoding it.
+use super::super::{
+    CanonicalConstValue, ConstDefinition, DataDefinition, DataMember, ExpressionHandle,
+    ExpressionNode, FixedArrayLength, HandleSpan, HashSet, Identifier, Item, SyntaxTrees,
+    TypeReferenceHandle, TypeReferenceNode,
+};
 
-use super::*;
+use crate::preparation::generic_data::ConstFactValue;
 use crate::preparation::generic_data::constant_selection::ConstantSelection;
+use crate::preparation::generic_data::integer_literal_value;
+use crate::preparation::generic_data::qualified_const_name;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::preparation::generic_data) enum CanonicalConstNode {
