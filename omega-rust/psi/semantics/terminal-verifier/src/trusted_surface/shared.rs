@@ -63,7 +63,7 @@ rows! {
         "a normalization block naming its conformance identity",
         "normalization applies only under the exact declared conformance identity; a mismatched block rejects",
         &["formation:proposition-context"],
-        &[pa!( "normalization.rs")]
+        &[pa!( "admission/normalization.rs")]
     );
     NORM_ORDERED_LAWS => (
         "normalization:ordered-law-application",
@@ -71,7 +71,7 @@ rows! {
         "an ordered list of named normalization laws applied in the canonical order",
         "the normalized form is the result of the laws applied in order; a different order or unknown law rejects",
         &["normalization:conformance-identity"],
-        &[pa!( "normalization.rs")]
+        &[pa!( "admission/normalization.rs")]
     );
     NORM_LAW_EVIDENCE => (
         "normalization:law-evidence-binding",
@@ -79,7 +79,7 @@ rows! {
         "each normalization law's proof obligation and the evidence supplied for it",
         "a law participates only when its obligation is discharged by the bound evidence; omitted or unknown law evidence rejects",
         &["normalization:ordered-law-application", "route:certificate-derived"],
-        &[pa!( "normalization.rs")]
+        &[pa!( "admission/normalization.rs")]
     );
     NORM_CONCLUSION_CITES => (
         "normalization:conclusion-cites-laws",
@@ -87,7 +87,7 @@ rows! {
         "the final normalized conclusion and the law-derived assumptions it may cite",
         "the conclusion must cite exactly the retained law-derived premise set; extra or missing citations reject",
         &["normalization:law-evidence-binding"],
-        &[pa!( "normalization.rs")]
+        &[pa!( "admission/normalization.rs")]
     );
     NORM_PROPOSITION_FORM => (
         "conversion:proposition-match",
@@ -119,7 +119,7 @@ rows! {
         "a closed mathematical-integer term within the bounded evaluator's resource limits",
         "the exact integer value the term denotes; resource exhaustion rejects rather than approximates",
         &["formation:mathematical-core"],
-        &[pa!( "closed_integer.rs"), pa!( "mathematical_core/term.rs"), pa!( "mathematical_core/typing.rs")]
+        &[pa!( "integer_rules/closed_integer.rs"), pa!( "mathematical_core/term.rs"), pa!( "mathematical_core/typing.rs")]
     );
     NORM_AFFINE_WITNESS => (
         "normalization:integer-affine-witness",
@@ -127,7 +127,7 @@ rows! {
         "an ordered affine witness of exact-add definition steps and literal landings over one carrier",
         "the mapped bound from root to target when every step checks; the witness is bounded and validated before interpretation",
         &["normalization:closed-integer-evaluator"],
-        &[pa!( "integer_affine.rs"), tp!( "artifacts/proof_bundle/witnesses.rs")]
+        &[pa!( "integer_rules/integer_affine.rs"), tp!( "artifacts/proof_bundle/witnesses.rs")]
     );
     NORM_CAST_CHAIN_WITNESS => (
         "normalization:integer-cast-chain-witness",
@@ -135,7 +135,7 @@ rows! {
         "an ordered word of partial fixed-integer exact casts and strict widening identities",
         "the mapped bound through the chain when every step checks",
         &["normalization:integer-affine-witness"],
-        &[pa!( "integer_cast.rs"), pa!( "integer_shift.rs"), tp!( "artifacts/proof_bundle/witnesses.rs")]
+        &[pa!( "integer_rules/integer_cast.rs"), pa!( "integer_rules/integer_shift.rs"), tp!( "artifacts/proof_bundle/witnesses.rs")]
     );
     NORM_CORRELATED_WITNESS => (
         "normalization:correlated-forbidden-root-witness",
@@ -143,7 +143,7 @@ rows! {
         "correlated dividend/divisor affine branches over one machine signature parameter within the exact definition/assumption ledger boundary",
         "the canonical signed exact-division definedness proposition; a branch outside the boundary rejects",
         &["normalization:integer-affine-witness"],
-        &[pa!( "integer_forbidden_root.rs"), tp!( "artifacts/proof_bundle/witnesses.rs")]
+        &[pa!( "integer_rules/integer_forbidden_root.rs"), tp!( "artifacts/proof_bundle/witnesses.rs")]
     );
 
     // -- Premise scope --
@@ -319,7 +319,7 @@ rows! {
         "a reconstructed recursive component with its edge obligations and supplied evidence",
         "each component and edge obligation is verified against its reconstructed question; unmatched evidence rejects",
         &["composition:recursive-component-obligation", "route:certificate-derived"],
-        &[pa!( "recursion.rs")]
+        &[pa!( "admission/recursion.rs")]
     );
     COMP_WELL_FOUNDED => (
         "composition:well-founded-relation",
