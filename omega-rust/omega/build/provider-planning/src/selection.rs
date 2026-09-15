@@ -214,7 +214,7 @@ impl ProviderSelection {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ProviderSelectionIdentity, ProviderSelectionSubject, SymbolHandle};
 
     fn identity(
         symbol: u32,

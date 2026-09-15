@@ -1207,7 +1207,11 @@ fn at(source_span: SourceSpan, message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        DecodedBindingValue, EvaluatedForeignImport, EvaluatedViaBinding, EvaluatedViaBindingRow,
+        EvaluatedViaBindingTable, ExpressionNode, SymbolHandle, TargetProfile, TypedTrees,
+        decode_binding_value, normalize_foreign_locator,
+    };
     use crate::provider_planning::{
         derive_satisfies_plans_with_evaluated_bindings, select_provider_plans_with_provenance,
         selected_provider_plan_facts_with_provenance, validate_derived_provider_plan_candidates,

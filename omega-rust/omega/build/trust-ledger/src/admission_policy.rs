@@ -207,7 +207,10 @@ fn render_admissions(rows: &BTreeMap<String, TrustAdmissionDigest>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        TrustAdmission, TrustAdmissionDigest, accept_trust_admissions, parse_admissions,
+        read_trust_admissions,
+    };
 
     fn persisted(commitment: &str, byte: u8) -> TrustAdmission {
         TrustAdmission::from_persisted(

@@ -212,7 +212,10 @@ pub fn replayed_output_tree(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MAX_STAGED_OUTPUT_ENTRIES, ReplayedBuildOutputEntry, RetainedStagedOutputEntryKind,
+        replayed_output_tree,
+    };
     use crate::{empty, replayed_empty_directories, replayed_files};
 
     #[test]

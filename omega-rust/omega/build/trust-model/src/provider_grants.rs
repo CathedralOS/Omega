@@ -188,7 +188,7 @@ pub fn resolve_authored_selected_provider_grants(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ProviderPlan, selected_subjects_coincide};
 
     #[test]
     fn plan_and_slot_coincidence_rejects_compact_equal_structural_substitution() {

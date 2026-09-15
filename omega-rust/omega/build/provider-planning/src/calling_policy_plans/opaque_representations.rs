@@ -123,7 +123,7 @@ impl BoundaryOpaqueRepresentationMovement {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::BoundaryOpaqueRepresentationUse;
     use representation_planning::{
         OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION, OpaqueRepresentationApplicationOrigin,
         OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition,

@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{ProviderPlan, ServiceSchema, exact_checked_adapter, same_semantic_name};
 /// Exact selected provider-plan input consumed by external-root construction.
 ///
 /// The schema is retained beside the normalized plan identity so installation

@@ -1,6 +1,10 @@
 //! Target-origin admission for the payload-free hosted byte-output candidate.
-use super::*;
 
+use super::{
+    ProviderBinding, SelectedTargetMachineOrigin,
+    derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins,
+    derive_satisfies_plans_with_provenance, validate_derived_provider_plan_candidates,
+};
 #[test]
 fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
     let source = r#"

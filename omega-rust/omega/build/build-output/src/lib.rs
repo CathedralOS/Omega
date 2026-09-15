@@ -1659,7 +1659,12 @@ fn diagnostics(message: impl Into<String>) -> Vec<Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Arc, FilesystemSponsor, Path, RetainedStagedOutputEntryKind, Sha256, capture, empty,
+        replayed_files, replayed_ordinary_files, select_included_sources,
+        validate_portable_component,
+    };
+    use sha2::Digest;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
 

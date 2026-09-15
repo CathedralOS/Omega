@@ -1,7 +1,9 @@
 //! Exact replay of derived and selected provider provenance.
 
-use super::*;
-
+use super::{
+    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
+    provider_type_package_identity, provider_type_symbol,
+};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderSchemaDeclaration {
     BoundaryTrait(symbols::SymbolHandle),
