@@ -112,6 +112,26 @@ const CONDITIONAL_ENTRY_SOURCE: &str = r#"
     }
 "#;
 
+/// A slice-length countdown: the machine retains validated `Natural` ranking
+/// evidence, so the optimizer component roster is anchored on the verifier's
+/// canonical cyclic-component surface rather than on a private re-derivation
+/// of the Terminal body. `scale + scale` is a side-effect-free scalar
+/// computation the loop recomputes identically every iteration.
+const RANKED_MEMBER_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, entries: &[u8])
+    terminates by entries -> Slice::Length;
+    {
+        let doubled: u32 in Wrapping = scale + scale;
+        transition entries.len > 0 {
+            true -> scan(scale, entries[1..])
+            _ -> done(doubled)
+        }
+        state done(r: u32 in Wrapping) {}
+    }
+"#;
+
 #[test]
 fn transitive_member_parameter_computation_hoists_rebinding_to_its_anchor() {
     let session = lowered_session(TRANSITIVE_MEMBER_SOURCE, "transitive member loop");
@@ -636,6 +656,111 @@ fn conditional_entry_keeps_computations_inside_while_leaves_still_relocate() {
             .iter()
             .all(|relocation| relocation.node().psi_operation() != addition_operation),
         "the speculated computation is not a planned relocation"
+    );
+}
+
+/// The roster this boundary iterates is the validated Terminal SCC itself:
+/// the retained `Natural` row's rank roster is the component's member set and
+/// its edge rows are the component's internal-edge identity, and the same
+/// custody still carries the `scale + scale` relocation end to end.
+#[test]
+fn ranked_natural_component_is_the_validated_terminal_scc() {
+    let session = lowered_session_entry(RANKED_MEMBER_SOURCE, "ranked member loop", "Root::scan");
+    let [component] = session.cycle_components().components() else {
+        panic!("one validated cyclic component")
+    };
+    let machine = session
+        .input()
+        .context()
+        .module()
+        .machines
+        .iter()
+        .find(|machine| machine.id == component.id.machine)
+        .expect("component machine exists in the authenticated module");
+    let terminal_psi::TerminalRankedScc::Natural(naturals) = machine
+        .ranked_scc
+        .as_ref()
+        .expect("the source loop retains validated Natural ranking evidence");
+    let [natural] = naturals.as_slice() else {
+        panic!("one validated natural component")
+    };
+    assert_eq!(
+        component.members,
+        natural
+            .ranks
+            .iter()
+            .map(|rank| rank.block)
+            .collect::<Vec<_>>(),
+        "component membership is the validated Terminal SCC roster"
+    );
+    assert_eq!(
+        component
+            .id
+            .internal_edges
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>(),
+        natural
+            .edges
+            .iter()
+            .map(|edge| optimization_unit::CycleComponentEdge {
+                edge: edge.edge,
+                source: edge.source,
+                target: edge.target,
+            })
+            .collect::<std::collections::BTreeSet<_>>(),
+        "component identity carries the validated internal-edge set"
+    );
+    assert!(
+        session.ranking_certificates().certificates().is_empty(),
+        "slice-length Natural custody carries no countdown certificate"
+    );
+
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (member_block, addition, _) = member_addition(function, component);
+    let addition_operation = match addition.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the validated component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == addition_operation)
+        .expect("the invariant computation is a planned relocation");
+    assert_eq!(relocation.node().location().block, member_block.id);
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let component_id = component.id.clone();
+    let component_members = component.members.clone();
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    // Custody survives the transform: the relocated session still iterates
+    // the same validated Terminal SCC roster.
+    let [applied_component] = applied.session().cycle_components().components() else {
+        panic!("the transformed session retains one validated component")
+    };
+    assert_eq!(applied_component.id, component_id);
+    assert_eq!(applied_component.members, component_members);
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
     );
 }
 

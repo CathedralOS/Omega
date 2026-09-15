@@ -2,11 +2,42 @@
 
 use super::super::super::{BTreeSet, BlockId};
 
-use super::{CycleComponentId, OptimizerCycleComponent, components, graph};
+use super::{
+    CycleComponentId, OptimizationUnitValidationError, OptimizerCycleComponent, components, graph,
+};
+
+/// Components of the current optimizer body. Member identity is
+/// reconstructed privately over the canonical edge projection so a
+/// transformed unit cannot carry roster authority forward.
 pub(super) fn derive_components(
     graph: &graph::CanonicalControlGraph,
 ) -> Vec<OptimizerCycleComponent> {
-    let mut components = components::cyclic_components(&graph.successors())
+    assemble(graph, components::cyclic_components(&graph.successors()))
+}
+
+/// Components of one authenticated Terminal machine. Member identity is the
+/// verifier's canonical cyclic-component surface — the exact topology every
+/// retained `Natural` ranking row was validated against — so the roster loop
+/// consumers iterate is the validated Terminal SCC evidence itself rather
+/// than a second private derivation. Edge identity still comes from the
+/// canonical edge projection: classifying each edge against the member set
+/// names internal edges, entries, and exits without re-deriving components.
+pub(super) fn derive_terminal_components(
+    machine: &terminal_psi::TerminalMachine,
+) -> Result<Vec<OptimizerCycleComponent>, OptimizationUnitValidationError> {
+    let members = terminal_verifier::control_cycle_members(machine).map_err(|_| {
+        OptimizationUnitValidationError::RankedCycleTopologyMismatch {
+            machine: machine.id,
+        }
+    })?;
+    Ok(assemble(&graph::terminal_graph(machine), members))
+}
+
+fn assemble(
+    graph: &graph::CanonicalControlGraph,
+    members: Vec<Vec<BlockId>>,
+) -> Vec<OptimizerCycleComponent> {
+    let mut components = members
         .into_iter()
         .map(|members| derive_component(graph, members))
         .collect::<Vec<_>>();
