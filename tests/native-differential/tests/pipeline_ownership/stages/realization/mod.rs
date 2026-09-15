@@ -6,6 +6,7 @@ mod current_allocation;
 mod exit_replay;
 mod fixed_frame_callable_entry;
 mod general_cfg_fixed_frame;
+mod red_zone_resident_frame;
 mod runtime_integer_equal_conditional;
 mod runtime_integer_less_or_equal_conditional;
 mod runtime_integer_less_than_conditional;
