@@ -102,9 +102,7 @@ pub(super) fn project_static_path(
                 let field_type = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
                     leaf => {
-                        let shape = leaf
-                            .canonical_leaf_shape()
-                            .ok_or(InvalidStructuralShape)?;
+                        let shape = leaf.canonical_leaf_shape().ok_or(InvalidStructuralShape)?;
                         *indexed
                             .iter()
                             .find(|(_, declaration)| declaration.shape == shape)

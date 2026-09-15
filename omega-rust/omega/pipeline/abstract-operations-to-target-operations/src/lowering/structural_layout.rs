@@ -366,9 +366,9 @@ pub(super) fn resolve_structural_field_path(
                 let field_type = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
                     leaf => {
-                        let shape = leaf.canonical_leaf_shape().ok_or(
-                            LoweringError::UnknownStructuralType(structural_type),
-                        )?;
+                        let shape = leaf
+                            .canonical_leaf_shape()
+                            .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
                         *declarations
                             .iter()
                             .find(|(_, declaration)| declaration.shape == shape)

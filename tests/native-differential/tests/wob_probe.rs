@@ -12,7 +12,9 @@ mod native_function;
 use native_function::assert_c_text;
 
 fn artifact_for(source: &str, entry: &str) -> terminal_codec::CanonicalTerminalArtifact {
-    let tokens = source_files_to_tokens::Lexer::new(source).tokenize().unwrap();
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
@@ -310,33 +312,53 @@ fn attached_write_only_leaf_executes_on_host() {
 fn bisect_machine_lowering() {
     for (entry, source) in [
         ("mutate", "machine mutate(value: &mut i32) { value = 2; }"),
-        ("replace", "machine replace(destination: &write i32, value: i32) { destination = value; }"),
-        ("forward", "machine mutate(value: &mut i32) { value = 2; }
-            machine forward(root: &mut i32) { mutate(root); }"),
-        ("forward", "machine mutate(value: &mut i32) { value = 2; }
-            machine forward(root: &mut i32) { mutate(&mut root); }"),
-        ("forward", "machine mutate(value: &mut i32) { value = 2; }
+        (
+            "replace",
+            "machine replace(destination: &write i32, value: i32) { destination = value; }",
+        ),
+        (
+            "forward",
+            "machine mutate(value: &mut i32) { value = 2; }
+            machine forward(root: &mut i32) { mutate(root); }",
+        ),
+        (
+            "forward",
+            "machine mutate(value: &mut i32) { value = 2; }
+            machine forward(root: &mut i32) { mutate(&mut root); }",
+        ),
+        (
+            "forward",
+            "machine mutate(value: &mut i32) { value = 2; }
             machine forward(root: &mut i32) {
                 let parent: &mut i32 = &mut root;
                 mutate(parent);
-            }"),
-        ("forward", "machine mutate(value: &mut i32) { value = 2; }
+            }",
+        ),
+        (
+            "forward",
+            "machine mutate(value: &mut i32) { value = 2; }
             machine forward(root: &mut i32) {
                 let parent: &mut i32 = &mut root;
                 let child: &write i32 = &write parent;
                 child = 1;
                 mutate(parent);
-            }"),
-        ("forward", "machine observe(value: &i32) -> i32 { value }
+            }",
+        ),
+        (
+            "forward",
+            "machine observe(value: &i32) -> i32 { value }
             machine mutate(value: &mut i32) { value = 1; }
             machine forward(root: &mut i32) {
                 let parent: &mut i32 = &mut root;
                 let child: &i32 = &parent;
                 let _ = observe(child);
                 mutate(parent);
-            }"),
+            }",
+        ),
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(source).tokenize().unwrap();
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
@@ -345,8 +367,8 @@ fn bisect_machine_lowering() {
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
-        let result = terminal_production::TerminalProductionRequest::new(&checked, entry)
-            .produce_artifact();
+        let result =
+            terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact();
         eprintln!("=== {entry} ===\n{source}\n-> {result:?}\n");
     }
 }
@@ -354,7 +376,9 @@ fn bisect_machine_lowering() {
 #[test]
 fn bisect_attached_restored_parent() {
     for (entry, source) in [
-        ("Main::exercise", "data Cell { value: i32; }
+        (
+            "Main::exercise",
+            "data Cell { value: i32; }
             data Main { cell: Cell; }
             machine mutate(value: &mut Cell) { value = Cell { value: 2 }; }
             machine Main::exercise(&mut self) {
@@ -362,8 +386,11 @@ fn bisect_attached_restored_parent() {
                 let child: &write Cell = &write parent;
                 child.value = 1;
                 mutate(parent);
-            }"),
-        ("Main::exercise", "data Main { value: i32; }
+            }",
+        ),
+        (
+            "Main::exercise",
+            "data Main { value: i32; }
             machine observe(value: &i32) {}
             machine mutate(value: &mut i32) { value = 1; }
             machine Main::exercise(&mut self) {
@@ -371,15 +398,21 @@ fn bisect_attached_restored_parent() {
                 let child: &i32 = &parent;
                 observe(child);
                 mutate(parent);
-            }"),
-        ("Main::exercise", "data Main { value: i32; }
+            }",
+        ),
+        (
+            "Main::exercise",
+            "data Main { value: i32; }
             machine mutate(value: &mut i32) { value = 1; }
             machine Main::exercise(&mut self) {
                 let parent: &mut i32 = &mut self.value;
                 mutate(parent);
-            }"),
+            }",
+        ),
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(source).tokenize().unwrap();
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
@@ -388,8 +421,8 @@ fn bisect_attached_restored_parent() {
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
-        let result = terminal_production::TerminalProductionRequest::new(&checked, entry)
-            .produce_artifact();
+        let result =
+            terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact();
         match &result {
             Ok(_) => eprintln!("=== {entry} ===\n{source}\n-> Ok\n"),
             Err(error) => eprintln!("=== {entry} ===\n{source}\n-> {error:?}\n"),
@@ -400,14 +433,19 @@ fn bisect_attached_restored_parent() {
 #[test]
 fn bisect_attached_via_main() {
     for (entry, source) in [
-        ("Main::main", "data Main { value: i32; }
+        (
+            "Main::main",
+            "data Main { value: i32; }
             machine mutate(value: &mut i32) { value = 1; }
             machine Main::exercise(&mut self) {
                 let parent: &mut i32 = &mut self.value;
                 mutate(parent);
             }
-            machine Main::main(&mut self) { self.exercise(); }"),
-        ("Main::main", "data Cell { value: i32; }
+            machine Main::main(&mut self) { self.exercise(); }",
+        ),
+        (
+            "Main::main",
+            "data Cell { value: i32; }
             data Main { cell: Cell; }
             machine mutate(value: &mut Cell) { value = Cell { value: 2 }; }
             machine Main::exercise(&mut self) {
@@ -416,8 +454,11 @@ fn bisect_attached_via_main() {
                 child.value = 1;
                 mutate(parent);
             }
-            machine Main::main(&mut self) { self.exercise(); }"),
-        ("Main::main", "data Main { value: i32; }
+            machine Main::main(&mut self) { self.exercise(); }",
+        ),
+        (
+            "Main::main",
+            "data Main { value: i32; }
             machine observe(value: &i32) {}
             machine mutate(value: &mut i32) { value = 1; }
             machine Main::exercise(&mut self) {
@@ -426,9 +467,12 @@ fn bisect_attached_via_main() {
                 observe(child);
                 mutate(parent);
             }
-            machine Main::main(&mut self) { self.exercise(); }"),
+            machine Main::main(&mut self) { self.exercise(); }",
+        ),
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(source).tokenize().unwrap();
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
@@ -437,8 +481,8 @@ fn bisect_attached_via_main() {
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
-        let result = terminal_production::TerminalProductionRequest::new(&checked, entry)
-            .produce_artifact();
+        let result =
+            terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact();
         match &result {
             Ok(_) => eprintln!("=== {entry} ===\n{source}\n-> Ok\n"),
             Err(error) => eprintln!("=== {entry} ===\n{source}\n-> {error:?}\n"),
@@ -449,26 +493,40 @@ fn bisect_attached_via_main() {
 #[test]
 fn bisect_attached_calls_free() {
     for (entry, source) in [
-        ("Main::main", "data Main { value: i32; }
+        (
+            "Main::main",
+            "data Main { value: i32; }
             machine mutate(value: &mut i32) { value = 1; }
-            machine Main::main(&mut self) { mutate(&mut self.value); }"),
-        ("Main::main", "data Main { value: i32; }
+            machine Main::main(&mut self) { mutate(&mut self.value); }",
+        ),
+        (
+            "Main::main",
+            "data Main { value: i32; }
             machine Main::exercise(&mut self) { self.value = 1; }
-            machine Main::main(&mut self) { self.exercise(); }"),
-        ("Main::main", "data Main { value: i32; }
+            machine Main::main(&mut self) { self.exercise(); }",
+        ),
+        (
+            "Main::main",
+            "data Main { value: i32; }
             machine mutate(value: &mut i32) { value = 1; }
             machine Main::exercise(&mut self) { mutate(&mut self.value); }
-            machine Main::main(&mut self) { self.exercise(); }"),
-        ("Main::main", "data Main { value: i32; }
+            machine Main::main(&mut self) { self.exercise(); }",
+        ),
+        (
+            "Main::main",
+            "data Main { value: i32; }
             machine mutate(value: &mut i32) { value = 1; }
             machine Main::exercise(&mut self) {
                 let child: &write i32 = &write self.value;
                 child = 1;
                 mutate(&mut self.value);
             }
-            machine Main::main(&mut self) { self.exercise(); }"),
+            machine Main::main(&mut self) { self.exercise(); }",
+        ),
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(source).tokenize().unwrap();
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
@@ -477,8 +535,8 @@ fn bisect_attached_calls_free() {
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
-        let result = terminal_production::TerminalProductionRequest::new(&checked, entry)
-            .produce_artifact();
+        let result =
+            terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact();
         match &result {
             Ok(_) => eprintln!("=== {entry} ===\n{source}\n-> Ok\n"),
             Err(error) => eprintln!("=== {entry} ===\n{source}\n-> {error:?}\n"),
