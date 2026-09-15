@@ -234,6 +234,23 @@
       ],
       "suggested_first_slice": "Backfill for the landed declarative-peepholes slot. One bounded slice inside the semantic evaluation owner crate — e.g. finish earlier generic-application evaluation, or one typed target observation / selected-realization-coverage class. flow/, monomorphization, and checked-interpreter are claimed by NOMINAL-FIELD-FLOW/RUNTIME-VALUE-GENERICS (leases were due ~06:15Z — re-check tools/claims.py status); keep writes inside build-time-evaluation or report blocked.",
       "backfill_for": "declarative-peepholes"
+    },
+    {
+      "name": "build-admission-checkpoint",
+      "board": "TASKS.md",
+      "item": "BUILD-ADMISSION-CHECKPOINT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation/src/lib.rs",
+        "omega-rust/omega/build/build-evaluation/src/replay_record",
+        "omega-rust/omega/build/build-evaluation/src/replay_record.rs",
+        "omega-rust/omega/build/build-evaluation/src/replay_eligibility.rs",
+        "omega-rust/omega/build/build-evaluation/src/configuration.rs",
+        "omega-rust/omega/build/build-evaluation/src/observation_identity.rs",
+        "omega-rust/omega/build/build-evaluation/src/observations.rs"
+      ],
+      "suggested_first_slice": "Backfill for the landed exact-machine-simplifications slot. Execute one admitted build machine against the coherent frontend/source/authority snapshot and record the checkpoint — or land the serialized-replay/drift-rejection matrix for the full activation (the replay* and observation* files are the seam). build-evaluation/src/{selection,behavior_exclusions,build-declarations} are owned by wave siblings — if the slice needs them, report blocked rather than crossing.",
+      "backfill_for": "exact-machine-simplifications"
     }
   ]
 }
