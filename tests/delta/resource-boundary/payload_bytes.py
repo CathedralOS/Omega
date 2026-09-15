@@ -22,13 +22,14 @@ def source(padding):
 # For d coordinate digits, all payload projections total 65,452 + 120*d bytes.
 # Binder lets, terminal 0, three wrappers, and the function envelope/LF give
 # 67,467 + 125*d emitted bytes per definition. Height is 242: no helper split.
-# Profile 1 contributes marker28 + Bytes660 + Conformance526 + adapter154
-# + final LF1 = 1,369 bytes; the authored identity main contributes 41.
-# The unpadded total is 16,761,292. A 15,900-byte tail name adds 15,920;
+# Profile 1 contributes marker28 + the bound support members (bytes 1,464,
+# conformance runtime 1,071, adapter 463) + final LF1 = 3,027 bytes; the
+# authored identity main contributes 41.
+# The unpadded total is 16,762,950. A 14,239-byte tail name adds 14,259;
 # one extra name byte crosses the 16,777,212-byte payload provision exactly.
 # These are closed-form fixture premises, not a host serializer or usage model.
-assert 1369 + 41 + 246 * 67467 + 125 * (3 + 14 * 4 + 141 * 5 + 90 * 6) == 16761292
-assert 16761292 + 3 + 15897 + 20 == 16777212
+assert 3027 + 41 + 246 * 67467 + 125 * (3 + 14 * 4 + 141 * 5 + 90 * 6) == 16762950
+assert 16762950 + 3 + 14239 + 20 == 16777212
 
 
 def accepted_fixtures():
@@ -36,17 +37,17 @@ def accepted_fixtures():
     # manufactured by a host serializer. Its exact-size execution can use
     # only empty input: receipt plus four framing bytes fills Gamma's request.
     return (
-        ("exact payload extent publishes the complete receipt", source(15897),
-         174136, "59c34931c6cfc0ba7b02483b5422857a3b7ccc4a3ec4749e9fca1fa631f565ed",
-         16777212, "d20cd2be86566d9d5dd78410eb0ef9fb691fef795546f56de9394313e1514f21",
+        ("exact payload extent publishes the complete receipt", source(14239),
+         172478, "d08f5bd8187c82d4f2917e1f2046a52cbd94904f92430ba68dcac7274ddb4f0f",
+         16777212, "51f105126ea6f4d04829c53b38ea7d88dde3520f64d230ca11bf10b505951d5a",
          b"", b""),
     )
 
 
 def fixtures():
     return (
-        ("adjacent payload extent refuses before publication", source(15898),
-         174137, "aa958dbee153d1dd7b89842fc217cfa6f48ab44a9761a048fef2e63a2ace88d2",
+        ("adjacent payload extent refuses before publication", source(14240),
+         172479, "5cd3e92f1425a3cb826a81a8b3555c729ccff3725a84f20d1c03e8234f280867",
          (2, struct.pack(
              "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", 2, 2, 0, 12,
              16777212, 16777212, 16777213,
@@ -61,15 +62,16 @@ def reconstructed_wide_fixtures():
               + fields + b") (Wide " + fields + b"))))\n"
               b"(def main ((source Bytes)) Bytes source)\n")
     # Closed-form serialization, not a count harvested from compiler output:
-    # original payload 4,446,892; 774 helper wrappers; helper-ID digits 2,212;
+    # original payload 4,448,550 (3,027 of it bound support members and the
+    # entry LF); 774 helper wrappers; helper-ID digits 2,212;
     # 516 payload captures (8-byte names); 16,909,062 field captures (10 bytes).
     # Each helper adds 16 + 2*name_length + 2*sum(binding_lengths) + 8*arity.
-    assert 4446892 + 774 * 20 + 2 * 2212 + 516 * 24 + 16909062 * 28 == 477932916
+    assert 4448550 + 774 * 20 + 2 * 2212 + 516 * 24 + 16909062 * 28 == 477934574
     return (
         ("full-width reconstruction reaches exact payload refusal", source,
          1704033, "c69598944c34dc0f37187fb67bcf5624b021ac393a8cd8d91f7b967ab84a0945",
          (2, struct.pack(
              "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", 2, 2, 0, 12,
-             16777212, 16777212, 477932916,
+             16777212, 16777212, 477934574,
          ))),
     )

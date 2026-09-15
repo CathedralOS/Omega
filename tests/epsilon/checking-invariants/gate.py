@@ -28,6 +28,7 @@ def main():
     gate = Path(__file__).resolve().parent
     directory = Path(sys.argv[1])
     compiler = (directory / "delta_compiler.gamma").read_bytes()
+    support = (directory / "support.bin").read_bytes()
     subject = ((directory / "epsilon_compiler.delta").read_bytes()
                + (directory / "controls.delta").read_bytes())
     expected = bytes.fromhex((gate / "expected.hex").read_text(encoding="ascii"))
@@ -38,7 +39,7 @@ def main():
         identities = list(rows)
     if len(identities) != 1:
         raise SystemExit("checking invariant receipt needs one exact identity")
-    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject
+    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject + support
     receipt, elapsed = evaluate(directory, compiler, request)
     digest = hashlib.sha256(receipt).hexdigest()
     if (len(receipt) != int(identities[0]["bytes"])

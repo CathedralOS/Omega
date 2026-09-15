@@ -39,6 +39,8 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON_SOURCE"
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$TMP/support.bin"
 
 COMPILER="$COMPILER" CANONICAL_COMPILER="$CANONICAL_COMPILER" \
     SOURCE="$SOURCE" EXPECTED="$EXPECTED" \
@@ -47,7 +49,7 @@ COMPILER="$COMPILER" CANONICAL_COMPILER="$CANONICAL_COMPILER" \
     LIST_SOURCE="$LIST_SOURCE" LIST_EXPECTED="$LIST_EXPECTED" \
     BYTES_SOURCE="$BYTES_SOURCE" BYTES_EXPECTED="$BYTES_EXPECTED" \
     FORWARD_SOURCE="$FORWARD_SOURCE" FORWARD_EXPECTED="$FORWARD_EXPECTED" \
-    EPSILON_SOURCE="$EPSILON_SOURCE" \
+    EPSILON_SOURCE="$EPSILON_SOURCE" SUPPORT="$TMP/support.bin" \
     EVALUATOR="$TMP/evaluator" GATE_DIR="$GATE_DIR" PYTHONPATH="$GATE_DIR" python3 -B - <<'PY'
 import hashlib
 import os
@@ -72,10 +74,15 @@ bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 forward_source = Path(os.environ["FORWARD_SOURCE"]).read_bytes()
 forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
 epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
+# The bound support section ends every sealed compiler input: raw Delta source
+# (development entry) or a complete DCREQ request (canonical entry) followed by
+# the packed support.gamma.sources members in order.
+support = Path(os.environ["SUPPORT"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("development compiler", compiler, 3413, 155176, "d1dc3fdd391877c09b3c2891f900b39b97c4a8d9c0d042b0c3fd6c111fcb9e5c"),
-    ("canonical compiler", canonical_compiler, 3421, 155477, "08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d"),
+    ("development compiler", compiler, 3322, 146668, "f93392a3a1ca68fb08f98e41ba52a2df8e80ed18dedcaf736a8d8df6595442f4"),
+    ("canonical compiler", canonical_compiler, 3329, 146901, "5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25"),
+    ("support section", support, 105, 2998, "cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -104,7 +111,7 @@ for retired_scanner in (
 
 evaluation_count = 0
 
-def evaluate(program, sealed_input=b""):
+def evaluate(program, sealed_input=b"", timeout=30):
     global evaluation_count
     evaluation_count += 1
     request = struct.pack("<I", len(program)) + program + sealed_input
@@ -113,12 +120,12 @@ def evaluate(program, sealed_input=b""):
         stdout=subprocess.PIPE, start_new_session=True,
     )
     try:
-        output, _ = process.communicate(request, timeout=30)
+        output, _ = process.communicate(request, timeout=timeout)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.wait()
         raise SystemExit(
-            f"selected Gamma evaluation {evaluation_count} timed out after 30s; "
+            f"selected Gamma evaluation {evaluation_count} timed out after {timeout}s; "
             f"program={len(program)} bytes sha256={hashlib.sha256(program).hexdigest()}; "
             f"input={len(sealed_input)} bytes sha256={hashlib.sha256(sealed_input).hexdigest()}"
         )
@@ -130,6 +137,7 @@ def dcreq(profile, delta_source):
         + struct.pack("<I", profile)
         + struct.pack("<I", len(delta_source))
         + delta_source
+        + support
     )
 
 conformance_identity = b"(def main ((source Bytes)) Bytes source)\n"
@@ -178,27 +186,27 @@ for malformed_request in malformed_requests:
     if evaluate(canonical_compiler, malformed_request)[0] == 0:
         raise SystemExit("malformed DCREQ unexpectedly compiled")
 
-if evaluate(compiler, source) != (0, expected):
+if evaluate(compiler, source + support) != (0, expected):
     raise SystemExit("nullary ADT lowering disagrees with exact Gamma receipt")
 if evaluate(expected) != (0, b"\x09"):
     raise SystemExit("lowered nullary match did not produce 9")
-if evaluate(compiler, payload_source) != (0, payload_expected):
+if evaluate(compiler, payload_source + support) != (0, payload_expected):
     raise SystemExit("payload ADT lowering disagrees with exact Gamma receipt")
 if evaluate(payload_expected) != (0, b"\x09"):
     raise SystemExit("lowered payload match did not produce 9")
-if evaluate(compiler, recursive_source) != (0, recursive_expected):
+if evaluate(compiler, recursive_source + support) != (0, recursive_expected):
     raise SystemExit("recursive ADT lowering disagrees with exact Gamma receipt")
 if evaluate(recursive_expected) != (0, b"\x03"):
     raise SystemExit("lowered recursive match did not produce depth 3")
-if evaluate(compiler, list_source) != (0, list_expected):
+if evaluate(compiler, list_source + support) != (0, list_expected):
     raise SystemExit("two-field recursive List lowering disagrees with receipt")
 if evaluate(list_expected) != (0, b"\x09"):
     raise SystemExit("lowered List match did not produce sum 9")
-if evaluate(compiler, bytes_source) != (0, bytes_expected):
+if evaluate(compiler, bytes_source + support) != (0, bytes_expected):
     raise SystemExit("recursive rope lowering disagrees with exact Gamma receipt")
 if evaluate(bytes_expected) != (0, b"B"):
     raise SystemExit("recursive rope indexing did not produce 0x42")
-if evaluate(compiler, forward_source) != (0, forward_expected):
+if evaluate(compiler, forward_source + support) != (0, forward_expected):
     raise SystemExit("forward/mutual nominal lowering disagrees with receipt")
 if evaluate(forward_expected) != (0, b"\x07"):
     raise SystemExit("forward/mutual nominal receipt did not produce 7")
@@ -209,12 +217,12 @@ empty_bytes = bytes_expected.replace(
 if evaluate(empty_bytes) != (2, b""):
     raise SystemExit("empty recursive rope indexing did not trap")
 none_source = payload_source.replace(b"(Some 9)", b"None")
-none_status, none_receipt = evaluate(compiler, none_source)
+none_status, none_receipt = evaluate(compiler, none_source + support)
 if none_status != 0 or evaluate(none_receipt) != (0, b"\x07"):
     raise SystemExit("padded nullary value in payload ADT did not produce fallback 7")
 
 identity = b"(def main () Int 7)\n"
-if evaluate(compiler, identity) != (0, identity + b"\n"):
+if evaluate(compiler, identity + support) != (0, identity + b"\n"):
     raise SystemExit("ordinary scalar Gamma was not preserved")
 
 for fixture, expected_result in (
@@ -224,7 +232,7 @@ for fixture, expected_result in (
     ("tail_recursive.delta", b"\x01"),
 ):
     scalar_source = Path(os.environ["GATE_DIR"], fixture).read_bytes()
-    scalar_status, scalar_receipt = evaluate(compiler, scalar_source)
+    scalar_status, scalar_receipt = evaluate(compiler, scalar_source + support)
     if scalar_status != 0 or evaluate(scalar_receipt) != (0, expected_result):
         raise SystemExit(f"{fixture} scalar lowering or execution changed")
 
@@ -232,23 +240,23 @@ epsilon_data_prefix = epsilon_source.split(b"\n(def ", 1)[0] + b"\n"
 if epsilon_data_prefix.count(b"(data ") < 100:
     raise SystemExit("Epsilon nominal customer prefix became trivial")
 epsilon_census = epsilon_data_prefix + identity
-epsilon_status, epsilon_receipt = evaluate(compiler, epsilon_census)
+epsilon_status, epsilon_receipt = evaluate(compiler, epsilon_census + support)
 if (epsilon_status, epsilon_receipt) != (0, identity + b"\n"):
     raise SystemExit("Epsilon nominal customer census did not compile")
 if evaluate(epsilon_receipt) != (0, b"\x07"):
     raise SystemExit("Epsilon nominal customer census receipt did not run")
 
 textual_ascii_whitespace = b"\t(def main () Int 7)\r\n"
-if evaluate(compiler, textual_ascii_whitespace) != (0, identity + b"\n"):
+if evaluate(compiler, textual_ascii_whitespace + support) != (0, identity + b"\n"):
     raise SystemExit("admitted textual-ASCII whitespace did not compile")
 
 shared_namespace = b"(data Token (Token Int))\n(def main () Int 7)\n"
-if evaluate(compiler, shared_namespace) != (0, identity + b"\n"):
+if evaluate(compiler, shared_namespace + support) != (0, identity + b"\n"):
     raise SystemExit("type and constructor namespaces were incorrectly merged")
 
 long_name = b"x" * 200
 long_identifier = b"(def " + long_name + b" () Int 0)\n" + identity
-long_status, long_receipt = evaluate(compiler, long_identifier)
+long_status, long_receipt = evaluate(compiler, long_identifier + support)
 if long_status != 0 or evaluate(long_receipt) != (0, b"\x07"):
     raise SystemExit("bytewise name trie exhausted context on a long identifier")
 
@@ -257,11 +265,11 @@ for name, literal in (
     ("minimum Int", b"-9223372036854775808"),
 ):
     boundary = b"(def main () Int " + literal + b")\n"
-    if evaluate(compiler, boundary) != (0, boundary + b"\n"):
+    if evaluate(compiler, boundary + support) != (0, boundary + b"\n"):
         raise SystemExit(f"{name} literal did not compile")
 
 user_read = b"(def read ((x Int)) Int x)\n(def main () Int (read 7))\n"
-user_read_status, user_read_receipt = evaluate(compiler, user_read)
+user_read_status, user_read_receipt = evaluate(compiler, user_read + support)
 if user_read_status != 0 or evaluate(user_read_receipt) != (0, b"\x07"):
     raise SystemExit("declared function named read did not resolve exactly")
 
@@ -271,13 +279,13 @@ authored_old_generated_prefix = (
     b"(match Left (Left __m63) (Right 9))))\n"
 )
 old_prefix_status, old_prefix_receipt = evaluate(
-    compiler, authored_old_generated_prefix
+    compiler, authored_old_generated_prefix + support
 )
 if old_prefix_status != 0 or evaluate(old_prefix_receipt) != (0, b"\x07"):
     raise SystemExit("generated match binder captured authored __m63 local")
 
 sibling_locals = b"(def main () Int (+ (let x Int 3 x) (let x Int 4 x)))\n"
-sibling_status, sibling_receipt = evaluate(compiler, sibling_locals)
+sibling_status, sibling_receipt = evaluate(compiler, sibling_locals + support)
 if sibling_status != 0 or evaluate(sibling_receipt) != (0, b"\x07"):
     raise SystemExit("disjoint sibling lets could not reuse a local name")
 
@@ -287,7 +295,7 @@ arm_locals = (
     b"(match value ((Left x) x) ((Right x) x)))\n"
     b"(def main () Int (choose (Right 7)))\n"
 )
-arm_status, arm_receipt = evaluate(compiler, arm_locals)
+arm_status, arm_receipt = evaluate(compiler, arm_locals + support)
 if arm_status != 0 or evaluate(arm_receipt) != (0, b"\x07"):
     raise SystemExit("disjoint match arms could not reuse a local name")
 
@@ -296,7 +304,7 @@ local_function_homonym = (
     b"(def apply ((f Int)) Int (f f))\n"
     b"(def main () Int (apply 7))\n"
 )
-homonym_status, homonym_receipt = evaluate(compiler, local_function_homonym)
+homonym_status, homonym_receipt = evaluate(compiler, local_function_homonym + support)
 if homonym_status != 0 or evaluate(homonym_receipt) != (0, b"\x07"):
     raise SystemExit("local and function grammar namespaces were merged")
 
@@ -306,7 +314,7 @@ nominal_types = (
     b"(match value ((Box payload) (+ payload 1))))\n"
     b"(def main () Int (get (Box 6)))\n"
 )
-nominal_status, nominal_receipt = evaluate(compiler, nominal_types)
+nominal_status, nominal_receipt = evaluate(compiler, nominal_types + support)
 if nominal_status != 0 or evaluate(nominal_receipt) != (0, b"\x07"):
     raise SystemExit("nominal constructor, pattern, call, or result types failed")
 
@@ -321,7 +329,7 @@ cached_signatures = b"""(data Box (Box Int))
     (first (- count 1) bytes box)))
 (def main () Int (first 1 (bytes_single 0) (Box 5)))
 """
-signature_status, signature_receipt = evaluate(compiler, cached_signatures)
+signature_status, signature_receipt = evaluate(compiler, cached_signatures + support)
 if signature_status != 0 or evaluate(signature_receipt) != (0, b"\x07"):
     raise SystemExit("cached ordered signatures changed forward/mutual calls")
 
@@ -330,7 +338,7 @@ reordered_match = b"""(data Choice (Left) (Middle) (Right))
   (match value (Right 4) (Left 1) (Middle 2)))
 (def main () Int (+ (choose Left) (+ (choose Middle) (choose Right))))
 """
-reordered_status, reordered_receipt = evaluate(compiler, reordered_match)
+reordered_status, reordered_receipt = evaluate(compiler, reordered_match + support)
 if reordered_status != 0 or evaluate(reordered_receipt) != (0, b"\x07"):
     raise SystemExit("exhaustive reordered match changed meaning")
 
@@ -340,7 +348,7 @@ parenthesized_nullary = b"""(data Choice (Left) (Right))
 (def main () Int (choose Left))
 """
 parenthesized_status, parenthesized_receipt = evaluate(
-    compiler, parenthesized_nullary
+    compiler, parenthesized_nullary + support
 )
 if parenthesized_status != 0 or evaluate(parenthesized_receipt) != (0, b"\x07"):
     raise SystemExit("parenthesized nullary pattern did not compile")
@@ -353,7 +361,7 @@ proper_tail = b"""(data List (Nil) (Cons Int List))
   (match items (Nil 0) ((Cons head tail) (walk tail))))
 (def main () Int (walk (make 100000 Nil)))
 """
-tail_status, tail_receipt = evaluate(compiler, proper_tail)
+tail_status, tail_receipt = evaluate(compiler, proper_tail + support)
 if tail_status != 0 or len(tail_receipt) != 568:
     raise SystemExit("proper-tail witness did not lower")
 if hashlib.sha256(tail_receipt).hexdigest() != "1d0bfd24332845ab7a1c483b53398a4a6fa7503b366a2cbb5cb5c922b1952f73":
@@ -369,7 +377,7 @@ for name, expression in (
     ("zero multiplication", b"(eq (* -9223372036854775808 0) 0)"),
 ):
     arithmetic_source = b"(def main () Int " + expression + b")\n"
-    arithmetic_status, arithmetic_receipt = evaluate(compiler, arithmetic_source)
+    arithmetic_status, arithmetic_receipt = evaluate(compiler, arithmetic_source + support)
     if arithmetic_status != 0 or evaluate(arithmetic_receipt) != (0, b"\x01"):
         raise SystemExit(f"checked {name} changed a representable result")
 
@@ -386,17 +394,15 @@ for name, expression in (
     ("signed remainder overflow", b"(% -9223372036854775808 -1)"),
 ):
     arithmetic_source = b"(def main () Int " + expression + b")\n"
-    arithmetic_status, arithmetic_receipt = evaluate(compiler, arithmetic_source)
+    arithmetic_status, arithmetic_receipt = evaluate(compiler, arithmetic_source + support)
     if arithmetic_status != 0 or evaluate(arithmetic_receipt) != (2, b""):
         raise SystemExit(f"checked {name} did not trap")
 
-bytes_runtime = b"""(def $dbe () Int (pair 0 (pair 0 0)))
-(def $dbs ((v Int)) Int (if (lt v 0) (/ 1 0) (if (lt v 256) (pair 1 (pair 1 v)) (/ 1 0))))
-(def $dbl ((v Int)) Int (first v))
-(def $dbc ((l Int) (r Int)) Int (let ll Int (first l) (let rl Int (first r) (let n Int (+ ll rl) (if (lt n ll) (/ 1 0) (pair n (pair 2 (pair l r))))))))
-(def $dbg ((v Int) (i Int)) Int (if (lt i 0) (/ 1 0) (if (lt i (first v)) ($dbgi v i) (/ 1 0))))
-(def $dbgi ((v Int) (i Int)) Int (let n Int (second v) (let t Int (first n) (if (eq t 1) (second n) (if (eq t 2) (let c Int (second n) (let l Int (first c) (let z Int (first l) (if (lt i z) ($dbgi l i) ($dbgi (second c) (- i z)))))) (/ 1 0))))))
-"""
+# The emitted byte runtime is the authored support member, verbatim.
+bytes_runtime = (
+    Path(os.environ["GATE_DIR"]).resolve().parents[2]
+    / "bootstrap/3_delta/support/bytes.gamma"
+).read_bytes()
 
 bytes_core = b"""(data Box (Box Bytes))
 (def keep ((value Bytes)) Bytes (let retained Bytes value (if 1 retained value)))
@@ -409,7 +415,7 @@ bytes_core = b"""(data Box (Box Bytes))
           (bytes_concat (bytes_single 65) (bytes_single 66))))))
       1)))
 """
-bytes_status, bytes_receipt = evaluate(compiler, bytes_core)
+bytes_status, bytes_receipt = evaluate(compiler, bytes_core + support)
 if bytes_status != 0 or not bytes_receipt.startswith(bytes_runtime):
     raise SystemExit("typed Bytes program did not lower through its private runtime")
 if evaluate(bytes_receipt) != (0, b"\x42"):
@@ -422,7 +428,7 @@ byte_extrema = b"""(def main () Int
       0)
     0))
 """
-extrema_status, extrema_receipt = evaluate(compiler, byte_extrema)
+extrema_status, extrema_receipt = evaluate(compiler, byte_extrema + support)
 if extrema_status != 0 or evaluate(extrema_receipt) != (0, b"\x01"):
     raise SystemExit("Bytes singleton extrema changed")
 
@@ -430,7 +436,7 @@ bytes_type_only = (
     b"(def keep ((value Bytes)) Bytes value)\n"
     b"(def main () Int 7)\n"
 )
-type_only_status, type_only_receipt = evaluate(compiler, bytes_type_only)
+type_only_status, type_only_receipt = evaluate(compiler, bytes_type_only + support)
 if type_only_status != 0 or b"$dbe" in type_only_receipt:
     raise SystemExit("Bytes type-only program acquired an unused runtime")
 if evaluate(type_only_receipt) != (0, b"\x07"):
@@ -445,7 +451,7 @@ for name, expression in (
     ("past-length lookup", b"(bytes_get (bytes_single 1) 2)"),
 ):
     trap_source = b"(def main () Int " + expression + b")\n"
-    trap_status, trap_receipt = evaluate(compiler, trap_source)
+    trap_status, trap_receipt = evaluate(compiler, trap_source + support)
     if trap_status != 0 or evaluate(trap_receipt) != (2, b""):
         raise SystemExit(f"Bytes {name} did not trap")
 
@@ -455,7 +461,7 @@ logical_overflow = b"""(def double ((remaining Int) (value Bytes)) Bytes
     (double (- remaining 1) (bytes_concat value value))))
 (def main () Int (bytes_length (double 62 (bytes_single 1))))
 """
-overflow_status, overflow_receipt = evaluate(compiler, logical_overflow)
+overflow_status, overflow_receipt = evaluate(compiler, logical_overflow + support)
 if overflow_status != 0 or evaluate(overflow_receipt) != (2, b""):
     raise SystemExit("Bytes logical-length overflow did not trap")
 
@@ -465,7 +471,7 @@ deep_rope = b"""(def grow ((remaining Int) (value Bytes)) Bytes
     (grow (- remaining 1) (bytes_concat (bytes_empty) value))))
 (def main () Int (bytes_get (grow 100000 (bytes_single 90)) 0))
 """
-deep_status, deep_receipt = evaluate(compiler, deep_rope)
+deep_status, deep_receipt = evaluate(compiler, deep_rope + support)
 if deep_status != 0 or evaluate(deep_receipt) != (0, b"Z"):
     raise SystemExit("deep Bytes lookup consumed non-tail call context")
 
@@ -546,19 +552,19 @@ malformed = {
     "excess bytes_concat argument": b"(def main () Int (bytes_length (bytes_concat (bytes_empty) (bytes_empty) (bytes_empty))))\n",
 }
 for name, candidate in malformed.items():
-    status, output = evaluate(compiler, candidate)
+    status, output = evaluate(compiler, candidate + support)
     if status != 2:
         raise SystemExit(f"{name} did not trap in the staged compiler")
     if output:
         raise SystemExit(f"{name} emitted before static rejection")
 
 for name, candidate, authored_receipt, observation in emitter_fixtures():
-    status, receipt = evaluate(compiler, candidate)
+    status, receipt = evaluate(compiler, candidate + support)
     if status != 0:
         raise SystemExit(f"emitter context {name}: compilation failed with {status}")
     if authored_receipt is not None and receipt != authored_receipt:
         raise SystemExit(f"emitter context {name}: authored receipt differs")
-    if evaluate(compiler, candidate) != (0, receipt):
+    if evaluate(compiler, candidate + support) != (0, receipt):
         raise SystemExit(f"emitter context {name}: repeated receipt differs")
     if evaluate(receipt) != (0, observation):
         raise SystemExit(f"emitter context {name}: generated observation differs")
@@ -570,7 +576,10 @@ stress = (
     )
     + b"(def main () Int (f2999))\n"
 )
-stress_status, stress_receipt = evaluate(compiler, stress)
+# The 3,001-function staged transformation is the largest single evaluation:
+# it legitimately exceeds the 30-second shared watchdog on a loaded host, so
+# it carries its own bound (a host watchdog, not a semantic limit).
+stress_status, stress_receipt = evaluate(compiler, stress + support, 300)
 if stress_status != 0 or len(stress) != 66266 or len(stress_receipt) != 78271:
     raise SystemExit("3,001-function staged transformation failed")
 if evaluate(stress_receipt) != (0, b"\xc7"):

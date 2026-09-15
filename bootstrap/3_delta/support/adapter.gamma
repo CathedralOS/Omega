@@ -1,0 +1,13 @@
+; ConformanceBytesV1 generated-main adapter support member. The compiler
+; copies this member after the lowered definitions of a profile-one
+; program. Status 253 reports an oversized sealed input; status 254
+; reports a payload length the caller cannot publish.
+
+(def main () Int
+  (if (lt 4194304 (input))
+    (pair 253 0)
+    (let v Int (__d_main ($pbi))
+      (let n Int (first v)
+        (if (lt 4194304 n)
+          (pair 254 0)
+          ($pbw v 0 n))))))

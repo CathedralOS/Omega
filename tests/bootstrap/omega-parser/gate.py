@@ -63,11 +63,13 @@ def main():
           f"SHA-256 {hashlib.sha256(customer).hexdigest()}", flush=True)
 
     subject = epsilon + adapter
-    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject
+    support = (directory / "support.bin").read_bytes()
+    request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
+               + subject + support)
     receipt = evaluate(directory, (directory / "delta_compiler.gamma").read_bytes(),
                        request, 300, "Epsilon receipt reconstruction")
-    require_identity("Epsilon execution receipt", receipt, 719826,
-                     "dd4985c0eb6e1f30bc2178f90dd30e25ae7b842fb544137f606a44e622000f22")
+    require_identity("Epsilon execution receipt", receipt, 721484,
+                     "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082")
 
     observation = evaluate(directory, receipt,
                            struct.pack("<I", len(customer)) + customer,

@@ -183,6 +183,19 @@ change does. The exact request and selected embedded metadata participate in
 compilation identity. Profile facts are never repeated as request claims or
 inferred from source, filenames, or ambient invocation state.
 
+The sealed input presented to the composed compiler artifact continues past
+the request's exact end with the bound support section: the packed members of
+[`support/support.gamma.sources`](support/support.gamma.sources) in manifest
+order, under the `GammaComposedV2` composition contract
+(`bootstrap/2_gamma/COMPOSED_ARTIFACT.md`). The members are the ordinary
+Gamma source the compiler copies into emitted programs - the byte-rope
+runtime, the `ConformanceBytesV1` adapter runtime, and the generated `main`
+adapter - each authored once under `support/` rather than re-encoded inside
+the emitter. The compiler validates the complete section's presence during
+request admission and every member's exact bytes before any Delta-source
+phase; copying during publication is a byte-level walk of the sealed input,
+not a host-provided semantic operation.
+
 `ConformanceBytesV1` selects exact 4,194,304-byte maximum sealed-input and
 successful-output extents. It requires `main : Bytes -> Bytes`. Its adapter
 reads one sealed input, invokes `main`, preflights the complete returned value,
@@ -237,18 +250,31 @@ reason/resource/internal tables, and coordinate vocabulary. The Delta compiler
 uses `DCOUT` V1, `[FF 44 43 4F 55 54 01 00]`, with coordinate spaces:
 
 ```text
-0 none, 1 Delta source, 2 emitted payload, 3 internal row, 4 DCREQ
+0 none, 1 Delta source, 2 emitted payload, 3 internal row, 4 DCREQ,
+5 bound support section
 ```
 
 `DCREQ` validation precedes Delta lexing, declaration/type/match checking,
 selected-profile schema validation, and lowering/emission. The fixed header
 and magic/version/reserved bytes precede profile selection; profile selection
 precedes the declared source-length provision; and only an admitted length is
-followed by exactly that many body bytes plus one exact-end probe. Consequently
+followed by exactly that many body bytes, then the exact bound support
+section, then one exact-end probe. Consequently
 a four-byte length cannot require attacker-selected input consumption before
 `Incomplete(source_bytes)`. Unknown profile and source-length exhaustion anchor
-at request bytes 8 and 12 respectively. Body truncation and one trailing byte
-are `malformed_request` at the first missing or trailing request byte.
+at request bytes 8 and 12 respectively. Body truncation and one byte after the
+complete sealed input are `malformed_request` at the first missing or trailing
+request byte.
+
+Support-section coordinates are absolute sealed-input offsets, like DCREQ
+coordinates. `incomplete_support_section` (code 1) reports an input that ends
+before the bound section is complete, anchored at the observed end of input.
+`member_mismatch` (code 2) reports a member whose extent-and-byte sum
+disagrees with the compiler's bound table, anchored at the member's absolute
+sealed-input offset. Both are `Reject` outcomes published atomically as one
+DCOUT frame; no partial compilation result precedes them. The same custody
+check covers the materialization side: the bound plumbing refuses a missing
+or corrupt member file before the compiler's sealed input is even built.
 
 After an otherwise valid frontend pass, an absent `main` has no coordinate and
 a wrong present `main : Bytes -> Bytes` anchors its schema rejection at the
@@ -338,8 +364,8 @@ fragments' evaluation and tail positions. A serializer prints the resulting plan
 rather than selecting lowering rules during publication; exact spans supply admitted names
 and literal bytes.
 Serialization first counts the complete payload without writing, including
-fixed helpers, profile text, definition separators, and the entry-owned final
-LF. Expression nodes cache exact occurrence extents using the serializer's
+the bound support members, profile text, definition separators, and the
+entry-owned final LF. Expression nodes cache exact occurrence extents using the serializer's
 shared atom and prefix formatting, so preflight need not unfold shared children
 again. Rebuilt nodes refresh that summary; extent addition is checked, not
 saturated. A count above 16,777,212 returns `Incomplete` code 12 in emitted-payload

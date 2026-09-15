@@ -24,6 +24,8 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$OUTPUT_DIR/delta_compiler.gamma" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$OUTPUT_DIR/support.bin"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$OUTPUT_DIR/epsilon_compiler.delta"
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$OUTPUT_DIR/omega_compiler.epsilon"

@@ -10,7 +10,7 @@ def accepted_fixtures():
         "four-million-byte function name compiles and executes",
         source, 4_000_047,
         "d130918a4a0e50fa0f80161d7cd4862762c74fa7a9f35c14d04891d1f97f2ee0",
-        4_001_420,
-        "c358648656387d53a38e09c2777309bd6b438d4e00f587d16749279403cb1280",
+        4_003_078,
+        "5f997f58eb15ec6e24628f7c138d281df888f1374771bb282e12449f3a7cf9c8",
         b"\x00A\x80\xff", b"\x00A\x80\xff",
     ),)

@@ -8,7 +8,7 @@
     (if (eq (compilation_profile) 0)
       written
       (if (eq (compilation_profile) 1)
-        (emit_conformance_adapter publish written)
+        (emit_support_member 2 publish written)
         (fail)))
     (let ((definition Int (emit_definition (first definitions) publish written))
           (newline Int (emit_character '\n' publish definition)))

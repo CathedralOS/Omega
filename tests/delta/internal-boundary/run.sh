@@ -28,5 +28,7 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$INTERNAL_TMP/canonical.gamma" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$INTERNAL_TMP/support.bin"
 materialize_gamma_evaluator "$INTERNAL_TMP/evaluator.exe" >/dev/null
 python3 -B "$GATE_DIR/gate.py" "$INTERNAL_TMP"

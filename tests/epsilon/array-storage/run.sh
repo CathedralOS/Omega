@@ -19,6 +19,7 @@ trap 'rm -rf -- "$ARRAY_TMP"' EXIT HUP INT TERM
 # members, or packed closure differ from the audited edge records.
 materialize_epsilon_evaluator "$ARRAY_TMP/epsilon_compiler.delta"
 materialize_delta_compiler "$ARRAY_TMP/delta_compiler.gamma"
+materialize_delta_support "$ARRAY_TMP/support.bin"
 materialize_gamma_evaluator "$ARRAY_TMP/evaluator" >/dev/null
 python3 "$GATE_DIR/gate.py" "$ARRAY_TMP" \
     "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" \

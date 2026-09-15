@@ -26,6 +26,9 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$NORMALIZATION_TMP/diagnostic.gamma" \
     --prefix "$GATE_DIR/normalization_driver.gamma"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
+    "$NORMALIZATION_TMP/support.bin"
 materialize_gamma_evaluator "$NORMALIZATION_TMP/evaluator" >/dev/null
 
 NORMALIZATION_TMP="$NORMALIZATION_TMP" GATE_DIR="$GATE_DIR" \
@@ -41,6 +44,8 @@ from pathlib import Path
 from fixtures import PAYLOAD, fixtures
 
 directory = Path(os.environ["NORMALIZATION_TMP"])
+# The canonical entry's sealed input ends with the bound support section.
+support = (directory / "support.bin").read_bytes()
 with (Path(os.environ["GATE_DIR"]) / "compiler.tsv").open(newline="") as stream:
     rows = list(csv.DictReader(stream, delimiter="\t"))
 if [row["name"] for row in rows] != ["canonical", "diagnostic"]:
@@ -91,7 +96,8 @@ for name, source, status, output, helpers, count, maximum, digest, capture_maxim
         raise SystemExit(f"{name}: exact boundary height changed {diagnostic.hex()}")
     if capture_maximum is not None and parameters != capture_maximum:
         raise SystemExit(f"{name}: repeated free binding was not captured exactly once: {parameters}")
-    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
+    request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
+               + support)
     compiled, receipt = evaluate(name + " compilation", programs["canonical"], request)
     if compiled != 0 or not receipt:
         raise SystemExit(f"{name}: compilation failed {compiled}/{receipt[:80].hex()}")

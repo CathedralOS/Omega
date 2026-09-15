@@ -26,6 +26,10 @@ for row in rows:
         raise SystemExit(f"Delta internal boundary: {row['name']} identity changed: {actual}")
     sources[row["name"]] = source
 
+# The canonical entry's sealed input ends with the bound support section.
+# Private diagnostic inputs are not admitted Delta compilations and carry none.
+support = (temporary / "support.bin").read_bytes()
+
 
 def frame(tag, space, code, coordinate, limit=0, requested=0):
     return b"\xffDCOUT\x01\x00" + struct.pack(
@@ -106,7 +110,8 @@ for name, source, code, coordinate in (
     ("unexpected_close", b")", 4, 0),
     ("unknown_local", b"(def main ((source Bytes)) Bytes missing)", 14, 33),
 ):
-    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
+    request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source))
+               + source + support)
     observe(name, "canonical", request, 1, frame(1, 1, code, coordinate))
 
 print("Delta internal boundary: 22 typing and 17 emission controls twice, plus 2 authored rejections passed (80 observations)")

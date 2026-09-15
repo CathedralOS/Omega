@@ -15,24 +15,28 @@ SOURCE="$TMP/compiler.gamma"
 # manifest, members, packed closure, or composed record differ from the
 # audited edge records.
 materialize_delta_compiler "$SOURCE"
+materialize_delta_support "$TMP/support.bin"
 MANIFEST="$OMEGA_PATH_DELTA_COMPILER/delta_compiler.composed"
 CUSTOMER="$OMEGA_REPO_ROOT/tests/delta/staged-compiler/conformance_identity.delta"
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 
 SOURCE="$SOURCE" EVALUATOR_TAPE="$OMEGA_PATH_GAMMA_EVALUATOR_TAPE" \
-    MANIFEST="$MANIFEST" python3 - <<'PY'
+    MANIFEST="$MANIFEST" SUPPORT_FILE="$TMP/support.bin" python3 - <<'PY'
 import hashlib
 import os
 from pathlib import Path
 
 source = Path(os.environ["SOURCE"]).read_bytes()
 evaluator = Path(os.environ["EVALUATOR_TAPE"]).read_bytes()
+support = Path(os.environ["SUPPORT_FILE"]).read_bytes()
 expected = (
-    "GammaComposedV1\n"
+    "GammaComposedV2\n"
     f"evaluator-sha256 {hashlib.sha256(evaluator).hexdigest()}\n"
     f"source-sha256 {hashlib.sha256(source).hexdigest()}\n"
     f"source-length {len(source)}\n"
+    f"support-sha256 {hashlib.sha256(support).hexdigest()}\n"
+    f"support-length {len(support)}\n"
 ).encode("ascii")
 if Path(os.environ["MANIFEST"]).read_bytes() != expected:
     raise SystemExit("Delta compiler composed identity changed")
@@ -47,6 +51,7 @@ source = Path(os.environ["CUSTOMER"]).read_bytes()
 temporary = Path(os.environ["TMP"])
 (temporary / "request").write_bytes(
     b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
+    + (temporary / "support.bin").read_bytes()
 )
 (temporary / "payload").write_bytes(b"ABC\x00\xff")
 (temporary / "failure-expected").write_bytes(

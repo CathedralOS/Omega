@@ -30,8 +30,9 @@ general-purpose runtime facilities.
 | --- | --- | --- |
 | `LANGUAGE.md` | Normative Delta source and execution contract. | Replace only with a versioned contract and synchronized compiler/customer gates. |
 | `delta_compiler.gamma` | Canonical request entry for the selected Gamma-authored compiler. | Replace only with a more complete immediately prior-rung implementation and synchronized composed identity. |
-| `delta_compiler.composed` | Binds the complete source closure and selected evaluator tape. | Replace atomically with the source and evaluator identities. |
+| `delta_compiler.composed` | Binds the complete source closure, packed support section, and selected evaluator tape. | Replace atomically with the source, support, and evaluator identities. |
 | `implementation/` | Shared pipeline, checking, representation, lowering, normalization, and emission members, selected by their source manifest. | Replace only with a more complete immediately prior-rung implementation. |
+| `support/` | Readable byte-runtime and `ConformanceBytesV1` adapter members and their ordered manifest; the packed bytes end every sealed compiler input. | Replace only with independently readable members bound the same way. |
 
 ## Selected staged Delta compiler
 
@@ -39,18 +40,21 @@ general-purpose runtime facilities.
 Gamma-authored Delta stage. It admits DCREQ, runs the shared compiler pipeline,
 and publishes either the successful Gamma receipt or an owned failure
 frame through the selected Beta-authored Gamma evaluator.
-`delta_compiler.composed` binds the complete entry-plus-implementation bytes and
-evaluator-tape identity under `GammaComposedV1`, not the entry file alone.
+`delta_compiler.composed` binds the complete entry-plus-implementation bytes,
+the packed `support/` member bytes that end every sealed compiler input, and
+evaluator-tape identity under `GammaComposedV2`, not the entry file alone.
 
 Bound edge identities, checked by `tools/bootstrap/delta/compiler_env.sh`
 against every materialization and by `tests/bootstrap/delta-identity.sh`:
 
 | Subject | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `delta_compiler.gamma` request entry | 717 | `b4edbdaa38f2c308178bcf24a368203c5d30780149ed7f06c4f481dd0b4ec5dd` |
-| `implementation/implementation.gamma.sources` manifest | 11,136 | `34db03c999f7c342156b88e0307a86fed2b02424564461f41e65f9212693f8c6` |
-| `delta_compiler.composed` record | 198 | `d1457dded7d5c8a72213b6b37f62ce9bcfb56fe6e6ae48225186b20ad2f3e703` |
-| Packed canonical closure | 155,477 | `08b6e04e2246baa76d6a1ef8d24e5c705ab9a4eb6c806a71eb02a2bc4025595d` |
+| `delta_compiler.gamma` request entry | 813 | `f12836610a7d8cb7da7f1288c20d870423cde4497aa8d1a2cf2962e8b24a20f9` |
+| `implementation/implementation.gamma.sources` manifest | 11,137 | `0091090d6bb3f22ced94d7274eb6bf601d5c97ba0589a5b098c5c71ec19d732a` |
+| `support/support.gamma.sources` manifest | 490 | `cf20f4a6331c3af516dbed8bc206298d1d1205b4fb4801d025ad4256a5a6d9f3` |
+| `delta_compiler.composed` record | 298 | `55a580f4884ca43bd8b1128ae3405fa03806f03ae8eff66838727e068e266df7` |
+| Packed canonical closure | 146,901 | `5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25` |
+| Packed support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
 
 A digest is an identity check on the bytes being compiled, not a proof of the
 compiler; historical stress evidence pins the closure identity of its own run.
@@ -71,8 +75,8 @@ members are grouped below it:
   that Gamma plan, including calls, constructors, arithmetic, and matches;
 - `implementation/normalization/`: scoped Gamma body-height budgets and
   capture-safe extraction of over-height fragments into generated functions;
-- `implementation/emission/`: generic Gamma serialization and the unchanged
-  fixed byte helpers/profile adapters.
+- `implementation/emission/`: generic Gamma serialization and the bound
+  support-member custody/copying in `support.gamma`.
 
 [`checking/syntax/storage.gamma`](implementation/checking/syntax/storage.gamma)
 owns the cumulative syntax-byte provision shared by parsing and grammar.
@@ -121,7 +125,7 @@ over-height fragments while retaining evaluation order and binding identity.
 [`emission/program.gamma`](implementation/emission/program.gamma) serializes
 the resulting Gamma plan; it does not select Delta lowering rules. A count-only
 pass through the serializer measures all payload bytes before publication,
-including fixed runtime text and the entry-owned final newline. Above
+including the bound support members and the entry-owned final newline. Above
 16,777,212 bytes, the compiler returns DCOUT resource 12 in emitted-payload
 space at byte 16,777,212 with the exact complete requested count. Final-child
 closes are scalar traversal state, so unary projection chains allocate no
@@ -129,17 +133,21 @@ per-projection continuation during publication. Gamma nodes also retain exact
 serialization extents built from shared formatting helpers and child summaries;
 preflight sums those cached extents without unfolding shared children again.
 
-`implementation/implementation.gamma.sources` selects all 64 shared members
+`implementation/implementation.gamma.sources` selects all 65 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
-the first declaration. Callers use the role registry's
-`OMEGA_PATH_DELTA_COMPILER_SOURCES` and `OMEGA_PATH_DELTA_COMPILER_SOURCE`.
+the first declaration. The separate `support/support.gamma.sources` manifest
+binds the three runtime/adapter members the same way; its packed bytes are
+the sealed-input support section. Callers use the role registry's
+`OMEGA_PATH_DELTA_COMPILER_SOURCES`, `OMEGA_PATH_DELTA_COMPILER_SOURCE`, and
+`OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES`.
 Reading the entrance alone does not reconstruct the compiler.
 
 The separate `tests/delta/staged-compiler/development_driver.gamma` entry
-invokes these same shared bytes as an unmarked raw-source transformer. It
-exists only for frontend/lowering diagnostics and does not select a compiler
+invokes these same shared bytes as an unmarked raw-source transformer whose
+sealed input is raw Delta source followed by the same bound support section.
+It exists only for frontend/lowering diagnostics and does not select a compiler
 application profile. The canonical entry never detects raw source, guesses a
 profile from its first byte, or falls back to that diagnostic entry.
 

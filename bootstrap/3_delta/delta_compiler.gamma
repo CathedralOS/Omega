@@ -12,8 +12,9 @@
       (publish_compiler_failure admission))))
 
 (def source_length () Int
-  ; Exact-end admission established this immutable body extent from the header.
-  (- (input) 16))
+  ; Exact-end admission established this immutable body extent: the sealed
+  ; input ends with the bound support section after the declared source.
+  (- (input) (+ 16 (support_packed_extent))))
 
 (def source_read ((index Int)) Int
   (read (+ 16 index)))
