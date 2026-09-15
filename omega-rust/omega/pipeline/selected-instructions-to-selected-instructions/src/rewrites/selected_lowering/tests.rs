@@ -58,9 +58,9 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
 #[test]
 fn catalog_rows_declare_symbolic_instruction_pairs() {
     let [add, subtract, compare, _extension] = SELECTED_LOWERING_RULE_CATALOG;
-    for entry in [add, subtract, compare] {
+    for entry in [subtract, compare] {
         let &[pair] = entry.payload().pairs() else {
-            panic!("the immediate families each declare exactly one pair rule")
+            panic!("the subtract and compare families each declare one pair rule")
         };
         assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
         assert_eq!(pair.immediate_limit(), 4095);
@@ -69,22 +69,44 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert_eq!(pair.operand_shape(), PairOperandShape::BinaryRightLiteral);
         assert_eq!(pair.victim_operand(), 1);
     }
-    let &[add_rule] = add.payload().pairs() else {
-        panic!("exact-add declares one pair rule")
+    // Exact addition commutes, so its family admits the folded literal at
+    // either `Use` position of the same consumer kind and rewrites through
+    // the same immediate row.
+    let &[add_rule, add_left_rule] = add.payload().pairs() else {
+        panic!("exact-add declares one pair per operand grammar")
     };
     let &[subtract_rule] = subtract.payload().pairs() else {
         panic!("exact-subtract declares one pair rule")
     };
+    for pair in [add_rule, add_left_rule] {
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.immediate_limit(), 4095);
+        assert!(pair.admits_immediate(4095));
+        assert!(!pair.admits_immediate(4096));
+        assert_eq!(pair.consumer(), MachineSemanticKind::ExactAddI64);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::ExactAddI64Immediate);
+        assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
+        assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+    }
     assert_eq!(
         add_rule,
         SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12
     );
-    assert_eq!(add_rule.consumer(), MachineSemanticKind::ExactAddI64);
     assert_eq!(
-        add_rule.rewritten(),
-        MachineSemanticKind::ExactAddI64Immediate
+        add_rule.operand_shape(),
+        PairOperandShape::BinaryRightLiteral
     );
-    assert_eq!(add_rule.result(), PairResultDisposition::ScalarRegister);
+    assert_eq!(add_rule.victim_operand(), 1);
+    assert_eq!(
+        add_left_rule,
+        SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12
+    );
+    assert_eq!(
+        add_left_rule.operand_shape(),
+        PairOperandShape::BinaryLeftLiteral
+    );
+    assert_eq!(add_left_rule.victim_operand(), 0);
     assert_eq!(
         subtract_rule,
         SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12
@@ -136,13 +158,17 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
 
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::EXACT_ADD_V1).collect::<Vec<_>>(),
-        vec![SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12]
+        vec![
+            SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
+            SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
+        ]
     );
     let union = LiteralFoldPolicy::EXACT_ADD_V1.union(LiteralFoldPolicy::EXACT_SUBTRACT_V1);
     assert_eq!(
         enabled_pair_rules(union).collect::<Vec<_>>(),
         vec![
             SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
+            SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
             SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
         ]
     );
@@ -174,6 +200,12 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
             obligation,
             accepted_fact,
         })
+    );
+    // The left grammar rewrites through the same immediate form: the folded
+    // payload and proof custody are operand-position independent.
+    assert_eq!(
+        add_left_rule.rewrite_consumer(add_kind, 12, None),
+        add_rule.rewrite_consumer(add_kind, 12, None)
     );
 
     let materialize = SelectedInstructionKind::MaterializeI64 {
@@ -213,6 +245,7 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
 
         for rule in [
             SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
+            SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
             SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
             SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
         ] {
@@ -265,6 +298,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         // actually carries.
         for rule in [
             SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
+            SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
             SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
             SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
         ]

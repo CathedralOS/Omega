@@ -186,7 +186,7 @@ impl LiteralFoldPlan {
                     consumer_instruction: SelectedInstructionId(u32::from_le_bytes(
                         cursor.array()?,
                     )),
-                    left: VirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
+                    surviving: VirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
                     result: match cursor.byte()? {
                         0 => None,
                         1 => Some(VirtualRegisterId(u32::from_le_bytes(cursor.array()?))),
@@ -240,7 +240,12 @@ pub struct LiteralFoldAction {
     pub literal_instruction: SelectedInstructionId,
     pub victim: VirtualRegisterId,
     pub consumer_instruction: SelectedInstructionId,
-    pub left: VirtualRegisterId,
+    /// The source register every `Use` position of the rewritten constraint
+    /// row binds — the operand that survives the fold. Under a right-literal
+    /// grammar it is the consumer's operand 0, under a left-literal grammar
+    /// operand 1, and under the `Use`-free unary grammar it records the
+    /// folded input register.
+    pub surviving: VirtualRegisterId,
     /// The folded consumer's scalar result. Flag-defining consumers such as
     /// `CompareI64` carry no `Def` operand and record `None`.
     pub result: Option<VirtualRegisterId>,

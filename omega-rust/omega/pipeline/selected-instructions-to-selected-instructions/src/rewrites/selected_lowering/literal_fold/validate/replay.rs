@@ -145,13 +145,20 @@ fn reconstruct_action(
         });
     }
 
-    // The validator re-derives the source grammar from the consumer kind
-    // alone: binary consumers fold the literal into an immediate form whose
-    // row it owns, while unary extension consumers fold into a direct
-    // `MaterializeI64` of the extension's exact output bits.
+    // The validator re-derives the source grammar from the consumer kind and
+    // the folded literal's operand position alone — never from the producer's
+    // descriptor. Binary consumers fold the literal into an immediate form
+    // whose row the kind owns; exact addition is commutative, so an operand-0
+    // literal derives the left-fold grammar while operand 1 derives the right
+    // fold. Unary extension consumers fold into a direct `MaterializeI64` of
+    // the extension's exact output bits.
     let (shape, row, rewritten) = match consumer.kind {
         SelectedInstructionKind::ExactAddI64 { .. } => (
-            SourceShape::BinaryImmediate,
+            if future_use.operand == 0 {
+                SourceShape::BinaryLeftImmediate
+            } else {
+                SourceShape::BinaryImmediate
+            },
             rows.add,
             MachineSemanticKind::ExactAddI64Immediate,
         ),
@@ -190,7 +197,7 @@ fn reconstruct_action(
         });
     }
     let immediate = match shape {
-        SourceShape::BinaryImmediate => {
+        SourceShape::BinaryImmediate | SourceShape::BinaryLeftImmediate => {
             if literal_u64 > 4095 {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
@@ -212,6 +219,23 @@ fn reconstruct_action(
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The commutative left fold: operand 0 is the folded victim and the
+        // operand-1 `Use` is the register the rewritten row binds.
+        (SourceShape::BinaryLeftImmediate, [victim, right, result]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || right.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
                 return Err(LiteralFoldError::ConsumerMismatch {
@@ -319,13 +343,24 @@ fn reconstruct_action(
         });
     }
 
+    // The surviving operand is the register each `Use` position of the
+    // rewritten row binds: the operand-0 `Use` under a right-literal grammar,
+    // the operand-1 `Use` under the left-literal one. The `Use`-free unary
+    // grammar records its folded input.
+    let surviving = match shape {
+        SourceShape::BinaryLeftImmediate => consumer.operands[1].virtual_register,
+        SourceShape::BinaryImmediate | SourceShape::UnaryExtension => {
+            consumer.operands[0].virtual_register
+        }
+    };
+
     Ok(LiteralFoldAction {
         block: candidate.block,
         pressure_point: candidate.point,
         literal_instruction: *defining_instruction,
         victim: candidate.victim,
         consumer_instruction: consumer.id,
-        left: consumer.operands[0].virtual_register,
+        surviving,
         result,
         immediate,
         immediate_constraint: row.key,
@@ -333,11 +368,13 @@ fn reconstruct_action(
 }
 
 /// The consumer source grammar the validator admits: the binary immediate
-/// forms whose literal is the right operand, or the unary extension forms
-/// whose literal is the sole operand.
+/// forms whose literal is the right `Use` operand, the commutative binary
+/// immediate form whose literal is the left `Use` operand, or the unary
+/// extension forms whose literal is the sole operand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
+    BinaryLeftImmediate,
     UnaryExtension,
 }
 
@@ -345,7 +382,7 @@ impl SourceShape {
     const fn victim_operand(self) -> u16 {
         match self {
             Self::BinaryImmediate => 1,
-            Self::UnaryExtension => 0,
+            Self::BinaryLeftImmediate | Self::UnaryExtension => 0,
         }
     }
 }
@@ -538,12 +575,12 @@ fn rebuild_function(
     let mut fuel = literal.provenance.fuel;
     fuel.extend(consumer_provenance.fuel);
     // Bind each rewritten row operand to its recorded register: `Use`
-    // positions take the surviving left operand and `Def` positions take the
-    // scalar result, so unary constant folds bind only their result.
+    // positions take the surviving source operand and `Def` positions take
+    // the scalar result, so unary constant folds bind only their result.
     let mut registers = Vec::with_capacity(row.operands.len());
     for constraint in &row.operands {
         let register = match constraint.access {
-            RegisterOperandAccess::Use => Some(action.left),
+            RegisterOperandAccess::Use => Some(action.surviving),
             RegisterOperandAccess::Def => action.result,
             _ => None,
         };

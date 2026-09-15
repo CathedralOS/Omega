@@ -32,10 +32,43 @@ pub(super) struct AdmittedPairs<'a> {
 }
 
 impl<'a> AdmittedPairs<'a> {
-    pub(super) fn for_consumer(&self, kind: SelectedInstructionKind) -> Option<&AdmittedPair<'a>> {
+    /// The enabled pair admitting `kind` as its consumer with the literal
+    /// victim at operand `victim_operand`. One family may declare disjoint
+    /// operand grammars for the same consumer kind — the exact-add selection
+    /// admits the literal at either `Use` position — so a kind match alone
+    /// does not identify the grammar.
+    pub(super) fn for_consumer(
+        &self,
+        kind: SelectedInstructionKind,
+        victim_operand: u16,
+    ) -> Option<&AdmittedPair<'a>> {
+        self.pairs.iter().find(|pair| {
+            pair.rule.matches_consumer(kind) && pair.rule.victim_operand() == victim_operand
+        })
+    }
+
+    /// Whether any enabled pair admits `kind` as its consumer, whatever
+    /// operand position its grammar folds. Admission-time error reporting
+    /// distinguishes an unadmitted kind from an admitted kind whose literal
+    /// sits at a position no grammar covers.
+    pub(super) fn admits_consumer_kind(&self, kind: SelectedInstructionKind) -> bool {
         self.pairs
             .iter()
-            .find(|pair| pair.rule.matches_consumer(kind))
+            .any(|pair| pair.rule.matches_consumer(kind))
+    }
+
+    /// The enabled pair rewriting `kind` into the form `key` names. Apply
+    /// time binds through the recorded constraint key rather than the folded
+    /// operand position: every grammar a kind admits rewrites through the
+    /// same bound row.
+    pub(super) fn for_consumer_row(
+        &self,
+        kind: SelectedInstructionKind,
+        key: RegisterConstraintKey,
+    ) -> Option<&AdmittedPair<'a>> {
+        self.pairs
+            .iter()
+            .find(|pair| pair.rule.matches_consumer(kind) && pair.row.key == key)
     }
 }
 
@@ -113,9 +146,11 @@ fn validate_immediate_row(
             && unit_effects.admits_row_units(row)
     };
     match (rule.operand_shape(), rule.result(), row.operands.as_slice()) {
-        // Scalar-result form: `result = left <op> immediate`.
+        // Scalar-result form: `result = surviving <op> immediate`. Either
+        // binary grammar folds into the same row — the surviving `Use` binds
+        // operand 0 whichever source position the literal occupied.
         (
-            PairOperandShape::BinaryRightLiteral,
+            PairOperandShape::BinaryRightLiteral | PairOperandShape::BinaryLeftLiteral,
             PairResultDisposition::ScalarRegister,
             [left, result],
         ) => {

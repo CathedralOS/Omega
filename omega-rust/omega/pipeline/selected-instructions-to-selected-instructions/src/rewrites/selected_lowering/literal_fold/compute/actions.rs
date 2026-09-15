@@ -71,16 +71,24 @@ pub(super) fn derive_action(
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
+    // The consumer kind and the folded literal's operand position together
+    // select the grammar: a family may admit the same kind under disjoint
+    // operand shapes. An unadmitted kind is a consumer mismatch; an admitted
+    // kind whose literal sits at a position no enabled grammar covers is a
+    // future-use mismatch.
     let pair = rows
-        .for_consumer(consumer.kind)
-        .ok_or(LiteralFoldError::ConsumerMismatch {
-            function: function_index,
+        .for_consumer(consumer.kind, future_use.operand)
+        .ok_or_else(|| {
+            if rows.admits_consumer_kind(consumer.kind) {
+                LiteralFoldError::FutureUseMismatch {
+                    function: function_index,
+                }
+            } else {
+                LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                }
+            }
         })?;
-    if future_use.operand != pair.rule.victim_operand() {
-        return Err(LiteralFoldError::FutureUseMismatch {
-            function: function_index,
-        });
-    }
     if !pair.rule.admits_immediate(literal_u64) {
         return Err(LiteralFoldError::UnsupportedImmediate {
             function: function_index,
@@ -128,6 +136,28 @@ pub(super) fn derive_action(
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // Commutative binary consumers also admit the literal as the left
+        // operand: `[victim, right, result]` folds the operand-0 `Use` and
+        // binds the operand-1 survivor into the rewritten row.
+        (
+            PairOperandShape::BinaryLeftLiteral,
+            PairResultDisposition::ScalarRegister,
+            [victim, right, result],
+        ) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || right.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
                 return Err(LiteralFoldError::ConsumerMismatch {
@@ -216,7 +246,16 @@ pub(super) fn derive_action(
             function: function_index,
         });
     }
-    let left = consumer.operands[0].virtual_register;
+    // The action records the register every `Use` position of the rewritten
+    // row binds — the source operand that survives the fold. A right-literal
+    // grammar leaves operand 0, a left-literal grammar leaves operand 1, and
+    // the `Use`-free unary fold records its folded input.
+    let surviving = match pair.rule.operand_shape() {
+        PairOperandShape::BinaryLeftLiteral => consumer.operands[1].virtual_register,
+        PairOperandShape::BinaryRightLiteral | PairOperandShape::UnaryLiteral => {
+            consumer.operands[0].virtual_register
+        }
+    };
 
     Ok(LiteralFoldAction {
         block: candidate.block,
@@ -224,7 +263,7 @@ pub(super) fn derive_action(
         literal_instruction: *defining_instruction,
         victim: candidate.victim,
         consumer_instruction: consumer.id,
-        left,
+        surviving,
         result,
         immediate,
         immediate_constraint: row.key,
