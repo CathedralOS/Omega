@@ -1738,10 +1738,32 @@ Owners include
   Restored-parent `let` bindings still fail upstream in
   `typed-trees-to-checked-trees/src/flow` (live NOMINAL-FIELD-FLOW claim).
 
-  Remaining acceptance: escaping carriers, dynamic indexes (Psi cannot yet
-  prove runtime bounds: "cannot prove index `i` is within length 4"), and
-  computed IEEE stores (Psi does not select `a + b`: "no source-independent
-  checked scalar control plan").
+  Ordinary borrowed-argument replay now covers more than receivers:
+  disjoint `&write` argument pairs, mixed `&write`/`&mut` disjoint field
+  arguments, owned-local scalar borrows, explicit `&write` re-forwarding
+  through callee parameters, bare `&mut` forwarding, and attached callees
+  carrying extra `&write` parameters all publish on the four hosted targets
+  and execute on host with exact referent custody
+  (`terminal_psi_indexed_receivers::borrowed_arguments::`, 7 tests; host run
+  Linux x86-64). Native exports order borrowed parameters after scalars.
+  Every artifact Psi currently emits already replays through
+  `scalar_graph_input`; probing found no Omega-side gap to fill.
+
+  Remaining acceptance is upstream in Psi, which produces no artifact for:
+  restored-parent/early-closure `let` bindings, scalar and aggregate `let`
+  borrows forwarded as call arguments or used as store roots
+  (`let held: &write [u16; 4] = &write values; held[2] = 17` is rejected while
+  `held[1].replace()` composes), projected-element scalar stores on borrowed
+  arrays (`records[1].value = 17` on `&mut`), whole aggregate or `[copy]` sum
+  replacement through borrows, owned-record field borrows as call arguments,
+  shared `&` scalar callee bodies ("scalar callee has no checked executable
+  body"), escaping borrow-carrying aggregates, dynamic indexes (unbounded
+  indexes fail bounds proof; declared `[0..=3]` ranges still produce no
+  source-independent plan), `&mut dyn` dispatch, and computed IEEE stores —
+  all with `machine has no source-independent checked scalar control plan`
+  unless noted. Reads of
+  `&write` roots, bare `&write` forwarding, `&write`→`&mut` widening, and
+  same-root `&write` argument pairs still reject upstream as required.
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
