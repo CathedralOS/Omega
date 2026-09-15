@@ -1,7 +1,13 @@
 //! Independent semantic/proof-to-object reconstruction.
 
-use super::*;
-
+use super::{
+    FunctionFragmentObjectContainerManifest, OptimizedObjectArtifactCustodyReceipt,
+    OptimizedObjectArtifactError, OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifest,
+    OptimizedObjectArtifactManifestIdentity, OptimizedObjectArtifactRecord,
+    OptimizedObjectArtifactStage, OptimizedObjectArtifactStatistics,
+    OptimizedObjectArtifactUnavailableData, RelocationFreeObjectContainerIdentity,
+    StagedOptimizedRelocationFreeObjectContainer, ValidatedOptimizedObjectArtifactManifest,
+};
 pub(super) fn validate_terminal_join(
     terminal: &terminal_codec::CanonicalTerminalArtifact,
     source: &StagedOptimizedRelocationFreeObjectContainer,

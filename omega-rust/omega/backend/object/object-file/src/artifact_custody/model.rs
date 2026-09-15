@@ -1,7 +1,16 @@
 //! Object-artifact records, manifests, custody, and errors.
 
 use super::codec::*;
-use super::*;
+use super::{
+    ARTIFACT_MAGIC, ARTIFACT_VERSION, FunctionFragmentEmissionManifestIdentity,
+    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, MANIFEST_MAGIC, MANIFEST_VERSION,
+    MachineId, NativeTarget, OptimizationSelectionIdentity, OptimizedObjectArtifactIdentity,
+    OptimizedObjectArtifactManifestIdentity, PostAllocationOptimizationManifestIdentity,
+    PrePhysicalOptimizationManifestIdentity, RelocationFreeObjectContainerError,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+    StagedOptimizedRelocationFreeObjectContainer, TerminalPsiIdentity,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedObjectArtifactStage {

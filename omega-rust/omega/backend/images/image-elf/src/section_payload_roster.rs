@@ -626,7 +626,13 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ElfDynamicRosterSectionKind, ElfIndexedProcedureFixupStorage,
+        ValidatedElfSectionHeaderTableTemplate, checked_sum, checked_u32, derive_contents,
+        non_authoritative_payload_roster_compatibility_fingerprint,
+        plan_elf_indexed_section_payloads, procedure_target_section, procedure_templates,
+        read_field, upstream_payload, validate_candidate, validate_contents,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_section_roster, plan_elf_dynamic_sections,

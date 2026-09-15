@@ -752,7 +752,14 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, EXPECTED_TARGETS, ElfAppliedDynamicAddress, ElfDynamicAddressApplicationKind,
+        ElfDynamicAddressApplicationTarget, ElfPlacedDynamicSectionKind,
+        ValidatedElfPlacedSectionHeaderTable, apply_elf_dynamic_address_fixups, checked_product,
+        checked_sum, decode_rows, derive_contents, dynamic_row, field_mut, indexed_payloads,
+        non_authoritative_resolved_compatibility_fingerprint, read_i64, read_u64,
+        validate_candidate,
+    };
     use crate::{
         apply_elf_section_header_placements, plan_elf_dynamic_link_inputs,
         plan_elf_dynamic_load_layout, plan_elf_dynamic_section_descriptors,

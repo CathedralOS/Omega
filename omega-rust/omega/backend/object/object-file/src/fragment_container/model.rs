@@ -1,5 +1,11 @@
 //! Source admission, shared current object data, and publication custody.
-use super::*;
+use super::{
+    FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerManifestIdentity,
+    FunctionFragmentTextSectionManifestIdentity, RelocationFreeObjectContainer,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectDecodeError,
+    RelocationFreeObjectError, RelocationFreeObjectPlan, RelocationFreeObjectPlanIdentity,
+    StagedOptimizedFixedFrameTextSection, TerminalRelocationFreeTextSectionIdentity,
+};
 use machine_emission::RelocationFreeTextSectionPlacementError;
 use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]

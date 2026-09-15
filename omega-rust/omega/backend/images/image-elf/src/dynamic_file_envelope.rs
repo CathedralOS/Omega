@@ -624,7 +624,13 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, Diagnostic, ELF64_HEADER_PREFIX_SIZE, ELF64_HEADER_SIZE, EM_AARCH64, EM_X86_64,
+        FinalImageSection, PT_DYNAMIC, PT_INTERP, PT_LOAD, TargetProfile,
+        ValidatedElfResolvedDynamicTable, decode_header, decode_program_headers, derive_contents,
+        load_layout, non_authoritative_envelope_compatibility_fingerprint,
+        serialize_elf_dynamic_file_envelope, validate_candidate,
+    };
     use crate::{
         apply_elf_dynamic_address_fixups, apply_elf_section_header_placements,
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_load_layout,

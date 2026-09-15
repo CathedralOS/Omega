@@ -636,7 +636,14 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, DecodedElf64SectionHeader, ELF64_SECTION_HEADER_SIZE,
+        ElfAppliedSectionHeaderPlacement, ElfPlacedDynamicSectionKind,
+        ElfSectionPlacementResolutionKind, SECTION_NAME_TABLE_INDEX, ValidatedElfDynamicLoadLayout,
+        apply_elf_section_header_placements, checked_product, checked_sum, decode_rows,
+        derive_contents, field_mut, non_authoritative_placed_compatibility_fingerprint, read_u32,
+        read_u64, validate_application_coverage, validate_candidate, validate_contents,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_load_layout,
         plan_elf_dynamic_section_descriptors, plan_elf_dynamic_section_roster,

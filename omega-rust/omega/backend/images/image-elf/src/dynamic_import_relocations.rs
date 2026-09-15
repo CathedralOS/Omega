@@ -578,7 +578,14 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ElfDirectImportCallSite, FinalImageSection, R_AARCH64_JUMP_SLOT,
+        R_X86_64_JUMP_SLOT, RelocationKind, TargetProfile,
+        ValidatedElfDynamicSectionDescriptorPlan, call_site, checked_u32, derive_contents,
+        non_authoritative_linkage_compatibility_fingerprint,
+        plan_elf_procedure_linkage_relocations, site_end, validate_candidate, validate_contents,
+        validate_site_spans,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_sections, serialize_elf_dynamic_sections,

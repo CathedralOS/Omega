@@ -428,7 +428,14 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        COMPLETE_SECTION_NAME_TABLE, COMPLETE_SECTION_NAME_TABLE_SIZE, Candidate,
+        ElfDynamicSectionKind, ElfSectionNameTableDescriptor, ElfSectionNameTableSectionKind,
+        SHT_STRTAB, ValidatedElfDynamicTableSectionDescriptorPlan, checked_sum, checked_u32,
+        derive_contents, non_authoritative_table_compatibility_fingerprint,
+        plan_elf_section_name_table, upstream_name_seed, validate_candidate,
+        validate_complete_names, validate_contents, validate_name,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_sections, plan_elf_dynamic_table_section_descriptor,

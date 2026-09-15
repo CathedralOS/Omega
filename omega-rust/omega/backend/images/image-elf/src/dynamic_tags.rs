@@ -787,7 +787,14 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ElfDynamicAddressObligation, ElfDynamicAddressTarget, ElfDynamicSemanticRow,
+        ElfDynamicTag, ElfDynamicValue, TargetProfile,
+        ValidatedElfProcedureLinkageSectionDescriptorPlan, checked_product, checked_sum,
+        checked_u32, derive_contents, dynamic_payloads, dynamic_string,
+        non_authoritative_tag_compatibility_fingerprint, plan_elf_dynamic_tags,
+        structural_contents, validate_candidate, validate_contents,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_sections, plan_elf_procedure_linkage_relocations,

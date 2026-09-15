@@ -1,6 +1,10 @@
 //! Direct source-to-object correspondence, independent of symbol construction.
-use super::*;
 
+use crate::{
+    RelocationFreeObjectFromTextError, RelocationFreeObjectPlan,
+    RelocationFreeTextSectionPlacement, validate_relocation_free_object,
+};
+use optimization_core::OptimizationSelectionIdentity;
 pub fn validate_relocation_free_object_from_text(
     text: &RelocationFreeTextSectionPlacement,
     selections: OptimizationSelectionIdentity,

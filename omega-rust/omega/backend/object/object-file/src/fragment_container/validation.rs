@@ -1,5 +1,11 @@
 //! Admission of retained publication without reconstructing its output.
-use super::*;
+use super::{
+    FunctionFragmentObjectContainerStage, FunctionFragmentObjectContainerUnavailableData,
+    RelocationFreeObjectContainerError, RelocationFreeObjectContainerIdentity,
+    StagedOptimizedRelocationFreeObjectContainer,
+    StagedRelocationFreeObjectContainerCustodyReceipt, object_error, receipt,
+    validate_optimized_fixed_frame_text_section,
+};
 use crate::{
     decode_relocation_free_object, relocation_free_object_statistics,
     validate_relocation_free_object_from_text,

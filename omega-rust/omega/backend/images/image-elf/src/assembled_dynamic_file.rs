@@ -774,7 +774,13 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, Diagnostic, ElfDynamicFileFragmentKind, ElfDynamicFileFragmentPlacement,
+        ValidatedElfResolvedProcedureLinkage, admit_elf_dynamic_executable,
+        assemble_elf_dynamic_file, derive_contents, derive_executable_output, load_layout,
+        non_authoritative_assembled_file_compatibility_fingerprint, section_bytes,
+        validate_candidate, validate_executable_output,
+    };
     use crate::{
         apply_elf_dynamic_address_fixups, apply_elf_procedure_linkage_fixups,
         apply_elf_section_header_placements, plan_elf_dynamic_link_inputs,

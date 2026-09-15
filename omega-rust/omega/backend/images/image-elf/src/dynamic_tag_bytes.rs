@@ -449,7 +449,14 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ElfDynamicAddressTarget,
+        ElfDynamicPayloadAddressFixup, ElfDynamicPayloadFixupKind, ElfDynamicValue,
+        ValidatedElfDynamicTagPlan, checked_product, checked_sum, decode_rows, encode_contents,
+        non_authoritative_payload_compatibility_fingerprint, read_i64, read_u64,
+        serialize_elf_dynamic_table, validate_candidate, validate_contents,
+        validate_fixup_coverage,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_sections, plan_elf_dynamic_tags, plan_elf_procedure_linkage_relocations,
