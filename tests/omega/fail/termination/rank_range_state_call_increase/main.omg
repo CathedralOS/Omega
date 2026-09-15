@@ -1,0 +1,26 @@
+// FAIL CANARY. A call issued from a subordinate state still answers to the
+// component's shared ranking: `step(pending + 1)` transports the carried role
+// `pending` to the entry atom `remaining`, and `remaining + 1 > remaining`
+// cannot prove the required non-increase.
+
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(5) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining > 0 { true -> hold(remaining) false -> remaining }
+
+    state hold(pending: u32 [0..=9]) {
+        transition pending > 0 { true -> self.step(pending + 1) false -> pending }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 { true -> self.count(n - 1) false -> n }
+}

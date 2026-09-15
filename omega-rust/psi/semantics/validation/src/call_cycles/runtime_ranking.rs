@@ -17,8 +17,9 @@ use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 use crate::contract_entailment::{
-    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress,
-    mixed_call_endpoints_are_pinned, prove_ranking_range_call, prove_ranking_range_call_entry,
+    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    discover_state_entry_mappings, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
+    prove_ranking_range_call_entry,
 };
 use comparison::Comparison;
 use projection::RankProjection;
@@ -107,171 +108,214 @@ pub(super) fn check_component(
     let mut weak_edges = vec![Vec::new(); component.len()];
     for (position, index) in component.iter().copied().enumerate() {
         let machine = &program.machines()[index];
-        // This slice transports the entry's exact ranked parameter. A state
-        // rebinding or internal loop needs its own arrival judgment, not a
-        // same-spelled parameter in another state.
-        let [state] = program.machine_states(machine) else {
+        let states = program.machine_states(machine);
+        let Some(entry) = states.first() else {
+            return Err("a member has no checked entry state");
+        };
+        // Internal arrivals are witnessed by the member's own ranking
+        // judgment, but a call issued from a subordinate state still answers
+        // to this shared hypothesis. The member's discovered telescope names
+        // the entry role each site formal carries, so authored subjects and
+        // endpoints normalize to the atom the site actually holds.
+        let Some(mappings) =
+            discover_state_entry_mappings(program, machine, ranks[position].parameter)
+        else {
             return Err("the ranking needs entry-to-state arrival evidence");
         };
         let mut observed = Vec::new();
-        let mut guards = Vec::new();
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
-                if prefix::preserves_rank(
-                    program,
-                    machine,
-                    state,
-                    &ranks[position],
-                    statement,
-                    frames.as_ref(),
-                ) {
-                    continue;
-                }
-                match statement {
-                    StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => continue,
-                    StatementNode::LocalData(local)
-                        if expression_is_inert(program, machine, state, local.initial_value) =>
-                    {
-                        continue;
-                    }
-                    StatementNode::Expression(expression)
-                        if expression_is_inert(program, machine, state, *expression) =>
-                    {
-                        continue;
-                    }
-                    // Do not replay an entry-relative projection or a guard
-                    // across writes, calls, aliases, or unknown effects.
-                    _ => {
-                        return Err(
-                            "a write, call, or alias invalidates the entry-relative ranking",
-                        );
-                    }
-                }
-            };
-            if transition.continuation.is_valid() {
-                return Err("a non-tail call edge returns into a continuation");
-            }
-            let guard = match transition.guard {
-                TransitionGuardNode::Always => ExpressionHandle::invalid(),
-                TransitionGuardNode::When(guard)
-                    if expression_is_inert(program, machine, state, guard) =>
-                {
-                    guard
-                }
-                TransitionGuardNode::When(_) => {
-                    return Err("a guard has effects or non-builtin operator meaning");
-                }
-            };
-            let mut site_guards = guards.clone();
-            if guard.is_valid() {
-                site_guards.push((guard, true));
-                guards.push((guard, false));
-            }
-            match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::Named {
-                    path, arguments, ..
-                } => {
-                    let Some(callee) = target_machine(program, path.symbol) else {
-                        return Err("a call target has no exact machine identity");
-                    };
-                    let callee_machine = &program.machines()[callee];
-                    let Some(entry) = program.machine_states(callee_machine).first() else {
-                        return Err("a call target has no checked entry binding");
-                    };
-                    if path.symbol != callee_machine.symbol && path.symbol != entry.symbol {
-                        return Err("a subordinate-state call needs its own arrival evidence");
-                    }
-                    if callee == index {
-                        return Err("an internal state loop needs its own ranking evidence");
-                    }
-                    let arguments = program.statement_table.expression_handles(*arguments);
-                    if !arguments
-                        .iter()
-                        .all(|argument| expression_is_inert(program, machine, state, *argument))
-                    {
-                        return Err("a call argument has effects or non-builtin operator meaning");
-                    }
-                    observed.push(callee);
-                    let Some(callee_position) = component.iter().position(|index| *index == callee)
-                    else {
-                        continue;
-                    };
-                    let parameters = program.state_parameters(entry);
-                    if arguments.len()
-                        != parameters
-                            .iter()
-                            .filter(|parameter| !parameter.is_self)
-                            .count()
-                    {
-                        return Err("call arguments do not match the exact entry parameters");
-                    }
-                    let Some(argument) = arguments.get(ranks[callee_position].argument_position)
-                    else {
-                        return Err("the ranked parameter has no corresponding actual argument");
-                    };
-                    if matches!(
-                        ranks[position].order,
-                        projection::RankOrder::Natural(_)
-                            | projection::RankOrder::IncreasingTo(_)
-                            | projection::RankOrder::BoundedDistance(_)
-                            | projection::RankOrder::SliceLength
+        for (state_position, state) in states.iter().enumerate() {
+            let mut guards = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::Transition(transition) = statement else {
+                    if prefix::preserves_rank(
+                        program,
+                        machine,
+                        state,
+                        &ranks[position],
+                        statement,
+                        frames.as_ref(),
                     ) {
-                        match prove_ranking_range_call(
-                            program,
-                            RankingRangeCallMember {
+                        continue;
+                    }
+                    match statement {
+                        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => continue,
+                        StatementNode::LocalData(local)
+                            if expression_is_inert(
+                                program,
                                 machine,
-                                subject: ranks[position].subject,
-                                paired_subject: ranks[position].paired_subject,
-                                range: ranks[position].range,
-                            },
-                            RankingRangeCallMember {
-                                machine: callee_machine,
-                                subject: ranks[callee_position].subject,
-                                paired_subject: ranks[callee_position].paired_subject,
-                                range: ranks[callee_position].range,
-                            },
-                            &site_guards,
-                            arguments,
-                        ) {
-                            Some(RankingRangeCallProgress::Strict) => {}
-                            Some(RankingRangeCallProgress::NonIncreasing) => {
-                                weak_edges[position].push(callee_position)
-                            }
-                            None => {
-                                return Err(
-                                    "rank range membership, pinned endpoints, or nonincrease is unproven at a call site",
-                                );
-                            }
+                                state,
+                                local.initial_value,
+                            ) =>
+                        {
+                            continue;
                         }
-                    } else {
-                        match comparison::argument_comparison(
-                            program,
-                            &ranks[position],
-                            *argument,
-                            &site_guards,
-                        ) {
-                            Some(Comparison::Strict) => {}
-                            Some(Comparison::Equal) => weak_edges[position].push(callee_position),
-                            None => {
-                                return Err(
-                                    "ranking preservation or strict DECREASE is unproven at a call site",
-                                );
-                            }
+                        StatementNode::Expression(expression)
+                            if expression_is_inert(program, machine, state, *expression) =>
+                        {
+                            continue;
+                        }
+                        // Do not replay an entry-relative projection or a guard
+                        // across writes, calls, aliases, or unknown effects.
+                        _ => {
+                            return Err(
+                                "a write, call, or alias invalidates the entry-relative ranking",
+                            );
                         }
                     }
-                    if mixed_ranges {
-                        range_edges.push(RankingRangeCallEdge {
-                            source: position,
-                            destination: callee_position,
-                            arguments,
-                            guards: site_guards,
-                        });
+                };
+                if transition.continuation.is_valid() {
+                    return Err("a non-tail call edge returns into a continuation");
+                }
+                let guard = match transition.guard {
+                    TransitionGuardNode::Always => ExpressionHandle::invalid(),
+                    TransitionGuardNode::When(guard)
+                        if expression_is_inert(program, machine, state, guard) =>
+                    {
+                        guard
+                    }
+                    TransitionGuardNode::When(_) => {
+                        return Err("a guard has effects or non-builtin operator meaning");
+                    }
+                };
+                let mut site_guards = guards.clone();
+                if guard.is_valid() {
+                    site_guards.push((guard, true));
+                    guards.push((guard, false));
+                }
+                match program.statement_table.transition_target(transition.target) {
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } => {
+                        let Some(callee) = target_machine(program, path.symbol) else {
+                            return Err("a call target has no exact machine identity");
+                        };
+                        if callee == index {
+                            // An internal state arrival is already ranked by the
+                            // member's own judgment; it adds no hypothesis edge.
+                            continue;
+                        }
+                        let callee_machine = &program.machines()[callee];
+                        let Some(callee_entry) = program.machine_states(callee_machine).first()
+                        else {
+                            return Err("a call target has no checked entry binding");
+                        };
+                        if path.symbol != callee_machine.symbol
+                            && path.symbol != callee_entry.symbol
+                        {
+                            return Err("a subordinate-state call needs its own arrival evidence");
+                        }
+                        let arguments = program.statement_table.expression_handles(*arguments);
+                        if !arguments
+                            .iter()
+                            .all(|argument| expression_is_inert(program, machine, state, *argument))
+                        {
+                            return Err(
+                                "a call argument has effects or non-builtin operator meaning",
+                            );
+                        }
+                        observed.push(callee);
+                        let Some(callee_position) =
+                            component.iter().position(|index| *index == callee)
+                        else {
+                            continue;
+                        };
+                        let parameters = program.state_parameters(callee_entry);
+                        if arguments.len()
+                            != parameters
+                                .iter()
+                                .filter(|parameter| !parameter.is_self)
+                                .count()
+                        {
+                            return Err("call arguments do not match the exact entry parameters");
+                        }
+                        let Some(argument) =
+                            arguments.get(ranks[callee_position].argument_position)
+                        else {
+                            return Err(
+                                "the ranked parameter has no corresponding actual argument",
+                            );
+                        };
+                        if matches!(
+                            ranks[position].order,
+                            projection::RankOrder::Natural(_)
+                                | projection::RankOrder::IncreasingTo(_)
+                                | projection::RankOrder::BoundedDistance(_)
+                                | projection::RankOrder::SliceLength
+                        ) {
+                            match prove_ranking_range_call(
+                                program,
+                                RankingRangeCallMember {
+                                    machine,
+                                    subject: ranks[position].subject,
+                                    paired_subject: ranks[position].paired_subject,
+                                    range: ranks[position].range,
+                                },
+                                &RankingRangeCallSite {
+                                    state,
+                                    entry_parameters: &mappings[state_position],
+                                },
+                                RankingRangeCallMember {
+                                    machine: callee_machine,
+                                    subject: ranks[callee_position].subject,
+                                    paired_subject: ranks[callee_position].paired_subject,
+                                    range: ranks[callee_position].range,
+                                },
+                                &site_guards,
+                                arguments,
+                            ) {
+                                Some(RankingRangeCallProgress::Strict) => {}
+                                Some(RankingRangeCallProgress::NonIncreasing) => {
+                                    weak_edges[position].push(callee_position)
+                                }
+                                None => {
+                                    return Err(
+                                        "rank range membership, pinned endpoints, or nonincrease is unproven at a call site",
+                                    );
+                                }
+                            }
+                        } else {
+                            match comparison::argument_comparison(
+                                program,
+                                &ranks[position],
+                                *argument,
+                                &site_guards,
+                            ) {
+                                Some(Comparison::Strict) => {}
+                                Some(Comparison::Equal) => {
+                                    weak_edges[position].push(callee_position)
+                                }
+                                None => {
+                                    return Err(
+                                        "ranking preservation or strict DECREASE is unproven at a call site",
+                                    );
+                                }
+                            }
+                        }
+                        if mixed_ranges {
+                            if state.symbol != entry.symbol {
+                                // Pinned-endpoint conservation is proved on the
+                                // caller's entry binding; a subordinate site has
+                                // no entry alias for its authored endpoint.
+                                return Err(
+                                    "a mixed-range component conserves endpoints only at entry call sites",
+                                );
+                            }
+                            range_edges.push(RankingRangeCallEdge {
+                                source: position,
+                                destination: callee_position,
+                                arguments,
+                                guards: site_guards,
+                            });
+                        }
+                    }
+                    TransitionTargetNode::Value(value)
+                        if expression_is_inert(program, machine, state, *value) => {}
+                    TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::SelfTarget => {}
+                    _ => {
+                        return Err("a non-tail call or unknown effect prevents ranking admission");
                     }
                 }
-                TransitionTargetNode::Value(value)
-                    if expression_is_inert(program, machine, state, *value) => {}
-                TransitionTargetNode::Terminal => {}
-                _ => return Err("a non-tail call or unknown effect prevents ranking admission"),
             }
         }
         // A pair-level strict occurrence cannot hide an unclassified call,
@@ -301,6 +345,8 @@ pub(super) fn check_component(
             );
         }
     }
+    // Weak edges may exist across every state of a member; their acyclicity
+    // is still judged per machine position.
     if weak_edges_are_acyclic(&weak_edges) {
         Ok(())
     } else {

@@ -117,6 +117,12 @@ also checks unconditional termination and crash freedom.
 `call_cycles/runtime_ranking.rs` owns whole-component runtime tail-call ranking;
 proof-only components require strict structural subterms at every resolved call
 occurrence. No parallel edge may supply an unclassified call's certificate.
+Members may issue component calls from subordinate states: the state's
+discovered telescope aliases each carried entry role onto the site's own atom,
+so authored subjects and endpoints keep naming the same value. Internal
+arrivals and self transitions belong to the member's own witness, requires
+clauses stay entry-site evidence, and mixed-range endpoint conservation still
+only covers call sites at the entry state.
 
 `contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for
 scalar ranks, slice lengths, and exact direct-field coordinates. `fields.rs`
@@ -134,6 +140,13 @@ endpoints with independent formation and supported normalization. Mere membershi
 in a changed endpoint does not prove pinning. References, nested projections,
 and named-state field mappings remain unbound. This is source automation, not
 a Terminal custom-view certificate.
+
+`ranking_range/telescope.rs` owns the entry-role discovery shared by the
+state-edge and call-component judgments: identity arrivals anchor each
+telescope, computed arrivals reuse an already-anchored role, and conflicting
+proposals remove the state. The call-site query substitutes these roles as
+atom aliases rather than as equality evidence; a duplicated role stays
+unbound.
 
 Closed anonymous arithmetic inside strict relational expressions shares the
 ordinary rational evaluator. Only an integral final subtree becomes an integer
