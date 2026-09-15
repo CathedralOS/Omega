@@ -1,7 +1,9 @@
 use super::{
-    Arc, PathBuf, SourceMap, SourceOrigin, SourceResolutionStratum, SourceScopedTopLevelBinding,
-    SourceSpan, Span, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
+    Arc, PathBuf, SourceMap, SourceOrigin, SourceSpan, Span, SymbolHandle, SymbolKind,
+    SymbolNameRef, SymbolTable, SymbolTableBuilder,
 };
+use crate::table::SourceScopedTopLevelBinding;
+use source::SourceResolutionStratum;
 
 #[test]
 fn eligible_extension_method_remains_invisible_to_base_source() {
