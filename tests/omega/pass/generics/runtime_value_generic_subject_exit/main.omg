@@ -1,0 +1,55 @@
+// A runtime-capable value binder realizes as one ordinary trailing parameter
+// on a shared dynamic body, so native execution observes each call's captured
+// subject: a literal-initialized local and a reassigned source's current value
+// reach the same specialization, a generic caller forwards its own realized
+// parameter, and a `requires` contract binds its obligation to the captured
+// subject. The static literal call keeps its closed specialization.
+// Runtime-indexed attached-field writes remain the STATE-LOCAL-VALUE-FRONTIER
+// slice, so this canary keeps its subjects in scalar calls. Signed carriers
+// keep every `as i32` conversion a same-type domain retag: signed wrapping
+// conversion has no runtime realization yet.
+// `reassigned_source` owns the mutable local because native legalization
+// currently admits a provider-attachment receiver or a primitive local, not
+// both in one machine; calling `bounded` there also keeps the reassigned
+// subject's requirement proof where the literal value fact is visible.
+// Exit 17 = 3 (direct n) + 5 (forwarded source) + 5 (bounded source)
+//         + 4 (closed static specialization).
+use omega_language_std::console;
+
+data Main {
+    console: Console;
+}
+
+machine prefix_count<Count: i32>(base: i32) -> i32 in Wrapping {
+    Count as i32 in Wrapping
+}
+
+machine forward<K: i32>(base: i32) -> i32 in Wrapping {
+    let inner: i32 in Wrapping = prefix_count<K>(base);
+    inner
+}
+
+machine bounded<Count: i32>(base: i32) -> i32 in Wrapping
+requires
+    Count <= 10;
+{
+    Count as i32 in Wrapping
+}
+
+machine reassigned_source() -> i32 in Wrapping {
+    let mut source: i32 = 4;
+    source = 5;
+    let forwarded: i32 in Wrapping = forward<source>(0);
+    let obliged: i32 in Wrapping = bounded<source>(0);
+    forwarded + obliged
+}
+
+machine Main::main(&mut self)
+reaches Console {
+    let n: i32 = 3;
+    let direct: i32 in Wrapping = prefix_count<n>(7);
+    let reassigned: i32 in Wrapping = reassigned_source();
+    let closed: i32 in Wrapping = prefix_count<4>(9);
+    let total: i32 in Wrapping = direct + reassigned + closed;
+    self.console.exit_process(total as i32);
+}

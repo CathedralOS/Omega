@@ -1270,6 +1270,74 @@ fn runtime_generic_value_call_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_generic_subject_exit_canary_runs() {
+    // Runtime-capable `Count: i32`/`K: i32` binders realize as one ordinary
+    // trailing parameter on a shared dynamic body. Native execution observes
+    // each captured subject: a literal-initialized local and the reassigned
+    // source's current value reach the same specialization, `forward` passes
+    // its own realized parameter, and `bounded` owes its `requires` obligation
+    // on the captured subject, while the literal `prefix_count<4>` keeps its
+    // closed specialization. The mutable source lives in `reassigned_source`
+    // because native legalization does not yet admit a provider-attachment
+    // receiver and a primitive local in one machine. Discriminating:
+    // 3 + 5 + 5 + 4 = 17; any subject dropping or retagging its bound value
+    // exits with a different code.
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_GENERIC_SUBJECT_EXIT);
+    let build_dir = std::env::temp_dir().join(format!("omega-rvg-subject-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime value generic subject canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime value generic canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("runtime value generic subject canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(17),
+        "expected every captured subject to survive runtime binding (exit 17), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_value_generic_fail_canaries_reject() {
+    // The rejection half of the runtime/value-binder contract: a proof-static
+    // `const` binder never admits a runtime subject, a `requires` obligation
+    // binds to the subject captured at the call rather than a stale earlier
+    // value, and a runtime subject cannot determine a static range bound.
+    for &path in [
+        fixture_roster::CONST_GENERIC_RUNTIME_ARGUMENT,
+        fixture_roster::VALUE_GENERIC_RUNTIME_REQUIRES_UNPROVEN,
+        fixture_roster::VALUE_GENERIC_RUNTIME_STATIC_BOUND,
+    ]
+    .iter()
+    {
+        let canary = fail_canary(path);
+        let expected = fs::read_to_string(canary.join("expected.txt"))
+            .expect("runtime value generic fail canary should carry expected.txt");
+        let diagnostics = compile_canary_without_output(&canary)
+            .expect_err("runtime value binder misuse should be rejected");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(expected.trim()),
+            "{} missing expected fragment {:?}:\n{}",
+            canary.display(),
+            expected.trim(),
+            combined
+        );
+    }
+}
+
+#[test]
 fn trait_generic_bound_static_dispatch_canary_runs() {
     let canary = pass_canary(fixture_roster::TRAIT_GENERIC_BOUND_STATIC_DISPATCH);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
