@@ -134,6 +134,68 @@ fn a_valid_parallel_arrival_cannot_hide_changed_rank_copies() {
 }
 
 #[test]
+fn contested_entry_roles_resolve_to_their_bare_forward() {
+    // Both computed arrivals leave `echo` without an entry role: once its
+    // contested `other` claim demotes to the bare `total` forward, the two
+    // proposals agree instead of conflicting over which copy is the carrier.
+    let source = r#"
+machine walk(remaining: u32 [0..=5], other: u32 [0..=5], base: u32 [0..=5], step: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition remaining > 0 {
+        true -> tally(remaining, other, other + 0)
+        false -> tally(remaining, other, base + step)
+    }
+    state tally(count: u32 [0..=5], total: u32 [0..=5], echo: u32 [0..=10]) {
+        transition count > 0 {
+            true -> tally(count - 1, total, echo)
+            false -> total
+        }
+    }
+}
+"#;
+    prove(source);
+    // Demoting the contested claim does not equate different carriers: a
+    // sibling arrival that genuinely maps `total` to `base` still conflicts.
+    reject(&source.replace(
+        "false -> tally(remaining, other, base + step)",
+        "false -> tally(remaining, base, base + step)",
+    ));
+}
+
+#[test]
+fn a_diverging_copy_of_the_rank_subject_keeps_its_equality_obligation() {
+    // A computed claimant on a duplicated *required* entry is never demoted:
+    // the edge judgment must prove both copies equal at every arrival, which
+    // `remaining + 1` cannot satisfy.
+    let source = r#"
+machine walk(remaining: u32 [0..=5], other: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> tally(remaining, other, remaining + 1) }
+    state tally(count: u32 [0..=5], total: u32 [0..=5], echo: u32 [0..=6]) {
+        transition count > 0 {
+            true -> tally(count - 1, total, echo)
+            false -> total
+        }
+    }
+}
+"#;
+    reject(source);
+    // An exactly equal computed copy does satisfy the obligation, but every
+    // later arrival must re-establish it: forwarding the stale copy while the
+    // rank moved rejects just the same as the diverging arrival.
+    let equal = source
+        .replace("remaining + 1", "remaining + 0")
+        .replace("echo: u32 [0..=6]", "echo: u32 [0..=5]");
+    reject(&equal);
+    prove(&equal.replace(
+        "tally(count - 1, total, echo)",
+        "tally(count - 1, total, count - 1)",
+    ));
+}
+
+#[test]
 fn explicit_self_edges_cannot_publish_termination_guarantees() {
     let source = "machine spin(remaining: u32 [0..=5])
         terminates by remaining in 0..=5;

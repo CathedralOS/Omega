@@ -118,9 +118,12 @@ pub(super) fn check_component(
         // answers to this shared hypothesis. The member's discovered
         // telescope names the entry role each site formal carries, so
         // authored subjects and endpoints normalize to the atom the site
-        // actually holds.
+        // actually holds. The call judgment binds only a uniquely carried
+        // role, so discovery may resolve every contested claim to its bare
+        // forward — the member's own edge judgment owns the per-premises
+        // required set whose copies it proves equal.
         let Some(mappings) =
-            discover_state_entry_mappings(program, machine, ranks[position].parameter)
+            discover_state_entry_mappings(program, machine, ranks[position].parameter, &[])
         else {
             return Err("the ranking needs entry-to-state arrival evidence");
         };

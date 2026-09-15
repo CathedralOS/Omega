@@ -542,7 +542,9 @@ fn telescoped_bindings(
 }
 
 /// The same role aliasing applied to produced length coordinates: each carried
-/// entry role of a slice-typed site formal binds the site's length atom.
+/// entry role of a slice-typed site formal binds the site's length atom. Like
+/// the scalar carrier rule, a duplicated role has no single slice to measure
+/// and stays unbound rather than guessing between two arrival copies.
 fn telescoped_length_bindings(
     program: &TypedTrees,
     state: &State,
@@ -555,7 +557,14 @@ fn telescoped_length_bindings(
         .filter(|parameter| !parameter.is_self)
         .zip(entry_parameters)
         .filter_map(|(formal, role)| {
-            if !role.is_valid() {
+            if !role.is_valid()
+                || entry_parameters
+                    .iter()
+                    .filter(|candidate| **candidate == *role)
+                    .take(2)
+                    .count()
+                    != 1
+            {
                 return None;
             }
             let (_, identity) = bindings

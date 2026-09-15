@@ -44,7 +44,17 @@ pub(super) fn prove<'program>(
     // The telescope is shared with the runtime call-component judgment: a
     // call issued from a subordinate state must read the same entry roles as
     // the member's own witness or the hypothesis would name a different value.
-    let Some(mappings) = validation::discover_state_entry_mappings(program, machine, rank_subject)
+    // Discovery resolves contested claims against the same required set the
+    // edge judgment enforces, so a duplicated required entry keeps every copy's
+    // equality obligation while any other contested claim demotes to a bare
+    // forward's unique carrier.
+    let Some(required) =
+        validation::ranking_range_required_symbols(program, machine, range, measure, premises)
+    else {
+        return false;
+    };
+    let Some(mappings) =
+        validation::discover_state_entry_mappings(program, machine, rank_subject, &required)
     else {
         return false;
     };

@@ -17,10 +17,14 @@ use typed_trees::types::TypeReferenceNode;
 /// Returns `None` when any state cannot compose an exact correspondence:
 /// identity arrivals anchor each telescope, computed arrivals may then reuse
 /// an already-anchored role, and conflicting proposals remove the state.
+/// `required` names the entry symbols the caller's rank judgment holds equal
+/// at every arrival; a duplicated claim on any other entry resolves to its
+/// bare forward so one slot stays the unique carrier.
 pub fn discover_state_entry_mappings(
     program: &TypedTrees,
     machine: &Machine,
     rank_subject: SymbolHandle,
+    required: &[SymbolHandle],
 ) -> Option<Vec<Vec<SymbolHandle>>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
@@ -71,6 +75,7 @@ pub fn discover_state_entry_mappings(
                         &source_mapping,
                         arguments,
                         rank_subject,
+                        required,
                     ) else {
                         if identity {
                             return None;
@@ -177,6 +182,7 @@ fn argument_mapping(
     source_mapping: &[SymbolHandle],
     arguments: &[ExpressionHandle],
     rank_subject: SymbolHandle,
+    required: &[SymbolHandle],
 ) -> Option<Vec<SymbolHandle>> {
     let source_parameters = program
         .state_parameters(source)
@@ -194,10 +200,16 @@ fn argument_mapping(
         return None;
     }
     let mut parameters = Vec::with_capacity(arguments.len());
+    let mut bare_forwards = Vec::with_capacity(arguments.len());
     let mut subjects = Vec::new();
     for (position, argument) in arguments.iter().enumerate() {
         subjects.clear();
         argument_subjects(program, machine, source, *argument, &mut subjects, 0)?;
+        bare_forwards.push(matches!(
+            program.expression_table.expression(*argument),
+            ExpressionNode::Name(name)
+                if name.symbol.is_valid() && name.head_symbol == name.symbol
+        ));
         let mut selected_entry = None;
         for subject in &subjects {
             let source_position = source_parameters
@@ -234,6 +246,31 @@ fn argument_mapping(
         // Choosing an operand would let its entry constraints reach a value
         // they never described; an absent role keeps the slot premise-free.
         parameters.push(selected_entry.unwrap_or_default());
+    }
+    // Several slots claiming one entry cannot each be its unique carrier.
+    // Entries the rank obligation reads keep every claim: the edge judgment
+    // holds those copies equal at every arrival, which is what rejects a
+    // diverging transfer of a ranked subject or a pinned endpoint. Any other
+    // claimed entry has no such equality evidence to preserve, so the bare
+    // forward alone names the carrier and a computed claimant becomes a
+    // premise-free payload — letting an edge that computes a copy agree with
+    // sibling arrivals that leave the slot unmapped, and leaving one carrier
+    // for records whose field coordinate cannot be read through two slots.
+    for position in 0..parameters.len() {
+        let entry = parameters[position];
+        if !entry.is_valid()
+            || bare_forwards[position]
+            || required.contains(&entry)
+            || parameters
+                .iter()
+                .filter(|candidate| **candidate == entry)
+                .take(2)
+                .count()
+                == 1
+        {
+            continue;
+        }
+        parameters[position] = SymbolHandle::default();
     }
     Some(parameters)
 }
