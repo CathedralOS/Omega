@@ -1,0 +1,120 @@
+//! Borrow-aware dead-store elimination on the selected CFG.
+//!
+//! A `Store { byte_offset, byte_size: 8 }` writes all sixty-four bits of its
+//! value operand through the referent pointer. A later `Store` at the same
+//! byte offset in the same block replaces exactly those bytes. When no
+//! intervening instruction can observe or partially overwrite the first
+//! store's bytes, the earlier store is dead: every observer of the place sees
+//! the second store's value, so the first instruction and its roster row can
+//! be removed without changing any reachable memory state.
+//!
+//! The alias decision is borrow-aware: it comes from the validated
+//! `memory_accesses` roster, not from pointer-register equality. Each access
+//! row names the semantic `PlaceId` and the exact byte range the instruction
+//! touches. Two simultaneous accesses that can write cannot share one
+//! referent under different place identities — exclusivity rejects
+//! overlapping exclusive custody before selection — so a write row for a
+//! different `PlaceId` cannot disturb the dead bytes, and a read row for a
+//! different place cannot observe them. Only an access on the dead place
+//! itself matters: an overlapping or dynamic-extent read observes the bytes,
+//! a partial or dynamic-extent write leaves them observable, and a
+//! place-backed local slot or materialized local address can reach the same
+//! storage by another route. The covering store must be the first access on
+//! the dead place after the removed store, and it must carry the identical
+//! exact `WritePlace` row.
+//!
+//! Instructions inserted by private-slot rewrites (spill stores, reloads,
+//! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they
+//! touch compiler-owned activation storage that no referent place aliases, so
+//! they can neither observe nor overwrite the dead bytes. Every other
+//! memory-capable instruction without a row, every call, and every hosted
+//! effect conservatively blocks elimination.
+//!
+//! Removing the store shortens the block's instruction vector, so boundary
+//! settlements positioned after it shift one ordinal earlier. Settlement
+//! positions between the removed store and its covering store are rejected
+//! outright: a boundary event in that interval could observe the dead bytes.
+//! Proposal and independent replay share only the admission predicates and
+//! the settlement remap. Validation consumes the proposed program, requires
+//! the block, roster, and settlements to equal the independently computed
+//! removals, and restores the complete source by content.
+
+mod admission;
+mod rewrite;
+mod validation;
+
+use std::sync::Arc;
+
+use optimization_core::OptimizationUnitIdentity;
+use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use semantic_vocabulary::FuelScheduleIdentity;
+
+pub use rewrite::eliminate_selected_dead_store;
+pub use validation::validate_dead_store_elimination;
+
+#[cfg(test)]
+mod tests;
+
+/// An accepted dead-store elimination with its replay receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedDeadStoreElimination {
+    transformed: Arc<SelectedInstructionPlan>,
+    receipt: DeadStoreEliminationReceipt,
+}
+
+impl ValidatedDeadStoreElimination {
+    pub fn transformed(&self) -> &SelectedInstructionPlan {
+        &self.transformed
+    }
+
+    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
+        Arc::clone(&self.transformed)
+    }
+
+    pub const fn receipt(&self) -> &DeadStoreEliminationReceipt {
+        &self.receipt
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeadStoreEliminationReceipt {
+    source_selected: SelectedInstructionPlanIdentity,
+    transformed_selected: SelectedInstructionPlanIdentity,
+    optimization_unit: OptimizationUnitIdentity,
+    fuel_schedule: FuelScheduleIdentity,
+}
+
+impl DeadStoreEliminationReceipt {
+    pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
+        self.source_selected
+    }
+    pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
+        self.transformed_selected
+    }
+    pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
+        self.optimization_unit
+    }
+    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
+        self.fuel_schedule
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeadStoreEliminationError {
+    SourceMismatch,
+    UnsupportedInstruction,
+    UnsupportedPair,
+    InterveningAccess,
+    ConstraintMismatch,
+    WorkBudgetExceeded,
+    IdentityOverflow,
+    ReplayMismatch,
+}
+
+impl std::fmt::Display for DeadStoreEliminationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid dead-store elimination: {self:?}")
+    }
+}
+
+impl std::error::Error for DeadStoreEliminationError {}
