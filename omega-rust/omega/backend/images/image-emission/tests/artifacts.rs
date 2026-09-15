@@ -695,6 +695,145 @@ fn linux_write_line_exit_plan(provider: &WriteExitProvider) -> MachineCodePlan {
     }
 }
 
+/// Linux x64 machine retaining two privileged `out` effects. The second is
+/// consumed by an admitted-provider `MetadataOnlyPort` settlement while the
+/// first stays unbound custody, so one-field mutation coverage reaches both
+/// the replay-rejected representable axes and the axes pinned by the
+/// settlement join at encoding.
+fn port_effect_plan(provider: &WriteExitProvider) -> MachineCodePlan {
+    let machine = machine_id(1);
+    let free_operation = operation_id(1);
+    let bound_operation = operation_id(2);
+    let settlement_operation = operation_id(3);
+    let return_edge = edge_id(1);
+    let service = ServiceId::new(1).unwrap();
+    let boundary = BoundaryMachineId::new(1).unwrap();
+    let mut bytes = x86_encoding::encode_immediate_port_write(0x20, 0x20).to_vec();
+    let bound_offset = bytes.len();
+    bytes.extend_from_slice(&x86_encoding::encode_immediate_port_write(0x40, 0x50));
+    let settlement_offset = bytes.len();
+    bytes.push(0xc3);
+    MachineCodePlan {
+        psi: identity(),
+        target: NativeTarget::linux_x64(),
+        entry: machine,
+        functions: vec![MachineCodeFunction {
+            scalar_abi: None,
+            mixed_structural_scalar_abi: None,
+            structural_call_scalar_return: None,
+            parameter_abi: None,
+            internal_unit_scalar_calls: Vec::new(),
+            installed_provider_unit_scalar_calls: Vec::new(),
+            dynamic_calls: Vec::new(),
+            stored_dynamic_calls: Vec::new(),
+            dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_descriptor_calls: Vec::new(),
+            unit_scalar_homes: Vec::new(),
+            unit_integer_constants: Vec::new(),
+            unit_affine_scalar_records: Vec::new(),
+            unit_structural_scalar_field_stores: Vec::new(),
+            unit_write_only_primitive_stores: Vec::new(),
+            scalar_structural_scalar_field_stores: Vec::new(),
+            machine,
+            attachment: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![free_operation, bound_operation, settlement_operation],
+                edges: vec![return_edge],
+            },
+            bytes,
+            x86_scalar_fma: Vec::new(),
+            x86_scalar_fma_occurrences: Vec::new(),
+            x86_floating_control: None,
+            unit_stack: None,
+            unit_parameter_homes: Vec::new(),
+            unit_parameters: Vec::new(),
+            scalar_stack: None,
+            internal_calls: Vec::new(),
+            foreign_calls: Vec::new(),
+            internal_unit_calls: Vec::new(),
+            unit_continuations: Vec::new(),
+            unit_affine_cleanup: None,
+            semantic_code_attribution: vec![
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(free_operation),
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 27,
+                },
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(bound_operation),
+                    operation_ordinal: 1,
+                    code_offset: bound_offset,
+                    byte_count: 27,
+                },
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(settlement_operation),
+                    operation_ordinal: 2,
+                    code_offset: settlement_offset,
+                    byte_count: 0,
+                },
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(return_edge),
+                    operation_ordinal: 3,
+                    code_offset: settlement_offset,
+                    byte_count: 1,
+                },
+            ],
+            port_effects: vec![
+                PortEffectRecord {
+                    psi_operation: free_operation,
+                    service,
+                    port: 0x20,
+                    value: 0x20,
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 27,
+                },
+                PortEffectRecord {
+                    psi_operation: bound_operation,
+                    service,
+                    port: 0x40,
+                    value: 0x50,
+                    operation_ordinal: 1,
+                    code_offset: bound_offset,
+                    byte_count: 27,
+                },
+            ],
+            boundary_settlements: vec![BoundarySettlementRecord {
+                psi_operation: settlement_operation,
+                boundary,
+                execution: machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                    write_exit_provider_binding(provider).into(),
+                ),
+                realization: MetadataOnlyPortRealization {
+                    effect_operation: bound_operation,
+                    service,
+                    port: 0x40,
+                    value: 0x50,
+                }
+                .into(),
+                scalar_arguments: Vec::new(),
+                runtime_scalar_arguments: Vec::new(),
+                arguments: Vec::new(),
+                byte_sequence_arguments: Vec::new(),
+                completion_claim_sources: Vec::new(),
+                completion_receipts: Vec::new(),
+                completion_provider_custody: Vec::new(),
+                native_result: machine_code::BoundaryResultRecord::Unit,
+                operation_ordinal: 2,
+                code_offset: settlement_offset,
+                byte_count: 0,
+            }],
+            scalar_affine_cleanup: None,
+            scalar_control_affine_cleanups: Vec::new(),
+            scalar_structural_parameters: Vec::new(),
+            scalar_structural_parameter_homes: Vec::new(),
+            structural_return: None,
+        }],
+    }
+}
+
 #[test]
 fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
     let write_provider = WriteExitProvider(970);
@@ -3389,6 +3528,250 @@ fn installation_forwarded_dynamic_descriptor_rejects_every_one_field_substitutio
     assert_eq!(
         encode_installation_record(&duplicated_slot),
         Err(InstallationError::InvalidForwardedDynamicDescriptorTable)
+    );
+}
+
+/// Every representable field of an installed privileged port-effect row is an
+/// authenticated custody axis: a one-field substitution either cannot encode
+/// canonically or still encodes, recomputes a distinct installation
+/// fingerprint, and independent replay against the unchanged image rejects
+/// it. The fixture retains one unbound effect and one effect consumed by an
+/// admitted-provider `MetadataOnlyPort` settlement, so both the free semantic
+/// axes and the axes pinned by the settlement join are exercised.
+#[test]
+fn installation_port_effect_rejects_every_one_field_substitution() {
+    let provider = WriteExitProvider(7);
+    let plan = port_effect_plan(&provider);
+    let artifact = build_object_artifact(&plan).expect("port-effect artifact");
+    let image = emit_executable_image(&artifact, 3).expect("port-effect image");
+    let record = build_installation_record_with_provider_executions(
+        &image,
+        ProfileDecisionId::new(17).expect("profile"),
+        [&provider],
+    )
+    .expect("port-effect installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let [unbound, bound] = record.port_effects() else {
+        panic!("port-effect fixture retains two rows");
+    };
+    assert_eq!(unbound.effect.psi_operation, operation_id(1));
+    assert_eq!(bound.effect.psi_operation, operation_id(2));
+
+    // The unbound row's semantic axes are independently representable: each
+    // one-field substitution still encodes canonically, recomputes a distinct
+    // installation fingerprint, and independent replay against the unchanged
+    // image rejects it.
+    let representable: [(&str, fn(&mut image_emission::ObjectPortEffect)); 5] = [
+        ("psi_operation", |row| {
+            row.effect.psi_operation = operation_id(96);
+        }),
+        ("service", |row| {
+            row.effect.service = ServiceId::new(96).expect("drifted service");
+        }),
+        ("port", |row| {
+            row.effect.port = 0x64;
+        }),
+        ("value", |row| {
+            row.effect.value = 0x7f;
+        }),
+        ("operation_ordinal", |row| {
+            row.effect.operation_ordinal = 9;
+        }),
+    ];
+    for (field, mutate) in representable {
+        let mut changed = record.clone();
+        mutate(&mut changed.port_effects_mut_for_test()[0]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted row decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted row"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted row"
+        );
+    }
+
+    // Physical axes are canonical projections: the row must name an installed
+    // machine, sit at `function.text_offset + code_offset`, and span exactly
+    // the emitted `out` sequence. Drifting any of them fails at encoding.
+    let unbound_encode_rejected: [(
+        &str,
+        fn(&mut image_emission::ObjectPortEffect),
+        InstallationError,
+    ); 4] = [
+        ("machine", |row| row.machine = machine_id(96), {
+            InstallationError::EffectMachineMissing(machine_id(96))
+        }),
+        ("code_offset", |row| row.effect.code_offset += 1, {
+            InstallationError::InvalidPortEffectOffset {
+                machine: machine_id(1),
+                operation: operation_id(1),
+            }
+        }),
+        ("byte_count", |row| row.effect.byte_count -= 1, {
+            InstallationError::InvalidPortEffectOffset {
+                machine: machine_id(1),
+                operation: operation_id(1),
+            }
+        }),
+        ("text_offset", |row| row.text_offset += 1, {
+            InstallationError::InvalidPortEffectOffset {
+                machine: machine_id(1),
+                operation: operation_id(1),
+            }
+        }),
+    ];
+    for (field, mutate, expected) in unbound_encode_rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed.port_effects_mut_for_test()[0]);
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: non-canonical substitution rejected at encoding"
+        );
+    }
+
+    // Every field of the settlement-consumed row is pinned: the physical axes
+    // fail the same canonical projection joins, while the semantic axes fail
+    // the `MetadataOnlyPort` realization's exact effect lookup.
+    let bound_encode_rejected: [(
+        &str,
+        fn(&mut image_emission::ObjectPortEffect),
+        InstallationError,
+    ); 9] = [
+        ("machine", |row| row.machine = machine_id(96), {
+            InstallationError::EffectMachineMissing(machine_id(96))
+        }),
+        (
+            "psi_operation",
+            |row| row.effect.psi_operation = operation_id(96),
+            {
+                InstallationError::BoundaryRealizationMismatch {
+                    machine: machine_id(1),
+                    operation: operation_id(3),
+                }
+            },
+        ),
+        (
+            "service",
+            |row| row.effect.service = ServiceId::new(96).unwrap(),
+            {
+                InstallationError::BoundaryRealizationMismatch {
+                    machine: machine_id(1),
+                    operation: operation_id(3),
+                }
+            },
+        ),
+        ("port", |row| row.effect.port = 0x64, {
+            InstallationError::BoundaryRealizationMismatch {
+                machine: machine_id(1),
+                operation: operation_id(3),
+            }
+        }),
+        ("value", |row| row.effect.value = 0x7f, {
+            InstallationError::BoundaryRealizationMismatch {
+                machine: machine_id(1),
+                operation: operation_id(3),
+            }
+        }),
+        (
+            "operation_ordinal",
+            |row| row.effect.operation_ordinal = 9,
+            {
+                InstallationError::BoundaryRealizationMismatch {
+                    machine: machine_id(1),
+                    operation: operation_id(3),
+                }
+            },
+        ),
+        ("code_offset", |row| row.effect.code_offset += 1, {
+            InstallationError::InvalidPortEffectOffset {
+                machine: machine_id(1),
+                operation: operation_id(2),
+            }
+        }),
+        ("byte_count", |row| row.effect.byte_count -= 1, {
+            InstallationError::InvalidPortEffectOffset {
+                machine: machine_id(1),
+                operation: operation_id(2),
+            }
+        }),
+        ("text_offset", |row| row.text_offset += 1, {
+            InstallationError::InvalidPortEffectOffset {
+                machine: machine_id(1),
+                operation: operation_id(2),
+            }
+        }),
+    ];
+    for (field, mutate, expected) in bound_encode_rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed.port_effects_mut_for_test()[1]);
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: non-canonical substitution rejected at encoding"
+        );
+    }
+
+    // Dropping the unbound row still encodes: replay then rejects it because
+    // the retained roster no longer matches the image. Dropping the consumed
+    // row instead orphans the settlement join and fails at encoding, as do a
+    // duplicated `(machine, psi_operation)` pair and a non-canonical order.
+    let mut dropped_unbound = record.clone();
+    dropped_unbound.port_effects_mut_for_test().remove(0);
+    let bytes =
+        encode_installation_record(&dropped_unbound).expect("dropped unbound effect still encodes");
+    let replayed = decode_installation_record(&bytes).expect("dropped unbound effect decodes");
+    assert_ne!(
+        installation_fingerprint(&replayed).expect("substituted fingerprint"),
+        authentic_fingerprint
+    );
+    assert_eq!(
+        validate_installation_record(&replayed, &image),
+        Err(InstallationError::ImageBindingMismatch),
+        "dropped unbound row: independent replay rejects the roster"
+    );
+    let mut dropped_bound = record.clone();
+    dropped_bound.port_effects_mut_for_test().remove(1);
+    assert_eq!(
+        encode_installation_record(&dropped_bound),
+        Err(InstallationError::BoundaryRealizationMismatch {
+            machine: machine_id(1),
+            operation: operation_id(3),
+        })
+    );
+    let mut duplicated_operation = record.clone();
+    let mut duplicate = duplicated_operation.port_effects()[1].clone();
+    duplicate.effect.psi_operation = operation_id(1);
+    duplicate.effect.operation_ordinal = 5;
+    duplicated_operation
+        .port_effects_mut_for_test()
+        .push(duplicate);
+    assert_eq!(
+        encode_installation_record(&duplicated_operation),
+        Err(InstallationError::DuplicatePortEffectOperation {
+            machine: machine_id(1),
+            operation: operation_id(1),
+        })
+    );
+    let mut reordered = record.clone();
+    reordered.port_effects_mut_for_test().swap(0, 1);
+    assert_eq!(
+        encode_installation_record(&reordered),
+        Err(InstallationError::NonCanonicalPortEffectOrder)
     );
 }
 
