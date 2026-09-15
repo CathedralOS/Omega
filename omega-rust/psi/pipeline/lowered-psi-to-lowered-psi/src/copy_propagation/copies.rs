@@ -5,7 +5,7 @@
 //! name value identities without listing direct uses, so every value they can
 //! mention is retained before resolution begins.
 
-use crate::psi_optimization::retained::{
+use crate::retained_identities::proof_values::{
     crash_continuations, retain_crash_routes, retain_proposition,
 };
 use semantic_vocabulary::{BlockId, ValueId};
@@ -21,7 +21,7 @@ pub(super) fn propagate(
     // over the covered cyclic components: member parameter tables feed
     // substitution positions, and covered values keep their identities.
     // Blocks and parameters outside the covered components still collapse.
-    let coverage = crate::psi_optimization::ranked::ranked_coverage(machine);
+    let coverage = crate::retained_identities::ranked_coverage::ranked_coverage(machine);
     retained_values.extend(coverage.values.iter().copied());
     // Propositions carried by contracts, crash sites, and call continuations
     // keep the exact identities they mention: they are proof terms, not uses.

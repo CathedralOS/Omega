@@ -51,6 +51,16 @@ fn ordinary_selected_float_comparisons_emit_one_exact_operation() {
             let lowered =
                 crate::lower_machine(&checked, "choose").expect("selected comparison lowers");
             assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 1);
+            let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
+                .produce_checked_artifact()
+                .expect("selected comparison custody publishes");
+            let [published] = produced.boundary_operator_scope().occurrences() else {
+                panic!("one exact published comparison occurrence");
+            };
+            assert_eq!(
+                published.terminal_operation(),
+                lowered.selected_ieee_float_comparison_occurrences[0].terminal_operation,
+            );
             assert_eq!(
                 lowered
                     .semantic_module
@@ -66,6 +76,45 @@ fn ordinary_selected_float_comparisons_emit_one_exact_operation() {
                 1
             );
         }
+    }
+}
+
+#[test]
+fn published_match_custody_rejects_missing_and_duplicate_occurrences() {
+    let checked = checked(
+        "boundary operator == Float::equal(left: f32, right: f32) -> bool;
+        machine identity(value: f32) -> f32 { value }
+        machine choose(value: f32, first: f32, second: f32) -> u64 {
+            match identity(value) { identity(first) -> 7, identity(second) -> 9, _ -> 11 }
+        }",
+    );
+    let lowered = crate::lower_machine(&checked, "choose").unwrap();
+    let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
+        .produce_checked_artifact()
+        .expect("both selected arms publish exact custody");
+    assert_eq!(produced.boundary_operator_scope().occurrences().len(), 2);
+    for duplicate in [false, true] {
+        let mut corrupted = lowered.clone();
+        if duplicate {
+            corrupted.selected_ieee_float_comparison_occurrences[1] =
+                corrupted.selected_ieee_float_comparison_occurrences[0];
+        } else {
+            corrupted.selected_ieee_float_comparison_occurrences.pop();
+        }
+        let error = lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
+            &checked,
+            produced.artifact(),
+            &corrupted,
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            if duplicate {
+                "checked boundary-operator applications do not map one-to-one onto Terminal operations"
+            } else {
+                "IEEE comparison occurrences do not cover the exact Terminal roster"
+            },
+        );
     }
 }
 

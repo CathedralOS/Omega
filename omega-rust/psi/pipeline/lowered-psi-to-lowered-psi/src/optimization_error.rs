@@ -1,57 +1,7 @@
-//! Pre-Terminal optimization stage carriers and errors.
-
-use optimization::PsiOptimizationSelections;
 use terminal_codec::{
-    CodecError, DebugMapError, ProofCodecError, PsiOptimizationExecutionRecord,
-    PsiOptimizationExecutionRecordError,
+    CodecError, DebugMapError, ProofCodecError, PsiOptimizationExecutionRecordError,
 };
 use terminal_verifier::ModuleError;
-
-use lowered_psi::LoweredPsi;
-
-/// Validated output of the selected target-neutral Psi optimization phase.
-///
-/// Terminal publication accepts this type rather than an unvalidated lowering
-/// result. Empty selection is an executed identity transformation. A selected
-/// pass has no route until its rewrite and independent validator operate on
-/// this complete carrier, including proof, debug, and source-custody sidecars.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[must_use = "Terminal publication requires the validated Psi optimization result"]
-pub struct PsiOptimizationStageResult {
-    lowered: LoweredPsi,
-    selections: PsiOptimizationSelections,
-    execution: PsiOptimizationExecutionRecord,
-}
-
-impl PsiOptimizationStageResult {
-    pub(super) const fn new(
-        lowered: LoweredPsi,
-        selections: PsiOptimizationSelections,
-        execution: PsiOptimizationExecutionRecord,
-    ) -> Self {
-        Self {
-            lowered,
-            selections,
-            execution,
-        }
-    }
-
-    pub const fn lowered(&self) -> &LoweredPsi {
-        &self.lowered
-    }
-
-    pub const fn selections(&self) -> &PsiOptimizationSelections {
-        &self.selections
-    }
-
-    pub const fn execution(&self) -> &PsiOptimizationExecutionRecord {
-        &self.execution
-    }
-
-    pub fn into_lowered(self) -> LoweredPsi {
-        self.lowered
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PsiOptimizationStageError {

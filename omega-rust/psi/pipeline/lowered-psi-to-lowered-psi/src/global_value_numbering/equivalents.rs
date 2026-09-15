@@ -11,7 +11,7 @@
 //! Blocks unreachable from the entry never enter the scan order and are left
 //! untouched; module validation already rejects them on the public entrance.
 
-use crate::psi_optimization::retained::{
+use crate::retained_identities::proof_values::{
     crash_continuations, retain_crash_routes, retain_proposition,
 };
 use semantic_vocabulary::{BlockId, ValueId};
@@ -36,7 +36,7 @@ pub(super) fn deduplicate(
     // components: it is proof and termination custody, not a use list the
     // substitution can rewrite. Covered member blocks keep their exact
     // contents; duplicates outside them still collapse.
-    let coverage = crate::psi_optimization::ranked::ranked_coverage(machine);
+    let coverage = crate::retained_identities::ranked_coverage::ranked_coverage(machine);
     let mut retained_values = retained_values.clone();
     retained_values.extend(coverage.values.iter().copied());
     for proposition in &machine.contract.requires {

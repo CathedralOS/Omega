@@ -2081,6 +2081,35 @@ fn preterminal_stages_consume_representation_data_without_producer_dependencies(
 }
 
 #[test]
+fn psi_optimizer_retention_policy_is_independent_of_pass_dispatch() {
+    let root = workspace_root().join("omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src");
+    let retained = recursive_rust_source(&root.join("retained_identities"));
+    for owner in [
+        "psi_optimization",
+        "copy_propagation",
+        "global_value_numbering",
+        "dead_scalar_elimination",
+    ] {
+        assert!(
+            !retained.contains(&format!("crate::{owner}::")),
+            "shared identity retention must not depend on {owner} execution"
+        );
+    }
+    for pass in [
+        "copy_propagation",
+        "global_value_numbering",
+        "dead_scalar_elimination",
+    ] {
+        let source = recursive_rust_source(&root.join(pass));
+        assert!(source.contains("crate::retained_identities::"));
+        assert!(
+            !source.contains("crate::psi_optimization::"),
+            "{pass} must consume shared policy without importing stage dispatch"
+        );
+    }
+}
+
+#[test]
 fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let root = workspace_root();
     let producer_path =
@@ -2105,11 +2134,12 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         );
     }
     let publication = std::fs::read_to_string(
-        root.join("omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src/lib.rs"),
+        root.join("omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src/publish_artifact.rs"),
     )
     .expect("read Terminal publication");
     assert!(publication.contains("optimized: &PsiOptimizationStageResult"));
     assert!(publication.contains("CanonicalTerminalArtifact::from_parts("));
+    assert!(!publication.contains("CheckedTrees"));
     let lowering = std::fs::read_to_string(
         root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/lib.rs"),
     )
