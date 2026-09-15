@@ -8,7 +8,7 @@ use typed_trees::typed_trees::MachineSpecialization;
 pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Machine) {
     let candidates = super::candidate::collect(source);
     let callees = super::candidate::callees(source, &candidates);
-    let contracts = super::contract_expression_handles(source);
+    let contracts = crate::monomorphization::selection::contract_expression_handles(source);
     let selections = super::collect_call_selections(source, &candidates, &callees, &contracts);
     let mut sites = Vec::new();
     let mut expressions = Vec::new();
@@ -113,7 +113,11 @@ pub(super) fn selected_instance<'program>(
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
     let mut concrete = super::candidate_for_selection(candidate, selection);
-    super::validate_candidate_conformance_bounds(source, &mut concrete).ok()?;
+    crate::monomorphization::selection::validate_candidate_conformance_bounds(
+        source,
+        &mut concrete,
+    )
+    .ok()?;
     applications.extend(concrete.selected_bound_applications);
     program.machine_specializations.iter().find(|instance| {
         instance.template == candidate.template.template_symbol

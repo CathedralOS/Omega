@@ -41,7 +41,10 @@ pub(super) fn refresh_generic_call_results(
                     };
                     selection
                 };
-                let Some(callee) = super::state_by_symbol(program, selection.callee_symbol) else {
+                let Some(callee) = crate::monomorphization::selection::state_by_symbol(
+                    program,
+                    selection.callee_symbol,
+                ) else {
                     continue;
                 };
                 if callee.return_type.is_valid() {
@@ -59,13 +62,20 @@ pub(super) fn refresh_generic_call_results(
     for (body, offset, previous_type, return_type, selection) in updates {
         let mut candidate =
             super::candidate_for_selection(&candidates[selection.candidate_index], &selection);
-        if super::approved_type_bounds(program, std::slice::from_ref(&candidate)) != [true] {
+        if crate::monomorphization::selection::approved_type_bounds(
+            program,
+            std::slice::from_ref(&candidate),
+        ) != [true]
+        {
             return Err(vec![diagnostics::Diagnostic::error(format!(
                 "generic machine `{}` has a concrete call result tuple that does not satisfy its authored type bounds",
                 candidate.template.template_name,
             ))]);
         }
-        super::validate_candidate_conformance_bounds(program, &mut candidate)?;
+        crate::monomorphization::selection::validate_candidate_conformance_bounds(
+            program,
+            &mut candidate,
+        )?;
         let mut closed_candidate = candidate.clone();
         let mut forwarded_symbols = Vec::new();
         for (ordinal, ((parameter, _, _), binding)) in candidate
@@ -190,7 +200,7 @@ fn forwarded_result_selection(
     let mut selected = selection.clone();
     for (_, ordinal, binding) in const_proposals {
         if let Some(existing) = selected.const_bindings[ordinal]
-            && !super::same_type_identity(program, existing, binding)
+            && !crate::monomorphization::selection::same_type_identity(program, existing, binding)
         {
             return None;
         }
@@ -294,7 +304,7 @@ mod tests {
         super::super::materialize_static_argument_types(program);
         let candidates = super::super::candidate::collect(program);
         let callees = super::super::candidate::callees(program, &candidates);
-        let contracts = super::super::contract_expression_handles(program);
+        let contracts = crate::monomorphization::selection::contract_expression_handles(program);
         let selections =
             super::super::collect_call_selections(program, &candidates, &callees, &contracts);
         refresh_generic_call_results(program, &candidates, &selections)

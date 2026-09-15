@@ -4,12 +4,10 @@ use super::{
     StateSignature, StatementNode, StaticMachineArgument, SymbolHandle, TypeConstraintNode,
     TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
-use crate::monomorphization::Candidate;
-use crate::monomorphization::collect_expression_tree;
-use crate::monomorphization::const_arguments;
-use crate::monomorphization::copy_type_reference;
-use crate::monomorphization::remapped_symbol;
-use crate::monomorphization::state_by_symbol;
+use crate::monomorphization::selection::state_by_symbol;
+use crate::monomorphization::{
+    Candidate, collect_expression_tree, const_arguments, copy_type_reference, remapped_symbol,
+};
 
 pub(super) fn rewrite_selected_call(
     program: &mut TypedTrees,

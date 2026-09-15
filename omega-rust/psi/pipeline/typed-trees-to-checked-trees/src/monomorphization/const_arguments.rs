@@ -1,6 +1,7 @@
 //! Normalize explicit const selections into the existing erased value leaves.
 
-use super::{CalleeState, Candidate, resolve_callee};
+use super::{CalleeState, Candidate};
+use crate::monomorphization::selection::resolve_callee;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use symbols::SymbolKind;

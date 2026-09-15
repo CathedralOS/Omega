@@ -1,15 +1,11 @@
 use super::{CallSite, ExpressionNode, StatementNode, SymbolHandle, TypedTrees};
-use crate::monomorphization::CallSelection;
-use crate::monomorphization::apply_call_specializations;
-use crate::monomorphization::candidate;
-use crate::monomorphization::candidate_for_selection;
-use crate::monomorphization::canonical_template_contract_bytes;
-use crate::monomorphization::cloned_runtime_call_subjects;
-use crate::monomorphization::collect_call_selections;
-use crate::monomorphization::collect_statement_expression_trees;
-use crate::monomorphization::contract_expression_handles;
-use crate::monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses;
-use crate::monomorphization::runtime_value_subjects;
+use crate::monomorphization::selection::contract_expression_handles;
+use crate::monomorphization::{
+    CallSelection, apply_call_specializations, candidate, candidate_for_selection,
+    canonical_template_contract_bytes, cloned_runtime_call_subjects, collect_call_selections,
+    collect_statement_expression_trees, monomorphize_generic_machine_value_calls_with_nominal_uses,
+    runtime_value_subjects,
+};
 
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
