@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use layout_plans::EntryStubId;
 use target::{ProgramEntrySlotDeclaration, TargetProfile, TargetRequiredRootSlotDeclaration};
 
+use crate::installed_root_ledger::InstalledRootEvidence;
 use crate::{
     ArtifactId, ExternalRootDiagnostic, ExternalRootId, InstallationScopeId, InstalledCodeId,
-    InstalledExternalRoot, InstalledRootEvidence, InstalledRootLedger, RootSlotAuthority,
-    RootSlotId, RootSlotOwnerId,
+    InstalledExternalRoot, InstalledRootLedger, RootSlotAuthority, RootSlotId, RootSlotOwnerId,
 };
 
 /// Compiler-selected realization of one target-owned required root slot.

@@ -15,11 +15,12 @@ use layout_plans::{
 };
 
 use super::{
-    ExternalRootDiagnostic, ExternalRootEntryClaim, ExternalRootId, FixedFuelLocalEvidence, Fnv1a,
+    ExternalRootDiagnostic, ExternalRootEntryClaim, ExternalRootId, FixedFuelLocalEvidence,
     ProviderExecutionId, ProviderPlanId, RootEffectId, RootProviderId, StackLocalEvidence,
     StateValidationReceiptId, TrustReceiptId, ValidatedExternalRoot, validate_external_root,
     validate_installed_entry_fuel, validate_installed_entry_stack,
 };
+use crate::identities::Fnv1a;
 
 /// Evidence that an opaque provider cannot escape the boundary's admitted
 /// exit contract. An accepted claim is checked against the exact normalized

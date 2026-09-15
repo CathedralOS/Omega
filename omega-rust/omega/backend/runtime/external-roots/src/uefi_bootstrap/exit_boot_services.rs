@@ -45,10 +45,10 @@ use super::{
     LifecycleScopedUefiBootServicesProjection, ReleasedUefiSystemTableScope,
     UefiApplicationFirmwareLedger, UefiExitBootServicesProviderResult, UefiOsHandoffMapAcquired,
 };
+use crate::identities::Fnv1a;
 use crate::{
-    ExternalRootDiagnostic, Fnv1a, UefiBootServicesTableOccurrenceId,
-    UefiExitBootServicesReceiptId, UefiImageHandleOccurrenceId, UefiMemoryMapKeyId,
-    UefiOsHandoffId, UefiPhysicalInvocationId,
+    ExternalRootDiagnostic, UefiBootServicesTableOccurrenceId, UefiExitBootServicesReceiptId,
+    UefiImageHandleOccurrenceId, UefiMemoryMapKeyId, UefiOsHandoffId, UefiPhysicalInvocationId,
 };
 
 const EXIT_BOOT_SERVICES_FIELD_ORDINAL: u8 = 31;
