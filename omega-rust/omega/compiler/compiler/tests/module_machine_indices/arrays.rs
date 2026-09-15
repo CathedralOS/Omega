@@ -510,8 +510,11 @@ fn module_scoped_arrays_validate_unused_attachment_owners_and_collisions() {
             "exact nongeneric data carrier",
         ),
         (
+            // The scope head resolves the unmoduled `data Sizes` in main.omg
+            // under the ordinary name law, so the const collides with its case
+            // rather than missing a module-local carrier.
             "module settings; const Sizes::SIZE: [u8; 1] = [1];",
-            "exact nongeneric data carrier",
+            "collides with the case",
         ),
         (
             "module settings; data Sizes {} pub const Sizes::SIZE: [u8; 1] = [1];",

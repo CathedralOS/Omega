@@ -17,8 +17,8 @@
 //! in its declaring source. Their uses retain exact declaration custody and
 //! rejoin the receiving parameter after symbol allocation; equal layouts and
 //! encoded labels never grant nominal identity. Scoped nominal constants use
-//! the same exact attachment finalization as scoped scalars. Foreign/generic
-//! attachments still need their full owners.
+//! the same exact attachment finalization as scoped scalars. Generic carriers
+//! still need their full normalization owners.
 
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
