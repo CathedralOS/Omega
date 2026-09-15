@@ -1,6 +1,7 @@
 //! Shared admission for store-to-load forwarding: locate the named load,
-//! walk the same block back to the exact same-width `Store` that last wrote
-//! its place range, and prove no intervening instruction can disturb it.
+//! walk back through its block and its unique-predecessor chain to the exact
+//! same-width `Store` that last wrote its place range, and prove no
+//! intervening instruction or crossed edge can disturb it.
 //!
 //! `Load64` pairs with an eight-byte `Store` and forwards to `CopyI64`.
 //! `Load32`/`Load16`/`Load8` pair with a `Store` of exactly the load's width
@@ -18,13 +19,25 @@
 //! row are admitted only when their kind cannot write semantic storage:
 //! loads, address formation, private-slot frame accesses, and pure register
 //! work. Calls, hosted effects, and unaccounted writers reject.
+//!
+//! The walk is not confined to one block: reaching a block's top without
+//! interference continues through the block's only predecessor, since every
+//! path into it then runs through that one block and a store found there
+//! wrote the bytes on every path to the load. The entry block, a join with
+//! several predecessors, and a self-loop each admit a path the chain never
+//! stored through, so they end the walk in rejection. A crossed terminator
+//! sits between its block's body and the edge, so its roster rows decide
+//! first; each crossed edge is then checked for transports that could
+//! redefine the carried registers or write the forwarded place.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedMemoryAccess, SelectedMemoryAccessRole, VirtualRegisterId, VirtualRegisterOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedCasePayloadTransport, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedTerminator, SelectedValueTransport,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::PlaceId;
 
@@ -204,31 +217,94 @@ pub(super) fn admit<'source>(
     }
     // Walk back to the last writer of the forwarded range. The first
     // potentially interfering access decides: an exact same-width referent
-    // store forwards; anything else rejects.
-    let mut found = None;
-    for candidate_index in (0..load_index).rev() {
-        let candidate = &block.instructions[candidate_index];
-        reject_barrier(candidate)?;
-        let mut has_row = false;
-        let mut interfered = false;
+    // store forwards; anything else rejects. When a block's top is reached
+    // without interference the walk crosses into its only predecessor block;
+    // the carried `value` and the load's `output` are validated against every
+    // crossed edge and terminator once the store is found.
+    let mut visited = vec![false; function.blocks.len()];
+    let mut walked = Vec::new();
+    let mut between = Vec::new();
+    let mut crossed = Vec::new();
+    let mut cursor = block_index;
+    let mut cursor_end = load_index;
+    let value = loop {
+        visited[cursor] = true;
+        walked.push(cursor);
+        let current = &function.blocks[cursor];
+        let mut found = None;
+        for candidate_index in (0..cursor_end).rev() {
+            let candidate = &current.instructions[candidate_index];
+            reject_barrier(candidate)?;
+            let mut has_row = false;
+            let mut interfered = false;
+            for access in function
+                .memory_accesses
+                .iter()
+                .filter(|access| access.instruction == candidate.id)
+            {
+                has_row = true;
+                interfered |= interferes(&forwarded, access);
+            }
+            if interfered {
+                found = Some(forwarding_source(
+                    candidate,
+                    &forwarded,
+                    function,
+                    environment,
+                )?);
+                between.push((cursor, candidate_index + 1, cursor_end));
+                break;
+            }
+            if !has_row {
+                reject_unaccounted(candidate)?;
+            }
+        }
+        if let Some(value) = found {
+            break value;
+        }
+        between.push((cursor, 0, cursor_end));
+        // Reached the block's top. Every path into it must run through
+        // exactly one predecessor block; the entry block has an implicit
+        // path no predecessor covers, and a join or self-loop admits paths
+        // outside the walked chain.
+        if current.id == function.entry_block {
+            return Err(StoredLoadForwardingError::UnsupportedPair);
+        }
+        let mut predecessors = Vec::new();
+        for (predecessor_index, predecessor) in function.blocks.iter().enumerate() {
+            let edges: Vec<&SelectedSuccessor> = successors(&predecessor.terminator)
+                .into_iter()
+                .filter(|successor| successor.block == current.id)
+                .collect();
+            if !edges.is_empty() {
+                predecessors.push((predecessor_index, edges));
+            }
+        }
+        let [(predecessor_index, edges)] = predecessors.as_slice() else {
+            return Err(StoredLoadForwardingError::UnsupportedPair);
+        };
+        // The terminator instruction sits between the predecessor's body and
+        // the crossed edge, so an interfering row on it decides first. It
+        // never has the exact referent `Store` kind, so it rejects the pair.
+        let terminator = terminator_instruction(&function.blocks[*predecessor_index].terminator);
+        let mut terminator_interferes = false;
         for access in function
             .memory_accesses
             .iter()
-            .filter(|access| access.instruction == candidate.id)
+            .filter(|access| access.instruction == terminator.id)
         {
-            has_row = true;
-            interfered |= interferes(&forwarded, access);
+            terminator_interferes |= interferes(&forwarded, access);
         }
-        if interfered {
-            let value = forwarding_source(candidate, &forwarded, function, environment)?;
-            found = Some((candidate_index, value));
-            break;
+        if terminator_interferes {
+            return Err(StoredLoadForwardingError::AliasingWrite);
         }
-        if !has_row {
-            reject_unaccounted(candidate)?;
+        crossed.extend(edges.iter().copied());
+        if visited[*predecessor_index] {
+            return Err(StoredLoadForwardingError::UnsupportedPair);
         }
-    }
-    let (store_index, value) = found.ok_or(StoredLoadForwardingError::UnsupportedPair)?;
+        cursor = *predecessor_index;
+        cursor_end = function.blocks[cursor].instructions.len();
+    };
     if value == output {
         return Err(StoredLoadForwardingError::UnsupportedUse);
     }
@@ -237,15 +313,25 @@ pub(super) fn admit<'source>(
         .iter()
         .find(|register| register.id == value)
         .ok_or(StoredLoadForwardingError::UnsupportedPair)?;
-    // Nothing between the store and the load may redefine the carried value or
-    // predefine the load's result; both stay register-identical after the copy.
-    for between in &block.instructions[store_index + 1..load_index] {
-        for operand in &between.operands {
-            if operand.access != RegisterOperandAccess::Use
-                && (operand.virtual_register == value || operand.virtual_register == output)
-            {
-                return Err(StoredLoadForwardingError::UnsupportedUse);
-            }
+    // Nothing on the walked path may redefine the carried value or predefine
+    // the load's result: the store's tail, each crossed block's terminator
+    // and its successor-edge transports, the intervening block bodies, and
+    // the load's own head all keep both registers identical after the copy.
+    for successor in &crossed {
+        edge_preserves(successor, &forwarded, value, output)?;
+    }
+    for (walked_block, start, end) in &between {
+        for instruction in &function.blocks[*walked_block].instructions[*start..*end] {
+            registers_untouched(instruction, value, output)?;
+        }
+    }
+    for walked_block in &walked {
+        if *walked_block != block_index {
+            registers_untouched(
+                terminator_instruction(&function.blocks[*walked_block].terminator),
+                value,
+                output,
+            )?;
         }
     }
     let copy = environment
@@ -278,6 +364,13 @@ pub(super) fn admit<'source>(
         2 => SelectedInstructionKind::ZeroExtendU16,
         _ => SelectedInstructionKind::ZeroExtendU8,
     };
+    let interval = between
+        .iter()
+        .try_fold(0usize, |distance, (_, start, end)| {
+            distance.checked_add(end - start)
+        })
+        .and_then(|total| total.checked_add(crossed.len()))
+        .ok_or(StoredLoadForwardingError::IdentityOverflow)?;
     let steps = plan
         .functions
         .iter()
@@ -286,7 +379,7 @@ pub(super) fn admit<'source>(
                 total.checked_add(block.instructions.len())?.checked_add(1)
             })
         })
-        .and_then(|total| total.checked_add(load_index.checked_sub(store_index)?))
+        .and_then(|total| total.checked_add(interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(StoredLoadForwardingError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| StoredLoadForwardingError::IdentityOverflow)?
@@ -412,6 +505,113 @@ fn forwarding_source(
         return Err(reject());
     }
     Ok(value.virtual_register)
+}
+
+/// The successor edges a terminator can take: a jump's single edge or a
+/// conditional's two legs. Returns and hosted exits have none.
+fn successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
+    match terminator {
+        SelectedTerminator::Jump { successor, .. } => vec![successor],
+        SelectedTerminator::ConditionalBranch {
+            when_nonzero,
+            when_zero,
+            ..
+        } => vec![when_nonzero, when_zero],
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        }
+        | SelectedTerminator::ConditionalBranchI64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        } => vec![when_less, when_not_less],
+        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+            Vec::new()
+        }
+    }
+}
+
+/// The instruction a terminator positions at the end of its block. Its
+/// operands and roster rows sit between the block's body and any crossed
+/// edge.
+fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
+    match terminator {
+        SelectedTerminator::HostedExitProcess { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
+        | SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Return { instruction, .. } => instruction,
+    }
+}
+
+/// A crossed edge must perform no work the roster cannot see. `Unused`
+/// transports are quiet; `Registers` bindings and case payloads name the one
+/// register the edge defines, which must not be the carried value or the
+/// load's result. Structural destinations, case custody slots, and custody
+/// discards reach the forwarded bytes only through the same place root under
+/// place exclusivity.
+fn edge_preserves(
+    successor: &SelectedSuccessor,
+    forwarded: &Forwarded,
+    value: VirtualRegisterId,
+    output: VirtualRegisterId,
+) -> Result<(), StoredLoadForwardingError> {
+    for binding in &successor.bindings {
+        if let SelectedValueTransport::Registers { parameter, .. } = binding.transport
+            && (parameter == value || parameter == output)
+        {
+            return Err(StoredLoadForwardingError::UnsupportedUse);
+        }
+    }
+    for binding in &successor.structural_bindings {
+        let destination = match binding.transport {
+            SelectedStructuralTransport::Unused => continue,
+            SelectedStructuralTransport::WholeValue { destination, .. }
+            | SelectedStructuralTransport::Descriptor { destination, .. } => destination,
+        };
+        if destination.structural_place() == Some(forwarded.place) {
+            return Err(StoredLoadForwardingError::AliasingWrite);
+        }
+    }
+    if let Some(case) = &successor.structural_case {
+        if case.slot.structural_place() == Some(forwarded.place)
+            || case.trivial_affine_discards.contains(&forwarded.place)
+        {
+            return Err(StoredLoadForwardingError::AliasingWrite);
+        }
+        for payload in &case.payloads {
+            let parameter = match payload.transport {
+                SelectedCasePayloadTransport::Unused => continue,
+                SelectedCasePayloadTransport::Unmaterialized { parameter }
+                | SelectedCasePayloadTransport::Registers { parameter, .. } => parameter,
+            };
+            if parameter == value || parameter == output {
+                return Err(StoredLoadForwardingError::UnsupportedUse);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Between the store and the load no instruction may redefine the carried
+/// value or predefine the load's result; both stay register-identical after
+/// the copy.
+fn registers_untouched(
+    instruction: &SelectedInstruction,
+    value: VirtualRegisterId,
+    output: VirtualRegisterId,
+) -> Result<(), StoredLoadForwardingError> {
+    for operand in &instruction.operands {
+        if operand.access != RegisterOperandAccess::Use
+            && (operand.virtual_register == value || operand.virtual_register == output)
+        {
+            return Err(StoredLoadForwardingError::UnsupportedUse);
+        }
+    }
+    Ok(())
 }
 
 /// Calls, hosted effects, and terminator kinds are always barriers: they can

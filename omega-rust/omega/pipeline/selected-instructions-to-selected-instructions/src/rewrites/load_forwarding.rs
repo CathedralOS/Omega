@@ -2,14 +2,22 @@
 //!
 //! A `Store { byte_offset, byte_size }` writes the low exact-width bits of
 //! its value operand through the referent pointer. A later `Load64`/`Load32`/
-//! `Load16`/`Load8` of the same width at the same byte offset in the same
-//! block observes exactly those bytes when no intervening instruction can
-//! write or expose the same storage. The rewrite replaces the load with a
+//! `Load16`/`Load8` of the same width at the same byte offset observes
+//! exactly those bytes when no intervening instruction can write or expose
+//! the same storage. The rewrite replaces the load with a
 //! `CopyI64` of the stored register at full width, or the matching
 //! `ZeroExtend` at sub-word width: a same-width store-then-load round-trips
 //! the register's low bits in the target's own byte order, so no endianness
 //! assumption is needed. The loaded register keeps its identity, origin, and
 //! the read's provenance.
+//!
+//! The store and the load need not share a block: when the load's block can
+//! only be reached through one predecessor, that predecessor's own writer
+//! decides on every path to the load, and the walk continues there. Joins,
+//! self-loops, and the function entry each admit a path that never passed a
+//! store, so they end the walk without a pair. Crossed edges are admitted
+//! only when their transports move neither the carried registers nor storage
+//! the forwarded place can reach.
 //!
 //! The alias decision is borrow-aware: it comes from the validated
 //! `memory_accesses` roster, not from pointer-register equality. Each access
