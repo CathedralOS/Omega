@@ -151,9 +151,10 @@ pub fn decode_proof_section_for(
 /// Admission decode for a proof section paired with this exact module. A
 /// sealed section must name the module's reconstructed identity, so a sealed
 /// proof cannot be replayed for another subject even when compact obligation
-/// coordinates coincide. An unsealed bundle is still decoded: requiring the
-/// sealed form at every raw-section boundary is the remaining
-/// SUBJECT-QUALIFIED-ARTIFACT-PROOFS step.
+/// coordinates coincide. An unsealed bundle is still decoded here, but only
+/// the optimizer artifact admission retains this transitional decode; the
+/// ordinary, native, provider-installation, and component-verification
+/// boundaries all require the sealed section via [`decode_proof_section_for`].
 pub fn decode_proof_bundle_for(
     module: &TerminalModule,
     bytes: &[u8],
