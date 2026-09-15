@@ -1,11 +1,13 @@
 //! Ordinary scalar results use the ABI floating register without a wrapper call.
 
 use super::{
-    AARCH64_AAPCS64_RETURN, AARCH64_DARWIN_RETURN, RegisterConstraintFamily, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-    ValidatedPhysicalRegisterModel, aarch64_aapcs64_mixed_unit_call_keys,
+    AARCH64_AAPCS64_RETURN, AARCH64_DARWIN_RETURN, aarch64_aapcs64_mixed_unit_call_keys,
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
     aarch64_darwin_register_unit_call_keys,
+};
+use register_model::{
+    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 pub fn aarch64_float_scalar_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
     let count = input_keys(darwin).len()
