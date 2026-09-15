@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use installation_evidence::ProviderExecutionEvidence;
-use machine_code::BoundaryExecutionRecord;
+use machine_code::{BoundaryExecutionRecord, PortEffectRecord};
 use object_file::{RelocationKind, RelocationOrigin, SectionKind};
 use optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
@@ -12,8 +12,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::{
-    BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution, NormalizedForeignCallBinding,
-    ProviderExecutionBinding, ProviderPlanReportIdentity,
+    BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution, CompletionClaimSource,
+    NormalizedForeignCallBinding, ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
 use terminal_psi::OperationKind;
 
@@ -48,7 +48,6 @@ pub(crate) fn derive_physical_evidence(
         .machines
         .iter()
         .any(|machine| machine.ranked_scc.is_some())
-        || !object.port_effects().is_empty()
     {
         return Ok(None);
     }
@@ -134,6 +133,7 @@ pub(crate) fn derive_physical_evidence(
         .map(|boundary| (boundary.id, boundary.identity.as_str()))
         .collect::<BTreeMap<_, _>>();
     let mut children = Vec::new();
+    let mut consumed_port_effects = BTreeSet::new();
     for occurrence in projection.boundary_occurrences() {
         let key = (
             occurrence.machine(),
@@ -242,6 +242,25 @@ pub(crate) fn derive_physical_evidence(
                     installed,
                 )?);
             }
+            (Some(installed), None) => {
+                let Some(child) = derive_admitted_provider_settlement_child(
+                    &module,
+                    object,
+                    image,
+                    occurrence,
+                    projection.identity(),
+                    requirement,
+                    selected_plan,
+                    provider_executions,
+                    target,
+                    installed,
+                    &mut consumed_port_effects,
+                )?
+                else {
+                    return Ok(None);
+                };
+                children.push(child);
+            }
             (None, Some(foreign)) => {
                 let Some(child) = derive_normalized_foreign_child(
                     occurrence,
@@ -263,6 +282,13 @@ pub(crate) fn derive_physical_evidence(
             }
             _ => return Ok(None),
         }
+    }
+    // Every retained privileged port effect must have been consumed by an
+    // exact `MetadataOnlyPort` settlement join above. An unowned privileged
+    // effect cannot be attributed to a surviving occurrence, so the artifact
+    // remains valid without claiming complete physical coverage.
+    if consumed_port_effects.len() != object.port_effects().len() {
+        return Ok(None);
     }
     for occurrence in projection.operator_occurrences() {
         let matching_references = boundary_application_coverage
@@ -947,6 +973,691 @@ fn derive_read_byte_child(
         identity,
     }
     .into())
+}
+
+/// Derive the D41 physical child for one installed provider settlement
+/// realized in place by a supported target mechanism.
+///
+/// `Ok(None)` leaves realizations this lane does not cover without a claimed
+/// child; the artifact remains valid but retains no complete physical
+/// evidence. Custody drift that would contradict a validated object or its
+/// Terminal operation is an error, matching the hosted-builtin derivations.
+#[allow(clippy::too_many_arguments)]
+fn derive_admitted_provider_settlement_child(
+    module: &terminal_psi::TerminalModule,
+    object: &image_emission::ObjectArtifact,
+    image: &image::EmittedImageOutput,
+    occurrence: &OptimizedBoundaryOccurrence,
+    projection: NativeOptimizationProjectionIdentity,
+    requirement_identity: &str,
+    selected_plan: &NativeSelectedProviderPlan,
+    provider_executions: &[NativeProviderExecution],
+    target: NativeTarget,
+    installed: &image_emission::ObjectBoundarySettlement,
+    consumed_port_effects: &mut BTreeSet<usize>,
+) -> Result<Option<NativePhysicalChild>, &'static str> {
+    let settlement = &installed.settlement;
+    let BoundaryExecutionRecord::AdmittedProvider(execution_record) = settlement.execution else {
+        return Ok(None);
+    };
+    let supported = matches!(
+        settlement.realization,
+        BoundaryRealization::MetadataOnlyPort(_)
+            | BoundaryRealization::DirectPortReadU8(_)
+            | BoundaryRealization::LinuxWriteLine(_)
+            | BoundaryRealization::ClaimCompletionOnly(_)
+    );
+    if !supported {
+        return Ok(None);
+    }
+    // The retained settlement must still rejoin exactly one Terminal boundary
+    // call on the occurrence's machine, and that call must carry the
+    // settlement's exact structural-argument and completion-receipt custody.
+    // None of the supported mechanisms retain a scalar argument.
+    let matching_operations = module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == occurrence.machine())
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == occurrence.operation())
+        .collect::<Vec<_>>();
+    let [operation] = matching_operations.as_slice() else {
+        return Err("installed D41 settlement does not rejoin one Terminal operation");
+    };
+    let OperationKind::BoundaryCall {
+        boundary,
+        arguments,
+        structural_arguments,
+        completion_receipts,
+    } = &operation.kind
+    else {
+        return Err("installed D41 settlement owner is not a Terminal boundary call");
+    };
+    let declaration = module
+        .boundary_machines
+        .iter()
+        .find(|declaration| declaration.id == *boundary)
+        .ok_or("installed D41 settlement names an absent boundary")?;
+    if *boundary != occurrence.boundary()
+        || settlement.psi_operation != occurrence.operation()
+        || settlement.boundary != *boundary
+        || declaration.identity != requirement_identity
+        || !arguments.is_empty()
+        || *structural_arguments != settlement.arguments
+        || *completion_receipts != settlement.completion_receipts
+    {
+        return Err("installed D41 settlement changed its semantic operation custody");
+    }
+    if !settlement_completion_custody_is_exact(settlement) {
+        return Err("installed D41 settlement changed its completion custody");
+    }
+    let function = object
+        .functions()
+        .iter()
+        .find(|function| function.machine == occurrence.machine())
+        .ok_or("installed D41 settlement names an absent object function")?;
+    if !function
+        .provenance
+        .operations
+        .contains(&settlement.psi_operation)
+    {
+        return Err("installed D41 settlement operation left its function provenance");
+    }
+    let port_effect = match &settlement.realization {
+        BoundaryRealization::MetadataOnlyPort(realization) => Some(metadata_port_effect_custody(
+            module,
+            object,
+            image,
+            occurrence,
+            settlement,
+            realization,
+            target,
+            function,
+            operation,
+            declaration,
+            consumed_port_effects,
+        )?),
+        BoundaryRealization::DirectPortReadU8(realization) => {
+            direct_port_read_custody(
+                object,
+                image,
+                occurrence,
+                settlement,
+                realization,
+                target,
+                function,
+                operation,
+                declaration,
+            )?;
+            None
+        }
+        BoundaryRealization::LinuxWriteLine(_) => {
+            if !linux_write_line_custody_is_exact(target, settlement, function.bytes(object))
+                || function.unit_stack.is_none()
+                || function.scalar_stack.is_some()
+                || !matches!(operation.result, terminal_psi::OperationResult::Unit)
+                || !declaration.result.is_unit()
+            {
+                return Err("installed D41 write-line custody is incomplete or substituted");
+            }
+            None
+        }
+        BoundaryRealization::ClaimCompletionOnly(_) => {
+            if !settlement.scalar_arguments.is_empty()
+                || !settlement.runtime_scalar_arguments.is_empty()
+                || !settlement.byte_sequence_arguments.is_empty()
+                || !settlement.native_result.is_unit()
+                || settlement.byte_count != 0
+                || !matches!(operation.result, terminal_psi::OperationResult::Unit)
+                || !declaration.result.is_unit()
+            {
+                return Err("installed D41 claim-completion custody is incomplete or substituted");
+            }
+            None
+        }
+        _ => unreachable!("supported installed realizations were dispatched above"),
+    };
+    let execution = rejoin_admitted_provider_execution(
+        requirement_identity,
+        selected_plan,
+        provider_executions,
+        execution_record,
+    )?;
+
+    let expected_object_offset = function
+        .text_offset
+        .checked_add(settlement.code_offset)
+        .ok_or("installed D41 settlement object span overflow")?;
+    if installed.text_offset != expected_object_offset {
+        return Err("installed D41 settlement object span is detached");
+    }
+    let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
+    let object_span = native_byte_span(installed.text_offset, settlement.byte_count);
+    let final_image_span = object_span;
+    let machine_bytes = span(function.bytes(object), machine_span)?;
+    let object_bytes = span(object.text_bytes(), object_span)?;
+    let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
+    if machine_bytes != object_bytes || object_bytes != final_image_bytes {
+        return Err("installed D41 settlement bytes changed across physical custody");
+    }
+    let object_end = installed
+        .text_offset
+        .checked_add(settlement.byte_count)
+        .ok_or("installed D41 settlement relocation span overflow")?;
+    if object.relocations().records().any(|(_, relocation)| {
+        relocation.section == SectionKind::Text
+            && ranges_overlap(
+                installed.text_offset,
+                object_end,
+                relocation.offset,
+                relocation.offset.saturating_add(relocation.byte_width),
+            )
+    }) {
+        return Err("installed D41 settlement unexpectedly contains a relocation");
+    }
+
+    let role = BoundaryTraitSettlementRole::AdmittedProviderSettlement {
+        execution,
+        settlement: settlement.clone(),
+        port_effect: port_effect.clone(),
+    };
+    let parent_identity = admitted_provider_settlement_identity(
+        occurrence,
+        requirement_identity,
+        selected_plan.plan_digest(),
+        target,
+        execution,
+        settlement,
+        port_effect.as_ref(),
+    )?;
+    let parent = PhysicalChildParent::BoundaryTraitSettlement(
+        BoundaryTraitSettlementParts {
+            occurrence: *occurrence,
+            requirement_identity: requirement_identity.to_owned(),
+            selected_plan_digest: selected_plan.plan_digest(),
+            target,
+            role,
+            identity: parent_identity,
+        }
+        .into(),
+    );
+    let machine_bytes_digest = sha256(machine_bytes);
+    let object_bytes_digest = sha256(object_bytes);
+    let final_image_bytes_digest = sha256(final_image_bytes);
+    let relocation = PhysicalRelocationDisposition::DirectInstructionBytes;
+    let identity = physical_child_identity(
+        &parent,
+        projection,
+        NativePhysicalOccurrence::Boundary(occurrence.identity()),
+        machine_span,
+        object_span,
+        final_image_span,
+        machine_bytes_digest,
+        object_bytes_digest,
+        final_image_bytes_digest,
+        relocation,
+    );
+    Ok(Some(
+        NativePhysicalChildParts {
+            parent,
+            projection,
+            occurrence: NativePhysicalOccurrence::Boundary(occurrence.identity()),
+            machine_span,
+            object_span,
+            final_image_span,
+            machine_bytes_digest,
+            object_bytes_digest,
+            final_image_bytes_digest,
+            relocation,
+            identity,
+        }
+        .into(),
+    ))
+}
+
+/// Rejoin the one retained provider execution an installed settlement names.
+/// The record must identify the selected plan and match exactly one retained
+/// execution on every compact coordinate.
+fn rejoin_admitted_provider_execution(
+    requirement_identity: &str,
+    selected_plan: &NativeSelectedProviderPlan,
+    provider_executions: &[NativeProviderExecution],
+    execution_record: machine_code::ProviderExecutionRecord,
+) -> Result<ProviderExecutionBinding, &'static str> {
+    if execution_record.provider_plan_report_identity != selected_plan.report_identity() {
+        return Err("installed D41 settlement names the wrong selected provider plan");
+    }
+    let matching_executions = provider_executions
+        .iter()
+        .filter(|execution| {
+            execution.requirement_identity() == requirement_identity
+                && execution.provider_plan_report_identity()
+                    == execution_record.provider_plan_report_identity
+                && execution.provider_execution_report_identity()
+                    == execution_record.provider_execution_report_identity
+                && execution.provider_execution_report_fingerprint()
+                    == execution_record.provider_execution_report_fingerprint
+                && execution.normalized_root_report_identity()
+                    == execution_record.normalized_root_report_identity
+                && execution.boundary_contract_report_fingerprint()
+                    == execution_record.boundary_contract_report_fingerprint
+        })
+        .count();
+    if matching_executions != 1 {
+        return Err("installed D41 settlement cannot rejoin one retained provider execution");
+    }
+    let plan_report_identity =
+        ProviderPlanReportIdentity::new(execution_record.provider_plan_report_identity)
+            .ok_or("installed D41 settlement has a zero provider-plan report identity")?;
+    ProviderExecutionBinding::from_execution_record(
+        plan_report_identity,
+        execution_record.provider_execution_report_identity,
+        execution_record.provider_execution_report_fingerprint,
+        execution_record.normalized_root_report_identity,
+        execution_record.boundary_contract_report_fingerprint,
+    )
+    .ok_or("installed D41 settlement has an invalid provider execution")
+}
+
+/// Join one `MetadataOnlyPort` settlement to its exact privileged port
+/// effect. The effect operation must be the immediately preceding emitted
+/// operation whose interval ends where the settlement begins, must still
+/// name one exact Terminal port write, and must reproduce its target bytes
+/// across machine, object, and final-image custody.
+#[allow(clippy::too_many_arguments)]
+fn metadata_port_effect_custody(
+    module: &terminal_psi::TerminalModule,
+    object: &image_emission::ObjectArtifact,
+    image: &image::EmittedImageOutput,
+    occurrence: &OptimizedBoundaryOccurrence,
+    settlement: &machine_code::BoundarySettlementRecord,
+    realization: &target_operations::MetadataOnlyPortRealization,
+    target: NativeTarget,
+    function: &image_emission::ObjectFunction,
+    operation: &terminal_psi::Operation,
+    declaration: &terminal_psi::BoundaryMachineDeclaration,
+    consumed_port_effects: &mut BTreeSet<usize>,
+) -> Result<PortEffectRecord, &'static str> {
+    if target.architecture != Architecture::X86_64
+        || !settlement.scalar_arguments.is_empty()
+        || !settlement.runtime_scalar_arguments.is_empty()
+        || !settlement.byte_sequence_arguments.is_empty()
+        || !settlement.native_result.is_unit()
+        || settlement.byte_count != 0
+        || !matches!(operation.result, terminal_psi::OperationResult::Unit)
+        || !declaration.result.is_unit()
+    {
+        return Err("metadata port D41 settlement custody is incomplete or substituted");
+    }
+    let matching_effects = object
+        .port_effects()
+        .iter()
+        .enumerate()
+        .filter(|(_, candidate)| {
+            let effect = &candidate.effect;
+            candidate.machine == occurrence.machine()
+                && effect.psi_operation == realization.effect_operation
+                && effect.service == realization.service
+                && effect.port == realization.port
+                && effect.value == realization.value
+                && effect.operation_ordinal.checked_add(1) == Some(settlement.operation_ordinal)
+                && effect.code_offset.checked_add(effect.byte_count) == Some(settlement.code_offset)
+        })
+        .collect::<Vec<_>>();
+    let [(effect_index, object_effect)] = matching_effects.as_slice() else {
+        return Err("metadata port D41 settlement does not rejoin one privileged port effect");
+    };
+    let effect = &object_effect.effect;
+    let matching_effect_operations = module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == occurrence.machine())
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == effect.psi_operation)
+        .collect::<Vec<_>>();
+    let [effect_operation] = matching_effect_operations.as_slice() else {
+        return Err("metadata port D41 effect does not rejoin one Terminal operation");
+    };
+    if !matches!(
+        effect_operation.kind,
+        OperationKind::PortWrite { service, port, value }
+            if service == effect.service && port == effect.port && value == effect.value
+    ) {
+        return Err("metadata port D41 effect changed its semantic port write");
+    }
+    if !function
+        .provenance
+        .operations
+        .contains(&effect.psi_operation)
+        || effect.byte_count != x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH
+    {
+        return Err("metadata port D41 effect left its function provenance or width");
+    }
+    let expected_object_offset = function
+        .text_offset
+        .checked_add(effect.code_offset)
+        .ok_or("metadata port D41 effect object span overflow")?;
+    if object_effect.text_offset != expected_object_offset {
+        return Err("metadata port D41 effect object span is detached");
+    }
+    let expected = x86_encoding::encode_immediate_port_write(effect.port, effect.value);
+    let machine_span = native_byte_span(effect.code_offset, effect.byte_count);
+    let object_span = native_byte_span(object_effect.text_offset, effect.byte_count);
+    let machine_bytes = span(function.bytes(object), machine_span)?;
+    let object_bytes = span(object.text_bytes(), object_span)?;
+    let final_image_bytes = span(&image.final_text_bytes, object_span)?;
+    if machine_bytes != expected.as_slice()
+        || machine_bytes != object_bytes
+        || object_bytes != final_image_bytes
+    {
+        return Err("metadata port D41 effect bytes changed across physical custody");
+    }
+    let object_end = object_effect
+        .text_offset
+        .checked_add(effect.byte_count)
+        .ok_or("metadata port D41 effect relocation span overflow")?;
+    if object.relocations().records().any(|(_, relocation)| {
+        relocation.section == SectionKind::Text
+            && ranges_overlap(
+                object_effect.text_offset,
+                object_end,
+                relocation.offset,
+                relocation.offset.saturating_add(relocation.byte_width),
+            )
+    }) {
+        return Err("metadata port D41 effect unexpectedly contains a relocation");
+    }
+    consumed_port_effects.insert(*effect_index);
+    Ok(effect.clone())
+}
+
+/// Replay the exact direct port-read custody: one 16-byte x86-64 `in al, dx`
+/// sequence, one `u8` result in `RAX`, and the exact `0xc3` return edge that
+/// returns the read value.
+#[allow(clippy::too_many_arguments)]
+fn direct_port_read_custody(
+    object: &image_emission::ObjectArtifact,
+    image: &image::EmittedImageOutput,
+    occurrence: &OptimizedBoundaryOccurrence,
+    settlement: &machine_code::BoundarySettlementRecord,
+    realization: &target_operations::DirectPortReadU8Realization,
+    target: NativeTarget,
+    function: &image_emission::ObjectFunction,
+    operation: &terminal_psi::Operation,
+    declaration: &terminal_psi::BoundaryMachineDeclaration,
+) -> Result<(), &'static str> {
+    let u8_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"));
+    let Some(result) = settlement.native_result.scalar() else {
+        return Err("direct port-read D41 settlement requires one scalar result");
+    };
+    if target.architecture != Architecture::X86_64
+        || !settlement.scalar_arguments.is_empty()
+        || !settlement.runtime_scalar_arguments.is_empty()
+        || !settlement.byte_sequence_arguments.is_empty()
+        || settlement.byte_count != x86_encoding::IMMEDIATE_PORT_READ_U8_WIDTH
+        || result.scalar_type != u8_type
+        || result.placement.shape != calling_conventions::ValueShape::integer(1, 1)
+        || result.placement.locations.as_slice()
+            != [calling_conventions::ValueLocation::Register {
+                register: calling_conventions::MachineRegister::X86Rax,
+                value_byte_offset: 0,
+                byte_size: 1,
+            }]
+        || function.unit_stack.is_some()
+        || function.scalar_stack.is_none()
+    {
+        return Err("direct port-read D41 settlement custody is incomplete or substituted");
+    }
+    if !settlement.arguments.iter().all(|argument| {
+        argument.path.is_empty()
+            && function
+                .scalar_structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == argument.place)
+    }) {
+        return Err("direct port-read D41 settlement changed a structural argument place");
+    }
+    let result_matches = matches!(
+        &operation.result,
+        terminal_psi::OperationResult::Scalar(value)
+            if value.id == result.value && value.scalar_type == u8_type
+    ) && matches!(
+        declaration.result,
+        terminal_psi::BoundaryMachineResult::Scalar(scalar) if scalar == u8_type
+    );
+    if !result_matches {
+        return Err("direct port-read D41 settlement changed its semantic scalar result");
+    }
+    let Some(return_ordinal) = settlement.operation_ordinal.checked_add(1) else {
+        return Err("direct port-read D41 return ordinal overflow");
+    };
+    let Some(return_offset) = settlement.code_offset.checked_add(settlement.byte_count) else {
+        return Err("direct port-read D41 return offset overflow");
+    };
+    let matching_returns = object
+        .semantic_code_attribution()
+        .iter()
+        .filter(|attribution| {
+            attribution.machine == occurrence.machine()
+                && attribution.attribution.site
+                    == machine_code::SemanticCodeSite::Edge(result.return_edge)
+                && attribution.attribution.operation_ordinal == return_ordinal
+                && attribution.attribution.code_offset == return_offset
+                && attribution.attribution.byte_count == 1
+        })
+        .collect::<Vec<_>>();
+    let [return_attribution] = matching_returns.as_slice() else {
+        return Err("direct port-read D41 settlement does not rejoin one return edge");
+    };
+    let expected_return_object_offset = function
+        .text_offset
+        .checked_add(return_offset)
+        .ok_or("direct port-read D41 return object span overflow")?;
+    let expected = x86_encoding::encode_immediate_port_read_u8(realization.port);
+    let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
+    if span(function.bytes(object), machine_span)? != expected.as_slice()
+        || return_attribution.text_offset != expected_return_object_offset
+        || function.bytes(object).get(return_offset) != Some(&0xc3)
+        || object.text_bytes().get(return_attribution.text_offset) != Some(&0xc3)
+        || image.final_text_bytes.get(return_attribution.text_offset) != Some(&0xc3)
+    {
+        return Err("direct port-read D41 custody changed across physical custody");
+    }
+    Ok(())
+}
+
+/// Replay the exact Linux `write_line` byte custody: one borrowed-view
+/// byte-sequence structural argument, the exact target encoder output, and
+/// the code/data intervals the settlement retains.
+fn linux_write_line_custody_is_exact(
+    target: NativeTarget,
+    settlement: &machine_code::BoundarySettlementRecord,
+    function_bytes: &[u8],
+) -> bool {
+    let BoundaryRealization::LinuxWriteLine(_) = settlement.realization else {
+        return false;
+    };
+    let [custody] = settlement.byte_sequence_arguments.as_slice() else {
+        return false;
+    };
+    if target.object_format != ObjectFormat::Elf
+        || !matches!(
+            target.architecture,
+            Architecture::X86_64 | Architecture::Aarch64
+        )
+        || !settlement.scalar_arguments.is_empty()
+        || !settlement.runtime_scalar_arguments.is_empty()
+        || settlement.arguments.as_slice() != [custody.argument.clone()]
+        || !custody.argument.path.is_empty()
+        || !matches!(
+            custody.structural_type.shape,
+            terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView
+            )
+        )
+        || !settlement.native_result.is_unit()
+    {
+        return false;
+    }
+    let encoded = match target.architecture {
+        Architecture::X86_64 => isa_x86_64::encode_linux_write_line_literal(&custody.bytes),
+        Architecture::Aarch64 => isa_aarch64::encode_linux_write_line_literal(&custody.bytes),
+    };
+    let Ok((encoded, data)) = encoded else {
+        return false;
+    };
+    settlement.byte_count == encoded.len()
+        && settlement.byte_count != 0
+        && custody.code_offset == settlement.code_offset
+        && custody.code_byte_count == data.start
+        && custody.code_byte_count != 0
+        && custody.data_offset == settlement.code_offset.saturating_add(data.start)
+        && custody.data_byte_count == data.len()
+        && custody.data_byte_count == custody.bytes.len().saturating_add(1)
+        && encoded
+            .get(data.clone())
+            .is_some_and(|payload| payload.strip_suffix(b"\n") == Some(custody.bytes.as_slice()))
+        && settlement
+            .code_offset
+            .checked_add(settlement.byte_count)
+            .and_then(|end| function_bytes.get(settlement.code_offset..end))
+            == Some(encoded.as_slice())
+}
+
+/// Replay the object validator's completion-custody responsibility after the
+/// verified module has been discarded. The caller already constrained the
+/// execution/realization pair, so this mirrors the argument-path,
+/// receipt-index, receipt-custody, and provider-custody reconstruction
+/// checks exactly.
+fn settlement_completion_custody_is_exact(
+    settlement: &machine_code::BoundarySettlementRecord,
+) -> bool {
+    if settlement.arguments.iter().any(|argument| {
+        argument.path.iter().any(
+            |segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if identity.is_empty()),
+        )
+    }) || settlement.completion_receipts.iter().any(|receipt| {
+        usize::try_from(receipt.argument_index)
+            .map_or(true, |index| index >= settlement.arguments.len())
+    }) {
+        return false;
+    }
+    if !settlement_completion_receipts_have_exact_custody(
+        &settlement.arguments,
+        &settlement.completion_claim_sources,
+        &settlement.completion_receipts,
+    ) {
+        return false;
+    }
+    let Some(expected) = machine_code::derive_completion_provider_custody(
+        settlement.execution,
+        &settlement.completion_claim_sources,
+        &settlement.completion_receipts,
+    ) else {
+        return false;
+    };
+    expected == settlement.completion_provider_custody
+}
+
+/// Replay the verifier's exact claim-source matching, claim uniqueness, and
+/// canonical receipt ordering for one retained settlement.
+fn settlement_completion_receipts_have_exact_custody(
+    arguments: &[terminal_psi::StructuralArgument],
+    sources: &[CompletionClaimSource],
+    receipts: &[terminal_psi::CompletionReceipt],
+) -> bool {
+    let mut source_claims = BTreeSet::<semantic_vocabulary::ClaimId>::new();
+    if sources.windows(2).any(|pair| pair[0] >= pair[1])
+        || sources.iter().any(|source| {
+            !source_claims.insert(source.claim()) || !claim_source_is_canonical(source)
+        })
+    {
+        return false;
+    }
+
+    let expected = arguments
+        .iter()
+        .enumerate()
+        .flat_map(|(index, argument)| {
+            sources.iter().filter_map(move |source| {
+                let argument_index = u32::try_from(index).ok()?;
+                (source.input() == argument.place
+                    && match &source.entry {
+                        Some(source) => argument.path.is_empty() || source.path == argument.path,
+                        None => true,
+                    })
+                .then_some((argument_index, source.claim()))
+            })
+        })
+        .collect::<BTreeSet<_>>();
+    let actual = receipts
+        .iter()
+        .map(|receipt| (receipt.argument_index, receipt.claim))
+        .collect::<BTreeSet<_>>();
+    let mut receipt_claims = BTreeSet::<semantic_vocabulary::ClaimId>::new();
+    receipts.windows(2).all(|pair| pair[0] < pair[1])
+        && receipts
+            .iter()
+            .all(|receipt| receipt_claims.insert(receipt.claim))
+        && actual == expected
+}
+
+fn claim_source_is_canonical(source: &CompletionClaimSource) -> bool {
+    let entry_is_canonical = source.entry.as_ref().is_none_or(|entry| {
+        entry.claim == source.claim
+            && entry.path.iter().all(|segment| {
+                !matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if identity.is_empty())
+            })
+    });
+    let content_is_canonical = source.content.as_ref().is_none_or(|content| {
+        content.claim == source.claim
+            && content.input.version == semantic_vocabulary::ContentPlaceVersion::Entry
+            && !content.projections.is_empty()
+            && !content
+                .projections
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            && content.input.segments.iter().all(|segment| {
+                !matches!(
+                    segment,
+                    semantic_vocabulary::ContentPlaceSegment::Case(identity)
+                        | semantic_vocabulary::ContentPlaceSegment::Field(identity)
+                        if identity.is_empty()
+                )
+            })
+            && content.projections.iter().all(|projection| {
+                projection.projection.projection_report_fingerprint != 0
+                    && !projection.algebra.parameter.is_empty()
+            })
+    });
+    let paired_sources_match =
+        match (&source.entry, &source.content) {
+            (Some(entry), Some(content)) => {
+                entry.input == content.input.root
+                    && entry.path.len() == content.input.segments.len()
+                    && entry.path.iter().zip(&content.input.segments).all(
+                        |(entry, content)| match (entry, content) {
+                            (
+                                terminal_psi::StructuralPathSegment::Field(entry),
+                                semantic_vocabulary::ContentPlaceSegment::Field(content),
+                            ) => entry == content,
+                            (
+                                terminal_psi::StructuralPathSegment::FixedIndex(entry),
+                                semantic_vocabulary::ContentPlaceSegment::FixedIndex(content),
+                            ) => entry == content,
+                            _ => false,
+                        },
+                    )
+            }
+            _ => true,
+        };
+    (source.entry.is_some() || source.content.is_some())
+        && entry_is_canonical
+        && content_is_canonical
+        && paired_sources_match
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1773,6 +2484,557 @@ fn admitted_provider_boundary_trait_settlement_identity(
     digest.finalize().into()
 }
 
+/// Strong identity for one exact installed provider settlement realized in
+/// place. The hash binds the complete retained settlement row — execution,
+/// realization, scalar/structural/byte-sequence argument custody, completion
+/// claim sources, receipts, provider custody, result placement, and source
+/// coordinates — plus the joined privileged port effect when one exists.
+#[allow(clippy::too_many_arguments)]
+fn admitted_provider_settlement_identity(
+    occurrence: &OptimizedBoundaryOccurrence,
+    requirement_identity: &str,
+    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    target: NativeTarget,
+    execution: ProviderExecutionBinding,
+    settlement: &machine_code::BoundarySettlementRecord,
+    port_effect: Option<&PortEffectRecord>,
+) -> Result<[u8; 32], &'static str> {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v4\0");
+    digest.update(occurrence.identity().bytes());
+    hash_bytes(&mut digest, requirement_identity.as_bytes());
+    digest.update(selected_plan_digest.as_bytes());
+    hash_target(&mut digest, target);
+    digest.update([3]); // AdmittedProviderSettlement role.
+    digest.update(
+        execution
+            .provider_plan_report_identity()
+            .get()
+            .to_le_bytes(),
+    );
+    digest.update(execution.provider_execution_report_identity().to_le_bytes());
+    digest.update(
+        execution
+            .provider_execution_report_fingerprint()
+            .to_le_bytes(),
+    );
+    digest.update(execution.normalized_root_report_identity().to_le_bytes());
+    digest.update(
+        execution
+            .boundary_contract_report_fingerprint()
+            .to_le_bytes(),
+    );
+    hash_boundary_settlement_record(&mut digest, settlement)?;
+    match port_effect {
+        None => digest.update([0]),
+        Some(effect) => {
+            digest.update([1]);
+            hash_port_effect_record(&mut digest, effect);
+        }
+    }
+    Ok(digest.finalize().into())
+}
+
+fn hash_port_effect_record(digest: &mut Sha256, effect: &PortEffectRecord) {
+    digest.update(effect.psi_operation.get().to_le_bytes());
+    digest.update(effect.service.get().to_le_bytes());
+    digest.update(effect.port.to_le_bytes());
+    digest.update([effect.value]);
+    digest.update(canonical_usize(effect.operation_ordinal));
+    digest.update(canonical_usize(effect.code_offset));
+    digest.update(canonical_usize(effect.byte_count));
+}
+
+/// Hash the complete retained settlement row so no realization, argument,
+/// completion, result, or coordinate field can be substituted underneath a
+/// parent identity.
+fn hash_boundary_settlement_record(
+    digest: &mut Sha256,
+    settlement: &machine_code::BoundarySettlementRecord,
+) -> Result<(), &'static str> {
+    digest.update(settlement.psi_operation.get().to_le_bytes());
+    digest.update(settlement.boundary.get().to_le_bytes());
+    match settlement.execution {
+        BoundaryExecutionRecord::AdmittedProvider(record) => {
+            digest.update([1]);
+            digest.update(record.provider_plan_report_identity.to_le_bytes());
+            digest.update(record.provider_execution_report_identity.to_le_bytes());
+            digest.update(record.provider_execution_report_fingerprint.to_le_bytes());
+            digest.update(record.normalized_root_report_identity.to_le_bytes());
+            digest.update(record.boundary_contract_report_fingerprint.to_le_bytes());
+        }
+        BoundaryExecutionRecord::CompilerBuiltin(execution) => {
+            digest.update([2]);
+            digest.update([compiler_builtin_execution_tag(execution)]);
+        }
+    }
+    hash_boundary_realization(digest, &settlement.realization);
+    digest.update(canonical_usize(settlement.scalar_arguments.len()));
+    for argument in &settlement.scalar_arguments {
+        digest.update(argument.source_value.get().to_le_bytes());
+        hash_scalar_type(digest, argument.scalar_type);
+        hash_integer_value(digest, argument.immediate);
+        hash_machine_register(digest, argument.destination);
+    }
+    digest.update(canonical_usize(settlement.runtime_scalar_arguments.len()));
+    for argument in &settlement.runtime_scalar_arguments {
+        digest.update(argument.parameter_index.to_le_bytes());
+        hash_internal_scalar_argument_source(digest, &argument.source);
+        hash_value_placement(digest, &argument.placement);
+        digest.update(canonical_usize(argument.code_offset));
+        digest.update(canonical_usize(argument.byte_count));
+    }
+    digest.update(canonical_usize(settlement.arguments.len()));
+    for argument in &settlement.arguments {
+        hash_structural_argument(digest, argument);
+    }
+    digest.update(canonical_usize(settlement.byte_sequence_arguments.len()));
+    for custody in &settlement.byte_sequence_arguments {
+        hash_structural_argument(digest, &custody.argument);
+        digest.update(custody.literal_operation.get().to_le_bytes());
+        let declaration = terminal_codec::encode_structural_type_declaration(
+            &custody.structural_type,
+        )
+        .map_err(|_| "installed D41 byte-sequence declaration cannot be encoded canonically")?;
+        hash_bytes(digest, &declaration);
+        hash_bytes(digest, &custody.bytes);
+        digest.update(canonical_usize(custody.code_offset));
+        digest.update(canonical_usize(custody.code_byte_count));
+        digest.update(canonical_usize(custody.data_offset));
+        digest.update(canonical_usize(custody.data_byte_count));
+    }
+    digest.update(canonical_usize(settlement.completion_claim_sources.len()));
+    for source in &settlement.completion_claim_sources {
+        hash_claim_source(digest, source);
+    }
+    digest.update(canonical_usize(settlement.completion_receipts.len()));
+    for receipt in &settlement.completion_receipts {
+        digest.update(receipt.claim.get().to_le_bytes());
+        digest.update(receipt.argument_index.to_le_bytes());
+    }
+    digest.update(canonical_usize(
+        settlement.completion_provider_custody.len(),
+    ));
+    for binding in &settlement.completion_provider_custody {
+        hash_claim_source(digest, &binding.source);
+        digest.update(binding.receipt.claim.get().to_le_bytes());
+        digest.update(binding.receipt.argument_index.to_le_bytes());
+        let execution = binding.provider_execution;
+        digest.update(execution.provider_plan_report_identity.to_le_bytes());
+        digest.update(execution.provider_execution_report_identity.to_le_bytes());
+        digest.update(
+            execution
+                .provider_execution_report_fingerprint
+                .to_le_bytes(),
+        );
+        digest.update(execution.normalized_root_report_identity.to_le_bytes());
+        digest.update(execution.boundary_contract_report_fingerprint.to_le_bytes());
+    }
+    hash_boundary_result_record(digest, &settlement.native_result)?;
+    digest.update(canonical_usize(settlement.operation_ordinal));
+    digest.update(canonical_usize(settlement.code_offset));
+    digest.update(canonical_usize(settlement.byte_count));
+    Ok(())
+}
+
+const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> u8 {
+    match execution {
+        CompilerBuiltinExecution::HostedExitProcessI32 => 1,
+        CompilerBuiltinExecution::HostedReadByte => 2,
+        CompilerBuiltinExecution::HostedWriteByteI32 => 3,
+    }
+}
+
+fn hash_boundary_realization(digest: &mut Sha256, realization: &BoundaryRealization) {
+    match realization {
+        BoundaryRealization::MetadataOnlyPort(realization) => {
+            digest.update([1]);
+            digest.update(realization.effect_operation.get().to_le_bytes());
+            digest.update(realization.service.get().to_le_bytes());
+            digest.update(realization.port.to_le_bytes());
+            digest.update([realization.value]);
+        }
+        BoundaryRealization::DirectPortReadU8(realization) => {
+            digest.update([2]);
+            digest.update(realization.service.get().to_le_bytes());
+            digest.update(realization.port.to_le_bytes());
+        }
+        BoundaryRealization::LinuxWriteLine(_) => digest.update([3]),
+        BoundaryRealization::ClaimCompletionOnly(_) => digest.update([4]),
+        BoundaryRealization::HostedExitProcessI32(_) => digest.update([5]),
+        BoundaryRealization::HostedReadByte(_) => digest.update([6]),
+        BoundaryRealization::HostedWriteByteI32(_) => digest.update([7]),
+    }
+}
+
+fn hash_boundary_result_record(
+    digest: &mut Sha256,
+    result: &machine_code::BoundaryResultRecord,
+) -> Result<(), &'static str> {
+    match result {
+        machine_code::BoundaryResultRecord::Unit => digest.update([0]),
+        machine_code::BoundaryResultRecord::Scalar(result) => {
+            digest.update([1]);
+            digest.update(result.value.get().to_le_bytes());
+            hash_scalar_type(digest, result.scalar_type);
+            hash_value_placement(digest, &result.placement);
+            digest.update(result.return_edge.get().to_le_bytes());
+        }
+        machine_code::BoundaryResultRecord::Structural(result) => {
+            digest.update([2]);
+            hash_boundary_structural_result(digest, result)?;
+        }
+    }
+    Ok(())
+}
+
+/// The complete structural-result record body shared by the hosted read-byte
+/// parent identity and the installed-settlement record hash.
+fn hash_boundary_structural_result(
+    digest: &mut Sha256,
+    result: &machine_code::BoundaryStructuralResultRecord,
+) -> Result<(), &'static str> {
+    digest.update(result.defining_operation.get().to_le_bytes());
+    digest.update(result.result.place.get().to_le_bytes());
+    digest.update(result.result.structural_type.get().to_le_bytes());
+    digest.update([match result.result.multiplicity {
+        terminal_psi::StructuralMultiplicity::Unrestricted => 1,
+        terminal_psi::StructuralMultiplicity::Affine => 2,
+        terminal_psi::StructuralMultiplicity::Linear => 3,
+    }]);
+    digest.update((result.result.qualifications.len() as u64).to_le_bytes());
+    for domain in &result.result.qualifications {
+        digest.update(domain.get().to_le_bytes());
+    }
+    digest.update((result.result.projected_qualifications.len() as u64).to_le_bytes());
+    for qualification in &result.result.projected_qualifications {
+        hash_structural_path(digest, &qualification.path);
+        digest.update(qualification.domain.get().to_le_bytes());
+    }
+    digest.update((result.result.claims.len() as u64).to_le_bytes());
+    for claim in &result.result.claims {
+        digest.update(claim.claim.get().to_le_bytes());
+        hash_structural_path(digest, &claim.path);
+    }
+    let declaration = terminal_codec::encode_structural_type_declaration(&result.declaration)
+        .map_err(|_| "boundary structural result declaration cannot be encoded canonically")?;
+    hash_bytes(digest, &declaration);
+    hash_sum_layout(digest, &result.layout);
+    digest.update(result.home_byte_offset.to_le_bytes());
+    Ok(())
+}
+
+fn hash_scalar_type(digest: &mut Sha256, scalar_type: ScalarType) {
+    match scalar_type {
+        ScalarType::Boolean => digest.update([1]),
+        ScalarType::Integer(integer) => {
+            digest.update([2]);
+            digest.update([match integer.sign() {
+                IntegerSign::Signed => 1,
+                IntegerSign::Unsigned => 2,
+            }]);
+            digest.update(integer.bits().to_le_bytes());
+            digest.update([match integer.carrier() {
+                semantic_vocabulary::IntegerCarrier::Fixed => 1,
+                semantic_vocabulary::IntegerCarrier::Address => 2,
+            }]);
+        }
+        ScalarType::IeeeFloat(format) => {
+            digest.update([3]);
+            digest.update([match format {
+                semantic_vocabulary::IeeeFloatFormat::Binary32 => 1,
+                semantic_vocabulary::IeeeFloatFormat::Binary64 => 2,
+            }]);
+        }
+    }
+}
+
+fn hash_integer_value(digest: &mut Sha256, value: semantic_vocabulary::IntegerValue) {
+    match value {
+        semantic_vocabulary::IntegerValue::Signed(value) => {
+            digest.update([1]);
+            digest.update(value.to_le_bytes());
+        }
+        semantic_vocabulary::IntegerValue::Unsigned(value) => {
+            digest.update([2]);
+            digest.update(value.to_le_bytes());
+        }
+    }
+}
+
+fn hash_machine_register(digest: &mut Sha256, register: calling_conventions::MachineRegister) {
+    use calling_conventions::MachineRegister;
+    match register {
+        MachineRegister::X86Rax => digest.update([1]),
+        MachineRegister::X86Rcx => digest.update([2]),
+        MachineRegister::X86Rdx => digest.update([3]),
+        MachineRegister::X86Rbx => digest.update([4]),
+        MachineRegister::X86Rsp => digest.update([5]),
+        MachineRegister::X86Rbp => digest.update([6]),
+        MachineRegister::X86Rsi => digest.update([7]),
+        MachineRegister::X86Rdi => digest.update([8]),
+        MachineRegister::X86R8 => digest.update([9]),
+        MachineRegister::X86R9 => digest.update([10]),
+        MachineRegister::X86R10 => digest.update([11]),
+        MachineRegister::X86R11 => digest.update([12]),
+        MachineRegister::X86R12 => digest.update([13]),
+        MachineRegister::X86R13 => digest.update([14]),
+        MachineRegister::X86R14 => digest.update([15]),
+        MachineRegister::X86R15 => digest.update([16]),
+        MachineRegister::X86Xmm(index) => {
+            digest.update([17]);
+            digest.update([index]);
+        }
+        MachineRegister::Aarch64X(index) => {
+            digest.update([18]);
+            digest.update([index]);
+        }
+        MachineRegister::Aarch64V(index) => {
+            digest.update([19]);
+            digest.update([index]);
+        }
+    }
+}
+
+fn hash_value_placement(digest: &mut Sha256, placement: &calling_conventions::ValuePlacement) {
+    hash_value_shape(digest, placement.shape);
+    digest.update(canonical_usize(placement.locations.len()));
+    for location in &placement.locations {
+        match location {
+            calling_conventions::ValueLocation::Register {
+                register,
+                value_byte_offset,
+                byte_size,
+            } => {
+                digest.update([1]);
+                hash_machine_register(digest, *register);
+                digest.update(value_byte_offset.to_le_bytes());
+                digest.update(byte_size.to_le_bytes());
+            }
+            calling_conventions::ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset,
+                byte_size,
+                alignment,
+            } => {
+                digest.update([2]);
+                digest.update(stack_byte_offset.to_le_bytes());
+                digest.update(value_byte_offset.to_le_bytes());
+                digest.update(byte_size.to_le_bytes());
+                digest.update(alignment.to_le_bytes());
+            }
+            calling_conventions::ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size,
+                alignment,
+            } => {
+                digest.update([3]);
+                match pointer {
+                    calling_conventions::IndirectPointerLocation::Register(register) => {
+                        digest.update([1]);
+                        hash_machine_register(digest, *register);
+                    }
+                    calling_conventions::IndirectPointerLocation::Stack {
+                        stack_byte_offset,
+                        alignment,
+                    } => {
+                        digest.update([2]);
+                        digest.update(stack_byte_offset.to_le_bytes());
+                        digest.update(alignment.to_le_bytes());
+                    }
+                }
+                match copy_stack_byte_offset {
+                    None => digest.update([0]),
+                    Some(offset) => {
+                        digest.update([1]);
+                        digest.update(offset.to_le_bytes());
+                    }
+                }
+                digest.update(byte_size.to_le_bytes());
+                digest.update(alignment.to_le_bytes());
+            }
+        }
+    }
+}
+
+fn hash_value_shape(digest: &mut Sha256, shape: calling_conventions::ValueShape) {
+    match shape.class {
+        calling_conventions::ValueClass::Integer => digest.update([1]),
+        calling_conventions::ValueClass::Float => digest.update([2]),
+        calling_conventions::ValueClass::BorrowedReference => digest.update([3]),
+        calling_conventions::ValueClass::HomogeneousFloatAggregate { members } => {
+            digest.update([4]);
+            digest.update([members]);
+        }
+        calling_conventions::ValueClass::SystemVAggregate { first, second } => {
+            digest.update([5]);
+            for class in [first, second] {
+                digest.update([match class {
+                    calling_conventions::SystemVEightbyteClass::Integer => 1,
+                    calling_conventions::SystemVEightbyteClass::Sse => 2,
+                }]);
+            }
+        }
+    }
+    digest.update(shape.byte_size.to_le_bytes());
+    digest.update(shape.alignment.to_le_bytes());
+}
+
+fn hash_structural_argument(digest: &mut Sha256, argument: &terminal_psi::StructuralArgument) {
+    digest.update(argument.place.get().to_le_bytes());
+    digest.update([match argument.access {
+        terminal_psi::StructuralAccess::Owned => 1,
+        terminal_psi::StructuralAccess::SharedBorrow => 2,
+        terminal_psi::StructuralAccess::MutableBorrow => 3,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow => 4,
+    }]);
+    hash_structural_path(digest, &argument.path);
+}
+
+fn hash_claim_source(digest: &mut Sha256, source: &CompletionClaimSource) {
+    digest.update(source.claim.get().to_le_bytes());
+    match &source.entry {
+        None => digest.update([0]),
+        Some(entry) => {
+            digest.update([1]);
+            digest.update(entry.claim.get().to_le_bytes());
+            digest.update(entry.input.get().to_le_bytes());
+            hash_structural_path(digest, &entry.path);
+        }
+    }
+    match &source.content {
+        None => digest.update([0]),
+        Some(content) => {
+            digest.update([1]);
+            digest.update(content.claim.get().to_le_bytes());
+            digest.update([match content.input.version {
+                semantic_vocabulary::ContentPlaceVersion::Entry => 1,
+                semantic_vocabulary::ContentPlaceVersion::Current => 2,
+            }]);
+            digest.update(content.input.root.get().to_le_bytes());
+            digest.update(canonical_usize(content.input.segments.len()));
+            for segment in &content.input.segments {
+                match segment {
+                    semantic_vocabulary::ContentPlaceSegment::Case(identity) => {
+                        digest.update([1]);
+                        hash_bytes(digest, identity.as_bytes());
+                    }
+                    semantic_vocabulary::ContentPlaceSegment::Field(identity) => {
+                        digest.update([2]);
+                        hash_bytes(digest, identity.as_bytes());
+                    }
+                    semantic_vocabulary::ContentPlaceSegment::FixedIndex(index) => {
+                        digest.update([3]);
+                        digest.update(index.to_le_bytes());
+                    }
+                }
+            }
+            digest.update(canonical_usize(content.projections.len()));
+            for projection in &content.projections {
+                digest.update(projection.projection.domain.get().to_le_bytes());
+                digest.update(
+                    projection
+                        .projection
+                        .projection_report_fingerprint
+                        .to_le_bytes(),
+                );
+                digest.update([match projection.algebra.kind {
+                    semantic_vocabulary::ContentAlgebraKind::IntervalSet => 1,
+                    semantic_vocabulary::ContentAlgebraKind::CountedQuantity => 2,
+                }]);
+                hash_bytes(digest, projection.algebra.parameter.as_bytes());
+            }
+        }
+    }
+}
+
+fn hash_internal_scalar_argument_source(
+    digest: &mut Sha256,
+    source: &machine_code::InternalUnitScalarArgumentSourceRecord,
+) {
+    match source {
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
+            source_value,
+            instruction,
+            ..
+        } => {
+            digest.update([6]);
+            digest.update(source_value.get().to_le_bytes());
+            digest.update(instruction.0.to_le_bytes());
+        }
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
+            source_value,
+            instruction,
+            ..
+        } => {
+            digest.update([5]);
+            digest.update(source_value.get().to_le_bytes());
+            digest.update(instruction.0.to_le_bytes());
+        }
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
+            source_value,
+            instruction,
+            scratch_byte_offset,
+            ..
+        } => {
+            digest.update([4]);
+            digest.update(source_value.get().to_le_bytes());
+            digest.update(instruction.0.to_le_bytes());
+            digest.update(scratch_byte_offset.to_le_bytes());
+        }
+        machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            ..
+        } => {
+            digest.update([0]);
+            digest.update(parameter_index.to_le_bytes());
+            digest.update(source_value.get().to_le_bytes());
+        }
+        machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation,
+            source_value,
+            value,
+            ..
+        } => {
+            digest.update([1]);
+            digest.update(defining_operation.get().to_le_bytes());
+            digest.update(source_value.get().to_le_bytes());
+            match value {
+                semantic_vocabulary::IntegerValue::Signed(value) => {
+                    digest.update(value.to_le_bytes())
+                }
+                semantic_vocabulary::IntegerValue::Unsigned(value) => {
+                    digest.update(value.to_le_bytes())
+                }
+            }
+        }
+        machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+            definition_ordinal,
+        } => {
+            digest.update([3]);
+            digest.update(defining_operation.get().to_le_bytes());
+            digest.update(source_value.get().to_le_bytes());
+            digest.update([u8::from(*value)]);
+            digest.update(
+                u64::try_from(*definition_ordinal)
+                    .expect("validated definition ordinal is u64-representable")
+                    .to_le_bytes(),
+            );
+        }
+        machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
+            digest.update([2]);
+            digest.update(home.defining_operation.get().to_le_bytes());
+            digest.update(home.source_value.get().to_le_bytes());
+            digest.update(home.byte_offset.to_le_bytes());
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn physical_child_identity(
     parent: &PhysicalChildParent,
@@ -1985,9 +3247,9 @@ mod tests {
         NativeOptimizationProjectionIdentity, NativePhysicalOccurrence,
         NativeSelectedProviderPlanDigest, NativeTarget, OptimizedBoundaryOccurrenceIdentity,
         OptimizedOperatorOccurrenceIdentity, PhysicalChildCoordinate, ScalarType,
-        boundary_occurrence_identity, builtin_structural_boundary_trait_settlement_identity,
-        native_optimization_projection, operator_occurrence_identity,
-        optimized_boundary_occurrence, optimized_operator_occurrence,
+        admitted_provider_settlement_identity, boundary_occurrence_identity,
+        builtin_structural_boundary_trait_settlement_identity, native_optimization_projection,
+        operator_occurrence_identity, optimized_boundary_occurrence, optimized_operator_occurrence,
         validate_exact_physical_child_coordinates,
     };
     #[test]
@@ -2267,6 +3529,345 @@ mod tests {
                 identity(&changed),
                 expected,
                 "declaration mutation {mutation}"
+            );
+        }
+    }
+
+    #[test]
+    fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
+        use semantic_vocabulary::{
+            BoundaryMachineId, ClaimId, EdgeId, IntegerValue, OperationId, PlaceId, ServiceId,
+            StructuralCaseId, StructuralTypeId, ValueId,
+        };
+        use target_operations::{
+            BoundaryScalarArgument, ClaimCompletionOnlyRealization, MetadataOnlyPortRealization,
+        };
+        use terminal_psi::{
+            CompletionReceipt, EntryClaim, StructuralAccess, StructuralArgument,
+            StructuralCaseDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+        };
+
+        let projection = physical_projection();
+        let occurrence = &projection.boundary_occurrences()[0];
+        let record = machine_code::ProviderExecutionRecord::new(7, 11, 13, 17, 19).unwrap();
+        let execution = super::ProviderExecutionBinding::from_execution_record(
+            super::ProviderPlanReportIdentity::new(7).unwrap(),
+            11,
+            13,
+            17,
+            19,
+        )
+        .unwrap();
+        let claim = ClaimId::new(23).unwrap();
+        let argument = StructuralArgument {
+            place: PlaceId::new(29).unwrap(),
+            path: vec![terminal_psi::StructuralPathSegment::Field("leaf".into())],
+            access: StructuralAccess::Owned,
+        };
+        let source = super::CompletionClaimSource {
+            claim,
+            entry: Some(EntryClaim {
+                claim,
+                input: argument.place,
+                path: Vec::new(),
+            }),
+            content: None,
+        };
+        let receipt = CompletionReceipt {
+            claim,
+            argument_index: 0,
+        };
+        let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let byte_sequence = machine_code::BoundaryByteSequenceArgumentRecord {
+            argument: argument.clone(),
+            literal_operation: OperationId::new(47).unwrap(),
+            structural_type: StructuralTypeDeclaration {
+                id: StructuralTypeId::new(73).unwrap(),
+                identity: "Bytes".into(),
+                shape: StructuralTypeShape::Sum {
+                    cases: vec![StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(1).unwrap(),
+                        identity: "Bytes".into(),
+                        fields: Vec::new(),
+                    }],
+                },
+            },
+            bytes: b"payload".to_vec(),
+            code_offset: 9,
+            code_byte_count: 3,
+            data_offset: 4,
+            data_byte_count: 7,
+        };
+        let scalar_result =
+            machine_code::BoundaryResultRecord::Scalar(machine_code::BoundaryScalarResultRecord {
+                value: ValueId::new(67).unwrap(),
+                scalar_type: u8_type,
+                placement: calling_conventions::ValuePlacement {
+                    shape: calling_conventions::ValueShape::integer(1, 1),
+                    locations: vec![calling_conventions::ValueLocation::Register {
+                        register: calling_conventions::MachineRegister::X86Rax,
+                        value_byte_offset: 0,
+                        byte_size: 1,
+                    }],
+                },
+                return_edge: EdgeId::new(71).unwrap(),
+            });
+        let completion = machine_code::BoundarySettlementRecord {
+            psi_operation: OperationId::new(41).unwrap(),
+            boundary: BoundaryMachineId::new(43).unwrap(),
+            execution: machine_code::BoundaryExecutionRecord::AdmittedProvider(record),
+            realization: super::BoundaryRealization::ClaimCompletionOnly(
+                ClaimCompletionOnlyRealization,
+            ),
+            scalar_arguments: Vec::new(),
+            runtime_scalar_arguments: Vec::new(),
+            arguments: vec![argument.clone()],
+            byte_sequence_arguments: vec![byte_sequence],
+            completion_claim_sources: vec![source.clone()],
+            completion_receipts: vec![receipt],
+            completion_provider_custody: vec![machine_code::CompletionProviderCustodyBinding {
+                source: source.clone(),
+                receipt,
+                provider_execution: record,
+            }],
+            native_result: machine_code::BoundaryResultRecord::Unit,
+            operation_ordinal: 5,
+            code_offset: 8,
+            byte_count: 0,
+        };
+        let identity = |settlement: &machine_code::BoundarySettlementRecord,
+                        port_effect: Option<&machine_code::PortEffectRecord>,
+                        execution: super::ProviderExecutionBinding| {
+            admitted_provider_settlement_identity(
+                occurrence,
+                "Extent::complete",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                settlement,
+                port_effect,
+            )
+            .unwrap()
+        };
+        let expected = identity(&completion, None, execution);
+
+        for mutation in 0..22 {
+            let mut changed = completion.clone();
+            match mutation {
+                0 => changed.psi_operation = OperationId::new(53).unwrap(),
+                1 => changed.boundary = BoundaryMachineId::new(59).unwrap(),
+                2 => {
+                    changed.execution = machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                        machine_code::ProviderExecutionRecord::new(7, 11, 13, 17, 23).unwrap(),
+                    )
+                }
+                3 => {
+                    changed.execution = machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                        super::CompilerBuiltinExecution::HostedWriteByteI32,
+                    )
+                }
+                4 => {
+                    changed.realization =
+                        super::BoundaryRealization::MetadataOnlyPort(MetadataOnlyPortRealization {
+                            effect_operation: OperationId::new(40).unwrap(),
+                            service: ServiceId::new(3).unwrap(),
+                            port: 0x3f8,
+                            value: 0x51,
+                        })
+                }
+                5 => changed.scalar_arguments.push(BoundaryScalarArgument {
+                    source_value: ValueId::new(31).unwrap(),
+                    scalar_type: u8_type,
+                    immediate: IntegerValue::Unsigned(7),
+                    destination: calling_conventions::MachineRegister::X86Rdi,
+                }),
+                6 => changed
+                    .runtime_scalar_arguments
+                    .push(machine_code::ForeignCallScalarArgumentRecord {
+                    parameter_index: 0,
+                    source:
+                        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
+                            source_value: ValueId::new(37).unwrap(),
+                            scalar_type: ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                            ),
+                            instruction: selected_instructions::SelectedInstructionId(41),
+                        },
+                    placement: calling_conventions::ValuePlacement {
+                        shape: calling_conventions::ValueShape::integer(4, 4),
+                        locations: vec![calling_conventions::ValueLocation::Register {
+                            register: calling_conventions::MachineRegister::X86Rax,
+                            value_byte_offset: 0,
+                            byte_size: 4,
+                        }],
+                    },
+                    code_offset: 2,
+                    byte_count: 4,
+                }),
+                7 => changed.arguments[0].access = StructuralAccess::SharedBorrow,
+                8 => changed.arguments.push(argument.clone()),
+                9 => changed.byte_sequence_arguments[0].bytes = b"other".to_vec(),
+                10 => changed.byte_sequence_arguments[0].data_byte_count += 1,
+                11 => changed.completion_claim_sources[0].entry = None,
+                12 => changed.completion_claim_sources.push(source.clone()),
+                13 => changed.completion_receipts[0].argument_index = 1,
+                14 => changed.completion_receipts.push(CompletionReceipt {
+                    claim: ClaimId::new(61).unwrap(),
+                    argument_index: 1,
+                }),
+                15 => {
+                    changed.completion_provider_custody[0]
+                        .provider_execution
+                        .boundary_contract_report_fingerprint = 23
+                }
+                16 => {
+                    changed.completion_provider_custody[0]
+                        .receipt
+                        .argument_index = 7
+                }
+                17 => changed.native_result = scalar_result.clone(),
+                18 => changed.operation_ordinal += 1,
+                19 => changed.code_offset += 1,
+                20 => changed.byte_count += 1,
+                _ => changed.completion_provider_custody.clear(),
+            }
+            assert_ne!(
+                identity(&changed, None, execution),
+                expected,
+                "settlement mutation {mutation}"
+            );
+        }
+
+        for mutation in 0..5 {
+            let changed = match mutation {
+                0 => admitted_provider_settlement_identity(
+                    &optimized_boundary_occurrence(
+                        occurrence.terminal(),
+                        occurrence.machine(),
+                        OperationId::new(9).unwrap(),
+                        occurrence.boundary(),
+                        occurrence.operation_ordinal(),
+                        OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(
+                            b"other occurrence",
+                        ),
+                    ),
+                    "Extent::complete",
+                    NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                    NativeTarget::linux_x64(),
+                    execution,
+                    &completion,
+                    None,
+                )
+                .unwrap(),
+                1 => admitted_provider_settlement_identity(
+                    occurrence,
+                    "Extent::other",
+                    NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                    NativeTarget::linux_x64(),
+                    execution,
+                    &completion,
+                    None,
+                )
+                .unwrap(),
+                2 => admitted_provider_settlement_identity(
+                    occurrence,
+                    "Extent::complete",
+                    NativeSelectedProviderPlanDigest::from_digest([8; 32]),
+                    NativeTarget::linux_x64(),
+                    execution,
+                    &completion,
+                    None,
+                )
+                .unwrap(),
+                3 => admitted_provider_settlement_identity(
+                    occurrence,
+                    "Extent::complete",
+                    NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                    NativeTarget::windows_x64(),
+                    execution,
+                    &completion,
+                    None,
+                )
+                .unwrap(),
+                _ => identity(
+                    &completion,
+                    None,
+                    super::ProviderExecutionBinding::from_execution_record(
+                        super::ProviderPlanReportIdentity::new(7).unwrap(),
+                        11,
+                        13,
+                        17,
+                        29,
+                    )
+                    .unwrap(),
+                ),
+            };
+            assert_ne!(changed, expected, "binding input mutation {mutation}");
+        }
+
+        let port_effect = machine_code::PortEffectRecord {
+            psi_operation: OperationId::new(40).unwrap(),
+            service: ServiceId::new(3).unwrap(),
+            port: 0x3f8,
+            value: 0x51,
+            operation_ordinal: 4,
+            code_offset: 6,
+            byte_count: 2,
+        };
+        let port = machine_code::BoundarySettlementRecord {
+            realization: super::BoundaryRealization::MetadataOnlyPort(
+                MetadataOnlyPortRealization {
+                    effect_operation: OperationId::new(40).unwrap(),
+                    service: ServiceId::new(3).unwrap(),
+                    port: 0x3f8,
+                    value: 0x51,
+                },
+            ),
+            scalar_arguments: Vec::new(),
+            runtime_scalar_arguments: Vec::new(),
+            arguments: Vec::new(),
+            byte_sequence_arguments: Vec::new(),
+            completion_claim_sources: Vec::new(),
+            completion_receipts: Vec::new(),
+            completion_provider_custody: Vec::new(),
+            ..completion.clone()
+        };
+        let port_expected = identity(&port, Some(&port_effect), execution);
+        assert_ne!(port_expected, identity(&port, None, execution));
+        for mutation in 0..7 {
+            let mut changed = port_effect.clone();
+            match mutation {
+                0 => changed.psi_operation = OperationId::new(43).unwrap(),
+                1 => changed.service = ServiceId::new(5).unwrap(),
+                2 => changed.port += 1,
+                3 => changed.value += 1,
+                4 => changed.operation_ordinal += 1,
+                5 => changed.code_offset += 1,
+                _ => changed.byte_count += 1,
+            }
+            assert_ne!(
+                identity(&port, Some(&changed), execution),
+                port_expected,
+                "port-effect mutation {mutation}"
+            );
+        }
+        for mutation in 0..4 {
+            let mut changed = port.clone();
+            let super::BoundaryRealization::MetadataOnlyPort(realization) =
+                &mut changed.realization
+            else {
+                panic!("metadata-only port settlement")
+            };
+            match mutation {
+                0 => realization.effect_operation = OperationId::new(43).unwrap(),
+                1 => realization.service = ServiceId::new(5).unwrap(),
+                2 => realization.port += 1,
+                _ => realization.value += 1,
+            }
+            assert_ne!(
+                identity(&changed, Some(&port_effect), execution),
+                port_expected,
+                "metadata-port realization mutation {mutation}"
             );
         }
     }

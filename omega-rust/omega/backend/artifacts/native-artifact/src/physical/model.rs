@@ -216,6 +216,20 @@ pub enum BoundaryTraitSettlementRole {
         execution: ProviderExecutionBinding,
         realization: NormalizedForeignCallBinding,
     },
+    /// Exact installed provider settlement realized in place by a supported
+    /// target mechanism: a privileged metadata-only port effect, a direct
+    /// port read, a Linux write-line byte custody, or a claim completion.
+    /// The complete retained settlement row stays with the role so replay
+    /// cannot substitute its realization, argument, completion, result, or
+    /// source coordinates; a joined privileged port effect is retained beside
+    /// it rather than widening the occurrence roster.
+    AdmittedProviderSettlement {
+        execution: ProviderExecutionBinding,
+        settlement: machine_code::BoundarySettlementRecord,
+        /// Exact privileged port effect joined to a `MetadataOnlyPort`
+        /// settlement; `None` for every other admitted realization.
+        port_effect: Option<machine_code::PortEffectRecord>,
+    },
 }
 
 impl BoundaryTraitSettlementRole {
@@ -231,6 +245,9 @@ impl BoundaryTraitSettlementRole {
                 BoundaryExecutionBinding::CompilerBuiltin(*execution)
             }
             Self::AdmittedProvider { execution, .. } => {
+                BoundaryExecutionBinding::AdmittedProvider(*execution)
+            }
+            Self::AdmittedProviderSettlement { execution, .. } => {
                 BoundaryExecutionBinding::AdmittedProvider(*execution)
             }
         }
