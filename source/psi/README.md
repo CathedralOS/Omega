@@ -30,32 +30,31 @@ implementation belongs in this product subtree.
 `test-parser.sh` compiles the gate-owned Omega harness once and runs the parser's
 acceptance, rejection, capacity-edge, lexical-handoff, and determinism cases
 against that one native artifact. Its Python helper only decodes and compares
-versioned black-box observations; it implements no compiler semantics. A
-leading NUL on the gate's stdin selects lexical-observation mode and is not
-appended to the tested source. This lets accepted and rejected sources use the
-same Omega artifact and compare byte-for-byte with the independently maintained
-Rust observation executable. Set `OMEGA_CLI` to the exact freshly built
-comparator CLI, `OMEGA_TARGET` to the exact selected target profile that should
-compile the current product source, and `OMEGA_LEXER_OBSERVER` to the exact
-freshly built `observe-omega-lexer` executable. Acceptance evidence prints the
-SHA-256 identities of the CLI, Omega artifact, and Rust observer beside the
-explicit target. The canonical gate has no cached-artifact or ambient
-`target/debug` lookup; focused iteration may invoke the semantic-free Python
-decoder directly with both executable paths.
+versioned parser observations; it implements no compiler semantics. No lexical
+wire format or Rust observer is required. Rust's lexer has its own unit tests;
+neither implementation must reproduce the other's internal representation.
+Set `OMEGA_CLI` to the exact freshly built compiler and `OMEGA_TARGET` to the
+selected target profile. Acceptance evidence prints the CLI and Omega artifact
+SHA-256 identities beside that target. The gate has no cached-artifact or ambient
+`target/debug` lookup; focused iteration may invoke the Python decoder directly
+with the explicit Omega executable path.
 
-The source closure and harness currently pass checked-source compilation, but
-fresh native publication remains fail-closed at the attached Unit transitive
-machine-plan boundary. Until that dependency lands, the required 68-case run is
-not acceptance evidence and no cached executable may stand in for it.
+The source closure and harness previously passed checked-source compilation,
+but fresh native publication remained fail-closed at the attached Unit transitive
+machine-plan boundary. The latest macOS check-only recheck exceeded ten minutes
+on both the original and revised harness. The required 68-case run is not current
+acceptance evidence and no cached executable may stand in for it.
 
 The lexer now transfers one canonical mixed `Token` stream to the parser as a
 whole ownership move.
 There is no `TokenObservation`, numeric token array, per-token handoff, raw
-parser ordinal, or scalar tag/span cache. Numeric protocol projection and
-lex/parse serialization live only in the gate-owned Omega harness; the exact
+parser ordinal, or scalar tag/span cache. Structural parser serialization lives
+only in the gate-owned Omega harness; the exact
 product entrypoint retains phase driving and exit diagnostics. The same 68
-parser cases and structural observations remain mandatory beside the shared
-lexical-profile parity matrix, and the Python decoder stays semantic-free.
+parser cases and structural observations remain mandatory, and the Python
+decoder stays semantic-free. The former 32-case lexical parity matrix and its
+numeric token protocol are removed; these parser cases do not replace that
+lexical coverage.
 Chapter 1 now fixes **LEXICAL-PROFILE-V1**: ASCII
 identifiers, space/tab/CR/LF whitespace, byte-preserving literal bodies, and no
 codepoint escapes or raw strings. Both maintained lexers reject all retired
