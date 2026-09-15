@@ -1,0 +1,556 @@
+//! Declaration values are ready before index normalization asks for them.
+//!
+//! Resolve the authored forest once without substituting pending values. Its
+//! exact source-owned dependencies determine evaluation order, including unused
+//! declarations and references in unselected branches. Then use the same typed
+//! scalar probes as index expressions, one per pending scalar leaf. Aggregate
+//! declarations retain their constructors and fields while evaluated leaves
+//! replace only their exact authored expressions. Their identity is encoded from
+//! the complete materialized value. A probe may
+//! stub other pending declarations to type the surrounding forest, but no
+//! selected dependency may use such a stub: every returned origin must rejoin a
+//! completed value and the original selection. Only evaluated literals and
+//! declaration-owned receipts leave this module.
+//!
+//! Ordinary calls extend that same scalar evaluation sequence. Their selected
+//! helper closure contributes dependencies before readiness is decided; helper
+//! bodies undergo ordinary checking and invocation admission before execution.
+//! The synthetic scalar expression is not checked as a runtime body: a call's
+//! concrete result can establish arithmetic that its full return-type range
+//! cannot. Final typing retains both initializer roots for independent replay.
+//!
+//! The graph is prepared once; independent declarations share a typed probe batch.
+//! Deep dependency chains still require one frontend pass per dependency layer.
+//! That is a performance limitation, not a reason to erase declared landings or
+//! promote a provisional value into a public constant identity.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use diagnostics::Diagnostic;
+use language_semantics::const_value::DecodedCanonicalConstValue;
+use source::{SourceMap, SourceSpan};
+use symbols::SourceScopedTopLevelBinding;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::{ConstDefinition, ConstInitializerNormalization, Item, ItemHandle};
+use syntax_trees::types::{ConstArgumentOrigin, TypeReferenceNode};
+
+#[cfg(test)]
+mod tests;
+
+mod invocations;
+mod materialize;
+mod replay;
+
+pub(crate) use invocations::CheckedInitializers;
+pub(crate) use replay::validate as validate_retained_invocations;
+
+struct PendingLeaf {
+    expression: ExpressionHandle,
+    destination: syntax_trees::types::TypeReferenceHandle,
+    /// Structured leaves are aggregate-producing expressions evaluated through
+    /// the checked interpreter; scalar leaves keep the exact probe evaluator.
+    structured: bool,
+    dependencies: Vec<(SourceSpan, usize)>,
+    calls: Vec<(SourceSpan, SourceSpan)>,
+}
+
+struct Declaration {
+    item: ItemHandle,
+    definition: ConstDefinition,
+    encoding: Option<String>,
+    leaves: Vec<PendingLeaf>,
+}
+
+pub(crate) fn evaluate(
+    mut syntax: SyntaxTrees,
+    sources: Option<Arc<SourceMap>>,
+    bindings: &[SourceScopedTopLevelBinding],
+    authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    use syntax_trees_to_symbol_resolved_trees::pre_resolution::requires_const_initializer_evaluation;
+    if !syntax.root_items().any(|item| {
+        matches!(item, Item::Const(definition)
+        if requires_const_initializer_evaluation(&syntax, definition))
+    }) {
+        return Ok(syntax);
+    }
+    let preparation =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::prepare_const_initializer_selection(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: sources.clone(),
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
+    let resolved = preparation.trees();
+    let mut declarations = Vec::new();
+    for item in syntax.root_item_handles() {
+        let Item::Const(definition) = syntax.root_item(*item) else {
+            continue;
+        };
+        let retained = resolved
+            .const_declarations
+            .iter()
+            .find(|declaration| {
+                resolved.symbols.symbol_source_span(declaration.symbol)
+                    == Some(definition.name.source_span())
+            })
+            .ok_or_else(|| {
+                failure(
+                    definition.name.source_span(),
+                    "initializer lost its exact declaration",
+                )
+            })?;
+        let leaves = preparation
+            .pending_leaves(&syntax, definition)?
+            .into_iter()
+            .map(|leaf| PendingLeaf {
+                expression: leaf.expression,
+                destination: leaf.destination,
+                structured: leaf.structured,
+                dependencies: Vec::new(),
+                calls: Vec::new(),
+            })
+            .collect();
+        declarations.push(Declaration {
+            item: *item,
+            definition: definition.clone(),
+            encoding: retained.canonical_value_encoding.clone(),
+            leaves,
+        });
+    }
+    for ordinal in 0..declarations.len() {
+        if declarations[ordinal].leaves.is_empty() {
+            continue;
+        }
+        let leaf_count = declarations[ordinal].leaves.len();
+        for leaf_ordinal in 0..leaf_count {
+            let expression = declarations[ordinal].leaves[leaf_ordinal].expression;
+            let selected = preparation.initializer_expression_dependencies(
+                &syntax,
+                &declarations[ordinal].definition,
+                expression,
+            )?;
+            let mut dependencies = Vec::new();
+            for (reference, declaration) in selected.constants {
+                let dependency = declarations
+                    .iter()
+                    .position(|candidate| candidate.definition.name.source_span() == declaration)
+                    .ok_or_else(|| {
+                        failure(
+                            reference,
+                            "selected initializer dependency lost its declaration",
+                        )
+                    })?;
+                dependencies.push((reference, dependency));
+            }
+            declarations[ordinal].leaves[leaf_ordinal].dependencies = dependencies;
+            declarations[ordinal].leaves[leaf_ordinal].calls = selected.calls;
+        }
+    }
+    while declarations
+        .iter()
+        .any(|declaration| !declaration.leaves.is_empty())
+    {
+        let ready = declarations
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, declaration)| {
+                (!declaration.leaves.is_empty()
+                    && declaration.leaves.iter().all(|leaf| {
+                        leaf.dependencies
+                            .iter()
+                            .all(|(_, dependency)| declarations[*dependency].leaves.is_empty())
+                    }))
+                .then_some(ordinal)
+            })
+            .collect::<Vec<_>>();
+        if ready.is_empty() {
+            let declaration = declarations
+                .iter()
+                .find(|declaration| !declaration.leaves.is_empty())
+                .ok_or_else(|| {
+                    failure(
+                        SourceSpan::default(),
+                        "initializer readiness lost its pending declaration",
+                    )
+                })?;
+            return Err(failure(
+                declaration.definition.name.source_span(),
+                "constant initializer dependency cycle",
+            ));
+        }
+        let mut probe = syntax.clone();
+        for declaration in declarations
+            .iter()
+            .filter(|declaration| !declaration.leaves.is_empty())
+        {
+            let mut definition = declaration.definition.clone();
+            let mut placeholders = HashMap::new();
+            for leaf in &declaration.leaves {
+                let reference = syntax.expressions.source_span(leaf.expression);
+                let placeholder = if leaf.structured {
+                    // A closed zero literal with the leaf's exact carrier lets
+                    // the non-executing probe forest type; the evaluated value
+                    // replaces it before the declaration materializes.
+                    preparation.pending_value_placeholder(
+                        &mut probe,
+                        leaf.destination,
+                        reference,
+                    )?
+                } else {
+                    let boolean = matches!(
+                        probe.type_references.type_reference(leaf.destination),
+                        TypeReferenceNode::Named(name) if name.as_str() == "bool"
+                    );
+                    let value = if boolean {
+                        ExpressionNode::Boolean(false)
+                    } else {
+                        ExpressionNode::Integer(numerics::literals::IntegerLiteral::zero())
+                    };
+                    let placeholder = probe.expressions.insert(value);
+                    probe.expressions.set_source_span(placeholder, reference);
+                    placeholder
+                };
+                placeholders.insert(leaf.expression, placeholder);
+            }
+            definition.value = materialize_value(&mut probe, definition.value, &placeholders)?;
+            definition.normalization = None;
+            probe
+                .items
+                .replace_item(declaration.item, Item::Const(definition));
+        }
+        // Private layout stand-ins, exactly as in the index-expression probe.
+        // Actual arguments are normalized only after all declaration values exist.
+        let arguments =
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(&probe)
+                .into_iter()
+                .chain(
+                    syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(&probe),
+                )
+                .collect::<Vec<_>>();
+        for (argument, destination, _) in arguments {
+            let placeholder = match probe.type_references.type_reference(destination) {
+                TypeReferenceNode::Named(name) if name.as_str() == "bool" => "false",
+                TypeReferenceNode::Named(name)
+                    if matches!(
+                        name.as_str(),
+                        "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+                    ) =>
+                {
+                    "0"
+                }
+                _ => continue,
+            };
+            probe.type_references.replace_type_reference(
+                argument,
+                TypeReferenceNode::Named(Identifier::generated(placeholder)),
+            );
+        }
+        let mut probe_ordinal = 0;
+        for ordinal in &ready {
+            for leaf in &declarations[*ordinal].leaves {
+                crate::const_evaluation::const_generic_expressions::append_probe(
+                    &mut probe,
+                    probe_ordinal,
+                    leaf.expression,
+                    leaf.destination,
+                );
+                probe_ordinal += 1;
+            }
+        }
+        let probe = crate::machine_execution::syntax_probes::normalize_generic_data(
+            probe,
+            sources.clone(),
+            bindings,
+            None,
+        )?;
+        let resolved =
+            crate::machine_execution::syntax_probes::resolve(&probe, sources.clone(), bindings)?;
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .map_err(|error| vec![error])?;
+        let checked = ready
+            .iter()
+            .any(|ordinal| {
+                declarations[*ordinal]
+                    .leaves
+                    .iter()
+                    .any(|leaf| leaf.structured || !leaf.calls.is_empty())
+            })
+            .then(|| {
+                let mut symbols = Vec::new();
+                for ordinal in &ready {
+                    for leaf in &declarations[*ordinal].leaves {
+                        let reference = syntax.expressions.source_span(leaf.expression);
+                        let matching = typed
+                            .machines()
+                            .iter()
+                            .filter(|machine| {
+                                typed.symbols.symbol_source_span(machine.symbol) == Some(reference)
+                            })
+                            .collect::<Vec<_>>();
+                        let [machine] = matching.as_slice() else {
+                            return Err(failure(
+                                reference,
+                                "initializer probe lost its unique source owner",
+                            ));
+                        };
+                        symbols.push(machine.symbol);
+                    }
+                }
+                invocations::CheckedInitializers::prepare(&typed, authority.clone(), &symbols)
+            })
+            .transpose()?;
+        let typed = checked
+            .as_ref()
+            .map_or(&typed, invocations::CheckedInitializers::typed);
+        for ordinal in ready {
+            let authored_expression = declarations[ordinal].definition.value;
+            let mut replacements = HashMap::new();
+            let mut selections = Vec::new();
+            let mut builtin_operators = Vec::new();
+            let mut call_selections = Vec::new();
+            let mut scalar_encoding = None;
+            for leaf in &declarations[ordinal].leaves {
+                let reference = syntax.expressions.source_span(leaf.expression);
+                let mut expected = Vec::new();
+                for (reference, dependency) in &leaf.dependencies {
+                    let dependency = &declarations[*dependency];
+                    let origin = ConstArgumentOrigin {
+                        reference: *reference,
+                        declaration: dependency.definition.name.source_span(),
+                        initializer: syntax.expressions.source_span(dependency.definition.value),
+                        canonical_value_encoding: dependency.encoding.clone().ok_or_else(|| {
+                            failure(
+                                *reference,
+                                "initializer selected a dependency without an evaluated value",
+                            )
+                        })?,
+                    };
+                    if !expected.contains(&origin) {
+                        expected.push(origin);
+                    }
+                    if let Some(normalization) = &dependency.definition.normalization {
+                        for origin in &normalization.selections {
+                            if !expected.contains(origin) {
+                                expected.push(origin.clone());
+                            }
+                        }
+                    }
+                }
+                if leaf.structured {
+                    let checked = checked
+                        .as_ref()
+                        .expect("aggregate leaf has checked preparation");
+                    let calls = checked
+                        .calls_for_source(reference)
+                        .map_err(|reason| failure(reference, reason))?;
+                    // The leaf probe's checked interpreter supplies the value;
+                    // every authored call inside the leaf is still admitted at
+                    // its concrete arguments, and the reconstructed origins and
+                    // call roster must match the original selection exactly.
+                    let evaluation = calls
+                        .evaluate_leaf(reference, &expected, &leaf.calls, &syntax)
+                        .map_err(|reason| failure(reference, reason))?;
+                    for selection in &leaf.calls {
+                        if !call_selections.contains(selection) {
+                            call_selections.push(*selection);
+                        }
+                    }
+                    for origin in evaluation.origins {
+                        if !selections.contains(&origin) {
+                            selections.push(origin);
+                        }
+                    }
+                    for operator in evaluation.operators {
+                        if !builtin_operators.contains(&operator) {
+                            builtin_operators.push(operator);
+                        }
+                    }
+                    let materialized = materialize::literal(
+                        &mut syntax,
+                        typed,
+                        evaluation.destination,
+                        &evaluation.value,
+                        reference,
+                    )
+                    .map_err(|reason| failure(reference, reason))?;
+                    replacements.insert(leaf.expression, materialized);
+                    for warning in &evaluation.warnings {
+                        eprintln!("{warning}");
+                    }
+                    continue;
+                }
+                let result = if leaf.calls.is_empty() {
+                    crate::const_evaluation::const_generic_expressions::evaluate_probe(
+                        typed,
+                        reference,
+                        false,
+                        authority.as_deref(),
+                        Some(&expected),
+                        &syntax,
+                    )
+                } else {
+                    let checked = checked
+                        .as_ref()
+                        .expect("call-bearing declaration has checked preparation");
+                    let calls = checked
+                        .calls_for_source(reference)
+                        .map_err(|reason| failure(reference, reason))?;
+                    crate::const_evaluation::const_generic_expressions::evaluate_probe_with_calls(
+                        typed,
+                        reference,
+                        false,
+                        authority.as_deref(),
+                        Some(&expected),
+                        &syntax,
+                        &leaf.calls,
+                        &calls,
+                    )
+                }
+                .map_err(|reason| failure(reference, reason))?;
+                for selection in &leaf.calls {
+                    if !call_selections.contains(selection) {
+                        call_selections.push(*selection);
+                    }
+                }
+                for origin in result.origins {
+                    if !selections.contains(&origin) {
+                        selections.push(origin);
+                    }
+                }
+                // Several fields may depend on the same computed declaration.
+                // Its authored operators remain one provenance roster, not one
+                // synthetic occurrence for every leaf which reads the value.
+                for operator in result.operators {
+                    if !builtin_operators.contains(&operator) {
+                        builtin_operators.push(operator);
+                    }
+                }
+                scalar_encoding = Some(result.value.encoding.clone());
+                let literal = match result.value.decode_encoding() {
+                    Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
+                        let spelling = value.to_string();
+                        ExpressionNode::Integer(
+                            numerics::literals::IntegerLiteral::from_parts(
+                                spelling.starts_with('-'),
+                                numerics::literals::IntegerRadix::Decimal,
+                                spelling.strip_prefix('-').unwrap_or(&spelling),
+                            )
+                            .map_err(|reason| failure(reference, reason))?,
+                        )
+                    }
+                    Some(DecodedCanonicalConstValue::Boolean(value)) => {
+                        ExpressionNode::Boolean(value)
+                    }
+                    _ => {
+                        return Err(failure(
+                            reference,
+                            "initializer probe did not produce a scalar value",
+                        ));
+                    }
+                };
+                let materialized = syntax.expressions.insert(literal);
+                syntax.expressions.set_source_span(materialized, reference);
+                replacements.insert(leaf.expression, materialized);
+                for warning in result.warnings {
+                    eprintln!("{warning}");
+                }
+            }
+            let value = if declarations[ordinal].leaves.len() == 1
+                && authored_expression == declarations[ordinal].leaves[0].expression
+            {
+                *replacements
+                    .get(&declarations[ordinal].leaves[0].expression)
+                    .expect("scalar initializer replacement")
+            } else {
+                materialize_value(&mut syntax, authored_expression, &replacements)?
+            };
+            let mut definition = declarations[ordinal].definition.clone();
+            // A single scalar leaf's canonical result is its probe encoding; a
+            // structured or multi-leaf value encodes from the complete
+            // materialized literal instead.
+            let canonical_result_encoding = if declarations[ordinal].leaves.len() == 1
+                && authored_expression == declarations[ordinal].leaves[0].expression
+                && !declarations[ordinal].leaves[0].structured
+            {
+                scalar_encoding.expect("scalar initializer encoding")
+            } else {
+                let mut materialized_definition = definition.clone();
+                materialized_definition.value = value;
+                preparation
+                    .canonicalize_value(&syntax, &materialized_definition)
+                    .map_err(|reason| {
+                        failure(syntax.expressions.source_span(authored_expression), reason)
+                    })?
+                    .encoding
+            };
+            definition.normalization = Some(ConstInitializerNormalization {
+                authored_expression,
+                canonical_result_encoding,
+                selections,
+                builtin_operators,
+                call_selections,
+            });
+            definition.value = value;
+            syntax
+                .items
+                .replace_item(declarations[ordinal].item, Item::Const(definition.clone()));
+            declarations[ordinal].definition = definition;
+            declarations[ordinal].encoding = Some(
+                declarations[ordinal]
+                    .definition
+                    .normalization
+                    .as_ref()
+                    .unwrap()
+                    .canonical_result_encoding
+                    .clone(),
+            );
+            declarations[ordinal].leaves.clear();
+        }
+    }
+    Ok(syntax)
+}
+
+fn failure(reference: SourceSpan, reason: impl std::fmt::Display) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!("constant initializer: {reason}")).with_source_span(reference)]
+}
+
+fn materialize_value(
+    syntax: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+    replacements: &HashMap<ExpressionHandle, ExpressionHandle>,
+) -> Result<ExpressionHandle, Vec<Diagnostic>> {
+    if let Some(replacement) = replacements.get(&expression) {
+        return Ok(*replacement);
+    }
+    let source_span = syntax.expressions.source_span(expression);
+    let value = match syntax.expressions.expression(expression).clone() {
+        ExpressionNode::ArrayLiteral(elements) => {
+            let elements = syntax.expressions.expression_handles(elements).to_vec();
+            let materialized = elements
+                .into_iter()
+                .map(|element| materialize_value(syntax, element, replacements))
+                .collect::<Result<Vec<_>, _>>()?;
+            ExpressionNode::ArrayLiteral(syntax.expressions.insert_expression_handles(materialized))
+        }
+        ExpressionNode::StructLiteral(mut constructor) => {
+            let mut fields = syntax
+                .expressions
+                .struct_fields(constructor.fields)
+                .to_vec();
+            for field in &mut fields {
+                field.value = materialize_value(syntax, field.value, replacements)?;
+            }
+            constructor.fields = syntax.expressions.insert_struct_fields(fields);
+            ExpressionNode::StructLiteral(constructor)
+        }
+        _ => return Ok(expression),
+    };
+    let handle = syntax.expressions.insert(value);
+    syntax.expressions.set_source_span(handle, source_span);
+    Ok(handle)
+}

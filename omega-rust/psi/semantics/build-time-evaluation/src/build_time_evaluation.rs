@@ -8,9 +8,12 @@ use std::sync::Arc;
 
 use crate::{
     BuildTimeSelectionAuthority, FoldedArrayLength, PlacedViewRecord, PlanLaidRecord,
-    SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody, const_domain_facts,
-    const_generic_calls, const_generic_expressions, const_initializers, const_lengths,
-    placed_views, plan_laid, range_arguments, range_endpoints, wire_plans,
+    SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody,
+    const_evaluation::const_domain_facts, const_evaluation::const_generic_calls,
+    const_evaluation::const_generic_expressions, const_evaluation::const_initializers,
+    const_evaluation::const_lengths, const_evaluation::range_arguments,
+    const_evaluation::range_endpoints, layouts::placed_views, layouts::plan_laid,
+    layouts::wire_plans,
 };
 
 /// Inputs retained by package-aware probes and generated extension evaluation.
@@ -83,7 +86,7 @@ pub fn evaluate_pre_resolution(
         source_scoped_top_level_bindings,
         selection_authority.clone(),
     )?;
-    let mut syntax_trees = crate::syntax_probes::normalize_generic_data(
+    let mut syntax_trees = crate::machine_execution::syntax_probes::normalize_generic_data(
         syntax_trees,
         sources,
         source_scoped_top_level_bindings,

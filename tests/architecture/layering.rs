@@ -2540,8 +2540,9 @@ fn component_era_artifact_occurrence_joins_require_strong_installation_evidence(
     );
     let installation = std::fs::read_to_string(&installation_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
-    let effects_path =
-        root.join("omega-rust/omega/representations/effects/src/component_era_entry_ledger.rs");
+    let effects_path = root.join(
+        "omega-rust/omega/representations/effects/src/component_eras/component_era_entry_ledger.rs",
+    );
     let effects = std::fs::read_to_string(&effects_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", effects_path.display()));
     let publication_path =
@@ -4621,7 +4622,7 @@ fn normalized_write_frame_compact_identity_is_report_only() {
 fn external_root_progress_rejoins_the_exact_selected_provider_closure() {
     let root = workspace_root();
     let manifest_path =
-        root.join("omega-rust/omega/representations/effects/src/component_progress_manifest.rs");
+        root.join("omega-rust/omega/representations/effects/src/component_eras/component_progress_manifest.rs");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
     assert!(
@@ -5133,7 +5134,8 @@ fn package_review_provider_plan_fingerprints_are_report_only() {
 #[test]
 fn build_time_const_layout_fingerprints_are_report_only_beside_exact_replay() {
     let root = workspace_root();
-    let layout_plans = root.join("omega-rust/psi/semantics/build-time-evaluation/src/layout_plans");
+    let layout_plans =
+        root.join("omega-rust/psi/semantics/build-time-evaluation/src/layouts/layout_plans");
 
     let record = std::fs::read_to_string(layout_plans.join("const_materializable.rs"))
         .expect("read fixed-layout ConstMaterializable implementation");
