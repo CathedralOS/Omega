@@ -312,6 +312,7 @@ pub(super) fn append_probe(
         name,
         generic_data_template: Default::default(),
         attached_data: None,
+        spelling: None,
         is_public: false,
         bodyless: false,
         target: None,

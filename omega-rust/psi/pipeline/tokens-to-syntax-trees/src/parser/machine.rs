@@ -1,5 +1,6 @@
 use crate::parser::data::{parse_machine_declaration_parameters, parse_machine_type_parameters};
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
+use crate::parser::operator::parse_operator_spelling;
 use crate::parser::state::{
     parse_optional_return_type, parse_optional_state_parameters, parse_state,
 };
@@ -29,6 +30,23 @@ pub(super) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Machine> {
+    // OPERATOR-MACHINE-SUPPLY (spec expressions.md#executable-supply): an
+    // optional fixed token immediately after `machine` binds operator syntax
+    // to this ordinary named declaration (`machine + Vec2::add(...) -> Vec2`).
+    // The vocabulary is the same closed `OperatorSpelling` set the `operator`
+    // head uses; a non-punctuation head is a tokenless named machine. Every
+    // `machine`-headed form shares this admission: plain, `boundary machine`,
+    // and `<target> machine`. Item-level contexts that may not carry a token
+    // (`boundary requirement`, conformance members) reject on the recorded
+    // field after this returns; context ownership checks remain downstream.
+    let (spelling, input) = if input.tokens.first().is_some_and(|token| {
+        token.punctuation().is_some() && token.punctuation() != Some(PunctuationKind::Semicolon)
+    }) {
+        let (spelling, input) = parse_operator_spelling(input)?;
+        (Some(spelling), input)
+    } else {
+        (None, input)
+    };
     let (path, input) = parse_path_handle_span(input, |member| {
         syntax_trees
             .expressions
@@ -41,6 +59,16 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_return_type, input) = parse_optional_return_type(syntax_trees, input)?;
     let ((), mut input) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
+    // A `satisfies` clause makes this machine a realization of a requirement
+    // that owns the token binding; conformances and boundary realizations
+    // supply implementations, never new token bindings (spec: a realizing
+    // boundary machine uses `satisfies` "without redeclaring the token").
+    if spelling.is_some() && !satisfies.is_empty() {
+        return Err(next.error_here(
+            "a machine with a `satisfies` clause is a realization and cannot declare an \
+             operator token; the satisfied requirement owns the token binding",
+        ));
+    }
     if next.at_contextual("via") {
         return Err(next.error_here(
             "`via <Binding>` cannot supply a machine by itself; name the requirement first as \
@@ -114,6 +142,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 name,
                 generic_data_template: Default::default(),
                 attached_data,
+                spelling,
                 is_public: false,
                 target: None,
                 boundary: false,
@@ -232,6 +261,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             name,
             generic_data_template: Default::default(),
             attached_data,
+            spelling,
             is_public: false,
             target: None,
             boundary: false,

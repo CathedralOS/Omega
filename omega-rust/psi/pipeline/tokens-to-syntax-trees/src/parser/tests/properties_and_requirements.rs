@@ -617,6 +617,132 @@ fn rejects_retired_operator_spelling_clause() {
     );
 }
 
+// OPERATOR-MACHINE-SUPPLY front: an optional fixed token immediately after
+// `machine` binds operator syntax to an ordinary named declaration. The token
+// is recorded on the syntax-tree `Machine::spelling`; downstream selection and
+// ownership checks are the next frontier.
+#[test]
+fn parses_fixed_operator_tokens_on_machine_declarations() {
+    let source = r#"
+        pub machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
+            add_vectors(left, right)
+        }
+        machine [] Slice::index(items: Slice, index: u64) -> u8 {
+            0u8
+        }
+        machine [..] Slice::range(items: Slice, start: u64, end: u64) -> Slice {
+            items
+        }
+        boundary machine == Vec2::equal(left: Vec2, right: Vec2) -> bool;
+        linux_x86_64 machine - subtract(left: u64, right: u64) -> u64 {
+            left
+        }
+        machine ordinary(value: u64) -> u64 { value }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("machine token heads should parse");
+    let machines = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(machines.len(), 6);
+    assert_eq!(
+        machines[0].spelling,
+        Some(language_core::OperatorSpelling::Add)
+    );
+    assert!(machines[0].is_public);
+    assert!(!machines[0].bodyless);
+    assert_eq!(machines[0].name.as_str(), "Vec2::add");
+    assert_eq!(
+        machines[1].spelling,
+        Some(language_core::OperatorSpelling::Index)
+    );
+    assert_eq!(
+        machines[2].spelling,
+        Some(language_core::OperatorSpelling::Range)
+    );
+    assert_eq!(
+        machines[3].spelling,
+        Some(language_core::OperatorSpelling::Equal)
+    );
+    assert!(machines[3].boundary && machines[3].bodyless);
+    assert_eq!(
+        machines[4].spelling,
+        Some(language_core::OperatorSpelling::Subtract)
+    );
+    assert_eq!(
+        machines[4].target.as_ref().map(|target| target.as_str()),
+        Some("linux_x86_64")
+    );
+    assert_eq!(machines[5].spelling, None);
+}
+
+#[test]
+fn rejects_malformed_operator_tokens_on_machine_declarations() {
+    for (source, expected) in [
+        // Punctuation outside the closed token vocabulary refuses loudly.
+        (
+            "machine && add(left: i32, right: i32) -> i32 { left }",
+            "unknown operator spelling `&&`",
+        ),
+        (
+            "machine () add(left: i32) -> i32 { left }",
+            "unknown operator spelling `()`",
+        ),
+        (
+            "machine += add(left: i32, right: i32) -> i32 { left }",
+            "unknown operator spelling `+=`",
+        ),
+        (
+            "machine ! add(left: i32) -> i32 { left }",
+            "unknown operator spelling `!`",
+        ),
+        // A second token where the declaration name belongs still rejects.
+        (
+            "machine + + add(left: i32, right: i32) -> i32 { left }",
+            "expected identifier",
+        ),
+        // A `satisfies` machine is a realization; the satisfied requirement
+        // owns the token binding and realizations never redeclare it.
+        (
+            "machine + add(left: i32, right: i32) -> i32 satisfies Math::add { left }",
+            "cannot declare an operator token",
+        ),
+        (
+            "machine + add(left: i32, right: i32) -> i32 satisfies Math::add via Binding::CompilerIntrinsic;",
+            "cannot declare an operator token",
+        ),
+        // `boundary requirement` is the tokenless requirement form; a
+        // token-bearing requirement is spelled bodyless `boundary machine +`.
+        (
+            "boundary requirement + add(left: i32, right: i32) -> i32;",
+            "does not take a fixed operator token",
+        ),
+        // Conformance members supply implementations; they never introduce
+        // token bindings.
+        (
+            "Evidence: Widget satisfies Shape { machine + area() -> u64 { 1u64 } }",
+            "a conformance member supplies an implementation",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("malformed token head must reject");
+        assert!(
+            error.message.contains(expected),
+            "source `{source}` produced `{}`, expected fragment `{expected}`",
+            error.message
+        );
+    }
+}
+
 #[test]
 fn rejects_all_retired_invariant_declaration_forms_with_direction() {
     for (source, expected) in [

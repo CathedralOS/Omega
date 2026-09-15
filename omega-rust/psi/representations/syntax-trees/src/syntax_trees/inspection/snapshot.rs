@@ -154,6 +154,8 @@ pub enum ItemSnapshot {
     Machine {
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        spelling: Option<&'static str>,
         is_public: bool,
         bodyless: bool,
         target: Option<IdentifierSnapshot>,
@@ -1032,6 +1034,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Machine(value) => ItemSnapshot::Machine {
             name: snapshot_identifier(&value.name),
             attached_data: value.attached_data.as_ref().map(snapshot_identifier),
+            spelling: value.spelling.map(|spelling| spelling.symbol()),
             is_public: value.is_public,
             bodyless: value.bodyless,
             target: value.target.as_ref().map(snapshot_identifier),

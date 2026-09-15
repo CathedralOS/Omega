@@ -1,11 +1,13 @@
 //! Fixed operator-token identities.
 //!
 //! The token set and operand-directed semantics are settled. The source head
-//! writes the literal token immediately after `operator`.
+//! writes the literal token immediately after `machine` (`machine + Name`); the
+//! legacy `operator` introducer accepts the same set until its removal lands
+//! (OPERATOR-MACHINE-SUPPLY).
 
-/// The legal fixed operator tokens. A named operator may be associated with
-/// one token; receiver/operand machinery then picks the unique candidate. The
-/// canonical source form places that token in the operator declaration head.
+/// The legal fixed operator tokens. A declaration may be associated with one
+/// token; receiver/operand machinery then picks the unique candidate. The
+/// canonical source form places that token immediately after `machine`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OperatorSpelling {
     Add,

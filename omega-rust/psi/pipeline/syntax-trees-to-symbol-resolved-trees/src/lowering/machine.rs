@@ -26,6 +26,11 @@ pub(crate) fn lower_machine_into(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
+    // OPERATOR-MACHINE-SUPPLY frontier: `machine.spelling` (the optional fixed
+    // token after `machine`) is admitted and recorded by the parser but not yet
+    // consumed here -- operand-directed selection, semantic-home ownership, and
+    // the `operator`-introducer migration are the next stages. A token-bearing
+    // machine currently lowers exactly like its tokenless named form.
     let compiler_selection_partition = compiler_selection_partition(
         lowerer.symbol_resolved_trees.machines.len(),
         syntax_trees,
