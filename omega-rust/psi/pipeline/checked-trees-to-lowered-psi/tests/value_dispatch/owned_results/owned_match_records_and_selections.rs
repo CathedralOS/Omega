@@ -477,6 +477,186 @@ fn duplicate_prior_receipts_cannot_launder_a_fresh_origin_as_unknown() {
     );
 }
 
+const CHAINED_SOURCE: &str = "data Choice { case Empty; case Some(value: u32); }
+    machine choose(selected: bool, other: bool) -> bool {
+        let left: Choice = Choice::Some { value: 37 };
+        let right: Choice = Choice::Empty;
+        let a: Choice = match selected { true -> left, false -> right };
+        let third: Choice = Choice::Some { value: 9 };
+        let b: Choice = match other { true -> a, false -> third };
+        b in Choice::Some
+    }";
+
+#[test]
+fn chained_owned_selection_transfers_the_prior_result_once() {
+    for selected in [true, false] {
+        for other in [true, false] {
+            let (module, execution) = execute(
+                CHAINED_SOURCE,
+                &[
+                    TerminalScalarValue::Boolean(selected),
+                    TerminalScalarValue::Boolean(other),
+                ],
+            );
+            // The second match moves `a` (the first match's join result) on
+            // its true arm and `third` on its false arm.
+            let expected = if other { selected } else { true };
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected)),
+                "selected={selected} other={other}"
+            );
+            let machine = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == module.entry)
+                .unwrap();
+            assert_eq!(
+                machine
+                    .blocks
+                    .iter()
+                    .filter(|block| !block.structural_parameters.is_empty())
+                    .count(),
+                2,
+                "each selection keeps its own result/residual continuation"
+            );
+        }
+    }
+}
+
+#[test]
+fn chained_owned_selection_rejects_mutated_join_arguments() {
+    let checked = check_source(CHAINED_SOURCE).expect("chained selection checks");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .expect("chained selection lowers");
+    for mutation in 0..2 {
+        let mut changed = lowered.semantic_module.clone();
+        let machine = changed
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed.entry)
+            .unwrap();
+        let mut touched = 0;
+        for block in &mut machine.blocks {
+            let terminal_psi::Terminator::Jump {
+                structural_arguments,
+                ..
+            } = &mut block.terminator
+            else {
+                continue;
+            };
+            match mutation {
+                // Dropping the selected result argument leaves the join's
+                // result slot unbound.
+                0 if structural_arguments.len() > 1 => {
+                    structural_arguments.pop();
+                    touched += 1;
+                }
+                // Moving the residual source into the result slot as well
+                // moves one owner into two frontier positions.
+                1 if structural_arguments.len() > 1 => {
+                    let last = structural_arguments.len() - 1;
+                    structural_arguments[last].place = structural_arguments[0].place;
+                    touched += 1;
+                }
+                _ => {}
+            }
+        }
+        assert!(touched > 0, "chained selection edges carry join evidence");
+        assert!(
+            terminal_verifier::verify_module(
+                &changed,
+                &lowered.proof_bundle,
+                &crate::AdmissionProfile::default()
+            )
+            .is_err(),
+            "chained join mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn chained_owned_selection_rejects_substituted_origin_receipt() {
+    let checked = check_source(CHAINED_SOURCE).expect("chained selection checks");
+    let (second, receipt) = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selections
+        .iter()
+        .nth(1)
+        .expect("the second match keeps its receipt");
+    let sources = checked
+        .facts
+        .flow
+        .ownership
+        .selection_sources
+        .span(receipt.sources)
+        .expect("chained source span");
+    let chained = sources
+        .iter()
+        .position(|source| source.origin_selection.is_valid())
+        .expect("the second match records the prior destination's origin");
+    assert_eq!(
+        sources[chained].provenance,
+        language_semantics::PermissionProvenance::Unknown
+    );
+    for mutation in 0..2 {
+        let mut changed = checked.clone();
+        let ownership = &mut changed.facts.flow.ownership;
+        let source = ownership
+            .selection_sources
+            .get_mut(arena::Handle::from_parts(
+                receipt.sources.start().arena_index() + chained as u32,
+                receipt.sources.start().generation(),
+            ));
+        match mutation {
+            // A missing origin handle does not authorize the Unknown
+            // provenance row.
+            0 => source.origin_selection = arena::Handle::invalid(),
+            // The second receipt is a valid handle but names the wrong
+            // destination for this source's statement.
+            _ => source.origin_selection = second,
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&changed, "choose").is_err(),
+            "chained origin mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn projected_move_of_a_prior_selection_result_rejects_explicitly() {
+    let source = "data Payload { left: u64; right: u64; }
+        data Pair { first: Payload; second: Payload; }
+        machine choose(selected: bool, other: bool) -> u64 {
+            let x: Pair = Pair {
+                first: Payload { left: 1, right: 2 },
+                second: Payload { left: 3, right: 4 }
+            };
+            let y: Pair = Pair {
+                first: Payload { left: 5, right: 6 },
+                second: Payload { left: 7, right: 8 }
+            };
+            let a: Pair = match selected { true -> x, false -> y };
+            let fallback: Payload = Payload { left: 9, right: 10 };
+            let result: Payload = match other {
+                true -> a.first,
+                false -> fallback
+            };
+            result.left ^ result.right
+        }";
+    let checked = check_source(source).expect("projected chained selection checks");
+    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .expect_err("a projected move out of a join result is not admitted yet");
+    assert!(
+        format!("{error:?}").contains(
+            "projected selection of a prior selection result requires block-parameter residual custody"
+        ),
+        "expected the explicit residual-custody rejection, got {error:?}"
+    );
+}
+
 #[test]
 fn untouched_local_remains_observable_after_selection() {
     let source = SOURCE

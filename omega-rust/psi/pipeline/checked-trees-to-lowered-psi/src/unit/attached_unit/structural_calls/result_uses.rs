@@ -385,7 +385,7 @@ pub(crate) fn validate_usage(
                     _ => None,
                 });
             if let Some(source_ordinal) = sources.iter().position(|source| {
-                matches!(
+                (matches!(
                     source.provenance,
                     language_semantics::PermissionProvenance::Established {
                         source: language_semantics::PermissionEventSource::Statement {
@@ -393,7 +393,9 @@ pub(crate) fn validate_usage(
                         },
                         ..
                     } if statement_index == result.statement_index as usize
-                ) && Some(source.symbol) == result_local_symbol
+                ) || (source.origin_selection.is_valid()
+                    && source.statement_ordinal as usize == result.statement_index as usize))
+                    && Some(source.symbol) == result_local_symbol
             }) {
                 let source_handle = arena::Handle::from_parts(
                     receipt.sources.start().arena_index() + source_ordinal as u32,
