@@ -42,9 +42,9 @@ use precondition::{
     derive_public_precondition_partition, derive_representative_precondition_partition,
 };
 use precondition::{RepresentativeContractFactLocation, RepresentativeContractOwner};
-pub(super) use representative::pure_representative_effect;
 #[cfg(test)]
-use representative::{RepresentativePurity, RepresentativeRuntimeParameter};
+use representative::RepresentativeRuntimeParameter;
+pub(super) use representative::pure_representative_effect;
 use representative::{
     RepresentativeTelescope, RepresentativeTermination, derive_representative_telescope,
     representative_machine_state, unconditional_representative_termination,
@@ -67,10 +67,7 @@ use transport_schema::{
 };
 
 #[cfg(test)]
-use result_flow::{
-    CompleteSingleStateResultFlow, CompleteStateForwardingResultFlow,
-    ImmutableAliasFallthroughRoot, StateForwardingEdge, immutable_alias_fallthrough_root,
-};
+use result_flow::immutable_alias_fallthrough_root;
 pub(super) use result_flow::{
     complete_single_state_result_flow, complete_state_forwarding_result_flow,
     fallthrough_result_root,
