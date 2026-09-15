@@ -1,6 +1,11 @@
 //! Raw target projection retains a derived producer; proof admission is separate.
-use super::*;
 
+use super::{
+    AbstractBlockEntry, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
+    AbstractParameter, AbstractResult, BlockId, EdgeId, NativeTarget, OperationId, PlaceId,
+    ScalarType, StructuralMultiplicity, TargetLoweringRequest, ValueId, fixture,
+    lower_to_target_operations,
+};
 fn subslice_calls() -> AbstractOperationPlan {
     let mut plan = fixture();
     let caller = &mut plan.functions[0];

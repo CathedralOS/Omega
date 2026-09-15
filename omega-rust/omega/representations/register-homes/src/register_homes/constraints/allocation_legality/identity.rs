@@ -84,21 +84,20 @@ fn length(bytes: &mut Vec<u8>, value: usize) {
 
 #[cfg(test)]
 mod tests {
-    use register_model::{
-        RegisterClassId, RegisterOperandAccess, RegisterViewId, TargetRegisterEnvironmentIdentity,
-    };
-    use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
-    use semantic_vocabulary::MachineId;
-
-    use super::*;
+    use super::allocation_legality_identity;
     use crate::{
         AllocationLegalityPlan, AllocatorAvailabilityIdentity, EntryFixedViewTransition,
         FunctionAllocationLegality, VirtualEarlyClobberPointLegality, VirtualPointLegality,
         VirtualRegisterAllocationLegality,
     };
+    use register_model::{
+        RegisterClassId, RegisterOperandAccess, RegisterViewId, TargetRegisterEnvironmentIdentity,
+    };
     use selected_instructions::{
         LiveRangeIdentity, LiveRangePoint, LivenessPosition, VirtualFixedConstraintSite,
     };
+    use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
+    use semantic_vocabulary::MachineId;
 
     type Mutation = fn(&mut AllocationLegalityPlan);
 

@@ -1,6 +1,5 @@
 //! Ordinary-machine roster construction, block traversal, and final assembly.
-
-use super::*;
+use super::{LoweringError, lower_operation, lower_terminator};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractParameter, AbstractResult,

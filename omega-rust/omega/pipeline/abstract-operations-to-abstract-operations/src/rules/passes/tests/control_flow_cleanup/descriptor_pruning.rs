@@ -1,5 +1,11 @@
 //! Scalar pruning does not remove a retained descriptor telescope.
-use super::*;
+use crate::rule_registry::PsiOptimizationRule;
+
+use super::super::super::ConstantConditionalFoldRule;
+use super::super::{
+    AbstractOperation, RuleAnalysisView, id, propagated_block_parameter_unit,
+    recompute_psi_optimization_unit_identity,
+};
 
 #[test]
 fn conditional_fold_does_not_propose_orphaning_descriptor_roots() {

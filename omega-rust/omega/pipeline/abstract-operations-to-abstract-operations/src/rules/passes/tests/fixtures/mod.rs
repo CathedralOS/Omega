@@ -1,7 +1,5 @@
 //! Optimizer module role: stage group. Typed optimization units shared by the pass-family test suites.
 
-use super::*;
-
 mod common;
 mod control_flow_cleanup;
 mod dead_scalar_elimination;

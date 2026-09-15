@@ -290,6 +290,14 @@ fn encode_len(bytes: &mut Vec<u8>, value: usize) {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        RecoveryClassification, RecoveryClassificationPlan, RecoveryClassificationPolicy,
+        RecoveryVictimRole, recovery_classification_identity,
+    };
+    use crate::{
+        AllocationLegalityIdentity, FunctionRecoveryClassification, PressureRecoveryClassification,
+        RecoveryClassificationDecodeError, RecoveryFutureUse, SpillChoiceIdentity,
+    };
     use optimization_core::{
         OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     };
@@ -303,12 +311,6 @@ mod tests {
     use semantic_vocabulary::{
         BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
         OperationId, ScalarType, ValueId,
-    };
-
-    use super::*;
-    use crate::{
-        AllocationLegalityIdentity, FunctionRecoveryClassification, PressureRecoveryClassification,
-        RecoveryClassificationDecodeError, RecoveryFutureUse, SpillChoiceIdentity,
     };
 
     fn plan() -> RecoveryClassificationPlan {

@@ -1,15 +1,17 @@
+use super::{
+    FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentControlProvenance,
+    FunctionFragmentEmissionPlan, FunctionFragmentInstructionSpan,
+};
 use optimization_core::FunctionFragmentEmissionIdentity;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, SelectedBlockId, SelectedInstructionId,
     SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
 };
+use semantic_vocabulary::ValueId;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::TerminalPsiIdentity;
-
-use super::*;
-use semantic_vocabulary::ValueId;
 
 fn zero_span_plan() -> FunctionFragmentEmissionPlan {
     let mut plan = FunctionFragmentEmissionPlan {

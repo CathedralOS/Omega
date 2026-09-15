@@ -1,6 +1,10 @@
 //! Registry and identity helpers shared by pass-family fixtures.
 
-use super::*;
+use super::super::{
+    AcceptedObligationFact, BuiltInRuleRegistration, OptimizationFact, OrderedRuleRegistry,
+    PsiOptimization, PsiOptimizationUnit, assemble_built_in_registry,
+    attach_accepted_obligation_facts, built_in_rule_registrations,
+};
 
 pub(crate) fn shuffle_built_in_registrations(
     registrations: &mut [BuiltInRuleRegistration],

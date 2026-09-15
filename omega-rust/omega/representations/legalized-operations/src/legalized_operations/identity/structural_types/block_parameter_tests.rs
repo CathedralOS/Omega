@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{StructuralPlaceDeclaration, StructuralPlaceKind, encode_structural_place};
 #[test]
 fn retained_block_place_identity_binds_block_and_position() {
     let encode = |block, position| {

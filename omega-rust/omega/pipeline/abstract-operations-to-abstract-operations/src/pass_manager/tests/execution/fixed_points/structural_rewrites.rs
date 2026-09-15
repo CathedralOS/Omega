@@ -1,7 +1,11 @@
 //! Control-flow cleanup and copy-propagation structural fixed points.
 
-use super::super::super::*;
-
+use super::super::super::super::{OptimizationRunError, run_unit};
+use super::super::super::{
+    Optimization, OptimizationSelections, budget, built_in_psi_registry,
+    constant_conditional_same_target_unit, linear_empty_block_unit, non_adjacent_merge_unit,
+    propagated_block_parameter_unit, redundant_block_parameter_unit,
+};
 #[test]
 fn named_control_flow_cleanup_reaches_edge_count_fixed_point() {
     let unit = constant_conditional_same_target_unit(true);

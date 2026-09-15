@@ -1,7 +1,8 @@
 //! Optimizer module role: projection leaf. Canonical edge graphs from Terminal and current optimizer bodies.
 
-use super::*;
+use super::super::super::{BTreeMap, BTreeSet, BlockId, O, PsiOptimizationFunction};
 
+use super::{CycleComponentEdge, MachineId};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct CanonicalControlGraph {
     pub(super) machine: MachineId,

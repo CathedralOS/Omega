@@ -3,8 +3,6 @@
 //! The entrance supplies the shared pass-test vocabulary; leaves follow the
 //! exact reachability, branch, merge, jump-fusion, and threading rule families.
 
-use super::*;
-
 mod block_merges;
 mod constant_conditionals;
 mod contracts;

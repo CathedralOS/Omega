@@ -1,6 +1,12 @@
 //! Registry dispatch and propagated-fact constant evaluation.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::super::IntegerBitwiseNotConstantsRule;
+use super::super::super::super::{
+    AbstractOperation, AnalysisKind, IntegerValue, Optimization, OptimizationSelections,
+    RuleAnalysisView, built_in_psi_registry, compute_analysis, exact_add_unit,
+    propagated_block_parameter_unit, validate_integer_evaluation_candidate,
+};
 
 #[test]
 fn selected_builtin_proposes_one_independently_validated_exact_fold() {

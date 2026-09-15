@@ -1,7 +1,5 @@
 //! Optimizer module role: stage group. Native-boundary lowering coverage.
 
-use super::*;
-
 mod hosted_exit_process;
 mod installed_providers;
 mod returning_byte_parameter;

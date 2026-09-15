@@ -146,7 +146,10 @@ fn xmm_index(register: MachineRegister) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineRegister, NativeTarget, X86FeatureRequirement, X86ScalarFmaFormat,
+        X86ScalarFmaFragment,
+    };
     use target::TargetProfile;
 
     fn fragment() -> X86ScalarFmaFragment {

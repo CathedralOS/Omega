@@ -1,7 +1,7 @@
 //! Work-budget accounting across every bounded axis.
 
-use super::*;
-
+use super::super::OptimizationWorkUsage;
+use super::OptimizationWorkBudget;
 #[test]
 fn usage_checks_every_budget_axis() {
     let budget = OptimizationWorkBudget::new(1, 2, 3, 4, 5).unwrap();

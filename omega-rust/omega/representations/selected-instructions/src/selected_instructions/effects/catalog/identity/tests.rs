@@ -1,14 +1,18 @@
-use register_model::{
-    RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
+use super::{
+    MachineAlternativeApplicability, MachineAlternativeFamily, MachineBarrier,
+    MachineEffectCatalog, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedTrapBehavior, MachineSemanticKind,
+    alternative_family_tag, machine_effect_catalog_identity, semantic_kind_tag,
 };
-use target::NativeTarget;
-
-use super::*;
 use crate::{
     MachineAlternative, MachineAlternativeKey, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineLatencyKnowledge, MachineMemoryEffect, MachineSizeKnowledge,
     MachineTrapBehavior, SelectedConstraintKeys,
 };
+use register_model::{
+    RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
+};
+use target::NativeTarget;
 
 const fn instruction(variant: u32) -> RegisterConstraintKey {
     RegisterConstraintKey {

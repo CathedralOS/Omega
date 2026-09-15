@@ -1,7 +1,7 @@
 //! Closed fact-family tags and exact framing.
 
-use super::*;
-
+use super::super::OptimizationFactReferenceDecodeError;
+use super::{OptimizationFactReference, fact, obligation_fact, ownership_fact, range_fact};
 #[test]
 fn fact_reference_codec_round_trips_every_closed_variant_with_stable_tags() {
     let cases = [

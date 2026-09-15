@@ -1,5 +1,8 @@
 //! Destination-owned block values and complete ordered edge transfers.
-use super::*;
+use super::{
+    AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, AbstractParameter, IntegerSign,
+    IntegerType, ScalarType, block, call, edge, fixture, lower, operation, successor, value,
+};
 use abstract_operations::ValueBinding;
 
 pub(super) fn transferred() -> AbstractOperationPlan {

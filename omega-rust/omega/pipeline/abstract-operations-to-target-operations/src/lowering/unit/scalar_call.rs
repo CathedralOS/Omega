@@ -257,7 +257,11 @@ fn require_exact_target_abi(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CallSignature, CallingPolicy, IntegerSign, IntegerType, LoweringError, MachineId,
+        NativeTarget, ScalarAbiValue, ScalarFunctionAbi, ScalarType, ValueId, ValueShape,
+        evaluate_call_plan, require_exact_target_abi,
+    };
 
     fn abi() -> ScalarFunctionAbi {
         let scalar_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();

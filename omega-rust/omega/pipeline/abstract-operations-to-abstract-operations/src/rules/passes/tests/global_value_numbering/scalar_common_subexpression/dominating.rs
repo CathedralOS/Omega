@@ -1,6 +1,18 @@
 //! Cross-block dominating-leader behavior.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::{
+    DominatorProofCertifiedScalarGvnRule, DominatorTotalScalarGvnRule, SameBlockTotalScalarCseRule,
+    node_elision_accounting,
+};
+use super::super::super::{
+    BlockId, DominatingScalarCommonSubexpressionRewrite, EdgeId, IntegerSign, IntegerType,
+    NodeLocation, O, OperationId, OptimizationFact, OptimizationSafetyClass,
+    OptimizationUnitValidationError, PsiProvenance, PsiRewriteCandidate, PsiRewritePatch,
+    RuleAnalysisView, ScalarType, ValueId, diamond_dominator_gvn_unit, dominator_gvn_unit, id,
+    proof_certified_dominator_gvn_unit, recompute_psi_optimization_unit_identity,
+    sibling_only_gvn_unit, validate_dominating_scalar_common_subexpression_candidate,
+};
 
 #[test]
 fn proof_certified_dominator_gvn_consumes_cross_block_redundant_evidence() {

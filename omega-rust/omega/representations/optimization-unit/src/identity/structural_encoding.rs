@@ -1,6 +1,19 @@
 //! Canonical structural-domain, claim, and contract encoding.
-
-use super::*;
+use super::{
+    BindingRelevance, BoundaryContentGuarantee, BoundaryMachineDeclaration, ByteSequenceCarrier,
+    CanonicalBytes, ClaimContentProjection, CompletionClaimSource, ContentAlgebra,
+    ContentAlgebraKind, ContentConservation, ContentConservationGuarantee, ContentPlaceSegment,
+    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionScalar,
+    ContentStructuralPlace, EntryClaim, ProgramLocalRootIntroductionSchema,
+    ProviderCandidateConformance, RetainedBorrowContentProjection, RetainedBorrowCustody,
+    RetainedBorrowPlace, RetainedBorrowPlaceRoot, StructuralAccess, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, encode_access, encode_content_term, encode_float_format,
+    encode_ids, encode_integer_type, encode_integer_value, encode_multiplicity, encode_optional,
+    encode_scalar_type, encode_structural_parameter, encode_structural_path_segment,
+};
 use terminal_psi::BoundaryMachineResult;
 
 mod contract;

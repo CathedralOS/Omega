@@ -1,5 +1,8 @@
 //! Optimizer module role: stage group.
-use crate::*;
+use crate::{
+    LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarCall,
+    LegalizedScalarInstructionKind,
+};
 pub(super) use abstract_operations::CompletionClaimSource;
 pub(super) use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,

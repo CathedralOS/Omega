@@ -1,7 +1,12 @@
 //! Case targets are source blocks, including returning arms and continuations.
 //! The hosted read leaf fixes EOF at tag zero and the byte payload at tag one;
 //! reorder executable blocks without changing that external result convention.
-use super::*;
+use super::super::super::{BoundaryMachineId, TargetUnitOperation};
+
+use super::{
+    AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, AbstractParameter, IntegerValue,
+    NativeTarget, ScalarType, block, edge, operation, value,
+};
 use abstract_operations::{
     AbstractBoundaryResult, AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,
 };

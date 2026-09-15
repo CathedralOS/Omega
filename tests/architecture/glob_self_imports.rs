@@ -67,30 +67,6 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/packages/sources/execution", 2),
     ("omega-rust/omega/packages/topology", 3),
     (
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
-        147,
-    ),
-    (
-        "omega-rust/omega/pipeline/abstract-operations-to-target-operations",
-        41,
-    ),
-    (
-        "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding",
-        3,
-    ),
-    (
-        "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout",
-        2,
-    ),
-    (
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout",
-        1,
-    ),
-    (
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
-        14,
-    ),
-    (
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
         53,
     ),

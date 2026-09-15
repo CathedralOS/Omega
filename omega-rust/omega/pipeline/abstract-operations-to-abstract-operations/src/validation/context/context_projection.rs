@@ -1,7 +1,11 @@
 //! Independent proof-question and ownership-frontier context projection.
 
-use super::*;
-
+use super::super::{
+    MachineId, OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
+    OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
+    ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass, ProofQuestionOwner,
+};
+use super::{OptimizationUnitValidationError, PsiOptimizationUnit};
 pub(super) struct ContextProjection {
     pub(super) proof_fingerprint: [u8; 32],
     pub(super) proof_questions: Vec<ProofQuestion>,

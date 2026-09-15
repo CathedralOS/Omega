@@ -1,5 +1,4 @@
-use super::*;
-
+use super::PrePhysicalOptimizationManifest;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedPrePhysicalOptimizationManifest {
     pub(super) record: PrePhysicalOptimizationManifest,

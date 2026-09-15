@@ -1,7 +1,9 @@
 //! Synthetic rules used to exercise pass-manager failure and policy paths.
 
-use super::*;
-
+use super::{
+    ExactIntegerAddConstantsRule, ExactIntegerSubtractConstantsRule, PsiOptimizationRule,
+    PsiOptimizationUnit, PsiRewritePatch, RuleAnalysisView, RuleProposalError,
+};
 #[derive(Debug)]
 pub(super) struct NonProfitableExactRule;
 

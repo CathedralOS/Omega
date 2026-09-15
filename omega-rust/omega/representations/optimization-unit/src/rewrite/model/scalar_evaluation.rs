@@ -1,7 +1,10 @@
 use super::super::canonical_encoding::{
     encode_definition_site, encode_integer_value, encode_scalar_type,
 };
-use super::super::*;
+use super::super::{
+    AcceptedObligationFactIdentity, IntegerValue, MachineId, OperationId, OptimizationUnitIdentity,
+    ScalarConstantFactIdentity, ScalarType, ValueDefinition, ValueRangeFactIdentity,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarEvaluationWitness {

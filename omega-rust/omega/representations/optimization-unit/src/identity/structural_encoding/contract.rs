@@ -1,10 +1,11 @@
 //! Canonical crash-route, evidence-interface, and machine-contract encoding.
 
-use super::{
+use super::super::{
     CanonicalBytes, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity, MachineContract,
     OutcomeSpecificCallEvidence, encode_ids, encode_optional,
 };
+
 use crate::identity::proposition_encoding::encode_proposition;
 
 pub(in crate::identity) fn encode_crash_cause(bytes: &mut CanonicalBytes, cause: CrashCause) {

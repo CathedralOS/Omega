@@ -1,6 +1,9 @@
 //! Preserve verified Natural and unranked components under exact source custody.
-use super::*;
 
+use super::{
+    OptimizationUnitValidationError, OptimizerCycleComponentSnapshot, PsiOptimizationUnit, graph,
+    topology,
+};
 pub(super) fn rederive_components(
     module: &terminal_psi::TerminalModule,
     unit: &PsiOptimizationUnit,

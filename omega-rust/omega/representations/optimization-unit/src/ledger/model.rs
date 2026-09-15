@@ -1,7 +1,10 @@
 //! Immutable transformation-ledger records and accessors.
 
-use super::*;
-
+use super::{
+    FuelScheduleIdentity, OptimizationCandidateIdentity, OptimizationRuleIdentity,
+    OptimizationUnitIdentity, OptimizationValidatorIdentity, ProvenanceRewrite,
+    PrunedMachineCustody, TerminalPsiIdentity, TransformationLedgerIdentity,
+};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiTransformationRecord {
     pub rule: OptimizationRuleIdentity,

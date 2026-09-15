@@ -1,4 +1,4 @@
-use super::*;
+use super::super::{AbstractOperation, ObligationId, OperationId, OptimizationFact};
 
 pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<OptimizationFact>) {
     if let Some((obligation, support)) = operation_obligation(operation) {

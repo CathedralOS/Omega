@@ -2,7 +2,18 @@
 
 use super::operation_encoding::*;
 use super::structural_encoding::*;
-use super::*;
+use super::{
+    AbstractFunctionResult, AcceptedObligationFact, EffectLink, FuelSettlement, OptimizationEdge,
+    OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent,
+    OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot, ProofQuestion,
+    ProofQuestionAdmissionKind, ProofQuestionClass, ProofQuestionOwner, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiProvenance, PsiSemanticId, ServiceDeclaration,
+    StructuralDomainDeclaration, StructuralResultDeclaration, TerminalRootServiceReach,
+    ValueDefinition, ValueDefinitionSite, ValueUse, encode_abstract_result, encode_binding,
+    encode_ids, encode_integer_value, encode_multiplicity, encode_optional, encode_scalar_type,
+    encode_structural_argument, encode_structural_binding, encode_structural_parameter,
+    encode_structural_path_segment,
+};
 
 const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v29\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =

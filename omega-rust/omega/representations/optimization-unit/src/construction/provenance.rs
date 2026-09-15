@@ -1,4 +1,4 @@
-use super::*;
+use super::super::{AbstractOperation, PsiProvenance};
 
 pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<PsiProvenance> {
     use AbstractOperation as O;

@@ -1,3 +1,4 @@
+use super::super::super::{OptimizationNode, ServiceDeclaration};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
@@ -12,7 +13,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use super::super::{OptimizationNode, ServiceDeclaration, id};
+use super::super::id;
 
 pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimizationUnit {
     let machine = id(601, MachineId::new);

@@ -1,7 +1,15 @@
 //! Whole-engine operational custody for every exact proof-check-elision roster row.
 
-use super::super::super::*;
-
+use super::super::super::super::{OptimizationRunError, run_unit};
+use super::super::super::{
+    AbstractOperation, Optimization, OptimizationCandidateVerdict, OptimizationFactReference,
+    OptimizationRuleIdentity, OptimizationSelections, PsiOptimizationUnit, SelfDividePolicy,
+    SelfRemainderPolicy, budget, built_in_psi_registry, dead_exact_add_unit,
+    live_divide_by_one_unit, live_exact_add_zero_unit, live_exact_multiply_by_zero_unit,
+    live_exact_self_subtract_unit, live_exact_signed_negative_one_shift_right_unit,
+    live_exact_zero_value_shift_unit, live_remainder_by_one_unit, live_self_divide_unit,
+    live_self_remainder_unit, live_signed_remainder_by_negative_one_unit, live_zero_dividend_unit,
+};
 struct Case {
     unit: PsiOptimizationUnit,
     rule: OptimizationRuleIdentity,

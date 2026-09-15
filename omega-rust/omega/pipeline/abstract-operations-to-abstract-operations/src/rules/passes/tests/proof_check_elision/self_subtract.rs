@@ -1,6 +1,20 @@
 //! Exact self-subtraction tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::{
+    LiveProofCertifiedExactIntegerSelfSubtractEliminationRule, PROOF_CHECK_ELISION_PASS_NAME,
+};
+use super::super::{
+    BlockId, IntegerConstantRewrite, IntegerEvaluationWitness, IntegerSign, IntegerType,
+    IntegerValue, NodeLocation, O, OperationId, OptimizationFact, OptimizationFactReference,
+    OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
+    OptimizationSafetyClass, OptimizationUnitValidationError, OptimizationValidatorIdentity,
+    ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, PsiRewriteCandidate,
+    PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, ScalarSubstitution, ScalarType,
+    ValueId, discard_scalar_function_result, id, integer_zero, live_exact_self_subtract_unit,
+    live_proof_binary_identity_unit, recompute_psi_optimization_unit_identity,
+    validate_proof_certified_exact_integer_self_subtract_candidate, validate_psi_optimization_unit,
+};
 
 #[test]
 fn proof_certified_exact_self_subtract_materializes_typed_zero_with_exact_custody() {

@@ -1,6 +1,20 @@
 //! Adjacent and non-adjacent block-merge behavior.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::{
+    AdjacentBlockMergeRule, ConstantConditionalFoldRule, NonAdjacentBlockMergeRule,
+};
+use super::super::{
+    AbstractOperation, BlockId, EdgeId, MachineId, NodeLocation, O, OperationId,
+    OptimizationFactReference, OptimizationUnitValidationError, OwnershipFrontierFact,
+    OwnershipFrontierSite, OwnershipFrontierSnapshot, OwnershipFrontierWitness,
+    ProvenanceDisposition, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
+    PsiRewriteCandidateError, PsiRewritePatch, RuleAnalysisView, ValueId,
+    adjacent_conditional_merge_unit, id, linear_empty_block_unit, non_adjacent_merge_unit,
+    propagated_block_parameter_unit, recompute_psi_optimization_unit_identity,
+    validate_adjacent_block_merge_candidate, validate_constant_conditional_candidate,
+    validate_non_adjacent_block_merge_candidate, validate_psi_optimization_unit,
+};
 
 #[test]
 fn adjacent_block_merge_substitutes_parameters_and_rehomes_edge_custody() {

@@ -1,7 +1,10 @@
 //! Path-sensitive ownership-frontier carriers and canonical identities.
 
-use super::*;
-
+use super::super::{
+    BlockId, ClaimId, EdgeId, OperationId, OwnershipFrontierFactIdentity, PlaceId,
+    StructuralMultiplicity, StructuralPathSegment,
+};
+use super::{MachineId, TerminalPsiIdentity};
 /// Exact verifier-owned source site whose path-sensitive ownership state is
 /// retained by the optimization unit. Entry and exit are deliberately distinct.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

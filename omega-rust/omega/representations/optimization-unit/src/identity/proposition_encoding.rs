@@ -1,7 +1,12 @@
 //! Canonical proof proposition, content term, and scalar term encoding.
 
-use super::*;
-
+use super::{
+    ByteSequenceStructuralField, CanonicalBytes, CanonicalStructuralPathSegment, ContentTerm,
+    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm,
+    IntegerType, Proposition, ScalarTerm, StructuralCaseSubject, encode_content_algebra,
+    encode_content_place, encode_integer_type, encode_integer_value, encode_optional,
+    encode_scalar_type,
+};
 pub(super) fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Proposition) {
     match proposition {
         Proposition::Truth => bytes.u8(1),

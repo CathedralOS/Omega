@@ -3,8 +3,6 @@
 //! Each leaf owns one manifest rule row, so its contract, semantic partition,
 //! rejection boundary, and replay evidence can be found from this entrance.
 
-use super::*;
-
 mod bitwise_absorbing;
 mod bitwise_neutral;
 mod catalog;

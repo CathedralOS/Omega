@@ -2391,7 +2391,18 @@ const fn register_code(register: MachineRegister) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Architecture, BoundaryEntryPlan, BoundaryPlanDiagnostic, BoundaryPlanResult, CallSignature,
+        CallingPolicy, CallingPolicyRejection, ConcreteVariadicCallSignature, EntryControl,
+        EntryStack, IndirectPointerLocation, MachineRegime, MachineRegister, MachineState,
+        MachineStateSet, Preemption, ProviderExitRealization, RegisterSet, StateFootprintEvidence,
+        StatePlan, SystemVEightbyteClass, ValueLocation, ValueShape, evaluate_call_plan,
+        evaluate_darwin_aapcs64_variadic_call_plan, evaluate_freestanding_program_entry_plan,
+        evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
+        validate_boundary_plan_result, validate_call_plan, validate_composed_state_footprint,
+        validate_provider_exit_realization, validate_runtime_value_guard_footprint,
+        validate_state_footprint,
+    };
 
     fn integer_signature(parameter_count: usize) -> CallSignature {
         CallSignature {

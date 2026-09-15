@@ -1,5 +1,10 @@
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, BlockId, CallSignature, CallingPolicy, IntegerSign, IntegerType,
+    KnownScalar, KnownUnitInteger, LiveDefinitions, LoweringError, NativeTarget, OperationId,
+    ScalarAbiValue, ScalarType, TargetBooleanExpression, TargetIntegerExpression,
+    TargetScalarExpression, TargetUnitScalarHomeRequirement, ValueId, ValueShape,
+    evaluate_call_plan, scalar_values,
+};
 #[test]
 fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
     let value = |raw| ValueId::new(raw).unwrap();

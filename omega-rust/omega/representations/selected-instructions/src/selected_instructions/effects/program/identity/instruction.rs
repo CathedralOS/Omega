@@ -291,7 +291,7 @@ fn encode_integer(bytes: &mut Vec<u8>, value: semantic_vocabulary::IntegerValue)
 
 #[cfg(test)]
 mod outgoing_slot_tests {
-    use super::*;
+    use super::{SelectedInstructionKind, encode_kind};
     use crate::{FrameStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole};
     use semantic_vocabulary::OperationId;
 

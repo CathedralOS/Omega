@@ -1067,7 +1067,22 @@ impl std::error::Error for TaskPlanDiagnostic {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ActivationCarryObligations, ActivationInstanceId, ActivationPlanCandidate, CallingPlanId,
+        CanonicalSuspensionCrossing, ExecutorPreservationAxis, ExecutorPreservationEvidence,
+        ExecutorPreservationEvidenceId, ExecutorSelectionCandidate, MachineContractId,
+        MachineEntryId, SelectedTaskRuntimeProviderFact, StackPlan, StackRepresentationId,
+        SuspensionCrossingId, TaskActivationPlanFact, TaskLifecycleLedger, TaskPlanDiagnostic,
+        TaskRuntimeId, TaskRuntimeInstanceId, TaskRuntimeInvocationId,
+        TaskRuntimeInvocationReceiptCandidate, TaskRuntimeInvocationReceiptId,
+        TaskSpecializationCommitment, TaskStackFrameId, TaskStackFrameSummary,
+        TaskStackFrameValidationId, TaskStartOperation, TaskStorageBinding, TaskStorageLeaseId,
+        TaskStorageOwnerId, TaskStorageProvenance, ValidatedActivationPlan,
+        ValidatedTaskRuntimeInvocationReceipt, ValueLayoutId, WcsuStackPlanProjection,
+        compose_task_stack_demand, project_wcsu_stack_plan, validate_activation_plan,
+        validate_executor_selection, validate_task_runtime_invocation_receipt,
+        validate_task_stack_frame_summary, validate_wcsu_activation_plan,
+    };
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
         constructor(identity).expect("normalized identity")

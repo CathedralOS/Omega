@@ -1,6 +1,5 @@
 //! Ordinary-machine control-flow and terminal-edge projection.
-
-use super::*;
+use super::{LoweredAffineLocal, LoweringError};
 use abstract_operations::{AbstractOperation, AbstractSuccessor, ValueBinding};
 use semantic_vocabulary::BlockId;
 use std::collections::{BTreeMap, BTreeSet};

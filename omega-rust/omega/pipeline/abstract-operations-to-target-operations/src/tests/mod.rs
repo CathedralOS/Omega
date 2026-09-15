@@ -1,5 +1,4 @@
 //! Optimizer module role: stage group.
-use super::*;
 
 mod native_boundaries;
 mod native_callback_arguments;

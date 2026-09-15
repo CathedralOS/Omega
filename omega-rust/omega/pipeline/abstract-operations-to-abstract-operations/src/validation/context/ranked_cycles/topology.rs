@@ -1,7 +1,8 @@
 //! Optimizer module role: semantic leaf. Canonical members, edge identity, entries, and exits for each SCC.
 
-use super::*;
+use super::super::super::{BTreeSet, BlockId};
 
+use super::{CycleComponentId, OptimizerCycleComponent, components, graph};
 pub(super) fn derive_components(
     graph: &graph::CanonicalControlGraph,
 ) -> Vec<OptimizerCycleComponent> {

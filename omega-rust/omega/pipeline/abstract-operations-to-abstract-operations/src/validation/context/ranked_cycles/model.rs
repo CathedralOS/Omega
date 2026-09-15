@@ -1,7 +1,9 @@
 //! Sealed authority for independently reconstructed cycle and ranking snapshots.
 
-use super::*;
-
+use super::{
+    OptimizerCycleComponent, OptimizerCycleComponentSnapshot, OptimizerRankingCertificateSnapshot,
+    OptimizerUnsignedCountdownRankingCertificate,
+};
 /// Opaque authority to use the contained SCC topology for optimizer analysis.
 ///
 /// This grants no Terminal execution, rewrite, interpretation, fixed-fuel,

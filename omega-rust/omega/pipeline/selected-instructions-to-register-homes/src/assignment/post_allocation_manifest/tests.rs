@@ -1,3 +1,13 @@
+use super::{
+    PostAllocationManifestStage, PostAllocationOptimizationManifest,
+    PostAllocationOptimizationManifestDecodeError, PostAllocationSelectedTransformation,
+    PostAllocationSpillStatus, PostAllocationStatistics, PostAllocationUnavailableData,
+};
+use crate::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedViewCopyIdentity,
+    LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
+    RegisterHomeIdentity,
+};
 use optimization_core::{
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
     SelectedLoweringOptimizationCompletionIdentity,
@@ -5,13 +15,6 @@ use optimization_core::{
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use target::NativeTarget;
-
-use super::*;
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedViewCopyIdentity,
-    LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-    RegisterHomeIdentity,
-};
 
 type Mutation = fn(&mut PostAllocationOptimizationManifest);
 

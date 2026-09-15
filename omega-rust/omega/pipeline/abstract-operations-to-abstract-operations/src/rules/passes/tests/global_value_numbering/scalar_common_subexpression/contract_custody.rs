@@ -1,8 +1,26 @@
 //! Exact contract, relabelling, cost, and validator custody for GVN CSE rows 0--8.
 
-use optimization_core::{AnalysisInvalidationSet, AnalysisSet};
+use super::super::super::super::{
+    DominatorProofCertifiedCompatiblePolicyScalarGvnRule, DominatorProofCertifiedScalarGvnRule,
+    DominatorTotalScalarGvnRule, PhiTranslatedObligationFreeScalarGvnRule,
+    PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
+    PhiTranslatedProofCertifiedScalarGvnRule, SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
+    SameBlockProofCertifiedScalarCseRule, SameBlockTotalScalarCseRule,
+};
+use super::super::super::{
+    AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    OptimizationUnitValidationError, OptimizationValidatorIdentity, PsiOptimizationRule,
+    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
+    compatible_policy_dominator_gvn_unit, compatible_policy_local_cse_unit,
+    compatible_policy_phi_translated_gvn_unit, dominator_gvn_unit, local_cse_unit,
+    phi_translated_gvn_unit, proof_certified_dominator_gvn_unit, proof_certified_local_cse_unit,
+    proof_certified_phi_translated_gvn_unit,
+    validate_dominating_scalar_common_subexpression_candidate,
+    validate_local_scalar_common_subexpression_candidate,
+    validate_phi_translated_scalar_common_subexpression_candidate,
+};
 
-use super::*;
+use optimization_core::{AnalysisInvalidationSet, AnalysisSet};
 
 #[derive(Clone, Copy)]
 enum ValidationRoute {

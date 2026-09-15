@@ -1,5 +1,12 @@
 //! Ordinary repeated shared-view calls retain scalar and referent identities.
-use super::*;
+use super::super::{TargetLoweringRequest, lower_to_target_operations};
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, BlockId, EdgeId, IntegerSign,
+    IntegerType, MachineId, NativeTarget, OperationId, PlaceId, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueId, identity,
+};
 mod established_views;
 
 fn fixture() -> AbstractOperationPlan {

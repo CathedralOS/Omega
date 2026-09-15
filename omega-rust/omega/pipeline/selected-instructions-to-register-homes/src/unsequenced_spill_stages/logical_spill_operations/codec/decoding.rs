@@ -1,3 +1,9 @@
+use super::super::{
+    FunctionLogicalSpillOperations, LogicalReloadValueId, LogicalSpillAction,
+    LogicalSpillOperationDecodeError, LogicalSpillOperationIdentity, LogicalSpillOperationPlan,
+    LogicalSpillOperationPolicy, LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass,
+    LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite,
+};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
@@ -5,15 +11,13 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
+use super::cursor::Cursor;
+use super::values::{decode_definition_site, decode_origin, decode_scalar_type};
+use super::{MAGIC, VERSION};
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
     SpillChoiceIdentity,
 };
-
-use super::super::*;
-use super::cursor::Cursor;
-use super::values::{decode_definition_site, decode_origin, decode_scalar_type};
-use super::{MAGIC, VERSION};
 
 pub(super) fn decode(
     encoded: &[u8],

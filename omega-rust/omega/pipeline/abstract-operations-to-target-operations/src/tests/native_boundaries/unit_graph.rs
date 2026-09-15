@@ -1,5 +1,10 @@
 //! Returning Unit branches join through ordinary source blocks.
-use super::*;
+use super::super::{
+    AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, AbstractParameter, BlockId,
+    EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, NativeTarget, OperationId,
+    ScalarType, ValueId,
+};
+
 mod cycles;
 mod scalar_arrays;
 mod structural_cases;

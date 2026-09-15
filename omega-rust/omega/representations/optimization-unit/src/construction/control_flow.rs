@@ -1,4 +1,6 @@
-use super::*;
+use super::super::{
+    AbstractOperation, AbstractSuccessor, FuelSettlement, OptimizationEdge, PsiProvenance,
+};
 
 pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<OptimizationEdge> {
     use AbstractOperation as O;

@@ -1,6 +1,25 @@
 //! Binary integer folds, exact policy semantics, and refusal cases.
 
-use super::*;
+use super::super::super::super::super::{
+    ExactIntegerAddConstantsRule, ExactIntegerDivideConstantsRule,
+    ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
+    ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
+    ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,
+    IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
+    SaturatingIntegerAddConstantsRule, SaturatingIntegerDivideConstantsRule,
+    SaturatingIntegerMultiplyConstantsRule, SaturatingIntegerRemainderConstantsRule,
+    SaturatingIntegerSubtractConstantsRule, WrappingIntegerAddConstantsRule,
+    WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
+    WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
+    WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
+};
+use super::super::super::super::{
+    AbstractOperation, AnalysisKind, BinaryConstantFixtureKind, BitwiseFixtureKind,
+    IntegerEvaluationWitness, IntegerSign, IntegerType, IntegerValue, OptimizationSafetyClass,
+    PsiOptimizationRule, RuleAnalysisView, ScalarType, ShiftFixtureKind, binary_constant_unit,
+    bitwise_unit, compute_analysis, exact_divide_unit, policy_add_unit, shift_unit,
+    validate_integer_evaluation_candidate, wrapping_add_unit,
+};
 
 struct BinarySuccessCase {
     kind: BinaryConstantFixtureKind,

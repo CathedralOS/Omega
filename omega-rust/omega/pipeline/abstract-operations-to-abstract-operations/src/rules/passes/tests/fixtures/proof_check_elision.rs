@@ -1,7 +1,15 @@
 //! Proof-check-elision fixture programs.
 
-use super::*;
-
+use super::super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, BlockId, EdgeId,
+    FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId, O, ObligationId,
+    OperationId, OptimizationFact, PsiOptimizationUnit, ScalarType, SemanticFingerprint,
+    TerminalPsiIdentity, ValueId, VocabularyMarker, integer_one, integer_zero,
+    recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
+    validate_psi_optimization_unit,
+};
+use super::{id, with_synthetic_accepted_obligations};
 pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
     exact_chain_unit(false)
 }

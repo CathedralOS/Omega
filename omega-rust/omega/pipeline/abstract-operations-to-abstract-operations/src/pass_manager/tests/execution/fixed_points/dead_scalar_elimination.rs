@@ -1,7 +1,11 @@
 //! Operational custody for the three dead-scalar rules across their two opt-in suites.
 
-use super::super::super::*;
-
+use super::super::super::super::{OptimizationRunError, run_unit};
+use super::super::super::{
+    Optimization, OptimizationCandidateVerdict, OptimizationFactReference,
+    OptimizationRuleIdentity, OptimizationSelections, PsiOptimizationUnit, budget,
+    built_in_psi_registry, dead_exact_add_unit, dead_scalar_literals_unit, dead_wrapping_add_unit,
+};
 struct Case {
     unit: PsiOptimizationUnit,
     optimization: Optimization,

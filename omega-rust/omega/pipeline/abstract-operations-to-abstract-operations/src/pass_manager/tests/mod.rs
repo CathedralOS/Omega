@@ -5,26 +5,6 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use abstract_operations::AbstractOperation;
-use optimization_core::{
-    AnalysisSet, Optimization, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
-    OptimizationFactReference, OptimizationPassManifestRecord, OptimizationReasonCode,
-    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationWorkBudget,
-};
-use optimization_core::{
-    BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionAction,
-    ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
-    ExternalDecisionSchemaError, ValidatedCandidateSummary,
-    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
-};
-use optimization_unit::{PsiOptimizationUnit, PsiRewritePatch, PsiTransformationLedger};
-use optimization_unit_semantics::{
-    OptimizationUnitValidationError, validate_psi_rewrite_candidate,
-};
-use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
-
-use super::*;
 use crate::{
     AnalysisManager, AnalysisProduct, ExactIntegerAddConstantsRule,
     ExactIntegerSubtractConstantsRule, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView,
@@ -45,6 +25,24 @@ use crate::{
         redundant_block_parameter_unit, wrapping_add_unit, wrapping_neutral_identity_unit,
     },
 };
+use abstract_operations::AbstractOperation;
+use optimization_core::{
+    AnalysisSet, Optimization, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
+    OptimizationFactReference, OptimizationPassManifestRecord, OptimizationReasonCode,
+    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationSelections,
+    OptimizationUnitIdentity, OptimizationWorkBudget,
+};
+use optimization_core::{
+    BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionAction,
+    ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
+    ExternalDecisionSchemaError, ValidatedCandidateSummary,
+    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
+};
+use optimization_unit::{PsiOptimizationUnit, PsiRewritePatch, PsiTransformationLedger};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_psi_rewrite_candidate,
+};
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 mod budget_and_invalidation;
 mod cycle_component_custody;

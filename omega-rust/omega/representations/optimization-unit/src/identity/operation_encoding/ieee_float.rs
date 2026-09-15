@@ -1,7 +1,7 @@
 //! IEEE operations retain raw format bits, relation, and ordered operand identity.
 //! Tags and field order are unchanged when routing this family from the entrance.
-use super::*;
 
+use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {

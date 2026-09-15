@@ -1,5 +1,10 @@
-use super::*;
-
+use super::super::{
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape,
+};
+use super::{
+    LegalizedScalarInstructionKind, assert_identity_drift, call_aware_plan, id,
+    legalized_operation_plan_identity, structural_argument_mut, structural_call_mut,
+};
 #[test]
 fn literal_identity_binds_payload_declaration_and_producer_reference() {
     let mut plan = call_aware_plan();

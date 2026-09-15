@@ -1,5 +1,10 @@
 //! Literal sources retain their defining occurrence, SSA identity and IEEE payload.
-use super::*;
+use super::{
+    AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, BlockId, EdgeId, IeeeFloatFormat,
+    MachineId, NativeTarget, OperationId, StructuralAccess, StructuralArgument,
+    TargetLoweringRequest, TargetUnitOperation, TargetUnitScalarArgumentSource, ValueId,
+    ValueShape, lower_to_target_operations, plan,
+};
 use semantic_vocabulary::IeeeFloatValue;
 
 fn literal_plan(value: IeeeFloatValue, call: bool) -> AbstractOperationPlan {

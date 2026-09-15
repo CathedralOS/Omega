@@ -1,6 +1,15 @@
 //! Exact signed negative-one right-shift tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule;
+use super::super::{
+    IntegerSign, IntegerType, IntegerValue, O, OptimizationFact, OptimizationUnitValidationError,
+    OptimizationValidatorIdentity, ProofCertifiedScalarIdentityKind,
+    ProofCertifiedScalarIdentityRewrite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
+    ScalarConstantFactIdentity, ValueId, discard_scalar_function_result, id,
+    live_exact_signed_negative_one_shift_right_unit, live_proof_binary_identity_unit,
+    recompute_psi_optimization_unit_identity, validate_proof_certified_scalar_identity_candidate,
+};
 
 #[test]
 fn proof_certified_exact_signed_negative_one_shift_right_reuses_the_literal() {

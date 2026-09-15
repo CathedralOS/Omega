@@ -1,8 +1,18 @@
 //! Exact three-family dead-scalar contract, relabelling, cost, and validator custody.
 
-use optimization_core::{AnalysisInvalidationSet, AnalysisSet};
+use super::super::super::{
+    DeadScalarLiteralEliminationRule, DeadUnconditionallyTotalScalarEliminationRule,
+    ProofCertifiedDeadScalarEliminationRule,
+};
+use super::super::{
+    AnalysisKind, Optimization, OptimizationRuleContract, OptimizationRuleIdentity,
+    OptimizationSafetyClass, OptimizationSelections, OptimizationUnitValidationError,
+    OptimizationValidatorIdentity, PsiOptimizationRule, PsiOptimizationUnit, PsiRewriteCandidate,
+    PsiRewritePatch, RuleAnalysisView, built_in_psi_registry, dead_exact_add_unit,
+    dead_scalar_literals_unit, dead_wrapping_add_unit, validate_dead_scalar_node_candidate,
+};
 
-use super::*;
+use optimization_core::{AnalysisInvalidationSet, AnalysisSet};
 
 struct Case {
     unit: PsiOptimizationUnit,

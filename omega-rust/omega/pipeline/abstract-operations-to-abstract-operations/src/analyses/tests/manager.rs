@@ -1,7 +1,7 @@
 //! Revision cache, invalidation, and deterministic scheduling coverage.
 
 use super::fixtures::*;
-use crate::*;
+use crate::{AnalysisManager, AnalysisManagerError, AnalysisProduct, compute_analysis};
 use optimization_core::*;
 use optimization_unit::*;
 

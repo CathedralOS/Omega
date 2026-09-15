@@ -1,6 +1,9 @@
+use super::{
+    OptimizationCandidateVerdict, OptimizationFactReference, OptimizationPassManifestRecord,
+    PrePhysicalOptimizationManifest, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
+    PsiRealizationSite,
+};
 use std::fmt::Write;
-
-use super::*;
 
 impl PrePhysicalOptimizationManifest {
     /// Deterministic human projection. Rendering is deliberately downstream of

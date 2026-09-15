@@ -1,4 +1,26 @@
-use super::*;
+use super::{
+    AcceptedObligationFactIdentity, DuplicateOptimizationRuleIdentity,
+    FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
+    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, IDENTITY_WIDTH,
+    IdentityBundleDecodeError, IdentityDecodeError, OptimizationCandidateIdentity,
+    OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
+    OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
+    OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,
+    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, OptimizationWorkloadProfileIdentity,
+    OptimizedAbstractPlanProjectionIdentity, OptimizedObjectArtifactIdentity,
+    OptimizedObjectArtifactManifestIdentity, OptimizedOrdinaryCallableEntryManifestIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
+    OptimizedTerminalOrdinaryCallableEntryIdentity, OwnershipFrontierFactIdentity,
+    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
+    ProofQuestionIdentity, RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+    ScalarConstantFactIdentity, SelectedLoweringOptimizationCompletionIdentity,
+    TargetCostModelIdentity, TerminalRelocationFreeTextSectionIdentity,
+    TransformationLedgerIdentity, ValueRangeFactIdentity,
+};
 use crate::{Optimization, OptimizationSelections};
 
 fn bundle() -> OptimizationIdentityBundle {

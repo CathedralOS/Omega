@@ -124,7 +124,7 @@ fn encode_len(bytes: &mut Vec<u8>, length: usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{LivenessPlan, liveness_identity};
     use crate::{BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessPosition};
     use crate::{SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity};
     use optimization_core::OptimizationUnitIdentity;

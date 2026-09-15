@@ -1,5 +1,8 @@
 //! Integer binary-operation kinds, folding, and target-expression construction.
-use super::*;
+use super::{
+    BTreeMap, IntegerType, IntegerValue, KnownInteger, KnownScalar, LoweringError,
+    TargetIntegerExpression, ValueId,
+};
 #[derive(Clone, Copy)]
 pub(in crate::lowering) enum IntegerBinaryKind {
     BitwiseAnd,

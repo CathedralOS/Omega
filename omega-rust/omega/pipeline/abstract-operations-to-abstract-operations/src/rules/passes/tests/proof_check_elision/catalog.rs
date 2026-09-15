@@ -1,6 +1,14 @@
 //! Catalog-level coverage for proof check elision.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::ProofCertifiedDeadScalarEliminationRule;
+use super::super::{
+    AnalysisKind, IntegerSign, IntegerType, O, OptimizationFact, OptimizationUnitValidationError,
+    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, RuleProposalError, ScalarType,
+    compute_analysis, dead_exact_add_unit, discard_scalar_function_result, exact_cast_unit,
+    recompute_psi_optimization_unit_identity, validate_dead_scalar_node_candidate,
+    validate_psi_optimization_unit,
+};
 
 #[test]
 fn proof_check_elision_binds_accepted_evidence_and_retains_its_catalog() {

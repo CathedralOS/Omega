@@ -5,8 +5,10 @@
 //! seed/fact projection, and surviving frontier custody. The only policy
 //! difference is whether the initial revision identity is required.
 
-use super::*;
-
+use super::{
+    OptimizationUnitValidationError, PsiOptimizationUnit,
+    validate_psi_optimization_unit_with_admitted_cycle_machines,
+};
 mod context_projection;
 mod frontier_validation;
 mod immutable_custody;

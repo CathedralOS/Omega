@@ -50,7 +50,9 @@ impl<'a> Deref for StructuralTypeLookup<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        StructuralTypeCatalog, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeLookup,
+    };
     use terminal_psi::StructuralTypeShape;
 
     fn declaration(number: u64, identity: &str) -> StructuralTypeDeclaration {

@@ -1,4 +1,10 @@
-use super::*;
+use super::super::super::LoweringError;
+use super::super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, BlockId,
+    BoundaryMachineDeclaration, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue,
+    MachineId, NativeTarget, OperationId, ScalarType, TargetUnitOperation, ValueId, identity,
+    lower_to_target_operations_with_settlements,
+};
 
 #[test]
 fn hosted_exit_process_i32_retains_runtime_source_abi_and_nonreturning_tail() {

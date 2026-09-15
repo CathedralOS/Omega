@@ -1,3 +1,11 @@
+use crate::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionLogicalSpillOperations,
+    LiveRangeIdentity, LiveRangePoint, LogicalReloadValueId, LogicalSpillAction,
+    LogicalSpillOperationPlan, LogicalSpillOperationPolicy, LogicalSpillOperationValidationReceipt,
+    LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass, LogicalSpillStorageId,
+    LogicalSpillStore, LogicalSpillUseRewrite, SpillChoiceIdentity,
+    ValidatedLogicalSpillOperations, logical_spill_operation_identity,
+};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use optimization_unit::ValueDefinitionSite;
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
@@ -8,8 +16,6 @@ use selected_instructions::{
 use semantic_vocabulary::{
     BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType, ValueId,
 };
-
-use crate::*;
 
 pub(super) fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(10, 10, 20, 10, 1).unwrap()

@@ -1,4 +1,4 @@
-use super::*;
+use super::{LoweringError, TerminalModule, Terminator, validate_structural_block_bindings};
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, MachineId, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };

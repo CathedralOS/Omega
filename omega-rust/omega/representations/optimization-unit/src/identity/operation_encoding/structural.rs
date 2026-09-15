@@ -1,7 +1,11 @@
 //! Structural establishment and write-only storage tags.
 
-use super::*;
-
+use super::super::{
+    encode_abstract_result, encode_canonical_path, encode_place_declaration,
+    encode_structural_argument, encode_structural_operation_result, encode_structural_parameter,
+    encode_structural_path_segment, encode_structural_type,
+};
+use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {

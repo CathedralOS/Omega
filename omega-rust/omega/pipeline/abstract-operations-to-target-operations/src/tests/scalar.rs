@@ -1,5 +1,11 @@
-use super::*;
-
+use super::super::{LoweringError, TargetLoweringRequest, lower_to_target_operations};
+use super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
+    AbstractParameter, AbstractResult, AbstractSuccessor, BlockId, EdgeId, IntegerType, MachineId,
+    NativeTarget, ObligationId, OperationId, PlaceId, ScalarParameterLocation, ScalarType,
+    TargetIntegerExpression, TargetUnitOperation, TerminalAffineCleanupAction, ValueBinding,
+    ValueId, identity,
+};
 mod fixtures;
 mod shared_values;
 mod straight_line_blocks;

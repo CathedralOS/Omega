@@ -468,10 +468,12 @@ fn ranking_key(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        GeneralizedReloadCoexistingValue, GeneralizedSpillRecoveryChoicePolicy,
+        GeneralizedSpillRecoveryContender, LiveRangePoint, ranking_key,
+    };
     use register_model::RegisterViewId;
     use selected_instructions::VirtualRegisterId;
-
-    use super::*;
 
     #[test]
     fn equal_end_tie_selects_the_highest_canonical_value() {

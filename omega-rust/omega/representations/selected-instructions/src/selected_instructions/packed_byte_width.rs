@@ -31,7 +31,7 @@ impl PackedByteWidth {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::PackedByteWidth;
     #[test]
     fn packed_widths_admit_only_exact_odd_fragments() {
         for raw in 0..=u8::MAX {

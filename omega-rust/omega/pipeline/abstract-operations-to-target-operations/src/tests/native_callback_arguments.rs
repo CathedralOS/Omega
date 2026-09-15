@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractOperation, AbstractOperationPlan, BlockId,
+    BoundaryMachineId, CallSignature, CallingPolicy, MachineId, NativeTarget, OperationId,
+    ValueShape, bind_native_callback_arguments, identity, validate_native_callback_target_rows,
+};
 use abstract_operations::AbstractFunctionResult;
 use calling_conventions::{
     CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,

@@ -1,7 +1,14 @@
 //! Block-parameter, control-flow, block-merge, and machine-pruning candidates.
 
-use super::super::*;
-
+use super::super::{
+    AdjacentBlockMergeRewrite, BlockId, ConstantConditionalRewrite, LinearEmptyBlockRewrite,
+    NonAdjacentBlockMergeRewrite, OptimizationRuleContract, OptimizationUnitIdentity,
+    OwnershipFrontierWitness, PathQualifiedEmptyBlockRewrite, ProvenanceRewrite,
+    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch, PsiRewriteWitness,
+    RedundantBlockParameterRewrite, RedundantBlockParameterWitness, ScalarConstantFactIdentity,
+    ScalarEvaluationWitness, ScalarSubstitution, SharedJumpFusionRewrite,
+    UnreachablePrivateMachinesRewrite,
+};
 impl PsiRewriteCandidate {
     pub fn new_redundant_block_parameter(
         input: OptimizationUnitIdentity,

@@ -5,8 +5,8 @@
 //! certificate-bearing subset of that roster instead of requiring the roster
 //! to be the exact countdown slice.
 
-use super::*;
-
+use super::super::VerifiedPsiOptimizationSession;
+use super::{AbstractOperation, OptimizationUnitIdentity, verified_unranked_cycle_unit};
 use crate::{
     CountedLoopAnalysisError, apply_loop_invariant_scalar_motion,
     propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,

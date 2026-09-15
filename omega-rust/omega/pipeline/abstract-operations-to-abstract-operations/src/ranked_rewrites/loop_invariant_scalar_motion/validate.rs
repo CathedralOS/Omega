@@ -1,7 +1,12 @@
 //! Optimizer module role: validation leaf. Independent plan replay and transformed custody proof.
 
-use super::*;
-
+use super::{
+    LoopInvariantScalarMotionCandidate, LoopInvariantScalarMotionError,
+    LoopInvariantScalarRelocation, MachineId, NodeLocation, OptimizationNode,
+    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance,
+    PsiRealizationSite, ValidatedLoopInvariantScalarMotion, VerifiedPsiOptimizationSession, apply,
+    candidate_identity, propose,
+};
 pub(super) fn candidate(
     session: &VerifiedPsiOptimizationSession,
     candidate: &LoopInvariantScalarMotionCandidate,

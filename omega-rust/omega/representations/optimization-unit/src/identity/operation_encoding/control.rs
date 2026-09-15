@@ -1,7 +1,11 @@
 //! Control transfer, return, cleanup, and crash tags.
 
-use super::*;
-
+use super::super::{
+    AbstractSuccessor, encode_binding, encode_cleanup, encode_crash_cause, encode_crash_predicate,
+    encode_ids, encode_place_declaration, encode_residual_cleanup, encode_scalar_type,
+    encode_structural_binding, encode_structural_type,
+};
+use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {

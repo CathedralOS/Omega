@@ -1,7 +1,39 @@
 //! Built-in rule-catalog selection and deterministic-order tests.
-
-use super::*;
+use super::super::{
+    AdjacentBlockMergeRule, BitwiseAbsorbingLiteralIdentityRule, BitwiseNeutralLiteralIdentityRule,
+    ConstantConditionalFoldRule, DominatorProofCertifiedCompatiblePolicyScalarGvnRule,
+    DominatorProofCertifiedScalarGvnRule, DominatorTotalScalarGvnRule,
+    ExactIntegerAddConstantsRule, GLOBAL_VALUE_NUMBERING_PASS_NAME, LinearEmptyBlockThreadRule,
+    LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule,
+    LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,
+    LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
+    LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule,
+    LiveProofCertifiedIntegerDivideByOneEliminationRule,
+    LiveProofCertifiedIntegerIdentityEliminationRule,
+    LiveProofCertifiedIntegerRemainderByOneEliminationRule,
+    LiveProofCertifiedIntegerSelfDivideEliminationRule,
+    LiveProofCertifiedIntegerSelfRemainderEliminationRule,
+    LiveProofCertifiedIntegerZeroDividendEliminationRule,
+    LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule,
+    NonAdjacentBlockMergeRule, PathQualifiedEmptyBlockThreadRule,
+    PhiTranslatedObligationFreeScalarGvnRule,
+    PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
+    PhiTranslatedProofCertifiedScalarGvnRule, ProofCertifiedDeadScalarEliminationRule,
+    RedundantBlockParameterRule, SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
+    SameBlockProofCertifiedScalarCseRule, SameBlockTotalScalarCseRule,
+    SaturatingMultiplyZeroAnnihilationRule, SaturatingNeutralArithmeticIdentityRule,
+    SharedJumpFusionRule, UnreachablePrivateMachinePruneRule, WrappingMultiplyZeroAnnihilationRule,
+    WrappingNeutralArithmeticIdentityRule, WrappingShiftZeroCountIdentityRule,
+};
+use super::{
+    AnalysisKind, ORDERED_PSI_PASSES, Optimization, OptimizationPassIdentity,
+    OptimizationSelections, PSI_PASS_CATALOG, PsiOptimization, PsiOptimizationSelections,
+    RuleAnalysisView, RuleProposalError, RuleRegistryError, built_in_psi_registries,
+    built_in_psi_registry, built_in_psi_registry_for_selections, exact_add_unit,
+    randomized_built_in_registries, registry_for_optimization,
+};
 use crate::PsiPassTargetApplicability;
+use crate::rule_registry::PsiOptimizationRule;
 
 #[test]
 fn ordered_catalog_covers_every_declared_psi_optimization_once() {

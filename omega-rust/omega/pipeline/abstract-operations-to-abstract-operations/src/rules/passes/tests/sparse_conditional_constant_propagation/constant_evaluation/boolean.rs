@@ -1,6 +1,17 @@
 //! Boolean-result constant evaluation by exact rule identity.
 
-use super::*;
+use super::super::super::super::{
+    BooleanEqualConstantsRule, BooleanNotConstantsRule, IntegerEqualConstantsRule,
+    IntegerLessOrEqualConstantsRule, IntegerLessThanConstantsRule,
+};
+use super::super::super::{
+    AbstractOperation, AnalysisKind, BooleanConstantRewrite, BooleanFixtureKind,
+    ComparisonFixtureKind, IntegerEvaluationWitness, IntegerSign, IntegerType, IntegerValue,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    OptimizationUnitValidationError, PsiOptimizationRule, PsiOptimizationUnit, PsiRewriteCandidate,
+    PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, boolean_constant_unit,
+    compute_analysis, integer_comparison_constant_unit, validate_boolean_evaluation_candidate,
+};
 
 fn propose_one(unit: &PsiOptimizationUnit, rule: &dyn PsiOptimizationRule) -> PsiRewriteCandidate {
     let constants = compute_analysis(unit, AnalysisKind::ScalarConstants).unwrap();

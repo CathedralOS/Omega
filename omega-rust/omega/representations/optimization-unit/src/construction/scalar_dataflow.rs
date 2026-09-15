@@ -1,4 +1,4 @@
-use super::*;
+use super::super::{AbstractOperation, ScalarType, ValueId};
 
 pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarType)> {
     use AbstractOperation as O;
@@ -294,7 +294,9 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::super::OperationId;
+    use super::super::MachineId;
+    use super::{AbstractOperation, ScalarType, ValueId, operation_uses};
 
     #[test]
     fn mixed_structural_scalar_call_uses_keep_order_and_repetition() {

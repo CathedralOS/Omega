@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    InternalMachineCallResolutionKind, InternalMachineCallResolutionState, MachineAlternativeKey,
+    NativeTarget, RelocationFreeTextSectionPlacement, TerminalRelocationFreeTextSectionIdentity,
+    TextSectionPlacementPolicy, TextSectionRelocationRequirements,
+};
 use selected_instructions::MachineAlternativeFamily;
 use sha2::{Digest, Sha256};
 use target::{Architecture, ObjectFormat};
@@ -167,7 +171,18 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{
+        FuelScheduleIdentity, FunctionFragmentEmissionIdentity, MachineId, OperationId,
+        PlacedBlockSpan, PlacedFunctionFragment, PlacedInstructionSpan,
+        PlacedInternalMachineCallResolution, SelectedBlockId, SelectedInstructionId,
+        SelectedInstructionPlanIdentity, TerminalPsiIdentity,
+    };
+    use super::{
+        InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
+        MachineAlternativeFamily, MachineAlternativeKey, NativeTarget,
+        RelocationFreeTextSectionPlacement, TerminalRelocationFreeTextSectionIdentity,
+        TextSectionPlacementPolicy, TextSectionRelocationRequirements,
+    };
     use terminal_psi::{SemanticFingerprint, VocabularyMarker};
 
     #[test]

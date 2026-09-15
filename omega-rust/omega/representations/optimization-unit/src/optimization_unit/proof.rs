@@ -1,7 +1,10 @@
 //! Accepted-obligation and proof-question custody with canonical identities.
 
-use super::*;
-
+use super::super::{
+    AcceptedObligationFactIdentity, AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity,
+    ObligationId, OperationId, ProofQuestionIdentity,
+};
+use super::{MachineId, TerminalPsiIdentity};
 /// An admitted proof fact projected from the immutable verifier context.
 ///
 /// The row binds both semantic artifact identities and the exact operation

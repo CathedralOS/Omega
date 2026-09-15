@@ -1,6 +1,14 @@
 //! Linear and path-qualified empty-block threading.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::{LinearEmptyBlockThreadRule, PathQualifiedEmptyBlockThreadRule};
+use super::super::{
+    BlockId, EdgeId, MachineId, O, OptimizationUnitValidationError, OptimizationValidatorIdentity,
+    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
+    ValueId, id, linear_empty_block_unit, path_qualified_empty_block_unit,
+    recompute_psi_optimization_unit_identity, validate_linear_empty_block_candidate,
+    validate_path_qualified_empty_block_candidate,
+};
 
 #[test]
 fn linear_empty_block_thread_composes_bindings_and_realizes_both_edges() {

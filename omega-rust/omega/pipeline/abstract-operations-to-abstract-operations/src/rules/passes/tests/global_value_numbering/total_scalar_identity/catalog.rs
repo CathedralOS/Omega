@@ -1,6 +1,14 @@
 //! Registry placement and opt-in custody for the seven total scalar identity rows.
 
-use super::*;
+use super::super::super::super::{
+    BitwiseAbsorbingLiteralIdentityRule, BitwiseNeutralLiteralIdentityRule,
+    SaturatingMultiplyZeroAnnihilationRule, SaturatingNeutralArithmeticIdentityRule,
+    WrappingMultiplyZeroAnnihilationRule, WrappingNeutralArithmeticIdentityRule,
+    WrappingShiftZeroCountIdentityRule,
+};
+use super::super::super::{
+    Optimization, OptimizationPassIdentity, OptimizationSelections, built_in_psi_registry,
+};
 
 #[test]
 fn total_identity_rules_are_disabled_by_default_and_cataloged_once() {

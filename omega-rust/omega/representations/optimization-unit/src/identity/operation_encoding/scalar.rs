@@ -1,7 +1,11 @@
 //! Boolean and integer scalar-operation tags.
 
+use super::super::{
+    encode_abstract_result, encode_canonical_path, encode_integer_value, encode_scalar_type,
+    encode_structural_path_segment,
+};
 use super::scalar_shapes::*;
-use super::*;
+use super::{AbstractOperation, CanonicalBytes};
 
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;

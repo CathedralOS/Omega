@@ -1,4 +1,4 @@
-use super::super::*;
+use super::super::{StackSlotColoringPlan, StackSlotColoringPolicy};
 use super::{MAGIC, VERSION};
 use crate::LogicalSpillStorageClass;
 

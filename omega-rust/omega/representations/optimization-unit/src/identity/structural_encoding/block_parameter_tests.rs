@@ -1,5 +1,6 @@
-use super::*;
-
+use super::{
+    CanonicalBytes, StructuralPlaceDeclaration, StructuralPlaceKind, encode_place_declaration,
+};
 #[test]
 fn retained_block_place_identity_binds_block_and_position() {
     let encode = |block, position| {

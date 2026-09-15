@@ -856,7 +856,15 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, EntryStack,
+        EntryStackEpoch, EntryStackRealization, EntryStackStage, InstalledEntryFactIdentity,
+        Preemption, StackDomainRef, StackOccupancy, X86_64ArrivalMechanism, X86_64GateKind,
+        X86_64HardwareStackSelection, X86_64InstalledArrivalContext,
+        X86_64InstalledHardwareEntryFacts, X86_64TargetProfileIdentity,
+        derive_x86_64_hardware_arrival, validate_entry_stack_domain_closure,
+        validate_entry_stack_realization, validate_x86_64_installed_hardware_entry_facts,
+    };
 
     fn installed_identity() -> InstalledEntryFactIdentity {
         InstalledEntryFactIdentity {

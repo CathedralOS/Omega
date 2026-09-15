@@ -69,12 +69,11 @@ fn encode_len(bytes: &mut Vec<u8>, value: usize) {
 
 #[cfg(test)]
 mod tests {
+    use super::spill_choice_identity;
+    use crate::{AllocationLegalityIdentity, SpillChoicePlan, SpillChoicePolicy};
     use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
     use register_model::TargetRegisterEnvironmentIdentity;
     use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
-
-    use super::*;
-    use crate::{AllocationLegalityIdentity, SpillChoicePlan, SpillChoicePolicy};
 
     #[test]
     fn identity_binds_roots_policy_work_and_functions() {

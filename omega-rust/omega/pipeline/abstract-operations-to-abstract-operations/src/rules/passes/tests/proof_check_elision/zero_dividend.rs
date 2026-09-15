@@ -1,6 +1,15 @@
 //! Zero-dividend tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::LiveProofCertifiedIntegerZeroDividendEliminationRule;
+use super::super::{
+    IntegerSign, IntegerType, IntegerValue, O, OptimizationFact, OptimizationFactReference,
+    OptimizationUnitValidationError, OptimizationValidatorIdentity,
+    ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite, PsiRewriteCandidate,
+    PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, ValueId,
+    discard_scalar_function_result, id, live_proof_binary_identity_unit, live_zero_dividend_unit,
+    recompute_psi_optimization_unit_identity, validate_proof_certified_scalar_identity_candidate,
+};
 
 #[test]
 fn proof_certified_zero_dividend_covers_divide_remainder_policies_and_signs() {

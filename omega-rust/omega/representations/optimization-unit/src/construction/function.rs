@@ -1,3 +1,9 @@
+use super::super::{
+    AbstractFunction, BTreeSet, EffectLink, FuelSettlement, OptimizationBlock, OptimizationNode,
+    PsiOptimizationFunction, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDefinition,
+    ValueDefinitionSite, ValueUse,
+};
+use super::OptimizationUnitBuildError;
 use super::control_flow::operation_edges;
 use super::facts::collect_fact;
 use super::provenance::operation_node_provenance;
@@ -5,7 +11,6 @@ use super::scalar_dataflow::{operation_definition, operation_uses};
 use super::structural_custody::{
     collect_operation_structural_places, collect_places, operation_ownership,
 };
-use super::*;
 
 pub(super) fn build_function(
     function: &AbstractFunction,

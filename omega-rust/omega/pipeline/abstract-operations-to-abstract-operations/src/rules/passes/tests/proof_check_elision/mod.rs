@@ -1,7 +1,5 @@
 //! Optimizer module role: stage group. Proof-check-elision tests, grouped by the explicit identity being removed.
 
-use super::*;
-
 mod catalog;
 mod contract_custody;
 mod divide_by_one;

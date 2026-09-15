@@ -1,6 +1,14 @@
 //! Scalar elimination must retain array leaves and the complete construction.
-
-use super::*;
+use super::super::DeadScalarLiteralEliminationRule;
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperationPlan,
+    AnalysisKind, AnalysisProduct, BlockId, EdgeId, FuelScheduleIdentity, MachineId, O,
+    OperationId, PlaceId, RuleAnalysisView, ScalarType, SemanticFingerprint, StructuralTypeId,
+    TerminalPsiIdentity, ValueId, VocabularyMarker, compute_analysis, id,
+    reconstruct_psi_optimization_unit_seed, validate_dead_scalar_node_candidate,
+    validate_psi_optimization_unit,
+};
+use crate::rule_registry::PsiOptimizationRule;
 use terminal_psi::{
     StructuralMultiplicity, StructuralOperationResult, StructuralTypeDeclaration,
     StructuralTypeShape,

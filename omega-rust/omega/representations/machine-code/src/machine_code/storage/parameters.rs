@@ -94,7 +94,7 @@ impl StructuralSourceLocation {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{MachineRegister, StructuralSourceLocation};
 
     #[test]
     fn only_local_stack_residence_supplies_a_stack_home_offset() {

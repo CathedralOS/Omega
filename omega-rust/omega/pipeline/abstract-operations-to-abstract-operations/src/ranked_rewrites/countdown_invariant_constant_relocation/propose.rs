@@ -1,7 +1,11 @@
 //! Optimizer module role: proposal leaf. Placement-custody-derived exact relocation candidates.
 
-use super::*;
-
+use super::{
+    CountdownInvariantConstantRelocation, CountdownInvariantConstantRelocationCandidate,
+    CountdownInvariantConstantRelocationError, CountdownInvariantConstantRole, PsiOptimizationUnit,
+    UnsignedCountdownInvariantConstantPlacements, VerifiedPsiOptimizationSession, apply,
+    candidate_identity,
+};
 pub(super) fn all(
     session: &VerifiedPsiOptimizationSession,
     candidate_limit: u64,

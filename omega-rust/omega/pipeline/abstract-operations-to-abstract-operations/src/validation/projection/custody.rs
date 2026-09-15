@@ -1,7 +1,9 @@
 //! Exact source occurrence and logical-fuel custody replay.
 
-use super::*;
-
+use super::{
+    BTreeMap, BTreeSet, OptimizedAbstractPlanProjectionError, ProvenanceDisposition,
+    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiTransformationLedger,
+};
 fn source_occurrence_map(
     unit: &PsiOptimizationUnit,
 ) -> Option<

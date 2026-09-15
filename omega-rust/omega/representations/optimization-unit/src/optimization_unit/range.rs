@@ -1,7 +1,11 @@
 //! Revision-bound integer range carriers and canonical identities.
 
-use super::*;
-
+use super::super::{
+    AcceptedObligationFactIdentity, BlockId, IntegerCarrier, IntegerSign, IntegerType,
+    IntegerValue, OperationId, ProofQuestionIdentity, ScalarConstantFactIdentity, ValueId,
+    ValueRangeFactIdentity,
+};
+use super::{MachineId, OptimizationUnitIdentity};
 /// Exact authority consumed by one derived current-revision integer range.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ValueRangeSupport {

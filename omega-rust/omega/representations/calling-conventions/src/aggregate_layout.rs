@@ -137,7 +137,9 @@ fn narrow(value: u32) -> Result<u16, AggregateLayoutError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AggregateLayoutError, PackedFieldLayout, ValueShape, evaluate_conventional_sum_layout,
+    };
 
     #[test]
     fn payloadless_sum_is_one_i32_tag() {

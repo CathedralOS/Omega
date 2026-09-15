@@ -1,7 +1,14 @@
 //! SCCP fixture programs.
 
-use super::*;
-
+use super::super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractResult, BlockId, EdgeId, FuelScheduleIdentity, IntegerSign,
+    IntegerType, IntegerValue, MachineId, O, ObligationId, OperationId, OptimizationFact,
+    PsiOptimizationUnit, ScalarType, SemanticFingerprint, TerminalPsiIdentity, ValueId,
+    VocabularyMarker, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_optimization_unit_seed,
+};
+use super::{exact_add_unit, id, with_synthetic_accepted_obligations};
 mod binary;
 mod boolean;
 mod range;

@@ -1,6 +1,14 @@
 //! Shared terminal-jump fusion and exact custody.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::SharedJumpFusionRule;
+use super::super::{
+    AnalysisKind, AnalysisProduct, BlockId, EdgeId, MachineId, NodeLocation, O,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationUnitValidationError,
+    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
+    RuleProposalError, id, recompute_psi_optimization_unit_identity, shared_terminal_unit,
+    validate_psi_optimization_unit, validate_shared_jump_fusion_candidate,
+};
 
 #[test]
 fn shared_terminal_jump_fusion_clones_one_path_and_retains_exact_custody() {

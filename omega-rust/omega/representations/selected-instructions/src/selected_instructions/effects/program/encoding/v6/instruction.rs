@@ -1,5 +1,14 @@
-use super::*;
-
+use super::{
+    AcceptedObligationFactIdentity, Cursor, EdgeId, FuelSettlement, InstructionMachineEffects,
+    IntegerValue, MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineId, MachineLatencyKnowledge,
+    MachineMemoryEffect, MachineSizeKnowledge, MachineTrapBehavior, ObligationId, OperationId,
+    PreAllocationMachineEffectDecodeError, PsiProvenance, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, ValueId, decode_constraint_key,
+    decode_ids, decode_obligation, decode_units,
+};
 pub(super) fn decode_instruction(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,
@@ -581,7 +590,9 @@ fn decode_u16s(cursor: &mut Cursor<'_>) -> Result<Vec<u16>, PreAllocationMachine
 
 #[cfg(test)]
 mod local_slot_tests {
-    use super::*;
+    use super::{
+        Cursor, OperationId, PreAllocationMachineEffectDecodeError, decode_local_storage_slot,
+    };
     use crate::LocalStorageSlotId;
     use semantic_vocabulary::{BlockId, PlaceId};
 
@@ -640,7 +651,7 @@ mod local_slot_tests {
 
 #[cfg(test)]
 mod packed_tests {
-    use super::*;
+    use super::{Cursor, SelectedInstructionKind, decode_kind};
     #[test]
     fn packed_instruction_decode_retains_width_and_rejects_invalid_footprints() {
         for tag in [46, 47] {

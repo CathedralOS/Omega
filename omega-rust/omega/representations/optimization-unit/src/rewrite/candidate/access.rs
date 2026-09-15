@@ -1,7 +1,13 @@
 //! Canonical read-only access to an admitted rewrite candidate.
 
-use super::super::*;
-
+use super::super::{
+    AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisSet, BlockId, MachineId,
+    NodeLocation, OptimizationCandidateIdentity, OptimizationFactReference,
+    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
+    OwnershipFrontierWitness, ProvenanceRewrite, PsiRewriteCandidate, PsiRewriteDecisionPoint,
+    PsiRewritePatch, PsiRewriteWitness, RedundantBlockParameterWitness, ScalarConstantFactIdentity,
+    ScalarEvaluationWitness, ScalarSubstitution,
+};
 impl PsiRewriteCandidate {
     pub const fn identity(&self) -> OptimizationCandidateIdentity {
         self.identity

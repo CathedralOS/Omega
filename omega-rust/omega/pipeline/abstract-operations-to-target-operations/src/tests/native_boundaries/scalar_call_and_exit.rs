@@ -1,4 +1,9 @@
-use super::*;
+use super::super::super::LoweringError;
+use super::super::{
+    AbstractBlockEntry, AbstractOperation, BlockId, BoundaryMachineDeclaration, BoundaryMachineId,
+    IntegerSign, IntegerType, IntegerValue, NativeTarget, OperationId, ScalarType,
+    TargetUnitOperation, ValueId, lower_to_target_operations_with_settlements,
+};
 
 #[test]
 fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {

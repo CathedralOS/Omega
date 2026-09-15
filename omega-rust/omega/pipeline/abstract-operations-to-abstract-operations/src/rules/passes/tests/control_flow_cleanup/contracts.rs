@@ -1,6 +1,22 @@
 //! Exact contract custody across every control-flow cleanup rule.
 
-use super::*;
+use super::super::super::{
+    AdjacentBlockMergeRule, ConstantConditionalFoldRule, LinearEmptyBlockThreadRule,
+    NonAdjacentBlockMergeRule, PathQualifiedEmptyBlockThreadRule, SharedJumpFusionRule,
+    UnreachablePrivateMachinePruneRule,
+};
+use super::super::{
+    AnalysisKind, IntegerEvaluationWitness, MachineId, OptimizationRuleContract,
+    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitValidationError,
+    PsiOptimizationRule, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+    RuleAnalysisView, constant_conditional_same_target_unit, linear_empty_block_unit,
+    non_adjacent_merge_unit, path_qualified_empty_block_unit,
+    recompute_psi_optimization_unit_identity, shared_terminal_unit,
+    validate_adjacent_block_merge_candidate, validate_constant_conditional_candidate,
+    validate_linear_empty_block_candidate, validate_non_adjacent_block_merge_candidate,
+    validate_path_qualified_empty_block_candidate, validate_shared_jump_fusion_candidate,
+    validate_unreachable_private_machines_candidate,
+};
 
 #[derive(Clone, Copy)]
 enum Validator {

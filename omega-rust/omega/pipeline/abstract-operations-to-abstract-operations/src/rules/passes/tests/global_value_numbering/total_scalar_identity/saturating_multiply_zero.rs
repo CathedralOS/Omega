@@ -1,6 +1,18 @@
 //! Saturating multiply-zero annihilation and overlap custody.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::{
+    SaturatingMultiplyZeroAnnihilationRule, SaturatingNeutralArithmeticIdentityRule,
+};
+use super::super::super::{
+    AnalysisProduct, IntegerSign, IntegerType, IntegerValue, O, ObligationId, OperationId,
+    OptimizationRuleContract, OptimizationValidatorIdentity, PsiOptimizationUnit,
+    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, SaturatingNeutralOperation,
+    TotalScalarIdentityKind, ValueId, id, recompute_psi_optimization_unit_identity,
+    saturating_multiply_literal_pair_unit, saturating_neutral_identity_unit,
+    saturating_neutral_identity_unit_with_type_and_liveness,
+    validate_total_scalar_identity_candidate,
+};
 
 fn analysis_products(
     unit: &PsiOptimizationUnit,

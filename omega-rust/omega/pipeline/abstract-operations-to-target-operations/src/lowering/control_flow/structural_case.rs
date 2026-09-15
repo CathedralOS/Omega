@@ -199,7 +199,11 @@ pub(super) fn lower(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ScalarType, StructuralFieldId, StructuralFieldType, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeId, StructuralTypeLookup, StructuralTypeShape,
+        case_projection,
+    };
 
     #[test]
     fn projected_case_layout_retains_nested_offset_and_nominal_ordinal() {

@@ -40,12 +40,12 @@ use register_homes::{
 };
 
 pub use analyses::*;
+use register_model::*;
+pub use rewrites::*;
 pub use selected_optimization::optimization_output::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
     SelectedInstructionOptimizationOutput,
 };
-use register_model::*;
-pub use rewrites::*;
 pub use selected_optimization::{
     optimize_analyzed_selected_instructions, optimize_selected_instructions,
 };

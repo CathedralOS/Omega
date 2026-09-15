@@ -1,6 +1,9 @@
 //! Algebraic identity convergence and deterministic overlap precedence.
-
-use super::super::super::*;
+use super::super::super::super::{OptimizationRunError, run_unit};
+use super::super::super::{
+    AbstractOperation, Optimization, OptimizationSelections, WrappingNeutralOperation, budget,
+    built_in_psi_registry, wrapping_neutral_identity_unit,
+};
 use crate::rules::tests::{
     BitwiseNeutralOperation, SaturatingNeutralOperation, bitwise_literal_pair_unit,
     bitwise_neutral_identity_unit, saturating_multiply_literal_pair_unit,

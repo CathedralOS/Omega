@@ -1,6 +1,13 @@
 //! Dead scalar literal elimination semantics and custody.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::DeadScalarLiteralEliminationRule;
+use super::super::{
+    AbstractFunctionResult, AbstractResult, AnalysisKind, BlockId, EdgeId, IntegerSign,
+    IntegerType, O, OperationId, PsiProvenance, RuleAnalysisView, ScalarType, ValueId,
+    compute_analysis, dead_scalar_literals_unit, id, recompute_psi_optimization_unit_identity,
+    validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
+};
 
 #[test]
 fn dead_scalar_literals_rehome_operation_custody_without_tombstones() {

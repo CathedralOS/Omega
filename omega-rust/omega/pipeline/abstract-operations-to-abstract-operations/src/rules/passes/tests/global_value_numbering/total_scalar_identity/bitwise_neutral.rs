@@ -1,6 +1,16 @@
 //! Exact-width bitwise neutral-literal rule coverage.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::super::BitwiseNeutralLiteralIdentityRule;
+use super::super::super::{
+    AnalysisProduct, BitwiseNeutralOperation, IntegerSign, IntegerType, IntegerValue, O,
+    OptimizationRuleContract, OptimizationValidatorIdentity, PsiOptimizationUnit,
+    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, TotalScalarIdentityKind, ValueId,
+    WrappingNeutralOperation, bitwise_neutral_identity_unit,
+    bitwise_neutral_identity_unit_with_type_and_liveness, id,
+    recompute_psi_optimization_unit_identity, validate_total_scalar_identity_candidate,
+    wrapping_neutral_identity_unit,
+};
 
 fn analysis_products(
     unit: &PsiOptimizationUnit,

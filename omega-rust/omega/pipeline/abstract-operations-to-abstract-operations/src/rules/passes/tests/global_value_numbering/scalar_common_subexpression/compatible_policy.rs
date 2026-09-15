@@ -1,6 +1,20 @@
 //! Compatible-policy keying, evidence, and local/dominating coverage.
 
-use super::*;
+use super::super::super::super::{
+    DominatorProofCertifiedCompatiblePolicyScalarGvnRule,
+    SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
+};
+use super::super::super::{
+    IntegerSign, IntegerType, O, ObligationId, OperationId, OptimizationFact,
+    OptimizationRuleContract, OptimizationUnitValidationError, PsiOptimizationRule,
+    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, ScalarType,
+    ValueId, compatible_policy_dominator_gvn_unit, compatible_policy_local_cse_unit,
+    compatible_policy_scalar_leader, compatible_policy_scalar_redundant, id,
+    proof_certified_dominator_gvn_unit, proof_certified_local_cse_unit,
+    recompute_psi_optimization_unit_identity,
+    validate_dominating_scalar_common_subexpression_candidate,
+    validate_local_scalar_common_subexpression_candidate,
+};
 
 #[test]
 fn compatible_policy_keys_cover_only_exact_total_counterparts_with_correct_ordering() {

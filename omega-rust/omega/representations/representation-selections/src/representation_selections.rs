@@ -183,7 +183,10 @@ pub fn selection_for_opaque(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition,
+        OpaqueRepresentationLifecycleDisposition, selected_application_commitment,
+    };
 
     #[test]
     fn selected_application_commitment_binds_copy_disposition() {

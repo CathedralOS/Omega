@@ -40,7 +40,10 @@ pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralResultDeclar
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
+        StructuralResultDeclaration, encode_result,
+    };
     use semantic_vocabulary::{PlaceId, StructuralTypeId};
     use terminal_psi::StructuralReferenceResultSource;
 

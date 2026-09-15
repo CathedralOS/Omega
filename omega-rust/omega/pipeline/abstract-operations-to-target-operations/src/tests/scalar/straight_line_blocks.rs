@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    AbstractOperation, AbstractParameter, BlockId, EdgeId, NativeTarget, OperationId,
+    TargetIntegerExpression, TargetLoweringRequest, ValueId, lower_to_target_operations,
+    parameter_return_plan,
+};
 #[test]
 fn straight_line_arrivals_follow_edges_independently_of_block_storage_order() {
     for return_first in [false, true] {

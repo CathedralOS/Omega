@@ -1,7 +1,12 @@
 //! Budget, revision-invalidation, policy-skip, and duplicate fences.
 
-use super::*;
-
+use super::super::{OptimizationRunError, register_revision, run_unit};
+use super::{
+    AbstractOperation, Arc, BTreeMap, DuplicateExactRule, NonProfitableExactRule, Optimization,
+    OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationSelections,
+    OptimizationUnitIdentity, OrderedRuleRegistry, PsiOptimizationRule, budget,
+    built_in_psi_registry, exact_add_unit,
+};
 #[test]
 fn exhausted_iteration_budget_fails_deterministically_without_output() {
     let selections =

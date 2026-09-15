@@ -1,4 +1,12 @@
-use super::*;
+use super::super::{TargetLoweringRequest, lower_to_target_operations};
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractResult, BlockId, EdgeId, MachineId, NativeTarget, OperationId,
+    PlaceId, ScalarType, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TargetUnitOperation,
+    TargetUnitScalarArgumentSource, ValueId, ValueShape, identity,
+};
 use abstract_operations::AbstractParameter;
 use semantic_vocabulary::IeeeFloatFormat;
 use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;

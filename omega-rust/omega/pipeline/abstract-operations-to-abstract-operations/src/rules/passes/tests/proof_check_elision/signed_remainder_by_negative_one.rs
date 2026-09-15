@@ -1,6 +1,18 @@
 //! Signed remainder-by-negative-one tests.
+use crate::rule_registry::PsiOptimizationRule;
 
-use super::*;
+use super::super::super::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule;
+use super::super::{
+    AnalysisKind, AnalysisProduct, BlockId, EdgeId, IntegerConstantRewrite, IntegerSign,
+    IntegerType, IntegerValue, MachineId, O, OperationId, OptimizationFact,
+    OptimizationFactReference, OptimizationUnitValidationError, OptimizationValidatorIdentity,
+    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, ScalarType,
+    SelfRemainderPolicy, ValueId, discard_scalar_function_result, id, live_remainder_by_one_unit,
+    live_self_remainder_unit, live_signed_remainder_by_negative_one_unit,
+    recompute_psi_optimization_unit_identity,
+    validate_proof_certified_signed_integer_remainder_by_negative_one_candidate,
+    validate_psi_optimization_unit,
+};
 
 #[test]
 fn proof_certified_signed_remainder_by_negative_one_materializes_zero_for_every_policy() {

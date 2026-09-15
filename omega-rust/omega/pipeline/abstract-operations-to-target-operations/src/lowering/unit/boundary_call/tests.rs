@@ -1,6 +1,11 @@
 //! Focused normalized foreign-scalar boundary-call lowering tests.
-
-use super::*;
+use super::{
+    BTreeMap, BoundaryMachineId, CallSignature, CallingPolicy, IntegerSign, IntegerType,
+    IntegerValue, KnownUnitInteger, LoweringError, NativeTarget, OperationId, ScalarType,
+    TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement, ValueId, ValueLocation,
+    ValueShape, lower_normalized_foreign_scalar_arguments,
+    lower_normalized_foreign_scalar_arguments_with_result, lower_normalized_foreign_scalar_result,
+};
 use calling_conventions::MachineRegister;
 
 fn declaration(

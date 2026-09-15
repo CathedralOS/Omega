@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    Architecture, Cursor, MachineId, NativeTarget, ObjectFormat, ObligationId,
+    PreAllocationMachineEffectDecodeError, RegisterConstraintFamily, RegisterConstraintKey,
+    RegisterUnitId,
+};
 pub fn decode_target(
     cursor: &mut Cursor<'_>,
 ) -> Result<NativeTarget, PreAllocationMachineEffectDecodeError> {

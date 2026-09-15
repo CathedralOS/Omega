@@ -1,5 +1,10 @@
 //! Pre-allocation machine-effect codec fixtures.
 
+use super::{
+    BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
+    PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
+    pre_allocation_machine_effect_identity,
+};
 use crate::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -21,7 +26,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 
 use super::encoding::*;
-use super::*;
 
 #[test]
 fn byte_copy_effect_codec_binds_dynamic_span_and_scratch_effects() {

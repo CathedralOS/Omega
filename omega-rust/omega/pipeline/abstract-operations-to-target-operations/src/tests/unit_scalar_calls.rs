@@ -1,5 +1,11 @@
-use super::*;
-
+use super::super::{LoweringError, TargetLoweringRequest, lower_to_target_operations};
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, BlockId, EdgeId, IntegerSign,
+    IntegerType, IntegerValue, MachineId, NativeTarget, OperationId, PlaceId, ScalarType,
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeId,
+    TargetUnitOperation, TargetUnitScalarArgumentSource, ValueId, ValueLocation, identity,
+};
 fn fixed_integer(bits: u16) -> IntegerType {
     IntegerType::new(IntegerSign::Signed, bits).expect("fixed integer")
 }

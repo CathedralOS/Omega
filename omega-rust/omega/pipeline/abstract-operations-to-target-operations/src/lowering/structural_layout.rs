@@ -472,7 +472,11 @@ pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BTreeMap, BTreeSet, ScalarType, StructuralFieldId, StructuralFieldType,
+        StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueShape,
+        structural_shape,
+    };
 
     fn structural_type(value: u32) -> StructuralTypeId {
         StructuralTypeId::new(value.into()).expect("structural type")
