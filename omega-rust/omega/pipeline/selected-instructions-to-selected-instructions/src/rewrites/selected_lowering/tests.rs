@@ -9,8 +9,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ObligationId, 
 use target::NativeTarget;
 
 use super::{
-    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, PairMachineEffects, PairOperandShape,
-    PairResultDisposition, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
+    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, PairImmediateBound, PairMachineEffects,
+    PairOperandShape, PairResultDisposition, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
     SelectedInstructionPairRule, enabled_pair_rules, resolve_selected_lowering_rules,
 };
 use crate::{RegisterAllocationRuleTargetApplicability, validated_machine_effect_catalog};
@@ -56,6 +56,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_load8_indexed());
     assert!(policy.enables_copy());
     assert!(policy.enables_byte_view_address());
+    assert!(policy.enables_exact_divide());
 }
 
 #[test]
@@ -68,13 +69,16 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         indexed,
         copy,
         address_offset,
+        divide,
     ] = SELECTED_LOWERING_RULE_CATALOG;
+    let obligation = ObligationId::new(7).unwrap();
+    let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
     for entry in [subtract, compare] {
         let &[pair] = entry.payload().pairs() else {
             panic!("the subtract and compare families each declare one pair rule")
         };
         assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
-        assert_eq!(pair.immediate_limit(), 4095);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Encoding(4095));
         assert!(pair.admits_immediate(4095));
         assert!(!pair.admits_immediate(4096));
         assert_eq!(pair.operand_shape(), PairOperandShape::BinaryRightLiteral);
@@ -91,7 +95,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     };
     for pair in [add_rule, add_left_rule] {
         assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
-        assert_eq!(pair.immediate_limit(), 4095);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Encoding(4095));
         assert!(pair.admits_immediate(4095));
         assert!(!pair.admits_immediate(4096));
         assert_eq!(pair.consumer(), MachineSemanticKind::ExactAddI64);
@@ -168,7 +172,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(indexed_rule.producer(), MachineSemanticKind::MaterializeI64);
     assert_eq!(indexed_rule.consumer(), MachineSemanticKind::Load8Indexed);
     assert_eq!(indexed_rule.rewritten(), MachineSemanticKind::Load8);
-    assert_eq!(indexed_rule.immediate_limit(), 4095);
+    assert_eq!(
+        indexed_rule.immediate_bound(),
+        PairImmediateBound::Encoding(4095)
+    );
     assert!(indexed_rule.admits_immediate(4095));
     assert!(!indexed_rule.admits_immediate(4096));
     assert_eq!(
@@ -212,7 +219,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(copy_rule.result(), PairResultDisposition::ScalarRegister);
     assert_eq!(copy_rule.unit_effects(), PairUnitEffects::Isolated);
     assert_eq!(copy_rule.machine_effects(), PairMachineEffects::Isolated);
-    assert_eq!(copy_rule.immediate_limit(), u64::MAX);
+    assert_eq!(
+        copy_rule.immediate_bound(),
+        PairImmediateBound::Encoding(u64::MAX)
+    );
 
     // The byte-view address family folds the projection's operand-1 offset
     // literal into the constant-offset `AddressOffset` form: the operand-0
@@ -238,7 +248,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         address_offset_rule.rewritten(),
         MachineSemanticKind::AddressOffset
     );
-    assert_eq!(address_offset_rule.immediate_limit(), 4095);
+    assert_eq!(
+        address_offset_rule.immediate_bound(),
+        PairImmediateBound::Encoding(4095)
+    );
     assert!(address_offset_rule.admits_immediate(4095));
     assert!(!address_offset_rule.admits_immediate(4096));
     assert_eq!(
@@ -279,9 +292,69 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         None
     );
 
-    // Every landed rule's rewrite is unit-effect isolated: no implicit unit
-    // uses or clobbers and no operand unit bindings beyond the declared
-    // result channel.
+    // The divide-identity family declares the first trap-carrying
+    // machine-effect relationship: a divisor literal of exactly one folds
+    // `ExactDivideU64` into a `CopyI64` of the dividend, discharging the
+    // divide's encoded architectural fault, admitting the register pins the
+    // pinned-operand realization requires, and dropping the consumer's
+    // zeroed auxiliary `Use` operands.
+    let &[divide_rule] = divide.payload().pairs() else {
+        panic!("the divide-identity family declares one pair rule")
+    };
+    assert_eq!(
+        divide.optimization(),
+        Optimization::SelectedIncomingExactDivideIdentityCopy
+    );
+    assert_eq!(
+        divide_rule,
+        SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY
+    );
+    assert_eq!(divide_rule.producer(), MachineSemanticKind::MaterializeI64);
+    assert_eq!(divide_rule.consumer(), MachineSemanticKind::ExactDivideU64);
+    assert_eq!(divide_rule.rewritten(), MachineSemanticKind::CopyI64);
+    assert_eq!(
+        divide_rule.immediate_bound(),
+        PairImmediateBound::Exactly(1)
+    );
+    assert!(divide_rule.admits_immediate(1));
+    assert!(!divide_rule.admits_immediate(0));
+    assert!(!divide_rule.admits_immediate(2));
+    assert!(!divide_rule.admits_immediate(u64::MAX));
+    assert_eq!(divide_rule.fold_immediate(1), Some(1));
+    assert_eq!(
+        divide_rule.operand_shape(),
+        PairOperandShape::BinaryRightLiteralAuxiliaryUses
+    );
+    assert_eq!(divide_rule.victim_operand(), 1);
+    assert_eq!(divide_rule.result(), PairResultDisposition::ScalarRegister);
+    assert_eq!(
+        divide_rule.unit_effects(),
+        PairUnitEffects::BoundConsumerOperands
+    );
+    assert_eq!(
+        divide_rule.machine_effects(),
+        PairMachineEffects::FaultDischargedByLiteral
+    );
+    assert_eq!(
+        divide_rule.rewrite_consumer(
+            SelectedInstructionKind::ExactDivideU64 {
+                obligation,
+                accepted_fact,
+            },
+            1,
+            None
+        ),
+        Some(SelectedInstructionKind::CopyI64)
+    );
+    assert_eq!(
+        divide_rule.rewrite_consumer(SelectedInstructionKind::CopyI64, 1, None),
+        None
+    );
+
+    // Every landed rule's rewrite but the divide fold is unit-effect
+    // isolated: no implicit unit uses or clobbers and no operand unit
+    // bindings beyond the declared result channel. The divide fold
+    // deliberately drops the pinned consumer's `fixed_view` bindings.
     for entry in [add, subtract, compare, indexed, copy, address_offset] {
         for pair in entry.payload().pairs() {
             assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
@@ -324,10 +397,12 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         enabled_pair_rules(LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1).collect::<Vec<_>>(),
         vec![SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12]
     );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::EXACT_DIVIDE_V1).collect::<Vec<_>>(),
+        vec![SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY]
+    );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
-    let obligation = ObligationId::new(7).unwrap();
-    let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
     let add_kind = SelectedInstructionKind::ExactAddI64 {
         obligation,
         accepted_fact,
@@ -383,6 +458,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         address_offset_rule.immediate_constraint_key(&keys),
         keys.address_offset
     );
+    assert_eq!(
+        divide_rule.immediate_constraint_key(&keys),
+        Some(keys.copy_i64)
+    );
 }
 
 #[test]
@@ -404,6 +483,10 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             SelectedInstructionPairRule::LOAD8_INDEXED_U12,
             SelectedInstructionPairRule::COPY_LITERAL_FOLD,
             SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
+            // The copy row the divide fold rewrites into is itself
+            // unit-clean; `BoundConsumerOperands` relaxes only the dropped
+            // consumer's operand bindings, not the rewritten row.
+            SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY,
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -511,6 +594,46 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             );
         }
 
+        // The divide-identity pair admits its own triple on both targets:
+        // an isolated producer, the possibly-faulting divide, and the
+        // isolated copy — x86-64's `div` encodes `MayArchitecturalFaultV1`
+        // while aarch64's `udiv` encodes `NeverV1`, and both satisfy the
+        // fault-discharging consumer surface.
+        {
+            let rule = SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY;
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // A faulting surface the literal does not discharge — memory
+            // traffic or a hosted trap — cannot take the consumer role.
+            let memory_bound = declaration(MachineSemanticKind::Load64);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(memory_bound, rewritten),
+                "{rule:?} memory consumer on {target:?}"
+            );
+            let control_flow = declaration(MachineSemanticKind::Jump);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(control_flow, rewritten),
+                "{rule:?} control-flow consumer on {target:?}"
+            );
+        }
+
         // Declarations carrying memory traffic cannot take any role in an
         // isolated pair on either target.
         for semantic in [MachineSemanticKind::Load64, MachineSemanticKind::Store64] {
@@ -568,7 +691,10 @@ fn extension_elimination_rules_fold_unary_consumers_to_materializations() {
         assert_eq!(rule.victim_operand(), 0);
         assert_eq!(rule.result(), PairResultDisposition::ScalarRegister);
         // Extension-folded constants always encode; no immediate bound applies.
-        assert_eq!(rule.immediate_limit(), u64::MAX);
+        assert_eq!(
+            rule.immediate_bound(),
+            PairImmediateBound::Encoding(u64::MAX)
+        );
         assert!(rule.admits_immediate(u64::MAX));
     }
 
@@ -691,7 +817,10 @@ fn copy_materialization_rule_folds_the_unary_copy_to_a_materialization() {
     assert_eq!(rule.result(), PairResultDisposition::ScalarRegister);
     // The copy preserves the full literal: no target immediate bound and no
     // bit folding — the materialized payload is the literal itself.
-    assert_eq!(rule.immediate_limit(), u64::MAX);
+    assert_eq!(
+        rule.immediate_bound(),
+        PairImmediateBound::Encoding(u64::MAX)
+    );
     assert_eq!(rule.fold_immediate(0), Some(0));
     assert_eq!(rule.fold_immediate(0x1_0000_0001), Some(0x1_0000_0001));
     assert_eq!(rule.fold_immediate(u64::MAX), Some(u64::MAX));

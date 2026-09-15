@@ -13,8 +13,9 @@ use crate::{
 };
 
 use super::constraints::{
-    ValidationImmediateRows, effect_declaration, indexed_read_fold_admission,
-    isolated_effect_alternative, isolated_effect_declaration, isolated_rewritten_declaration,
+    ValidationImmediateRows, effect_declaration, fault_discharged_fold_admission,
+    indexed_read_fold_admission, isolated_effect_alternative, isolated_effect_declaration,
+    isolated_rewritten_declaration,
 };
 
 pub(super) fn reconstruct_literal_fold(
@@ -208,6 +209,17 @@ fn reconstruct_action(
             rows.address_offset,
             MachineSemanticKind::AddressOffset,
         ),
+        // The unsigned divide folds an operand-1 divisor literal of exactly
+        // one into a `CopyI64` of the operand-0 dividend, bound to the
+        // `CopyI64` row. Operands past the operand-2 `Def` result are `Use`
+        // positions the fold drops — the zeroed high-half input an x86-64
+        // `div` realization reads — each independently required to be
+        // defined only by zero materializations.
+        SelectedInstructionKind::ExactDivideU64 { .. } => (
+            SourceShape::DivideIdentity,
+            rows.divide,
+            MachineSemanticKind::CopyI64,
+        ),
         _ => (
             SourceShape::BinaryImmediate,
             None,
@@ -240,6 +252,17 @@ fn reconstruct_action(
         // `MaterializeI64` row it rewrites into bounds the payload only by
         // what the result register's scalar type admits, checked at rebuild.
         SourceShape::UnaryCopy => literal_u64,
+        // The divide fold is the identity only when the divisor literal is
+        // exactly one; any other divisor is a different computation the
+        // replay must not admit.
+        SourceShape::DivideIdentity => {
+            if literal_u64 != 1 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            literal_u64
+        }
     };
     let result = match (shape, consumer.operands.as_slice()) {
         (SourceShape::BinaryImmediate, [left, right, result]) => {
@@ -287,6 +310,33 @@ fn reconstruct_action(
             }
             None
         }
+        // The divide-identity grammar: `[dividend, divisor, result, aux...]`
+        // folds the operand-1 `Use` and drops every `Use` operand past the
+        // operand-2 `Def` result. The validator independently re-derives
+        // the dropped-operand custody: each dropped register must be
+        // defined in this function only by `MaterializeI64` instructions
+        // producing `Unsigned(0)` — the zeroed high-half input an x86-64
+        // `div` realization reads — because the fold discards whatever the
+        // operand carried.
+        (SourceShape::DivideIdentity, [left, right, result, auxiliary @ ..]) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+                || !auxiliary.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Use
+                        && dropped_use_defined_zero(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         (SourceShape::UnaryExtension | SourceShape::UnaryCopy, [input, result]) => {
             if input.access != RegisterOperandAccess::Use
                 || input.virtual_register != candidate.victim
@@ -310,9 +360,16 @@ fn reconstruct_action(
     // The rebuild replaces the consumer's operands wholesale; an operand
     // carrying a unit binding would silently lose it. The validator
     // re-derives this requirement itself rather than reading the producer's
-    // declared unit-effect surface.
+    // declared unit-effect surface. Under the divide-identity grammar a
+    // `fixed_view` pin is deliberately dropped with the pinned operand
+    // form — a surviving operand keeps its other uses' own constraints —
+    // while `tied_to` and `early_clobber` have no carried meaning once the
+    // operand list is rebuilt and still reject under every grammar.
+    let drops_fixed_views = shape == SourceShape::DivideIdentity;
     if consumer.operands.iter().any(|operand| {
-        operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
+        (operand.fixed_view.is_some() && !drops_fixed_views)
+            || operand.tied_to.is_some()
+            || operand.early_clobber
     }) {
         return Err(LiteralFoldError::ConsumerMismatch {
             function: function_index,
@@ -359,6 +416,13 @@ fn reconstruct_action(
             rewritten_declaration,
             shape.victim_operand(),
         ),
+        // The divide's encoded alternatives may architecturally fault; the
+        // folded divisor of one discharges that surface, so the validator
+        // requires the fault-discharging relationship rather than strict
+        // isolation on the consumer side.
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            fault_discharged_fold_admission(consumer_declaration, rewritten_declaration)
+        }
         _ => {
             isolated_effect_declaration(consumer_declaration)
                 && consumer_declaration.alternatives.iter().all(|alternative| {
@@ -393,9 +457,10 @@ fn reconstruct_action(
     // grammar records its folded input.
     let surviving = match shape {
         SourceShape::BinaryLeftImmediate => consumer.operands[1].virtual_register,
-        SourceShape::BinaryImmediate | SourceShape::UnaryExtension | SourceShape::UnaryCopy => {
-            consumer.operands[0].virtual_register
-        }
+        SourceShape::BinaryImmediate
+        | SourceShape::UnaryExtension
+        | SourceShape::UnaryCopy
+        | SourceShape::DivideIdentity => consumer.operands[0].virtual_register,
     };
 
     Ok(LiteralFoldAction {
@@ -416,23 +481,55 @@ fn reconstruct_action(
 /// three-operand `Load8Indexed` and `ByteViewAddress` projections whose
 /// operand-1 `Use` is the folded index or offset and whose operand-2 `Def`
 /// is the result — the commutative binary immediate form whose literal is
-/// the left `Use` operand, or the unary extension and copy forms whose
-/// literal is the sole operand.
+/// the left `Use` operand, the unary extension and copy forms whose
+/// literal is the sole operand, or the divide-identity form whose
+/// operand-1 divisor literal of one folds into a copy of the dividend and
+/// drops every `Use` operand past the operand-2 `Def` result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
     BinaryLeftImmediate,
     UnaryExtension,
     UnaryCopy,
+    DivideIdentity,
 }
 
 impl SourceShape {
     const fn victim_operand(self) -> u16 {
         match self {
-            Self::BinaryImmediate => 1,
+            Self::BinaryImmediate | Self::DivideIdentity => 1,
             Self::BinaryLeftImmediate | Self::UnaryExtension | Self::UnaryCopy => 0,
         }
     }
+}
+
+/// Whether `register` is defined in `function` only by `MaterializeI64`
+/// instructions producing `Unsigned(0)` — the validator's independent
+/// re-derivation of the custody the divide-identity grammar requires of
+/// every operand it drops. A register with no definition, or any
+/// definition that is not a zero materialization, fails: the dropped
+/// operand would carry a value the folded form silently stopped
+/// observing.
+fn dropped_use_defined_zero(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
+    let mut definitions = function
+        .blocks
+        .iter()
+        .flat_map(|block| block.instructions.iter())
+        .filter(|instruction| {
+            instruction.operands.iter().any(|operand| {
+                operand.access == RegisterOperandAccess::Def && operand.virtual_register == register
+            })
+        });
+    let mut saw_definition = false;
+    definitions.all(|instruction| {
+        saw_definition = true;
+        matches!(
+            instruction.kind,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(0)
+            }
+        )
+    }) && saw_definition
 }
 
 /// The exact 64-bit output an extension consumer computes on `literal`. The
@@ -634,6 +731,12 @@ fn rebuild_function(
                 })?,
             },
         ),
+        // A divide by one is the dividend: the validator rebuilds the
+        // consumer as a `CopyI64` of the surviving operand, bound to the
+        // `CopyI64` row the divide policy gate selected.
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            (rows.divide, SelectedInstructionKind::CopyI64)
+        }
         _ => (None, consumer.kind),
     };
     let row = row
@@ -661,8 +764,17 @@ fn rebuild_function(
             function: function_index,
         })?);
     }
+    // The divide-identity grammar deliberately drops `fixed_view` pins with
+    // the pinned operand form; every other grammar still requires
+    // undecorated operands.
+    let drops_fixed_views = matches!(
+        consumer.kind,
+        SelectedInstructionKind::ExactDivideU64 { .. }
+    );
     if consumer.operands.iter().any(|operand| {
-        operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
+        (operand.fixed_view.is_some() && !drops_fixed_views)
+            || operand.tied_to.is_some()
+            || operand.early_clobber
     }) {
         return Err(LiteralFoldError::ConsumerMismatch {
             function: function_index,

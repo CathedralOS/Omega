@@ -144,6 +144,37 @@ pub(super) fn derive_action(
             }
             Some(result.virtual_register)
         }
+        // A binary right-literal consumer whose operand list continues past
+        // its `Def` result: `[left, victim, result, aux...]` folds the
+        // operand-1 `Use` and drops every trailing `Use` operand, which the
+        // declared grammar admits only when each dropped register is defined
+        // in this function solely by zero materializations — the zeroed
+        // high-half input an x86-64 `div` realization reads, left dead by a
+        // divide by one. A dropped operand defined any other way would
+        // silently discard a value the consumer observed.
+        (
+            PairOperandShape::BinaryRightLiteralAuxiliaryUses,
+            PairResultDisposition::ScalarRegister,
+            [left, right, result, auxiliary @ ..],
+        ) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+                || !auxiliary.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Use
+                        && auxiliary_zero_defined(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // Commutative binary consumers also admit the literal as the left
         // operand: `[victim, right, result]` folds the operand-0 `Use` and
         // binds the operand-1 survivor into the rewritten row.
@@ -248,13 +279,14 @@ pub(super) fn derive_action(
     }
     // The action records the register every `Use` position of the rewritten
     // row binds — the source operand that survives the fold. A right-literal
-    // grammar leaves operand 0, a left-literal grammar leaves operand 1, and
-    // the `Use`-free unary fold records its folded input.
+    // grammar — including the auxiliary-`Use` divide grammar — leaves
+    // operand 0, a left-literal grammar leaves operand 1, and the `Use`-free
+    // unary fold records its folded input.
     let surviving = match pair.rule.operand_shape() {
         PairOperandShape::BinaryLeftLiteral => consumer.operands[1].virtual_register,
-        PairOperandShape::BinaryRightLiteral | PairOperandShape::UnaryLiteral => {
-            consumer.operands[0].virtual_register
-        }
+        PairOperandShape::BinaryRightLiteral
+        | PairOperandShape::BinaryRightLiteralAuxiliaryUses
+        | PairOperandShape::UnaryLiteral => consumer.operands[0].virtual_register,
     };
 
     Ok(LiteralFoldAction {
@@ -268,4 +300,35 @@ pub(super) fn derive_action(
         immediate,
         immediate_constraint: row.key,
     })
+}
+
+/// Whether `register` is defined in `function` only by `MaterializeI64`
+/// instructions producing `Unsigned(0)` — the provenance the
+/// auxiliary-`Use` operand grammar requires of every operand it drops. A
+/// register with no definition, or any definition that is not a zero
+/// materialization, fails: the dropped operand would carry a value the
+/// folded form silently stopped observing.
+fn auxiliary_zero_defined(
+    function: &SelectedFunction,
+    register: selected_instructions::VirtualRegisterId,
+) -> bool {
+    let mut definitions = function
+        .blocks
+        .iter()
+        .flat_map(|block| block.instructions.iter())
+        .filter(|instruction| {
+            instruction.operands.iter().any(|operand| {
+                operand.access == RegisterOperandAccess::Def && operand.virtual_register == register
+            })
+        });
+    let mut saw_definition = false;
+    definitions.all(|instruction| {
+        saw_definition = true;
+        matches!(
+            instruction.kind,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(0)
+            }
+        )
+    }) && saw_definition
 }

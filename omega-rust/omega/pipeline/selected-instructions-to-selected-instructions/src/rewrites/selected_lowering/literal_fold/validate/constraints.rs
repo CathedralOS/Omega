@@ -31,6 +31,9 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// bound only when the byte-view-address policy bit is selected and the
     /// environment declares the row.
     pub(super) address_offset: Option<&'a RegisterInstructionConstraint>,
+    /// The `CopyI64` row the divide-identity fold rewrites into; bound only
+    /// when the exact-divide policy bit is selected.
+    pub(super) divide: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -78,6 +81,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         (true, Some(key)) => Some(find(key)?),
         _ => None,
     };
+    let divide = policy
+        .enables_exact_divide()
+        .then(|| find(keys.copy_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -86,6 +93,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         copy,
         load8,
         address_offset,
+        divide,
     ]
     .into_iter()
     .flatten()
@@ -135,6 +143,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::AddressOffset,
             isolated_rewritten_declaration,
         ),
+        (
+            divide,
+            MachineSemanticKind::CopyI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -151,6 +164,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         copy,
         load8,
         address_offset,
+        divide,
         catalog,
     })
 }
@@ -342,4 +356,50 @@ pub(super) fn indexed_read_fold_admission(
                         .is_empty()
             })
         })
+}
+
+/// The relationship the validator re-derives between a fault-carrying
+/// consumer — the `ExactDivideU64` form whose encoded alternatives may
+/// architecturally fault — and the fully isolated copy form a divisor
+/// literal of one rewrites into. The consumer declaration keeps the
+/// isolated non-unit surface except its alternatives may encode
+/// `NeverV1` or `MayArchitecturalFaultV1` trap behavior: the folded
+/// divisor of one discharges every such fault, so the rewrite retires the
+/// trap surface wholesale. The consumer may declare no implicit unit uses,
+/// every implicit unit it defines must stay defined under every rewritten
+/// alternative, and the rewritten declaration itself must satisfy the
+/// fully isolated surface — the discharged fault may not reappear.
+pub(super) fn fault_discharged_fold_admission(
+    consumer: &MachineEffectDeclaration,
+    rewritten: &MachineEffectDeclaration,
+) -> bool {
+    consumer.memory == MachineMemoryEffect::NoneV1
+        && matches!(
+            consumer.trap,
+            MachineTrapBehavior::NeverV1 | MachineTrapBehavior::MayArchitecturalFaultV1
+        )
+        && consumer.barrier == MachineBarrier::None
+        && consumer.call == MachineCallEffect::NoneV1
+        && consumer.cleanup == MachineCleanupEffect::NoneV1
+        && consumer.alternatives.iter().all(|alternative| {
+            let encoded = &alternative.encoded;
+            encoded.memory == MachineEncodedMemoryEffect::NoneV1
+                && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+                && matches!(
+                    encoded.trap,
+                    MachineEncodedTrapBehavior::NeverV1
+                        | MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                )
+                && encoded.control == MachineEncodedControlEffect::FallThroughV1
+                && encoded.implicit_unit_uses.is_empty()
+                && encoded.implicit_unit_defs.iter().all(|unit| {
+                    rewritten.alternatives.iter().all(|rewritten_alternative| {
+                        rewritten_alternative
+                            .encoded
+                            .implicit_unit_defs
+                            .contains(unit)
+                    })
+                })
+        })
+        && isolated_rewritten_declaration(rewritten)
 }

@@ -43,13 +43,15 @@ impl LiteralFoldPolicy {
     const LOAD8_INDEXED_BIT: u8 = 1 << 4;
     const COPY_BIT: u8 = 1 << 5;
     const BYTE_VIEW_ADDRESS_BIT: u8 = 1 << 6;
+    const EXACT_DIVIDE_BIT: u8 = 1 << 7;
     const KNOWN_BITS: u8 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
         | Self::EXTENSION_BIT
         | Self::LOAD8_INDEXED_BIT
         | Self::COPY_BIT
-        | Self::BYTE_VIEW_ADDRESS_BIT;
+        | Self::BYTE_VIEW_ADDRESS_BIT
+        | Self::EXACT_DIVIDE_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -83,6 +85,13 @@ impl LiteralFoldPolicy {
     /// constant-offset `AddressOffset` form the literal names.
     pub const BYTE_VIEW_ADDRESS_V1: Self = Self {
         enabled_rules: Self::BYTE_VIEW_ADDRESS_BIT,
+    };
+    /// Exact-division identity: fold a materialized literal `1` feeding its
+    /// sole `ExactDivideU64` consumer's divisor operand into a `CopyI64` of
+    /// the dividend — a divide by one is the dividend itself, so the
+    /// consumer's encoded fault surface is discharged by the literal.
+    pub const EXACT_DIVIDE_V1: Self = Self {
+        enabled_rules: Self::EXACT_DIVIDE_BIT,
     };
 
     pub(crate) const fn empty() -> Self {
@@ -125,6 +134,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_byte_view_address(self) -> bool {
         self.enabled_rules & Self::BYTE_VIEW_ADDRESS_BIT != 0
+    }
+
+    pub const fn enables_exact_divide(self) -> bool {
+        self.enabled_rules & Self::EXACT_DIVIDE_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u8 {

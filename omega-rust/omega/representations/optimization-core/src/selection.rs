@@ -106,7 +106,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    26;
+    27;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -237,6 +237,11 @@ optimization_vocabulary! {
         counter: "selected_incoming_u12_byte_view_address_offset",
         phase: SelectedLowering
     },
+    SelectedIncomingExactDivideIdentityCopy = 27 => {
+        case: "SelectedIncomingExactDivideIdentityCopy",
+        counter: "selected_incoming_exact_divide_identity_copy",
+        phase: SelectedLowering
+    },
 }
 
 impl Optimization {
@@ -274,7 +279,8 @@ impl Optimization {
             | Self::SelectedIncomingLiteralExtensionElimination
             | Self::SelectedIncomingU12Load8IndexedOffset
             | Self::SelectedIncomingLiteralCopyMaterialization
-            | Self::SelectedIncomingU12ByteViewAddressOffset => None,
+            | Self::SelectedIncomingU12ByteViewAddressOffset
+            | Self::SelectedIncomingExactDivideIdentityCopy => None,
         }
     }
 }
