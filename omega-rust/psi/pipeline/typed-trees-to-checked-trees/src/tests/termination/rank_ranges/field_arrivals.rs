@@ -301,6 +301,57 @@ fn record_arrivals_need_unique_roles_and_exact_nominal_owners() {
 }
 
 #[test]
+fn a_computed_claimant_leaves_the_record_role_to_its_bare_forward() {
+    // `countdown.remaining` computes a scalar from the ranked record's entry:
+    // its claim contests the role the bare `countdown` forward already
+    // carries, so the computed claimant demotes and `pending` stays the one
+    // record the field view can read.
+    let source = COUNTDOWN
+        .replace(
+            "iterate(ceiling, countdown)",
+            "iterate(ceiling, countdown, countdown.remaining)",
+        )
+        .replace(
+            "pending: Countdown)",
+            "pending: Countdown, echo: u64 [0..=5])",
+        )
+        .replace("pending.remaining - 1 })", "pending.remaining - 1 }, echo)");
+    prove(&source);
+    // Two bare forwards of the record still share one role with no honest
+    // carrier: demotion never invents one, so the view cannot read either.
+    reject(
+        &COUNTDOWN
+            .replace(
+                "iterate(ceiling, countdown)",
+                "iterate(ceiling, countdown, countdown)",
+            )
+            .replace(
+                "pending: Countdown)",
+                "pending: Countdown, spare: Countdown)",
+            )
+            .replace(
+                "pending.remaining - 1 })",
+                "pending.remaining - 1 }, spare)",
+            ),
+    );
+    // With no bare forward at all, every computed claimant demotes and no
+    // slot names the record the view reads.
+    reject(&COUNTDOWN
+        .replace(
+            "iterate(ceiling, countdown)",
+            "iterate(ceiling, Countdown { remaining: countdown.remaining }, countdown.remaining)",
+        )
+        .replace(
+            "pending: Countdown)",
+            "pending: Countdown, echo: u64 [0..=5])",
+        )
+        .replace(
+            "pending.remaining - 1 })",
+            "pending.remaining - 1 }, echo)",
+        ));
+}
+
+#[test]
 fn mutable_record_parameters_prove_only_while_the_prefix_preserves_them() {
     // The same preserved-prefix evidence that admits mutable integer inputs
     // carries a mutable record's arrival fields: a write into its path before

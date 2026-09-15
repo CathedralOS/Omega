@@ -159,6 +159,24 @@ pub struct RankingRangeEdgeProof {
     pub strictly_decreases: bool,
 }
 
+/// The entry symbols whose current copies the edge judgment holds equal at
+/// every arrival: each integer root parameter named by the produced-rank
+/// expression, the pinned endpoints, or the active entry premises. Mapping
+/// discovery uses this set to decide whether several slots claiming one entry
+/// keep their duplicated equality obligation or resolve to a bare forward.
+pub fn ranking_range_required_symbols(
+    program: &TypedTrees,
+    machine: &Machine,
+    range: ExpressionHandle,
+    measure: RankingRangeMeasure,
+    premises: RankingRangePremises,
+) -> Option<Vec<symbols::SymbolHandle>> {
+    let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
+        return None;
+    };
+    state_aliases::required_symbols(program, machine, range, measure, premises)
+}
+
 /// Establish the produced rank at entry, including an acyclic invocation.
 /// No backedge guard or actual argument can strengthen this obligation.
 pub fn prove_ranking_range_entry(
