@@ -4,11 +4,14 @@ use effects::ComponentEraEntryLedger;
 use extents::{
     Extent, ExtentLineageId, ExtentProgramLocalOrigin, ExtentRootGrant, ValidatedExtentGeometry,
 };
+use language_semantics::content::{CanonicalIntervalSet, NaturalInterval};
+use numerics::bignum::BigInt;
 use semantic_vocabulary::ContentAlgebraKind;
 
 use super::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity, ExternalRootDiagnostic,
-    ProgramLocalRootInstallationLedger, RetiredProgramLocalRootOccurrence,
+    ProgramLocalRootEpochAggregateCapacity, ProgramLocalRootInstallationLedger,
+    RetiredProgramLocalRootOccurrence,
 };
 
 mod retained_foreign_arguments;
@@ -94,31 +97,157 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
     ) -> Result<Vec<Extent>, Box<ProgramLocalExtentMaterializationError<'root, 'code>>> {
         let mut origins = BTreeSet::new();
         for (root, backing) in &inputs {
-            let origin = match exact_origin(root) {
-                Ok(origin) => origin,
-                Err(diagnostic) => {
-                    return Err(Box::new(ProgramLocalExtentMaterializationError {
-                        inputs,
-                        diagnostic,
-                    }));
-                }
-            };
-            if self.held.contains_key(&origin) || !origins.insert(origin) {
-                return Err(Box::new(ProgramLocalExtentMaterializationError {
-                    inputs,
-                    diagnostic: ExternalRootDiagnostic(
-                        "program-local Extent batch repeats an exact established occurrence".into(),
-                    ),
-                }));
-            }
-            if let Err(diagnostic) = validate_materialization(root, backing) {
+            if let Err(diagnostic) =
+                self.validate_materialization_member(&mut origins, root, backing)
+            {
                 return Err(Box::new(ProgramLocalExtentMaterializationError {
                     inputs,
                     diagnostic,
                 }));
             }
         }
+        self.mint_held(inputs)
+    }
 
+    /// Atomically materialize the complete live membership of one
+    /// reconstructed aggregate capacity over its actual installed backing
+    /// partitions.
+    ///
+    /// The aggregate is the requirement this batch discharges, not a roster
+    /// hint. The installation ledger re-derives the group's complete live
+    /// membership from the presented members, so the presented aggregate must
+    /// still equal the live reconstruction for the same installed occurrence
+    /// and lifecycle epoch: a stale or substituted row — reconstructed
+    /// before a pending member established, under a different epoch, or for
+    /// a foreign lifecycle — understates live demand and rejects, as does an
+    /// omitted, repeated, or substituted member. Each member's backing must
+    /// equal its own evaluated interval in one shared address space, and the
+    /// presented receiver partitions must compose — disjoint or exactly
+    /// adjacent, with overlap rejected — to the exact reconstructed interval
+    /// set, so the installed backing covers the group's whole live demand
+    /// without a gap or remainder.
+    ///
+    /// Success mints one program-local Extent per member — the authority an
+    /// activation borrows through `Extent::loan`/`loan_mut` — and retains
+    /// each account until its recombined root returns through
+    /// [`ProgramLocalExtentRegistry::retire`], which releases the exact
+    /// occurrence and returns its partition for rejoin into installed
+    /// storage, completing the same occurrence and epoch.
+    pub fn materialize_aggregate(
+        &mut self,
+        installation: &ProgramLocalRootInstallationLedger,
+        lifecycle: &ComponentEraEntryLedger,
+        aggregate: &ProgramLocalRootEpochAggregateCapacity,
+        inputs: Vec<(EstablishedProgramLocalRoot<'root, 'code>, Extent)>,
+    ) -> Result<Vec<Extent>, Box<ProgramLocalExtentMaterializationError<'root, 'code>>> {
+        let Some(required) = aggregate.capacity().interval_set() else {
+            return Err(Box::new(ProgramLocalExtentMaterializationError {
+                inputs,
+                diagnostic: ExternalRootDiagnostic(
+                    "counted program-local aggregate capacity cannot materialize Extent partitions"
+                        .into(),
+                ),
+            }));
+        };
+        let fresh = match installation
+            .reconstruct_aggregate_capacity(lifecycle, inputs.iter().map(|(root, _)| root))
+        {
+            Ok(fresh) => fresh,
+            Err(diagnostic) => {
+                return Err(Box::new(ProgramLocalExtentMaterializationError {
+                    inputs,
+                    diagnostic,
+                }));
+            }
+        };
+        if fresh != *aggregate {
+            return Err(Box::new(ProgramLocalExtentMaterializationError {
+                inputs,
+                diagnostic: ExternalRootDiagnostic(
+                    "presented program-local aggregate capacity is stale or substituted for the live reconstructed membership".into(),
+                ),
+            }));
+        }
+
+        let mut origins = BTreeSet::new();
+        let mut backings = Vec::with_capacity(inputs.len());
+        for (root, backing) in &inputs {
+            if let Err(diagnostic) =
+                self.validate_materialization_member(&mut origins, root, backing)
+            {
+                return Err(Box::new(ProgramLocalExtentMaterializationError {
+                    inputs,
+                    diagnostic,
+                }));
+            }
+            backings.push(backing);
+        }
+        if backings
+            .windows(2)
+            .any(|pair| pair[0].address_space() != pair[1].address_space())
+        {
+            return Err(Box::new(ProgramLocalExtentMaterializationError {
+                inputs,
+                diagnostic: ExternalRootDiagnostic(
+                    "program-local aggregate backing partitions span distinct address spaces"
+                        .into(),
+                ),
+            }));
+        }
+        let covered = match CanonicalIntervalSet::new(backings.iter().map(|extent| {
+            NaturalInterval::new(
+                BigInt::from_u64(extent.base()),
+                BigInt::from_u64(extent.end()),
+            )
+            .expect("validated installed backing is a nonempty proof-natural interval")
+        })) {
+            Ok(covered) => covered,
+            Err(_overlap) => {
+                return Err(Box::new(ProgramLocalExtentMaterializationError {
+                    inputs,
+                    diagnostic: ExternalRootDiagnostic(
+                        "program-local aggregate backing partitions overlap".into(),
+                    ),
+                }));
+            }
+        };
+        if covered != *required {
+            return Err(Box::new(ProgramLocalExtentMaterializationError {
+                inputs,
+                diagnostic: ExternalRootDiagnostic(
+                    "installed backing partitions do not compose the exact reconstructed aggregate capacity".into(),
+                ),
+            }));
+        }
+        self.mint_held(inputs)
+    }
+
+    /// Reject one member/backing pair before commitment: the exact
+    /// established occurrence must not already be held by this registry or
+    /// repeated inside the batch, and the backing must equal the member's
+    /// evaluated interval capacity.
+    fn validate_materialization_member(
+        &self,
+        origins: &mut BTreeSet<ExtentProgramLocalOrigin>,
+        root: &EstablishedProgramLocalRoot<'root, 'code>,
+        backing: &Extent,
+    ) -> Result<(), ExternalRootDiagnostic> {
+        let origin = exact_origin(root)?;
+        if self.held.contains_key(&origin) || !origins.insert(origin) {
+            return Err(ExternalRootDiagnostic(
+                "program-local Extent batch repeats an exact established occurrence".into(),
+            ));
+        }
+        validate_materialization(root, backing)
+    }
+
+    /// Commit a fully validated member/backing batch: reserve one lineage
+    /// identity per member, mint each program-local Extent over its backing's
+    /// own runtime facts, and retain the accounts.
+    fn mint_held(
+        &mut self,
+        inputs: Vec<(EstablishedProgramLocalRoot<'root, 'code>, Extent)>,
+    ) -> Result<Vec<Extent>, Box<ProgramLocalExtentMaterializationError<'root, 'code>>> {
         let count = match u64::try_from(inputs.len()) {
             Ok(count) => count,
             Err(_) => {

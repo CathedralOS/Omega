@@ -1363,10 +1363,10 @@ impl ProgramLocalRootInstallationLedger {
     /// merging authority — and interval members whose evaluated ranges overlap
     /// reject rather than silently share one range. Retired occurrences leave
     /// the live aggregate; a still-pending member blocks it.
-    pub fn reconstruct_aggregate_capacity<'root, 'code: 'root>(
+    pub fn reconstruct_aggregate_capacity<'members, 'root: 'members, 'code: 'root>(
         &self,
         lifecycle: &ComponentEraEntryLedger,
-        roots: impl IntoIterator<Item = &'root EstablishedProgramLocalRoot<'root, 'code>>,
+        roots: impl IntoIterator<Item = &'members EstablishedProgramLocalRoot<'root, 'code>>,
     ) -> Result<ProgramLocalRootEpochAggregateCapacity, ExternalRootDiagnostic> {
         let roots = roots.into_iter().collect::<Vec<_>>();
         if roots.is_empty() {
