@@ -6,7 +6,9 @@ use super::{
     TerminalFuelMeter, TerminalInterpretError, TerminalMachineResult, TerminalScalarValue,
     TerminalStructuralValue, Terminator, ValueDeclaration, ValueId, execution, successor,
 };
-use crate::terminal_interpreter::{StructuralRuntimePlace, StructuralScalarRuntimeField};
+use crate::terminal_interpreter::execution::LiveClaim;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use crate::terminal_interpreter::values::StructuralScalarRuntimeField;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, StructuralFieldId};
 use terminal_psi::{
     BindingRelevance, Operation, OperationKind, OperationResult, StructuralFieldDeclaration,
@@ -824,7 +826,7 @@ fn malformed_owned_handoffs_leave_all_custody_uncommitted() {
             "claim" => {
                 execution.live_claims.insert(
                     semantic_vocabulary::ClaimId::new(1).unwrap(),
-                    crate::terminal_interpreter::LiveClaim {
+                    crate::terminal_interpreter::execution::LiveClaim {
                         place: Some(source),
                         path: Vec::new(),
                         multiplicity: Some(StructuralMultiplicity::Linear),

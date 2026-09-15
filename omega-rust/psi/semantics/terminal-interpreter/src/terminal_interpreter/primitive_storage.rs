@@ -12,9 +12,11 @@ use terminal_psi::{
 };
 
 use super::{
-    ExecutableMachine, StructuralRuntimePlace, TerminalExecution, TerminalInterpretError,
-    TerminalScalarValue, TerminalStructuralValue, terminal_scalar_belongs_to_type,
+    TerminalExecution, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
 };
+use crate::terminal_interpreter::execution::ExecutableMachine;
+use crate::terminal_interpreter::scalar_operations::terminal_scalar_belongs_to_type;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
 
 enum PrimitiveStorage {
     Scalar(StructuralRuntimePlace),

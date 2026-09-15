@@ -1,10 +1,13 @@
 //! Runtime binding must preserve exclusive referents independently of multiplicity.
 
-use super::{
-    PlaceId, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeId, TerminalInterpretError, TerminalStructuralValue,
-    bind_structural_arguments,
-};
+use super::{TerminalInterpretError, TerminalStructuralValue};
+use crate::terminal_interpreter::custody::bind_structural_arguments;
+use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::StructuralTypeId;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::StructuralPathSegment;
 fn parameter(
     position: u32,
     access: StructuralAccess,

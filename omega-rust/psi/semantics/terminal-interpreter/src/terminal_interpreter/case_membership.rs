@@ -1,8 +1,8 @@
 //! Discriminator observations retain the original structural root and path.
 
-use crate::terminal_interpreter::{
-    StructuralRuntimePlace, TerminalExecution, TerminalInterpretError, resolve_structural_path_type,
-};
+use crate::terminal_interpreter::custody::resolve_structural_path_type;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use crate::terminal_interpreter::{TerminalExecution, TerminalInterpretError};
 use semantic_vocabulary::{PlaceId, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 

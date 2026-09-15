@@ -4,13 +4,23 @@
 //! names the original referent. Record construction relocates only the key.
 //! Disposal removes descriptor subtrees, not the storage they permit access to.
 //! Loan ancestry and disposal order are independently checked before execution.
-use super::{
-    BTreeMap, OperationResult, PlaceId, StructuralAccess, StructuralAffineDiscard,
-    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralRuntimePlace, StructuralTypeId, StructuralTypeShape,
-    SuspendedCall, SuspendedCallResult, TerminalExecution, TerminalInterpretError,
-    TerminalStructuralValue, resolve_structural_arguments, resolve_structural_path_type,
-};
+use super::{TerminalExecution, TerminalInterpretError, TerminalStructuralValue};
+use crate::terminal_interpreter::custody::resolve_structural_arguments;
+use crate::terminal_interpreter::custody::resolve_structural_path_type;
+use crate::terminal_interpreter::execution::SuspendedCall;
+use crate::terminal_interpreter::execution::SuspendedCallResult;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::BTreeMap;
+use terminal_psi::OperationResult;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralAffineDiscard;
+use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::StructuralTypeShape;
 use terminal_psi::{Operation, StructuralResultDeclaration};
 
 /// Disposition ends carrier custody, never the captured primitive backing.

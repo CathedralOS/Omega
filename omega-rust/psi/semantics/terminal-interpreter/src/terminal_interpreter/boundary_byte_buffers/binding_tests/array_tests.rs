@@ -1,7 +1,4 @@
-use super::super::super::{
-    IntegerType, IntegerValue, OperationResult, ScalarType, TerminalScalarValue,
-    TerminalStructuralByteArrayValue, ValueId,
-};
+use super::super::super::{TerminalScalarValue, TerminalStructuralByteArrayValue};
 
 use super::{
     BTreeMap, BindingRelevance, MachineId, OperationId, OperationKind, StructuralAccess,
@@ -10,8 +7,13 @@ use super::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
     argument, execution, parameter, place, structural_type,
 };
+use semantic_vocabulary::IntegerType;
+use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::ValueId;
 use semantic_vocabulary::{IntegerSign, ObligationId};
 use terminal_psi::Operation;
+use terminal_psi::OperationResult;
 
 fn array_execution(length: u64) -> TerminalExecution {
     let mut execution = execution();

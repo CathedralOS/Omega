@@ -7,10 +7,10 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
-use super::{
-    StructuralByteSequenceRuntimeField, StructuralRuntimePlace, TerminalExecution,
-    TerminalInterpretError, TerminalScalarValue, resolve_structural_arguments,
-};
+use super::{TerminalExecution, TerminalInterpretError, TerminalScalarValue};
+use crate::terminal_interpreter::custody::resolve_structural_arguments;
+use crate::terminal_interpreter::values::StructuralByteSequenceRuntimeField;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
 
 impl TerminalExecution {
     /// Observe the current live bytes at an original structural referent and

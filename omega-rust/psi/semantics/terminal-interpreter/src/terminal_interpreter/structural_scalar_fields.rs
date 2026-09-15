@@ -11,10 +11,14 @@ use std::collections::BTreeMap;
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeDeclaration};
 
+use crate::terminal_interpreter::custody::direct_scalar_field_type;
+use crate::terminal_interpreter::custody::resolve_structural_path_type;
+use crate::terminal_interpreter::execution::ExecutableMachine;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use crate::terminal_interpreter::values::StructuralScalarRuntimeField;
 use crate::terminal_interpreter::{
-    ExecutableMachine, StructuralRuntimePlace, StructuralScalarRuntimeField,
     TerminalInterpretError, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
-    TerminalStructuralValue, direct_scalar_field_type, resolve_structural_path_type,
+    TerminalStructuralValue,
 };
 
 mod entry;

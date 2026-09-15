@@ -1,9 +1,4 @@
-use super::super::{
-    BTreeSet, Block, BlockId, ExecutableMachine, MachineId, OperationId, OperationKind, PlaceId,
-    StructuralAffineDiscard, StructuralFieldId, StructuralOperationResult,
-    StructuralTypeDeclaration, StructuralTypeId, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalMachineResult, Terminator, primitive_storage,
-};
+use super::super::{TerminalExecutionResult, TerminalExecutionStatus, primitive_storage};
 use super::{
     BTreeMap, ByteSequenceBinding, ByteSequenceCarrier, ByteSequenceView, StructuralAccess,
     StructuralArgument, StructuralByteSequenceRuntimeField, StructuralFieldType,
@@ -11,8 +6,23 @@ use super::{
     StructuralRuntimePlace, StructuralTypeShape, TerminalExecution, TerminalStructuralValue,
     resolve_structural_arguments,
 };
+use crate::terminal_interpreter::execution::ExecutableMachine;
+use semantic_vocabulary::BlockId;
 use semantic_vocabulary::EdgeId;
+use semantic_vocabulary::MachineId;
+use semantic_vocabulary::OperationId;
+use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::StructuralFieldId;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::BTreeSet;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_psi::Block;
+use terminal_psi::OperationKind;
+use terminal_psi::StructuralAffineDiscard;
+use terminal_psi::StructuralOperationResult;
+use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::TerminalMachineResult;
+use terminal_psi::Terminator;
 use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
 
 mod array_tests;

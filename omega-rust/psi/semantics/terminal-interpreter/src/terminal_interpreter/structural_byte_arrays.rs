@@ -1,11 +1,22 @@
 //! Explicit initialized fixed-array inputs and their fieldless original backing.
 use super::{
-    BTreeMap, ByteSequenceBinding, ByteSequenceView, ScalarType, StructuralAccess,
-    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralRuntimePlace, StructuralTypeDeclaration, StructuralTypeId,
-    StructuralTypeShape, TerminalArtifactInterpretError, TerminalExecution, TerminalInterpretError,
-    TerminalScalarValue, TerminalStructuralValue, resolve_structural_arguments,
+    TerminalArtifactInterpretError, TerminalExecution, TerminalInterpretError, TerminalScalarValue,
+    TerminalStructuralValue,
 };
+use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
+use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
+use crate::terminal_interpreter::custody::resolve_structural_arguments;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::BTreeMap;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::StructuralTypeShape;
 use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
 
 /// Initialized contents of a true fixed u8 array reachable from an entry input.

@@ -4,9 +4,10 @@ use super::{
     ExecutableMachine, PlaceId, StructuralScalarRuntimeField, StructuralTypeDeclaration,
     StructuralTypeId, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
 };
-use crate::terminal_interpreter::{StructuralPathSegment, StructuralRuntimePlace};
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use terminal_psi::StructuralPathSegment;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape};
 
 pub(super) fn validate(

@@ -7,12 +7,21 @@
 //! snapshot arbitrary shared structural backing.
 
 use super::{
-    BTreeMap, BTreeSet, ExecutableMachine, PlaceId, StructuralAccess, StructuralAffineDiscard,
-    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalExecution, TerminalInterpretError,
-    TerminalScalarCaseValue, TerminalStructuralValue, bind_affine_frontier_types,
-    consume_affine_projection,
+    TerminalExecution, TerminalInterpretError, TerminalScalarCaseValue, TerminalStructuralValue,
 };
+use crate::terminal_interpreter::custody::bind_affine_frontier_types;
+use crate::terminal_interpreter::custody::consume_affine_projection;
+use crate::terminal_interpreter::execution::ExecutableMachine;
+use semantic_vocabulary::PlaceId;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralAffineDiscard;
+use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::StructuralTypeShape;
 impl TerminalExecution {
     pub(super) fn prepare_scalar_case_argument(
         &self,

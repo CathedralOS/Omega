@@ -1,10 +1,20 @@
 use super::{
-    ExecutableMachine, StructuralAccess, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeId, SuspendedCall, SuspendedCallResult,
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
-    TerminalInterpretError, TerminalScalarValue, Terminator, ValueId, meter_status,
-    remove_affine_root,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalScalarValue,
 };
+use crate::terminal_interpreter::custody::remove_affine_root;
+use crate::terminal_interpreter::execution::ExecutableMachine;
+use crate::terminal_interpreter::execution::SuspendedCall;
+use crate::terminal_interpreter::execution::SuspendedCallResult;
+use crate::terminal_interpreter::results::meter_status;
+use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::ValueId;
+use terminal_fuel::TerminalFuelMeter;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::Terminator;
 /// Exact row-major primitive payload; the type retains all array dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarArrayValue {

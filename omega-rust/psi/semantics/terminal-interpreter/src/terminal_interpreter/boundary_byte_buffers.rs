@@ -1,11 +1,21 @@
 //! Exact array/field loans and separately staged external byte-field replacement.
 use super::{
-    BTreeMap, ByteSequenceBinding, ByteSequenceView, StructuralAccess, StructuralArgument,
-    StructuralByteSequenceRuntimeField, StructuralCallArguments, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralRuntimePlace,
-    StructuralTypeShape, TerminalEffectRejection, TerminalExecution, TerminalInterpretError,
-    TerminalStructuralValue, bind_structural_arguments, resolve_structural_arguments,
+    TerminalEffectRejection, TerminalExecution, TerminalInterpretError, TerminalStructuralValue,
 };
+use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
+use crate::terminal_interpreter::byte_sequence_binding::StructuralCallArguments;
+use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
+use crate::terminal_interpreter::custody::bind_structural_arguments;
+use crate::terminal_interpreter::custody::resolve_structural_arguments;
+use crate::terminal_interpreter::values::StructuralByteSequenceRuntimeField;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use std::collections::BTreeMap;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::StructuralTypeShape;
 use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
 
 /// One mutable boundary argument's live bytes and original inline capacity.

@@ -1,13 +1,24 @@
 //! Frame-owned byte arguments distinguish immutable values from field loans.
 
 use super::{
-    BTreeMap, ByteSequenceView, MachineId, PlaceId, StructuralAccess, StructuralArgument,
-    StructuralByteSequenceRuntimeField, StructuralMultiplicity, StructuralPathSegment,
-    StructuralRuntimePlace, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
-    TerminalExecution, TerminalInterpretError, TerminalMachineResult, TerminalScalarArrayValue,
-    TerminalScalarCaseValue, TerminalStructuralValue, bind_structural_arguments,
-    structural_byte_arrays,
+    TerminalExecution, TerminalInterpretError, TerminalScalarArrayValue, TerminalScalarCaseValue,
+    TerminalStructuralValue, structural_byte_arrays,
 };
+use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
+use crate::terminal_interpreter::custody::bind_structural_arguments;
+use crate::terminal_interpreter::values::StructuralByteSequenceRuntimeField;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use semantic_vocabulary::MachineId;
+use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::BTreeMap;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::StructuralTypeShape;
+use terminal_psi::TerminalMachineResult;
 #[derive(Clone)]
 pub(super) enum ByteSequenceBinding {
     Immutable(ByteSequenceView),

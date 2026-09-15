@@ -4,12 +4,12 @@ use super::{
     StructuralTypeId, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralScalarFieldValue, TerminalStructuralValue, bind,
 };
-use crate::terminal_interpreter::{
-    StructuralAccess, StructuralMultiplicity, bind_structural_arguments,
-};
+use crate::terminal_interpreter::custody::bind_structural_arguments;
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
 };
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralMultiplicity;
 use terminal_psi::{
     BindingRelevance, Block, Operation, OperationResult, StructuralFieldDeclaration,
     StructuralFieldType, StructuralParameterDeclaration, StructuralTypeShape,

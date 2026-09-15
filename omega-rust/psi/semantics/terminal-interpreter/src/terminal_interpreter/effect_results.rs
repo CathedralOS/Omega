@@ -1,12 +1,22 @@
 //! Host result carriers and their exact binding to a verified boundary result.
 
 use super::{
-    BTreeMap, BTreeSet, BoundaryMachineDeclaration, BoundaryMachineResult, CrashCause,
-    OperationResult, PlaceId, StructuralAffineDiscard, StructuralMultiplicity,
-    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TerminalCrash,
-    TerminalCrashSite, TerminalEffect, TerminalExecution, TerminalInterpretError,
-    TerminalScalarValue, TerminalStructuralValue, ValueId,
+    TerminalCrash, TerminalCrashSite, TerminalEffect, TerminalExecution, TerminalInterpretError,
+    TerminalScalarValue, TerminalStructuralValue,
 };
+use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::ValueId;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use terminal_psi::BoundaryMachineDeclaration;
+use terminal_psi::BoundaryMachineResult;
+use terminal_psi::CrashCause;
+use terminal_psi::OperationResult;
+use terminal_psi::StructuralAffineDiscard;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::StructuralTypeShape;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEffectResult {
     /// A no-successor outcome, permitted only by the boundary's published

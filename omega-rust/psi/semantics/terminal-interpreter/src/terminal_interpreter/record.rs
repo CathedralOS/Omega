@@ -1,12 +1,22 @@
 //! Atomic record establishment over the interpreter's existing structural storage.
 use super::{
-    BTreeMap, BTreeSet, OperationKind, StructuralAccess, StructuralAffineDiscard,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralRuntimePlace, StructuralScalarRuntimeField, StructuralTypeId, StructuralTypeShape,
     TerminalExecution, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
-    remove_affine_root, terminal_scalar_belongs_to_type,
 };
+use crate::terminal_interpreter::custody::remove_affine_root;
+use crate::terminal_interpreter::scalar_operations::terminal_scalar_belongs_to_type;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use crate::terminal_interpreter::values::StructuralScalarRuntimeField;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use terminal_psi::OperationKind;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralAffineDiscard;
 use terminal_psi::StructuralFieldType;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::StructuralTypeShape;
 
 #[cfg(test)]
 mod tests;
