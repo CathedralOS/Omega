@@ -24,7 +24,7 @@ spellings currently refuse as hidden exits; recognized unmodeled loads/stores
 refuse for missing memory contracts. Unknown mnemonics remain distinct failures.
 Target gates do not silently substitute another ISA's instruction.
 
-[Parsing](../../pipeline/tokens-to-syntax-trees/src/parser/statement.rs) lowers
+[Parsing](../../pipeline/tokens-to-syntax-trees/src/bodies/statements/mod.rs) lowers
 known forms and checks separators, transfer position and exact clobber union.
 Requires/ensures become assertions around those instructions, with a proof-neutral
 entry marker for an ensures-only block.

@@ -1608,7 +1608,7 @@ Owners include
   semantic/proof identity but contribute no runtime storage, tags, ABI
   transfer, or execution. Runtime use and any layout-dependent erasure reject.
   Resume: `[erased]` parses only on data fields and case payload fields
-  (`tokens-to-syntax-trees/src/parser/data.rs`); every runtime use of those
+  (`tokens-to-syntax-trees/src/declarations/data.rs`); every runtime use of those
   two carriers rejects in `validation/src/relevance/`, layout strips them, and
   synthesized `Equatable` now skips them. The spec's binding-occurrence
   wording does cover parameters and `let` locals; the bracket grammar is now
@@ -2139,9 +2139,9 @@ Owners include
   optional closed-vocabulary token after `machine`, records it as
   `syntax_trees::item::Machine::spelling`, and rejects tokens on `satisfies`
   realizations, `boundary requirement`, and conformance members
-  (`tokens-to-syntax-trees/src/parser/machine.rs`, `declaration.rs`,
-  `declaration/conformance.rs`; tests in
-  `parser/tests/properties_and_requirements.rs`). Next frontier: carry
+  (`tokens-to-syntax-trees/src/declarations/machines.rs`, `declarations/mod.rs`,
+  `declarations/conformance.rs`; tests in
+  `tests/properties_and_requirements.rs`). Next frontier: carry
   `spelling` into symbol-resolved/typed/checked representations
   (`lowering/machine.rs` notes the current inert drop), then operand-directed
   selection, semantic-home ownership and duplicate checks, `operator`
@@ -2237,7 +2237,7 @@ Owners include
   Resume evidence (8c0d4dbb45, Linux x86-64, debug `omega --check` on a
   std-free probe): `machine Main::prefix_count<Count: u32>(&self, base: u32)
   -> u32 { Count }` rejects in the parser with "expected `satisfies`, found
-  punctuation `>`", because `tokens-to-syntax-trees/src/parser/data.rs`
+  punctuation `>`", because `tokens-to-syntax-trees/src/parameters/generics.rs`
   reads `<Name: X ...>` only as the `T: Subject satisfies Carrier`
   conformance-binder form; the same program under `<const Count: u32>` with a
   static `<3>` argument compiles. Every representation carries one value-binder
