@@ -2396,11 +2396,18 @@ Owners include
   unproven. A mutated aggregate
   cannot use root correspondence as evidence for its previous field values;
   a may-write frame cannot identify a replacement value. Extend per-field
-  arrivals through opaque reference, recursive-proof, and unresolved generic
+  arrivals through opaque reference and unresolved generic
   leaves when exact provenance is available. Acceptance: those finite
   projected arrivals and checked helper correspondences derive the replacement
   input's exact premise, while unknown writes and reference aliases without
-  exact provenance retain no checked guarantee.
+  exact provenance retain no checked guarantee. Slice landed at da11319b0e on
+  Linux x86-64: a checked helper result whose returned expression is itself a
+  checked call now recurses through the nested callee's transition-free
+  prefix with the same gates
+  (`checks/termination/progress/origins.rs`), so per-field arrivals through
+  the recursive-proof leaf derive the replacement input's exact frozen
+  projection, while mutable inputs, generic or dispatched callees, and
+  unresolved result routes keep no checked guarantee.
 
   Realize projected nested value-call operands guarded by
   `validation/src/calls/expression_scanning/result_realization.rs` through the
