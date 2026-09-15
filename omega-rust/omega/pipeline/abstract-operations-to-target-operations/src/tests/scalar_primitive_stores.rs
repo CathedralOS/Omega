@@ -9,7 +9,9 @@ use super::{
     StructuralTypeShape, TargetUnitOperation, TerminalAffineCleanupAction, ValueId, ValueShape,
     evaluate_call_plan, identity,
 };
-use target_operations::{TargetControlTerminator, TargetUnitWriteOnlyPrimitiveStoreSource};
+use target_operations::{
+    ScalarFunctionAbi, TargetControlTerminator, TargetUnitWriteOnlyPrimitiveStoreSource,
+};
 
 fn fixture(runtime: bool) -> AbstractOperationPlan {
     let machine = MachineId::new(1).unwrap();
@@ -329,6 +331,74 @@ fn boolean_primitive_store_publishes_exact_borrow_and_scalar_return_abi() {
             assert!(
                 crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
                 "Boolean ABI mutation {mutation}"
+            );
+        }
+    }
+}
+
+/// A standalone receiving entrance — the graph's own scalar rows or the
+/// published mixed ABI — must bind each scalar and result row to the declared
+/// value, type, and derived placement. A coherently planned but substituted
+/// row, or a scalar-only ABI on a structural function, is a substituted
+/// entrance even when its physical shape matches the honest one.
+#[test]
+fn standalone_receiving_entrances_reject_substituted_scalar_rows() {
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let source = fixture(true);
+        let target =
+            lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        for mutation in 0..9 {
+            let mut changed = target.clone();
+            let function = &mut changed.functions[0];
+            match mutation {
+                0 => function.graph.scalar_parameters[0].value = ValueId::new(99).unwrap(),
+                1 => function.graph.scalar_parameters[0].scalar_type = ScalarType::Boolean,
+                2 => {
+                    function.graph.scalar_parameters[0].placement =
+                        function.graph.call_plan.parameters[1].clone();
+                }
+                3 => function.graph.scalar_parameters.clear(),
+                4 => {
+                    function
+                        .mixed_structural_scalar_abi
+                        .as_mut()
+                        .unwrap()
+                        .scalar_parameters[0]
+                        .value = ValueId::new(99).unwrap();
+                }
+                5 => {
+                    let abi = function.mixed_structural_scalar_abi.as_mut().unwrap();
+                    abi.scalar_parameters[0].placement = abi.call_plan.parameters[1].clone();
+                }
+                6 => {
+                    function
+                        .mixed_structural_scalar_abi
+                        .as_mut()
+                        .unwrap()
+                        .result
+                        .value = ValueId::new(99).unwrap();
+                }
+                7 => {
+                    function
+                        .mixed_structural_scalar_abi
+                        .as_mut()
+                        .unwrap()
+                        .result
+                        .scalar_type = ScalarType::Boolean;
+                }
+                _ => {
+                    let abi = function.mixed_structural_scalar_abi.as_ref().unwrap();
+                    function.scalar_abi = Some(ScalarFunctionAbi {
+                        call_plan: abi.call_plan.clone(),
+                        parameters: abi.scalar_parameters.clone(),
+                        result: abi.result.clone(),
+                    });
+                }
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "standalone entrance substitution {mutation}"
             );
         }
     }

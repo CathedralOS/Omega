@@ -2,10 +2,14 @@
 //! Executable bodies remain the responsibility of common graph replay.
 
 use super::structural_shapes;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult};
-use calling_conventions::{CallPlan, CallSignature, CallingPolicy, evaluate_call_plan};
+use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use semantic_vocabulary::{IntegerCarrier, IntegerType, ScalarType};
 use target::NativeTarget;
-use target_operations::{TargetFunction, TargetStructuralParameter};
+use target_operations::{
+    MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, TargetFunction,
+    TargetStructuralParameter,
+};
 use terminal_psi::StructuralTypeDeclaration;
 
 pub(super) fn validate(
@@ -14,21 +18,29 @@ pub(super) fn validate(
     native_target: NativeTarget,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<()> {
-    header(
+    let signature = signature(source, declarations)?;
+    let expected_plan =
+        evaluate_call_plan(CallingPolicy::native_for_target(native_target), &signature).ok()?;
+    entrance(
         source,
+        &signature,
+        &expected_plan,
         &target.graph.call_plan,
+        &target.graph.scalar_parameters,
         &target.graph.parameters,
-        native_target,
-        declarations,
     )?;
+    // Standalone receiving entrances: a caller outside this plan — native
+    // entry, emitted fragments, installation records — observes only the
+    // published ABI rows, never a caller's embedded plan. The two forms are
+    // mutually exclusive by construction, so a present row must independently
+    // re-derive the same signature and bind its scalar and result identities;
+    // a physically plausible plan on an ineligible function is a substituted
+    // entrance, not a copy equivalence.
+    if let Some(abi) = &target.scalar_abi {
+        scalar_entrance(source, &expected_plan, abi)?;
+    }
     if let Some(abi) = &target.mixed_structural_scalar_abi {
-        header(
-            source,
-            &abi.call_plan,
-            &abi.structural_parameters,
-            native_target,
-            declarations,
-        )?;
+        mixed_entrance(source, &signature, &expected_plan, abi)?;
     }
     Some(())
 }
@@ -36,8 +48,9 @@ pub(super) fn validate(
 /// The complete call signature one source function's declarations determine:
 /// scalar parameters first in declared order, then each structural parameter's
 /// access-selected shape, then the result. Every producer of an ABI plan for
-/// this function — its own entrance or any caller's embedded call plan — must
-/// reconstruct this same signature; the physical shape alone is not authority.
+/// this function — its own entrance, any caller's embedded call plan, or a
+/// published standalone receiving ABI — must reconstruct this same signature;
+/// the physical shape alone is not authority.
 pub(super) fn signature(
     source: &AbstractFunction,
     declarations: &[StructuralTypeDeclaration],
@@ -73,24 +86,25 @@ pub(super) fn signature(
     })
 }
 
-fn header(
+/// One receiving entrance's retained rows against the derived signature plan:
+/// the anonymous placements bind back to the declared scalar and structural
+/// parameter identities, so a substituted value, type, or placement row
+/// cannot share the physical shape of the honest entrance.
+fn entrance(
     source: &AbstractFunction,
+    signature: &CallSignature,
+    expected_plan: &CallPlan,
     actual_plan: &CallPlan,
+    actual_scalar_parameters: &[ScalarAbiValue],
     actual_parameters: &[TargetStructuralParameter],
-    native_target: NativeTarget,
-    declarations: &[StructuralTypeDeclaration],
 ) -> Option<()> {
     if actual_parameters.len() != source.structural_parameters.len()
         || actual_plan.parameters.len() != source.parameters.len() + actual_parameters.len()
+        || actual_plan != expected_plan
     {
         return None;
     }
-    let signature = signature(source, declarations)?;
-    let expected_plan =
-        evaluate_call_plan(CallingPolicy::native_for_target(native_target), &signature).ok()?;
-    if &expected_plan != actual_plan {
-        return None;
-    }
+    scalar_rows(source, actual_scalar_parameters, expected_plan)?;
     for (((declared, actual), shape), placement) in source
         .structural_parameters
         .iter()
@@ -115,4 +129,142 @@ fn header(
         }
     }
     Some(())
+}
+
+/// The published scalar-only ABI a function receives standalone calls through.
+/// `derive_fixed_scalar_function_abi` admits only the service-free family with
+/// no structural parameters, entry claims, or dynamic descriptors, and only
+/// fixed native shapes; a present ABI on any other function is forged no
+/// matter how consistent its plan looks.
+fn scalar_entrance(
+    source: &AbstractFunction,
+    expected_plan: &CallPlan,
+    abi: &ScalarFunctionAbi,
+) -> Option<()> {
+    if !source.structural_parameters.is_empty()
+        || !source.entry_claims.is_empty()
+        || !source.published_service_ceiling.is_empty()
+        || source.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::DynamicDescriptorParameter { .. }
+            )
+        })
+        || source
+            .parameters
+            .iter()
+            .any(|parameter| fixed_native_scalar_shape(parameter.scalar_type).is_none())
+    {
+        return None;
+    }
+    let result = source.result.scalar()?;
+    fixed_native_scalar_shape(result.scalar_type)?;
+    if abi.call_plan != *expected_plan
+        || abi.result.value != result.value
+        || abi.result.scalar_type != result.scalar_type
+        || expected_plan.result.as_ref() != Some(&abi.result.placement)
+    {
+        return None;
+    }
+    scalar_rows(source, &abi.parameters, expected_plan)
+}
+
+/// The published mixed ABI for a scalar-result function whose parameter
+/// roster ends in structural parameters. The scalar prefix and result admit
+/// only Booleans and fixed native integers; the structural suffix replays
+/// through the shared entrance check.
+fn mixed_entrance(
+    source: &AbstractFunction,
+    signature: &CallSignature,
+    expected_plan: &CallPlan,
+    abi: &MixedStructuralScalarFunctionAbi,
+) -> Option<()> {
+    if source.structural_parameters.is_empty()
+        || !source.entry_claims.is_empty()
+        || !source.published_service_ceiling.is_empty()
+        || source.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::DynamicDescriptorParameter { .. }
+            )
+        })
+        || source
+            .parameters
+            .iter()
+            .any(|parameter| fixed_integer_or_boolean_shape(parameter.scalar_type).is_none())
+    {
+        return None;
+    }
+    let result = source.result.scalar()?;
+    fixed_integer_or_boolean_shape(result.scalar_type)?;
+    entrance(
+        source,
+        signature,
+        expected_plan,
+        &abi.call_plan,
+        &abi.scalar_parameters,
+        &abi.structural_parameters,
+    )?;
+    if abi.result.value != result.value
+        || abi.result.scalar_type != result.scalar_type
+        || expected_plan.result.as_ref() != Some(&abi.result.placement)
+    {
+        return None;
+    }
+    Some(())
+}
+
+/// Ordered scalar rows bind the plan's anonymous parameter placements back to
+/// the declared value and type identities.
+fn scalar_rows(
+    source: &AbstractFunction,
+    actual: &[ScalarAbiValue],
+    expected_plan: &CallPlan,
+) -> Option<()> {
+    if actual.len() != source.parameters.len() {
+        return None;
+    }
+    for ((actual, declared), placement) in actual
+        .iter()
+        .zip(&source.parameters)
+        .zip(&expected_plan.parameters)
+    {
+        if actual.value != declared.value
+            || actual.scalar_type != declared.scalar_type
+            || actual.placement != *placement
+        {
+            return None;
+        }
+    }
+    Some(())
+}
+
+/// Producer-independent fixed native shape eligibility for the published
+/// scalar ABI: Booleans, fixed 8/16/32/64 integers, and IEEE floats.
+fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
+    match scalar_type {
+        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::Integer(integer) => fixed_native_integer_shape(integer),
+        ScalarType::IeeeFloat(format) => Some(ValueShape::float(match format {
+            semantic_vocabulary::IeeeFloatFormat::Binary32 => 4,
+            semantic_vocabulary::IeeeFloatFormat::Binary64 => 8,
+        })),
+    }
+}
+
+/// The narrower mixed-ABI scalar family: Booleans and fixed native integers.
+fn fixed_integer_or_boolean_shape(scalar_type: ScalarType) -> Option<ValueShape> {
+    match scalar_type {
+        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::Integer(integer) => fixed_native_integer_shape(integer),
+        ScalarType::IeeeFloat(_) => None,
+    }
+}
+
+fn fixed_native_integer_shape(integer: IntegerType) -> Option<ValueShape> {
+    if integer.carrier() != IntegerCarrier::Fixed || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let bytes = integer.bits().div_ceil(8);
+    Some(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
 }
