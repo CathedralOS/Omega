@@ -574,33 +574,46 @@ pub(in crate::flow) fn build_call_operation(
             .collect::<Vec<_>>();
         let caller_source_parameters = program.state_parameters(state);
         let signature_type_parameters = program.state_signature_type_parameters(signature);
-        let admitted_native_callback_telescope = source_site.is_some()
-            && !signature.native_callback_parameters.is_empty()
-            && signature_type_parameters.len() == signature.native_callback_parameters.len()
+        // Each `machine` signature type parameter is a nominal binder discharged
+        // by a `nominal_machine_use` at this exact call site: same registration
+        // operation, binder ordinal, and satisfaction row. The callback's
+        // destination comes from one of two places — an ABI `native callback`
+        // parameter declared at the same telescope ordinal, or a target-owned
+        // private slot whose `PrivateCallbackSlot` conformance supplied the
+        // evaluated boundary calling plan retained on the use.
+        let nominal_use_at_binder =
+            |ordinal: usize, parameter: &typed_trees::data::TypeParameter| {
+                let typed_trees::data::TypeParameterKind::Machine {
+                    contract:
+                        typed_trees::data::MachineParameterContract::Nominal {
+                            trait_definition,
+                            requirement,
+                        },
+                } = parameter.kind
+                else {
+                    return None;
+                };
+                facts.nominal_machine_uses.uses.iter().find(|nominal_use| {
+                    Some(nominal_use.site) == source_site
+                        && nominal_use.registration_operation == signature.symbol
+                        && usize::try_from(nominal_use.static_machine_ordinal).ok() == Some(ordinal)
+                        && nominal_use.satisfaction_trait == trait_definition
+                        && nominal_use.satisfaction_requirement == requirement
+                })
+            };
+        let admitted_callback_telescope = source_site.is_some()
+            && signature.native_callback_parameters.len() <= signature_type_parameters.len()
             && signature_type_parameters
                 .iter()
-                .zip(&signature.native_callback_parameters)
                 .enumerate()
-                .all(|(ordinal, (parameter, callback))| {
-                    let typed_trees::data::TypeParameterKind::Machine {
-                        contract:
-                            typed_trees::data::MachineParameterContract::Nominal {
-                                trait_definition,
-                                requirement,
-                            },
-                    } = parameter.kind
-                    else {
+                .all(|(ordinal, parameter)| {
+                    let Some(nominal_use) = nominal_use_at_binder(ordinal, parameter) else {
                         return false;
                     };
-                    parameter.name == callback.binder
-                        && facts.nominal_machine_uses.uses.iter().any(|nominal_use| {
-                            nominal_use.site == source_site.expect("checked above")
-                                && nominal_use.registration_operation == signature.symbol
-                                && usize::try_from(nominal_use.static_machine_ordinal).ok()
-                                    == Some(ordinal)
-                                && nominal_use.satisfaction_trait == trait_definition
-                                && nominal_use.satisfaction_requirement == requirement
-                        })
+                    match signature.native_callback_parameters.get(ordinal) {
+                        Some(callback) => parameter.name == callback.binder,
+                        None => nominal_use.callback_placement.is_some(),
+                    }
                 });
         let routed_service_parameter_receiver = caller_parameters.iter().any(|parameter| {
             parameter
@@ -758,7 +771,7 @@ pub(in crate::flow) fn build_call_operation(
             });
         }
         if !program.trait_type_parameters(definition).is_empty()
-            || (!signature_type_parameters.is_empty() && !admitted_native_callback_telescope)
+            || (!signature_type_parameters.is_empty() && !admitted_callback_telescope)
             || program
                 .state_signature_parameters(signature)
                 .iter()
