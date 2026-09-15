@@ -164,6 +164,30 @@
       ],
       "suggested_first_slice": "Backfill for the blocked frame-layout slot. Remaining work per board: provider/schema description kinds (the computed-receiver implementation fence likely still waits on call-result authority). Extend the landed ProductEntryRef pattern in build-evaluation/src/selection/root_bindings.rs to one provider or schema description kind; keep rejection matrix intact. omega/packages is claimed by BUILD-DEPENDENCY-PURPOSES; tests/canary_suite files are partially claimed by other items — keep writes in owned paths or report blocked.",
       "backfill_for": "frame-layout"
+    },
+    {
+      "name": "build-semantic-exclusions",
+      "board": "TASKS.md",
+      "item": "BUILD-SEMANTIC-EXCLUSIONS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation/src/behavior_exclusions",
+        "omega-rust/omega/build/build-evaluation/src/behavior_exclusions.rs",
+        "omega-rust/omega/build/build-declarations"
+      ],
+      "suggested_first_slice": "Backfill for the blocked callback-private-materialization slot. Board resume evidence names the next unit: the Build authoring surface for exclusions with retained declaration spans, then the product-admission join over the selected entry roster. build-evaluation/src/selection is owned by build-product-references this wave — if the slice needs it, report blocked instead of crossing.",
+      "backfill_for": "callback-private-materialization"
+    },
+    {
+      "name": "write-only-borrow",
+      "board": "TASKS.md",
+      "item": "WRITE-ONLY-BORROW",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input"
+      ],
+      "suggested_first_slice": "Backfill for the landed TPR6 slot. Board names the seam: extend ordinary reference preparation/receiving replay in legalization/scalar_graph_input — remaining work includes early loan closure / restored-parent uses. tests/omega/{pass,fail}/borrow(s) and tests/native-differential receiver fixtures are claimed by STRUCTURAL-BORROW-IDENTITY until ~06:16Z — prove via existing replay/crate tests in owned paths or report blocked.",
+      "backfill_for": "tpr6"
     }
   ]
 }
