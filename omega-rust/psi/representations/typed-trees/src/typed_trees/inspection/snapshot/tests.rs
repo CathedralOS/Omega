@@ -1,12 +1,13 @@
 use super::{
     DomainConstraintSubjectSnapshot, MachineSupplySnapshot, TypeConstraintSnapshot,
-    TypedTreesSnapshot, type_constraint_snapshot,
+    TypedTreesSnapshot,
 };
 use crate::TypedTrees;
 use crate::data::DataDefinition;
 use crate::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
 use crate::machine::Machine;
 use crate::name::Identifier;
+use crate::typed_trees::inspection::snapshot::type_snapshots::type_constraint_snapshot;
 use crate::types::{
     DomainConstraint, DomainConstraintSubject, OmegaLayoutGrammar, TypeConstraintNode,
     TypeReferenceNode,
