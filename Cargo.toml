@@ -107,7 +107,7 @@ members = [
     "omega-rust/omega/build/trust-model",
     "omega-rust/omega/build/trust-ledger",
     "omega-rust/omega/compiler/compiler",
-    "omega-rust/omega/compiler/source-assembly",
+    "omega-rust/omega/compiler/source-files-to-assembled-syntax",
     "omega-rust/omega/packages/review/evidence",
     "omega-rust/omega/build/package-compilation",
     "omega-rust/omega/packages/sources/acquisition",

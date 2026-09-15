@@ -475,7 +475,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "source",
- "source-assembly",
+ "source-files-to-assembled-syntax",
  "source-files-to-tokens",
  "symbol-resolved-trees",
  "symbol-resolved-trees-to-typed-trees",
@@ -1964,7 +1964,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "source-assembly"
+name = "source-files-to-assembled-syntax"
 version = "0.1.0"
 dependencies = [
  "arena",

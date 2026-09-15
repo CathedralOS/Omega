@@ -5,7 +5,7 @@ use artifacts::compile_timings::{
 };
 use checked_trees::CheckedTrees as CheckedProgram;
 use diagnostics::Diagnostic;
-use source_assembly::AssembledSyntax;
+use source_files_to_assembled_syntax::AssembledSyntax;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees::TypedTrees;
