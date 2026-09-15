@@ -42,6 +42,29 @@ pub(super) fn load(
     declarations(&read(&leaf)?)
 }
 
+/// Whether a topic module imports its declaring module's roster verbatim
+/// through `use super::fixture_roster;` or a `use super::{.., fixture_roster, ..};`
+/// group. Comments and strings cannot import a roster.
+pub(super) fn imports_parent_roster(source: &str) -> bool {
+    let code = mask_source(source, false);
+    let structure = mask_source(source, true);
+    top_level_statements(&structure)
+        .into_iter()
+        .any(|(start, end)| {
+            let statement = compact(&code[start..end]);
+            let Some(imports) = statement.strip_prefix("usesuper::") else {
+                return false;
+            };
+            // A brace group closes its own statement range; the trailing `;`
+            // becomes an empty statement of its own.
+            imports == "fixture_roster;"
+                || imports
+                    .strip_prefix('{')
+                    .and_then(|group| group.strip_suffix('}'))
+                    .is_some_and(|group| group.split(',').any(|name| name == "fixture_roster"))
+        })
+}
+
 fn declarations(source: &str) -> Result<BTreeMap<String, String>, String> {
     let code = mask_source(source, false);
     let structure = mask_source(source, true);
