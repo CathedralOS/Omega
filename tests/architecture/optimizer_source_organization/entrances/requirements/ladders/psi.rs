@@ -33,7 +33,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/topology.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/replay.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze/relocated_scalar_leaves.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze/relocated_scalars.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/countdown_ranking/mod.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/countdown_ranking/terminal.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/countdown_ranking/current.rs",

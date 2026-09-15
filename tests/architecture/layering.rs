@@ -5497,7 +5497,9 @@ fn loop_invariant_scalar_motion_is_exact_independent_and_atomic() {
     // The validator replays the proposal's deterministic component plan and
     // then forces the reconstructed unit through `from_transformed`, where the
     // freeze fence independently re-admits every moved node against
-    // `admissible_scalar_leaf_relocation` and the unique-entry preheader.
+    // `admissible_scalar_leaf_relocation` or the re-derived
+    // `invariant_scalar_operand_substitution`, under the unique-entry
+    // preheader.
     for required in [
         "propose::component_plan",
         "apply::realize",
@@ -5506,8 +5508,8 @@ fn loop_invariant_scalar_motion_is_exact_independent_and_atomic() {
         "apply::reconstruct_custody",
         "ProvenanceDisposition::RealizedAt",
         "output_node.provenance != node.provenance",
-        "relocation.leaf.provenance.clone()",
-        "relocation.leaf.fuel.clone()",
+        "relocation.node.provenance.clone()",
+        "relocation.node.fuel.clone()",
     ] {
         assert!(
             validation.contains(required),
@@ -5608,7 +5610,7 @@ fn ranked_freeze_normalization_is_independent_and_preserves_source_custody() {
     let freeze_root = root.join(
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze",
     );
-    let normalization = std::fs::read_to_string(freeze_root.join("relocated_scalar_leaves.rs"))
+    let normalization = std::fs::read_to_string(freeze_root.join("relocated_scalars.rs"))
         .expect("read ranked-component normalization leaf");
     for forbidden in [
         "countdown_invariant_constant_placement",
@@ -5627,6 +5629,8 @@ fn ranked_freeze_normalization_is_independent_and_preserves_source_custody() {
         "component.entries.as_slice()",
         "component.members.contains",
         "admissible_scalar_leaf_relocation",
+        "invariant_scalar_operand_substitution",
+        "substitute_invariant_scalar_operands",
         "occurrences(",
         "same_relocated_node",
         "retained_nodes",

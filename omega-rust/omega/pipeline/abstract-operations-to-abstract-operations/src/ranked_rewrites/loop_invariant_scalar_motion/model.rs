@@ -2,21 +2,25 @@
 
 use super::*;
 
-/// One loop-invariant scalar-constant leaf selected for relocation. The leaf
-/// records the exact source-owned custody the ledger and validator must see:
-/// its operation identity, defined result, original location, provenance, and
-/// fuel settlements.
+/// One loop-invariant scalar node selected for relocation. The node records
+/// the exact source-owned custody the ledger and validator must see: its
+/// operation identity, defined result, original location, provenance, and fuel
+/// settlements, plus the operand rebinding an invariant entry-target
+/// parameter performs when the computation is re-expressed on its
+/// preheader-visible representative. Scalar-constant leaves carry an empty
+/// rewrite list.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoopInvariantScalarLeaf {
+pub struct LoopInvariantScalarNode {
     pub(super) psi_operation: OperationId,
     pub(super) result: ValueId,
     pub(super) scalar_type: ScalarType,
     pub(super) location: NodeLocation,
+    pub(super) operand_rewrites: Vec<(ValueId, ValueId)>,
     pub(super) provenance: Vec<PsiProvenance>,
     pub(super) fuel: Vec<optimization_unit::FuelSettlement>,
 }
 
-impl LoopInvariantScalarLeaf {
+impl LoopInvariantScalarNode {
     pub const fn psi_operation(&self) -> OperationId {
         self.psi_operation
     }
@@ -33,6 +37,13 @@ impl LoopInvariantScalarLeaf {
         self.location
     }
 
+    /// Exact `(invariant parameter, entry representative)` operand rewrites
+    /// the relocation performs, sorted by parameter. Empty for scalar-constant
+    /// leaves, which read no values.
+    pub fn operand_rewrites(&self) -> &[(ValueId, ValueId)] {
+        &self.operand_rewrites
+    }
+
     pub fn provenance(&self) -> &[PsiProvenance] {
         &self.provenance
     }
@@ -42,17 +53,17 @@ impl LoopInvariantScalarLeaf {
     }
 }
 
-/// One leaf relocation: the leaf's exact source node and its destination
+/// One scalar relocation: the node's exact source node and its destination
 /// coordinate inside the component's unique-entry preheader.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarRelocation {
-    pub(super) leaf: LoopInvariantScalarLeaf,
+    pub(super) node: LoopInvariantScalarNode,
     pub(super) destination: NodeLocation,
 }
 
 impl LoopInvariantScalarRelocation {
-    pub const fn leaf(&self) -> &LoopInvariantScalarLeaf {
-        &self.leaf
+    pub const fn node(&self) -> &LoopInvariantScalarNode {
+        &self.node
     }
 
     pub const fn destination(&self) -> NodeLocation {
@@ -197,10 +208,19 @@ pub(super) fn candidate_identity(
             .to_le_bytes(),
     );
     for relocation in relocations {
-        canonical.extend_from_slice(&relocation.leaf.psi_operation.get().to_le_bytes());
-        canonical.extend_from_slice(&relocation.leaf.result.get().to_le_bytes());
-        encode_location(&mut canonical, relocation.leaf.location);
+        canonical.extend_from_slice(&relocation.node.psi_operation.get().to_le_bytes());
+        canonical.extend_from_slice(&relocation.node.result.get().to_le_bytes());
+        encode_location(&mut canonical, relocation.node.location);
         encode_location(&mut canonical, relocation.destination);
+        canonical.extend_from_slice(
+            &u64::try_from(relocation.node.operand_rewrites.len())
+                .expect("operand rewrite count fits u64")
+                .to_le_bytes(),
+        );
+        for (parameter, representative) in &relocation.node.operand_rewrites {
+            canonical.extend_from_slice(&parameter.get().to_le_bytes());
+            canonical.extend_from_slice(&representative.get().to_le_bytes());
+        }
     }
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)
 }

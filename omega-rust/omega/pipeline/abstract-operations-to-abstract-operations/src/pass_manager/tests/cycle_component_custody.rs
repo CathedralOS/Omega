@@ -76,15 +76,15 @@ fn scalar_leaf_motion_relocates_through_validated_scc_custody() {
         panic!("the dead integer constant is the one admissible leaf")
     };
     assert_eq!(
-        relocation.leaf().psi_operation(),
+        relocation.node().psi_operation(),
         OperationId::new(507).unwrap()
     );
     assert_eq!(
-        relocation.leaf().location().block,
+        relocation.node().location().block,
         BlockId::new(505).unwrap()
     );
     assert_eq!(
-        relocation.leaf().provenance().first(),
+        relocation.node().provenance().first(),
         Some(&PsiProvenance::Operation(OperationId::new(507).unwrap()))
     );
     assert_eq!(relocation.destination().block, BlockId::new(503).unwrap());
@@ -98,13 +98,13 @@ fn scalar_leaf_motion_relocates_through_validated_scc_custody() {
     assert_eq!(record.input, input);
     assert_eq!(record.output, applied.session().unit().identity);
     assert!(record.provenance.iter().any(|row| {
-        row.input == PsiRealizationSite::Node(relocation.leaf().location())
+        row.input == PsiRealizationSite::Node(relocation.node().location())
             && row.disposition
                 == ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(
                     relocation.destination(),
                 ))
-            && row.sources.as_slice() == relocation.leaf().provenance()
-            && row.fuel.as_slice() == relocation.leaf().fuel()
+            && row.sources.as_slice() == relocation.node().provenance()
+            && row.fuel.as_slice() == relocation.node().fuel()
     }));
 
     // The transformed session keeps the same validated SCC roster and still

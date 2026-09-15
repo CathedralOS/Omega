@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Exact single-entry loop-invariant scalar-leaf relocation boundary.
+//! Optimizer module role: executable entrance. Exact single-entry loop-invariant scalar relocation boundary.
 
 use optimization_core::{
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
@@ -25,17 +25,20 @@ mod validate;
 
 use model::candidate_identity;
 pub use model::{
-    AppliedLoopInvariantScalarMotion, LoopInvariantScalarLeaf, LoopInvariantScalarMotionCandidate,
-    LoopInvariantScalarMotionError, LoopInvariantScalarRelocation,
+    AppliedLoopInvariantScalarMotion, LoopInvariantScalarMotionCandidate,
+    LoopInvariantScalarMotionError, LoopInvariantScalarNode, LoopInvariantScalarRelocation,
     ValidatedLoopInvariantScalarMotion,
 };
 
 /// Propose every single-entry cyclic component that still retains admissible
-/// loop-invariant scalar-leaf nodes inside its member blocks. Each candidate
-/// relocates the component's complete admissible set into the tail of the
-/// component's unique preheader, ahead of the terminator that owns the entry
-/// edge and ahead of any already-relocated countdown-certificate constants
-/// owned by the dedicated countdown boundary.
+/// loop-invariant scalar nodes inside its member blocks: scalar-constant
+/// leaves, and side-effect-free scalar computations whose operands are all
+/// defined outside the component or name provably invariant parameters of the
+/// entry target (each rebound to the representative its entry edge binds).
+/// Each candidate relocates the component's complete admissible set into the
+/// tail of the component's unique preheader, ahead of the terminator that
+/// owns the entry edge and ahead of any already-relocated
+/// countdown-certificate constants owned by the dedicated countdown boundary.
 pub fn propose_loop_invariant_scalar_motion(
     session: &VerifiedPsiOptimizationSession,
     candidate_limit: u64,
