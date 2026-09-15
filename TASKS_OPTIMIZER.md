@@ -733,8 +733,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   as `NonCanonicalTarget` through the same resolution (`cargo test -p
   object-file`: 24 pass on Linux x86-64, including per-pair row pinning,
   undeclared-pair rejection, and wrong-architecture drift negatives).
-  Remaining: allocator and unwind legs.
-  Windows and macOS runs were unavailable on this host.
+  The allocator leg is now declared in `machine-emission::frame_layout`'s
+  stack-commit matrix: `stack_commit_granule_bytes` resolves one row per
+  supported (architecture, object-format) pair — 4 KiB for x86-64 ELF/COFF
+  and AArch64 ELF, 16 KiB for (Aarch64, Mach-O) — and layout compute plus
+  independent replay both fail closed with `UnsupportedTarget` on undeclared
+  pairs instead of silently inheriting a 4 KiB granule through a wildcard
+  (`mbx nextest run -p machine-emission`: 26 pass on macOS arm64, including
+  per-pair row pinning and undeclared-pair rejection; the
+  `native-realization` probe-roster publication replay passes on the same
+  host). Remaining: the unwind leg.
+  Windows runs were unavailable on this host.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target.
