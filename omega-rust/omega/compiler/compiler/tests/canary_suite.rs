@@ -9,7 +9,7 @@ use package_compilation::{
     PackageSourceBinding,
 };
 use semantic_vocabulary::PackageKeyIdentity;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CanaryCompileProduct {
@@ -149,12 +149,9 @@ use language_semantics::content::{
     ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
     ContentScalarExpression,
 };
-use std::fs;
 #[cfg(not(windows))]
-use std::io::Write;
 #[cfg(windows)]
 use std::io::Write;
-use std::path::Path;
 #[cfg(not(windows))]
 use std::process::Command;
 #[cfg(windows)]
@@ -163,10 +160,9 @@ use std::process::Command;
 use std::process::Stdio;
 #[cfg(windows)]
 use std::process::Stdio;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc;
-use std::thread;
+use std::sync::{Mutex, mpsc};
+use std::{fs, thread};
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     // These checked-only semantic fixtures predate target-owned build roots.
