@@ -1,18 +1,9 @@
 use super::super::declarations::encode_type_identity;
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
-use crate::record::{
-    PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
-    PackageReviewByteSequencePredicate, PackageReviewCastForm,
-    PackageReviewCollectionViewOperation, PackageReviewContractBinaryOperator,
-    PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
-    PackageReviewContractExpression, PackageReviewContractKind,
-    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
-    PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
-};
+use crate::record::{PackageReviewContractExpression, PackageReviewContractOperatorMeaning};
 
 use super::declarations::encode_operator_coordinate;
-use super::identity::encode_nominal;
 
 pub(crate) fn encode_contract_expression(
     encoder: &mut Encoder,

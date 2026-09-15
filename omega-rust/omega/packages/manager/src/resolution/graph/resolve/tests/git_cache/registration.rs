@@ -1,7 +1,6 @@
 use super::super::super::{
     PackageRootSourceRequest, PackageSourceClosureLimits, PathBuf, ResolveDependencySourceError,
 };
-use std::fmt::Write;
 
 use super::{
     BTreeMap, GitAcquisitionCache, GitSourceRequest, LocalSourceLimits, SourceCacheLane,

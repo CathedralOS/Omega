@@ -1,18 +1,8 @@
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
-    PackageReviewArithmeticDomain, PackageReviewBooleanExpression, PackageReviewCrash,
-    PackageReviewCrashCall, PackageReviewCrashCause, PackageReviewCrashInterface,
-    PackageReviewCrashOperatorSite, PackageReviewCrashPredicate, PackageReviewCrashRoute,
-    PackageReviewCrashRouteGuard, PackageReviewCrashSite, PackageReviewIeeeFloatComparisonKind,
-    PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
-    PackageReviewPermissionClaim, PackageReviewPermissionSource, PackageReviewPrimitiveType,
-    PackageReviewScalarExpression, PackageReviewStructuralParameterField,
-    PackageReviewStructuralPredicatePathSegment,
+    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
-
-use super::expressions::encode_contract_expression;
-use super::identity::encode_nominal;
 
 mod boolean;
 mod scalar;

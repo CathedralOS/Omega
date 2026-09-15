@@ -3,7 +3,6 @@
 //! Start here to discover the workflow: each root-source kind owns its entry
 //! path, while dependency resolution and retained-source access are shared
 //! implementation details.
-use std::fmt::Write;
 
 mod cache;
 mod dependencies;

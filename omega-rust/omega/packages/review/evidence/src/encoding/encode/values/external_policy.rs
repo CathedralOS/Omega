@@ -10,7 +10,7 @@ use crate::encoding::{
 };
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
-    PackagePolicyExternalExecutableSupply, PackageReviewForeignLocator,
+    PackagePolicyExternalExecutableSupply,
 };
 pub(crate) use locator::encode_locator;
 

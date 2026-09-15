@@ -1,14 +1,6 @@
 //! Stable callable-contract, expression, proposition, and declaration vocabulary.
 
-use super::{
-    authority::PackageReviewCrashRoute,
-    data::PackageReviewDataProperties,
-    identity::PackageReviewNominalIdentity,
-    signatures::{
-        PackageReviewCallableParameter, PackageReviewTypeIdentity, PackageReviewTypeParameter,
-    },
-};
-use symbols::BuiltinFunction;
+use super::identity::PackageReviewNominalIdentity;
 
 mod callable_contracts;
 mod declarations;

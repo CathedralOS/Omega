@@ -1,15 +1,6 @@
 //! Stable type, callable, trait, conformance, and external-supply signatures.
 
-use super::{
-    authority::{PackageReviewCrashRoute, PackageReviewTermination},
-    contracts::{
-        PackageReviewCallableContract, PackageReviewContractStaticArgument,
-        PackageReviewEvidenceInterface, PackageReviewOperatorCoordinate,
-        PackageReviewSynchronousInvocation,
-    },
-    data::PackageReviewDataProperties,
-    identity::PackageReviewNominalIdentity,
-};
+use super::identity::PackageReviewNominalIdentity;
 
 mod callables;
 mod external_policy;

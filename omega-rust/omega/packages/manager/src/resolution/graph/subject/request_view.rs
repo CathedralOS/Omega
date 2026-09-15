@@ -1,5 +1,4 @@
 //! Borrow the common authored request fields without cloning hostile strings.
-use std::fmt::Write;
 
 use super::CanonicalDependencySourceRequest;
 use crate::declarations::dependencies::read::DependencySourceRequest;
