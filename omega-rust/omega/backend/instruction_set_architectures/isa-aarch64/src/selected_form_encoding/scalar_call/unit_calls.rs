@@ -2,8 +2,8 @@
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineId, NativeTarget,
     SelectedInstructionKind, aarch64_physical_register_model, aarch64_register_constraint_catalog,
-    encode_aarch64_selected_scalar_call_template, expected_effects, expected_operand_views,
-    validate_aarch64_selected_scalar_call_template,
+    aarch64_selected_abi, encode_aarch64_selected_scalar_call_template, expected_effects,
+    expected_operand_views, validate_aarch64_selected_scalar_call_template,
 };
 use register_model::{RegisterOperandAccess, validate_physical_register_model};
 
@@ -47,7 +47,8 @@ fn unit_call_templates_cover_native_register_arities_and_reject_forged_results()
             );
             let mut operands = expected_operand_views(&physical, arity);
             operands.pop();
-            let mut effects = expected_effects(target, &physical, arity);
+            let mut effects =
+                expected_effects(aarch64_selected_abi(target).unwrap(), &physical, arity);
             effects.external_operand_writes.clear();
             effects.implicit_unit_uses = row.implicit_uses.clone();
             effects.implicit_unit_defs = row.implicit_defs.clone();

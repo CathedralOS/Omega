@@ -3,7 +3,7 @@ use super::{
     SelectedInstructionKind, X86_64ScalarCallTemplateError,
     encode_x86_64_selected_scalar_call_template, expected_effects,
     validate_x86_64_selected_scalar_call_template, x86_64_physical_register_model,
-    x86_64_register_constraint_catalog,
+    x86_64_register_constraint_catalog, x86_64_selected_abi,
 };
 use register_model::validate_physical_register_model;
 
@@ -83,7 +83,8 @@ fn target_register_arities_encode_and_reject_opposite_abi_effects() {
             };
             let mut changed = effects.clone();
             changed.implicit_unit_clobbers =
-                expected_effects(opposite, &physical, 0).implicit_unit_clobbers;
+                expected_effects(x86_64_selected_abi(opposite).unwrap(), &physical, 0)
+                    .implicit_unit_clobbers;
             assert_eq!(
                 validate_x86_64_selected_scalar_call_template(
                     target,

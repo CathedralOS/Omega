@@ -2,7 +2,7 @@
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, MachineId,
     NativeTarget, RegisterViewId, SelectedInstructionKind, aarch64_physical_register_model,
-    aarch64_register_constraint_catalog, canonical_fixup,
+    aarch64_register_constraint_catalog, aarch64_selected_abi, canonical_fixup,
     encode_aarch64_selected_scalar_call_template, expected_effects,
 };
 use register_model::validate_physical_register_model;
@@ -44,7 +44,7 @@ fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
                 .iter()
                 .find(|row| row.key == unit_keys[ordinal % 72])
                 .unwrap();
-            let mut effects = expected_effects(target, &physical, 0);
+            let mut effects = expected_effects(aarch64_selected_abi(target).unwrap(), &physical, 0);
             effects.external_operand_reads = (0..arity as u16).collect();
             effects.external_operand_writes = (arity as u16..(arity + fragments) as u16).collect();
             effects.implicit_unit_uses = unit.implicit_uses.clone();
@@ -153,7 +153,7 @@ fn every_mixed_unit_call_row_has_exact_template_operands_and_effects() {
                 .iter()
                 .map(|operand| operand.fixed_view.unwrap())
                 .collect::<Vec<_>>();
-            let mut effects = expected_effects(target, &physical, 0);
+            let mut effects = expected_effects(aarch64_selected_abi(target).unwrap(), &physical, 0);
             effects.external_operand_reads = (0..operands.len() as u16).collect();
             effects.external_operand_writes.clear();
             effects.implicit_unit_uses = row.implicit_uses.clone();

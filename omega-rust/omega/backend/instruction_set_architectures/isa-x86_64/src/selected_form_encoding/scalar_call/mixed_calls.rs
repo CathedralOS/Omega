@@ -3,7 +3,7 @@ use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, MachineId,
     NativeTarget, RegisterViewId, SelectedInstructionKind, canonical_fixup,
     encode_x86_64_selected_scalar_call_template, expected_effects, x86_64_physical_register_model,
-    x86_64_register_constraint_catalog,
+    x86_64_register_constraint_catalog, x86_64_selected_abi,
 };
 use register_model::validate_physical_register_model;
 
@@ -71,7 +71,7 @@ fn every_mixed_unit_call_row_has_exact_template_operands_and_effects() {
                 .iter()
                 .map(|operand| operand.fixed_view.unwrap())
                 .collect::<Vec<_>>();
-            let mut effects = expected_effects(target, &physical, 0);
+            let mut effects = expected_effects(x86_64_selected_abi(target).unwrap(), &physical, 0);
             effects.external_operand_reads = (0..operands.len() as u16).collect();
             effects.external_operand_writes.clear();
             effects.implicit_unit_uses = row.implicit_uses.clone();

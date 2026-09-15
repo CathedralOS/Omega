@@ -3,7 +3,7 @@ use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineId, NativeTarget,
     SelectedInstructionKind, encode_x86_64_selected_scalar_call_template, expected_effects,
     expected_operand_views, validate_x86_64_selected_scalar_call_template,
-    x86_64_physical_register_model, x86_64_register_constraint_catalog,
+    x86_64_physical_register_model, x86_64_register_constraint_catalog, x86_64_selected_abi,
 };
 use register_model::{RegisterOperandAccess, validate_physical_register_model};
 
@@ -45,9 +45,10 @@ fn unit_call_templates_cover_native_register_arities_and_reject_forged_results()
                 crate::validate_x86_64_register_constraint_catalog(missing_clobber, &physical)
                     .is_err()
             );
-            let mut operands = expected_operand_views(target, &physical, arity);
+            let abi = x86_64_selected_abi(target).unwrap();
+            let mut operands = expected_operand_views(abi, &physical, arity);
             operands.pop();
-            let mut effects = expected_effects(target, &physical, arity);
+            let mut effects = expected_effects(abi, &physical, arity);
             effects.external_operand_writes.clear();
             effects.implicit_unit_uses = row.implicit_uses.clone();
             effects.implicit_unit_defs = row.implicit_defs.clone();

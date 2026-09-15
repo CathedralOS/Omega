@@ -9,6 +9,7 @@ use selected_instructions::{
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
+use crate::machine_effects::{X86_64SelectedAbi, x86_64_selected_abi};
 use crate::{
     x86_64_physical_register_model, x86_64_register_constraint_catalog,
     x86_64_system_v_register_call_keys,
@@ -139,9 +140,13 @@ pub fn validate_x86_64_selected_scalar_call_template(
     bytes: &[u8],
     fixup: X86_64ScalarCallFixup,
 ) -> Result<ValidatedX86_64SelectedScalarCallTemplate, X86_64ScalarCallTemplateError> {
-    if target != NativeTarget::linux_x64() && target != NativeTarget::windows_x64() {
-        return Err(X86_64ScalarCallTemplateError::UnsupportedTarget);
-    }
+    // The scalar-call encoding matrix is the declared (architecture,
+    // object-format) pair matrix in `machine_effects`: (X86_64, Elf) selects
+    // System-V rosters and (X86_64, Coff) selects Microsoft x64 rosters.
+    // Undeclared pairs — (X86_64, Mach-O) and every other architecture — fail
+    // closed here rather than falling through an else arm into one family.
+    let abi = x86_64_selected_abi(target)
+        .map_err(|_| X86_64ScalarCallTemplateError::UnsupportedTarget)?;
     if physical.model() != &x86_64_physical_register_model() {
         return Err(X86_64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
@@ -177,31 +182,35 @@ pub fn validate_x86_64_selected_scalar_call_template(
         });
     let (expected_operand_views, expected) = if unit || aggregate || floating_scalar {
         let keys = if aggregate {
-            if target == NativeTarget::linux_x64() {
-                crate::register_model::x86_64_system_v_aggregate_call_keys()
-                    .into_iter()
-                    .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
-                    .chain(crate::x86_64_indirect_aggregate_call_keys(false))
-                    .collect()
-            } else {
-                crate::register_model::x86_64_microsoft_aggregate_call_keys()
-                    .into_iter()
-                    .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
-                    .chain(crate::x86_64_indirect_aggregate_call_keys(true))
-                    .collect()
+            match abi {
+                X86_64SelectedAbi::SystemV => {
+                    crate::register_model::x86_64_system_v_aggregate_call_keys()
+                        .into_iter()
+                        .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
+                        .chain(crate::x86_64_indirect_aggregate_call_keys(false))
+                        .collect()
+                }
+                X86_64SelectedAbi::Microsoft => {
+                    crate::register_model::x86_64_microsoft_aggregate_call_keys()
+                        .into_iter()
+                        .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
+                        .chain(crate::x86_64_indirect_aggregate_call_keys(true))
+                        .collect()
+                }
             }
         } else if floating_scalar {
-            crate::x86_64_float_scalar_call_keys(target == NativeTarget::windows_x64())
-        } else if target == NativeTarget::linux_x64() {
-            crate::x86_64_system_v_register_unit_call_keys()
-                .into_iter()
-                .chain(crate::x86_64_system_v_mixed_unit_call_keys())
-                .collect::<Vec<_>>()
+            crate::x86_64_float_scalar_call_keys(abi == X86_64SelectedAbi::Microsoft)
         } else {
-            crate::x86_64_microsoft_register_unit_call_keys()
-                .into_iter()
-                .chain(crate::x86_64_microsoft_mixed_unit_call_keys())
-                .collect::<Vec<_>>()
+            match abi {
+                X86_64SelectedAbi::SystemV => crate::x86_64_system_v_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::x86_64_system_v_mixed_unit_call_keys())
+                    .collect::<Vec<_>>(),
+                X86_64SelectedAbi::Microsoft => crate::x86_64_microsoft_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::x86_64_microsoft_mixed_unit_call_keys())
+                    .collect::<Vec<_>>(),
+            }
         };
         let catalog = x86_64_register_constraint_catalog(physical);
         let row = catalog
@@ -217,7 +226,7 @@ pub fn validate_x86_64_selected_scalar_call_template(
                         .all(|(operand, view)| operand.fixed_view == Some(*view))
             })
             .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
-        let mut expected = expected_effects(target, physical, 0);
+        let mut expected = expected_effects(abi, physical, 0);
         expected.external_operand_reads = row
             .operands
             .iter()
@@ -240,20 +249,19 @@ pub fn validate_x86_64_selected_scalar_call_template(
             .checked_sub(1)
             .filter(|arity| {
                 *arity
-                    <= if target == NativeTarget::linux_x64() {
-                        6
-                    } else {
-                        4
+                    <= match abi {
+                        X86_64SelectedAbi::SystemV => 6,
+                        X86_64SelectedAbi::Microsoft => 4,
                     }
             })
             .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
-        let expected_operand_views = expected_operand_views(target, physical, arity);
+        let expected_operand_views = expected_operand_views(abi, physical, arity);
         if operand_views != expected_operand_views {
             return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
         }
         (
             expected_operand_views,
-            expected_effects(target, physical, arity),
+            expected_effects(abi, physical, arity),
         )
     };
     if effects != &expected {
@@ -291,14 +299,13 @@ fn canonical_fixup(callee: MachineId) -> X86_64ScalarCallFixup {
 }
 
 fn expected_operand_views(
-    target: NativeTarget,
+    abi: X86_64SelectedAbi,
     physical: &ValidatedPhysicalRegisterModel,
     arity: usize,
 ) -> Vec<RegisterViewId> {
-    let arguments: &[&str] = if target == NativeTarget::linux_x64() {
-        &["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
-    } else {
-        &["rcx", "rdx", "r8", "r9"]
+    let arguments: &[&str] = match abi {
+        X86_64SelectedAbi::SystemV => &["rdi", "rsi", "rdx", "rcx", "r8", "r9"],
+        X86_64SelectedAbi::Microsoft => &["rcx", "rdx", "r8", "r9"],
     };
     arguments
         .iter()
@@ -316,7 +323,7 @@ fn expected_operand_views(
 }
 
 fn expected_effects(
-    target: NativeTarget,
+    abi: X86_64SelectedAbi,
     physical: &ValidatedPhysicalRegisterModel,
     arity: usize,
 ) -> MachineEncodedEffects {
@@ -326,10 +333,11 @@ fn expected_effects(
         .iter()
         .find(|row| {
             row.key
-                == if target == NativeTarget::linux_x64() {
-                    x86_64_system_v_register_call_keys()[arity]
-                } else {
-                    crate::x86_64_microsoft_register_call_keys()[arity]
+                == match abi {
+                    X86_64SelectedAbi::SystemV => x86_64_system_v_register_call_keys()[arity],
+                    X86_64SelectedAbi::Microsoft => {
+                        crate::x86_64_microsoft_register_call_keys()[arity]
+                    }
                 }
         })
         .expect("canonical x86-64 catalog contains scalar-call constraint");
@@ -369,10 +377,10 @@ mod tests {
     use super::{
         MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, MachineId,
         NativeTarget, RegisterViewId, SelectedInstructionKind, ValidatedPhysicalRegisterModel,
-        X86_64ScalarCallFixup, X86_64ScalarCallTemplateError, canonical_fixup,
+        X86_64ScalarCallFixup, X86_64ScalarCallTemplateError, X86_64SelectedAbi, canonical_fixup,
         encode_x86_64_selected_scalar_call_template, expected_effects, expected_operand_views,
         validate_x86_64_selected_scalar_call_template, x86_64_physical_register_model,
-        x86_64_system_v_register_call_keys,
+        x86_64_selected_abi, x86_64_system_v_register_call_keys,
     };
     mod mixed_aggregates;
     use register_model::validate_physical_register_model;
@@ -392,8 +400,8 @@ mod tests {
             family: MachineAlternativeFamily::CallScalar,
             variant: 0,
         };
-        let operands = expected_operand_views(NativeTarget::linux_x64(), &physical, 2);
-        let effects = expected_effects(NativeTarget::linux_x64(), &physical, 2);
+        let operands = expected_operand_views(X86_64SelectedAbi::SystemV, &physical, 2);
+        let effects = expected_effects(X86_64SelectedAbi::SystemV, &physical, 2);
         (physical, kind, alternative, operands, effects)
     }
 
@@ -407,7 +415,7 @@ mod tests {
                 .iter()
                 .find(|row| row.key == key)
                 .unwrap();
-            let operands = expected_operand_views(NativeTarget::linux_x64(), &physical, arity);
+            let operands = expected_operand_views(X86_64SelectedAbi::SystemV, &physical, arity);
             assert_eq!(row.operands.len(), arity + 1);
             assert_eq!(
                 row.operands
@@ -416,7 +424,7 @@ mod tests {
                     .collect::<Vec<_>>(),
                 operands
             );
-            let effects = expected_effects(NativeTarget::linux_x64(), &physical, arity);
+            let effects = expected_effects(X86_64SelectedAbi::SystemV, &physical, arity);
             assert_eq!(
                 effects.external_operand_reads,
                 (0..arity as u16).collect::<Vec<_>>()
@@ -467,10 +475,39 @@ mod tests {
                 kind,
                 alternative,
                 &oversized,
-                &expected_effects(NativeTarget::linux_x64(), &physical, 0),
+                &expected_effects(X86_64SelectedAbi::SystemV, &physical, 0),
             ),
             Err(X86_64ScalarCallTemplateError::OperandViewMismatch)
         );
+    }
+
+    #[test]
+    fn scalar_call_abi_matrix_resolves_declared_pairs_and_fails_closed() {
+        assert_eq!(
+            x86_64_selected_abi(NativeTarget::linux_x64()),
+            Ok(X86_64SelectedAbi::SystemV)
+        );
+        for declared_coff in [NativeTarget::windows_x64(), NativeTarget::uefi_x64()] {
+            assert_eq!(
+                x86_64_selected_abi(declared_coff),
+                Ok(X86_64SelectedAbi::Microsoft)
+            );
+        }
+        for undeclared in [
+            NativeTarget {
+                object_format: target::ObjectFormat::MachO,
+                ..NativeTarget::linux_x64()
+            },
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            assert_eq!(
+                x86_64_selected_abi(undeclared),
+                Err(
+                    crate::machine_effects::X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi,
+                )
+            );
+        }
     }
 
     #[test]
@@ -523,7 +560,8 @@ mod tests {
                 })
                 .unwrap();
             let alternative = &declaration.alternatives[0];
-            let operands = expected_operand_views(native, &physical, arity);
+            let operands =
+                expected_operand_views(x86_64_selected_abi(native).unwrap(), &physical, arity);
             assert_eq!(
                 alternative.encoded.external_operand_reads,
                 (0..arity as u16).collect::<Vec<_>>()
@@ -578,6 +616,26 @@ mod tests {
         assert_eq!(
             validate_x86_64_selected_scalar_call_template(
                 NativeTarget::linux_arm64(),
+                &physical,
+                kind,
+                alternative,
+                &operands,
+                &effects,
+                &[0xe8, 0, 0, 0, 0],
+                fixup,
+            ),
+            Err(X86_64ScalarCallTemplateError::UnsupportedTarget)
+        );
+        // Undeclared (architecture, object-format) pairs fail closed through
+        // the same matrix: an x86-64 Mach-O target does not inherit either
+        // declared row.
+        let undeclared_macho = NativeTarget {
+            object_format: target::ObjectFormat::MachO,
+            ..NativeTarget::linux_x64()
+        };
+        assert_eq!(
+            validate_x86_64_selected_scalar_call_template(
+                undeclared_macho,
                 &physical,
                 kind,
                 alternative,
