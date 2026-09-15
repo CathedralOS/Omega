@@ -1,5 +1,11 @@
 //! Independent store replay from semantic declarations and SSA definitions.
-use super::*;
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
+    StructuralAccess, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
 
 pub(super) fn validate(
     source: &LegalizedScalarFunction,

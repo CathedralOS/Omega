@@ -1,5 +1,5 @@
 //! Exact local literal declarations and their earlier establishment occurrences.
-use super::*;
+use super::{AbstractOperation, PsiOptimizationFunction};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 
 /// Provider roots are specialization witnesses, not literal storage or ABI inputs.

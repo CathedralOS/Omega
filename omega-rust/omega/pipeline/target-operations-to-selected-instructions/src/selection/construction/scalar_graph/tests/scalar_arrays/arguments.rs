@@ -1,5 +1,15 @@
 //! Owned argument transport retains exact homes, scalar carriers, and borrowed referents.
-use super::*;
+use super::super::super::StructuralAccess;
+use super::super::{
+    FuelSettlement, LegalizedScalarArgument, OperationId, PsiProvenance, ValueDefinitionSite,
+};
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, LegalizedScalarReturnValue, LegalizedScalarTerminator, PlaceId,
+    ScalarType, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints,
+    StructuralMultiplicity, StructuralTypeId, ValueId, ValueShape, build, evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::scalar_arrays::array_fixture;
 
 #[test]
 fn owned_array_arguments_replay_exact_home_type_and_fragments() {

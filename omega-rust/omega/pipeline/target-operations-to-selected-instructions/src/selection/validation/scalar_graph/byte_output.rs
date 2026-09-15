@@ -1,5 +1,10 @@
 //! Independently rejoin selected output, source input and the exact local scratch slot.
-use super::*;
+use super::{
+    IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
     LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,

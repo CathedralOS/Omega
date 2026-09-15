@@ -1,5 +1,10 @@
 //! Materialize typed Boolean values before later operations can replace condition state.
-use super::*;
+use super::{
+    Builder, IntegerSign, IntegerValue, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::control;
 use legalized_operations::LegalizedScalarComparison;
 
 pub(super) fn emit(

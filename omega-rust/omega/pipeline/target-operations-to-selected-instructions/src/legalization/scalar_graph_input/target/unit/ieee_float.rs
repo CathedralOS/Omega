@@ -1,7 +1,6 @@
-use super::{
-    AbstractOperation, LegalizationError, ScalarType, Source, TargetUnitOperation, ValueId,
-    ValueShape,
-};
+use super::super::super::{LegalizationError, ScalarType, ValueShape};
+use super::super::{AbstractOperation, TargetUnitOperation, ValueId};
+use super::Source;
 
 /// Replay IEEE operations against their exact ordered, available scalar sources.
 pub(super) fn validate(

@@ -1,6 +1,9 @@
 //! Exact projected exclusive references retain their incoming root pointer.
-
-use super::*;
+use super::{
+    AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralAccess, StructuralArgument,
+    TargetOperationPlan, TargetStructuralArgument, ValueShape,
+};
+use crate::LegalizationError;
 use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
 
 pub(super) fn argument(

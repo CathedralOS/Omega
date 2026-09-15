@@ -1,4 +1,11 @@
-use super::*;
+use super::super::{ScalarType, scalar_shape};
+use super::{
+    AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
+    TargetFunction, TargetOperationPlan, TargetUnitOperation, ValueId,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::callee_plan;
+use crate::legalization::scalar_graph_input::target::Checker;
 use target_operations::{
     ScalarAbiValue, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
 };

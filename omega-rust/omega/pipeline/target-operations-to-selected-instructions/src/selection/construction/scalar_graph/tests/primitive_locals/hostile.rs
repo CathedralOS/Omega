@@ -1,5 +1,15 @@
 //! Hostile selected substitutions across local reentry and borrowed-call clobbers.
-use super::*;
+use super::super::{
+    EffectLink, FuelSettlement, LegalizedScalarInstruction, LegalizedValueDefinition,
+    PsiProvenance, ValueDefinitionSite,
+};
+use super::{
+    CallSignature, CallingPolicy, LegalizedScalarArgument, LegalizedScalarCall,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, MachineId, NativeCallOrigin,
+    OperationId, PlaceId, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints,
+    ValueId, ValueShape, build, evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };

@@ -1,7 +1,18 @@
 //! Independently replay whole-field copy/length publication or one indexed byte.
 //! Capacity never supplies readable source extent; unused destination bytes are
 //! not observed or cleared. ISA-local scratch/control is not source control flow.
-use super::*;
+use super::{
+    IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, VirtualRegisterId,
+    VirtualRegisterOrigin, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::byte_views;
+use crate::selection::validation::scalar_graph::structural::provenance;
+use crate::selection::validation::scalar_graph::structural::register;
+use crate::selection::validation::scalar_graph::structural::result;
 
 pub(super) fn replace(
     function: &LegalizedScalarFunction,

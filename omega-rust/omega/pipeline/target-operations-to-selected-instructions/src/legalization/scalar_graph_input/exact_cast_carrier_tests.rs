@@ -1,5 +1,6 @@
-use super::*;
+use crate::legalization::scalar_graph_input::exact_cast_has_native_carriers;
 
+use super::{IntegerSign, IntegerType};
 #[test]
 fn exact_cast_carriers_reject_missing_normalization_without_specializing_byte_input() {
     use IntegerSign::{Signed, Unsigned};

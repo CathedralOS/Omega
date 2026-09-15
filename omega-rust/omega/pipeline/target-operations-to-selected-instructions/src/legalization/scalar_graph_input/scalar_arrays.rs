@@ -1,7 +1,8 @@
 //! Independently reconstruct array storage from the retained semantic type.
 //! Empty extents still traverse every dimension; layout cannot authorize a leaf
 //! substitution or replace an array with an equally sized record or sum.
-use super::*;
+use super::{AbstractOperationPlan, ScalarType, ValueShape, scalar_shape};
+use crate::LegalizationError;
 
 pub(in crate::legalization) fn shape(
     result: &terminal_psi::StructuralOperationResult,

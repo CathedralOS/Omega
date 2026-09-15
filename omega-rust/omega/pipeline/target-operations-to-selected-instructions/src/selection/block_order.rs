@@ -84,7 +84,8 @@ pub(super) fn derive(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::LegalizedScalarTerminator;
+    use crate::selection::block_order::derive;
     use legalized_operations::{
         LegalizedScalarInstructionKind, LegalizedScalarSuccessor, LegalizedStructuralCaseSuccessor,
     };

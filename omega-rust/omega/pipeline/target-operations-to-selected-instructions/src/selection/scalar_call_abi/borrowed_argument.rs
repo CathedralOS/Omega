@@ -1,5 +1,9 @@
 //! Rejoin borrowed call arguments to their original referents and exact geometry.
-use super::*;
+use super::{
+    CallSignature, LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
+    StructuralAccess, ValueShape, evaluate_call_plan, scalar_shape,
+};
+use crate::selection::scalar_call_abi::scalar_value_type;
 
 /// Rejoin the original parameter or earlier literal before pointer transport.
 /// Callee declarations and source-call correspondence remain legalization inputs.

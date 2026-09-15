@@ -1,5 +1,10 @@
 //! Independent input replay for whole owned values with no runtime observers.
-use super::*;
+use super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, CallPlan,
+    CallSignature, CallingPolicy, PsiOptimizationFunction, ScalarType, TargetFunction,
+    ValueDefinitionSite, evaluate_call_plan, scalar_shape,
+};
+use crate::LegalizationError;
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     TerminalAffineCleanupAction,

@@ -1,4 +1,13 @@
-use super::*;
+use super::super::{LegalizedScalarReturnValue, LegalizedScalarTerminator};
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarArgument,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, OperationId, PlaceId, ScalarType,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, StructuralAccess,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueId, ValueShape, build,
+    evaluate_call_plan, fixture,
+};
+use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
 
 #[test]
 fn shared_record_field_load_replays_field_type_access_and_offset() {

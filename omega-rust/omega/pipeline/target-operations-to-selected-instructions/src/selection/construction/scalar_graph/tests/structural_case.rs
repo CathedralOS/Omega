@@ -1,5 +1,9 @@
 //! Lawfully legalized cases select through ordinary control and edge bridges.
-use super::*;
+use super::super::{SelectedInstruction, VirtualRegisterOrigin};
+use super::{
+    CallSignature, CallingPolicy, LegalizedScalarReturnValue, LegalizedScalarTerminator,
+    SelectedInstructionKind, SelectedTerminator, StructuralTypeId, evaluate_call_plan,
+};
 use selected_instructions::{
     SelectedBlockOrigin, SelectedCasePayloadTransport, SelectedSuccessorRole,
 };

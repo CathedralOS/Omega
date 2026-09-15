@@ -1,7 +1,12 @@
 //! Transport owned aggregate bytes through the independently selected call ABI.
 //! Indirection copies the current value into call-owned backing; forwarding the
 //! input pointer would alias a copyable value with the callee's private storage.
-use super::*;
+use super::{
+    LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind, ValueLocation,
+    VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole};
 
 pub(super) fn argument(

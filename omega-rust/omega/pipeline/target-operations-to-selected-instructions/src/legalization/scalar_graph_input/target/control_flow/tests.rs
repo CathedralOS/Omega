@@ -1,5 +1,11 @@
 //! Correspondence-only hostile controls; accepted bounds remain whole-unit custody.
-use super::*;
+
+use super::super::{BlockId, ValueId};
+use super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, ScalarType,
+    TargetFunction, TargetUnitOperation,
+};
+use crate::legalization::scalar_graph_input::u64_type;
 use abstract_operations::{AbstractBlockEntry, AbstractParameter};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, StructuralTypeId,

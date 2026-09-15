@@ -1,5 +1,13 @@
 //! Independent replay of scalar-result calls and their argument transport.
-use super::*;
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess,
+    ValidatedRegisterConstraintCatalog, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::row;
+use crate::selection::validation::scalar_graph::structural;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
 use register_environment::ValidatedTargetRegisterEnvironment;
 

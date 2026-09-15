@@ -1,5 +1,12 @@
 //! A primitive observation retains its exact footprint, pointer, type and fresh result.
-use super::*;
+use super::super::IntegerValue;
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarArgument,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType, SelectedFunction,
+    SelectedInstructionKind, SelectedSelectionConstraints, StructuralTypeShape, ValueId,
+    ValueShape, build, evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
 use selected_instructions::SelectedMemoryAccessRole;
 use semantic_vocabulary::IeeeFloatFormat;
 

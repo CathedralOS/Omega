@@ -1,5 +1,13 @@
 //! Parallel-copy preparation is independent of authored cycle admission.
-use super::*;
+use super::{
+    IntegerSign, ScalarType, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedSelectionConstraints, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
+    SelectedValueTransport, ValueDefinitionSite, ValueId, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin, project,
+};
+use crate::selection::edge_transfers::prepare;
+use crate::selection::edge_transfers::successors_mut;
 use semantic_vocabulary::{BlockId, EdgeId, IntegerType, MachineId};
 
 #[test]

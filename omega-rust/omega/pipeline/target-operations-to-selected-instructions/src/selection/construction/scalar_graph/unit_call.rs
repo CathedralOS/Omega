@@ -1,5 +1,10 @@
 //! Resultless calls copy scalar arguments and transport original borrowed pointers.
-use super::*;
+use super::{
+    Builder, LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess, ValueLocation,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::row;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
 use selected_instructions::SelectedCallContract;
 

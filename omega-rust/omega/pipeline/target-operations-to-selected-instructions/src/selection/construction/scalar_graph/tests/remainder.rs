@@ -1,6 +1,11 @@
 //! Raw projection controls; proof admission is exercised by legalization tests.
-use super::*;
 
+use super::super::{SelectedInstructionId, VirtualRegisterOrigin};
+use super::{
+    IntegerSign, IntegerType, IntegerValue, LegalizedScalarInstructionKind, ScalarType,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueId, build,
+    fixture,
+};
 #[test]
 fn signed_remainder_preserves_operand_type_proof_and_scratch_custody() {
     for target in [

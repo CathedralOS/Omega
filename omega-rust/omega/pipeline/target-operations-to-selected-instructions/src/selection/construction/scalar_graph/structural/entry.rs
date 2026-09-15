@@ -1,5 +1,13 @@
 //! Capture incoming parameter ABI storage before ordinary graph operations.
-use super::*;
+use super::{
+    Builder, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarArgument,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance, StructuralAccess, ValueLocation, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::transport_register;
 
 pub(in crate::selection) fn entry(
     function: usize,

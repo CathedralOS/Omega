@@ -1,5 +1,14 @@
 //! Raw selection/replay controls, not source admission or native execution claims.
-use super::*;
+use super::super::VirtualRegisterOrigin;
+use super::{
+    CallSignature, CallingPolicy, FuelSettlement, IntegerSign, IntegerType, IntegerValue,
+    LegalizedScalarArgument, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    LegalizedScalarParameter, LegalizedScalarReturnValue, LegalizedValueDefinition, OperationId,
+    PsiProvenance, ScalarType, SelectedFixedInputConstraint, SelectedFunction,
+    SelectedInstructionKind, SelectedSelectionConstraints, StructuralTypeId, ValueDefinitionSite,
+    ValueId, ValueLocation, ValueShape, build, evaluate_call_plan, returned,
+};
+use crate::selection::construction::scalar_graph::tests::borrowed_calls;
 mod shared_records;
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,

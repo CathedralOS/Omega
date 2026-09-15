@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{AbstractOperation, PsiOptimizationFunction, ScalarType};
 pub(in crate::legalization) fn replacement(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,

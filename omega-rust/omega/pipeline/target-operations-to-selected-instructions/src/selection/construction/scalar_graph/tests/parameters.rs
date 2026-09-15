@@ -1,6 +1,13 @@
 //! Scalar inputs retain exact ABI types and canonical literal values, even when unused.
-use super::*;
 
+use super::super::VirtualRegisterOrigin;
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, IntegerValue, LegalizedScalarArgument,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, LegalizedScalarParameter,
+    LegalizedScalarReturnValue, ScalarType, SelectedFixedInputConstraint, SelectedFunction,
+    SelectedInstructionKind, SelectedSelectionConstraints, ValueDefinitionSite, ValueId,
+    ValueLocation, ValueShape, VirtualRegisterId, build, evaluate_call_plan, fixture, returned,
+};
 #[test]
 fn ieee_call_results_feed_later_calls_with_exact_register_bank() {
     for target in [

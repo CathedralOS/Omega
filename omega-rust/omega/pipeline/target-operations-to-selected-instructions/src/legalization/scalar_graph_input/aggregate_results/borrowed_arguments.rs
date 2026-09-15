@@ -1,5 +1,14 @@
 //! Rejoin aggregate references to exact incoming, operation, or block-entry storage.
-use super::*;
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::target;
+
+use super::{
+    AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction,
+    StructuralMultiplicity, StructuralPlaceKind, TargetOperationPlan, ValueShape,
+};
+use crate::legalization::scalar_graph_input::aggregate_results::home_layout;
+use crate::legalization::scalar_graph_input::structural_case;
+use crate::legalization::scalar_graph_input::structural_parameters;
 pub(super) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
@@ -48,7 +57,7 @@ pub(super) fn reconstruct(
             .functions
             .iter()
             .find(|function| function.machine == caller.machine)
-            .and_then(super::structural_parameters)
+            .and_then(structural_parameters)
             .and_then(|parameters| {
                 parameters
                     .iter()
@@ -74,7 +83,7 @@ pub(super) fn reconstruct(
             })
         };
         let after = site(call_operation).ok_or(invalid.clone())?;
-        match super::structural_case::source_owner(caller, argument.place)? {
+        match structural_case::source_owner(caller, argument.place)? {
             legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 operation,
                 result,
@@ -83,9 +92,7 @@ pub(super) fn reconstruct(
                 let before = site(operation).ok_or(invalid.clone())?;
                 if (before.0 == after.0 && before.1 >= after.1)
                     || (before.0 != after.0
-                        && !super::target::control_flow::sources::dominates(
-                            caller, before.0, after.0,
-                        ))
+                        && !target::control_flow::sources::dominates(caller, before.0, after.0))
                 {
                     return Err(invalid);
                 }
@@ -101,7 +108,7 @@ pub(super) fn reconstruct(
                 declaration,
             } => {
                 if argument.access != terminal_psi::StructuralAccess::SharedBorrow
-                    || !super::target::control_flow::sources::dominates(caller, block, after.0)
+                    || !target::control_flow::sources::dominates(caller, block, after.0)
                     || !caller.structural_places.iter().any(|place| {
                         place.id == declaration.place
                             && place.kind

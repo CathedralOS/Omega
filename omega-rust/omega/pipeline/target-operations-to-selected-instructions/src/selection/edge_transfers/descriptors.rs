@@ -1,5 +1,13 @@
 //! Descriptor and whole-value snapshots precede every destination replacement.
-use super::*;
+use super::{
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSelectionConstraints,
+    ValidatedRegisterConstraintCatalog, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
+use crate::selection::edge_transfers::chunks;
+use crate::selection::edge_transfers::invalid;
+use crate::selection::edge_transfers::stored_transport;
 use selected_instructions::{
     FrameStorageSlotId, SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
     SelectedStructuralBinding,

@@ -1,6 +1,13 @@
 //! Independent replay of place-backed snapshots, copy accesses and call operands.
-use super::*;
+use super::{
+    IndirectPointerLocation, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    RegisterOperandAccess, RegisterViewId, ScalarType, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess, ValueLocation,
+    VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
 use crate::selection::byte_view_homes::ByteViewHomes;
+use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
 use selected_instructions::{
     OutgoingArgumentSlotId, SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,

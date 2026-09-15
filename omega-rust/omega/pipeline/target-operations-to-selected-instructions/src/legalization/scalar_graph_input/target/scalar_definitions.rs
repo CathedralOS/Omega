@@ -1,5 +1,11 @@
 //! Join ordered scalar definitions to their exact prior SSA sources.
-use super::*;
+use super::super::{ScalarType, ValueShape, scalar_shape};
+use super::{AbstractOperation, TargetScalarExpression, TargetUnitOperation, ValueId};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::supports_signed_wrapping_remainder;
+use crate::legalization::scalar_graph_input::target::Checker;
+use crate::legalization::scalar_graph_input::target::Expression;
+use crate::legalization::scalar_graph_input::target::location_matches;
 use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
 
 pub(super) fn validate(

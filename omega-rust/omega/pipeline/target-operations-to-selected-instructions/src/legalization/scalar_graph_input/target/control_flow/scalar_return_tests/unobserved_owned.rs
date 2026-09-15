@@ -1,5 +1,13 @@
 //! Owned arrival ABI and source-custody controls over the shared scalar graph fixture.
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, AbstractResult, FuelScheduleIdentity, MachineId,
+    ObligationId, PsiOptimizationUnit, ScalarType, TargetControlTerminator, TargetOperationPlan,
+    ValueShape, fixture,
+};
+use crate::legalization::scalar_graph_input::target::control_flow::scalar_return_tests::check;
+use crate::legalization::scalar_graph_input::target::control_flow::scalar_return_tests::operation;
+use crate::legalization::scalar_graph_input::target::control_flow::scalar_return_tests::value;
+use crate::legalization::scalar_graph_input::u64_type;
 
 fn owned_fixture(
     native: ::target::NativeTarget,

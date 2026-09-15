@@ -1,5 +1,15 @@
 //! Raw source custody and selected SSA replay; these tests mint no source stamp.
-use super::*;
+use super::super::SelectedInstructionError;
+use super::{
+    BlockId, EdgeId, FuelSettlement, IntegerSign, IntegerType, LegalizedScalarArgument,
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    LegalizedScalarReturnValue, LegalizedScalarTerminator, LegalizedValueDefinition, OperationId,
+    PsiProvenance, ScalarType, SelectedFunction, SelectedInstructionKind,
+    SelectedSelectionConstraints, StructuralTypeId, ValueDefinitionSite, ValueId,
+    VirtualRegisterId, build, returned,
+};
+use crate::selection::construction::scalar_graph::tests::borrowed_calls;
+use crate::selection::construction::scalar_graph::tests::subslices;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 

@@ -1,6 +1,10 @@
 //! Store replay binds the original pointer, exact write width, SSA source and charge.
-use super::*;
 
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarInstructionKind,
+    ScalarType, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueId,
+    ValueShape, build, evaluate_call_plan, fixture,
+};
 #[test]
 fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
     use selected_instructions::SelectedMemoryAccessRole;

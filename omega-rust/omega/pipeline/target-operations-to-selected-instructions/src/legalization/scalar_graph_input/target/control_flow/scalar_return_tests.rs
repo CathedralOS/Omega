@@ -1,5 +1,15 @@
 //! Correspondence tests only: these source rows do not manufacture arithmetic or cycle evidence.
-use super::*;
+use super::super::super::ValueShape;
+use super::super::{BlockId, ValueId};
+use super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
+    PsiOptimizationUnit, ScalarType, TargetControlTerminator, TargetOperationPlan,
+    TargetScalarExpression, TargetUnitOperation,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::target::Expression;
+use crate::legalization::scalar_graph_input::u32_type;
+use crate::legalization::scalar_graph_input::u64_type;
 use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractResult, ValueBinding};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId, OperationId,

@@ -1,6 +1,13 @@
 //! Source-free native snapshots retain their actual record and observation order.
 use super::hostile::append;
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, LegalizedScalarArgument, LegalizedScalarCall,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, MachineId, NativeCallOrigin, PlaceId,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, StructuralAccess,
+    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, ValueId,
+    ValueShape, build, evaluate_call_plan, fixture,
+};
+use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
 use semantic_vocabulary::StructuralFieldId;
 
 fn record_fixture(native: target::NativeTarget) -> LegalizedScalarFunction {

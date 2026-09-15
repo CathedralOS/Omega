@@ -1,5 +1,14 @@
 //! Empty construction retains ordered semantic charges without payload storage.
-use super::*;
+use super::super::{
+    BlockId, EdgeId, EffectLink, FuelSettlement, LegalizedScalarBlock, OperationId, PsiProvenance,
+    SelectedTerminator, ValueDefinitionSite,
+};
+use super::{
+    LegalizedScalarInstructionKind, LegalizedScalarTerminator, PlaceId, ScalarType,
+    SelectedFunction, SelectedSelectionConstraints, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, build,
+};
+use crate::selection::construction::scalar_graph::tests::scalar_arrays::array_fixture;
 
 #[test]
 fn empty_array_constructor_retains_charge_without_physical_storage() {

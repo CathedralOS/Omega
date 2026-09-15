@@ -1,5 +1,12 @@
 //! Execute the actual selected integer stream against IEEE edge-case expectations.
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, EdgeId, EffectLink, IntegerSign, IntegerType, IntegerValue,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, LegalizedScalarReturn,
+    LegalizedScalarReturnValue, LegalizedScalarTerminator, OperationId, PsiProvenance, ScalarType,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, SelectedTerminator,
+    ValueShape, build, evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::control;
 use semantic_vocabulary::{IeeeFloatComparisonOperation as Relation, IeeeFloatFormat};
 
 fn comparison_source(

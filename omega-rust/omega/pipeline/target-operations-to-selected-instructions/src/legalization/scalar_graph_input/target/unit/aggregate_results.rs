@@ -1,5 +1,9 @@
 //! Rejoin aggregate constructors and result calls to their exact source operations.
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit, Source,
+    TargetOperationPlan, TargetUnitOperation, ValueId,
+};
+use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 
 pub(super) fn validate(

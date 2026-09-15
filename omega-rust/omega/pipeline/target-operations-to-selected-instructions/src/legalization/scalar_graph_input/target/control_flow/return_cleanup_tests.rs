@@ -1,6 +1,9 @@
 //! Branch-local read results retain exact return cleanup, edge, and fuel custody.
-
-use super::*;
+use super::super::{BlockId, ValueId};
+use super::{
+    AbstractOperation, AbstractOperationPlan, PsiOptimizationUnit, ScalarType,
+    TargetControlTerminator, TargetOperationPlan,
+};
 use abstract_operations::{
     AbstractBlockEntry, AbstractBoundaryResult, AbstractParameter,
     AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,

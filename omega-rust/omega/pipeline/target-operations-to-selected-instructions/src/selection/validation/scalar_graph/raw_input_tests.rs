@@ -1,6 +1,10 @@
 //! Raw test entrances independently admit the supplied target/catalog join.
 //! Production construction and replay borrow one immutable validated environment.
-use super::*;
+use super::{
+    LegalizedScalarFunction, SelectedFunction, SelectedSelectionConstraints,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog, validate_with_environment,
+};
+use crate::SelectedInstructionError;
 
 pub(in crate::selection) fn validate(
     function: usize,

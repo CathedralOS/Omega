@@ -1,5 +1,12 @@
 //! Addressable activation-local storage shared by literal and derived descriptors.
-use super::*;
+use super::{
+    Builder, LegalizedScalarInstruction, PlaceId, SelectedInstructionKind,
+    SelectedMemoryAccessRole, VirtualRegisterId, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::provenance;
+use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 
 /// Stage only the descriptor; its backing remains the caller's original array.

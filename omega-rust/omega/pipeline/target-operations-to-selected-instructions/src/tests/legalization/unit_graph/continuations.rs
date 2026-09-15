@@ -1,5 +1,18 @@
 //! Continuations cross the public target-stage gate and ordinary graph replay.
-use super::*;
+use super::{
+    AbstractBlockEntry, AbstractOperation, AbstractParameter, FuelScheduleIdentity, NativeTarget,
+    ScalarType, TargetControlTerminator, TargetUnitOperation, fixture,
+};
+use crate::legalize_target_operations;
+use crate::select_instructions;
+use crate::tests::legalization::unit_graph::block;
+use crate::tests::legalization::unit_graph::call;
+use crate::tests::legalization::unit_graph::edge;
+use crate::tests::legalization::unit_graph::jump;
+use crate::tests::legalization::unit_graph::targets;
+use crate::tests::legalization::unit_graph::value;
+use crate::validate_legalized_operations;
+use crate::validate_selected_instructions;
 
 fn continuation_source(native: NativeTarget) -> abstract_operations::AbstractOperationPlan {
     let (mut source, _, _) = fixture(native);

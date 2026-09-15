@@ -1,5 +1,14 @@
 //! Correspondence controls do not supply the nonzero-divisor proof required by legalization.
-use super::*;
+use crate::LegalizationError;
+
+use super::super::{BlockId, ValueId};
+use super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
+    PsiOptimizationUnit, ScalarType, TargetOperationPlan, TargetScalarExpression,
+    TargetUnitOperation,
+};
+use crate::legalization::scalar_graph_input::supports_signed_wrapping_remainder;
+use crate::legalization::scalar_graph_input::target::Expression;
 use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractResult};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ObligationId, OperationId,

@@ -1,5 +1,10 @@
 //! Mixed scalar and whole-view calls replay the existing CallScalar transport.
-use super::*;
+
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, PlaceId, SelectedFunction,
+    VirtualRegisterOrigin,
+};
+use crate::selection::construction::scalar_graph::build_with_environment;
 mod corruption;
 mod fixture;
 

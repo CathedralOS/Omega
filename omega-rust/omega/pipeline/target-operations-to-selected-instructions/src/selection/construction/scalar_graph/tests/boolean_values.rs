@@ -1,5 +1,11 @@
 //! Materialized Boolean values retain exact conditions, result origins and fuel.
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, EdgeId, EffectLink, IntegerSign, IntegerType,
+    LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarTerminator, ScalarType,
+    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueId, ValueShape,
+    build, evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::control;
 use legalized_operations::LegalizedScalarComparison;
 
 #[test]

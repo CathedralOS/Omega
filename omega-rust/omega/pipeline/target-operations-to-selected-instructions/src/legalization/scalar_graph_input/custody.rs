@@ -1,5 +1,6 @@
 //! Admit control cycles only after exact independent verified-source replay.
-use super::*;
+use super::{AbstractOperationPlan, PsiOptimizationUnit, TargetOperationPlan};
+use crate::LegalizationError;
 #[cfg(test)]
 mod tests;
 pub(in crate::legalization) fn validate_unit_custody(

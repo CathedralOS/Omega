@@ -1,5 +1,11 @@
 //! Ordinary returning calls normalize their exact integer type before comparison.
-use super::*;
+use super::{
+    CallSignature, IntegerSign, IntegerType, IntegerValue, LegalizedScalarArgument,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType, SelectedFunction,
+    SelectedInstructionKind, SelectedSelectionConstraints, ValueId, ValueShape, build,
+    evaluate_call_plan, fixture,
+};
+use crate::selection::construction::scalar_graph::tests::control;
 
 #[test]
 fn admitted_exact_casts_normalize_the_destination_integer_type() {

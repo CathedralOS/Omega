@@ -1,5 +1,11 @@
 //! Local sums lend their established storage without a record-shaped surrogate.
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, LegalizedScalarArgument, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, OperationId, PlaceId, SelectedFunction,
+    SelectedInstructionKind, SelectedSelectionConstraints, StructuralAccess, StructuralPlaceKind,
+    StructuralTypeId, StructuralTypeShape, ValueShape, build, evaluate_call_plan, fixture,
+};
+use crate::selection::construction::scalar_graph::tests::primitive_locals::local_fixture;
 
 #[test]
 fn shared_sum_call_replays_original_home_layout_and_consumed_scalar_result() {

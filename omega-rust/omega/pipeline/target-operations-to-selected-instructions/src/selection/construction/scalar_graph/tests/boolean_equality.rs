@@ -1,5 +1,9 @@
 //! Boolean equality shares compare instructions, never integer semantic types.
-use super::*;
+use super::{
+    IntegerSign, IntegerType, IntegerValue, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, ScalarType, SelectedSelectionConstraints, ValueId, build,
+};
+use crate::selection::construction::scalar_graph::tests::control;
 use legalized_operations::LegalizedScalarComparison as Comparison;
 
 #[test]

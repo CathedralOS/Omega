@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, Error, LegalizedExactIntegerOperator,
+    LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarComparison,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
+    NativeCallOrigin, PsiOptimizationUnit, TargetOperationPlan,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input;
 use semantic_vocabulary::{IntegerValue, ScalarType};
 mod aggregate_results;
 pub(super) fn validate(

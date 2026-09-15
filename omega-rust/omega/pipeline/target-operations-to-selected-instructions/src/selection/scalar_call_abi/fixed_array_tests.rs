@@ -1,6 +1,13 @@
 //! Exact array argument placements and borrowed array presentation contracts.
-
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, LegalizedScalarArgument, LegalizedScalarCall,
+    LegalizedScalarFunction, ScalarType, StructuralAccess, ValueId, ValueLocation, ValueShape,
+    evaluate_call_plan,
+};
+use crate::selection::scalar_call_abi::register_argument_count;
+use crate::selection::scalar_call_abi::register_argument_order;
+use crate::selection::scalar_call_abi::unit_key;
+use crate::selection::scalar_call_abi::validate_borrowed_argument;
 use legalized_operations::{LegalizedCallUnitParameter, LegalizedStructuralContract};
 use semantic_vocabulary::{
     BlockId, IntegerType, MachineId, OperationId, PlaceId, StructuralTypeId,

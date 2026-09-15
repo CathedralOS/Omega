@@ -1,5 +1,8 @@
 //! Independent receiving checks for case metadata; never calls construction.
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, Error, LegalizedScalarTerminator, scalar_graph_input,
+};
+use crate::LegalizationError;
 
 pub(super) fn validate(
     actual: &LegalizedScalarTerminator,

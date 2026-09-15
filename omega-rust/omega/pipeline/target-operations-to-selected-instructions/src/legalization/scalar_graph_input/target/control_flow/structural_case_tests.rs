@@ -1,6 +1,8 @@
 //! Input correspondence controls; selection remains a separate admission boundary.
 
-use super::*;
+use super::super::{BlockId, ValueId};
+use super::{ScalarType, TargetControlTerminator};
+use crate::legalization::scalar_graph_input::u32_type;
 mod legalized;
 use semantic_vocabulary::{EdgeId, OperationId, PlaceId, StructuralCaseId, StructuralFieldId};
 

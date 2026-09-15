@@ -1,5 +1,8 @@
 //! Selected byte input rejoins a lawfully legalized owned result and frame slot.
-use super::*;
+use super::{
+    LegalizedScalarTerminator, OperationId, SelectedFunction, SelectedInstructionKind,
+    SelectedSelectionConstraints, build,
+};
 use selected_instructions::{LocalStorageSlotId, SelectedBoundarySettlementPayload};
 
 #[test]

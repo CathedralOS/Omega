@@ -1,5 +1,6 @@
 //! Scalar source availability is indexed by source CFG dominance, not target block order.
-use super::*;
+use super::super::{BlockId, ValueId};
+use super::{PsiOptimizationFunction, TargetControlGraph, TargetUnitOperation};
 use target_operations::TargetUnitScalarArgumentSource as Source;
 
 pub(super) fn available(

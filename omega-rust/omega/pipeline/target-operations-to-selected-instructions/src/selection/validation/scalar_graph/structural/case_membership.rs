@@ -1,5 +1,12 @@
 //! Independently replay the exact tag read and captured Boolean result.
-use super::*;
+use super::super::IntegerValue;
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
+    VirtualRegisterId, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
 
 pub(in crate::selection) fn observe(
     source: &LegalizedScalarFunction,

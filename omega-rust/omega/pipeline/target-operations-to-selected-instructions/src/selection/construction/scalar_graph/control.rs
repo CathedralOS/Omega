@@ -1,5 +1,12 @@
 //! Select explicit control edges without replacing parallel source bindings with copies.
-use super::*;
+use super::{
+    Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    RegisterConstraintKey, ScalarType, SelectedBlockId, SelectedInstruction,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
+    ValueLocation, VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::row;
 use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarComparison as Comparison, LegalizedScalarReturnValue,
     LegalizedScalarSuccessor, LegalizedScalarTerminator,

@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, Error, LegalizedExactIntegerOperator,
+    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarComparison,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
+    NativeCallOrigin, PsiOptimizationUnit, TargetOperationPlan,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input;
 use semantic_vocabulary::{IntegerValue, ScalarType};
 pub(super) fn project(
     node: &optimization_unit::OptimizationNode,

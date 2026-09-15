@@ -1,5 +1,13 @@
 //! Receiving replay binds primitive local operations to exact source identities.
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, AbstractResult, FuelScheduleIdentity, IntegerSign,
+    IntegerValue, LegalizedScalarInstructionKind, NativeTarget, OperationId, PlaceId, ScalarType,
+    StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    TargetUnitOperation, ValueId,
+};
+use crate::legalize_target_operations;
+use crate::tests::legalization::primitive_stores::integer;
+use crate::validate_legalized_operations;
 mod boolean_transport;
 
 fn fixture(scalar: ScalarType) -> AbstractOperationPlan {

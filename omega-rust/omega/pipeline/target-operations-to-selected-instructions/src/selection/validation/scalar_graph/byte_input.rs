@@ -1,5 +1,9 @@
 //! Preserve a boundary's owned sum result in operation-owned frame storage.
-use super::*;
+use super::{
+    LegalizedScalarInstructionKind, SelectedInstructionKind, SelectedInstructionProvenance,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
     LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,

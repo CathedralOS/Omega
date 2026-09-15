@@ -1,5 +1,10 @@
 //! Materialize typed Boolean values before later operations can replace condition state.
-use super::*;
+use super::{
+    IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance, VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::LegalizedScalarComparison;
 
 pub(super) fn validate(

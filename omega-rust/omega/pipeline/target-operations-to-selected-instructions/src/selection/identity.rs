@@ -542,7 +542,11 @@ fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        RegisterConstraintKey, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+        SelectedInstructionProvenance,
+    };
+    use crate::selection::identity::encode_instruction;
 
     #[test]
     fn arithmetic_and_compare_instruction_identity_discriminants_are_distinct() {

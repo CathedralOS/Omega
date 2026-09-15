@@ -1,5 +1,10 @@
 //! Independent aggregate layout and ordinary graph signature custody.
-use super::*;
+use super::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, CallPlan,
+    CallSignature, CallingPolicy, PsiOptimizationFunction, ScalarType, TargetFunction,
+    TargetOperationPlan, ValueDefinitionSite, ValueShape, evaluate_call_plan, scalar_shape,
+};
+use crate::LegalizationError;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
 

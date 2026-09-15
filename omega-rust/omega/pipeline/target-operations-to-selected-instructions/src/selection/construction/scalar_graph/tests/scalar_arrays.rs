@@ -1,7 +1,13 @@
 //! Physical array construction and receiving replay retain each ordered leaf.
+use super::super::VirtualRegisterOrigin;
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, LegalizedScalarReturnValue, LegalizedScalarTerminator,
+    ScalarType, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints,
+    StructuralTypeId, ValueId, ValueShape, build, evaluate_call_plan, fixture,
+};
 mod arguments;
 mod empty;
-use super::*;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,

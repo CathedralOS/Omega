@@ -1,5 +1,9 @@
 //! Raw graph replay checks; these fixtures do not mint boundary admission.
-use super::*;
+use super::{
+    IntegerSign, IntegerType, IntegerValue, LegalizedScalarInstructionKind, OperationId,
+    ScalarType, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueId,
+    VirtualRegisterId, build, fixture,
+};
 use selected_instructions::{LocalStorageSlotId, SelectedBoundarySettlementPayload};
 use semantic_vocabulary::BoundaryMachineId;
 

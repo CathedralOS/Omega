@@ -713,7 +713,18 @@ pub(crate) fn byte_field_storage(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ScalarType, StructuralFieldId, StructuralFieldType, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueShape,
+    };
+    use crate::structural_inputs::structural_reference_input::byte_field_length;
+    use crate::structural_inputs::structural_reference_input::field_read;
+    use crate::structural_inputs::structural_reference_input::field_shape;
+    use crate::structural_inputs::structural_reference_input::owned_aggregate_shape;
+    use crate::structural_inputs::structural_reference_input::plain_record_shape;
+    use crate::structural_inputs::structural_reference_input::project;
+    use crate::structural_inputs::structural_reference_input::shape;
+    use crate::structural_inputs::structural_reference_input::store;
 
     #[test]
     fn scalar_geometry_preserves_bounded_byte_siblings_without_owning_them() {

@@ -1,5 +1,7 @@
 //! Input-only primitive storage identity; whole-unit custody owns loan and SSA dominance.
-use super::*;
+use super::{AbstractOperation, PsiOptimizationFunction, ScalarType, scalar_shape};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::value_type;
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape,

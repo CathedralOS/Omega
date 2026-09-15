@@ -1,5 +1,11 @@
 //! Target graph custody binds operation-local observations to available source values.
-use super::*;
+use super::{
+    AbstractFunction, AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction,
+    PsiOptimizationUnit, TargetFunction, TargetOperationPlan, ValueId, ValueLocation,
+    ValuePlacement,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::instruction;
 use semantic_vocabulary::BlockId;
 use target_operations::{
     ScalarParameterLocation, TargetBooleanExpression as Boolean,

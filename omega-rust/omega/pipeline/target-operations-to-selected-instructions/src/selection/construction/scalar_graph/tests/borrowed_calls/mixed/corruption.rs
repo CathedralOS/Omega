@@ -1,5 +1,14 @@
 //! Substitute one selected or input contract component at a time.
-use super::*;
+use super::super::super::{LegalizedScalarParameter, RegisterOperandAccess, ScalarType};
+use super::super::{
+    CallSignature, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarArgument,
+    SelectedInstructionKind, StructuralAccess, StructuralTypeId, ValueDefinitionSite, ValueId,
+    ValueLocation, ValueShape, VirtualRegisterId, evaluate_call_plan,
+};
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, PlaceId, SelectedFunction,
+    VirtualRegisterOrigin,
+};
 use semantic_vocabulary::ObligationId;
 
 pub(super) const SELECTED_COUNT: usize = 25;

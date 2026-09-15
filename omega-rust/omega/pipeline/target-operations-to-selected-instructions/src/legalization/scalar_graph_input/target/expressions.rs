@@ -1,5 +1,13 @@
 //! Independent expression correspondence under source successor bindings.
-use super::*;
+use super::super::ScalarType;
+use super::{AbstractOperation, ValueId};
+use crate::legalization::scalar_graph_input::supports_signed_wrapping_remainder;
+use crate::legalization::scalar_graph_input::target::Boolean;
+use crate::legalization::scalar_graph_input::target::Checker;
+use crate::legalization::scalar_graph_input::target::Expression;
+use crate::legalization::scalar_graph_input::target::location_matches;
+use crate::legalization::scalar_graph_input::target::resolve;
+use crate::legalization::scalar_graph_input::value_type;
 impl Checker<'_> {
     // Operation operands refer to established values; only the definition root
     // carries an operation. Never reconstruct an already-produced expression tree.

@@ -1,5 +1,10 @@
 //! Exact owned byte-input result custody; no scalar identity is fabricated.
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
+    ScalarType, ValueShape,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::i32_type;
 use calling_conventions::ConventionalSumLayout;
 use semantic_vocabulary::StructuralPlaceKind;
 use target_operations::{

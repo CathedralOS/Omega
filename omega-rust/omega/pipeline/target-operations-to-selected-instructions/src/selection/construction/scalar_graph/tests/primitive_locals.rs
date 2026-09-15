@@ -1,5 +1,11 @@
 //! Original frame identity survives borrowed calls and fresh scalar reads.
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarArgument,
+    LegalizedScalarCall, LegalizedScalarFunction, LegalizedScalarInstructionKind, MachineId,
+    NativeCallOrigin, OperationId, ScalarType, SelectedFunction, SelectedInstructionKind,
+    SelectedSelectionConstraints, StructuralTypeId, ValueId, ValueShape, build, evaluate_call_plan,
+    fixture,
+};
 mod hostile;
 mod mixed_references;
 mod record_borrows;

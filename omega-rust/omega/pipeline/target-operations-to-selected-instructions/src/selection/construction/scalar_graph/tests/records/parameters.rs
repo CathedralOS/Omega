@@ -1,5 +1,12 @@
 //! An owned incoming record is ordinary initialized child storage.
-use super::*;
+use super::{
+    CallSignature, CallingPolicy, LegalizedScalarArgument, LegalizedScalarCall,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, LegalizedScalarReturnValue,
+    LegalizedScalarTerminator, MachineId, SelectedFunction, SelectedInstructionKind,
+    SelectedSelectionConstraints, StructuralTypeId, ValueShape, build, evaluate_call_plan,
+};
+use crate::selection::construction::scalar_graph::tests::records::nested_fixture;
+use crate::selection::construction::scalar_graph::tests::records::record_fixture;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 

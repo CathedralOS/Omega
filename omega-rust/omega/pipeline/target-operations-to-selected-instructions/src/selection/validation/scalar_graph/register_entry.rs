@@ -1,6 +1,12 @@
 //! Independent entry-register ABI replay and payload normalization.
-use super::*;
+use super::{
+    LegalizedScalarFunction, ScalarType, SelectedInstructionKind, SelectedInstructionProvenance,
+    ValidatedRegisterConstraintCatalog, ValueLocation, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
 use crate::selection::constraints::fixed_input_constraint;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::row;
 
 pub(super) fn validate(
     source: &LegalizedScalarFunction,

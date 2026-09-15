@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AbstractFunction, AbstractFunctionResult, CallPlan, CallSignature, CallingPolicy,
+    PsiOptimizationFunction, TargetFunction, ValueDefinitionSite, evaluate_call_plan, scalar_shape,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::scalar_register;
 pub(super) fn function_abi(
     native: ::target::NativeTarget,
     target: &TargetFunction,

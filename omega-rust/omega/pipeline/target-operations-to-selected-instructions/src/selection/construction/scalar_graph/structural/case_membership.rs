@@ -1,5 +1,13 @@
 //! Observe a sum tag without disturbing its payload or ownership.
-use super::*;
+use super::super::IntegerValue;
+use super::{
+    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
+    VirtualRegisterId, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::transport_register;
 
 pub(in crate::selection) fn observe(
     source: &LegalizedScalarFunction,

@@ -1,5 +1,15 @@
 //! Initialize a complete sum carrier before publishing its tag and scalar payloads.
-use super::*;
+use super::super::{IntegerValue, ValueId};
+use super::{
+    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
+    VirtualRegisterId, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::local_storage;
+use crate::selection::construction::scalar_graph::structural::provenance;
+use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(super) fn establish(

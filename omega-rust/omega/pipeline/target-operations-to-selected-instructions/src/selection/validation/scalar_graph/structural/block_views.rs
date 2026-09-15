@@ -1,7 +1,13 @@
 //! Replay each descriptor address at its owning block's entry.
 //! Destination edge copies initialize the slot independently of this address;
 //! exact block placement keeps the shorter pointer lifetime independently checked.
-use super::*;
+use super::{
+    LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccess, SelectedMemoryAccessRole,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::result;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
 };

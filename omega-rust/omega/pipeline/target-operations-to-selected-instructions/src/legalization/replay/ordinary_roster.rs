@@ -1,6 +1,8 @@
 //! Independently replay every function in the current graph roster.
-
-use super::*;
+use super::{
+    AbstractOperationPlan, Error, LegalizedOperationPlan, PsiOptimizationUnit, TargetOperationPlan,
+};
+use crate::LegalizationError;
 
 pub(super) fn replay_remaining(
     target: &TargetOperationPlan,

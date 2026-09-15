@@ -1,5 +1,10 @@
 //! Exact scalar stack fragments use SSA identity and ordinary frame/pointer instructions.
-use super::*;
+use super::{
+    Builder, IntegerSign, LegalizedScalarFunction, ScalarType, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, ValueDefinitionSite, ValueId,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use crate::SelectedInstructionError;
 use crate::selection::scalar_call_abi::{scalar_shape, scalar_stack_placement};
 use calling_conventions::ValuePlacement;
 use legalized_operations::LegalizedScalarInstruction;

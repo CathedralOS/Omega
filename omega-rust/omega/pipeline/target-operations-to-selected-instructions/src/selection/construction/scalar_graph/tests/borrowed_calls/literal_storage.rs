@@ -1,5 +1,12 @@
 //! Local literal bytes and descriptor storage are replayed from one source producer.
-use super::*;
+use super::super::{EffectLink, FuelSettlement, IntegerValue, LegalizedScalarInstruction};
+use super::{
+    CallSignature, CallingPolicy, LegalizedScalarArgument, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, OperationId, PlaceId, PsiProvenance, SelectedFunction,
+    SelectedInstructionKind, SelectedSelectionConstraints, StructuralPlaceKind, StructuralTypeId,
+    ValueDefinitionSite, ValueShape, build, evaluate_call_plan, returned,
+};
+use crate::selection::construction::scalar_graph::tests::borrowed_calls::borrowed_call;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole};
 
 fn literal_call(target: target::NativeTarget, bytes: &[u8]) -> LegalizedScalarFunction {

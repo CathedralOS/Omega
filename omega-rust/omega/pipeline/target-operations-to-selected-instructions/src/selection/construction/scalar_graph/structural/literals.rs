@@ -1,6 +1,13 @@
 //! Establish original immutable literal backing and its addressable descriptor.
 use super::local_storage::{address, store};
-use super::*;
+use super::{
+    Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, SelectedInstructionKind,
+    VirtualRegisterId,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::provenance;
+use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};

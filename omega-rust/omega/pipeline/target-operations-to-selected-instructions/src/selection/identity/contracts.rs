@@ -1,4 +1,5 @@
-use super::*;
+use super::SelectedFunction;
+use crate::selection::identity::encode_len;
 use selected_instructions::{OutgoingArgumentSlotId, SelectedMemoryAccessRole};
 fn blob(bytes: &mut Vec<u8>, content: &[u8]) {
     encode_len(bytes, content.len());

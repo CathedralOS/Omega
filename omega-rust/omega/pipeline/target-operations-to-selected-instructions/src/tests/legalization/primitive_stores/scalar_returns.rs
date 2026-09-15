@@ -1,5 +1,16 @@
 //! Scalar-returning stores retain independent ABI, source, and physical custody.
-use super::*;
+use super::{
+    AbstractOperation, AbstractOperationPlan, AbstractParameter, AbstractResult, BindingRelevance,
+    FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, LegalizedScalarInstructionKind,
+    NativeTarget, OperationId, PlaceId, PsiOptimizationUnit, ScalarType, StructuralAccess,
+    StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType, StructuralTypeShape,
+    TargetOperationPlan, TargetUnitOperation, TargetUnitWriteOnlyPrimitiveStoreSource, ValueId,
+};
+use crate::legalize_target_operations;
+use crate::tests::legalization::primitive_stores::integer;
+use crate::tests::legalization::primitive_stores::legalized_store;
+use crate::tests::legalization::primitive_stores::reject_target;
+use crate::validate_legalized_operations;
 use abstract_operations::AbstractFunctionResult;
 use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use target_operations::{TargetControlGraph, TargetControlTerminator};

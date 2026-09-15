@@ -1,5 +1,11 @@
 //! Owned indirection retains separate payload and pointer identities through replay.
-use super::*;
+use super::{
+    CallSignature, FuelSettlement, LegalizedScalarArgument, LegalizedScalarCall,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, LegalizedScalarReturnValue, MachineId,
+    NativeCallOrigin, OperationId, PsiProvenance, SelectedFunction, SelectedInstructionKind,
+    SelectedSelectionConstraints, StructuralTypeId, ValueId, ValueLocation, ValueShape, build,
+    evaluate_call_plan, returned,
+};
 use calling_conventions::IndirectPointerLocation;
 use selected_instructions::{
     FrameStorageSlotId, OutgoingArgumentSlotRole, SelectedMemoryAccessRole,

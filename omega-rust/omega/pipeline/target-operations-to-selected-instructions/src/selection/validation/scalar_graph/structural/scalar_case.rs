@@ -1,5 +1,15 @@
 //! Independently replay complete carrier initialization and exact payload stores.
-use super::*;
+use super::super::{IntegerValue, ValueId};
+use super::{
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
+    VirtualRegisterId, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::validation::scalar_graph::Replay;
+use crate::selection::validation::scalar_graph::structural::local_storage;
+use crate::selection::validation::scalar_graph::structural::provenance;
+use crate::selection::validation::scalar_graph::structural::result;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(super) fn establish(

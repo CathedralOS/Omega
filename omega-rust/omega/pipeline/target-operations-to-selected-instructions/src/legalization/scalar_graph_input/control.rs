@@ -1,5 +1,10 @@
 //! Exact source transfers, with edge-local fuel and no discarded ownership work.
-use super::*;
+use super::{
+    AbstractFunctionResult, AbstractOperation, OptimizationNode, PsiOptimizationFunction,
+    PsiProvenance, ScalarType,
+};
+use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::value_type;
 pub(super) fn validate(
     node: &OptimizationNode,
     _body: &[OptimizationNode],

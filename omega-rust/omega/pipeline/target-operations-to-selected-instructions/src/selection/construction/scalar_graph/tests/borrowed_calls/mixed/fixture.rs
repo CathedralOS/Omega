@@ -1,5 +1,16 @@
 //! Raw selection inputs exercise transport, without asserting proof admission.
-use super::*;
+use super::super::super::{
+    BlockId, EdgeId, LegalizedScalarBlock, LegalizedScalarParameter, LegalizedScalarReturn,
+    LegalizedScalarTerminator, LegalizedValueDefinition, ScalarType, SelectedFixedInputConstraint,
+};
+use super::super::{
+    CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarArgument,
+    LegalizedScalarReturnValue, MachineId, OperationId, PsiProvenance,
+    SelectedSelectionConstraints, ValueDefinitionSite, ValueId, ValueLocation, ValueShape,
+    evaluate_call_plan, returned,
+};
+use super::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
+use crate::selection::construction::scalar_graph::tests::borrowed_calls::borrowed_call;
 use legalized_operations::{LegalizedExactIntegerOperator, LegalizedScalarSuccessor};
 use semantic_vocabulary::ObligationId;
 
