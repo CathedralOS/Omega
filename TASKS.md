@@ -942,7 +942,7 @@ Owners include
   arm64 by `mbx nextest run -p external-roots --lib` (130/130), including
   `epoch_cohort_cannot_seal_before_the_eligible_set_is_derived` and
   `program_local_root_schemas_derive_exact_installed_slots_without_minting`.
-  `eb54b70350` adds
+  `895f8a5194` adds
   `ProgramLocalRootInstallationLedger::reconstruct_aggregate_capacity`,
   which replays the complete live established membership of one aggregate
   schema group in one sealed epoch cohort of one installed artifact instance
