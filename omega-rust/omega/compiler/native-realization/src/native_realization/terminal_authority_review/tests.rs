@@ -719,3 +719,146 @@ fn checked_adapter_cycles_and_unsupported_roles_fail_closed() {
         .contains("does not support target")
     );
 }
+
+#[test]
+fn filesystem_cohort_closure_admits_settled_rows_and_refuses_generic_release() {
+    use super::super::{
+        filesystem_host_permission_row, filesystem_mechanism_row,
+        terminal_authority_permission_policy::terminal_authority_permission_policy_with_rows,
+        terminal_authority_policy::terminal_authority_policy_with_rows,
+    };
+
+    let requirements: [(&str, i64, u8); 4] = [
+        ("test::FilesystemHost::read()", 0, 7),
+        ("test::FilesystemHost::sync()", 74, 9),
+        ("test::FilesystemHost::read_link()", 89, 8),
+        ("test::FilesystemHost::close()", 3, 4),
+    ];
+    let methods = requirements
+        .iter()
+        .map(|(requirement, ..)| service_method(requirement))
+        .collect::<Vec<_>>();
+    let plan_for = |rows: &[usize]| ProviderPlan {
+        name: "filesystem".to_owned(),
+        provider_type: "FilesystemProvider".to_owned(),
+        provider_type_package_identity: None,
+        target: "linux_x86_64".to_owned(),
+        schema: ServiceSchema {
+            trait_name: "test::FilesystemHost".to_owned(),
+            trait_package_identity: None,
+            methods: methods.clone(),
+        },
+        rows: rows
+            .iter()
+            .map(|index| ProviderPlanRow {
+                method: methods[*index].name.clone(),
+                requirement_identity: methods[*index].requirement_identity.clone(),
+                requirement_lifetime_partition: Vec::new(),
+                binding: ProviderBinding::Syscall {
+                    number: requirements[*index].1,
+                },
+            })
+            .collect(),
+        origin_package_identity: None,
+        origin_package: "test".to_owned(),
+    };
+    let provider_plan = plan_for(&[0, 1, 2, 3]);
+    let selected = SelectedProviderPlanFacts::from_selected_plans(vec![provider_plan.clone()])
+        .expect("selected filesystem");
+    let boundaries = requirements
+        .iter()
+        .enumerate()
+        .map(|(index, (requirement, ..))| boundary(index as u32 + 1, requirement))
+        .collect::<Vec<_>>();
+    let mechanisms = requirements
+        .iter()
+        .enumerate()
+        .map(|(index, (_, number, contract))| AdmittedTerminalMechanism {
+            boundary: BoundaryMachineId::new(index as u64 + 1).unwrap(),
+            mechanism: SyscallTerminalMechanismIdentity::new(
+                target::TargetProfile::LinuxX64,
+                *number as u32,
+                CheckedSyscallArgumentContractIdentity::from_digest([*contract; 32]),
+            )
+            .into(),
+        })
+        .collect::<Vec<_>>();
+    // The settled cohorts earn exact mechanism rows; a generic close mechanism
+    // earns none under the settled control/lifecycle policy.
+    let physical = terminal_authority_policy_with_rows(
+        methods[..3]
+            .iter()
+            .zip(&mechanisms[..3])
+            .map(|(method, admitted)| {
+                filesystem_mechanism_row(admitted.mechanism, method)
+                    .expect("settled cohort emits one exact mechanism row")
+            })
+            .collect(),
+    )
+    .expect("exact cohort classification rows");
+    assert_eq!(
+        filesystem_mechanism_row(mechanisms[3].mechanism, &methods[3]),
+        Err(super::super::UnsettledFilesystemRequirement::OrdinaryReleaseContract),
+        "generic close cannot inherit the occurrence-specific release contract"
+    );
+    // The consumer permission table covers all four requirements; the close
+    // cohort's explicit empty row retains service reach and review identity.
+    let permitted = terminal_authority_permission_policy_with_rows(
+        methods
+            .iter()
+            .map(|method| {
+                filesystem_host_permission_row(provider_plan.schema.identity_digest(), method)
+                    .expect("every canonical requirement has a justified permission")
+            })
+            .collect(),
+    )
+    .expect("exact filesystem permission table");
+
+    let error = review_terminal_authority_closure(
+        [31; 32],
+        target::TargetProfile::LinuxX64,
+        &abstract_plan(
+            boundaries.clone(),
+            Vec::new(),
+            vec![function(1, &[1, 2, 3, 4])],
+        ),
+        &selected,
+        &physical,
+        &permitted,
+        &mechanisms,
+        &[],
+    )
+    .expect_err("the unclassified release mechanism stays fail-closed");
+    assert!(error.contains("does not classify"), "{error}");
+    assert!(error.contains("close"), "{error}");
+
+    let receipt = review_terminal_authority_closure(
+        [31; 32],
+        target::TargetProfile::LinuxX64,
+        &abstract_plan(boundaries, Vec::new(), vec![function(1, &[1, 2, 3])]),
+        &selected,
+        &physical,
+        &permitted,
+        &mechanisms[..3],
+        &[],
+    )
+    .expect("settled cohorts admit their exact rows");
+    assert_eq!(receipt.leaves().len(), 3);
+    let leaf = receipt
+        .leaves()
+        .iter()
+        .find(|leaf| leaf.requirement_identity() == "test::FilesystemHost::sync()")
+        .expect("the explicit empty leaf retains its exact review identity");
+    assert!(leaf.exercised().is_authority_class_empty());
+    assert!(leaf.permitted().is_authority_class_empty());
+    let leaf = receipt
+        .leaves()
+        .iter()
+        .find(|leaf| leaf.requirement_identity() == "test::FilesystemHost::read_link()")
+        .expect("read_link retains its exact leaf");
+    assert_eq!(
+        leaf.exercised().classes(),
+        &[TerminalAuthorityClass::FilesystemMetadataQuery]
+    );
+    receipt.validate().expect("canonical receipt replays");
+}
