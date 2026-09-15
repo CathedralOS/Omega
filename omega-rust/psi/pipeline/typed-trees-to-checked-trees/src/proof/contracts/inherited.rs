@@ -135,10 +135,12 @@ fn append_trait_contract_facts_for_machine(
         let mut requires_position = 0usize;
         let mut ensures_position = 0usize;
         for contract in program.state_signature_contracts(signature) {
-            let Some(kind) = super::super::contract_fact_kind(&contract.kind) else {
+            let Some(kind) =
+                crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
+            else {
                 continue;
             };
-            for fact in super::super::fact_handles(contract.facts) {
+            for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
                 let evidence_term = contract.binding.as_ref().and_then(|_| {
                     if !exact_direct_requirement {
                         return None;
