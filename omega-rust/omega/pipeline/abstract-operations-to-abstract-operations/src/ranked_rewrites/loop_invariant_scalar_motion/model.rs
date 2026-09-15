@@ -4,8 +4,8 @@ use super::{
     BlockId, CountdownInvariantConstantAnalysisError,
     CountdownInvariantConstantPlacementAnalysisError, CountedLoopAnalysisError, CycleComponentId,
     MachineId, NodeLocation, OperationId, OptimizationCandidateIdentity, OptimizationUnitIdentity,
-    ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance, PsiTransformationLedger, ScalarType,
-    ValueId, VerifiedPsiOptimizationSession,
+    PlaceId, ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance, PsiTransformationLedger,
+    ScalarType, ValueId, VerifiedPsiOptimizationSession,
 };
 /// One loop-invariant scalar node selected for relocation. The node records
 /// the exact source-owned custody the ledger and validator must see: its
@@ -13,8 +13,10 @@ use super::{
 /// settlements, plus the operand rebinding an invariant member parameter
 /// performs when the computation is re-expressed on its preheader-visible
 /// representative. Scalar-constant leaves and admitted place observations
-/// carry an empty rewrite list — an observation's storage root already names a
-/// preheader-visible place, so it relocates byte-exact like a leaf.
+/// carry an empty operand rewrite list — an observation whose storage root
+/// already names a preheader-visible place relocates byte-exact like a leaf,
+/// while one reading through an invariant member structural parameter records
+/// that root rebind in `root_rewrite`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarNode {
     pub(super) psi_operation: OperationId,
@@ -22,6 +24,12 @@ pub struct LoopInvariantScalarNode {
     pub(super) scalar_type: ScalarType,
     pub(super) location: NodeLocation,
     pub(super) operand_rewrites: Vec<(ValueId, ValueId)>,
+    /// The observed-root rebind an admitted place observation performs when
+    /// its source names an invariant member structural parameter: `(member
+    /// parameter root, entry representative root)`. `None` for scalar-constant
+    /// leaves, scalar computations, and observations whose root is already
+    /// preheader-visible.
+    pub(super) root_rewrite: Option<(PlaceId, PlaceId)>,
     pub(super) provenance: Vec<PsiProvenance>,
     pub(super) fuel: Vec<optimization_unit::FuelSettlement>,
 }
@@ -45,12 +53,20 @@ impl LoopInvariantScalarNode {
 
     /// Exact `(invariant parameter, entry representative)` operand rewrites
     /// the relocation performs, sorted by parameter. Empty for scalar-constant
-    /// leaves, which read no values, for admitted place observations, whose
-    /// storage root already names a preheader-visible place, and for chained
-    /// computations whose member-internal operands all name results the same
-    /// run preserves.
+    /// leaves, which read no values, for admitted place observations, which
+    /// rebind their storage root through `root_rewrite` instead, and for
+    /// chained computations whose member-internal operands all name results
+    /// the same run preserves.
     pub fn operand_rewrites(&self) -> &[(ValueId, ValueId)] {
         &self.operand_rewrites
+    }
+
+    /// The `(member structural parameter, entry representative)` storage-root
+    /// rebind an admitted place observation performs, when its source names a
+    /// member parameter every reaching edge resolves to the same
+    /// preheader-visible root. `None` for every other relocated node.
+    pub const fn root_rewrite(&self) -> Option<(PlaceId, PlaceId)> {
+        self.root_rewrite
     }
 
     pub fn provenance(&self) -> &[PsiProvenance] {
@@ -229,6 +245,14 @@ pub(super) fn candidate_identity(
         for (parameter, representative) in &relocation.node.operand_rewrites {
             canonical.extend_from_slice(&parameter.get().to_le_bytes());
             canonical.extend_from_slice(&representative.get().to_le_bytes());
+        }
+        match relocation.node.root_rewrite {
+            Some((parameter, representative)) => {
+                canonical.push(1);
+                canonical.extend_from_slice(&parameter.get().to_le_bytes());
+                canonical.extend_from_slice(&representative.get().to_le_bytes());
+            }
+            None => canonical.push(0),
         }
     }
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)

@@ -4,7 +4,9 @@
 //! except for independently admitted scalar motion: an admissible
 //! source-owned scalar constant leaf, an admissible place observation whose
 //! component performs no place mutation or custody movement and whose storage
-//! root is visible at the preheader insertion point, or an admissible scalar
+//! root is visible at the preheader insertion point — directly, or as the
+//! representative an invariant member structural parameter resolves to — or
+//! an admissible scalar
 //! computation whose uses are all defined outside the component, name
 //! provably invariant
 //! member parameters, or are defined by another node relocated
@@ -21,8 +23,8 @@
 //! refreshed coordinates.
 
 use super::super::super::super::{
-    BTreeSet, BlockId, OperationId, OptimizationBlock, OptimizationNode, PsiOptimizationFunction,
-    PsiProvenance, ScalarType, ValueId,
+    BTreeSet, BlockId, OperationId, OptimizationBlock, OptimizationNode, PlaceId,
+    PsiOptimizationFunction, PsiProvenance, ScalarType, ValueId,
 };
 
 use super::super::CycleComponentId;
@@ -140,26 +142,28 @@ pub(super) fn validate(
         // member-internal operand may instead name the result of another node
         // relocated out of the same component's roster; an operand whose
         // producer stayed inside the loop has no substitution and rejects.
-        let substitution =
+        // An admitted place observation carries no operand rewrites but may
+        // rebind its storage root: when the expected root is an invariant
+        // member structural parameter, the root the seed resolves it to is
+        // re-derived here rather than trusted from the transformed unit.
+        let (substitution, root) =
             if crate::validation::admissible_scalar_leaf_relocation(relocation.expected) {
-                BTreeMap::new()
+                (BTreeMap::new(), None)
             } else if crate::validation::admissible_invariant_place_read(relocation.expected)
                 .is_some()
             {
-                // An admitted place observation carries no operand rewrites —
-                // its storage root already names a preheader-visible place —
-                // so the node moves byte-exact like a scalar leaf. The
-                // whole-component place-custody gate and the root's preheader
-                // visibility are re-derived here from the seed rather than
-                // trusted from the transformed unit.
-                if !crate::validation::invariant_place_observation_admission(
+                // The whole-component place-custody gate and the root's
+                // preheader visibility — direct or through the member
+                // parameter's agreed representative — are re-derived here from
+                // the seed rather than trusted from the transformed unit.
+                match crate::validation::invariant_place_observation_admission(
                     expected,
                     component,
                     relocation.expected,
                 ) {
-                    return Err(mismatch(machine, relocation.expected_block));
+                    Some(root) => (BTreeMap::new(), Some(root)),
+                    None => return Err(mismatch(machine, relocation.expected_block)),
                 }
-                BTreeMap::new()
             } else {
                 match crate::validation::invariant_scalar_operand_substitution(
                     expected,
@@ -169,11 +173,11 @@ pub(super) fn validate(
                         .get(&component.id)
                         .unwrap_or(&no_relocated_results),
                 ) {
-                    Some(substitution) => substitution,
+                    Some(substitution) => (substitution, None),
                     None => return Err(mismatch(machine, relocation.expected_block)),
                 }
             };
-        if !same_relocated_node(relocation.expected, relocation.current, &substitution) {
+        if !same_relocated_node(relocation.expected, relocation.current, &substitution, root) {
             return Err(mismatch(machine, relocation.expected_block));
         }
     }
@@ -257,9 +261,22 @@ fn same_relocated_node(
     expected: &OptimizationNode,
     current: &OptimizationNode,
     substitution: &BTreeMap<ValueId, ValueId>,
+    root: Option<PlaceId>,
 ) -> bool {
     let mut operation = expected.operation.clone();
     crate::validation::substitute_invariant_scalar_operands(&mut operation, substitution);
+    if let Some(root) = root {
+        // Admission proved the expected root is either already `root` or the
+        // member structural parameter that resolves to it, so rebinding from
+        // the expected source cannot admit a different place.
+        let rebound =
+            crate::validation::admissible_invariant_place_read(expected).is_some_and(|source| {
+                crate::validation::substitute_invariant_place_root(&mut operation, source, root)
+            });
+        if !rebound {
+            return false;
+        }
+    }
     operation == current.operation
         && expected.provenance == current.provenance
         && expected.fuel == current.fuel

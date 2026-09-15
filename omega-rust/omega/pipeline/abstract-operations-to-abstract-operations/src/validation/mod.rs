@@ -264,10 +264,10 @@ fn node_preserves_place_observations(operation: &O) -> bool {
 /// inserts ahead of the countdown-certificate tail; those tail nodes are
 /// scalar constants and never produce places, so scanning every
 /// non-terminator preheader node here is exactly the proposal's
-/// ahead-of-insertion computation. A root produced inside the component, a
-/// member structural parameter, or a place only another block establishes
-/// stays invisible — resolving member place parameters transitively like
-/// [`invariant_member_parameters`] is the documented next slice.
+/// ahead-of-insertion computation. A root produced inside the component or a
+/// place only another non-preheader block establishes stays invisible; a
+/// member structural parameter is never itself visible but may rebind to a
+/// visible representative through [`invariant_member_place_parameters`].
 pub(crate) fn place_observation_root_visible(
     function: &PsiOptimizationFunction,
     preheader: &OptimizationBlock,
@@ -332,34 +332,202 @@ fn produces_place_root(operation: &O, root: PlaceId) -> bool {
 /// place mutation or custody movement
 /// ([`component_preserves_place_observations`]), and the root it observes must
 /// be visible at the unique-entry preheader insertion point
-/// ([`place_observation_root_visible`]). An admitted read carries no operand
-/// rewrites at all — the root already names a preheader-visible place — so
-/// the node relocates byte-exact like a scalar-constant leaf.
+/// ([`place_observation_root_visible`]) — either directly, or transitively
+/// when the observed root is a member structural parameter every reaching
+/// edge binds to the same preheader-visible representative
+/// ([`invariant_member_place_parameters`]). Returns the root the relocated
+/// observation rebinds to: the node's own root when it is already
+/// preheader-visible, so a byte-exact move and a member-parameter rebind
+/// share one admission.
 pub(crate) fn invariant_place_observation_admission(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     node: &OptimizationNode,
-) -> bool {
-    let Some(source) = admissible_invariant_place_read(node) else {
-        return false;
-    };
+) -> Option<PlaceId> {
+    let source = admissible_invariant_place_read(node)?;
     let [entry] = component.entries.as_slice() else {
-        return false;
+        return None;
     };
     if component.members.contains(&entry.source) {
-        return false;
+        return None;
     }
     if !component_preserves_place_observations(function, component) {
-        return false;
+        return None;
     }
-    let Some(preheader) = function
+    let preheader = function
         .blocks
         .iter()
-        .find(|block| block.id == entry.source)
-    else {
-        return false;
+        .find(|block| block.id == entry.source)?;
+    if place_observation_root_visible(function, preheader, source) {
+        return Some(source);
+    }
+    let representatives = invariant_member_place_parameters(function, component);
+    let representative = representatives.get(&source)?;
+    place_observation_root_visible(function, preheader, *representative).then_some(*representative)
+}
+
+/// Structural parameters of `component`'s member blocks whose root is
+/// provably the same on every iteration — the place analog of
+/// [`invariant_member_parameters`]. A member view parameter qualifies when
+/// every edge reaching its block binds it to itself, to a member structural
+/// parameter that resolves to the same representative, or to that
+/// representative — a root no member block establishes. An observation
+/// reading through such a parameter can be re-expressed on the
+/// representative root when that root is visible at the preheader insertion
+/// point.
+///
+/// A projected binding (`argument.path` nonempty) cannot anchor a root
+/// rebind: the observation grammar names one root place, so a parameter
+/// bound to `self.field` or to a subview stays loop-carried. A binding to a
+/// root a member block establishes — an operation result, a byte-sequence
+/// literal, or an affine local — is likewise loop-carried: the traversal
+/// re-establishes that root every iteration. Verified edge bindings already
+/// guarantee the argument's access is compatible with the parameter's, so
+/// the resolved representative carries at least the access the member
+/// observation used.
+///
+/// The map is a fixed point over the structural bindings on edges reaching
+/// member blocks, so a parameter carried across a member-to-member edge
+/// resolves to the root its chain anchors on. Parameters whose bindings
+/// never anchor outside the roster — pure self-carried cycles — stay
+/// unresolved and are absent from the result.
+pub(crate) fn invariant_member_place_parameters(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+) -> BTreeMap<PlaceId, PlaceId> {
+    /// Resolution states during the fixed point. `Unresolved` may promote once
+    /// its deferred dependencies resolve; `Representative` can still degrade
+    /// to `LoopCarried` when a deferred dependency resolves to a conflicting
+    /// or carried root, and `LoopCarried` is final.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Resolution {
+        Unresolved,
+        Representative(PlaceId),
+        LoopCarried,
+    }
+
+    let member_blocks: Vec<&OptimizationBlock> = component
+        .members
+        .iter()
+        .filter_map(|member| function.blocks.iter().find(|block| block.id == *member))
+        .collect();
+    let member_parameters: BTreeSet<PlaceId> = member_blocks
+        .iter()
+        .flat_map(|block| {
+            block
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.place)
+        })
+        .collect();
+    // Whether `place` is a root a member block establishes: every iteration
+    // produces a fresh root, so a binding to one can never anchor an
+    // invariant representative.
+    let member_produced = |place: PlaceId| {
+        member_blocks.iter().any(|block| {
+            block
+                .nodes
+                .iter()
+                .any(|node| produces_place_root(&node.operation, place))
+        })
     };
-    place_observation_root_visible(function, preheader, source)
+    let parameters: Vec<(PlaceId, BlockId)> = member_blocks
+        .iter()
+        .flat_map(|block| {
+            block
+                .structural_parameters
+                .iter()
+                .map(|parameter| (parameter.place, block.id))
+        })
+        .collect();
+    let mut resolutions: BTreeMap<PlaceId, Resolution> = parameters
+        .iter()
+        .map(|(parameter, _)| (*parameter, Resolution::Unresolved))
+        .collect();
+    loop {
+        let mut progressed = false;
+        for (parameter, block) in &parameters {
+            if resolutions[parameter] == Resolution::LoopCarried {
+                continue;
+            }
+            let mut anchor = None;
+            let mut loop_carried = false;
+            for edge in function
+                .blocks
+                .iter()
+                .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+                .filter(|edge| edge.target == *block)
+            {
+                let Some(binding) = edge
+                    .structural_bindings
+                    .iter()
+                    .find(|binding| binding.parameter == *parameter)
+                else {
+                    loop_carried = true;
+                    break;
+                };
+                let argument = &binding.argument;
+                if argument.place == *parameter && argument.path.is_empty() {
+                    // A root binding that re-spells the parameter preserves
+                    // whatever the other edges establish.
+                    continue;
+                }
+                let contribution = if !argument.path.is_empty() {
+                    // A projected argument names a sub-place, not a root the
+                    // relocated observation could spell.
+                    Resolution::LoopCarried
+                } else if member_parameters.contains(&argument.place) {
+                    // A member parameter contributes its own resolution; an
+                    // unresolved dependency defers to a later pass.
+                    resolutions
+                        .get(&argument.place)
+                        .copied()
+                        .unwrap_or(Resolution::LoopCarried)
+                } else if member_produced(argument.place) {
+                    Resolution::LoopCarried
+                } else {
+                    Resolution::Representative(argument.place)
+                };
+                match contribution {
+                    Resolution::Unresolved => {}
+                    Resolution::Representative(place) => match anchor {
+                        None => anchor = Some(place),
+                        Some(anchor) if anchor == place => {}
+                        Some(_) => {
+                            loop_carried = true;
+                            break;
+                        }
+                    },
+                    Resolution::LoopCarried => {
+                        loop_carried = true;
+                        break;
+                    }
+                }
+            }
+            let next = if loop_carried {
+                Resolution::LoopCarried
+            } else {
+                match anchor {
+                    Some(place) => Resolution::Representative(place),
+                    None => Resolution::Unresolved,
+                }
+            };
+            if resolutions[parameter] != next {
+                resolutions.insert(*parameter, next);
+                progressed = true;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    resolutions
+        .into_iter()
+        .filter_map(|(parameter, resolution)| match resolution {
+            Resolution::Representative(representative) => Some((parameter, representative)),
+            Resolution::Unresolved | Resolution::LoopCarried => None,
+        })
+        .collect()
 }
 
 /// Every scalar value definition site in `function`: function parameters,
@@ -697,6 +865,33 @@ pub(crate) fn substitute_invariant_scalar_operands(
         }
         _ => {}
     }
+}
+
+/// Rewrite the observed storage root of an admitted place observation from an
+/// invariant member parameter to its agreed representative. Only the variants
+/// [`admissible_invariant_place_read`] admits carry a `source` root position;
+/// the rewrite fires only when the operation's current root is `parameter`,
+/// so a drifted plan cannot rebind a different place. Returns whether the
+/// root was rebound.
+pub(crate) fn substitute_invariant_place_root(
+    operation: &mut O,
+    parameter: PlaceId,
+    representative: PlaceId,
+) -> bool {
+    let source = match operation {
+        O::PrimitiveScalarRead { source, .. }
+        | O::StructuralCaseMembership { source, .. }
+        | O::ByteSequenceLength { source, .. }
+        | O::StructuralByteSequenceFieldLength { source, .. }
+        | O::BooleanStructuralField { source, .. }
+        | O::IntegerStructuralField { source, .. } => source,
+        _ => return false,
+    };
+    if *source != parameter {
+        return false;
+    }
+    *source = representative;
+    true
 }
 pub use prephysical_manifest::{
     PrePhysicalOptimizationManifestError, ValidatedPrePhysicalOptimizationManifest,

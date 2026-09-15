@@ -11,7 +11,7 @@ use optimization_unit::{
     PsiTransformationLedger, PsiTransformationRecord, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, ScalarType, ValueId};
 
 use crate::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
@@ -44,9 +44,12 @@ pub use model::{
 /// chain of computations moves together in def-before-use order. A place
 /// observation — one verifier-approved read of an established storage root —
 /// is admissible only when its component performs no place mutation or
-/// custody movement at all and the observed root is already visible at the
-/// preheader insertion point, so it relocates byte-exact with no operand
-/// rewrites. Computation and observation
+/// custody movement at all and the observed root is visible at the
+/// preheader insertion point: either directly, or through a member structural
+/// parameter every reaching edge resolves to the same preheader-visible
+/// representative — the root analog of member scalar-parameter resolution,
+/// rebound on the moved node rather than relocated byte-exact. Computation
+/// and observation
 /// relocation is non-speculative: the unique entry edge must be the preheader
 /// terminator's only successor, and only member blocks guaranteed to execute
 /// on every traversal that leaves the component contribute computations — a
