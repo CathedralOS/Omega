@@ -8,11 +8,13 @@ use super::guard_narrowing::{comparison_bound, narrow_env_by_condition};
 use super::{
     ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
     Machine, PrimitiveType, ProofFact, SignatureContractKind, State, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees, ValueEnv, abstract_shift_count, analyze,
-    arithmetic_operator_spelling, exact_division_definedness, is_arithmetic, literal_i64,
-    place_path, primitive_name, primitive_range, range_constraint_interval,
-    resolve_named_float_arithmetic,
+    TypeReferenceNode, TypedTrees, ValueEnv, abstract_shift_count, exact_division_definedness,
+    is_arithmetic, literal_i64, place_path, range_constraint_interval,
 };
+use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
+use crate::proof_contracts::arithmetic_domains::float_arithmetic::resolve_named_float_arithmetic;
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{primitive_name, primitive_range};
+use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_operator_spelling;
 
 /// Reject runtime-control arithmetic from proof positions. A contract is a
 /// total proposition: it may compare or bitwise-inspect a Trapping-qualified

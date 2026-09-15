@@ -4,9 +4,12 @@
 //! the complete argument tree of an eligible normal-return call.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, State, TypeReferenceNode, TypedTrees, ValueEnv, analyze,
-    declared_place_type_raw, place_path, place_paths_overlap, primitive_range,
+    PrimitiveType, State, TypeReferenceNode, TypedTrees, ValueEnv, declared_place_type_raw,
+    place_path,
 };
+use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
+use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
+use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap;
 use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;

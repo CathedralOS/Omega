@@ -12,11 +12,14 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
 
+use super::ValueEnv;
 use super::total_specification::{
     AbstractSpecificationBindings, abstract_specification_interval,
     abstract_specification_place_type,
 };
-use super::{ValueEnv, integer_bit_width, primitive_name};
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    integer_bit_width, primitive_name,
+};
 
 fn direct_shifted_operand(
     program: &TypedTrees,

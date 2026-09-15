@@ -7,14 +7,9 @@
 use super::{
     ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
     Machine, PrimitiveType, State, TableCallExpression, TypeReferenceNode, TypedTrees, ValueEnv,
-    arithmetic_operator_spelling, bitwise, call_return_type, declared_place_type_raw,
-    exact_unsigned_widened_multiply_fits, float_source_proves_int_cast, guard_narrowing,
-    infer_return_interval, integer_bit_width, integer_interval_fits_primitive, is_arithmetic,
-    is_atomic_type, known_u64_value, literal_interval, ordered_values,
-    overflow_operand_value_call_target, place_path, primitive_name, primitive_range,
-    range_constraint_interval, refine_dependent_product, refine_dependent_product_factor,
-    refine_dependent_subtract, resolve_named_float_arithmetic, resolve_unique_self_call_state,
-    u64_exact_shift_left_fits, unsigned_representability,
+    bitwise, call_return_type, declared_place_type_raw, float_source_proves_int_cast,
+    guard_narrowing, is_arithmetic, ordered_values, place_path, range_constraint_interval,
+    unsigned_representability,
 };
 fn integer_policy_primitive(
     operator: BinaryOperator,
@@ -48,6 +43,20 @@ const NEUTRAL: Analysis = Analysis {
     domain: None,
     interval: Interval::UNBOUNDED,
     primitive: None,
+};
+use crate::proof_contracts::arithmetic_domains::dependent_products::{
+    refine_dependent_product, refine_dependent_product_factor,
+};
+use crate::proof_contracts::arithmetic_domains::dependent_relations::refine_dependent_subtract;
+use crate::proof_contracts::arithmetic_domains::float_arithmetic::resolve_named_float_arithmetic;
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    exact_unsigned_widened_multiply_fits, integer_bit_width, integer_interval_fits_primitive,
+    is_atomic_type, known_u64_value, literal_interval, primitive_name, primitive_range,
+    u64_exact_shift_left_fits,
+};
+use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_operator_spelling;
+use crate::proof_contracts::arithmetic_domains::return_ranges::{
+    infer_return_interval, overflow_operand_value_call_target, resolve_unique_self_call_state,
 };
 
 fn fixed_array_length(
@@ -324,7 +333,7 @@ pub(super) fn analyze(
                         program.expression_table.expression(operand),
                         ExpressionNode::Match(_)
                     ) {
-                        super::validate_anonymous_integer_primitive_range(
+                        crate::proof_contracts::arithmetic_domains::integer_ranges::validate_anonymous_integer_primitive_range(
                             program,
                             primitive,
                             operand,
@@ -965,7 +974,7 @@ pub(super) fn analyze(
             {
                 // A retained arm carrier precedes conversion. Its anonymous
                 // peers land at that result join, not in this cast target.
-                super::validate_anonymous_integer_primitive_range(
+                crate::proof_contracts::arithmetic_domains::integer_ranges::validate_anonymous_integer_primitive_range(
                     program,
                     primitive,
                     cast.value,

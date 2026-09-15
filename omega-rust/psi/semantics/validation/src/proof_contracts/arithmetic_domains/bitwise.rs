@@ -3,7 +3,10 @@
 //! A range determines a common bit prefix, not bitwise endpoint monotonicity.
 //! Transfer those known bits and take their signed/unsigned numeric hull.
 
-use super::{BinaryOperator, Interval, PrimitiveType, integer_bit_width, primitive_range};
+use super::{BinaryOperator, Interval, PrimitiveType};
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    integer_bit_width, primitive_range,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
 pub(super) fn binary(

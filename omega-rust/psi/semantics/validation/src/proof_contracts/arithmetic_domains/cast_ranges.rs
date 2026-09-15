@@ -3,7 +3,10 @@
 //! authored range shell; unsupported bounds must not disappear through an
 //! optional interval query that also represents absence of a range.
 
-use super::{Interval, ValueEnv, known_u64_value, primitive_range};
+use super::{Interval, ValueEnv};
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    known_u64_value, primitive_range,
+};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
@@ -41,7 +44,7 @@ pub(crate) fn record_float_literal_assignment(
     if value.is_finite() {
         env.narrow_float(
             path.clone(),
-            super::FloatInterval {
+            crate::proof_contracts::arithmetic_domains::value_environment::FloatInterval {
                 low: Some(value),
                 high: Some(value),
             },
@@ -252,7 +255,11 @@ fn float_membership(
         return false;
     }
     let bounds = |expression| {
-        if let Some(value) = super::float_literal_value(program, expression) {
+        if let Some(value) =
+            crate::proof_contracts::arithmetic_domains::float_arithmetic::float_literal_value(
+                program, expression,
+            )
+        {
             return value.is_finite().then_some((value, value));
         }
         let path = super::place_path(program, expression)?;
