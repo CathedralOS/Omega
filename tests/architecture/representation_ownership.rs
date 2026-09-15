@@ -1060,7 +1060,7 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     assert!(wrapper.contains("Arc::clone(&self.program)"));
     assert!(!wrapper.contains("pub(super) functions:"));
     assert!(!wrapper.contains("pub(super) structural_unit_functions:"));
-    let admission = std::fs::read_to_string(stage.join("mod.rs")).unwrap();
+    let admission = std::fs::read_to_string(stage.with_extension("rs")).unwrap();
     assert!(admission.contains("pub fn admit_resolved_machine_layout"));
     assert!(
         admission
