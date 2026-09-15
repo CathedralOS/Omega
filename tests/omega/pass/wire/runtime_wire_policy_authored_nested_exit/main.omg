@@ -27,7 +27,7 @@
 // written = 10; the decoder consumes the same 10 bytes (read = 10, ok = true)
 // and every decoded field equals the original.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data RoomHeader {
     #0 room_id: u32;
@@ -64,7 +64,7 @@ data Main {
     verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let msg: RoomMessageValue = RoomMessageValue {
         header: RoomHeaderValue {
             room_id: 300,
@@ -109,7 +109,7 @@ machine Main::main(&mut self) {
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField { size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
 data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
-data FieldPlan {
+data FieldPlan [copy] {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, lsb: u64, width: u64);
     case Varint(tag: u64);
@@ -129,20 +129,18 @@ machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
 machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64 [1..=128]) -> Plan
 terminates by fuel;
 {
-    self.index = 0;
-    transition { _ -> fill(schema, fuel) }
+    transition { _ -> fill(schema, fuel, 0) }
 
-    state fill(&mut self, schema: Schema, fuel: u64 [1..=128]) {
-        transition fuel > 1 && self.index < 32 && self.index < schema.field_count {
-            true -> place(schema, fuel - 1)
+    state fill(&mut self, schema: Schema, fuel: u64 [1..=128], index: u64 in Wrapping) {
+        transition fuel > 1 && index < 32 && index < schema.field_count {
+            true -> place(schema, fuel - 1, index)
             _ -> done(schema)
         }
     }
-    state place(&mut self, schema: Schema, fuel: u64 [1..=128]) {
-        self.tag = (schema.fields[self.index].number as u64 in Wrapping) as u64;
-        self.plans[self.index] = field_plan(schema.fields[self.index].kind, self.tag);
-        self.index = self.index + 1;
-        transition fuel > 1 { true -> fill(schema, fuel - 1) _ -> done(schema) }
+    state place(&mut self, schema: Schema, fuel: u64 [1..=128], index: u64 in Wrapping) {
+        self.tag = (schema.fields[index].number as u64 in Wrapping) as u64;
+        self.plans[index] = field_plan(schema.fields[index].kind, self.tag);
+        transition fuel > 1 { true -> fill(schema, fuel - 1, index + 1) _ -> done(schema) }
     }
     state done(&mut self, schema: Schema) -> Plan {
         Plan {
