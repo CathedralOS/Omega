@@ -64,11 +64,20 @@ pub(super) fn update(
     let mut proposed_source = before.to_owned();
     if let Some(revision) = revision {
         let subject = subject.expect("selected update has an accepted graph");
-        let selected = &updates.as_ref().expect("--to has one selection")[0];
+        // One authored spelling may select a different package per scope, so
+        // retargeting to a single requested revision requires one selection.
+        let updates = updates.as_ref().expect("--to has one selection");
+        let [selected] = updates.as_slice() else {
+            return Err(failure(
+                "--to requires exactly one package or root dependency alias",
+            ));
+        };
         let mut replaced = false;
+        // Every root-authored edge selecting this package's lineage moves:
+        // both scopes' rows for a dual-purpose package must agree on the
+        // revision because one source pin cannot split across purposes.
         for edge in subject.dependency_requests().iter().filter(|edge| {
             edge.requester() == subject.root().selected().key()
-                && edge.purpose().is_product()
                 && edge.selected().key().source_lineage() == selected.source_lineage()
         }) {
             let CanonicalDependencySourceRequest::Git {
@@ -188,14 +197,21 @@ fn select_packages(
 ) -> Result<Vec<PackageKey>, PackageCommandError> {
     let mut selected = Vec::new();
     for name in names {
-        let alias = subject.dependency_requests().iter().find(|edge| {
-            edge.requester() == subject.root().selected().key()
-                && edge.purpose().is_product()
-                && edge.alias().as_str() == name
-        });
-        let package = if let Some(edge) = alias {
-            edge.selected().key()
-        } else {
+        // Aliases are authorized per dependency scope: product and build rows
+        // may select different packages under one spelling. An update
+        // selection refreshes every distinct package the alias authorizes;
+        // `--to` above requires that selection to be exactly one package.
+        let mut aliased = subject
+            .dependency_requests()
+            .iter()
+            .filter(|edge| {
+                edge.requester() == subject.root().selected().key() && edge.alias().as_str() == name
+            })
+            .map(|edge| edge.selected().key().clone())
+            .collect::<Vec<_>>();
+        aliased.sort();
+        aliased.dedup();
+        let packages = if aliased.is_empty() {
             let mut candidates = subject.packages().iter().filter(|source| {
                 source.key() != subject.root().selected().key()
                     && source.key().name().as_str() == name
@@ -208,14 +224,18 @@ fn select_packages(
                     "package name {name:?} occurs in multiple sources; use a root dependency alias"
                 )));
             }
-            candidate.key()
+            vec![candidate.key().clone()]
+        } else {
+            aliased
         };
-        if selected.contains(package) {
-            return Err(failure(format!(
-                "dependency {name:?} was selected more than once"
-            )));
+        for package in packages {
+            if selected.contains(&package) {
+                return Err(failure(format!(
+                    "dependency {name:?} was selected more than once"
+                )));
+            }
+            selected.push(package);
         }
-        selected.push(package.clone());
     }
     Ok(selected)
 }
