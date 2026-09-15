@@ -9,8 +9,8 @@ use crate::frame_layout::{
 pub use machine_code::TargetFrameLayoutIdentity;
 
 pub use machine_code::{
-    CalleeSaveFrameSlot, FunctionTargetFrameLayout, ReturnAddressFrameCustody, StackProbePlan,
-    TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
+    CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore, FunctionTargetFrameLayout,
+    ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

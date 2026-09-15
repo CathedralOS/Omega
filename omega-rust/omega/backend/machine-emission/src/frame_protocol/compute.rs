@@ -42,6 +42,10 @@ pub(super) fn derive(
         {
             return Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding);
         }
+        // The encoded protocol performs exactly the validated unwind roster:
+        // the ISA codec's save list runs in reverse roster order so its
+        // epilogue restores in roster order — a saved link register first,
+        // then preservation slots in descending frame offset.
         let (prologue_bytes, epilogue_bytes) = match environment.target().architecture {
             Architecture::X86_64 => {
                 if !matches!(
@@ -51,12 +55,14 @@ pub(super) fn derive(
                     return Err(TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody);
                 }
                 let slots = function
-                    .callee_save_slots
+                    .unwind
+                    .restores
                     .iter()
-                    .map(|slot| X86_64FrameSlot {
-                        view: slot.storage_view,
-                        offset_bytes: slot.frame_offset_bytes,
-                        size_bytes: slot.size_bytes,
+                    .rev()
+                    .map(|restore| X86_64FrameSlot {
+                        view: restore.view,
+                        offset_bytes: restore.frame_offset_bytes,
+                        size_bytes: restore.size_bytes,
                     })
                     .collect::<Vec<_>>();
                 isa_x86_64::encode_system_v_amd64_frame_protocol(
@@ -71,32 +77,23 @@ pub(super) fn derive(
                 .map_err(TargetFrameProtocolEncodingError::X86)?
             }
             Architecture::Aarch64 => {
-                let mut slots = function
-                    .callee_save_slots
+                if matches!(
+                    function.return_address,
+                    ReturnAddressFrameCustody::CallerActivationStack { .. }
+                ) {
+                    return Err(TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody);
+                }
+                let slots = function
+                    .unwind
+                    .restores
                     .iter()
-                    .map(|slot| Aarch64FrameSlot {
-                        view: slot.storage_view,
-                        offset_bytes: slot.frame_offset_bytes,
-                        size_bytes: slot.size_bytes,
+                    .rev()
+                    .map(|restore| Aarch64FrameSlot {
+                        view: restore.view,
+                        offset_bytes: restore.frame_offset_bytes,
+                        size_bytes: restore.size_bytes,
                     })
                     .collect::<Vec<_>>();
-                match function.return_address {
-                    ReturnAddressFrameCustody::LiveLinkRegister { .. } => {}
-                    ReturnAddressFrameCustody::SavedLinkRegister {
-                        view,
-                        frame_offset_bytes,
-                        size_bytes,
-                    } => slots.push(Aarch64FrameSlot {
-                        view,
-                        offset_bytes: frame_offset_bytes,
-                        size_bytes: u64::from(size_bytes),
-                    }),
-                    ReturnAddressFrameCustody::CallerActivationStack { .. } => {
-                        return Err(
-                            TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody,
-                        );
-                    }
-                }
                 isa_aarch64::encode_aapcs64_frame_protocol(
                     environment.physical(),
                     committed_bytes,

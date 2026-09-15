@@ -8,9 +8,9 @@ use crate::frame_layout::{
 };
 
 use super::{
-    CalleeSaveFrameSlot, FunctionTargetFrameLayout, ReturnAddressFrameCustody, StackProbePlan,
-    TargetFrameLayoutError, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
-    stack_commit::stack_commit_granule_bytes,
+    CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore, FunctionTargetFrameLayout,
+    ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutError, TargetFrameLayoutPlan,
+    TargetFrameLayoutPolicy, stack_commit::stack_commit_granule_bytes,
 };
 
 pub(super) fn derive(
@@ -343,10 +343,37 @@ fn function_layout(
 
     // Only the committed extent needs stack-commit probing; red-zone-resident
     // bytes are already below the unadjusted stack pointer.
-    let stack_probe = probe_plan(
-        environment.target(),
-        frame_size_bytes - red_zone_resident_bytes,
-    )?;
+    let committed_bytes = frame_size_bytes - red_zone_resident_bytes;
+    let stack_probe = probe_plan(environment.target(), committed_bytes)?;
+
+    // The unwind roster is the epilogue's restoration sequence: a saved link
+    // register sits at the highest frame coordinate and is restored first,
+    // then preservation slots in reverse save order — strictly descending
+    // frame offsets. The release returns exactly the committed extent to the
+    // caller's stack.
+    let mut restores = Vec::with_capacity(callee_save_slots.len() + 1);
+    if let ReturnAddressFrameCustody::SavedLinkRegister {
+        view,
+        frame_offset_bytes,
+        size_bytes,
+    } = return_address
+    {
+        restores.push(FrameUnwindRestore {
+            view,
+            frame_offset_bytes,
+            size_bytes: u64::from(size_bytes),
+        });
+    }
+    restores.extend(
+        callee_save_slots
+            .iter()
+            .rev()
+            .map(|slot| FrameUnwindRestore {
+                view: slot.storage_view,
+                frame_offset_bytes: slot.frame_offset_bytes,
+                size_bytes: slot.size_bytes,
+            }),
+    );
 
     Ok(FunctionTargetFrameLayout {
         machine,
@@ -362,6 +389,11 @@ fn function_layout(
         callee_save_slots,
         return_address,
         stack_probe,
+        unwind: FrameUnwindPlan {
+            restores,
+            released_bytes: committed_bytes,
+            return_address,
+        },
     })
 }
 

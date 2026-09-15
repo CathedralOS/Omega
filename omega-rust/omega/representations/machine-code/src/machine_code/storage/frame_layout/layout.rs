@@ -79,6 +79,39 @@ pub struct StackProbePlan {
     pub touches: u32,
 }
 
+/// One register restoration an unwind of the frame performs: the saved value
+/// in the committed frame slot at `frame_offset_bytes` — measured upward from
+/// the post-prologue stack pointer like every other frame coordinate — is
+/// returned to `view`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrameUnwindRestore {
+    pub view: RegisterViewId,
+    pub frame_offset_bytes: u64,
+    pub size_bytes: u64,
+}
+
+/// The exact restoration roster an unwind of this frame performs, recorded
+/// in the order the epilogue executes it: a saved link register is restored
+/// first, then every preservation slot in reverse save order, so roster
+/// order is strictly descending frame offset. `released_bytes` is the
+/// committed extent the unwind returns to the caller's stack after the
+/// restorations — always `frame_size_bytes - red_zone_resident_bytes`, since
+/// resident bytes were never committed. `return_address` restates the
+/// frame's return-address custody so the roster alone is a complete unwind
+/// description: after the rows run and the release moves the stack pointer,
+/// the continuation comes from the custody the frame recorded.
+///
+/// The roster is derived from the preservation storage plan and the
+/// return-address custody decision, never from emitted bytes; replay
+/// recovers the same roster independently and requires exact equality, so
+/// the producer's record stays non-authoritative.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FrameUnwindPlan {
+    pub restores: Vec<FrameUnwindRestore>,
+    pub released_bytes: u64,
+    pub return_address: ReturnAddressFrameCustody,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionTargetFrameLayout {
     pub machine: MachineId,
@@ -112,6 +145,11 @@ pub struct FunctionTargetFrameLayout {
     pub callee_save_slots: Vec<CalleeSaveFrameSlot>,
     pub return_address: ReturnAddressFrameCustody,
     pub stack_probe: StackProbePlan,
+    /// The exact unwind roster for this frame: which views the epilogue
+    /// restores from which committed slots, how many committed bytes the
+    /// unwind releases, and where the continuation address is recovered.
+    /// See `FrameUnwindPlan` for the ordering contract.
+    pub unwind: FrameUnwindPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

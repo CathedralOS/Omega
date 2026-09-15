@@ -36,7 +36,7 @@ use crate::{ReturnAddressFrameCustody, TargetFrameLayoutPlan, TargetFrameLayoutP
 
 pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {
     let mut hasher = Sha256::new();
-    hasher.update(b"omega.target-frame-layout.v9");
+    hasher.update(b"omega.target-frame-layout.v10");
     hasher.update(plan.post_allocation_machine.bytes());
     hasher.update(plan.callee_saved_requirements.bytes());
     hasher.update(plan.callee_save_storage.bytes());
@@ -82,34 +82,46 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
             hasher.update(slot.size_bytes.to_le_bytes());
             hasher.update(slot.alignment_bytes.to_le_bytes());
         }
-        match function.return_address {
-            ReturnAddressFrameCustody::CallerActivationStack {
-                post_prologue_offset_bytes,
-                size_bytes,
-            } => {
-                hasher.update([0]);
-                hasher.update(post_prologue_offset_bytes.to_le_bytes());
-                hasher.update(size_bytes.to_le_bytes());
-            }
-            ReturnAddressFrameCustody::LiveLinkRegister { view } => {
-                hasher.update([1]);
-                hasher.update(view.0.to_le_bytes());
-            }
-            ReturnAddressFrameCustody::SavedLinkRegister {
-                view,
-                frame_offset_bytes,
-                size_bytes,
-            } => {
-                hasher.update([2]);
-                hasher.update(view.0.to_le_bytes());
-                hasher.update(frame_offset_bytes.to_le_bytes());
-                hasher.update(size_bytes.to_le_bytes());
-            }
-        }
+        encode_return_address(&mut hasher, function.return_address);
         hasher.update(function.stack_probe.interval_bytes.to_le_bytes());
         hasher.update(function.stack_probe.touches.to_le_bytes());
+        encode_len(&mut hasher, function.unwind.restores.len());
+        for restore in &function.unwind.restores {
+            hasher.update(restore.view.0.to_le_bytes());
+            hasher.update(restore.frame_offset_bytes.to_le_bytes());
+            hasher.update(restore.size_bytes.to_le_bytes());
+        }
+        hasher.update(function.unwind.released_bytes.to_le_bytes());
+        encode_return_address(&mut hasher, function.unwind.return_address);
     }
     TargetFrameLayoutIdentity::from_bytes(hasher.finalize().into())
+}
+
+fn encode_return_address(hasher: &mut Sha256, custody: ReturnAddressFrameCustody) {
+    match custody {
+        ReturnAddressFrameCustody::CallerActivationStack {
+            post_prologue_offset_bytes,
+            size_bytes,
+        } => {
+            hasher.update([0]);
+            hasher.update(post_prologue_offset_bytes.to_le_bytes());
+            hasher.update(size_bytes.to_le_bytes());
+        }
+        ReturnAddressFrameCustody::LiveLinkRegister { view } => {
+            hasher.update([1]);
+            hasher.update(view.0.to_le_bytes());
+        }
+        ReturnAddressFrameCustody::SavedLinkRegister {
+            view,
+            frame_offset_bytes,
+            size_bytes,
+        } => {
+            hasher.update([2]);
+            hasher.update(view.0.to_le_bytes());
+            hasher.update(frame_offset_bytes.to_le_bytes());
+            hasher.update(size_bytes.to_le_bytes());
+        }
+    }
 }
 
 fn encode_target(hasher: &mut Sha256, target: target::NativeTarget) {
