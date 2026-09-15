@@ -116,8 +116,13 @@ pub(super) fn validate_declaration(
         validate_applicability(constraint, alternative.applicability).map_err(|()| {
             MachineEffectCatalogValidationError::InvalidAlternativeApplicability(semantic)
         })?;
-        validate_encoded_effects(constraint, declaration, &alternative.encoded)
-            .map_err(|()| MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic))?;
+        validate_encoded_effects(
+            constraint,
+            declaration,
+            alternative.applicability,
+            &alternative.encoded,
+        )
+        .map_err(|()| MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic))?;
         match alternative.size {
             MachineSizeKnowledge::ExactBytes(0)
             | MachineSizeKnowledge::EncoderResolved {
@@ -144,6 +149,7 @@ pub(super) fn validate_declaration(
 fn validate_encoded_effects(
     constraint: &RegisterInstructionConstraint,
     declaration: &MachineEffectDeclaration,
+    applicability: MachineAlternativeApplicability,
     encoded: &MachineEncodedEffects,
 ) -> Result<(), ()> {
     // Packed forms use a real early definition for their instruction-local
@@ -226,6 +232,58 @@ fn validate_encoded_effects(
         ) {
             return Err(());
         }
+    }
+    // The encoded row must restate its constraint row's operand contract
+    // exactly: every contracted definition is a declared write, and every
+    // contracted input is a declared read. Membership alone is not enough —
+    // a row that drops a contracted dependency understates the surface its
+    // instruction's operand homes are allocated against, and a row that
+    // invents one misstates the alternative's encoding.
+    if !encoded
+        .external_operand_writes
+        .iter()
+        .copied()
+        .eq(constraint.operands.iter().filter_map(|operand| {
+            matches!(
+                operand.access,
+                RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+            )
+            .then_some(operand.operand)
+        }))
+    {
+        return Err(());
+    }
+    let mut contracted_reads = constraint
+        .operands
+        .iter()
+        .filter_map(|operand| {
+            matches!(
+                operand.access,
+                RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
+            )
+            .then_some(operand.operand)
+        })
+        .collect::<Vec<u16>>();
+    match declaration.semantic {
+        // A return's operand homes are placed for the caller; the return
+        // encoding itself consumes no selected operand's incoming value.
+        MachineSemanticKind::ReturnScalar
+        | MachineSemanticKind::ReturnAggregate
+        | MachineSemanticKind::ReturnUnit => contracted_reads.clear(),
+        // An all-aliased subtract realizes x - x as a form whose result
+        // depends on neither input home; only that alternative may drop the
+        // aliased operands from its read surface.
+        MachineSemanticKind::ExactSubtractI64 => {
+            if let MachineAlternativeApplicability::ResultAliasesOperands { left, right, .. } =
+                applicability
+            {
+                contracted_reads.retain(|operand| *operand != left && *operand != right);
+            }
+        }
+        _ => {}
+    }
+    if encoded.external_operand_reads != contracted_reads {
+        return Err(());
     }
     if !encoded
         .implicit_unit_uses

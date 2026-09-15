@@ -437,7 +437,7 @@ fn returns_and_calls_reject_each_others_stack_effects() {
             MachineSemanticKind::ReturnScalar,
             return_constraint.key,
             MachineBarrier::ControlFlow,
-            vec![0],
+            Vec::new(),
             Vec::new(),
             activation_stack.0,
             activation_stack.1,
@@ -453,7 +453,7 @@ fn returns_and_calls_reject_each_others_stack_effects() {
                 MachineSemanticKind::ReturnScalar,
                 return_constraint.key,
                 MachineBarrier::ControlFlow,
-                vec![0],
+                Vec::new(),
                 Vec::new(),
                 call_return_address.0,
                 call_return_address.1,
@@ -614,31 +614,299 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
         )
         .is_err()
     );
+    // Store64 owns the frame-storage write on its single value operand.
+    let store_constraint = RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey {
+            family: RegisterConstraintFamily::Instruction,
+            variant: 29,
+        },
+        operands: vec![RegisterOperandConstraint {
+            operand: 0,
+            access: RegisterOperandAccess::Use,
+            class: RegisterClassId(0),
+            fixed_view: None,
+            tied_to: None,
+            early_clobber: false,
+        }],
+        implicit_uses: vec![register_model::RegisterUnitId(9)],
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    };
     let mut frame_store = MachineEncodedEffects::fallthrough_v1(vec![0], Vec::new());
     frame_store.memory = MachineEncodedMemoryEffect::WriteFrameStorageV1 {
         stack_pointer: RegisterViewId(5),
         byte_count: 8,
     };
     frame_store.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
-    for (semantic, valid) in [
-        (MachineSemanticKind::Store64, true),
-        (MachineSemanticKind::AddressOffset, false),
+    frame_store.implicit_unit_uses = store_constraint.implicit_uses.clone();
+    validate_declaration(
+        &store_constraint,
+        &declaration(
+            MachineSemanticKind::Store64,
+            crate::MachineMemoryEffect::WriteFrameStorageV1,
+            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+            &frame_store,
+        ),
+    )
+    .unwrap();
+    // AddressOffset keeps an internally consistent operand contract of its
+    // own; it still cannot borrow the frame-storage footprint.
+    let offset_constraint = RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey {
+            family: RegisterConstraintFamily::Instruction,
+            variant: 31,
+        },
+        operands: [RegisterOperandAccess::Use, RegisterOperandAccess::Def]
+            .into_iter()
+            .enumerate()
+            .map(|(operand, access)| RegisterOperandConstraint {
+                operand: operand as u16,
+                access,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    };
+    let mut borrowed = MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]);
+    borrowed.memory = frame_store.memory;
+    borrowed.trap = frame_store.trap;
+    assert!(
+        validate_declaration(
+            &offset_constraint,
+            &declaration(
+                MachineSemanticKind::AddressOffset,
+                crate::MachineMemoryEffect::WriteFrameStorageV1,
+                crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+                &borrowed,
+            ),
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn encoded_rows_restate_the_contracted_operand_custody() {
+    let constraint = |variant, accesses: &[RegisterOperandAccess]| RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey {
+            family: RegisterConstraintFamily::Instruction,
+            variant,
+        },
+        operands: accesses
+            .iter()
+            .enumerate()
+            .map(|(operand, access)| RegisterOperandConstraint {
+                operand: operand as u16,
+                access: *access,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    };
+    let declaration = |semantic, key, applicability, reads: Vec<u16>, writes: Vec<u16>| {
+        MachineEffectDeclaration {
+            semantic,
+            constraint: key,
+            memory: crate::MachineMemoryEffect::NoneV1,
+            trap: crate::MachineTrapBehavior::NeverV1,
+            barrier: MachineBarrier::None,
+            call: crate::MachineCallEffect::NoneV1,
+            cleanup: crate::MachineCleanupEffect::NoneV1,
+            alternatives: vec![MachineAlternative {
+                key: MachineAlternativeKey {
+                    family: semantic.into(),
+                    variant: 0,
+                },
+                applicability,
+                size: MachineSizeKnowledge::ExactBytes(4),
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded: MachineEncodedEffects::fallthrough_v1(reads, writes),
+            }],
+        }
+    };
+    // An ordinary three-operand rule reads every Use and writes every Def.
+    let arithmetic = constraint(
+        41,
+        &[
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Def,
+        ],
+    );
+    validate_declaration(
+        &arithmetic,
+        &declaration(
+            MachineSemanticKind::ExactAddI64,
+            arithmetic.key,
+            MachineAlternativeApplicability::Always,
+            vec![0, 1],
+            vec![2],
+        ),
+    )
+    .unwrap();
+    for (reads, writes) in [
+        (vec![0], vec![2]),       // an input the semantic consumes is missing
+        (vec![1], vec![2]),       // the other input is missing
+        (vec![0, 1], vec![]),     // the contracted definition is missing
+        (vec![0, 1], vec![0]),    // a substituted write names an input
+        (vec![0, 1, 2], vec![2]), // a definition cannot pose as an input
     ] {
-        assert_eq!(
+        assert!(
             validate_declaration(
-                &constraint,
+                &arithmetic,
                 &declaration(
-                    semantic,
-                    crate::MachineMemoryEffect::WriteFrameStorageV1,
-                    crate::MachineTrapBehavior::MayArchitecturalFaultV1,
-                    &frame_store,
+                    MachineSemanticKind::ExactAddI64,
+                    arithmetic.key,
+                    MachineAlternativeApplicability::Always,
+                    reads.clone(),
+                    writes.clone(),
                 ),
             )
-            .is_ok(),
-            valid,
-            "{semantic:?} frame-storage footprint"
+            .is_err(),
+            "reads {reads:?} writes {writes:?}"
         );
     }
+    // A read-write operand is contracted in both directions; neither may be
+    // dropped from the encoded surface.
+    let read_write = constraint(
+        43,
+        &[RegisterOperandAccess::UseDef, RegisterOperandAccess::Use],
+    );
+    validate_declaration(
+        &read_write,
+        &declaration(
+            MachineSemanticKind::CopyI64,
+            read_write.key,
+            MachineAlternativeApplicability::Always,
+            vec![0, 1],
+            vec![0],
+        ),
+    )
+    .unwrap();
+    for (reads, writes) in [(vec![1], vec![0]), (vec![0, 1], vec![])] {
+        assert!(
+            validate_declaration(
+                &read_write,
+                &declaration(
+                    MachineSemanticKind::CopyI64,
+                    read_write.key,
+                    MachineAlternativeApplicability::Always,
+                    reads.clone(),
+                    writes.clone(),
+                ),
+            )
+            .is_err(),
+            "reads {reads:?} writes {writes:?}"
+        );
+    }
+    // A return rule places its operand homes for the caller: its encoding
+    // reads no operand, and it may not claim that it does.
+    let returned = constraint(45, &[RegisterOperandAccess::Use]);
+    let mut return_row = declaration(
+        MachineSemanticKind::ReturnScalar,
+        returned.key,
+        MachineAlternativeApplicability::Always,
+        Vec::new(),
+        Vec::new(),
+    );
+    return_row.barrier = MachineBarrier::ControlFlow;
+    return_row.alternatives[0].encoded.control =
+        MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+            target: RegisterViewId(9),
+        };
+    return_row.alternatives[0].encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    validate_declaration(&returned, &return_row).unwrap();
+    return_row.alternatives[0].encoded.external_operand_reads = vec![0];
+    assert!(validate_declaration(&returned, &return_row).is_err());
+    // Only the all-aliased subtract realization drops its inputs: the result
+    // of x - x does not depend on either operand's incoming value.
+    let subtract = constraint(
+        47,
+        &[
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Def,
+        ],
+    );
+    let all_aliased = MachineAlternativeApplicability::ResultAliasesOperands {
+        result: 2,
+        left: 0,
+        right: 1,
+    };
+    validate_declaration(
+        &subtract,
+        &declaration(
+            MachineSemanticKind::ExactSubtractI64,
+            subtract.key,
+            all_aliased,
+            Vec::new(),
+            vec![2],
+        ),
+    )
+    .unwrap();
+    for (applicability, reads) in [
+        // The zeroing form cannot pretend it still consumes an input.
+        (all_aliased, vec![0]),
+        // A partially aliased form reads both inputs it operates on.
+        (
+            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                result: 2,
+                aliased_operand: 0,
+                distinct_operand: 1,
+            },
+            vec![0],
+        ),
+        (
+            MachineAlternativeApplicability::ResultDistinctFromOperands {
+                result: 2,
+                left: 0,
+                right: 1,
+            },
+            vec![0],
+        ),
+    ] {
+        assert!(
+            validate_declaration(
+                &subtract,
+                &declaration(
+                    MachineSemanticKind::ExactSubtractI64,
+                    subtract.key,
+                    applicability,
+                    reads.clone(),
+                    vec![2],
+                ),
+            )
+            .is_err(),
+            "subtract applicability {applicability:?} reads {reads:?}"
+        );
+    }
+    // The exemption belongs to subtraction: an all-aliased add row still
+    // depends on its shared input's incoming value.
+    assert!(
+        validate_declaration(
+            &subtract,
+            &declaration(
+                MachineSemanticKind::ExactAddI64,
+                subtract.key,
+                all_aliased,
+                Vec::new(),
+                vec![2],
+            ),
+        )
+        .is_err()
+    );
 }
 
 #[test]

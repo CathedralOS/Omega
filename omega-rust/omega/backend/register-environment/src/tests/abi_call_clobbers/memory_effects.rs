@@ -705,9 +705,9 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 "{key:?} forged implicit def must reject"
             );
 
-            // Dropping encoded operand custody is structural where the
-            // footprint row pins exact custody (packed transport and
-            // CopyBytes) and semantic where the admitted shape still matches.
+            // Dropping encoded operand custody understates the constraint
+            // row's contracted definitions and fails structural admission on
+            // every memory rule.
             if let Some(&dropped) = contract.writes.last() {
                 let mut corrupted = catalog.clone();
                 let writes = &mut memory_declaration_mut(&mut corrupted, key, semantic)
@@ -715,33 +715,18 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                     .encoded
                     .external_operand_writes;
                 writes.retain(|write| *write != dropped);
-                let exact = matches!(
-                    semantic,
-                    MachineSemanticKind::CopyBytes
-                        | MachineSemanticKind::LoadPacked3
-                        | MachineSemanticKind::LoadPacked5
-                        | MachineSemanticKind::LoadPacked6
-                        | MachineSemanticKind::LoadPacked7
-                        | MachineSemanticKind::StorePacked
-                );
-                let expected = if exact {
-                    EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic),
-                    )
-                } else {
-                    EffectRejection::SemanticMismatch
-                };
                 assert_eq!(
                     validate_effects(case, environment.constraints(), corrupted),
-                    Err(expected),
+                    Err(EffectRejection::Structural(
+                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                    )),
                     "{key:?} lost operand write must reject"
                 );
             }
 
-            // Dropping an encoded operand read is structural wherever an
-            // admitted shape names the dropped operand; the pure address and
-            // frame-store rows admit the smaller set and need canonical
-            // replay.
+            // Dropping an encoded operand read understates the contracted
+            // input surface the same way: the pure address and frame-store
+            // rows no longer admit the smaller set either.
             if let Some(&dropped) = contract.reads.last() {
                 let mut corrupted = catalog.clone();
                 let reads = &mut memory_declaration_mut(&mut corrupted, key, semantic).alternatives
@@ -749,20 +734,11 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 .encoded
                 .external_operand_reads;
                 reads.retain(|read| *read != dropped);
-                let admitted = matches!(
-                    semantic,
-                    MachineSemanticKind::AddressOffset | MachineSemanticKind::Store64
-                );
-                let expected = if admitted {
-                    EffectRejection::SemanticMismatch
-                } else {
-                    EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic),
-                    )
-                };
                 assert_eq!(
                     validate_effects(case, environment.constraints(), corrupted),
-                    Err(expected),
+                    Err(EffectRejection::Structural(
+                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                    )),
                     "{key:?} lost operand read must reject"
                 );
             }
