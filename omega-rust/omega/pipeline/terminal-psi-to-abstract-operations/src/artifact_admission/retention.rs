@@ -43,6 +43,17 @@ impl AdmittedOptimizationArtifact {
         super::require_empty_placed_view_inputs(self.placed_view_inputs())?;
         Ok(self.input)
     }
+
+    /// Consumers that own the separate plan-laid input carrier take the
+    /// verified optimizer input with the complete roster still retained
+    /// inside the verifier context module. The handoff stays exact because
+    /// construction is private to artifact admission, so a stale or
+    /// substituted roster is unrepresentable here rather than merely
+    /// unchecked. The rows remain semantic custody only: they grant no
+    /// backing, range, access, or lifetime authority.
+    pub fn into_optimization_input_with_placed_view_inputs(self) -> VerifiedPsiOptimizationInput {
+        self.input
+    }
 }
 
 pub(super) fn retain_verified_optimization_input(
