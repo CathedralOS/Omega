@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Fixture, callable, package_identity, project, project_checked_callable_policy};
 const SOURCE: &str = r#"
 pub data Pair { left: u64; right: u64; }
 machine write_one(value: &mut u64) { value = 1; }

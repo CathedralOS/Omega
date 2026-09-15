@@ -1,4 +1,13 @@
-use super::*;
+use super::super::{
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, Path, PathBuf,
+    SourceResolverStorage,
+};
+use super::{
+    ASSUMPTION, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
+    HistoricalPackagePolicyError, PURE, PackageChangeError, PackageChangeReview, PackageLock,
+    PackageLockTarget, PackagePolicyResolution, TARGET, TargetProfile, Tree, decisions, fs,
+    package, propose, resolve, review, review_package_change, source,
+};
 use compiler::CheckedCompileRequest;
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;

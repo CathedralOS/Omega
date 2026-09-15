@@ -1,5 +1,3 @@
-use super::*;
-
 #[path = "transaction/accepted_claims.rs"]
 mod accepted_claims;
 #[path = "transaction/candidate_conflicts.rs"]

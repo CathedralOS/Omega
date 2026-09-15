@@ -1,5 +1,11 @@
-use super::*;
-
+use super::super::super::PackagePolicyRowKind;
+use super::super::ASSUMPTION;
+use super::{
+    PURE, PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
+    PackageLock, TARGET, accept, accepted_files, documents, edit_decisions, execute,
+    execute_package_command, fixture, fs, install, lock, pending_install, proposal_path, resume,
+    update,
+};
 #[test]
 fn initial_assumption_install_stays_pending_then_rejected_until_accepting_resume() {
     let tree = fixture(ASSUMPTION);

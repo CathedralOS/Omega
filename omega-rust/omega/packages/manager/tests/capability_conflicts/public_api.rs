@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    ExternalSourceContext, LocalSourceLimits, PackageReviewCanonicalRowKind,
+    PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    PackageReviewSourceLocationRole, PackageSourceClosureLimits,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictLimits,
+    compare_review_only_capabilities, compile_resolved_package_reviews,
+    resolve_external_local_package_closure, temp_root, write_package,
+};
 use package_manager::review::SemanticBindingReview;
 
 #[test]

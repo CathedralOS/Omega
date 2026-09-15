@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
+    PackageSourceVerificationPhase, SourceLineage, SourceRelativePath, SourceResolveError,
+    compile_resolved_package_reviews, resolve_workspace_package_closure, temp_root, workspace_root,
+};
 use package_manager::review::SemanticBindingReview;
 
 #[test]

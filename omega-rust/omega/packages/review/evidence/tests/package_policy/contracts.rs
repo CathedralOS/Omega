@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Fixture, PackageKeyIdentity, project};
 #[test]
 fn trait_and_nested_static_crash_guards_keep_same_spelled_foreign_helper_owners() {
     let helper = "pub machine permitted(flag: bool) -> bool terminates; { flag }\n";

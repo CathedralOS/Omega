@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    GitExactRevisionAcquisition, LocalSourceLimits, LockedSourceRecoveryOptions,
+    PackageSourceClosureLimits, Path, TARGET, Tree, assert_fresh_matches, capture_lock, fs,
+    package, recover_locked_sources,
+};
 use package_manager::declarations::{PackageName, PackageSelection};
 use package_manager::resolution::graph::resolve_selected_git_project_closure_with_storage;
 use package_manager::resolution::source::GitPackageSourceRequest;

@@ -1,4 +1,8 @@
-use super::*;
+use super::super::{PackagePolicyRowKind, assert_fresh_matches};
+use super::{
+    ASSUMPTION, PackageLock, PackageLockRecoveryLimits, PackageLockTarget, PackagePolicyChangeKind,
+    TARGET, Tree, fs, propose, review, source,
+};
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;
 use package_manager::operations::{

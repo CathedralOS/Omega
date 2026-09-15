@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits, PathBuf,
+    ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure, SourceLineage,
+    SourceRelativePath, compile_resolved_package_reviews, resolve_workspace_package_closure,
+    temporary_root,
+};
 use package_manager::review::SemanticBindingReview;
 
 struct BuildOnlyFixture {

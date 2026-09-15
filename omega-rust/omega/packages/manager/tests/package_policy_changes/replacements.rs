@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    CanonicalSourceClosureSubject, PackageLock, PackagePolicyChangeLimits, TARGET, Tree, candidate,
+    compare_package_policy_changes, fs, lock_from_reviews, package, resolve,
+};
 use package_manager::declarations::{AliasName, DependencyPurpose, PackageKey};
 use package_manager::review::{
     PackagePolicyChangeSet, PackagePolicyDecision, PackagePolicyDecisionError as Error,

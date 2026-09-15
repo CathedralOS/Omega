@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    LocalSourceLimits, LockedSourceRecoveryOptions, PackageSourceClosureLimits, PathBuf,
+    ResolvedPackageSourceClosure, SourceResolverStorage, TARGET, Tree, assert_fresh_matches,
+    capture_lock, check_locked_sources, fs,
+};
 use package_manager::resolution::graph::resolve_workspace_project_closure_with_storage;
 use package_source::{SourceLineage, SourceRelativePath};
 

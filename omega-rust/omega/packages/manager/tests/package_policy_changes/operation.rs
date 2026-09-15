@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageLock,
+    PackageLockRecoveryLimits, PackageLockTarget, PackagePolicyChangeKind, TARGET, TargetProfile,
+    Tree, fs, package, resolve, source,
+};
 use package_manager::lock::HistoricalPackagePolicyError;
 use package_manager::operations::{PackageChangeError, PackageChangeReview, review_package_change};
 use package_manager::review::{

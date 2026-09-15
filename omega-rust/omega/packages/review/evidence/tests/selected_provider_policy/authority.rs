@@ -1,5 +1,6 @@
-use super::*;
-
+use super::{
+    Fixture, PackageReviewNominalOwner, TargetProfile, fixtures, package_identity, project,
+};
 #[test]
 fn same_spelled_service_reach_and_invocation_keep_their_exact_source_owner() {
     let extra = "pub boundary trait Extra {}\n";

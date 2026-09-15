@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    Fixture, PackagePolicyExternalBinding, package_identity, project,
+    project_checked_representation_policy, project_checked_selected_provider_policy,
+    project_checked_terminal_permission_policy,
+};
 #[test]
 fn complete_baseline_joins_nonempty_external_supply_and_selected_provider_meaning() {
     let source = r#"use omega::language::core::external_binding;

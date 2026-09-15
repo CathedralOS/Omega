@@ -1,6 +1,8 @@
 //! Command acceptance uses real staged source and compiler-generated findings.
-
-use super::*;
+use super::super::{Path, PathBuf};
+use super::{
+    PURE, PackageLock, PackageLockRecoveryLimits, TARGET, TargetProfile, Tree, fs, package, source,
+};
 use package_manager::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
     PackageCommandOutcome, PackageCommandStatus, execute_package_command,

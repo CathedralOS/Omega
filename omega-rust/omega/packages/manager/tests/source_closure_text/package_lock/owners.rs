@@ -1,6 +1,14 @@
 //! Graph membership of owners embedded in genuine compiled policy identities.
-
-use super::*;
+use super::super::{
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits,
+    ResolvedPackageSourceClosure, SourceResolverStorage, fs,
+    resolve_external_local_project_closure_with_storage, write_member,
+};
+use super::{
+    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock, PackageLockError,
+    PackageLockRecoveryLimits, PackageLockTarget, TargetProfile, TempTree,
+    compile_resolved_package_reviews, subject_for,
+};
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::{PackagePolicyBaseline, PackagePolicyCallableRole};
 use package_manager::review::SemanticBindingReview;

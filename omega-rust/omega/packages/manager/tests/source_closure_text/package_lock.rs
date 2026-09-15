@@ -1,6 +1,5 @@
 //! Full policy survives loss of the source checkout, cache, and compiler state.
-
-use super::*;
+use super::{TargetProfile, TempTree, resolve_diamond, subject_for};
 use package_manager::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock, PackageLockError,
     PackageLockRecoveryLimits, PackageLockTarget,

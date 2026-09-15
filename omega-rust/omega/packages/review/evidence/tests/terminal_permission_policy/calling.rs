@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{fixtures, project, read_permission};
 const SOURCE: &str = r#"use calling;
 pub data FsCallingPolicy {}
 pub FsCallingConformance: FsCallingPolicy satisfies CallingPolicy;
