@@ -16,7 +16,7 @@ use crate::flow::terminal_unit::ExpectedCallValueResult;
 use crate::flow::terminal_unit::ShapeCollector;
 use crate::flow::terminal_unit::build_call_operation;
 use crate::flow::terminal_unit::checked_composed_provider_attachment_requirements;
-use crate::flow::terminal_unit::checked_unit_structural_result_local;
+use crate::flow::terminal_unit::control::checked_unit_structural_result_local;
 use crate::flow::terminal_unit::is_unit;
 use crate::flow::terminal_unit::machine_binders;
 use crate::flow::terminal_unit::return_unit_affine_discards;

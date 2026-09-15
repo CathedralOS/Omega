@@ -1,5 +1,6 @@
-use super::super::{ShapeCollector, build_checked_machine, machine_binders, structural_signature};
+use super::super::{ShapeCollector, machine_binders, structural_signature};
 use super::{build_structural_scalar_field_store_sequence, frame};
+use crate::flow::terminal_unit::control::build_checked_machine;
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
 mod arithmetic_policies;

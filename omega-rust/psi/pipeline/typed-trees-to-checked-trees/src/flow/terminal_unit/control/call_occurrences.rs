@@ -5,7 +5,7 @@ use super::{
     TypeReferenceNode, TypedTrees,
 };
 use crate::flow::terminal_unit::ShapeCollector;
-use crate::flow::terminal_unit::checked_structural_result_type;
+use crate::flow::terminal_unit::control::call_results::checked_structural_result_type;
 use crate::flow::terminal_unit::is_unit;
 use crate::flow::terminal_unit::machine_binders;
 use crate::flow::terminal_unit::statement_sequence;

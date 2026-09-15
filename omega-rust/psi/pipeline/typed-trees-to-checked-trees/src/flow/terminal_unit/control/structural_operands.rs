@@ -11,10 +11,10 @@ use super::{
 use crate::flow::ScalarCalleePlans;
 use crate::flow::terminal_unit::ExpectedCallValueResult;
 use crate::flow::terminal_unit::ShapeCollector;
-use crate::flow::terminal_unit::bind_structural_call_result;
 use crate::flow::terminal_unit::build_call_operation;
-use crate::flow::terminal_unit::checked_structural_result_type;
-use crate::flow::terminal_unit::control::boundary_result_plan;
+use crate::flow::terminal_unit::control::boundary_machine::boundary_result_plan;
+use crate::flow::terminal_unit::control::call_results::bind_structural_call_result;
+use crate::flow::terminal_unit::control::call_results::checked_structural_result_type;
 use crate::flow::terminal_unit::machine_binders;
 use crate::flow::terminal_unit::state_flow;
 
