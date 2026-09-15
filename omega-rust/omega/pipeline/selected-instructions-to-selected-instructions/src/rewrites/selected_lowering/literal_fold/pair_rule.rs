@@ -555,6 +555,29 @@ impl SelectedInstructionPairRule {
         rule
     };
 
+    /// Eliminate `MaterializeI64` feeding the offset operand of
+    /// `ByteViewAddress`: the base-plus-index address computation rewrites to
+    /// the constant-offset `AddressOffset` form whose `byte_offset` is the
+    /// folded literal. Both forms are effect-isolated — neither touches
+    /// memory, traps, or implicit units — so the rewrite replaces the
+    /// consumer's surface wholesale under the ordinary
+    /// [`Isolated`](PairMachineEffects::Isolated) relationship.
+    ///
+    /// The immediate bound is the narrowest byte-offset field any target's
+    /// `AddressOffset` encoder admits: aarch64 `add xD, xN, #imm12` carries a
+    /// 12-bit unsigned displacement, so a target-independent rule declares
+    /// 4095 even though x86-64's `lea` disp32 form would admit more.
+    pub const BYTE_VIEW_ADDRESS_OFFSET_U12: Self = Self {
+        producer: MachineSemanticKind::MaterializeI64,
+        consumer: MachineSemanticKind::ByteViewAddress,
+        rewritten: MachineSemanticKind::AddressOffset,
+        operand_shape: PairOperandShape::BinaryRightLiteral,
+        immediate_limit: 4095,
+        result: PairResultDisposition::ScalarRegister,
+        unit_effects: PairUnitEffects::Isolated,
+        machine_effects: PairMachineEffects::Isolated,
+    };
+
     pub const fn producer(self) -> MachineSemanticKind {
         self.producer
     }
@@ -655,6 +678,7 @@ impl SelectedInstructionPairRule {
             MachineSemanticKind::CompareI64Immediate => Some(keys.compare_i64_immediate),
             MachineSemanticKind::MaterializeI64 => Some(keys.materialize_i64),
             MachineSemanticKind::Load8 => keys.load8,
+            MachineSemanticKind::AddressOffset => keys.address_offset,
             _ => None,
         }
     }
@@ -716,6 +740,11 @@ impl SelectedInstructionPairRule {
                 u32::try_from(immediate)
                     .ok()
                     .map(|byte_offset| SelectedInstructionKind::Load8 { byte_offset })
+            }
+            (MachineSemanticKind::AddressOffset, SelectedInstructionKind::ByteViewAddress) => {
+                u32::try_from(immediate)
+                    .ok()
+                    .map(|byte_offset| SelectedInstructionKind::AddressOffset { byte_offset })
             }
             _ => None,
         }

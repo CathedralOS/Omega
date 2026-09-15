@@ -27,6 +27,10 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// when the load-indexed policy bit is selected and the environment
     /// declares the row.
     pub(super) load8: Option<&'a RegisterInstructionConstraint>,
+    /// The `AddressOffset` row the byte-view address fold rewrites into;
+    /// bound only when the byte-view-address policy bit is selected and the
+    /// environment declares the row.
+    pub(super) address_offset: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -70,9 +74,21 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         (true, Some(key)) => Some(find(key)?),
         _ => None,
     };
-    for row in [add, subtract, compare, materialize, copy, load8]
-        .into_iter()
-        .flatten()
+    let address_offset = match (policy.enables_byte_view_address(), keys.address_offset) {
+        (true, Some(key)) => Some(find(key)?),
+        _ => None,
+    };
+    for row in [
+        add,
+        subtract,
+        compare,
+        materialize,
+        copy,
+        load8,
+        address_offset,
+    ]
+    .into_iter()
+    .flatten()
     {
         validate_immediate_row(row)?;
     }
@@ -114,6 +130,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::Load8,
             pointer_read_rewritten_declaration,
         ),
+        (
+            address_offset,
+            MachineSemanticKind::AddressOffset,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -129,6 +150,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         materialize,
         copy,
         load8,
+        address_offset,
         catalog,
     })
 }

@@ -365,9 +365,24 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `ValidatedOptimizedProjection`
   (`compiler/tests/optimizer_copy_materialization.rs`). The deferred
   `phase_selections/tests.rs` enable-list addition landed with it
-  (indexed-load and copy rows both listed now).
-  Remaining: further families (address-mode folding) one exact named family
-  at a time.
+  (indexed-load and copy rows both listed now). Landed: the address-mode
+  folding family —
+  `Optimization::SelectedIncomingU12ByteViewAddressOffset` (tag 26)
+  enables `BYTE_VIEW_ADDRESS_V1` and the `BYTE_VIEW_ADDRESS_OFFSET_U12`
+  pair rule (`MaterializeI64` + `ByteViewAddress` → `AddressOffset` of the
+  folded offset): the projection's operand-1 `Use` is the folded literal,
+  its operand-0 `Use` base survives, and its operand-2 `Def` is the result.
+  Both forms are effect-isolated on x86-64 and AArch64, so the rule rides
+  the ordinary binary-right-literal grammar and isolated effect surface;
+  the declared u12 bound is the aarch64 `add`-immediate encoding limit.
+  The independent replay binds the `AddressOffset` row under its own
+  policy-gated slot and rebuilds the constant-offset form from the
+  consumer kind alone; a `windows_x86_64` return-only build replays to
+  `ValidatedOptimizedProjection`
+  (`compiler/tests/optimizer_byte_view_address_offset.rs`).
+  Remaining: none of the originally suggested families are outstanding;
+  any further family follows the same one-exact-named-family-at-a-time
+  contract.
 
 - **SELECTED-ABI-VALIDATION.** Validate ABI operands, calls, clobbers, effects,
   traps, provenance, cleanup, and logical fuel across every selected rule.

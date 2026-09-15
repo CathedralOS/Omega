@@ -25,6 +25,7 @@ fn selected_lowering_catalog_selections_pass_the_physical_gate() {
         Optimization::SelectedIncomingLiteralExtensionElimination,
         Optimization::SelectedIncomingU12Load8IndexedOffset,
         Optimization::SelectedIncomingLiteralCopyMaterialization,
+        Optimization::SelectedIncomingU12ByteViewAddressOffset,
     ] {
         let selections = PostTerminalOptimizationSelections::new(
             OptimizationSelections::new([optimization]).unwrap(),
