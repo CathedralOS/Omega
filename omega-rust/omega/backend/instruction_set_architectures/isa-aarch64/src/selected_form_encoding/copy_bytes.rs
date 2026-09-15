@@ -2,12 +2,20 @@
 //! Inputs survive; early-clobber cursor and byte temporaries own every write.
 
 use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    RegisterViewId, ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
-    aarch64_physical_register_model, resolve_registers,
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    ValidatedAarch64SelectedFormEncoding,
 };
+use crate::aarch64_physical_register_model;
+use crate::selected_form_encoding::selected_forms::resolve_registers;
+use register_model::RegisterViewId;
+use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::MachineAlternativeFamily;
+use selected_instructions::MachineAlternativeKey;
+use selected_instructions::MachineEncodedControlEffect;
+use selected_instructions::MachineEncodedEffects;
+use selected_instructions::MachineEncodedMemoryEffect;
+use selected_instructions::MachineEncodedStackEffect;
+use selected_instructions::MachineEncodedTrapBehavior;
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -132,10 +140,10 @@ pub(super) fn validate(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        MachineAlternativeFamily, MachineAlternativeKey, aarch64_physical_register_model, encode,
-        validate,
-    };
+    use super::{encode, validate};
+    use crate::aarch64_physical_register_model;
+    use selected_instructions::MachineAlternativeFamily;
+    use selected_instructions::MachineAlternativeKey;
 
     #[test]
     fn copy_loop_replays_every_bit_and_rejects_scratch_aliases() {

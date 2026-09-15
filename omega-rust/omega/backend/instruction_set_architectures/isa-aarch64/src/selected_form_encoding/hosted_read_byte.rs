@@ -1,10 +1,12 @@
 //! Hosted read-one-byte leaf: caller frame storage, no hidden stack adjustment.
 use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, RegisterViewId,
-    ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    ValidatedAarch64SelectedFormEncoding,
 };
 use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
+use register_model::RegisterViewId;
+use register_model::ValidatedPhysicalRegisterModel;
 use target::NativeTarget;
 
 pub(crate) fn effects(target: NativeTarget) -> MachineEncodedEffects {

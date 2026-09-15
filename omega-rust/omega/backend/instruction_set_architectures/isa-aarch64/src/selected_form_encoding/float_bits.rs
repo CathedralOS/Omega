@@ -1,9 +1,15 @@
 //! Raw IEEE register transport. These instructions neither evaluate floats nor touch control state.
 use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineEncodedEffects, RegisterViewId, SelectedInstructionKind,
-    ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel, resolve_registers,
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    ValidatedAarch64SelectedFormEncoding,
 };
+use crate::selected_form_encoding::selected_forms::resolve_registers;
+use register_model::RegisterViewId;
+use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::MachineAlternativeFamily;
+use selected_instructions::MachineAlternativeKey;
+use selected_instructions::MachineEncodedEffects;
+use selected_instructions::SelectedInstructionKind;
 type Error = Aarch64SelectedFormEncodingError;
 type Encoding = ValidatedAarch64SelectedFormEncoding;
 pub(super) fn is_transfer(kind: SelectedInstructionKind) -> bool {
@@ -135,10 +141,11 @@ pub(super) fn validate(
 }
 #[cfg(test)]
 mod tests {
-    use super::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
-        SelectedInstructionKind, encode, properties, validate,
-    };
+    use super::{encode, properties, validate};
+    use selected_instructions::MachineAlternativeFamily;
+    use selected_instructions::MachineAlternativeKey;
+    use selected_instructions::MachineEncodedEffects;
+    use selected_instructions::SelectedInstructionKind;
     #[test]
     fn raw_transfers_decode_exact_width_direction_and_registers() {
         let physical = register_model::validate_physical_register_model(
