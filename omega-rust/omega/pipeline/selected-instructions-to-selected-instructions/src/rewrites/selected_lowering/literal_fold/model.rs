@@ -13,7 +13,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 5;
+const LITERAL_FOLD_VERSION: u32 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -32,26 +32,28 @@ impl LiteralFoldIdentity {
 /// fold, instruction scheduler, rematerializer, spill policy, or opt level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldPolicy {
-    enabled_rules: u8,
+    enabled_rules: u16,
 }
 
 impl LiteralFoldPolicy {
-    const EXACT_ADD_BIT: u8 = 1 << 0;
-    const EXACT_SUBTRACT_BIT: u8 = 1 << 1;
-    const COMPARE_BIT: u8 = 1 << 2;
-    const EXTENSION_BIT: u8 = 1 << 3;
-    const LOAD8_INDEXED_BIT: u8 = 1 << 4;
-    const COPY_BIT: u8 = 1 << 5;
-    const BYTE_VIEW_ADDRESS_BIT: u8 = 1 << 6;
-    const EXACT_DIVIDE_BIT: u8 = 1 << 7;
-    const KNOWN_BITS: u8 = Self::EXACT_ADD_BIT
+    const EXACT_ADD_BIT: u16 = 1 << 0;
+    const EXACT_SUBTRACT_BIT: u16 = 1 << 1;
+    const COMPARE_BIT: u16 = 1 << 2;
+    const EXTENSION_BIT: u16 = 1 << 3;
+    const LOAD8_INDEXED_BIT: u16 = 1 << 4;
+    const COPY_BIT: u16 = 1 << 5;
+    const BYTE_VIEW_ADDRESS_BIT: u16 = 1 << 6;
+    const EXACT_DIVIDE_BIT: u16 = 1 << 7;
+    const WRAPPING_REMAINDER_BIT: u16 = 1 << 8;
+    const KNOWN_BITS: u16 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
         | Self::EXTENSION_BIT
         | Self::LOAD8_INDEXED_BIT
         | Self::COPY_BIT
         | Self::BYTE_VIEW_ADDRESS_BIT
-        | Self::EXACT_DIVIDE_BIT;
+        | Self::EXACT_DIVIDE_BIT
+        | Self::WRAPPING_REMAINDER_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -92,6 +94,14 @@ impl LiteralFoldPolicy {
     /// consumer's encoded fault surface is discharged by the literal.
     pub const EXACT_DIVIDE_V1: Self = Self {
         enabled_rules: Self::EXACT_DIVIDE_BIT,
+    };
+    /// Wrapping-remainder constant fold: fold a materialized literal `1`
+    /// feeding its sole `WrappingRemainderI64` consumer's divisor operand
+    /// into a `MaterializeI64` of zero at the result register — a remainder
+    /// by one is always zero, so the consumer's encoded fault surface is
+    /// discharged by the literal and its scratch `Def` outputs drop dead.
+    pub const WRAPPING_REMAINDER_V1: Self = Self {
+        enabled_rules: Self::WRAPPING_REMAINDER_BIT,
     };
 
     pub(crate) const fn empty() -> Self {
@@ -140,11 +150,15 @@ impl LiteralFoldPolicy {
         self.enabled_rules & Self::EXACT_DIVIDE_BIT != 0
     }
 
-    pub const fn canonical_bits(self) -> u8 {
+    pub const fn enables_wrapping_remainder(self) -> bool {
+        self.enabled_rules & Self::WRAPPING_REMAINDER_BIT != 0
+    }
+
+    pub const fn canonical_bits(self) -> u16 {
         self.enabled_rules
     }
 
-    pub const fn from_canonical_bits(bits: u8) -> Option<Self> {
+    pub const fn from_canonical_bits(bits: u16) -> Option<Self> {
         if bits == 0 || bits & !Self::KNOWN_BITS != 0 {
             None
         } else {
@@ -214,7 +228,7 @@ impl LiteralFoldPlan {
         let raw_fuel = u32::from_le_bytes(cursor.array()?);
         let fuel_schedule = FuelScheduleIdentity::new(raw_fuel)
             .ok_or(LiteralFoldDecodeError::InvalidFuelSchedule(raw_fuel))?;
-        let policy_bits = cursor.byte()?;
+        let policy_bits = u16::from_le_bytes(cursor.array()?);
         let policy = LiteralFoldPolicy::from_canonical_bits(policy_bits)
             .ok_or(LiteralFoldDecodeError::UnknownPolicy(policy_bits))?;
         let budget = OptimizationWorkBudget::decode(cursor.take(40)?)
@@ -294,8 +308,10 @@ pub struct LiteralFoldAction {
     /// The source register every `Use` position of the rewritten constraint
     /// row binds — the operand that survives the fold. Under a right-literal
     /// grammar it is the consumer's operand 0, under a left-literal grammar
-    /// operand 1, and under the `Use`-free unary grammar it records the
-    /// folded input register.
+    /// operand 1, under the `Use`-free unary grammar it records the folded
+    /// input register, and under the constant-result grammar it records the
+    /// dropped operand-0 dividend for custody — the rewritten row binds no
+    /// `Use` position at all.
     pub surviving: VirtualRegisterId,
     /// The folded consumer's scalar result. Flag-defining consumers such as
     /// `CompareI64` carry no `Def` operand and record `None`.
@@ -465,7 +481,7 @@ pub enum LiteralFoldDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),
-    UnknownPolicy(u8),
+    UnknownPolicy(u16),
     UnknownOption(u8),
     UnknownConstraintFamily(u8),
     InvalidFuelSchedule(u32),

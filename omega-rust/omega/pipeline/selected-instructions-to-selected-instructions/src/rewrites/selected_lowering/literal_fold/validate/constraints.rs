@@ -34,6 +34,11 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// The `CopyI64` row the divide-identity fold rewrites into; bound only
     /// when the exact-divide policy bit is selected.
     pub(super) divide: Option<&'a RegisterInstructionConstraint>,
+    /// The `MaterializeI64` row the wrapping-remainder fold rewrites into —
+    /// the same constraint row the unary folds bind, gated separately so a
+    /// fold the selection did not enable cannot replay under another
+    /// family's policy.
+    pub(super) remainder: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -85,6 +90,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_exact_divide()
         .then(|| find(keys.copy_i64))
         .transpose()?;
+    let remainder = policy
+        .enables_wrapping_remainder()
+        .then(|| find(keys.materialize_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -94,6 +103,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         load8,
         address_offset,
         divide,
+        remainder,
     ]
     .into_iter()
     .flatten()
@@ -148,6 +158,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::CopyI64,
             isolated_rewritten_declaration,
         ),
+        (
+            remainder,
+            MachineSemanticKind::MaterializeI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -165,6 +180,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         load8,
         address_offset,
         divide,
+        remainder,
         catalog,
     })
 }

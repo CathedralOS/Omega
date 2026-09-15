@@ -180,8 +180,14 @@ fn validate_immediate_row(
             }
         }
         // Constant-materialization form: `result = materialize folded` carries
-        // no register input; its single `Def` operand is the only output.
-        (PairOperandShape::UnaryLiteral, PairResultDisposition::ScalarRegister, [result]) => {
+        // no register input; its single `Def` operand is the only output. The
+        // constant-result grammar rewrites into the same row: its folded
+        // result is a `MaterializeI64` constant binding no `Use` operand.
+        (
+            PairOperandShape::UnaryLiteral | PairOperandShape::BinaryRightLiteralConstantResult,
+            PairResultDisposition::ScalarRegister,
+            [result],
+        ) => {
             if result.operand != 0
                 || result.access != RegisterOperandAccess::Def
                 || !clean(&[result])

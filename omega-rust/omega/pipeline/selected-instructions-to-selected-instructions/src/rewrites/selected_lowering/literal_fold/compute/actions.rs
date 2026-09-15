@@ -175,6 +175,38 @@ pub(super) fn derive_action(
             }
             Some(result.virtual_register)
         }
+        // A binary right-literal consumer whose folded result is a constant
+        // of the literal alone: `[left, victim, result, scratch...]` folds
+        // the operand-1 `Use`, drops the operand-0 `Use` — the constant
+        // result never reads it — and drops every `Def` operand past the
+        // result, which the declared grammar admits only when each dropped
+        // register occurs nowhere else in the function — the dead quotient
+        // scratch an x86-64 `idiv` realization writes. A dropped `Def`
+        // another instruction read or defined would silently leave a use
+        // of a register the rewrite stopped defining.
+        (
+            PairOperandShape::BinaryRightLiteralConstantResult,
+            PairResultDisposition::ScalarRegister,
+            [left, right, result, scratch @ ..],
+        ) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // Commutative binary consumers also admit the literal as the left
         // operand: `[victim, right, result]` folds the operand-0 `Use` and
         // binds the operand-1 survivor into the rewritten row.
@@ -281,11 +313,14 @@ pub(super) fn derive_action(
     // row binds — the source operand that survives the fold. A right-literal
     // grammar — including the auxiliary-`Use` divide grammar — leaves
     // operand 0, a left-literal grammar leaves operand 1, and the `Use`-free
-    // unary fold records its folded input.
+    // unary fold records its folded input. The constant-result grammar
+    // binds no `Use` position; it records the dropped operand-0 dividend
+    // for custody.
     let surviving = match pair.rule.operand_shape() {
         PairOperandShape::BinaryLeftLiteral => consumer.operands[1].virtual_register,
         PairOperandShape::BinaryRightLiteral
         | PairOperandShape::BinaryRightLiteralAuxiliaryUses
+        | PairOperandShape::BinaryRightLiteralConstantResult
         | PairOperandShape::UnaryLiteral => consumer.operands[0].virtual_register,
     };
 
@@ -331,4 +366,114 @@ fn auxiliary_zero_defined(
             }
         )
     }) && saw_definition
+}
+
+/// Whether `register`'s only occurrence in `function` is one `Def` operand —
+/// the custody the constant-result grammar requires of every scratch `Def`
+/// it drops. The operand itself is that one occurrence: any other operand
+/// position, terminator operand, or successor transport naming the register
+/// would leave the fold removing a definition that a surviving read or a
+/// second definition still observes. Uses are counted across instruction
+/// and terminator operand lists and every successor binding transport, the
+/// same sites the rewrite's densification walks.
+fn dropped_def_is_dead(
+    function: &SelectedFunction,
+    register: selected_instructions::VirtualRegisterId,
+) -> bool {
+    let mut occurrences = 0_usize;
+    for block in &function.blocks {
+        for instruction in block.instructions.iter().chain(match &block.terminator {
+            selected_instructions::SelectedTerminator::ConditionalBranch {
+                instruction, ..
+            }
+            | selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+                instruction,
+                ..
+            }
+            | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
+                instruction,
+                ..
+            }
+            | selected_instructions::SelectedTerminator::Jump { instruction, .. }
+            | selected_instructions::SelectedTerminator::Return { instruction, .. }
+            | selected_instructions::SelectedTerminator::HostedExitProcess {
+                instruction, ..
+            } => std::iter::once(instruction),
+        }) {
+            occurrences += instruction
+                .operands
+                .iter()
+                .filter(|operand| operand.virtual_register == register)
+                .count();
+        }
+        let successors = match &block.terminator {
+            selected_instructions::SelectedTerminator::Jump { successor, .. } => {
+                vec![successor]
+            }
+            selected_instructions::SelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            } => vec![when_nonzero, when_zero],
+            selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            }
+            | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            } => vec![when_less, when_not_less],
+            selected_instructions::SelectedTerminator::Return { .. }
+            | selected_instructions::SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
+        };
+        for successor in successors {
+            occurrences += successor
+                .structural_bindings
+                .iter()
+                .filter(|binding| {
+                    matches!(
+                        binding.transport,
+                        selected_instructions::SelectedStructuralTransport::WholeValue {
+                            argument,
+                            ..
+                        }
+                        | selected_instructions::SelectedStructuralTransport::Descriptor {
+                            argument,
+                            ..
+                        } if argument == register
+                    )
+                })
+                .count();
+            if let Some(case) = &successor.structural_case {
+                occurrences += case
+                    .payloads
+                    .iter()
+                    .filter(|payload| match &payload.transport {
+                        selected_instructions::SelectedCasePayloadTransport::Unused => false,
+                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                            parameter,
+                        } => *parameter == register,
+                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                            argument,
+                            parameter,
+                        } => *argument == register || *parameter == register,
+                    })
+                    .count();
+            }
+            occurrences += successor
+                .bindings
+                .iter()
+                .filter(|binding| match &binding.transport {
+                    selected_instructions::SelectedValueTransport::Unused => false,
+                    selected_instructions::SelectedValueTransport::Registers {
+                        argument,
+                        parameter,
+                    } => *argument == register || *parameter == register,
+                })
+                .count();
+        }
+    }
+    occurrences == 1
 }
