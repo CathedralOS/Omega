@@ -58,8 +58,12 @@
 //! The scheme declarations are signature prefix `0..5` — they reference
 //! only each other, so a producer's own declarations append after them.
 
+use super::scheme_dsl::{
+    Syntax, app, apps, build, fst, id, indw, lam, pair, pi, refl, scheme_at, sigma, snd, sort, sup,
+    ty, v, w,
+};
 use super::signature::Declaration;
-use super::term::{Level, Sort, Term, TermArena, TermHandle};
+use super::term::{Level, Term, TermArena, TermHandle};
 
 /// `IndexedAt` — the indexing condition — is declaration 0 of
 /// [`indexed_scheme`].
@@ -76,212 +80,19 @@ pub const INDEXED_SUP: u32 = 3;
 /// universe-polymorphic over `l, u, v` and the motive level `w`.
 pub const INDEXED_IND: u32 = 4;
 
-/// Term notation for authoring the scheme declarations: binders are
-/// named strings resolved to de Bruijn indices mechanically, so the
-/// emitted terms stay free of hand-computed index arithmetic. The
-/// checker only ever sees the built `Term`s; nothing name-based escapes
-/// construction. `Variable` resolution is a build-time panic on a typo,
-/// never a silently wrong index.
-#[derive(Clone)]
-enum Syntax {
-    Variable(&'static str),
-    Sort(Sort),
-    Pi(&'static str, Box<Syntax>, Box<Syntax>),
-    Lambda(&'static str, Box<Syntax>, Box<Syntax>),
-    Apply(Box<Syntax>, Box<Syntax>),
-    Sigma(&'static str, Box<Syntax>, Box<Syntax>),
-    Pair(Box<Syntax>, Box<Syntax>),
-    Fst(Box<Syntax>),
-    Snd(Box<Syntax>),
-    Id(Box<Syntax>, Box<Syntax>, Box<Syntax>),
-    Refl(Box<Syntax>, Box<Syntax>),
-    IdElim(Box<Syntax>, Box<Syntax>, Box<Syntax>, Box<Syntax>),
-    W(Box<Syntax>, Box<Syntax>),
-    Sup(Box<Syntax>, Box<Syntax>, Box<Syntax>, Box<Syntax>),
-    IndW(Box<Syntax>, Box<Syntax>, Box<Syntax>),
-    /// A scheme declaration reference at parameters `l, u, v` —
-    /// `Constant { declaration, levels: [Parameter 0, 1, 2] }`. Every
-    /// cross-declaration reference inside the scheme instantiates this
-    /// way; `iindW`'s extra parameter `w` never reaches the others.
-    Scheme(u32),
-}
-
-fn build(arena: &mut TermArena, scope: &mut Vec<&'static str>, syntax: &Syntax) -> TermHandle {
-    match syntax {
-        Syntax::Variable(name) => {
-            let position = scope
-                .iter()
-                .rposition(|bound| bound == name)
-                .unwrap_or_else(|| panic!("unbound scheme variable {name}"));
-            // `scope` is outermost-first; the de Bruijn index counts
-            // inward from the end.
-            let index = scope.len() - 1 - position;
-            arena.insert(Term::Variable(index as u32))
-        }
-        Syntax::Sort(sort) => arena.insert(Term::Sort(sort.clone())),
-        Syntax::Pi(name, domain, codomain) | Syntax::Sigma(name, domain, codomain) => {
-            let domain = build(arena, scope, domain);
-            scope.push(name);
-            let codomain = build(arena, scope, codomain);
-            scope.pop();
-            match syntax {
-                Syntax::Pi(..) => arena.insert(Term::Pi { domain, codomain }),
-                _ => arena.insert(Term::Sigma { domain, codomain }),
-            }
-        }
-        Syntax::Lambda(name, domain, body) => {
-            let domain = build(arena, scope, domain);
-            scope.push(name);
-            let body = build(arena, scope, body);
-            scope.pop();
-            arena.insert(Term::Lambda { domain, body })
-        }
-        Syntax::Apply(function, argument) => {
-            let function = build(arena, scope, function);
-            let argument = build(arena, scope, argument);
-            arena.insert(Term::Apply { function, argument })
-        }
-        Syntax::Pair(first, second) => {
-            let first = build(arena, scope, first);
-            let second = build(arena, scope, second);
-            arena.insert(Term::Pair { first, second })
-        }
-        Syntax::Fst(pair) => {
-            let pair = build(arena, scope, pair);
-            arena.insert(Term::Fst { pair })
-        }
-        Syntax::Snd(pair) => {
-            let pair = build(arena, scope, pair);
-            arena.insert(Term::Snd { pair })
-        }
-        Syntax::Id(ty, left, right) => {
-            let ty = build(arena, scope, ty);
-            let left = build(arena, scope, left);
-            let right = build(arena, scope, right);
-            arena.insert(Term::Id { ty, left, right })
-        }
-        Syntax::Refl(ty, value) => {
-            let ty = build(arena, scope, ty);
-            let value = build(arena, scope, value);
-            arena.insert(Term::Refl { ty, value })
-        }
-        Syntax::IdElim(motive, base, endpoint, proof) => {
-            let motive = build(arena, scope, motive);
-            let base = build(arena, scope, base);
-            let endpoint = build(arena, scope, endpoint);
-            let proof = build(arena, scope, proof);
-            arena.insert(Term::IdElim {
-                motive,
-                base,
-                endpoint,
-                proof,
-            })
-        }
-        Syntax::W(carrier, children) => {
-            let carrier = build(arena, scope, carrier);
-            let children = build(arena, scope, children);
-            arena.insert(Term::W { carrier, children })
-        }
-        Syntax::Sup(carrier, children, label, function) => {
-            let carrier = build(arena, scope, carrier);
-            let children = build(arena, scope, children);
-            let label = build(arena, scope, label);
-            let function = build(arena, scope, function);
-            arena.insert(Term::Sup {
-                carrier,
-                children,
-                label,
-                function,
-            })
-        }
-        Syntax::IndW(motive, step, tree) => {
-            let motive = build(arena, scope, motive);
-            let step = build(arena, scope, step);
-            let tree = build(arena, scope, tree);
-            arena.insert(Term::IndW { motive, step, tree })
-        }
-        Syntax::Scheme(declaration) => arena.insert(Term::Constant {
-            declaration: *declaration,
-            levels: vec![
-                Level::Parameter(0),
-                Level::Parameter(1),
-                Level::Parameter(2),
-            ],
-        }),
-    }
-}
-
-fn v(name: &'static str) -> Syntax {
-    Syntax::Variable(name)
-}
-
-fn sort(level: Level) -> Syntax {
-    Syntax::Sort(Sort::Type(level))
-}
-
-fn ty(level: u32) -> Syntax {
-    sort(Level::Parameter(level))
-}
-
-fn app(function: Syntax, argument: Syntax) -> Syntax {
-    Syntax::Apply(Box::new(function), Box::new(argument))
-}
-
-fn apps(function: Syntax, arguments: impl IntoIterator<Item = Syntax>) -> Syntax {
-    arguments.into_iter().fold(function, app)
-}
-
-fn pi(name: &'static str, domain: Syntax, codomain: Syntax) -> Syntax {
-    Syntax::Pi(name, Box::new(domain), Box::new(codomain))
-}
-
-fn lam(name: &'static str, domain: Syntax, body: Syntax) -> Syntax {
-    Syntax::Lambda(name, Box::new(domain), Box::new(body))
-}
-
-fn sigma(name: &'static str, domain: Syntax, codomain: Syntax) -> Syntax {
-    Syntax::Sigma(name, Box::new(domain), Box::new(codomain))
-}
-
-fn pair(first: Syntax, second: Syntax) -> Syntax {
-    Syntax::Pair(Box::new(first), Box::new(second))
-}
-
-fn fst(pair: Syntax) -> Syntax {
-    Syntax::Fst(Box::new(pair))
-}
-
-fn snd(pair: Syntax) -> Syntax {
-    Syntax::Snd(Box::new(pair))
-}
-
-fn id(ty: Syntax, left: Syntax, right: Syntax) -> Syntax {
-    Syntax::Id(Box::new(ty), Box::new(left), Box::new(right))
-}
-
-fn refl(ty: Syntax, value: Syntax) -> Syntax {
-    Syntax::Refl(Box::new(ty), Box::new(value))
-}
-
-fn w(carrier: Syntax, children: Syntax) -> Syntax {
-    Syntax::W(Box::new(carrier), Box::new(children))
-}
-
-fn sup(carrier: Syntax, children: Syntax, label: Syntax, function: Syntax) -> Syntax {
-    Syntax::Sup(
-        Box::new(carrier),
-        Box::new(children),
-        Box::new(label),
-        Box::new(function),
-    )
-}
-
-fn indw(motive: Syntax, step: Syntax, tree: Syntax) -> Syntax {
-    Syntax::IndW(Box::new(motive), Box::new(step), Box::new(tree))
-}
-
+/// A scheme declaration reference at parameters `l, u, v` —
+/// `Constant { declaration, levels: [Parameter 0, 1, 2] }`. Every
+/// cross-declaration reference inside the scheme instantiates this
+/// way; `iindW`'s extra parameter `w` never reaches the others.
 fn scheme(declaration: u32) -> Syntax {
-    Syntax::Scheme(declaration)
+    scheme_at(
+        declaration,
+        vec![
+            Level::Parameter(0),
+            Level::Parameter(1),
+            Level::Parameter(2),
+        ],
+    )
 }
 
 /// The shared description telescope

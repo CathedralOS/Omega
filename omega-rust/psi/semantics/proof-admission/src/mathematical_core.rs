@@ -138,10 +138,29 @@
 //! derived `isup`/`iindW` carry definitional constructor computation
 //! through pair eta and typed function eta with a neutral child
 //! function, exactly the dependency the profile names.
+//!
+//! [`quotient`] adds the quotient specification's set-quotient
+//! foundation as a second derived scheme: the opaque carrier `Q(A,R)`,
+//! `project`, propositional `setQ`, `sound`, `effective`, set-valued
+//! `elim` and its point-computation identity `beta` are the explicitly
+//! admitted named assumptions the specification lists, while forward
+//! `transport`, the J-derived identity lemmas and the ordinary `lift`
+//! are checked definitions derived from that interface — the explicit
+//! representative operation plus explicit congruence theorem, with the
+//! optional forward-precondition-transport shape admitted as one more
+//! exactly-stated assumption rather than silently postulated through an
+//! extensionality law the calculus deliberately lacks. No `Term`
+//! variant, typing rule or conversion rule is added; every assumption
+//! lands in `assumption_closure`, so a receiver refusing quotient
+//! assumptions rejects any judgment that commits to one, and `beta`
+//! being propositional — never a conversion — keeps a quotient's
+//! representative unextractable.
 
 mod certificate;
 mod conversion;
 mod indexed;
+mod quotient;
+mod scheme_dsl;
 mod signature;
 mod substitution;
 mod term;
@@ -156,6 +175,11 @@ pub use conversion::Budget;
 pub use conversion::{DEFAULT_CONVERSION_STEPS, convertible, weak_head_normalize};
 pub use indexed::{
     INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily, indexed_scheme,
+};
+pub use quotient::{
+    QUOTIENT, QUOTIENT_BETA, QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_TRANS, QUOTIENT_IS_SET,
+    QUOTIENT_LIFT, QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT, QUOTIENT_SET, QUOTIENT_SOUND,
+    QUOTIENT_TRANSPORT, QUOTIENT_TRANSPORT_CONST, QuotientFamily, quotient_scheme,
 };
 pub use signature::{
     Declaration, Signature, assumption_closure, check_signature, judgment_assumption_closure,
