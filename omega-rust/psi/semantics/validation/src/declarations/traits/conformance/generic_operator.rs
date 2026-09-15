@@ -1,10 +1,14 @@
 //! Token selection from a generic machine's authored conformance requirements.
-use super::{
-    Machine, StateSignature, SymbolHandle, TraitTypeBinding, TraitTypeBindingTarget,
-    TypeReferenceHandle, TypedTrees, trait_definition_by_symbol,
-    type_references_match_with_trait_bindings,
-};
+use crate::declarations::traits::conformance::signature_matching::TraitTypeBinding;
+use crate::declarations::traits::conformance::signature_matching::TraitTypeBindingTarget;
+use crate::declarations::traits::conformance::signature_matching::type_references_match_with_trait_bindings;
+use crate::declarations::traits::shared::trait_definition_by_symbol;
 use language_core::OperatorSpelling;
+use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::machine::Machine;
+use typed_trees::signature::StateSignature;
+use typed_trees::types::TypeReferenceHandle;
 
 /// Select a requirement identity, not a concrete conformance realization.
 /// Every known operand must satisfy the same declared subject/argument bindings.
