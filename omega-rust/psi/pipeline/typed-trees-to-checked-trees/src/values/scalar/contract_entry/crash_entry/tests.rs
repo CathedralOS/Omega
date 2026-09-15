@@ -158,7 +158,7 @@ fn structural_entry_runtime_self_path_and_boolean_type_queries_agree() {
         let parameters = program.state_parameters(&program.machine_states(machine)[0]);
         let expression = requirement(&program);
         let mut path = Vec::new();
-        let position = super::super::super::structural_parameter_field_path(
+        let position = crate::values::scalar::structural_fields::structural_parameter_field_path(
             &program, parameters, expression, &mut path,
         )
         .expect("runtime path reader joins exact self root and inherited field alias");

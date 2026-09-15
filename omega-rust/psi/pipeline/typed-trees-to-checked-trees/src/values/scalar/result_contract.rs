@@ -2,18 +2,26 @@
 //! identities. They are not body expressions: mutable entry snapshots are
 //! available to requires, while normal guarantees cannot reread them as old
 //! values. Integer leaves keep their contextual landing and operator owner.
-use super::{
-    ArithmeticDomain, BinaryOperator, CheckedBooleanExpression, CheckedOperatorFacts,
-    CheckedOperatorResolutionStatus, CheckedScalarExpression, ExpressionHandle, ExpressionNode,
-    PrimitiveType, StateParameter, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    UnaryOperator,
-};
 use crate::values::operator_is_builtin;
-use crate::values::scalar::construct_integer_comparison;
+use crate::values::scalar::boolean_lowering::construct_integer_comparison;
 use crate::values::scalar::contract_entry;
-use crate::values::scalar::is_integer;
-use crate::values::scalar::lower_return_expression;
+use crate::values::scalar::expression_facts::is_integer;
+use crate::values::scalar::scalar_lowering::lower_return_expression;
 use crate::values::scalar_expression_type;
+use checked_trees::CheckedBooleanExpression;
+use checked_trees::CheckedOperatorFacts;
+use checked_trees::CheckedOperatorResolutionStatus;
+use checked_trees::CheckedScalarExpression;
+use numerics::arithmetic::ArithmeticDomain;
+use typed_trees::TypedTrees;
+use typed_trees::expression::BinaryOperator;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::UnaryOperator;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::PrimitiveType;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
 
 /// The caller supplies a predicate from this machine's exact contract clause.
 /// Entry scalar parameters precede the reserved ensures-only result position.

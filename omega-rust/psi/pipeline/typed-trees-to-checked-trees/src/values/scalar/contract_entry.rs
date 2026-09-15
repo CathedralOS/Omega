@@ -1,10 +1,13 @@
 //! Declared Requires and crash ceilings describe invocation-entry operands.
 //! Body reads continue to use the independent current-storage namespace.
-use super::{
-    CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression, ExpressionHandle,
-    PrimitiveType, StateParameter, TypedTrees,
-};
 use crate::values::lower_machine_parameter_boolean_expression;
+use checked_trees::CheckedBooleanExpression;
+use checked_trees::CheckedOperatorFacts;
+use checked_trees::CheckedScalarExpression;
+use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::PrimitiveType;
 
 mod crash_entry;
 pub(crate) use crash_entry::lower_machine_entry_crash_contract_expression;
@@ -210,14 +213,17 @@ impl EntryOperands<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{ExpressionNode, StatementNode};
-    use super::{
-        CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression, ExpressionHandle,
-        PrimitiveType, TypedTrees,
-    };
     use crate::values::lower_scalar_contract_predicate;
     use crate::values::scalar::contract_entry::EntryOperands;
     use crate::values::scalar::contract_entry::entry_parameters;
+    use checked_trees::CheckedBooleanExpression;
+    use checked_trees::CheckedOperatorFacts;
+    use checked_trees::CheckedScalarExpression;
+    use typed_trees::TypedTrees;
+    use typed_trees::expression::ExpressionHandle;
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::PrimitiveType;
 
     fn typed(source: &str) -> TypedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)
