@@ -47,6 +47,29 @@ pub(super) fn validate_declaration(
             semantic,
         ));
     }
+    // The declared trap surface belongs to the selected semantic: hosted trap
+    // results name their owning hosted operation, and a rule cannot claim it
+    // never faults while also declaring a memory access.
+    let declared_trap_matches = match declaration.trap {
+        crate::MachineTrapBehavior::HostedExitReturnedV1 => {
+            semantic == MachineSemanticKind::HostedExitProcessI32
+        }
+        crate::MachineTrapBehavior::HostedReadFailureV1 => {
+            semantic == MachineSemanticKind::HostedReadByte
+        }
+        crate::MachineTrapBehavior::HostedWriteFailureV1 => {
+            semantic == MachineSemanticKind::HostedWriteByteI32
+        }
+        crate::MachineTrapBehavior::NeverV1 => {
+            declaration.memory == crate::MachineMemoryEffect::NoneV1
+        }
+        crate::MachineTrapBehavior::MayArchitecturalFaultV1 => true,
+    };
+    if !declared_trap_matches {
+        return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+            semantic,
+        ));
+    }
     match (semantic, declaration.call) {
         (
             MachineSemanticKind::CallScalar
@@ -357,6 +380,30 @@ fn validate_encoded_effects(
     if declaration.barrier != expected_barrier {
         return Err(());
     }
+    // A control-flow rule also pins its shape inside the barrier class: a
+    // Jump cannot borrow a conditional edge, and a return cannot borrow a
+    // branch or call encoding.
+    let control_shape_matches = match declaration.semantic {
+        MachineSemanticKind::ConditionalBranchNonZero
+        | MachineSemanticKind::ConditionalBranchU64LessThan
+        | MachineSemanticKind::ConditionalBranchI64LessThan => {
+            encoded.control == MachineEncodedControlEffect::ConditionalRelativeBranchV1
+        }
+        MachineSemanticKind::Jump => {
+            encoded.control == MachineEncodedControlEffect::UnconditionalRelativeBranchV1
+        }
+        MachineSemanticKind::ReturnScalar
+        | MachineSemanticKind::ReturnAggregate
+        | MachineSemanticKind::ReturnUnit => matches!(
+            encoded.control,
+            MachineEncodedControlEffect::ReturnFromActivationStackV1
+                | MachineEncodedControlEffect::ReturnIndirectRegisterV1 { .. }
+        ),
+        _ => true,
+    };
+    if !control_shape_matches {
+        return Err(());
+    }
     match (encoded.memory, encoded.stack, encoded.trap) {
         (
             MachineEncodedMemoryEffect::NoneV1,
@@ -444,7 +491,8 @@ fn validate_encoded_effects(
             },
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
+        ) if declaration.semantic == MachineSemanticKind::Load8Indexed
+            && declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
             && pointer_operand != index_operand
             && encoded.external_operand_reads.contains(&pointer_operand)
             && encoded.external_operand_reads.contains(&index_operand) => {}
@@ -458,7 +506,12 @@ fn validate_encoded_effects(
                 byte_count: stack_bytes,
             },
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if memory_pointer == stack_pointer
+        ) if matches!(
+            declaration.semantic,
+            MachineSemanticKind::ReturnScalar
+                | MachineSemanticKind::ReturnAggregate
+                | MachineSemanticKind::ReturnUnit
+        ) && memory_pointer == stack_pointer
             && memory_bytes == stack_bytes
             && memory_bytes != 0 => {}
         (
@@ -471,7 +524,12 @@ fn validate_encoded_effects(
                 return_address_byte_count,
             },
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if memory_pointer == stack_pointer
+        ) if matches!(
+            declaration.semantic,
+            MachineSemanticKind::CallScalar
+                | MachineSemanticKind::CallUnit
+                | MachineSemanticKind::CallAggregate
+        ) && memory_pointer == stack_pointer
             && memory_bytes == return_address_byte_count
             && return_address_byte_count != 0 => {}
         (
@@ -498,7 +556,8 @@ fn validate_encoded_effects(
             MachineEncodedMemoryEffect::WriteFrameStorageV1 { byte_count: 8, .. },
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if declaration.memory == crate::MachineMemoryEffect::WriteFrameStorageV1 => {}
+        ) if declaration.semantic == MachineSemanticKind::Store64
+            && declaration.memory == crate::MachineMemoryEffect::WriteFrameStorageV1 => {}
         (
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
             MachineEncodedStackEffect::UnchangedV1,
@@ -513,8 +572,14 @@ fn validate_encoded_effects(
             } else {
                 encoded.external_operand_writes.is_empty()
             }) => {}
-        (MachineEncodedMemoryEffect::NoneV1, MachineEncodedStackEffect::UnchangedV1, _)
-            if declaration.memory == crate::MachineMemoryEffect::NoneV1 => {}
+        // The fallthrough surface admits no hosted trap shape; hosted rules
+        // must pass their own rows above instead of borrowing this one.
+        (
+            MachineEncodedMemoryEffect::NoneV1,
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::NeverV1
+            | MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.memory == crate::MachineMemoryEffect::NoneV1 => {}
         _ => return Err(()),
     }
     Ok(())
