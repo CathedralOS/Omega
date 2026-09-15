@@ -241,11 +241,16 @@ pub fn realize_retained_native_artifact(
                 &plans.storage_entry,
             )
         });
+        // The retained proposal carries the checked ProgramEntry receipt its
+        // own production derived; attaching it here supplies the independently
+        // admitted checked initialization/cleanup authority the entry
+        // settlement requires once the checked frontend is gone.
         let program_entry = native_realization::NativeProgramEntrySettlement::new(
             proposal.program_entry().source_signature(),
             calling_plans,
             proposal.program_entry().fused_service_establishments(),
-        );
+        )
+        .with_checked_entry(proposal.checked_program_entry());
         native_realization::realize_native_artifact(
             artifact,
             native_realization::NativeRealizationRequest {

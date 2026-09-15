@@ -152,6 +152,79 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
     }
 }
 
+/// Canonical Terminal output coupled to the checked `ProgramEntry` receipt,
+/// the checked D29 demand scope, and the caller's opaque callback-use custody.
+///
+/// The retained native route rejoins the checked entry receipt after the
+/// checked frontend is gone, so the receipt must leave production beside the
+/// artifact instead of remaining a direct-route-only custody object.
+#[derive(Debug, PartialEq, Eq)]
+#[must_use = "ProgramEntry Terminal production retains entry and callback custody"]
+pub struct ProducedProgramEntryTerminalArtifactWithCallbackCustody<C> {
+    artifact: terminal_codec::CanonicalTerminalArtifact,
+    receipt: CheckedProgramEntryTerminalReceipt,
+    boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
+    callback_custody: C,
+    source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
+    selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+    selected_ieee_float_comparison_occurrences: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+}
+
+impl<C> ProducedProgramEntryTerminalArtifactWithCallbackCustody<C> {
+    pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub const fn receipt(&self) -> &CheckedProgramEntryTerminalReceipt {
+        &self.receipt
+    }
+
+    pub const fn boundary_operator_scope(&self) -> &CheckedBoundaryOperatorApplicationScope {
+        &self.boundary_operator_scope
+    }
+
+    pub const fn callback_custody(&self) -> &C {
+        &self.callback_custody
+    }
+
+    pub fn source_call_occurrences(&self) -> &[LoweredSourceCallOccurrence] {
+        &self.source_call_occurrences
+    }
+
+    pub fn selected_ieee_float_fma_occurrences(&self) -> &[LoweredSelectedIeeeFloatFmaOccurrence] {
+        &self.selected_ieee_float_fma_occurrences
+    }
+
+    pub fn selected_ieee_float_comparison_occurrences(
+        &self,
+    ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
+        &self.selected_ieee_float_comparison_occurrences
+    }
+
+    #[allow(clippy::type_complexity)]
+    pub fn into_parts_with_source_calls(
+        self,
+    ) -> (
+        terminal_codec::CanonicalTerminalArtifact,
+        CheckedProgramEntryTerminalReceipt,
+        CheckedBoundaryOperatorApplicationScope,
+        C,
+        Vec<LoweredSourceCallOccurrence>,
+        Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+    ) {
+        (
+            self.artifact,
+            self.receipt,
+            self.boundary_operator_scope,
+            self.callback_custody,
+            self.source_call_occurrences,
+            self.selected_ieee_float_fma_occurrences,
+            self.selected_ieee_float_comparison_occurrences,
+        )
+    }
+}
+
 /// Transactional rejection from callback-aware Terminal production.
 ///
 /// The checked tree and selected machine are borrowed inputs. The only owned
@@ -392,6 +465,68 @@ impl<'a> TerminalProductionRequest<'a> {
         self,
         source_signature_identity: [u8; 32],
     ) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
+        let (artifact, receipt, boundary_operator_scope, lowered) =
+            self.produce_program_entry_parts(source_signature_identity)?;
+        Ok(ProducedProgramEntryTerminalArtifact {
+            boundary_operator_scope,
+            artifact,
+            receipt,
+            selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
+            selected_ieee_float_comparison_occurrences: lowered
+                .selected_ieee_float_comparison_occurrences,
+        })
+    }
+
+    /// Retain the checked ProgramEntry-to-Terminal association together with
+    /// the caller's opaque callback-use sidecar on success and rejection.
+    ///
+    /// [`Self::produce_program_entry`] custody and
+    /// [`Self::produce_with_callback_custody`]'s transactional sidecar in one
+    /// product, so a retained Terminal artifact can carry the checked entry
+    /// receipt its later native settlement will independently rejoin.
+    pub fn produce_program_entry_with_callback_custody<C>(
+        self,
+        source_signature_identity: [u8; 32],
+        callback_custody: C,
+    ) -> Result<
+        ProducedProgramEntryTerminalArtifactWithCallbackCustody<C>,
+        CallbackCustodyTerminalArtifactProductionError<C>,
+    > {
+        let (artifact, receipt, boundary_operator_scope, lowered) =
+            match self.produce_program_entry_parts(source_signature_identity) {
+                Ok(parts) => parts,
+                Err(error) => {
+                    return Err(CallbackCustodyTerminalArtifactProductionError {
+                        error,
+                        callback_custody,
+                    });
+                }
+            };
+        Ok(ProducedProgramEntryTerminalArtifactWithCallbackCustody {
+            artifact,
+            receipt,
+            boundary_operator_scope,
+            callback_custody,
+            source_call_occurrences: lowered.source_call_occurrences,
+            selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
+            selected_ieee_float_comparison_occurrences: lowered
+                .selected_ieee_float_comparison_occurrences,
+        })
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn produce_program_entry_parts(
+        self,
+        source_signature_identity: [u8; 32],
+    ) -> Result<
+        (
+            terminal_codec::CanonicalTerminalArtifact,
+            CheckedProgramEntryTerminalReceipt,
+            CheckedBoundaryOperatorApplicationScope,
+            LoweredPsi,
+        ),
+        TerminalArtifactProductionError,
+    > {
         let selection = self
             .selected_terminal_machine()
             .map_err(TerminalArtifactProductionError::Lowering)?;
@@ -430,10 +565,9 @@ impl<'a> TerminalProductionRequest<'a> {
         }
         let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
             .map_err(TerminalArtifactProductionError::Lowering)?;
-        Ok(ProducedProgramEntryTerminalArtifact {
-            boundary_operator_scope,
+        Ok((
             artifact,
-            receipt: CheckedProgramEntryTerminalReceipt {
+            CheckedProgramEntryTerminalReceipt {
                 source_signature_identity,
                 source_machine_name,
                 source_machine_symbol,
@@ -441,10 +575,9 @@ impl<'a> TerminalProductionRequest<'a> {
                 terminal_entry,
                 receiver_eligibility,
             },
-            selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
-            selected_ieee_float_comparison_occurrences: lowered
-                .selected_ieee_float_comparison_occurrences,
-        })
+            boundary_operator_scope,
+            lowered,
+        ))
     }
 
     fn lower_and_optimize(
