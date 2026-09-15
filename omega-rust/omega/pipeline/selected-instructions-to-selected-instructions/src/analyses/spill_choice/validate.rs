@@ -97,14 +97,9 @@ pub fn validate_spill_choices(
                 function: function_index,
             });
         }
-        if !ranges.plan().functions[function_index]
-            .early_clobbers
-            .is_empty()
-        {
-            return Err(SpillChoiceError::UnsupportedEarlyClobber {
-                function: function_index,
-            });
-        }
+        // Untied early-clobber rows replay through the same directional
+        // write-before-read conflict check compute applied; only pressure
+        // handling under an early-clobber topology stays refused.
         let expected = replay_function(
             function_index,
             &legality.plan().functions[function_index],
@@ -192,6 +187,9 @@ fn replay_function(
         })
     });
     let mut residents = Vec::<ReplayResident>::new();
+    // Mirrors compute: every seated home stays a candidate conflict for the
+    // pointwise early-clobber hazards even after its interval closes.
+    let mut assigned = Vec::<(VirtualRegisterId, RegisterViewId)>::new();
     for (position, start, end) in schedule {
         ReplayWork::bump(&mut work.rules, 1)?;
         let register = &legality.virtual_registers[position];
@@ -229,7 +227,13 @@ fn replay_function(
                     resident.register,
                     &ranges.interference,
                 ) || !replay_overlap(view, replay_view_by_id(resident.view, physical))
-            }) {
+            }) && !replay_early_clobber_conflicts(
+                register.virtual_register,
+                view,
+                &assigned,
+                ranges,
+                physical,
+            ) {
                 home = Some(*candidate);
                 break;
             }
@@ -247,7 +251,13 @@ fn replay_function(
                     .cmp(&right.end)
                     .then(left.register.cmp(&right.register))
             });
+            assigned.push((register.virtual_register, view));
             continue;
+        }
+        // Mirrors compute: victim selection around an early-clobbered home
+        // is not modeled by this bounded policy.
+        if !ranges.early_clobbers.is_empty() {
+            return Err(SpillChoiceError::UnsupportedEarlyClobber { function });
         }
         if register
             .points
@@ -422,6 +432,13 @@ fn replay_common(
         {
             common.remove(candidate);
         }
+        if register
+            .early_clobber_points
+            .iter()
+            .any(|point| !point.candidates.contains(candidate))
+        {
+            common.remove(candidate);
+        }
     }
     if common.is_empty() {
         return Err(SpillChoiceError::NoCommonCandidate {
@@ -494,6 +511,42 @@ fn replay_interferes(
 ) -> bool {
     pairs.iter().any(|pair| {
         (pair.lower == left && pair.higher == right) || (pair.lower == right && pair.higher == left)
+    })
+}
+
+/// Mirrors compute's directional early-clobber conflict check: the seated
+/// definition's write units must not touch an incoming use's storage, and
+/// the incoming definition's write units must not touch a seated use's
+/// storage.
+fn replay_early_clobber_conflicts(
+    incoming: VirtualRegisterId,
+    view: &RegisterView,
+    assigned: &[(VirtualRegisterId, RegisterViewId)],
+    ranges: &crate::FunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> bool {
+    assigned.iter().any(|(seated, seated_view_id)| {
+        let seated_view = replay_view_by_id(*seated_view_id, physical);
+        ranges.early_clobbers.iter().any(|early| {
+            (early.def_virtual_register == incoming
+                && early
+                    .uses
+                    .iter()
+                    .any(|used| used.virtual_register == *seated)
+                && view
+                    .write_units
+                    .iter()
+                    .any(|unit| seated_view.units.contains(unit)))
+                || (early.def_virtual_register == *seated
+                    && early
+                        .uses
+                        .iter()
+                        .any(|used| used.virtual_register == incoming)
+                    && seated_view
+                        .write_units
+                        .iter()
+                        .any(|unit| view.units.contains(unit)))
+        })
     })
 }
 
