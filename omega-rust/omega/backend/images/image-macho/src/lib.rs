@@ -94,10 +94,10 @@ mod file_layout;
 mod tests;
 
 use code_signature::macho_ad_hoc_code_signature;
+pub use dyld_linking::imports::validate_macho_aarch64_import_binding_pairing;
 use dyld_linking::imports::{
     install_import_thunks, macho_bind_info, patch_import_thunks, validate_import_thunk_footprints,
 };
-pub use dyld_linking::imports::validate_macho_aarch64_import_binding_pairing;
 use dyld_linking::load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
     write_macho_code_signature_command, write_macho_dyld_info_command,
