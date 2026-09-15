@@ -228,7 +228,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   outside the selected closure or a reported closure diverging from the
   image's retained executions is rejected at admission, and a zero
   identity, a non-canonical or duplicated wire order, and an uncarried
-  count reject at decode.
+  count reject at decode. Landed: installed structural-return rows
+  (`installation_structural_return_rejects_every_one_field_substitution`)
+  — the affine and linear rows' result places and the linear row's carried
+  claim identity are independently representable and rejected by replay;
+  machine, `psi_edge`, scalar and structural parameters, placements, source
+  and result signature fields, affine-lane claims, trivial locals and
+  discards, code offset, and byte count are rejected at encoding as
+  non-canonical, as are a machine-descending swap and a duplicated row,
+  while a dropped row is rejected by replay.
 
 ## Psi optimization and loops
 
