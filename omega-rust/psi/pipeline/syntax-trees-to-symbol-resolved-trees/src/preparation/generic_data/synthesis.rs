@@ -389,6 +389,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                         &const_values,
                         &const_parameter_values,
                         &const_parameter_type_names,
+                        selection,
                         warnings,
                     ),
                 }

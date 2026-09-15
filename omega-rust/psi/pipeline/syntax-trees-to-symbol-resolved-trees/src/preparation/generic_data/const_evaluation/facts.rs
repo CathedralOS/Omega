@@ -105,6 +105,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_membership_fact(
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
     parameter_type_names: &HashMap<String, String>,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<bool>, String> {
     let ExpressionNode::Name(value_path) = syntax.expressions.expression(membership.value) else {
@@ -119,49 +120,77 @@ pub(in crate::preparation::generic_data) fn evaluate_const_membership_fact(
     let Some(parameter_type) = parameter_type_names.get(parameter_name.as_str()) else {
         return Ok(None);
     };
-    let domain_path = syntax
-        .items
-        .identifier_path_members(membership.domain)
+    let members = syntax.items.identifier_path_members(membership.domain);
+    let domain_path = members
         .iter()
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
-    let domain_name = if domain_path.contains("::") {
-        domain_path
-    } else {
-        format!("{parameter_type}::{domain_path}")
-    };
     evaluate_named_const_domain(
         syntax,
-        &domain_name,
+        &domain_path,
         parameter_type,
         value,
         const_values,
         &mut Vec::new(),
+        members
+            .first()
+            .map(|member| member.source_span())
+            .unwrap_or_default(),
+        selection,
         warnings,
     )
 }
 
+/// Evaluate `value in <authored>` against one declared domain. With a constant
+/// selection the authored path selects its exact owner under module name law —
+/// the same selection full resolution later assigns the retained fact — so
+/// same-spelled domains in sibling modules no longer collide and an ambiguous
+/// or unauthorized occurrence declines instead of guessing. Without a
+/// selection (header-free probes) a leaf expands against the value carrier
+/// exactly as the original name-only lookup did.
 pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
     syntax: &SyntaxTrees,
-    domain_name: &str,
+    authored: &str,
     carrier: &str,
     value: i128,
     const_values: &HashMap<String, i128>,
     visiting: &mut Vec<String>,
+    reference: source::SourceSpan,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<bool>, String> {
-    if visiting.iter().any(|name| name == domain_name) {
-        return Ok(None);
-    }
-    let Some(domain) = syntax.root_items().find_map(|item| {
-        let Item::Domain(domain) = item else {
-            return None;
-        };
-        (domain.name.as_str() == domain_name).then_some(domain)
-    }) else {
+    let domain = match selection {
+        Some(selection) => selection.domain(syntax, authored, reference),
+        None => {
+            let expanded = if authored.contains("::") {
+                authored.to_owned()
+            } else {
+                format!("{carrier}::{authored}")
+            };
+            syntax.root_items().find_map(|item| {
+                let Item::Domain(domain) = item else {
+                    return None;
+                };
+                (domain.name.as_str() == expanded).then_some(domain)
+            })
+        }
+    };
+    let Some(domain) = domain else {
         return Ok(None);
     };
+    // The visiting key is the selected declaration's complete logical path so
+    // two authored spellings of the same owner still catch recursion.
+    let domain_key = match crate::preparation::generic_data::module_constants::module_path(
+        syntax,
+        domain.name.source_span().source_id,
+    ) {
+        Some(module) => format!("{module}::{}", domain.name.as_str()),
+        None => domain.name.as_str().to_owned(),
+    };
+    if visiting.iter().any(|name| name == &domain_key) {
+        return Ok(None);
+    }
     let TypeReferenceNode::Named(domain_target) =
         syntax.type_references.type_reference(domain.target_type)
     else {
@@ -169,12 +198,12 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
     };
     if domain_target.as_str() != carrier {
         return Err(format!(
-            "domain `{domain_name}` has carrier `{}`, but the const value has carrier `{carrier}`",
+            "domain `{domain_key}` has carrier `{}`, but the const value has carrier `{carrier}`",
             domain_target.as_str(),
         ));
     }
     let warning_start = warnings.len();
-    visiting.push(domain_name.to_owned());
+    visiting.push(domain_key);
     let result = (|| {
         for fact in syntax.items.proof_facts(domain.facts) {
             let holds = match fact {
@@ -185,6 +214,7 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
                     value,
                     carrier,
                     visiting,
+                    selection,
                     warnings,
                 )?,
                 ProofFact::Membership(membership) => {
@@ -202,25 +232,24 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
                     let Some(nested_value) = nested_value.into_integer(syntax, warnings)? else {
                         return Ok(None);
                     };
-                    let path = syntax
-                        .items
-                        .identifier_path_members(membership.domain)
+                    let members = syntax.items.identifier_path_members(membership.domain);
+                    let path = members
                         .iter()
                         .map(|member| member.as_str())
                         .collect::<Vec<_>>()
                         .join("::");
-                    let nested_domain = if path.contains("::") {
-                        path
-                    } else {
-                        format!("{carrier}::{path}")
-                    };
                     evaluate_named_const_domain(
                         syntax,
-                        &nested_domain,
+                        &path,
                         carrier,
                         nested_value,
                         const_values,
                         visiting,
+                        members
+                            .first()
+                            .map(|member| member.source_span())
+                            .unwrap_or_default(),
+                        selection,
                         warnings,
                     )?
                     .map(ConstFactValue::Boolean)
@@ -249,6 +278,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
     self_value: i128,
     carrier: &str,
     visiting: &mut Vec<String>,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
     if let Some(value) = evaluate_anonymous_numeric_expression(syntax, expression)? {
@@ -271,25 +301,26 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
             let Some(value) = value.into_integer(syntax, warnings)? else {
                 return Ok(None);
             };
-            let path = syntax
+            let members = syntax
                 .expressions
-                .identifier_path_members(membership.domain)
+                .identifier_path_members(membership.domain);
+            let path = members
                 .iter()
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
-            let domain_name = if path.contains("::") {
-                path
-            } else {
-                format!("{carrier}::{path}")
-            };
             evaluate_named_const_domain(
                 syntax,
-                &domain_name,
+                &path,
                 carrier,
                 value,
                 const_values,
                 visiting,
+                members
+                    .first()
+                    .map(|member| member.source_span())
+                    .unwrap_or_default(),
+                selection,
                 warnings,
             )
             .map(|result| result.map(ConstFactValue::Boolean))
@@ -306,6 +337,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
                 self_value,
                 carrier,
                 visiting,
+                selection,
                 warnings,
             )?
             else {
@@ -318,6 +350,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
                 self_value,
                 carrier,
                 visiting,
+                selection,
                 warnings,
             )?
             else {

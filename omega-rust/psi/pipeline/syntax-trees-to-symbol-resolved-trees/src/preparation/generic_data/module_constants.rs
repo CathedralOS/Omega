@@ -67,7 +67,7 @@ pub(super) fn reject_module_constant_selection(
     Ok(())
 }
 
-fn module_path(syntax: &SyntaxTrees, source: SourceId) -> Option<String> {
+pub(super) fn module_path(syntax: &SyntaxTrees, source: SourceId) -> Option<String> {
     syntax.root_items().find_map(|item| {
         let Item::Module(module) = item else {
             return None;
