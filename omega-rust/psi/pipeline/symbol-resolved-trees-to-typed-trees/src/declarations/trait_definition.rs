@@ -1,6 +1,6 @@
-use crate::declarations::data::lower_type_parameters;
-use crate::declarations::state::lower_state_signature;
 use crate::lowerer::Lowerer;
+use crate::signatures::callable_signature::lower_state_signature;
+use crate::signatures::type_parameters::lower_type_parameters;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;

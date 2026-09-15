@@ -1,3 +1,6 @@
+pub(crate) mod domain_aliases;
+pub(crate) mod domain_constraints;
+
 use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;

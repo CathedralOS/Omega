@@ -4,8 +4,8 @@ use super::{
     Lowerer, exact_field_symbol, exact_top_level_data_symbol, lower_authored_service_reach_row,
     lower_symbol_resolved_trees,
 };
-use crate::declarations::domain_constraints::normalize_domain_constraints_from;
 use crate::expressions::qualification_casts::normalize_qualification_casts_from;
+use crate::type_reference::domain_constraints::normalize_domain_constraints_from;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees::TypedTrees;

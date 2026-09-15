@@ -202,7 +202,7 @@ fn normalize_constraint_span(
             .iter()
             .find(|candidate| candidate.symbol == domain.symbol)
             .expect("typed alias declaration must have a resolved source");
-        for atom in crate::declarations::domain::expand_domain_reference(
+        for atom in crate::type_reference::domain_aliases::expand_domain_reference(
             source,
             domain.symbol,
             vec![source_domain.name.clone()],
