@@ -262,14 +262,14 @@ mod semantic;
 mod semantic_calls;
 mod semantic_places;
 
+pub use checking::lower_typed_trees as lower_typed_program;
 #[cfg(test)]
 pub(crate) use semantic::build_semantic_facts;
-pub use semantic::lower_typed_program;
-pub(crate) use semantic::{
+pub(crate) use semantic_calls::call_site_evidence_arguments;
+pub(crate) use semantic_calls::{
     CallSite, call_site_argument_expressions, call_target_parameters, call_target_type_parameters,
     find_call_site, find_state, find_state_in_machine,
 };
-pub(crate) use semantic_calls::call_site_evidence_arguments;
 
 mod proof;
 pub use proof::{

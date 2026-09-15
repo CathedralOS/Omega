@@ -1,13 +1,9 @@
 use crate::labels::semantic_proof_obligation_kind;
-use checked_trees::{CheckedTrees, ProofFacts};
+use checked_trees::ProofFacts;
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
 mod contracts;
 mod field_domains;
 mod points;
-pub(crate) use crate::semantic_calls::{
-    CallSite, call_site_argument_expressions, call_target_parameters, call_target_type_parameters,
-    find_call_site, find_state, find_state_in_machine,
-};
 use contracts::append_contract_semantic_facts;
 pub(crate) use contracts::contract_fact_place;
 use field_domains::{
@@ -51,10 +47,4 @@ fn append_proof_obligation_semantic_facts(proof: &ProofFacts, facts: &mut FactPl
             },
         });
     }
-}
-
-pub fn lower_typed_program(
-    program: typed_trees::TypedTrees,
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    crate::lower_typed_trees(program)
 }
