@@ -1764,6 +1764,30 @@ Owners include
   fields or addresses. Acceptance: one outbound registrar closes without a raw
   code pointer or duplicated placement authority.
 
+  Resume (swarm-w8, `d05158a9de`, Linux x86-64): the outbound registrar already
+  closes at the checked level. `compile_to_checked` over
+  `tests/callback_materialization_closure.omg` plus a reachable
+  `WindowRegistrar::register<P::call, P::call>(&self.specification)` use binds
+  two `BoundNominalCallbackPlacement`s carrying `NativePlace::Field`
+  destinations, exact conformance applications, and an authenticated two-entry
+  catalog — no raw code pointer, no duplicated placement authority. Terminal
+  custody then fails: `build_call_operation`
+  (`omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit/calls.rs`)
+  rejects the register boundary call because
+  `admitted_native_callback_telescope` requires
+  `signature.native_callback_parameters` to declare every `machine` type
+  parameter; the layout-slot contract carries both binders through the record
+  layout with none. Instrumented gate: only the telescope condition fires;
+  receiver routing, `&self.specification` presentation, mutability, and result
+  checks all admit. Next: admit each `Machine{Nominal}` signature type
+  parameter joined to a `nominal_machine_use` at the exact site (ordinal plus
+  satisfaction row) without requiring an ABI `native callback` parameter — the
+  `PrivateCallbackSlot` conformance supplies the destination. That path sat in
+  the NOMINAL-FIELD-FLOW claim when witnessed; coordinate a handoff if it is
+  still held. After admission, `validate_direct_callback_thunk_shape` admits
+  only the u64→u64 identity leaf and `admitted_native_callbacks` rejects field
+  materializations — the next custody stages once a use reaches Terminal.
+
 - **REGISTERED-CALLBACK-LIFETIME.** Model successful registration as a linear
   external root and unregister as the operation that ends it before releasing
   code/component leases. Capacity bounds live registrations, not emitted
