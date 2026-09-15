@@ -29,6 +29,7 @@ impl RangeFacts<'_> {
             state,
             self.statement_index,
             expression,
+            self.checked_calls,
             &mut reads,
             0,
         ) {
@@ -56,6 +57,7 @@ impl RangeFacts<'_> {
             state,
             self.statement_index,
             captured,
+            self.checked_calls,
             &mut captured_reads,
             0,
         ) {
@@ -85,6 +87,7 @@ impl RangeFacts<'_> {
                 state,
                 self.statement_index,
                 indexed.index,
+                self.checked_calls,
                 &mut selector_reads,
                 0,
             ) || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
@@ -145,6 +148,7 @@ impl RangeFacts<'_> {
                         prefix
                     },
                     expression,
+                    self.checked_calls,
                     &mut reads,
                     0,
                 ) || !reads
