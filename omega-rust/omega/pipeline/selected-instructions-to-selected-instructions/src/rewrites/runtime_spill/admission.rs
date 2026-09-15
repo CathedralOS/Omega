@@ -144,10 +144,11 @@ pub(super) fn admit<'source>(
         let (terminal, successors) = super::control(&block.terminator);
         // A terminator operand use executes after every block instruction, so
         // the same private reload serves it from the end of the block; the
-        // dominance check below already covers that position. A fixed view on
-        // the operand stays attached and pins the fresh reload register to the
-        // same physical unit, so ABI-pinned returns and hosted exits stay
-        // exact. Tied, early-clobber, and defining references stay rejected.
+        // dominance check below already covers that position. As on body
+        // instruction operands, a fixed view stays attached and pins the fresh
+        // reload register to the same physical unit, so ABI-pinned returns and
+        // hosted exits stay exact. Tied, early-clobber, and defining
+        // references stay rejected.
         for operand in &terminal.operands {
             if operand.virtual_register != register {
                 continue;
@@ -252,12 +253,17 @@ pub(super) fn admit<'source>(
                     RegisterOperandAccess::Use
                         if (defined || current_block_index != block_index)
                             && Some(instruction.id) != definition
-                            && operand.fixed_view.is_none()
                             && operand.tied_to.is_none()
                             && !operand.early_clobber
                             && operand.class == victim.class =>
                     {
-                        // An output tied to this use would extend the reload's value identity.
+                        // A fixed view on this operand stays attached to the
+                        // rewritten use, so the fresh reload register is a
+                        // precolored segment pinned to that physical view for
+                        // exactly the load-to-use window — the split the
+                        // operand always needed, created by recovery instead
+                        // of refusing the victim. An output tied to this use
+                        // would extend the reload's value identity.
                         if instruction
                             .operands
                             .iter()

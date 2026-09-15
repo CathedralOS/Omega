@@ -14,7 +14,10 @@
 //! each reloads at the end of its block, after the last body instruction and
 //! any definition store. A fixed view on such an operand (an ABI return or
 //! exit register) stays on the rewritten operand, pinning the fresh reload
-//! register to the same physical unit. A `Registers` value-binding argument
+//! register to the same physical unit. The same holds for a fixed view on a
+//! body instruction operand (an ABI call argument or result site): its reload
+//! pair is inserted immediately before the consumer, so the precolored
+//! segment covers exactly the load-to-use window. A `Registers` value-binding argument
 //! on an outgoing successor reads at that same end-of-block position, after
 //! the terminator instruction executes: its reload pair follows any
 //! terminator-operand pairs in successor then binding order, and the binding
