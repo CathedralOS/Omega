@@ -1,5 +1,5 @@
 use selected_instructions::MachineAlternativeFamily;
-use target::{Architecture, ObjectFormat};
+use target::Architecture;
 
 use crate::frame_layout::{
     FrameAbiPreservationConvention, StagedOptimizedPostAllocationMachinePlan,
@@ -10,6 +10,7 @@ use crate::frame_layout::{
 use super::{
     CalleeSaveFrameSlot, FunctionTargetFrameLayout, ReturnAddressFrameCustody, StackProbePlan,
     TargetFrameLayoutError, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
+    stack_commit::stack_commit_granule_bytes,
 };
 
 pub(super) fn derive(
@@ -326,20 +327,6 @@ fn function_layout(
     })
 }
 
-/// The stack-commit granule the target guarantees, in bytes. Lazily backed
-/// stacks grow one guard-page granule per touch, so a frame is committed one
-/// granule at a time and can never skip past an uncommitted page. Every
-/// x86-64 host commits in 4 KiB granules; Darwin AArch64 pages are 16 KiB.
-/// Probing at a finer granule than the target's remains correct, so the
-/// AAPCS64 immediate bound that rejects every frame above 4095 bytes does not
-/// make the Linux AArch64 granule a silent encoding assumption.
-fn stack_probe_interval(target: target::NativeTarget) -> u64 {
-    match (target.architecture, target.object_format) {
-        (Architecture::Aarch64, ObjectFormat::MachO) => 16_384,
-        _ => 4_096,
-    }
-}
-
 /// One touch per committed granule, including the partial tail chunk: the
 /// last move can still cross a granule boundary when the pointer is not
 /// granule-aligned. Frames inside one granule need no probe.
@@ -347,7 +334,8 @@ fn probe_plan(
     target: target::NativeTarget,
     frame_size_bytes: u64,
 ) -> Result<StackProbePlan, TargetFrameLayoutError> {
-    let interval_bytes = stack_probe_interval(target);
+    let interval_bytes =
+        stack_commit_granule_bytes(target).ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
     let touches = if frame_size_bytes > interval_bytes {
         u32::try_from(frame_size_bytes.div_ceil(interval_bytes))
             .map_err(|_| TargetFrameLayoutError::GeometryOverflow)?
@@ -387,7 +375,7 @@ mod tests;
 
 #[cfg(test)]
 mod spill_tests {
-    use super::{FrameAbiPreservationConvention, TargetFrameLayoutPolicy, function_layout};
+    use super::{TargetFrameLayoutPolicy, function_layout};
 
     #[test]
     fn compiler_spill_slots_expand_final_frame_without_aliasing_outgoing_or_other_locals() {
@@ -399,14 +387,9 @@ mod spill_tests {
         ] {
             let environment =
                 register_environment::baseline_target_register_environment(target).unwrap();
-            let abi = match (target.architecture, target.object_format) {
-                (target::Architecture::X86_64, target::ObjectFormat::Coff) => {
-                    FrameAbiPreservationConvention::MicrosoftX64
-                }
-                (target::Architecture::X86_64, _) => FrameAbiPreservationConvention::SystemVAMD64,
-                (_, target::ObjectFormat::MachO) => FrameAbiPreservationConvention::DarwinAapcs64,
-                _ => FrameAbiPreservationConvention::Aapcs64,
-            };
+            let abi = register_environment::selected_abi_preservation(&environment)
+                .unwrap()
+                .kind;
             let slots = [0, 1].map(|register| selected_instructions::SelectedLocalStorageSlot {
                 id: selected_instructions::LocalStorageSlotId::Spill {
                     register: selected_instructions::VirtualRegisterId(register),

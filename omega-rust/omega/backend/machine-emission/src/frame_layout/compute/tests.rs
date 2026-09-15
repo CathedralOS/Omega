@@ -115,14 +115,9 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
     ] {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
-        let abi = match (target.architecture, target.object_format) {
-            (target::Architecture::X86_64, target::ObjectFormat::Coff) => {
-                FrameAbiPreservationConvention::MicrosoftX64
-            }
-            (target::Architecture::X86_64, _) => FrameAbiPreservationConvention::SystemVAMD64,
-            (_, target::ObjectFormat::MachO) => FrameAbiPreservationConvention::DarwinAapcs64,
-            _ => FrameAbiPreservationConvention::Aapcs64,
-        };
+        let abi = register_environment::selected_abi_preservation(&environment)
+            .unwrap()
+            .kind;
         let layout = function_layout(
             &environment,
             abi,

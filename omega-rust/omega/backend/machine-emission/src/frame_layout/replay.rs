@@ -8,6 +8,7 @@ use crate::frame_layout::{
     StagedOptimizedPostAllocationMachinePlan, TargetFrameLayoutError as Error,
     TargetFrameLayoutPlan, TargetFrameLayoutPolicy, ValidatedAllocatedCalleeSavedRequirements,
     ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetRegisterEnvironment,
+    stack_commit::stack_commit_granule_bytes,
 };
 
 pub(super) fn validate_layout(
@@ -188,14 +189,11 @@ pub(super) fn validate_layout(
         // The probe roster is checked as a coverage bound over the submitted
         // committed extent, not by invoking the producer's plan computation.
         // Red-zone-resident bytes are already below the unadjusted stack
-        // pointer and never enter the commit schedule.
-        let probe_interval = match (
-            environment.target().architecture,
-            environment.target().object_format,
-        ) {
-            (Architecture::Aarch64, target::ObjectFormat::MachO) => 16_384,
-            _ => 4_096,
-        };
+        // pointer and never enter the commit schedule. The granule itself
+        // resolves through the same declared stack-commit matrix the producer
+        // used, so an undeclared pair cannot inherit a borrowed interval.
+        let probe_interval =
+            stack_commit_granule_bytes(environment.target()).ok_or(Error::UnsupportedTarget)?;
         let touches = u64::from(row.stack_probe.touches);
         if row.stack_probe.interval_bytes != probe_interval
             || (touches == 0) != (committed <= probe_interval)

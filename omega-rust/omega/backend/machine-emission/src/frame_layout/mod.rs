@@ -15,6 +15,7 @@ mod model;
 mod replay;
 mod save_storage;
 mod spill_requirements;
+mod stack_commit;
 mod validation;
 
 pub use error::*;
