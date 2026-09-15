@@ -11,11 +11,15 @@ use terminal_psi::{
 
 use super::CodecError;
 use super::wire::{Reader, Writer};
-use crate::structural_place_wire::{decode_structural_arguments, encode_structural_arguments};
-use crate::structural_signature_wire::{decode_structural_access, encode_structural_access};
-use crate::wire::decode_counted;
+use crate::semantic_module::structural_place_wire::{
+    decode_structural_arguments, encode_structural_arguments,
+};
+use crate::semantic_module::structural_signature_wire::{
+    decode_structural_access, encode_structural_access,
+};
+use crate::semantic_module::wire::decode_counted;
 
-pub(super) fn encode_dynamic_descriptor_parameters(
+pub(crate) fn encode_dynamic_descriptor_parameters(
     writer: &mut Writer,
     parameters: &[TerminalDynamicDescriptorParameter],
 ) -> Result<(), CodecError> {
@@ -53,7 +57,7 @@ pub(super) fn encode_dynamic_descriptor_parameters(
     Ok(())
 }
 
-pub(super) fn decode_dynamic_descriptor_parameters(
+pub(crate) fn decode_dynamic_descriptor_parameters(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalDynamicDescriptorParameter>, CodecError> {
     decode_counted(reader, |reader| {
@@ -87,7 +91,7 @@ pub(super) fn decode_dynamic_descriptor_parameters(
     })
 }
 
-pub(super) fn encode_dynamic_descriptor_arguments(
+pub(crate) fn encode_dynamic_descriptor_arguments(
     writer: &mut Writer,
     arguments: &[TerminalDynamicDescriptorArgument],
 ) -> Result<(), CodecError> {
@@ -114,7 +118,7 @@ pub(super) fn encode_dynamic_descriptor_arguments(
     Ok(())
 }
 
-pub(super) fn decode_dynamic_descriptor_arguments(
+pub(crate) fn decode_dynamic_descriptor_arguments(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalDynamicDescriptorArgument>, CodecError> {
     decode_counted(reader, |reader| {
@@ -147,7 +151,7 @@ pub(super) fn decode_dynamic_descriptor_arguments(
     })
 }
 
-pub(super) fn encode_dynamic_conformance_selections(
+pub(crate) fn encode_dynamic_conformance_selections(
     writer: &mut Writer,
     selections: &[TerminalDynamicConformanceSelection],
 ) -> Result<(), CodecError> {
@@ -162,7 +166,7 @@ pub(super) fn encode_dynamic_conformance_selections(
     Ok(())
 }
 
-pub(super) fn decode_dynamic_conformance_selections(
+pub(crate) fn decode_dynamic_conformance_selections(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalDynamicConformanceSelection>, CodecError> {
     decode_counted(reader, |reader| {
@@ -185,7 +189,7 @@ pub(super) fn decode_dynamic_conformance_selections(
     })
 }
 
-pub(super) fn encode_direct_dynamic_dispatches(
+pub(crate) fn encode_direct_dynamic_dispatches(
     writer: &mut Writer,
     dispatches: &[TerminalDirectDynamicDispatch],
 ) -> Result<(), CodecError> {
@@ -219,7 +223,7 @@ pub(super) fn encode_direct_dynamic_dispatches(
     Ok(())
 }
 
-pub(super) fn decode_direct_dynamic_dispatches(
+pub(crate) fn decode_direct_dynamic_dispatches(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalDirectDynamicDispatch>, CodecError> {
     decode_counted(reader, |reader| {
@@ -240,7 +244,7 @@ pub(super) fn decode_direct_dynamic_dispatches(
     })
 }
 
-pub(super) fn encode_rebound_dynamic_descriptors(
+pub(crate) fn encode_rebound_dynamic_descriptors(
     writer: &mut Writer,
     descriptors: &[TerminalReboundDynamicDescriptor],
 ) -> Result<(), CodecError> {
@@ -254,7 +258,7 @@ pub(super) fn encode_rebound_dynamic_descriptors(
     Ok(())
 }
 
-pub(super) fn decode_rebound_dynamic_descriptors(
+pub(crate) fn decode_rebound_dynamic_descriptors(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalReboundDynamicDescriptor>, CodecError> {
     decode_counted(reader, |reader| {
@@ -267,7 +271,7 @@ pub(super) fn decode_rebound_dynamic_descriptors(
     })
 }
 
-pub(super) fn encode_stored_dynamic_descriptors(
+pub(crate) fn encode_stored_dynamic_descriptors(
     writer: &mut Writer,
     descriptors: &[TerminalStoredDynamicDescriptor],
 ) -> Result<(), CodecError> {
@@ -289,7 +293,7 @@ pub(super) fn encode_stored_dynamic_descriptors(
     Ok(())
 }
 
-pub(super) fn decode_stored_dynamic_descriptors(
+pub(crate) fn decode_stored_dynamic_descriptors(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalStoredDynamicDescriptor>, CodecError> {
     decode_counted(reader, |reader| {
@@ -305,7 +309,7 @@ pub(super) fn decode_stored_dynamic_descriptors(
     })
 }
 
-pub(super) fn encode_indirect_dynamic_dispatches(
+pub(crate) fn encode_indirect_dynamic_dispatches(
     writer: &mut Writer,
     dispatches: &[TerminalIndirectDynamicDispatch],
 ) -> Result<(), CodecError> {
@@ -339,7 +343,7 @@ pub(super) fn encode_indirect_dynamic_dispatches(
     Ok(())
 }
 
-pub(super) fn decode_indirect_dynamic_dispatches(
+pub(crate) fn decode_indirect_dynamic_dispatches(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalIndirectDynamicDispatch>, CodecError> {
     decode_counted(reader, |reader| {
@@ -362,7 +366,7 @@ pub(super) fn decode_indirect_dynamic_dispatches(
     })
 }
 
-pub(super) fn encode_stored_dynamic_dispatches(
+pub(crate) fn encode_stored_dynamic_dispatches(
     writer: &mut Writer,
     dispatches: &[TerminalStoredDynamicDispatch],
 ) -> Result<(), CodecError> {
@@ -396,7 +400,7 @@ pub(super) fn encode_stored_dynamic_dispatches(
     Ok(())
 }
 
-pub(super) fn decode_stored_dynamic_dispatches(
+pub(crate) fn decode_stored_dynamic_dispatches(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalStoredDynamicDispatch>, CodecError> {
     decode_counted(reader, |reader| {
@@ -417,7 +421,7 @@ pub(super) fn decode_stored_dynamic_dispatches(
     })
 }
 
-pub(super) fn encode_parameter_dynamic_dispatches(
+pub(crate) fn encode_parameter_dynamic_dispatches(
     writer: &mut Writer,
     dispatches: &[TerminalParameterDynamicDispatch],
 ) -> Result<(), CodecError> {
@@ -431,7 +435,7 @@ pub(super) fn encode_parameter_dynamic_dispatches(
     Ok(())
 }
 
-pub(super) fn decode_parameter_dynamic_dispatches(
+pub(crate) fn decode_parameter_dynamic_dispatches(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalParameterDynamicDispatch>, CodecError> {
     decode_counted(reader, |reader| {

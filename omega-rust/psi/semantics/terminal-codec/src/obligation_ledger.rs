@@ -18,11 +18,11 @@ use terminal_verifier::{
     validate_module_for_interpretation,
 };
 
-use super::proposition_wire::{decode_proposition, encode_proposition};
 use super::trust_graph::{TerminalTrustGraphIdentity, ValidatedTerminalTrustGraph};
-use super::wire::{Reader, Writer};
 use super::{CodecError, terminal_psi_identity};
-use crate::wire::decode_counted;
+use crate::semantic_module::proposition_wire::{decode_proposition, encode_proposition};
+use crate::semantic_module::wire::decode_counted;
+use crate::semantic_module::wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIOBLG\0";
 const FORMAT_MARKER: u16 = 3;

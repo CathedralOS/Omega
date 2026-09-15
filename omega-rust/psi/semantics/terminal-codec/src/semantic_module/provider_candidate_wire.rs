@@ -16,9 +16,9 @@ use super::structural_signature_wire::{
     encode_service_ceiling, encode_structural_access,
 };
 use super::wire::{Reader, Writer};
-use crate::wire::{decode_counted, decode_ids};
+use crate::semantic_module::wire::{decode_counted, decode_ids};
 
-pub(super) fn encode_provider_candidate(
+pub(crate) fn encode_provider_candidate(
     writer: &mut Writer,
     candidate: &ProviderCandidateConformance,
 ) -> Result<(), CodecError> {
@@ -72,7 +72,7 @@ pub(super) fn encode_provider_candidate(
     encode_service_ceiling(writer, &candidate.refinement.realized_service_ceiling)
 }
 
-pub(super) fn decode_provider_candidate(
+pub(crate) fn decode_provider_candidate(
     reader: &mut Reader<'_>,
 ) -> Result<ProviderCandidateConformance, CodecError> {
     let boundary = reader.id("BoundaryMachineId")?;

@@ -14,9 +14,9 @@ use terminal_psi::{
 
 use super::CodecError;
 use super::wire::{Reader, Writer};
-use crate::wire::decode_counted;
+use crate::semantic_module::wire::decode_counted;
 
-pub(super) fn encode_proposition_declaration(
+pub(crate) fn encode_proposition_declaration(
     writer: &mut Writer,
     declaration: &PropositionDeclaration,
 ) -> Result<(), CodecError> {
@@ -51,7 +51,7 @@ pub(super) fn encode_proposition_declaration(
     Ok(())
 }
 
-pub(super) fn encode_proposition_application(
+pub(crate) fn encode_proposition_application(
     writer: &mut Writer,
     application: &PropositionApplicationIdentity,
 ) -> Result<(), CodecError> {
@@ -107,7 +107,7 @@ pub(super) fn encode_proposition_application(
     Ok(())
 }
 
-pub(super) fn encode_evidence_interface(
+pub(crate) fn encode_evidence_interface(
     writer: &mut Writer,
     interface: &EvidenceInterfaceIdentity,
 ) -> Result<(), CodecError> {
@@ -143,7 +143,7 @@ pub(super) fn encode_evidence_interface(
     Ok(())
 }
 
-pub(super) fn decode_proposition_declaration(
+pub(crate) fn decode_proposition_declaration(
     reader: &mut Reader<'_>,
 ) -> Result<PropositionDeclaration, CodecError> {
     let id = reader.id("PropositionId")?;
@@ -183,7 +183,7 @@ pub(super) fn decode_proposition_declaration(
     })
 }
 
-pub(super) fn decode_proposition_application(
+pub(crate) fn decode_proposition_application(
     reader: &mut Reader<'_>,
 ) -> Result<PropositionApplicationIdentity, CodecError> {
     let id = reader.id("PropositionId")?;
@@ -240,7 +240,7 @@ pub(super) fn decode_proposition_application(
     })
 }
 
-pub(super) fn decode_evidence_interface(
+pub(crate) fn decode_evidence_interface(
     reader: &mut Reader<'_>,
 ) -> Result<EvidenceInterfaceIdentity, CodecError> {
     Ok(EvidenceInterfaceIdentity {

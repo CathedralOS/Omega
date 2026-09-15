@@ -10,9 +10,11 @@ use terminal_psi::{
 use super::CodecError;
 use super::structural_signature_wire::encode_service_ceiling;
 use super::wire::{Reader, Writer};
-use crate::wire::{decode_counted, decode_ids, decode_optional_id, encode_optional_id};
+use crate::semantic_module::wire::{
+    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
+};
 
-pub(super) fn encode(
+pub(crate) fn encode(
     writer: &mut Writer,
     application: Option<&ClosedReachApplication>,
 ) -> Result<(), CodecError> {
@@ -101,7 +103,7 @@ pub(super) fn encode(
     Ok(())
 }
 
-pub(super) fn decode(
+pub(crate) fn decode(
     reader: &mut Reader<'_>,
 ) -> Result<Option<ClosedReachApplication>, CodecError> {
     if !reader.boolean()? {

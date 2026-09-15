@@ -25,10 +25,14 @@ use super::content_wire::{
 use super::contract_wire::{decode_crash_routes, encode_crash_routes};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::wire::{Reader, Writer};
-use crate::structural_place_wire::{decode_structural_path, encode_structural_path};
-use crate::wire::{decode_counted, decode_ids, decode_optional_id, encode_optional_id};
+use crate::semantic_module::structural_place_wire::{
+    decode_structural_path, encode_structural_path,
+};
+use crate::semantic_module::wire::{
+    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
+};
 
-pub(super) fn encode_boundary_machine(
+pub(crate) fn encode_boundary_machine(
     writer: &mut Writer,
     declaration: &BoundaryMachineDeclaration,
 ) -> Result<(), CodecError> {
@@ -117,7 +121,7 @@ pub(super) fn encode_boundary_machine(
     encode_service_ceiling(writer, &declaration.published_service_ceiling)
 }
 
-pub(super) fn encode_content_projection_expression(
+pub(crate) fn encode_content_projection_expression(
     writer: &mut Writer,
     capacity: &ContentProjectionExpression,
 ) -> Result<(), CodecError> {
@@ -178,7 +182,7 @@ fn encode_capacity_scalar(
     Ok(())
 }
 
-pub(super) fn encode_structural_parameters(
+pub(crate) fn encode_structural_parameters(
     writer: &mut Writer,
     parameters: &[StructuralParameterDeclaration],
 ) -> Result<(), CodecError> {
@@ -206,7 +210,7 @@ pub(super) fn encode_structural_parameters(
     Ok(())
 }
 
-pub(super) fn encode_service_ceiling(
+pub(crate) fn encode_service_ceiling(
     writer: &mut Writer,
     services: &[ServiceId],
 ) -> Result<(), CodecError> {
@@ -217,7 +221,7 @@ pub(super) fn encode_service_ceiling(
     Ok(())
 }
 
-pub(super) fn decode_boundary_machine(
+pub(crate) fn decode_boundary_machine(
     reader: &mut Reader<'_>,
 ) -> Result<BoundaryMachineDeclaration, CodecError> {
     Ok(BoundaryMachineDeclaration {
@@ -486,7 +490,7 @@ fn decode_retained_borrow_custody(
     })
 }
 
-pub(super) fn decode_content_projection_expression(
+pub(crate) fn decode_content_projection_expression(
     reader: &mut Reader<'_>,
     depth: usize,
 ) -> Result<ContentProjectionExpression, CodecError> {
@@ -549,7 +553,7 @@ fn decode_capacity_scalar(
     }
 }
 
-pub(super) fn decode_structural_parameters(
+pub(crate) fn decode_structural_parameters(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<StructuralParameterDeclaration>, CodecError> {
     decode_counted(reader, |reader| {
@@ -577,7 +581,7 @@ pub(super) fn decode_structural_parameters(
     })
 }
 
-pub(super) fn encode_projected_qualifications(
+pub(crate) fn encode_projected_qualifications(
     writer: &mut Writer,
     qualifications: &[StructuralPathQualification],
 ) -> Result<(), CodecError> {
@@ -596,7 +600,7 @@ pub(super) fn encode_projected_qualifications(
     Ok(())
 }
 
-pub(super) fn decode_projected_qualifications(
+pub(crate) fn decode_projected_qualifications(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<StructuralPathQualification>, CodecError> {
     decode_counted(reader, |reader| {
@@ -607,7 +611,7 @@ pub(super) fn decode_projected_qualifications(
     })
 }
 
-pub(super) fn encode_structural_access(writer: &mut Writer, access: StructuralAccess) {
+pub(crate) fn encode_structural_access(writer: &mut Writer, access: StructuralAccess) {
     writer.u8(match access {
         StructuralAccess::Owned => 1,
         StructuralAccess::SharedBorrow => 2,
@@ -616,7 +620,7 @@ pub(super) fn encode_structural_access(writer: &mut Writer, access: StructuralAc
     });
 }
 
-pub(super) fn decode_structural_access(
+pub(crate) fn decode_structural_access(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralAccess, CodecError> {
     match reader.u8()? {

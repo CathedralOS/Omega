@@ -12,7 +12,7 @@ use semantic_vocabulary::{
 use super::CodecError;
 use super::wire::{Reader, Writer};
 
-pub(super) fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
+pub(crate) fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
     match scalar_type {
         ScalarType::Boolean => writer.u8(1),
         ScalarType::Integer(integer_type) => {
@@ -26,7 +26,7 @@ pub(super) fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
     }
 }
 
-pub(super) fn encode_ieee_float_value(writer: &mut Writer, value: IeeeFloatValue) {
+pub(crate) fn encode_ieee_float_value(writer: &mut Writer, value: IeeeFloatValue) {
     match value {
         IeeeFloatValue::Binary32(bits) => {
             writer.u8(1);
@@ -46,7 +46,7 @@ fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
     });
 }
 
-pub(super) fn encode_integer_type(writer: &mut Writer, integer_type: IntegerType) {
+pub(crate) fn encode_integer_type(writer: &mut Writer, integer_type: IntegerType) {
     writer.u8(match (integer_type.carrier(), integer_type.sign()) {
         (IntegerCarrier::Fixed, IntegerSign::Signed) => 1,
         (IntegerCarrier::Fixed, IntegerSign::Unsigned) => 2,
@@ -58,7 +58,7 @@ pub(super) fn encode_integer_type(writer: &mut Writer, integer_type: IntegerType
     writer.u16(integer_type.bits());
 }
 
-pub(super) fn encode_integer_value(writer: &mut Writer, value: IntegerValue) {
+pub(crate) fn encode_integer_value(writer: &mut Writer, value: IntegerValue) {
     match value {
         IntegerValue::Signed(value) => {
             writer.u8(1);
@@ -71,7 +71,7 @@ pub(super) fn encode_integer_value(writer: &mut Writer, value: IntegerValue) {
     }
 }
 
-pub(super) fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, CodecError> {
+pub(crate) fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, CodecError> {
     Ok(match reader.u8()? {
         1 => ScalarType::Boolean,
         2 => ScalarType::Integer(decode_integer_type(reader)?),
@@ -80,7 +80,7 @@ pub(super) fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, 
     })
 }
 
-pub(super) fn decode_ieee_float_value(
+pub(crate) fn decode_ieee_float_value(
     reader: &mut Reader<'_>,
 ) -> Result<IeeeFloatValue, CodecError> {
     Ok(match reader.u8()? {
@@ -98,7 +98,7 @@ fn decode_ieee_float_format(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, 
     })
 }
 
-pub(super) fn decode_integer_type(reader: &mut Reader<'_>) -> Result<IntegerType, CodecError> {
+pub(crate) fn decode_integer_type(reader: &mut Reader<'_>) -> Result<IntegerType, CodecError> {
     let tag = reader.u8()?;
     let bits = reader.u16()?;
     match tag {
@@ -110,7 +110,7 @@ pub(super) fn decode_integer_type(reader: &mut Reader<'_>) -> Result<IntegerType
     .map_err(CodecError::MalformedProposition)
 }
 
-pub(super) fn decode_integer_value(reader: &mut Reader<'_>) -> Result<IntegerValue, CodecError> {
+pub(crate) fn decode_integer_value(reader: &mut Reader<'_>) -> Result<IntegerValue, CodecError> {
     Ok(match reader.u8()? {
         1 => IntegerValue::Signed(i128::from_le_bytes(reader.array()?)),
         2 => IntegerValue::Unsigned(u128::from_le_bytes(reader.array()?)),

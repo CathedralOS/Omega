@@ -10,10 +10,12 @@ use super::structural_signature_wire::{
     decode_projected_qualifications, encode_projected_qualifications,
 };
 use super::wire::{Reader, Writer};
-use crate::structural_place_wire::{decode_structural_path, encode_structural_path};
-use crate::wire::{decode_counted, decode_ids};
+use crate::semantic_module::structural_place_wire::{
+    decode_structural_path, encode_structural_path,
+};
+use crate::semantic_module::wire::{decode_counted, decode_ids};
 
-pub(super) fn validate_reference_sources(
+pub(crate) fn validate_reference_sources(
     module: &terminal_psi::TerminalModule,
     machine: &terminal_psi::TerminalMachine,
 ) -> Result<(), CodecError> {
@@ -30,11 +32,12 @@ pub(super) fn validate_reference_sources(
         );
     }
     for reference in &result.reference_sources {
-        let reference_type = crate::module_foundation_validation::validate_structural_path(
-            module,
-            result.structural_type,
-            &reference.path,
-        )?;
+        let reference_type =
+            crate::semantic_module::module_foundation_validation::validate_structural_path(
+                module,
+                result.structural_type,
+                &reference.path,
+            )?;
         let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) = module
             .structural_types
             .iter()
@@ -56,7 +59,7 @@ pub(super) fn validate_reference_sources(
         };
         if *access != reference.source.access
             || *referent
-                != crate::module_foundation_validation::validate_structural_path(
+                != crate::semantic_module::module_foundation_validation::validate_structural_path(
                     module,
                     parameter.structural_type,
                     &reference.source.path,
@@ -70,7 +73,7 @@ pub(super) fn validate_reference_sources(
     Ok(())
 }
 
-pub(super) fn encode_function_result(
+pub(crate) fn encode_function_result(
     writer: &mut Writer,
     result: &StructuralResultDeclaration,
 ) -> Result<(), CodecError> {
@@ -98,7 +101,7 @@ pub(super) fn encode_function_result(
     Ok(())
 }
 
-pub(super) fn decode_function_result(
+pub(crate) fn decode_function_result(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralResultDeclaration, CodecError> {
     Ok(StructuralResultDeclaration {
@@ -120,7 +123,7 @@ pub(super) fn decode_function_result(
     })
 }
 
-pub(super) fn encode_operation_result(
+pub(crate) fn encode_operation_result(
     writer: &mut Writer,
     result: &StructuralOperationResult,
 ) -> Result<(), CodecError> {
@@ -147,7 +150,7 @@ pub(super) fn encode_operation_result(
     Ok(())
 }
 
-pub(super) fn decode_operation_result(
+pub(crate) fn decode_operation_result(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralOperationResult, CodecError> {
     Ok(StructuralOperationResult {

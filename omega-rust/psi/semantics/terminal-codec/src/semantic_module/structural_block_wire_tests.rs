@@ -349,7 +349,7 @@ fn structural_block_bindings_reject_malformed_parameter_coordinates() {
             _ => unreachable!(),
         }
         assert!(encode_module(&module).is_err());
-        let malformed = crate::module_wire::encode_raw(&module).unwrap();
+        let malformed = crate::semantic_module::module_wire::encode_raw(&module).unwrap();
         assert!(decode_module(&malformed).is_err());
     }
 }
@@ -475,7 +475,7 @@ fn unit_mutable_byte_field_presentation_rejects_wrong_field_access_and_view_type
             encode_module(&module).is_err(),
             "encoder mutation {mutation}"
         );
-        let bytes = crate::module_wire::encode_raw(&module).unwrap();
+        let bytes = crate::semantic_module::module_wire::encode_raw(&module).unwrap();
         assert!(
             decode_module(&bytes).is_err(),
             "decoder mutation {mutation}"

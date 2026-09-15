@@ -22,7 +22,7 @@ use proof_admission::{AdmissionAcceptance, AdmissionProfile};
 use sha2::{Digest, Sha256};
 use terminal_psi::TerminalPsiIdentity;
 
-use crate::wire::{Reader, Writer};
+use crate::semantic_module::wire::{Reader, Writer};
 use crate::{
     CanonicalTerminalArtifact, CodecError, TerminalObligationLedgerFingerprint,
     TrustDependencyStatus, current_terminal_trust_graph, decode_module, decode_proof_section_for,
