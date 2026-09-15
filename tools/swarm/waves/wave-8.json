@@ -4,9 +4,12 @@
   "devin_mode": null,
   "bypass_approval": true,
   "resumable": true,
-  "tags": ["omega-swarm", "w8"],
+  "tags": [
+    "omega-swarm",
+    "w8"
+  ],
   "owner_label_prefix": "Jarod / swarm-w8",
-  "note": "Wave 8: eight concurrent linux cloud sessions spawned via builtin session creation (no DEVIN_API_KEY); devin_mode null so children inherit the org default (SWE-2 Max). structured_output_schema is attached at spawn this wave (fixes G3 from the program retrospect). owning_paths were seam-verified and routed around live claims: SPILL-REALIZATION holds machine-emission/frame_layout, machine-code, isa-*, register-homes/assignment until ~06:23Z; TERMINATION-RANKING-CHECKS holds checks/termination/ranking + validation/lib.rs until ~04:37Z; NOMINAL-FIELD-FLOW holds typed-trees flow/ + checks/contracts until ~06:15Z; RUNTIME-VALUE-GENERICS holds tests/omega/{pass,fail}/generics until ~06:15Z; BUILD-DEPENDENCY-PURPOSES holds omega/packages until ~04:25Z. exact-selection-families (armed automation, fires 08:30Z) claims rewrites/selected_lowering — declarative-peepholes holds it meanwhile and will have released well before.",
+  "note": "Wave 8: eight concurrent linux cloud sessions spawned via builtin session creation (no DEVIN_API_KEY); devin_mode null so children inherit the org default (SWE-2 Max). structured_output_schema is attached at spawn this wave (fixes G3 from the program retrospect). owning_paths were seam-verified and routed around live claims: SPILL-REALIZATION holds machine-emission/frame_layout, machine-code, isa-*, register-homes/assignment until ~06:23Z; TERMINATION-RANKING-CHECKS holds checks/termination/ranking + validation/lib.rs until ~04:37Z; NOMINAL-FIELD-FLOW holds typed-trees flow/ + checks/contracts until ~06:15Z; RUNTIME-VALUE-GENERICS holds tests/omega/{pass,fail}/generics until ~06:15Z; BUILD-DEPENDENCY-PURPOSES holds omega/packages until ~04:25Z. exact-selection-families (armed automation, fires 08:30Z) claims rewrites/selected_lowering \u2014 declarative-peepholes holds it meanwhile and will have released well before.",
   "exclusions": [
     "EXACT-SELECTION-FAMILIES",
     "TRANSLATION-VALIDATION",
@@ -17,7 +20,6 @@
     "BUILD-DEPENDENCY-PURPOSES",
     "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
     "EXTERNAL-ENTRY-STACK-EPOCHS",
-    "TERMINATION-RANKING-CHECKS",
     "OMEGA-D",
     "SUBJECT-QUALIFIED-ARTIFACT-PROOFS",
     "PER-RULE-COVERAGE",
@@ -28,7 +30,6 @@
     "NOMINAL-FIELD-FLOW",
     "STRUCTURAL-BORROW-IDENTITY",
     "GAMMA-DERIVATION-CHECKER",
-    "MATCH-SELECTIVE-LOWERING",
     "SQUALR-HEADLESS",
     "MACOS-APPLICATION-PUBLICATION",
     "PSIIR",
@@ -60,7 +61,7 @@
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds"
       ],
-      "suggested_first_slice": "Extend the landed pair descriptors (selected_lowering/literal_fold/pair_rule.rs) to one further role — a memory-, trap-, stack-, or control-flow-carrying form is the named gap. Keep the independent validator; do not add a new rewrites/mod.rs module (owned by exact-machine-simplifications this wave)."
+      "suggested_first_slice": "Extend the landed pair descriptors (selected_lowering/literal_fold/pair_rule.rs) to one further role \u2014 a memory-, trap-, stack-, or control-flow-carrying form is the named gap. Keep the independent validator; do not add a new rewrites/mod.rs module (owned by exact-machine-simplifications this wave)."
     },
     {
       "name": "exact-machine-simplifications",
@@ -89,7 +90,7 @@
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/dead_store",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/dead_store.rs"
       ],
-      "suggested_first_slice": "Cross-block coverage or killers beyond the exact Store/WritePlace pair, inside the existing load_forwarding/dead_store families. rewrites/mod.rs is owned by exact-machine-simplifications this wave — if the slice needs a new top-level module, report blocked."
+      "suggested_first_slice": "Cross-block coverage or killers beyond the exact Store/WritePlace pair, inside the existing load_forwarding/dead_store families. rewrites/mod.rs is owned by exact-machine-simplifications this wave \u2014 if the slice needs a new top-level module, report blocked."
     },
     {
       "name": "general-call-clobbers",
@@ -102,7 +103,7 @@
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation",
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites"
       ],
-      "suggested_first_slice": "Reload intervals that survive an intervening call, or structural-argument calls — the board names rewrites/runtime_spill.rs as the excluding seam. register-homes/src/assignment is claimed by SPILL-REALIZATION until ~06:23Z; keep writes in your owned paths."
+      "suggested_first_slice": "Reload intervals that survive an intervening call, or structural-argument calls \u2014 the board names rewrites/runtime_spill.rs as the excluding seam. register-homes/src/assignment is claimed by SPILL-REALIZATION until ~06:23Z; keep writes in your owned paths."
     },
     {
       "name": "frame-layout",
@@ -113,7 +114,7 @@
         "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase",
         "omega-rust/omega/backend/layout"
       ],
-      "suggested_first_slice": "One of red-zone policy, unwind information, stable-address loans, or dynamic-allocation constraints. machine-emission/frame_layout, representations/machine-code, and isa-* are claimed by SPILL-REALIZATION until ~06:23Z — prefer a layout-planning slice in owned paths; if nothing bounds there, report blocked."
+      "suggested_first_slice": "One of red-zone policy, unwind information, stable-address loans, or dynamic-allocation constraints. machine-emission/frame_layout, representations/machine-code, and isa-* are claimed by SPILL-REALIZATION until ~06:23Z \u2014 prefer a layout-planning slice in owned paths; if nothing bounds there, report blocked."
     },
     {
       "name": "tpr6",
@@ -125,7 +126,7 @@
         "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/progress.rs",
         "omega-rust/psi/semantics/validation/src/calls/expression_scanning"
       ],
-      "suggested_first_slice": "One bounded slice: per-field arrivals through an opaque-reference, recursive-proof, or unresolved-generic leaf with exact provenance (progress/{origins,lineage}.rs), or realizing one projected nested value-call operand via validation/src/calls/expression_scanning/result_realization.rs. checks/termination/ranking, validation/src/lib.rs, and flow/ are claimed until ~04:37-06:15Z — steer to owned paths."
+      "suggested_first_slice": "One bounded slice: per-field arrivals through an opaque-reference, recursive-proof, or unresolved-generic leaf with exact provenance (progress/{origins,lineage}.rs), or realizing one projected nested value-call operand via validation/src/calls/expression_scanning/result_realization.rs. checks/termination/ranking, validation/src/lib.rs, and flow/ are claimed until ~04:37-06:15Z \u2014 steer to owned paths."
     },
     {
       "name": "case-constraints",
@@ -140,7 +141,7 @@
         "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values/scalar/case_membership.rs",
         "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/scalar_graph/scalar_computations/cases"
       ],
-      "suggested_first_slice": "One open line: generic `T == i32` establishment, or match-contributed case facts, or coverage through established contradictions. flow/ and checks/contracts are claimed by NOMINAL-FIELD-FLOW until ~06:15Z — prefer the generic-establishment slice; report blocked if it cannot be bounded without claimed dirs."
+      "suggested_first_slice": "One open line: generic `T == i32` establishment, or match-contributed case facts, or coverage through established contradictions. flow/ and checks/contracts are claimed by NOMINAL-FIELD-FLOW until ~06:15Z \u2014 prefer the generic-establishment slice; report blocked if it cannot be bounded without claimed dirs."
     },
     {
       "name": "callback-private-materialization",
@@ -151,7 +152,7 @@
         "omega-rust/omega/build/provider-planning",
         "omega-rust/psi/compiler/terminal-production"
       ],
-      "suggested_first_slice": "Plan-side slice: target-owned private callback slots through exact conformances and validated layout paths — callback_layout_catalog under provider-planning is the seam. backend/runtime/component-publication is claimed by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z; keep to planning/terminal-production writes or report blocked."
+      "suggested_first_slice": "Plan-side slice: target-owned private callback slots through exact conformances and validated layout paths \u2014 callback_layout_catalog under provider-planning is the seam. backend/runtime/component-publication is claimed by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z; keep to planning/terminal-production writes or report blocked."
     },
     {
       "name": "build-product-references",
@@ -162,7 +163,7 @@
         "omega-rust/omega/build/build-evaluation/src/selection",
         "omega-rust/omega/compiler/compiler/tests/build_target_activation.rs"
       ],
-      "suggested_first_slice": "Backfill for the blocked frame-layout slot. Remaining work per board: provider/schema description kinds (the computed-receiver implementation fence likely still waits on call-result authority). Extend the landed ProductEntryRef pattern in build-evaluation/src/selection/root_bindings.rs to one provider or schema description kind; keep rejection matrix intact. omega/packages is claimed by BUILD-DEPENDENCY-PURPOSES; tests/canary_suite files are partially claimed by other items — keep writes in owned paths or report blocked.",
+      "suggested_first_slice": "Backfill for the blocked frame-layout slot. Remaining work per board: provider/schema description kinds (the computed-receiver implementation fence likely still waits on call-result authority). Extend the landed ProductEntryRef pattern in build-evaluation/src/selection/root_bindings.rs to one provider or schema description kind; keep rejection matrix intact. omega/packages is claimed by BUILD-DEPENDENCY-PURPOSES; tests/canary_suite files are partially claimed by other items \u2014 keep writes in owned paths or report blocked.",
       "backfill_for": "frame-layout"
     },
     {
@@ -175,7 +176,7 @@
         "omega-rust/omega/build/build-evaluation/src/behavior_exclusions.rs",
         "omega-rust/omega/build/build-declarations"
       ],
-      "suggested_first_slice": "Backfill for the blocked callback-private-materialization slot. Board resume evidence names the next unit: the Build authoring surface for exclusions with retained declaration spans, then the product-admission join over the selected entry roster. build-evaluation/src/selection is owned by build-product-references this wave — if the slice needs it, report blocked instead of crossing.",
+      "suggested_first_slice": "Backfill for the blocked callback-private-materialization slot. Board resume evidence names the next unit: the Build authoring surface for exclusions with retained declaration spans, then the product-admission join over the selected entry roster. build-evaluation/src/selection is owned by build-product-references this wave \u2014 if the slice needs it, report blocked instead of crossing.",
       "backfill_for": "callback-private-materialization"
     },
     {
@@ -186,7 +187,7 @@
       "owning_paths": [
         "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input"
       ],
-      "suggested_first_slice": "Backfill for the landed TPR6 slot. Board names the seam: extend ordinary reference preparation/receiving replay in legalization/scalar_graph_input — remaining work includes early loan closure / restored-parent uses. tests/omega/{pass,fail}/borrow(s) and tests/native-differential receiver fixtures are claimed by STRUCTURAL-BORROW-IDENTITY until ~06:16Z — prove via existing replay/crate tests in owned paths or report blocked.",
+      "suggested_first_slice": "Backfill for the landed TPR6 slot. Board names the seam: extend ordinary reference preparation/receiving replay in legalization/scalar_graph_input \u2014 remaining work includes early loan closure / restored-parent uses. tests/omega/{pass,fail}/borrow(s) and tests/native-differential receiver fixtures are claimed by STRUCTURAL-BORROW-IDENTITY until ~06:16Z \u2014 prove via existing replay/crate tests in owned paths or report blocked.",
       "backfill_for": "tpr6"
     },
     {
@@ -199,7 +200,7 @@
         "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_permissions.rs",
         "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_permission_policy.rs"
       ],
-      "suggested_first_slice": "Backfill for the landed general-call-clobbers slot. Finish one bounded class of consumer permission rows / exact target-mechanism classification under the settled filesystem control-lifecycle policy — the seam is native_realization/terminal_authority_policy{,.rs} + terminal_authority_permission*.rs. Do not retire the broad Filesystem summary unless the exact replacement closes. native_realization/physical_stage (SPILL-REALIZATION) and native_realization/src/tests + input_preparation.rs (SUBJECT-QUALIFIED-ARTIFACT-PROOFS) are claimed — keep writes in owned paths or report blocked.",
+      "suggested_first_slice": "Backfill for the landed general-call-clobbers slot. Finish one bounded class of consumer permission rows / exact target-mechanism classification under the settled filesystem control-lifecycle policy \u2014 the seam is native_realization/terminal_authority_policy{,.rs} + terminal_authority_permission*.rs. Do not retire the broad Filesystem summary unless the exact replacement closes. native_realization/physical_stage (SPILL-REALIZATION) and native_realization/src/tests + input_preparation.rs (SUBJECT-QUALIFIED-ARTIFACT-PROOFS) are claimed \u2014 keep writes in owned paths or report blocked.",
       "backfill_for": "general-call-clobbers"
     },
     {
@@ -210,7 +211,7 @@
       "owning_paths": [
         "omega-rust/omega/representations/selected-instructions"
       ],
-      "suggested_first_slice": "Backfill for the blocked build-product-references slot. Validate one bounded dimension (e.g. clobbers, effects, or provenance) across every selected rule in the selected-instructions representation — extend the existing validation/catalog machinery there rather than a second classifier. machine-code, machine-emission exit_contract, and isa-* are claimed by SPILL-REALIZATION until ~06:23Z — keep writes inside selected-instructions or report blocked.",
+      "suggested_first_slice": "Backfill for the blocked build-product-references slot. Validate one bounded dimension (e.g. clobbers, effects, or provenance) across every selected rule in the selected-instructions representation \u2014 extend the existing validation/catalog machinery there rather than a second classifier. machine-code, machine-emission exit_contract, and isa-* are claimed by SPILL-REALIZATION until ~06:23Z \u2014 keep writes inside selected-instructions or report blocked.",
       "backfill_for": "build-product-references"
     },
     {
@@ -221,7 +222,7 @@
       "owning_paths": [
         "omega-rust/omega/backend/runtime/external-roots"
       ],
-      "suggested_first_slice": "Backfill for the landed alias-aware-memory slot. Resume evidence on the board names the seam: extend ProgramLocalRootInstallationLedger work inside external-roots (program_local_roots.rs / program_local_extents) — e.g. aggregate capacity reconstruction for one artifact instance and lifecycle epoch. Re-check tools/claims.py status at start: external-roots was held by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z and may be re-claimed by another host.",
+      "suggested_first_slice": "Backfill for the landed alias-aware-memory slot. Resume evidence on the board names the seam: extend ProgramLocalRootInstallationLedger work inside external-roots (program_local_roots.rs / program_local_extents) \u2014 e.g. aggregate capacity reconstruction for one artifact instance and lifecycle epoch. Re-check tools/claims.py status at start: external-roots was held by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z and may be re-claimed by another host.",
       "backfill_for": "alias-aware-memory"
     },
     {
@@ -232,7 +233,7 @@
       "owning_paths": [
         "omega-rust/psi/semantics/build-time-evaluation"
       ],
-      "suggested_first_slice": "Backfill for the landed declarative-peepholes slot. One bounded slice inside the semantic evaluation owner crate — e.g. finish earlier generic-application evaluation, or one typed target observation / selected-realization-coverage class. flow/, monomorphization, and checked-interpreter are claimed by NOMINAL-FIELD-FLOW/RUNTIME-VALUE-GENERICS (leases were due ~06:15Z — re-check tools/claims.py status); keep writes inside build-time-evaluation or report blocked.",
+      "suggested_first_slice": "Backfill for the landed declarative-peepholes slot. One bounded slice inside the semantic evaluation owner crate \u2014 e.g. finish earlier generic-application evaluation, or one typed target observation / selected-realization-coverage class. flow/, monomorphization, and checked-interpreter are claimed by NOMINAL-FIELD-FLOW/RUNTIME-VALUE-GENERICS (leases were due ~06:15Z \u2014 re-check tools/claims.py status); keep writes inside build-time-evaluation or report blocked.",
       "backfill_for": "declarative-peepholes"
     },
     {
@@ -249,7 +250,7 @@
         "omega-rust/omega/build/build-evaluation/src/observation_identity.rs",
         "omega-rust/omega/build/build-evaluation/src/observations.rs"
       ],
-      "suggested_first_slice": "Backfill for the landed exact-machine-simplifications slot. Execute one admitted build machine against the coherent frontend/source/authority snapshot and record the checkpoint — or land the serialized-replay/drift-rejection matrix for the full activation (the replay* and observation* files are the seam). build-evaluation/src/{selection,behavior_exclusions,build-declarations} are owned by wave siblings — if the slice needs them, report blocked rather than crossing.",
+      "suggested_first_slice": "Backfill for the landed exact-machine-simplifications slot. Execute one admitted build machine against the coherent frontend/source/authority snapshot and record the checkpoint \u2014 or land the serialized-replay/drift-rejection matrix for the full activation (the replay* and observation* files are the seam). build-evaluation/src/{selection,behavior_exclusions,build-declarations} are owned by wave siblings \u2014 if the slice needs them, report blocked rather than crossing.",
       "backfill_for": "exact-machine-simplifications"
     },
     {
@@ -264,7 +265,7 @@
         "omega-rust/omega/representations/calling-conventions/src/windows.rs",
         "omega-rust/omega/representations/calling-conventions/src/stack_realizations.rs"
       ],
-      "suggested_first_slice": "Backfill for the landed selected-abi-validation slot. Complete one supported target/OS matrix class in calling-conventions — callable or unwind rows for linux/windows/darwin per plans.rs, with drift/coverage tests. Encoding and object matrices likely need isa-* or object crates held by SPILL-REALIZATION — if the slice crosses there, report blocked rather than claiming them.",
+      "suggested_first_slice": "Backfill for the landed selected-abi-validation slot. Complete one supported target/OS matrix class in calling-conventions \u2014 callable or unwind rows for linux/windows/darwin per plans.rs, with drift/coverage tests. Encoding and object matrices likely need isa-* or object crates held by SPILL-REALIZATION \u2014 if the slice crosses there, report blocked rather than claiming them.",
       "backfill_for": "selected-abi-validation"
     },
     {
@@ -276,8 +277,34 @@
       "owning_paths": [
         "omega-rust/omega/backend/runtime/component-publication"
       ],
-      "suggested_first_slice": "Backfill for the landed build-semantic-exclusions slot. Model successful registration as a linear external root with capacity bounding live registrations (not emitted thunks) — extend the pinned generic chain in component-publication tests (registration owns an exact component-era lease through rejection/retry/replacement/cleanup). backend/runtime/external-roots is owned by wave sibling installed-program-roots — if the slice crosses there, report blocked. Windows callback acceptance is unavailable on this host; report it as such.",
+      "suggested_first_slice": "Backfill for the landed build-semantic-exclusions slot. Model successful registration as a linear external root with capacity bounding live registrations (not emitted thunks) \u2014 extend the pinned generic chain in component-publication tests (registration owns an exact component-era lease through rejection/retry/replacement/cleanup). backend/runtime/external-roots is owned by wave sibling installed-program-roots \u2014 if the slice crosses there, report blocked. Windows callback acceptance is unavailable on this host; report it as such.",
       "backfill_for": "build-semantic-exclusions"
+    },
+    {
+      "name": "match-selective-lowering",
+      "board": "TASKS.md",
+      "item": "MATCH-SELECTIVE-LOWERING",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/emission/call_source_custody",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/emission/call_source_custody.rs"
+      ],
+      "suggested_first_slice": "Backfill for the verification-only registered-callback-lifetime slot. Owned call arms / record fields that move existing affine children still need exact residual transport \u2014 the seam is emission/call_source_custody (projected_receivers, occurrences, boundary_buffers, aliases). Extend one residual-transport class with custody-preserving lowering + rejection matrix; keep match_anonymous_result_landing and numeric_operand_destinations as source probes.",
+      "backfill_for": "registered-callback-lifetime"
+    },
+    {
+      "name": "termination-ranking",
+      "board": "TASKS.md",
+      "item": "TERMINATION-RANKING-CHECKS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking.rs",
+        "omega-rust/omega/compiler/validation/src/call_cycles/runtime_ranking",
+        "omega-rust/omega/compiler/validation/src/call_cycles/runtime_ranking.rs"
+      ],
+      "suggested_first_slice": "Backfill for the landed installed-program-roots slot. The item names the seam: flow-dependent rank-range checks in checks/termination/ranking/ and validation/src/call_cycles/runtime_ranking/. One bounded class \u2014 e.g. exact arrival mappings for diverging rank-input copies or pinned-endpoint premises. checks/termination/progress{,.rs} is owned by wave sibling tpr6 \u2014 do not touch it.",
+      "backfill_for": "installed-program-roots"
     }
   ]
 }
