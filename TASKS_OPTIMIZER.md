@@ -37,36 +37,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Acceptance: current programs outlive their producers; ordinary consumers
   read current data directly; historical inputs remain separate replay evidence.
 
-- **PSI-PRE-TERMINAL-OPTIMIZATION.** Complete selected rewrites and independent
-  checks in `lowered-psi-to-lowered-psi` before `lowered-psi-to-terminal-psi`:
-  control-flow cleanup, SCCP, copy propagation, GVN, dead pure scalar elimination
-  and proof-check elision. Proof-bearing closures need proof-context transport.
-  Acceptance: exact `build.omg` opt-ins execute before immutable Terminal
-  publication, preserving proof, ownership, effects, qualifications and execution
-  evidence. Standalone Psi and separately authorized resumed lowering need no
-  original frontend state or hidden consumer-side Psi optimization. Landed:
-  dead total scalar elimination also removes unused scalar block parameters and
-  their edge arguments in proof-free, unranked machines; copy propagation
-  collapses scalar block parameters bound to the same resolved value on every
-  inventoried incoming edge, substituting the resolved source and dropping the
-  matching edge-argument positions while retaining every value a proposition,
-  projection, suspension frontier, ranking row, or recorded source-call join
-  names; global value numbering removes an unconditionally-total scalar
-  operation that repeats a surviving operation with the same kind and resolved
-  operands in a dominating position, substituting the canonical survivor at
-  direct scalar uses under the same retention rules; sparse conditional
-  constant propagation folds a goal-free scalar leaf operation whose scalar
-  operands all resolve to known literals into the matching integer or Boolean
-  constant in place, keeping operation, result, and value identities while
-  ranked machines, static reach bindings, and proof-bearing closures stay
-  frozen; control-flow cleanup folds a conditional whose condition is a
-  BooleanConstant result into the selected successor edge as an unconditional
-  jump, carrying the edge identity, scalar and structural bindings, and
-  edge-scoped cleanup rows verbatim, and removes blocks the untaken arm leaves
-  unreachable only when no evidence row, unsealed sidecar, static reach
-  binding, or structural place declaration still names them — a refusal leaves
-  the conditional as authored; proof-check elision remains open.
-
 ## Product pruning and rollout
 
 - **WORKSPACE-ROLLOUT.** Keep every rule explicit opt-in until the frozen-tree
