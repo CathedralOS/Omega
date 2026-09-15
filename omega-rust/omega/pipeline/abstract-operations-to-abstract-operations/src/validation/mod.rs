@@ -78,6 +78,290 @@ pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -
         && node.ownership.is_empty()
 }
 
+/// Place-observation leaf nodes are the first non-scalar family admitted for
+/// loop-invariant motion out of a cyclic component: a fresh observation of an
+/// established storage root. Every admitted variant is a verifier-approved
+/// read that defines exactly one result, carries no scalar uses, successors,
+/// or ownership events, and keeps its own operation identity as the first
+/// provenance row. `ByteSequenceRead` stays outside the family this wave —
+/// its scalar index/length operands and its bounds obligation add a second
+/// evidence dimension the bounded gate does not yet reconstruct. Invariance
+/// of the observed root and the root's preheader visibility are decided
+/// separately by [`invariant_place_observation_admission`].
+pub(crate) fn admissible_invariant_place_read(node: &OptimizationNode) -> Option<PlaceId> {
+    let (psi_operation, source) = match &node.operation {
+        O::PrimitiveScalarRead {
+            psi_operation,
+            source,
+            ..
+        }
+        | O::StructuralCaseMembership {
+            psi_operation,
+            source,
+            ..
+        }
+        | O::ByteSequenceLength {
+            psi_operation,
+            source,
+            ..
+        }
+        | O::StructuralByteSequenceFieldLength {
+            psi_operation,
+            source,
+            ..
+        }
+        | O::BooleanStructuralField {
+            psi_operation,
+            source,
+            ..
+        }
+        | O::IntegerStructuralField {
+            psi_operation,
+            source,
+            ..
+        } => (*psi_operation, *source),
+        _ => return None,
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(psi_operation))
+        && node.definitions.len() == 1
+        && node.uses.is_empty()
+        && node.successors.is_empty()
+        && node.ownership.is_empty())
+    .then_some(source)
+}
+
+/// Whether `component`'s member blocks perform no place mutation or custody
+/// movement at all: no store, view or record establishment, atomic event, or
+/// ownership event inside a member, no call that could reach a caller place
+/// through a mutating structural argument or a transferred claim, and no
+/// affine discard on any component-adjacent edge. When this holds, every
+/// member place observation is loop-invariant — no traversal can change what
+/// it observes — so an admitted read relocates without a per-root write
+/// analysis. That whole-component bound is deliberately conservative: the
+/// first non-scalar slice refuses every place read in a component containing
+/// any place-writing node rather than resolving member structural parameters
+/// to decide which roots a store could reach.
+pub(crate) fn component_preserves_place_observations(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+) -> bool {
+    for member in &component.members {
+        let Some(block) = function.blocks.iter().find(|block| block.id == *member) else {
+            return false;
+        };
+        for node in &block.nodes {
+            if !node.ownership.is_empty() || !node_preserves_place_observations(&node.operation) {
+                return false;
+            }
+        }
+    }
+    // Any discard adjacent to the component — on an internal edge, the unique
+    // entry edge, or an exit — refuses the family. An entry-edge discard runs
+    // once before the first iteration, but a place it ends could not be read
+    // inside the loop at all, so the refusal is only conservative.
+    let adjacent: BTreeSet<EdgeId> = component
+        .id
+        .internal_edges
+        .iter()
+        .chain(component.entries.iter())
+        .chain(component.exits.iter())
+        .map(|edge| edge.edge)
+        .collect();
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+        .filter(|edge| adjacent.contains(&edge.psi_edge))
+        .all(|edge| {
+            edge.trivial_affine_discards.is_empty() && edge.residual_affine_discards.is_empty()
+        })
+}
+
+/// The operation whitelist [`component_preserves_place_observations`] applies
+/// to every member node. Pure scalar work and scalar constants name no place;
+/// read-only place observations cannot change what they observe; control
+/// nodes carry their custody on their successor edges, which the edge scan
+/// checks; a port write touches a service port rather than a place; a plain
+/// scalar `Call` has no place or claim surface at all; and a unit or scalar
+/// call that moves no claims and passes only shared-borrow structural
+/// arguments cannot mutate any place it could observe. Every other variant —
+/// stores, establishments, dynamic-dispatch and structural calls, boundary
+/// calls, atomic events, descriptor stores — fails closed.
+fn node_preserves_place_observations(operation: &O) -> bool {
+    match operation {
+        O::IntegerConstant { .. }
+        | O::IeeeFloatConstant { .. }
+        | O::BooleanConstant { .. }
+        | O::BooleanNot { .. }
+        | O::BooleanEqual { .. }
+        | O::IntegerEqual { .. }
+        | O::IntegerLessThan { .. }
+        | O::IntegerLessOrEqual { .. }
+        | O::IntegerBitwiseNot { .. }
+        | O::IntegerWiden { .. }
+        | O::IntegerExactCast { .. }
+        | O::IntegerBitwiseAnd { .. }
+        | O::IntegerBitwiseOr { .. }
+        | O::IntegerBitwiseXor { .. }
+        | O::WrappingIntegerShiftLeft { .. }
+        | O::WrappingIntegerShiftRight { .. }
+        | O::ExactIntegerShiftLeft { .. }
+        | O::ExactIntegerShiftRight { .. }
+        | O::WrappingIntegerAdd { .. }
+        | O::ExactIntegerAdd { .. }
+        | O::SaturatingIntegerAdd { .. }
+        | O::WrappingIntegerSubtract { .. }
+        | O::ExactIntegerSubtract { .. }
+        | O::SaturatingIntegerSubtract { .. }
+        | O::WrappingIntegerMultiply { .. }
+        | O::ExactIntegerMultiply { .. }
+        | O::SaturatingIntegerMultiply { .. }
+        | O::WrappingIntegerDivide { .. }
+        | O::ExactIntegerDivide { .. }
+        | O::SaturatingIntegerDivide { .. }
+        | O::WrappingIntegerRemainder { .. }
+        | O::ExactIntegerRemainder { .. }
+        | O::SaturatingIntegerRemainder { .. }
+        | O::IeeeFloatCompare { .. }
+        | O::NearestIeeeFloatFusedMultiplyAdd { .. }
+        | O::PrimitiveScalarRead { .. }
+        | O::StructuralCaseMembership { .. }
+        | O::ByteSequenceRead { .. }
+        | O::ByteSequenceLength { .. }
+        | O::StructuralByteSequenceFieldLength { .. }
+        | O::BooleanStructuralField { .. }
+        | O::IntegerStructuralField { .. }
+        | O::Jump { .. }
+        | O::Conditional { .. }
+        | O::StructuralCase { .. }
+        | O::PortWrite { .. }
+        | O::DynamicDescriptorParameter { .. }
+        | O::Call { .. } => true,
+        O::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            ..
+        }
+        | O::CallStructuralScalar {
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => {
+            claim_transfers.is_empty()
+                && structural_arguments
+                    .iter()
+                    .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow)
+        }
+        _ => false,
+    }
+}
+
+/// Whether `root`, the storage root an admitted place observation names, is
+/// visible at the component's unique-entry preheader insertion point: a
+/// function structural parameter or result root, a provider-attachment root,
+/// a structural parameter of the preheader block itself, or a place
+/// established by a preheader node ahead of the terminator. The relocated run
+/// inserts ahead of the countdown-certificate tail; those tail nodes are
+/// scalar constants and never produce places, so scanning every
+/// non-terminator preheader node here is exactly the proposal's
+/// ahead-of-insertion computation. A root produced inside the component, a
+/// member structural parameter, or a place only another block establishes
+/// stays invisible — resolving member place parameters transitively like
+/// [`invariant_member_parameters`] is the documented next slice.
+pub(crate) fn place_observation_root_visible(
+    function: &PsiOptimizationFunction,
+    preheader: &OptimizationBlock,
+    root: PlaceId,
+) -> bool {
+    function
+        .structural_parameters
+        .iter()
+        .any(|parameter| parameter.place == root)
+        || function
+            .result
+            .structural()
+            .is_some_and(|result| result.place == root)
+        || function.structural_places.iter().any(|declaration| {
+            declaration.id == root
+                && matches!(
+                    declaration.kind,
+                    StructuralPlaceKind::ProviderAttachment { .. }
+                )
+        })
+        || preheader
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == root)
+        || preheader
+            .nodes
+            .iter()
+            .take(preheader.nodes.len().saturating_sub(1))
+            .any(|node| produces_place_root(&node.operation, root))
+}
+
+/// Whether `operation` establishes `root`: the structural-result places, the
+/// declaration-carried literal and affine-local places, and a single-attempt
+/// compare-exchange outcome. This is the producer half of
+/// [`place_observation_root_visible`].
+fn produces_place_root(operation: &O, root: PlaceId) -> bool {
+    match operation {
+        O::EstablishPrimitiveLocal { result, .. }
+        | O::ByteSequenceSubslice { result, .. }
+        | O::EstablishScalarArray { result, .. }
+        | O::EstablishScalarCase { result, .. }
+        | O::EstablishRecord { result, .. }
+        | O::CallStructural { result, .. } => result.place == root,
+        O::BoundaryCall {
+            result: abstract_operations::AbstractBoundaryResult::Structural(result),
+            ..
+        } => result.place == root,
+        O::EstablishByteSequenceLiteral { place, .. }
+        | O::EstablishTrivialAffineLocal { place, .. } => place.id == root,
+        O::AtomicEvent { event, .. } => matches!(
+            event,
+            abstract_operations::AbstractAtomicEvent::CompareExchangeOnce { outcome, .. }
+                if outcome.place == root
+        ),
+        _ => false,
+    }
+}
+
+/// The complete invariant place-read admission shared by the proposal and the
+/// relocation freeze replay: `node` must carry the source-owned observation
+/// shape ([`admissible_invariant_place_read`]), the component must perform no
+/// place mutation or custody movement
+/// ([`component_preserves_place_observations`]), and the root it observes must
+/// be visible at the unique-entry preheader insertion point
+/// ([`place_observation_root_visible`]). An admitted read carries no operand
+/// rewrites at all — the root already names a preheader-visible place — so
+/// the node relocates byte-exact like a scalar-constant leaf.
+pub(crate) fn invariant_place_observation_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+) -> bool {
+    let Some(source) = admissible_invariant_place_read(node) else {
+        return false;
+    };
+    let [entry] = component.entries.as_slice() else {
+        return false;
+    };
+    if component.members.contains(&entry.source) {
+        return false;
+    }
+    if !component_preserves_place_observations(function, component) {
+        return false;
+    }
+    let Some(preheader) = function
+        .blocks
+        .iter()
+        .find(|block| block.id == entry.source)
+    else {
+        return false;
+    };
+    place_observation_root_visible(function, preheader, source)
+}
+
 /// Every scalar value definition site in `function`: function parameters,
 /// block parameters, and node results. Sites are the only authority needed to
 /// decide whether a use is loop-carried — a definition inside a component's

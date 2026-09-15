@@ -12,7 +12,9 @@ use super::{
 /// operation identity, defined result, original location, provenance, and fuel
 /// settlements, plus the operand rebinding an invariant member parameter
 /// performs when the computation is re-expressed on its preheader-visible
-/// representative. Scalar-constant leaves carry an empty rewrite list.
+/// representative. Scalar-constant leaves and admitted place observations
+/// carry an empty rewrite list — an observation's storage root already names a
+/// preheader-visible place, so it relocates byte-exact like a leaf.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarNode {
     pub(super) psi_operation: OperationId,
@@ -43,8 +45,10 @@ impl LoopInvariantScalarNode {
 
     /// Exact `(invariant parameter, entry representative)` operand rewrites
     /// the relocation performs, sorted by parameter. Empty for scalar-constant
-    /// leaves, which read no values, and for chained computations whose
-    /// member-internal operands all name results the same run preserves.
+    /// leaves, which read no values, for admitted place observations, whose
+    /// storage root already names a preheader-visible place, and for chained
+    /// computations whose member-internal operands all name results the same
+    /// run preserves.
     pub fn operand_rewrites(&self) -> &[(ValueId, ValueId)] {
         &self.operand_rewrites
     }

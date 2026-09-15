@@ -1,4 +1,4 @@
-//! Optimizer module role: test leaf. Transitive member-parameter invariant discovery.
+//! Optimizer module role: test leaf. Transitive member-parameter invariant discovery and place-observation admission.
 
 use super::super::super::VerifiedPsiOptimizationSession;
 use crate::{
@@ -109,6 +109,80 @@ const CONDITIONAL_ENTRY_SOURCE: &str = r#"
         }
         state done() {}
         state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+/// A `self`-carried countdown whose member observes a field through the
+/// function's structural-parameter root: `self.value` lowers to an
+/// `IntegerStructuralField` naming `PlaceId(1)` directly — no member
+/// structural parameter stands between the read and the root — the component
+/// performs no place mutation or custody movement at all, and `step` is the
+/// only member, so every traversal that leaves passes through it. The
+/// observation relocates into the preheader byte-exact and the scalar
+/// computation chained on the observed result relocates behind it through the
+/// same run.
+const OBSERVED_FIELD_SOURCE: &str = r#"
+    data Root { value: u32 in Wrapping }
+
+    machine Root::scan(&mut self, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(remaining) }
+        state step(&mut self, pending: u32 [0..=5]) {
+            let observed: u32 in Wrapping = self.value + 0;
+            transition pending > 0 {
+                true -> step(pending - 1)
+                _ -> finish(observed)
+            }
+        }
+        state finish(&mut self, r: u32 in Wrapping) {}
+    }
+"#;
+
+/// Same component shape with a member store: `self.ticks = self.ticks + 1`
+/// writes through a root the traversal can reach, so the whole-component
+/// custody gate refuses every place observation — the next iteration may
+/// observe different storage — while scalar-constant leaves still relocate.
+const OBSERVED_FIELD_MUTATED_SOURCE: &str = r#"
+    data Root { value: u32 in Wrapping; ticks: u32 in Wrapping; }
+
+    machine Root::scan(&mut self, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(remaining) }
+        state step(&mut self, pending: u32 [0..=5]) {
+            let observed: u32 in Wrapping = self.value + 0;
+            self.ticks = self.ticks + 1;
+            transition pending > 0 {
+                true -> step(pending - 1)
+                _ -> finish(observed)
+            }
+        }
+        state finish(&mut self, r: u32 in Wrapping) {}
+    }
+"#;
+
+/// The place-custody gate is intact — no member writes any place — but the
+/// observation lives in `step`, a member the entry state's `done` arm can
+/// bypass. Observing `self.value` performs work a skipped traversal never
+/// pays, so the non-speculative gate keeps the read inside even though the
+/// observation itself is loop-invariant.
+const BYPASSED_OBSERVED_FIELD_SOURCE: &str = r#"
+    data Root { value: u32 in Wrapping }
+
+    machine Root::scan(&mut self, scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition remaining > 0 {
+            true -> step(scale, remaining - 1)
+            _ -> done()
+        }
+        state step(&mut self, s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let observed: u32 in Wrapping = self.value + s;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(observed)
+            }
+        }
+        state done(&mut self) {}
+        state finish(&mut self, r: u32 in Wrapping) {}
     }
 "#;
 
@@ -761,6 +835,357 @@ fn ranked_natural_component_is_the_validated_terminal_scc() {
         propose_loop_invariant_scalar_motion(applied.session(), 1)
             .expect("relocated session is an exact fixed point")
             .is_empty()
+    );
+}
+
+/// The `IntegerStructuralField` observations inside a component's member
+/// blocks, as `(member block, node)` pairs in member order.
+fn member_field_reads<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> Vec<(
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+)> {
+    component
+        .members
+        .iter()
+        .map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+        })
+        .flat_map(|block| {
+            block
+                .nodes
+                .iter()
+                .filter(|node| {
+                    matches!(
+                        node.operation,
+                        AbstractOperation::IntegerStructuralField { .. }
+                    )
+                })
+                .map(move |node| (block, node))
+        })
+        .collect()
+}
+
+#[test]
+fn invariant_place_observation_relocates_with_its_chained_computation() {
+    let session = lowered_session(OBSERVED_FIELD_SOURCE, "observed field loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one self-loop component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let reads = member_field_reads(function, component);
+    let [(member_block, read)] = reads.as_slice() else {
+        panic!("one member field observation")
+    };
+    let member = member_block.id;
+    let (read_source, read_field) = match &read.operation {
+        AbstractOperation::IntegerStructuralField { source, field, .. } => (*source, *field),
+        _ => unreachable!("member_field_reads only yields field observations"),
+    };
+    assert!(
+        function
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == read_source),
+        "the observed root is the function's `self` structural parameter"
+    );
+    assert!(
+        crate::validation::component_preserves_place_observations(function, component),
+        "no member mutates or moves custody of any place"
+    );
+    assert!(
+        crate::validation::invariant_place_observation_admission(function, component, read),
+        "the field observation passes the shared admission"
+    );
+    let read_operation = match read.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("the observation carries its operation identity"),
+    };
+    let read_result = match read.definitions.as_slice() {
+        [definition] => definition.value,
+        _ => panic!("one observed result"),
+    };
+    let addition = member_block
+        .nodes
+        .iter()
+        .find(|node| matches!(node.operation, AbstractOperation::WrappingIntegerAdd { .. }))
+        .expect("the observed value feeds a scalar computation");
+    let addition_operation = match addition.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("the computation carries its operation identity"),
+    };
+    match &addition.operation {
+        AbstractOperation::WrappingIntegerAdd { left, .. } => assert_eq!(*left, read_result),
+        _ => unreachable!("the add reads the observed result"),
+    }
+    let expected_parameters = function.structural_parameters.clone();
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == read_operation)
+        .expect("the place observation is a planned relocation");
+    assert!(
+        relocation.node().operand_rewrites().is_empty(),
+        "the observed root already names a preheader-visible place"
+    );
+    assert_eq!(relocation.node().result(), read_result);
+    assert_eq!(relocation.node().location().block, member);
+    assert_eq!(relocation.destination().block, preheader);
+    let chained = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == addition_operation)
+        .expect("the computation chained on the observation relocates in the same run");
+    assert!(
+        chained.node().operand_rewrites().is_empty(),
+        "the run preserves the observed result's value identity"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let output_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let destination = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::IntegerStructuralField {
+            source,
+            field,
+            result,
+            ..
+        } => {
+            assert_eq!(
+                *source, read_source,
+                "the relocated observation keeps its root"
+            );
+            assert_eq!(*field, read_field);
+            assert_eq!(result.value, read_result);
+        }
+        operation => panic!("relocated observation keeps its operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    assert!(
+        output_function
+            .blocks
+            .iter()
+            .find(|block| block.id == member)
+            .expect("member block exists")
+            .nodes
+            .iter()
+            .all(|node| !matches!(
+                node.operation,
+                AbstractOperation::IntegerStructuralField { .. }
+            )),
+        "the observation exists once, at the destination"
+    );
+    // Place custody survives the transform: the root stays declared and the
+    // function's structural-parameter roster is unchanged.
+    assert!(output_function.declared_places.contains(&read_source));
+    assert_eq!(output_function.structural_parameters, expected_parameters);
+
+    let [record] = applied.ledger().records() else {
+        panic!("one atomic relocation has one ledger record")
+    };
+    let row = record
+        .provenance
+        .iter()
+        .find(|row| row.input == PsiRealizationSite::Node(relocation.node().location()))
+        .expect("the relocated observation has exact ledger custody");
+    assert_eq!(
+        row.disposition,
+        ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(relocation.destination()))
+    );
+    assert_eq!(&row.sources, relocation.node().provenance());
+    assert_eq!(&row.fuel, relocation.node().fuel());
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn member_store_keeps_place_observations_inside() {
+    let session = lowered_session(OBSERVED_FIELD_MUTATED_SOURCE, "mutated field loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one self-loop component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    assert!(
+        !crate::validation::component_preserves_place_observations(function, component),
+        "the member store ends the component's place-custody preservation"
+    );
+    let reads = member_field_reads(function, component);
+    assert_eq!(reads.len(), 2, "the member observes both `self` fields");
+    let read_operations = reads
+        .iter()
+        .map(|(_, node)| match node.provenance.first() {
+            Some(PsiProvenance::Operation(operation)) => *operation,
+            _ => panic!("the observation carries its operation identity"),
+        })
+        .collect::<Vec<_>>();
+    for (_, read) in &reads {
+        assert!(
+            !crate::validation::invariant_place_observation_admission(function, component, read),
+            "the shared admission refuses the observation"
+        );
+    }
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    assert!(
+        !candidate.relocations().is_empty()
+            && candidate
+                .relocations()
+                .iter()
+                .all(|relocation| relocation.node().operand_rewrites().is_empty()),
+        "work-free scalar-constant leaves still relocate"
+    );
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| !read_operations.contains(&relocation.node().psi_operation())),
+        "no observation relocates out of a mutating component"
+    );
+}
+
+#[test]
+fn mutated_component_read_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(OBSERVED_FIELD_MUTATED_SOURCE, "mutated field loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one self-loop component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (member_block, read) = member_field_reads(function, component)[0];
+    let member = member_block.id;
+    let read_operation = match read.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("the observation carries its operation identity"),
+    };
+    let (input, mut unit) = session.into_parts();
+    // Hand-move a field observation out of a component that stores through a
+    // reachable root: the relocation fence must refuse it because the
+    // seed-derived custody gate fails, not merely because the shape differs.
+    let moved = take_operation(&mut unit, read_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn bypassed_member_place_observation_stays_inside() {
+    let session = lowered_session(BYPASSED_OBSERVED_FIELD_SOURCE, "bypassed read loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    assert!(
+        crate::validation::component_preserves_place_observations(function, component),
+        "the custody gate is intact; only speculation refuses the observation"
+    );
+    let (observing_block, read) = member_field_reads(function, component)[0];
+    assert!(
+        !crate::validation::guaranteed_executed_member_blocks(component)
+            .contains(&observing_block.id),
+        "the observing member does not dominate every exit"
+    );
+    assert!(
+        crate::validation::admissible_invariant_place_read(read).is_some(),
+        "the observation's own shape is admitted"
+    );
+    let read_operation = match read.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("the observation carries its operation identity"),
+    };
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    assert!(
+        !candidate.relocations().is_empty(),
+        "work-free scalar-constant leaves still relocate"
+    );
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != read_operation),
+        "the speculated observation is not a planned relocation"
     );
 }
 
