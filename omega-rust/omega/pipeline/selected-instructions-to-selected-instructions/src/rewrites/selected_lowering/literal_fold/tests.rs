@@ -22,6 +22,7 @@ use crate::LiteralFoldPolicy;
 use crate::LiteralFoldValidationReceipt;
 use crate::LiveRangeValidationReceipt;
 use crate::RecoveryClassificationValidationReceipt;
+use crate::SpillChoiceError;
 use crate::SpillChoiceValidationReceipt;
 use crate::ValidatedAllocationLegality;
 use crate::ValidatedAllocatorAvailability;
@@ -29,7 +30,13 @@ use crate::ValidatedLiteralFold;
 use crate::ValidatedLiveRanges;
 use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSpillChoices;
+use crate::analyze_allocation_legality;
+use crate::analyze_live_ranges;
+use crate::analyze_liveness;
+use crate::choose_spill_victims;
+use crate::classify_pressure_recovery;
 use crate::fold_selected_incoming_literal;
+use crate::materialize_allocator_availability;
 use crate::validate_literal_fold;
 use crate::validated_machine_effect_catalog;
 
@@ -3800,6 +3807,15 @@ fn fold_with(
     environment: &ValidatedTargetRegisterEnvironment,
     policy: LiteralFoldPolicy,
 ) -> Result<ValidatedLiteralFold, LiteralFoldError> {
+    fold_with_budget(inputs, environment, policy, budget())
+}
+
+fn fold_with_budget(
+    inputs: &Inputs,
+    environment: &ValidatedTargetRegisterEnvironment,
+    policy: LiteralFoldPolicy,
+    work_budget: OptimizationWorkBudget,
+) -> Result<ValidatedLiteralFold, LiteralFoldError> {
     let keys = environment.allocation_constraint_keys();
     let effect_catalog =
         validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
@@ -3817,8 +3833,262 @@ fn fold_with(
         &keys,
         &effect_catalog,
         policy,
+        work_budget,
+    )
+}
+
+/// Every SelectedLowering literal-fold family enabled except `disabled`: the
+/// strongest disabled-policy posture, where the rule's own bit is the only
+/// admission gate left closed.
+fn policy_without(disabled: LiteralFoldPolicy) -> LiteralFoldPolicy {
+    [
+        LiteralFoldPolicy::EXACT_ADD_V1,
+        LiteralFoldPolicy::EXACT_SUBTRACT_V1,
+        LiteralFoldPolicy::COMPARE_V1,
+        LiteralFoldPolicy::EXTENSION_V1,
+        LiteralFoldPolicy::LOAD8_INDEXED_V1,
+        LiteralFoldPolicy::COPY_V1,
+        LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1,
+        LiteralFoldPolicy::EXACT_DIVIDE_V1,
+    ]
+    .into_iter()
+    .filter(|policy| *policy != disabled)
+    .fold(LiteralFoldPolicy::empty(), |enabled, policy| {
+        enabled.union(policy)
+    })
+}
+
+/// Restage the fixture's materialized literal at `value`: the producer record
+/// and the classification's carried immediate move together, matching the
+/// fixture the recovery analysis would have produced for that literal.
+fn restage_literal(inputs: &mut Inputs, value: u64) {
+    let RecoveryClassification::ImmediateU64RematerializationCandidate {
+        defining_instruction,
+        ..
+    } = &inputs.recovery.plan.functions[0]
+        .classification
+        .as_ref()
+        .expect("the staged fixture admits a candidate")
+        .classification
+    else {
+        panic!("the staged classification is an immediate candidate")
+    };
+    let defining_instruction = *defining_instruction;
+    let mut plan = inputs.selected.transformed().clone();
+    let literal = plan.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| block.instructions.iter_mut())
+        .find(|instruction| instruction.id == defining_instruction)
+        .expect("the classification's defining instruction exists in the plan");
+    literal.kind = SelectedInstructionKind::MaterializeI64 {
+        value: IntegerValue::Unsigned(u128::from(value)),
+    };
+    inputs.selected.transformed = Arc::new(plan);
+    let RecoveryClassification::ImmediateU64RematerializationCandidate {
+        value: recorded, ..
+    } = &mut inputs.recovery.plan.functions[0]
+        .classification
+        .as_mut()
+        .expect("the staged fixture admits a candidate")
+        .classification
+    else {
+        unreachable!()
+    };
+    *recorded = IntegerValue::Unsigned(u128::from(value));
+}
+
+/// The producer refuses to publish once measured usage exceeds the supplied
+/// budget on any axis, and the replay refuses a plan whose recorded budget
+/// starves its recorded usage. `validation_steps` is the one axis a
+/// single-function staged fold measures above one — the only axis a nonzero
+/// budget can starve below the requirement — so it carries the starved leg.
+fn assert_budget_is_enforced(
+    inputs: &Inputs,
+    environment: &ValidatedTargetRegisterEnvironment,
+    policy: LiteralFoldPolicy,
+) {
+    let result = fold_with(inputs, environment, policy).expect("the staged fold validates");
+    let required = result.plan().usage;
+    assert_eq!(required.candidates, 1, "the staged fold applies once");
+
+    // The exact measured requirement is the admission boundary: a budget
+    // equal to it still admits the fold.
+    let exact = OptimizationWorkBudget::new(
+        required.rule_evaluations,
+        required.candidates,
+        required.validation_steps,
+        required.commits,
+        required.iterations,
+    )
+    .expect("the measured usage is nonzero on every axis");
+    fold_with_budget(inputs, environment, policy, exact)
+        .expect("a budget exactly meeting the measured usage admits the fold");
+
+    let starved = OptimizationWorkBudget::new(
+        required.rule_evaluations,
+        required.candidates,
+        required.validation_steps - 1,
+        required.commits,
+        required.iterations,
+    )
+    .expect("one below the measured validation steps is still nonzero");
+    assert_eq!(
+        fold_with_budget(inputs, environment, policy, starved).map(|_| ()),
+        Err(LiteralFoldError::BudgetExceeded {
+            required,
+            budget: starved,
+        }),
+        "the producer refuses to publish a fold whose work exceeds the budget"
+    );
+    let mut forged = result.plan().clone();
+    forged.budget = starved;
+    assert_eq!(
+        validate(inputs, environment, forged).map(|_| ()),
+        Err(LiteralFoldError::BudgetExceeded {
+            required,
+            budget: starved,
+        }),
+        "the replay refuses a plan whose recorded budget starves its usage"
+    );
+}
+
+/// Repeated computation is deterministic — identical plan, receipt, and
+/// transformed program — and the published fold is itself the legal second
+/// input: feeding it back with every supporting analysis re-derived over its
+/// transformed plan, the staged pipeline's next-attempt custody, finds no
+/// admitted candidate, so the pass is a fixed point on its own output rather
+/// than merely reconstructible.
+fn assert_deterministic_fixed_point(
+    inputs: &Inputs,
+    environment: &ValidatedTargetRegisterEnvironment,
+    policy: LiteralFoldPolicy,
+) {
+    let first = fold_with(inputs, environment, policy).expect("the staged fold validates");
+    let second = fold_with(inputs, environment, policy).expect("the staged fold validates");
+    assert_eq!(first.plan(), second.plan());
+    assert_eq!(first.receipt(), second.receipt());
+    assert_eq!(first.transformed(), second.transformed());
+
+    let keys = environment.allocation_constraint_keys();
+    let effect_catalog =
+        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
+    // `first` is the sealed selected input the pipeline's `build_attempt`
+    // consumes; every artifact below is re-derived over its transformed plan
+    // by the real analyses, so each receipt names the published transformed
+    // identity rather than inheriting a stale source-stage binding. The
+    // availability is materialized for real — the staged fixture carries an
+    // intentionally empty class set that cannot drive legality.
+    let availability = materialize_allocator_availability(
+        environment.identity(),
+        environment.target(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        &keys,
+        AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
+    )
+    .expect("allocator availability for the published fold");
+    let liveness = analyze_liveness(&first).expect("liveness over the published fold");
+    let ranges =
+        analyze_live_ranges(&first, &liveness).expect("live ranges over the published fold");
+    let legality = analyze_allocation_legality(
+        &ranges,
+        &availability,
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        &keys,
+    )
+    .expect("allocation legality over the published fold");
+    let spill_choices = match choose_spill_victims(
+        &legality,
+        &ranges,
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        &keys,
+        SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+        budget(),
+    ) {
+        Ok(choices) => choices,
+        // A register the transformed plan leaves entirely unreferenced —
+        // the extension and copy fixtures' dead entry parameter — is an
+        // input victim selection cannot measure. Stage the no-victim verdict
+        // its receipt would have carried, bound to the real re-derived
+        // roots, and let the real classifier judge it.
+        Err(SpillChoiceError::NoLivePoints { .. }) => ValidatedSpillChoices {
+            plan: SpillChoicePlan {
+                legality: legality.receipt().identity(),
+                ranges: ranges.receipt().identity(),
+                register_environment: environment.identity(),
+                allocator_availability: availability.receipt().identity(),
+                policy: SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                budget: budget(),
+                usage: usage(),
+                functions: first
+                    .transformed()
+                    .functions
+                    .iter()
+                    .map(|function| FunctionSpillChoices {
+                        machine: function.machine,
+                        choice: None,
+                    })
+                    .collect(),
+            },
+            receipt: SpillChoiceValidationReceipt {
+                identity: SpillChoiceIdentity::from_bytes([17; 32]),
+                legality: legality.receipt().identity(),
+                ranges: ranges.receipt().identity(),
+                register_environment: environment.identity(),
+                allocator_availability: availability.receipt().identity(),
+                policy: SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                usage: usage(),
+                function_count: first.transformed().functions.len(),
+                choice_count: 0,
+                contender_count: 0,
+            },
+        },
+        Err(error) => panic!("spill choices over the published fold: {error:?}"),
+    };
+    let recovery = classify_pressure_recovery(
+        &first,
+        &ranges,
+        &legality,
+        &spill_choices,
+        RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
         budget(),
     )
+    .expect("recovery classification over the published fold");
+    let terminal = fold_selected_incoming_literal(
+        &first,
+        &ranges,
+        &legality,
+        &spill_choices,
+        &recovery,
+        &availability,
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        &keys,
+        &effect_catalog,
+        policy,
+        budget(),
+    )
+    .expect("the published fold is a legal second input");
+    assert_eq!(terminal.receipt().applied_count(), 0);
+    assert_eq!(
+        terminal.receipt().source_selected(),
+        terminal.receipt().transformed_selected()
+    );
+    assert_eq!(
+        terminal.receipt().transformed_selected(),
+        first.receipt().transformed_selected()
+    );
+    assert_eq!(terminal.transformed(), first.transformed());
 }
 
 fn fold(inputs: &Inputs, environment: &ValidatedTargetRegisterEnvironment) -> ValidatedLiteralFold {
@@ -3964,6 +4234,75 @@ fn compare_fold_replay_rejects_every_decision_field_substitution() {
 }
 
 #[test]
+fn compare_fold_admits_the_u12_boundary_immediate_and_rejects_beyond_it() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // The declared bound is the narrowest immediate any target's
+        // compare-immediate encoder admits — the shared 12-bit encoding
+        // limit: 4095 folds and 4096 cannot.
+        let mut inputs = staged_inputs(target);
+        restage_literal(&mut inputs, 4095);
+        let result = fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1)
+            .expect("the boundary immediate folds");
+        assert_eq!(result.receipt().applied_count(), 1);
+        assert_eq!(result.plan().functions[0].action.unwrap().immediate, 4095);
+        assert_eq!(
+            result.transformed().functions[0].blocks[0].instructions[0].kind,
+            SelectedInstructionKind::CompareI64Immediate {
+                immediate: IntegerValue::Unsigned(4095),
+            }
+        );
+
+        let mut inputs = staged_inputs(target);
+        restage_literal(&mut inputs, 4096);
+        assert_eq!(
+            fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1).map(|_| ()),
+            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
+            "{target:?}"
+        );
+    }
+}
+
+#[test]
+fn compare_fold_is_disabled_without_the_compare_bit() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_inputs(target);
+        // Every other selected-lowering family enabled — and the fully empty
+        // policy — both leave the compare bit's gate closed: the fold cannot
+        // fire without it.
+        for policy in [
+            policy_without(LiteralFoldPolicy::COMPARE_V1),
+            LiteralFoldPolicy::empty(),
+        ] {
+            assert_eq!(
+                fold_with(&inputs, &environment, policy).map(|_| ()),
+                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+                "{target:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn compare_fold_reports_and_enforces_its_measured_work() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_inputs(target);
+        assert_budget_is_enforced(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1);
+    }
+}
+
+#[test]
+fn compare_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_inputs(target);
+        assert_deterministic_fixed_point(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1);
+    }
+}
+
+#[test]
 fn subtract_immediate_fold_replaces_the_flag_clobbering_consumer_on_both_targets() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
@@ -4040,6 +4379,241 @@ fn subtract_immediate_fold_replaces_the_flag_clobbering_consumer_on_both_targets
         assert_eq!(rewritten.implicit_defs, immediate_row.implicit_defs);
         assert_eq!(rewritten.clobbers, immediate_row.clobbers);
         assert_eq!(rewritten.provenance.operations.len(), 2);
+    }
+}
+
+#[test]
+fn subtract_fold_admits_the_u12_boundary_immediate_and_rejects_beyond_it() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // The declared bound is the narrowest immediate any target's
+        // subtract-immediate encoder admits — the shared 12-bit encoding
+        // limit: 4095 folds and 4096 cannot.
+        let mut inputs = staged_subtract_inputs(target);
+        restage_literal(&mut inputs, 4095);
+        let result = fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_SUBTRACT_V1)
+            .expect("the boundary immediate folds");
+        assert_eq!(result.receipt().applied_count(), 1);
+        assert_eq!(result.plan().functions[0].action.unwrap().immediate, 4095);
+        assert_eq!(
+            result.transformed().functions[0].blocks[0].instructions[0].kind,
+            SelectedInstructionKind::ExactSubtractI64Immediate {
+                immediate: IntegerValue::Unsigned(4095),
+                obligation: ObligationId::new(7).unwrap(),
+                accepted_fact: AcceptedObligationFactIdentity::from_bytes([9; 32]),
+            }
+        );
+
+        let mut inputs = staged_subtract_inputs(target);
+        restage_literal(&mut inputs, 4096);
+        assert_eq!(
+            fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_SUBTRACT_V1).map(|_| ()),
+            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
+            "{target:?}"
+        );
+    }
+}
+
+#[test]
+fn subtract_fold_rejects_unadmitted_candidate_shapes() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for mutation in 0..6 {
+        let mut inputs = staged_subtract_inputs(target);
+        let slot = inputs.recovery.plan.functions[0]
+            .classification
+            .as_mut()
+            .unwrap();
+        let (producer_expected, replay_expected) = match mutation {
+            // Only an `Incoming` victim may fold; a reclaimed resident is not
+            // the operand the consumer reads.
+            0 => {
+                slot.role = RecoveryVictimRole::ActiveResident {
+                    current_view: register_model::RegisterViewId(0),
+                    reclaimed_view: register_model::RegisterViewId(0),
+                };
+                (
+                    LiteralFoldError::UnsupportedVictimRole { function: 0 },
+                    LiteralFoldError::UnsupportedVictimRole { function: 0 },
+                )
+            }
+            // The subtract grammar folds the literal at operand 1 only:
+            // claiming the left `Use` is a position no admitted grammar
+            // covers.
+            1 => {
+                let RecoveryClassification::ImmediateU64RematerializationCandidate {
+                    future_uses,
+                    ..
+                } = &mut slot.classification
+                else {
+                    unreachable!()
+                };
+                future_uses[0].operand = 0;
+                (
+                    LiteralFoldError::FutureUseMismatch { function: 0 },
+                    LiteralFoldError::FutureUseMismatch { function: 0 },
+                )
+            }
+            // An over-bound immediate fails admission in the producer; the
+            // replay first refuses the literal record itself, since it no
+            // longer materializes the value the classification carries.
+            2 => {
+                let RecoveryClassification::ImmediateU64RematerializationCandidate {
+                    value, ..
+                } = &mut slot.classification
+                else {
+                    unreachable!()
+                };
+                *value = IntegerValue::Unsigned(4096);
+                (
+                    LiteralFoldError::UnsupportedImmediate { function: 0 },
+                    LiteralFoldError::LiteralMismatch { function: 0 },
+                )
+            }
+            // The classified victim must be the register the literal record
+            // defines and the claimed `Use` operand binds.
+            3 => {
+                slot.victim = VirtualRegisterId(0);
+                (
+                    LiteralFoldError::LiteralMismatch { function: 0 },
+                    LiteralFoldError::LiteralMismatch { function: 0 },
+                )
+            }
+            // The use must sit in the classified block itself.
+            4 => {
+                let RecoveryClassification::ImmediateU64RematerializationCandidate {
+                    future_uses,
+                    ..
+                } = &mut slot.classification
+                else {
+                    unreachable!()
+                };
+                future_uses[0].block = SelectedBlockId(1);
+                (
+                    LiteralFoldError::FutureUseMismatch { function: 0 },
+                    LiteralFoldError::FutureUseMismatch { function: 0 },
+                )
+            }
+            // A second recorded use means the literal is not single-use.
+            _ => {
+                let RecoveryClassification::ImmediateU64RematerializationCandidate {
+                    future_uses,
+                    ..
+                } = &mut slot.classification
+                else {
+                    unreachable!()
+                };
+                let extra = future_uses[0].clone();
+                future_uses.push(extra);
+                (
+                    LiteralFoldError::FutureUseMismatch { function: 0 },
+                    LiteralFoldError::FutureUseMismatch { function: 0 },
+                )
+            }
+        };
+        assert_eq!(
+            fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_SUBTRACT_V1).map(|_| ()),
+            Err(producer_expected),
+            "mutation {mutation}"
+        );
+        assert_eq!(
+            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
+            Err(replay_expected),
+            "mutation {mutation} replay"
+        );
+    }
+}
+
+#[test]
+fn subtract_fold_is_disabled_without_the_subtract_bit() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_subtract_inputs(target);
+        // Every other selected-lowering family enabled — and the fully empty
+        // policy — both leave the subtract bit's gate closed: the fold cannot
+        // fire without it.
+        for policy in [
+            policy_without(LiteralFoldPolicy::EXACT_SUBTRACT_V1),
+            LiteralFoldPolicy::empty(),
+        ] {
+            assert_eq!(
+                fold_with(&inputs, &environment, policy).map(|_| ()),
+                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+                "{target:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn subtract_fold_replay_rejects_every_decision_field_substitution() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let inputs = staged_subtract_inputs(target);
+    let result = fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_SUBTRACT_V1).unwrap();
+
+    for mutation in 0..11 {
+        let mut plan = result.plan().clone();
+        match mutation {
+            // The subtract's `Def` result is decision-bearing: dropping it or
+            // rebinding it to the surviving operand replays differently.
+            0 => plan.functions[0].action.as_mut().unwrap().result = None,
+            1 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
+            2 => plan.functions[0].action.as_mut().unwrap().immediate += 1,
+            3 => {
+                plan.functions[0]
+                    .action
+                    .as_mut()
+                    .unwrap()
+                    .consumer_instruction = SelectedInstructionId(9)
+            }
+            4 => {
+                plan.functions[0]
+                    .action
+                    .as_mut()
+                    .unwrap()
+                    .immediate_constraint
+                    .variant += 1
+            }
+            // The rewritten `Use` must bind the surviving register, not the
+            // removed victim.
+            5 => plan.functions[0].action.as_mut().unwrap().surviving = VirtualRegisterId(1),
+            6 => plan.functions[0].action.as_mut().unwrap().victim = VirtualRegisterId(0),
+            7 => plan.functions[0].action = None,
+            8 => plan.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([99; 32]),
+            9 => plan.usage.candidates += 1,
+            // A policy without the subtract bit cannot replay the fold: no
+            // subtract-immediate row binds and the action reconstructs
+            // nothing.
+            10 => plan.policy = LiteralFoldPolicy::EXACT_ADD_V1,
+            _ => unreachable!(),
+        }
+        assert!(
+            validate(&inputs, &environment, plan).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn subtract_fold_reports_and_enforces_its_measured_work() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_subtract_inputs(target);
+        assert_budget_is_enforced(&inputs, &environment, LiteralFoldPolicy::EXACT_SUBTRACT_V1);
+    }
+}
+
+#[test]
+fn subtract_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_subtract_inputs(target);
+        assert_deterministic_fixed_point(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::EXACT_SUBTRACT_V1,
+        );
     }
 }
 
@@ -4231,6 +4805,89 @@ fn add_fold_rejects_malformed_left_grammar_operand_arrangements() {
             Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
             "mutation {mutation} replay"
         );
+    }
+}
+
+#[test]
+fn add_fold_admits_the_u12_boundary_immediate_and_rejects_beyond_it() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // The declared bound is the narrowest immediate any target's
+        // add-immediate encoder admits — the shared 12-bit encoding limit:
+        // 4095 folds and 4096 cannot, under either operand grammar.
+        for literal_operand in [0u16, 1u16] {
+            let mut inputs = staged_add_inputs(target, literal_operand);
+            restage_literal(&mut inputs, 4095);
+            let result = fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_ADD_V1)
+                .expect("the boundary immediate folds");
+            assert_eq!(result.receipt().applied_count(), 1);
+            assert_eq!(result.plan().functions[0].action.unwrap().immediate, 4095);
+            assert_eq!(
+                result.transformed().functions[0].blocks[0].instructions[0].kind,
+                SelectedInstructionKind::ExactAddI64Immediate {
+                    immediate: IntegerValue::Unsigned(4095),
+                    obligation: ObligationId::new(7).unwrap(),
+                    accepted_fact: AcceptedObligationFactIdentity::from_bytes([9; 32]),
+                }
+            );
+
+            let mut inputs = staged_add_inputs(target, literal_operand);
+            restage_literal(&mut inputs, 4096);
+            assert_eq!(
+                fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_ADD_V1).map(|_| ()),
+                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
+                "literal at operand {literal_operand} on {target:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn add_fold_is_disabled_without_the_add_bit() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // Every other selected-lowering family enabled — and the fully empty
+        // policy — both leave the add bit's gate closed: neither operand
+        // grammar can fire without it.
+        for literal_operand in [0u16, 1u16] {
+            let inputs = staged_add_inputs(target, literal_operand);
+            for policy in [
+                policy_without(LiteralFoldPolicy::EXACT_ADD_V1),
+                LiteralFoldPolicy::empty(),
+            ] {
+                assert_eq!(
+                    fold_with(&inputs, &environment, policy).map(|_| ()),
+                    Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+                    "literal at operand {literal_operand} on {target:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn add_fold_reports_and_enforces_its_measured_work() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for literal_operand in [0u16, 1u16] {
+            let inputs = staged_add_inputs(target, literal_operand);
+            assert_budget_is_enforced(&inputs, &environment, LiteralFoldPolicy::EXACT_ADD_V1);
+        }
+    }
+}
+
+#[test]
+fn add_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for literal_operand in [0u16, 1u16] {
+            let inputs = staged_add_inputs(target, literal_operand);
+            assert_deterministic_fixed_point(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::EXACT_ADD_V1,
+            );
+        }
     }
 }
 
@@ -4708,47 +5365,57 @@ fn extension_elimination_folds_every_unary_consumer_to_a_materialization_on_both
 }
 
 #[test]
-fn extension_fold_is_deterministic_and_terminal_for_unclassified_input() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let inputs = staged_extension_inputs(
-        target,
-        SelectedInstructionKind::ZeroExtendU8,
-        0x1FF,
-        unsigned(8),
-    );
-    let first = fold_with(&inputs, &environment, LiteralFoldPolicy::EXTENSION_V1).unwrap();
-    let second = fold_with(&inputs, &environment, LiteralFoldPolicy::EXTENSION_V1).unwrap();
-    assert_eq!(first.plan(), second.plan());
+fn extension_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_extension_inputs(
+            target,
+            SelectedInstructionKind::ZeroExtendU8,
+            0x1FF,
+            unsigned(8),
+        );
+        assert_deterministic_fixed_point(&inputs, &environment, LiteralFoldPolicy::EXTENSION_V1);
+    }
+}
 
-    // A transformed plan carrying no admitted classification is a fixed point:
-    // the fold is the identity on it, which is what the staged fixed-point
-    // driver requires of its terminal attempt.
-    let mut recovery = inputs.recovery.clone();
-    recovery.plan.functions[0].classification = None;
-    let mut selected = inputs.selected.clone();
-    selected.transformed = first.shared_transformed();
-    let effect_catalog =
-        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
-    let terminal = fold_selected_incoming_literal(
-        &selected,
-        &inputs.ranges,
-        &inputs.legality,
-        &inputs.spill_choices,
-        &recovery,
-        &inputs.availability,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-        &effect_catalog,
-        LiteralFoldPolicy::EXTENSION_V1,
-        budget(),
-    )
-    .expect("an unclassified transformed plan is a fixed point");
-    assert_eq!(terminal.receipt().applied_count(), 0);
-    assert_eq!(terminal.transformed(), first.transformed());
+#[test]
+fn extension_fold_is_the_identity_when_no_candidate_is_classified() {
+    // An input carrying no admitted classification is a fixed point: the fold
+    // is the identity on it, which is what the staged fixed-point driver
+    // requires of its terminal attempt. The classification is a legitimate
+    // "not a candidate" verdict on the unchanged input custody.
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut inputs = staged_extension_inputs(
+            target,
+            SelectedInstructionKind::SignExtendI8,
+            0x80,
+            signed(8),
+        );
+        inputs.recovery.plan.functions[0].classification = None;
+        let terminal = fold_with(&inputs, &environment, LiteralFoldPolicy::EXTENSION_V1)
+            .expect("an unclassified input is a fixed point");
+        assert_eq!(terminal.receipt().applied_count(), 0);
+        assert_eq!(
+            terminal.receipt().source_selected(),
+            terminal.receipt().transformed_selected()
+        );
+        assert_eq!(terminal.transformed(), inputs.selected.transformed());
+    }
+}
+
+#[test]
+fn extension_fold_reports_and_enforces_its_measured_work() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_extension_inputs(
+            target,
+            SelectedInstructionKind::ZeroExtendU8,
+            0x1FF,
+            unsigned(8),
+        );
+        assert_budget_is_enforced(&inputs, &environment, LiteralFoldPolicy::EXTENSION_V1);
+    }
 }
 
 #[test]
@@ -5268,6 +5935,24 @@ fn copy_materialization_fold_rejects_result_types_that_cannot_admit_the_literal(
 }
 
 #[test]
+fn copy_materialization_fold_reports_and_enforces_its_measured_work() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_copy_inputs(target, 0x1FF, unsigned(64));
+        assert_budget_is_enforced(&inputs, &environment, LiteralFoldPolicy::COPY_V1);
+    }
+}
+
+#[test]
+fn copy_materialization_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_copy_inputs(target, 0x1FF, unsigned(64));
+        assert_deterministic_fixed_point(&inputs, &environment, LiteralFoldPolicy::COPY_V1);
+    }
+}
+
+#[test]
 fn load8_indexed_fold_rewrites_the_index_operand_on_both_linux_targets() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
@@ -5339,6 +6024,46 @@ fn load8_indexed_fold_rejects_an_unencodable_byte_offset() {
             fold_with(&inputs, &environment, LiteralFoldPolicy::LOAD8_INDEXED_V1).map(|_| ()),
             Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
             "{target:?}"
+        );
+    }
+}
+
+#[test]
+fn load8_indexed_fold_admits_the_widest_encodable_byte_offset() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // 4095 is the widest offset the shared 12-bit byte-offset bound
+        // admits — the boundary the unencodable 4096 sits just past.
+        let inputs = staged_load8_indexed_inputs(target, 4095);
+        let result = fold_with(&inputs, &environment, LiteralFoldPolicy::LOAD8_INDEXED_V1)
+            .expect("the boundary offset folds");
+        assert_eq!(result.receipt().applied_count(), 1);
+        assert_eq!(result.plan().functions[0].action.unwrap().immediate, 4095);
+        assert_eq!(
+            result.transformed().functions[0].blocks[0].instructions[0].kind,
+            SelectedInstructionKind::Load8 { byte_offset: 4095 }
+        );
+    }
+}
+
+#[test]
+fn load8_indexed_fold_reports_and_enforces_its_measured_work() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_load8_indexed_inputs(target, 5);
+        assert_budget_is_enforced(&inputs, &environment, LiteralFoldPolicy::LOAD8_INDEXED_V1);
+    }
+}
+
+#[test]
+fn load8_indexed_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_load8_indexed_inputs(target, 5);
+        assert_deterministic_fixed_point(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::LOAD8_INDEXED_V1,
         );
     }
 }
@@ -5628,6 +6353,54 @@ fn byte_view_address_fold_rejects_an_unencodable_byte_offset() {
             .map(|_| ()),
             Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
             "{target:?}"
+        );
+    }
+}
+
+#[test]
+fn byte_view_address_fold_admits_the_widest_encodable_byte_offset() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // 4095 is the widest offset the shared 12-bit byte-offset bound
+        // admits — the boundary the unencodable 4096 sits just past.
+        let inputs = staged_byte_view_address_inputs(target, 4095);
+        let result = fold_with(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1,
+        )
+        .expect("the boundary offset folds");
+        assert_eq!(result.receipt().applied_count(), 1);
+        assert_eq!(result.plan().functions[0].action.unwrap().immediate, 4095);
+        assert_eq!(
+            result.transformed().functions[0].blocks[0].instructions[0].kind,
+            SelectedInstructionKind::AddressOffset { byte_offset: 4095 }
+        );
+    }
+}
+
+#[test]
+fn byte_view_address_fold_reports_and_enforces_its_measured_work() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_byte_view_address_inputs(target, 5);
+        assert_budget_is_enforced(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1,
+        );
+    }
+}
+
+#[test]
+fn byte_view_address_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_byte_view_address_inputs(target, 5);
+        assert_deterministic_fixed_point(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1,
         );
     }
 }
@@ -6250,5 +7023,23 @@ fn divide_fold_replay_rejects_every_decision_field_substitution() {
             validate(&inputs, &environment, plan).is_err(),
             "mutation {mutation}"
         );
+    }
+}
+
+#[test]
+fn divide_fold_reports_and_enforces_its_measured_work() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_divide_inputs(target);
+        assert_budget_is_enforced(&inputs, &environment, LiteralFoldPolicy::EXACT_DIVIDE_V1);
+    }
+}
+
+#[test]
+fn divide_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_divide_inputs(target);
+        assert_deterministic_fixed_point(&inputs, &environment, LiteralFoldPolicy::EXACT_DIVIDE_V1);
     }
 }
