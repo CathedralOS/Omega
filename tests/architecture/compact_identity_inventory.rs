@@ -558,7 +558,8 @@ fn checked_operator_provider_reports_retain_strong_plan_authority() {
     ] {
         let path = root.join(relative);
         let dispatch = fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+            + &module_tree_source(&path.with_extension(""));
         let direct_join = dispatch.contains(
             "plan.identity_digest().as_bytes() == operator_use.provider_plan_commitment.as_bytes()",
         );
