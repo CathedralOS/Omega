@@ -387,7 +387,14 @@ fn same_executable_subject(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AttributedManifestCompleteness, CoexistingExecutableTcbEntry, CoexistingExecutableTcbSet,
+        CoexistingScopeCompleteness, ContainmentEvidence, ContainmentGuarantee,
+        ExecutableEntryContribution, ExecutableEntryOrigin, ExecutableIdentity,
+        ExecutableManifestSource, ExecutableTcbEntry, ExecutableTcbProfileAcceptance,
+        ExecutionScope, ImplementationEvidence, ProviderIdentity, ProviderPlan, ScopeCompleteness,
+        SelectedProviderRequirement, same_executable_subject,
+    };
     use crate::{
         ExecutableTcbManifest, ExecutableTcbProfile, IncompleteCause, IncompleteScopePolicy,
         OpaqueInProcessBinding, evaluate_executable_tcb_profile,

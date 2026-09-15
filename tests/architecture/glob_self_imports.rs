@@ -105,7 +105,6 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ),
     ("omega-rust/omega/representations/boundary-applications", 1),
     ("omega-rust/omega/representations/calling-conventions", 4),
-    ("omega-rust/omega/representations/effects", 12),
     ("omega-rust/omega/representations/legalized-operations", 13),
     ("omega-rust/omega/representations/machine-code", 7),
     ("omega-rust/omega/representations/optimization-core", 9),

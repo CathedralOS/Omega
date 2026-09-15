@@ -228,7 +228,11 @@ const fn manifest_scope(manifest: &ExecutableTcbManifest) -> ExecutionScope {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ContainmentEvidence, ExecutableIdentity, ExecutableTcbManifest, ExecutableTcbManifestSet,
+        ExecutionScope, IsolatedExecutableScopeCandidate, ProviderIdentity, ProviderPlan,
+        ScopeCompleteness,
+    };
     use crate::{
         ContainmentGuarantee, ExactExecutableTcbAllowance, ExecutableTcbProfile,
         IncompleteScopePolicy, SelectedProviderPlanFacts, evaluate_executable_tcb_profile,

@@ -63,7 +63,10 @@ impl ServiceTerminalAuthorityPermission {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        PortableFilesystemAuthorityFacet, ServiceSchemaDigest, ServiceTerminalAuthorityPermission,
+        TerminalAuthorityDisposition,
+    };
     use crate::TerminalAuthorityClass;
 
     fn schema(marker: u8) -> ServiceSchemaDigest {

@@ -652,7 +652,7 @@ impl SelectedProviderClosureDigestEncoder {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{InstallationReachResolution, ProviderPlan, SelectedProviderPlanFacts};
     use crate::provider_plan::{
         EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
         EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
