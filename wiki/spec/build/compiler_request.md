@@ -5,9 +5,11 @@ logical request and observable wire contract. Their private representations and
 algorithms need not match. Rust compiler objects are not a wire specification.
 
 **Incomplete physical specification:** the outer framing, semantic contents,
-commitment preimage, validation order, and publication rules below are settled.
-Complete ordered field/tag, failure-code, phase, and scalar-resource tables still
-need assignment and implementation under OMEGA-D/OMEGA-C in the
+commitment preimage, validation order, publication rules, outcome frame
+layout, coordinate spaces, diagnostic phases, and scalar-resource table below
+are settled. The OCREQ subject and invocation field/tag tables and the
+per-diagnostic `Reject` code inventory still need assignment and implementation
+under OMEGA-D/OMEGA-C in the
 [bootstrap board](../../../TASKS_BOOTSTRAP.md#p4---epsilon-to-omega-and-self-hosting).
 Neither implementation may claim a complete interoperable V1 boundary yet.
 
@@ -117,14 +119,79 @@ is `Reject`, and deriving a contradiction from admitted logical premises is not
 by itself `InternalFailure`.
 
 The failure frame's eight-byte identity is `FF 4F 43 4F 55 54 01 00`; its common header is 40
-bytes. Its outcome must match the halt tag. Coordinate space 4 alone appends
-eight bytes: little-endian `u32` canonical package and source-unit ordinals;
-the header's `u64` coordinate holds the source byte offset. Other spaces have
-no tail. Unknown codes, illegal code/coordinate pairs, nonzero reserved slots,
-and noncanonical tails reject.
+bytes. Its outcome must match the halt tag. The assigned common-header layout is:
+
+| Offset | Encoding |
+| --- | --- |
+| 0 | Eight identity bytes: `FF 4F 43 4F 55 54 01 00`. |
+| 8 | Outcome tag `u8`; equals the process halt value. |
+| 9 | Coordinate space `u8`, from the assigned table below. |
+| 10 | Two reserved zero bytes. |
+| 12 | Outcome code, little-endian `u32`. |
+| 16 | Primary coordinate, little-endian `u64`. |
+| 24 | Selected limit, little-endian `u64`. |
+| 32 | Requested amount, little-endian `u64`. |
+
+Each outcome tag owns an independent code table. `Reject` codes name
+request/source refusals; `Incomplete` codes are the scalar-resource table
+below; `InternalFailure` codes name named invariant violations. Assigned codes
+so far:
+
+| Tag | Code | Name | Space | Coordinate | Limit/requested |
+| --- | --- | --- | --- | --- | --- |
+| 1 `Reject` | 1 | `malformed_request` | 1 request | first missing, incorrect, or trailing request byte under the validation order | zero/zero |
+| 3 `InternalFailure` | 1 | `invariant_violation` | 3 internal row | implementation-owned row identity | zero/zero |
+
+`Reject` outcomes carry zero limit and requested fields. `InternalFailure`
+outcomes likewise carry zero limit and requested; the coordinate identifies an
+implementation-owned internal row, not a source or request offset. The
+per-diagnostic `Reject` code inventory for lexical, syntax, and checking
+failures is assigned with the OCREQ field/tag pass, since its coordinates
+depend on subject package/source-unit binding. Source `Reject` diagnostics
+remain unpublished until then.
+
+Coordinate spaces:
+
+| Space | Meaning | `u64` coordinate | Tail |
+| --- | --- | --- | --- |
+| 0 | none | zero | none |
+| 1 | OCREQ request | request byte offset | none |
+| 2 | emitted artifact | artifact byte offset | none |
+| 3 | internal row | implementation-owned row identity | none |
+| 4 | canonical Omega source | source byte offset | eight bytes |
+
+Coordinate space 4 alone appends eight bytes: little-endian `u32` canonical
+package and source-unit ordinals; the header's `u64` coordinate holds the
+source byte offset. Other spaces have no tail. The frame's total extent is
+exactly 40 bytes for spaces 0–3 and exactly 48 bytes for space 4; any other
+extent is noncanonical. Space 0 requires a zero coordinate; spaces other than
+4 require zero tail ordinals in the producing record and emit no tail bytes.
+Unknown codes, illegal code/coordinate pairs, nonzero reserved slots, and
+noncanonical tails reject.
 
 Select diagnostics by fixed phase, then request-byte offset for framing, or
-canonical package/source-unit order and byte offset for source. Use the first
+canonical package/source-unit order and byte offset for source. The fixed
+phases, in selection order, are:
+
+| Phase | Stage |
+| --- | --- |
+| 0 | request framing: identity, reserved bytes, encoded high bits, section extents, exact end |
+| 1 | capacities: declared section extents and table-count provisions |
+| 2 | subject fields: per-row field/tag shape |
+| 3 | package identities and strict ordering |
+| 4 | dependency graph: indices, duplicates, dangling, unreachable, cyclic, role, alias |
+| 5 | snapshots: VFS row order, parent closure, unique paths, metadata limits, content |
+| 6 | invocation fields: product, target profile, admission structure |
+| 7 | admissions: canonical external-admission checks |
+| 8 | subject commitment: the 32-byte binding above |
+| 9 | lexical |
+| 10 | syntax |
+| 11 | checking |
+| 12 | product lowering and emission |
+
+A phase is a diagnostic-selection order, not a serialized frame field. An
+`Incomplete` or `InternalFailure` outcome belongs to the phase whose check
+produced it. Use the first
 byte of the primary retained span: declaration start for declaration failures,
 token/expression start for those failures, source extent for EOF. A generated
 unit failure uses a generated-source reason anchored at the request-resolvable
@@ -138,6 +205,36 @@ strictly below `INT32_MAX`. Publish nonnegative quantities as
 `min(exact quantity, INT32_MAX)`, independent of the selected limit.
 Epsilon uses `Exact(nonnegative i32) | Overflowed` with pre-operation checks;
 Omega may compute wider exact values and normalize only at publication.
+
+The scalar-resource table assigns one `Incomplete` code per named private
+capacity:
+
+| Code | Resource | Limit | Space | Coordinate |
+| --- | --- | --- | --- | --- |
+| 1 | `request_subject_bytes` | 67,108,864 | 1 request | subject length field, request offset 8 |
+| 2 | `request_invocation_bytes` | 1,048,576 | 1 request | invocation length field, request offset 12 |
+| 3 | `parser_roots` | 4,096 | 4 canonical source | first byte of the refused root |
+| 4 | `parser_states` | 4,096 | 4 canonical source | first byte of the refused state |
+| 5 | `parser_path_members` | 16,384 | 4 canonical source | first byte of the refused member |
+| 6 | `parser_data_members` | 16,384 | 4 canonical source | first byte of the refused member |
+| 7 | `parser_type_nodes` | 16,384 | 4 canonical source | first byte of the refused type |
+| 8 | `parser_type_depth` | 128 | 4 canonical source | first byte of the refused type |
+| 9 | `parser_expression_depth` | 128 | 4 canonical source | first byte of the refused construct |
+| 10 | `parser_statements` | 16,384 | 4 canonical source | first byte of the refused statement |
+| 11 | `parser_expressions` | 16,384 | 4 canonical source | first byte of the refused expression |
+| 12 | `tape_payload_bytes` | 16,777,212 | 2 emitted artifact | payload offset at refusal |
+| 13 | `tape_fixups` | 1,864,134 | 2 emitted artifact | instruction start of the refused fixup |
+| 14 | `tape_labels` | 16,777,212 | 2 emitted artifact | payload offset at allocation |
+
+The request-extent provisions bound the declared subject and invocation
+section lengths; both sit inside the fixed request header and are checked at
+phase 1 after complete framing, before either section is interpreted. The
+parser capacities are private D budgets over its fixed tables, not Omega source
+limits. The tape capacities bound the emitted artifact's payload and
+relocation records; their coordinates are payload-relative byte offsets.
+Resource names, limits, and coordinate rules in this table are the same for
+both implementations; a private capacity not yet represented here is added by
+extending the table, never by reusing another resource's code.
 
 Both compilers use the same diagnostic selection under the same profile.
 Differential agreement is an oracle, not a replacement for refinement proofs.

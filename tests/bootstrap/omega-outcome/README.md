@@ -1,0 +1,53 @@
+# Omega D outcome machinery
+
+This gate exercises the OCOUT outcome side of the
+[standalone compiler request](../../../wiki/spec/build/compiler_request.md)
+inside the complete manifested Epsilon-written compiler D. The
+[customer](main.epsilon) is appended to the packed closure and interpreted
+through the selected chain:
+
+```text
+Gamma-written evaluator -> Delta compiler -> Epsilon evaluator -> D + customer
+```
+
+It verifies, with exact bytes, that D's embedded contract projections and
+canonical failure-frame encoder behave as the request contract assigns:
+
+- every scalar-resource code's selected limit and coordinate space, the
+  parser-resource projection onto wire codes 3..11, and the assigned
+  `malformed_request`/`invariant_violation` code-to-space pairs;
+- exact 40-byte and 48-byte canonical-source OCOUT frames for one Reject, two
+  resource `Incomplete`, and one `InternalFailure` outcome;
+- refusal of unassigned tags, unassigned codes, illegal code/coordinate-space
+  pairs, negative or trailing fields, nonzero scalar fields on non-resource
+  outcomes, non-table limits, and nonzero ordinals outside space 4 — with the
+  record left unpublished after each refusal;
+- the bounded publication sum, including exact, saturated, and defect
+  results;
+- the phase-1 declared-extent provision check on the framed request envelope;
+- the outcome tuples the scalar compilation paths record: a source-anchored
+  duplicate-name `Reject`, an unanchored missing-entry `Reject`, a
+  source-anchored coverage `Incomplete`, and the untouched tuple after
+  `Complete` — including proof that a post-Complete tuple cannot encode a
+  frame.
+
+The expected observation is [expected.hex](expected.hex), computed from the
+assigned tables rather than captured output. This is a development observation
+over the private Epsilon execution envelope, not the sealed request edge; no
+Rust compiler, host parser, host typechecker, or host code generator supplies
+the program's meaning.
+
+From the repository root on macOS arm64, or Windows x64 with Git Bash:
+
+```sh
+sh tests/bootstrap/omega-outcome/run.sh
+```
+
+The gate requires Python 3, the selected checked-in Alpha seed, and the
+existing shell tools; macOS also requires `codesign` for the materialized
+evaluator. Outputs live in ignored `build/omega-outcome/`.
+`OMEGA_OUTCOME_OBSERVATION_SECONDS` overrides the default 14,400-second
+customer watchdog, `OMEGA_OUTCOME_RECEIPT_SECONDS` overrides the default
+1,800-second receipt-reconstruction watchdog, and `OMEGA_OUTCOME_BUILD_DIR`
+selects a different output directory; these are host controls, not language
+semantics.

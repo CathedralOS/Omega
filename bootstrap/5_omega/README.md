@@ -44,7 +44,7 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `omega_compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
-| `*.epsilon` | Seven members separated into representations, request/UTF-8 validation, lexical classification, lexing, parsing, Alpha tape construction, and scalar compilation. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
+| `*.epsilon` | Eight members separated into representations, request/UTF-8 validation, lexical classification, lexing, parsing, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
 under [`../../source/omega/`](../../source/omega) does not declare a support
@@ -55,11 +55,11 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current seven-member
-manifest materializes 13,887 lines / 474,515 bytes with SHA-256
-`f2064048b10a3dcc12c2de4f19d553b9133e4ea84e5d2e7bd3ff50c6d57b00f3`.
-The manifest itself is 1,177 bytes, SHA-256
-`1661cf53f0903588eb158da271f5f17a23cc763da9eed28e777614b199d32a0b`;
+The current eight-member
+manifest materializes 14,327 lines / 489,323 bytes with SHA-256
+`d299c0f4e99d0f3ddfb5bce85a42eaba3b551bb0284cf1c67298dfc706fd3656`.
+The manifest itself is 1,336 bytes, SHA-256
+`726d98ed8e4f6cf318ed181d84d6c357ae5c6bccbd0ccf67782fd0e0951eec13`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
@@ -76,12 +76,29 @@ forms rather than treating them as opaque executable code. Its first result type
 is `u8` with a literal return; general scalar computations and state/call bodies
 remain implementation work.
 
+The scalar failure paths also record the canonical OCOUT outcome tuple
+(outcome tag, coordinate space, code, coordinate, canonical ordinals, limit,
+requested). Parser exhaustion projects onto its assigned resource code, tape
+capacity reports under emitted-artifact coordinates, and source refusals
+anchor at the retained span. The `Reject` and coverage-provision code
+inventories stay unassigned, and the encoder refuses tuples carrying them, so
+no noncanonical frame can publish. The
+[outcome gate](../../tests/bootstrap/omega-outcome/README.md) exercises the
+embedded tables, exact and refused frame encodings, bounded arithmetic, and
+the recorded tuples through the selected evaluator.
+
 The manifested members (`D`) exist but are incomplete; both descriptive compiler
 tapes remain absent. The [standalone request contract](../../wiki/spec/build/compiler_request.md)
 owns OCREQ/OCOUT, including complete snapshots, subject binding, validation order,
 and shared diagnostic selection. D's request decoder currently validates only
-the outer envelope. The inner field/tag, outcome/phase, and scalar-resource
-tables remain unfinished under OMEGA-D/OMEGA-C in [the board](../../TASKS_BOOTSTRAP.md).
+the outer envelope plus the phase-1 declared-extent provisions in
+`outcome.epsilon`. The assigned OCOUT header, outcome-code, coordinate-space,
+phase, and scalar-resource tables are embedded there as projections with the
+canonical failure-frame encoder: resource outcomes carry their wire code,
+selected limit, and requested amount; unassigned Reject and coverage-provision
+codes cannot publish a frame. The OCREQ subject/invocation inner field/tag
+inventory and the per-diagnostic `Reject` code list remain unfinished under
+OMEGA-D/OMEGA-C in [the board](../../TASKS_BOOTSTRAP.md).
 A raw-single-file stdin convention cannot replace the sealed request.
 [Build execution](../../wiki/spec/build/execution.md) owns the admitted checkpoint,
 one-way generated-source continuation, and dependency-bundle no-rerun contract.
@@ -387,8 +404,11 @@ resource distinctions are therefore `Roots`, `States`, `PathMembers`,
 `DataMembers`, `TypeNodes`, `TypeDepth`, `ExpressionDepth`, `Statements`, and
 `Expressions`.
 These are private compiler budgets to profile against the real compiler
-closure, not Omega source limits; exhaustion is retained for the future outer
-`Incomplete` mapping.
+closure, not Omega source limits; exhaustion maps to `Incomplete` through
+`outcome.epsilon`'s embedded scalar-resource projection: parser resources
+occupy wire codes 3..11 under canonical-source coordinates, the request's
+declared section extents occupy codes 1..2 under request coordinates, and the
+Alpha tape capacities occupy codes 12..14 under emitted-artifact coordinates.
 
 No source identity, package alias, token ledger, decoded mirror, or transferable
 preflight fact is retained. The [standalone request contract](../../wiki/spec/build/compiler_request.md) binds each relative tree to a package-owned

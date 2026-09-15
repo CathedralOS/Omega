@@ -15,6 +15,21 @@ data OmegaScalarCompiler {
     selected_machine: i32;
     machine_values: [i32; 4096];
     machine_labels: [i32; 4096];
+    // Canonical outcome tuple for the eventual OCOUT publication
+    // (outcome.epsilon). outcome_code stays -1 where the Reject and
+    // coverage-provision inventories are still unassigned; the frame
+    // encoder refuses every unassigned code, so these fields cannot
+    // publish a noncanonical frame. This diagnostic adapter's single
+    // anonymous source unit reports zero canonical ordinals.
+    outcome_tag: i32;
+    outcome_space: i32;
+    outcome_code: i32;
+    outcome_coordinate: i32;
+    outcome_package_ordinal: i32;
+    outcome_unit_ordinal: i32;
+    outcome_limit: i32;
+    outcome_requested: i32;
+    emission_resource: i32;
 }
 
 machine OmegaScalarCompiler::span_equals(
@@ -44,13 +59,22 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     self.status = OmegaScalarCompilationStatus::Pending;
     self.diagnostic_offset = 0;
     self.selected_machine = -1;
+    self.outcome_tag = 0;
+    self.outcome_space = 0;
+    self.outcome_code = -1;
+    self.outcome_coordinate = 0;
+    self.outcome_package_ordinal = 0;
+    self.outcome_unit_ordinal = 0;
+    self.outcome_limit = 0;
+    self.outcome_requested = 0;
+    self.emission_resource = 12;
     self.tape.initialize();
     self.parser.parse_view(source);
     transition self.parser.status {
         OmegaParserStatus::Complete -> check_roots()
-        OmegaParserStatus::LexicalFailure -> reject()
-        OmegaParserStatus::SyntaxFailure -> reject()
-        OmegaParserStatus::Incomplete -> incomplete()
+        OmegaParserStatus::LexicalFailure -> reject(4, self.parser.diagnostic_start)
+        OmegaParserStatus::SyntaxFailure -> reject(4, self.parser.diagnostic_start)
+        OmegaParserStatus::Incomplete -> incomplete(4, self.parser.incomplete_start)
         OmegaParserStatus::ResourceFailure -> resource()
         _ -> internal()
     }
@@ -59,7 +83,27 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         transition (self.parser.root_count == self.parser.machine_count) &&
             (self.parser.machine_count > 0) {
             true -> check_machine(0)
-            _ -> incomplete()
+            _ -> non_machine_root(0)
+        }
+    }
+
+    // A non-machine root is valid Omega this slice does not implement; the
+    // coverage refusal anchors at the first such root's item start. A source
+    // with no roots at all has no source position and reports space 0.
+    state non_machine_root(index: i32) {
+        transition index < self.parser.root_count {
+            true -> root_kind(index)
+            _ -> incomplete(0, 0)
+        }
+    }
+
+    state root_kind(index: i32) {
+        transition self.parser.roots[index].kind {
+            OmegaRootKind::Machine -> non_machine_root(index + 1)
+            OmegaRootKind::Data -> incomplete(4, self.parser.data_items[
+                self.parser.roots[index].item_index].start)
+            _ -> incomplete(4, self.parser.uses[
+                self.parser.roots[index].item_index].start)
         }
     }
 
@@ -77,7 +121,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
             (item.clause_count == 0) && (item.is_bodyless == 0) &&
             (item.has_target == 0) {
             true -> check_duplicate(index, 0)
-            _ -> incomplete()
+            _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
@@ -95,7 +139,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
             self.parser.machine_items[previous].first_path_member];
         transition self.span_equals(source, name.start, name.end,
             source[other.start..other.end]) {
-            1 -> reject()
+            1 -> reject(4, name.start)
             _ -> check_duplicate(index, previous + 1)
         }
     }
@@ -105,7 +149,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
             self.parser.machine_items[index].first_state];
         transition body.name_kind {
             OmegaMachineStateNameKind::GeneratedEntry -> check_entry_body(index, body)
-            _ -> incomplete()
+            _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
@@ -113,14 +157,14 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         transition (body.parameter_count == 0) && (body.has_return_type == 1) &&
             (body.statement_count == 1) {
             true -> check_type(index, body.return_type, body.first_statement)
-            _ -> incomplete()
+            _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
     state check_type(index: i32, type_index: i32, statement: i32) {
         transition self.parser.type_references[type_index].kind {
             OmegaTypeReferenceKind::Named -> type_name(index, type_index, statement)
-            _ -> incomplete()
+            _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
@@ -128,7 +172,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         let type_value: OmegaTypeReferenceSyntax = self.parser.type_references[type_index];
         transition self.span_equals(source, type_value.payload0, type_value.payload1, "u8") {
             1 -> check_statement(index, statement)
-            _ -> incomplete()
+            _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
@@ -136,7 +180,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         transition self.parser.statements[statement].kind {
             OmegaStatementKind::Expression -> check_expression(index,
                 self.parser.statements[statement].item_index)
-            _ -> incomplete()
+            _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
@@ -145,7 +189,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
             OmegaExpressionKind::Integer -> integer(index,
                 self.parser.expressions[expression].payload0,
                 self.parser.expressions[expression].payload1, 0)
-            _ -> incomplete()
+            _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
@@ -161,14 +205,14 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         let next: i32 = source[cursor] - 48;
         transition (next >= 0) && (next <= 9) {
             true -> bounded_digit(index, cursor, end, value, next)
-            _ -> incomplete()
+            _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
     state bounded_digit(index: i32, cursor: i32, end: i32, value: i32, next: i32) {
         transition value <= (255 - next) / 10 {
             true -> integer(index, cursor + 1, end, value * 10 + next)
-            _ -> reject()
+            _ -> reject(4, self.diagnostic_offset)
         }
     }
 
@@ -190,7 +234,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state check_entry() {
         transition self.selected_machine >= 0 {
             true -> labels(0)
-            _ -> reject()
+            _ -> reject(0, 0)
         }
     }
 
@@ -202,6 +246,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     }
 
     state label(index: i32) {
+        self.emission_resource = 14;
         self.machine_labels[index] = self.tape.new_label();
         transition self.machine_labels[index] >= 0 {
             true -> labels(index + 1)
@@ -210,6 +255,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     }
 
     state adapter() {
+        self.emission_resource = 12;
         transition (self.tape.emit_jump_label(19,
             self.machine_labels[self.selected_machine]) == 1) &&
             (self.tape.emit_r(0, 0) == 1) {
@@ -243,14 +289,94 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
 
     state emission_failure() {
         transition self.tape.status {
-            1 -> resource()
-            _ -> internal()
+            1 -> emission_resource()
+            _ -> emission_internal()
         }
     }
 
+    // Tape construction capacity reports under space 2 with the resource the
+    // refused operation was drawing on; coordinates are payload-relative.
+    state emission_resource() {
+        self.status = OmegaScalarCompilationStatus::ResourceFailure;
+        self.outcome_tag = 2;
+        self.outcome_space = 2;
+        self.outcome_code = self.emission_resource;
+        self.outcome_coordinate = self.tape.failure_offset;
+        self.outcome_limit = omega_compiler_resource_limit(
+            self.emission_resource);
+        transition self.emission_resource {
+            12 -> emission_payload_requested()
+            _ -> emission_generic_requested()
+        }
+    }
+
+    // tape_payload_bytes exhaustion requests the committed payload length
+    // plus the refused write, normalized for publication.
+    state emission_payload_requested() {
+        self.outcome_requested = omega_saturating_i32_sum(
+            self.tape.failure_offset, self.tape.failure_requested);
+        return;
+    }
+
+    state emission_generic_requested() {
+        self.outcome_requested = self.tape.failure_requested;
+        return;
+    }
+
+    state emission_internal() {
+        self.status = OmegaScalarCompilationStatus::InternalFailure;
+        self.outcome_tag = 3;
+        self.outcome_space = 3;
+        self.outcome_code = 1;
+        self.outcome_coordinate = 0;
+        self.outcome_limit = 0;
+        self.outcome_requested = 0;
+    }
+
     state complete() { self.status = OmegaScalarCompilationStatus::Complete; }
-    state reject() { self.status = OmegaScalarCompilationStatus::Reject; }
-    state incomplete() { self.status = OmegaScalarCompilationStatus::Incomplete; }
-    state resource() { self.status = OmegaScalarCompilationStatus::ResourceFailure; }
-    state internal() { self.status = OmegaScalarCompilationStatus::InternalFailure; }
+
+    // Source-anchored refusals report space 4; space 0 marks a refusal with
+    // no single source anchor, such as a missing selected entry.
+    state reject(space: i32, coordinate: i32) {
+        self.status = OmegaScalarCompilationStatus::Reject;
+        self.outcome_tag = 1;
+        self.outcome_space = space;
+        self.outcome_code = -1;
+        self.outcome_coordinate = coordinate;
+        self.outcome_limit = 0;
+        self.outcome_requested = 0;
+    }
+
+    // Unsupported valid Omega is an Incomplete coverage refusal until the
+    // request contract assigns its provision codes.
+    state incomplete(space: i32, coordinate: i32) {
+        self.status = OmegaScalarCompilationStatus::Incomplete;
+        self.outcome_tag = 2;
+        self.outcome_space = space;
+        self.outcome_code = -1;
+        self.outcome_coordinate = coordinate;
+        self.outcome_limit = 0;
+        self.outcome_requested = 0;
+    }
+
+    // Parser exhaustion already carries its assigned wire fields.
+    state resource() {
+        self.status = OmegaScalarCompilationStatus::ResourceFailure;
+        self.outcome_tag = 2;
+        self.outcome_space = 4;
+        self.outcome_code = omega_parser_resource_code(self.parser.resource);
+        self.outcome_coordinate = self.parser.diagnostic_start;
+        self.outcome_limit = self.parser.resource_limit;
+        self.outcome_requested = self.parser.resource_requested;
+    }
+
+    state internal() {
+        self.status = OmegaScalarCompilationStatus::InternalFailure;
+        self.outcome_tag = 3;
+        self.outcome_space = 3;
+        self.outcome_code = 1;
+        self.outcome_coordinate = 0;
+        self.outcome_limit = 0;
+        self.outcome_requested = 0;
+    }
 }
