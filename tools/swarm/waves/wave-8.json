@@ -223,6 +223,17 @@
       ],
       "suggested_first_slice": "Backfill for the landed alias-aware-memory slot. Resume evidence on the board names the seam: extend ProgramLocalRootInstallationLedger work inside external-roots (program_local_roots.rs / program_local_extents) — e.g. aggregate capacity reconstruction for one artifact instance and lifecycle epoch. Re-check tools/claims.py status at start: external-roots was held by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z and may be re-claimed by another host.",
       "backfill_for": "alias-aware-memory"
+    },
+    {
+      "name": "target-semantic-applications",
+      "board": "TASKS.md",
+      "item": "TARGET-SEMANTIC-APPLICATIONS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/build-time-evaluation"
+      ],
+      "suggested_first_slice": "Backfill for the landed declarative-peepholes slot. One bounded slice inside the semantic evaluation owner crate — e.g. finish earlier generic-application evaluation, or one typed target observation / selected-realization-coverage class. flow/, monomorphization, and checked-interpreter are claimed by NOMINAL-FIELD-FLOW/RUNTIME-VALUE-GENERICS (leases were due ~06:15Z — re-check tools/claims.py status); keep writes inside build-time-evaluation or report blocked.",
+      "backfill_for": "declarative-peepholes"
     }
   ]
 }
