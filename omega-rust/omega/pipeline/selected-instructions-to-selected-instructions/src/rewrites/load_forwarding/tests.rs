@@ -1473,3 +1473,25 @@ fn cross_block_replay_rejects_mutated_proposals() {
         StoredLoadForwardingError::ReplayMismatch
     );
 }
+
+/// Two runs over the identical source produce the identical validated result,
+/// and the published plan is a legal second input: the sealed transformed
+/// program already sits at the rule's fixed point — the load keeps its
+/// instruction identity as the forwarding copy, so a second forwarding at the
+/// same site finds no load shape to admit.
+#[test]
+fn forwarding_is_deterministic_and_terminal() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let first = forward(&fixture(target), &environment).unwrap();
+    let second = forward(&fixture(target), &environment).unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. Re-running on
+    // it is terminal: instruction LOAD is the emitted CopyI64 now, not a
+    // place load.
+    assert_eq!(
+        forward_selected_stored_load(&first, 0, LOAD, &environment, budget()).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedInstruction
+    );
+}

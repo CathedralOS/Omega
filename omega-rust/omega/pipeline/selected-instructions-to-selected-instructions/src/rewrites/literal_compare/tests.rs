@@ -875,3 +875,33 @@ fn replay_rejects_anything_but_the_exact_form() {
         );
     }
 }
+
+/// Two runs over the identical source produce the identical validated result,
+/// and the published plan is a legal second input: the sealed transformed
+/// program already sits at the rule's fixed point — the compare keeps its
+/// instruction identity as the selected immediate form, so a second fold at
+/// the same site finds no register-register compare to admit.
+#[test]
+fn fold_is_deterministic_and_terminal() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let first = fold(
+        &materialize_fixture(target, IntegerValue::Unsigned(9)),
+        &environment,
+    )
+    .unwrap();
+    let second = fold(
+        &materialize_fixture(target, IntegerValue::Unsigned(9)),
+        &environment,
+    )
+    .unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. Re-running on
+    // it is terminal: instruction COMPARE is the emitted
+    // CompareI64Immediate now, not a two-register compare.
+    assert_eq!(
+        fold_selected_literal_compare(&first, 0, COMPARE, &environment, budget()).unwrap_err(),
+        LiteralCompareError::UnsupportedInstruction
+    );
+}
