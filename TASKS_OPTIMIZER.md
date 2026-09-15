@@ -246,7 +246,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   replay and its absence or a non-COFF target at encoding; the magic,
   format, and vocabulary markers, unknown enum tags, the reserved field,
   zero profile and progress identities, and presence-flag lies reject at
-  the wire.
+  the wire. Landed: selected provider-plan closure rows
+  (`installation_selected_provider_plan_rejects_every_one_field_substitution`)
+  — substituting, extending, or dropping an unexecuted selected plan is
+  independently representable, produces the record an honest admission of
+  the mutated closure builds, and breaks the published record identity a
+  deployment journal replays while the image join cannot see it;
+  substituting or dropping the executed plan, clearing the roster,
+  reordering it, or duplicating an entry is rejected at encoding through
+  the settlement-closure and canonical-order joins, a reported execution
+  outside the selected closure or a reported closure diverging from the
+  image's retained executions is rejected at admission, and a zero
+  identity, a non-canonical or duplicated wire order, and an uncarried
+  count reject at decode.
 
 ## Psi optimization and loops
 
