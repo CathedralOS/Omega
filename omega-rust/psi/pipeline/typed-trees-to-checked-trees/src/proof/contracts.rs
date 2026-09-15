@@ -91,10 +91,11 @@ pub(crate) fn append_machine_contract_facts(
     let mut requires_position = 0usize;
     let mut ensures_position = 0usize;
     for contract in program.machine_contracts(machine) {
-        let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+        let Some(kind) = crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
+        else {
             continue;
         };
-        for fact in super::fact_handles(contract.facts) {
+        for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
             let evidence_term = contract.binding.as_ref().map(|binding| {
                 let lane_position = match kind {
                     ContractProofFactKind::Requires => {
@@ -122,9 +123,9 @@ pub(crate) fn append_machine_contract_facts(
                         interface,
                     } => (
                         evidence.clone(),
-                        interface
-                            .as_ref()
-                            .map(super::lower_checked_evidence_interface),
+                        interface.as_ref().map(
+                            crate::proof::proposition_vocabulary::lower_checked_evidence_interface,
+                        ),
                     ),
                     typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                         unreachable!("validated named contract must bind witness evidence")
@@ -165,10 +166,11 @@ pub(crate) fn append_operator_declaration_contract_facts(
         operator_symbol: operator.symbol,
     };
     for contract in program.operator_contracts(operator) {
-        let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+        let Some(kind) = crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
+        else {
             continue;
         };
-        for fact in super::fact_handles(contract.facts) {
+        for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
             contract_facts.append(ContractProofFact {
                 kind,
                 owner,
@@ -190,10 +192,11 @@ pub(crate) fn append_state_contract_facts(
 ) {
     let mut requires_position = 0usize;
     for contract in program.state_contracts(state) {
-        let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+        let Some(kind) = crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
+        else {
             continue;
         };
-        for fact in super::fact_handles(contract.facts) {
+        for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
             let evidence_term = contract.binding.as_ref().map(|binding| {
                 let lane_position = match kind {
                     ContractProofFactKind::Requires => {
@@ -221,9 +224,9 @@ pub(crate) fn append_state_contract_facts(
                         interface,
                     } => (
                         evidence.clone(),
-                        interface
-                            .as_ref()
-                            .map(super::lower_checked_evidence_interface),
+                        interface.as_ref().map(
+                            crate::proof::proposition_vocabulary::lower_checked_evidence_interface,
+                        ),
                     ),
                     typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                         unreachable!("validated named state contract must bind witness evidence")
@@ -272,10 +275,12 @@ pub(crate) fn append_state_signature_contract_facts(
         let mut requires_position = 0usize;
         let mut ensures_position = 0usize;
         for contract in program.state_signature_contracts(signature) {
-            let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+            let Some(kind) =
+                crate::proof::proposition_vocabulary::contract_fact_kind(&contract.kind)
+            else {
                 continue;
             };
-            for fact in super::fact_handles(contract.facts) {
+            for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
                 let evidence_term = contract.binding.as_ref().map(|binding| {
                     let lane_position = match kind {
                         ContractProofFactKind::Requires => {
@@ -305,7 +310,7 @@ pub(crate) fn append_state_signature_contract_facts(
                             interface,
                         } => (
                             evidence.clone(),
-                            interface.as_ref().map(super::lower_checked_evidence_interface),
+                            interface.as_ref().map(crate::proof::proposition_vocabulary::lower_checked_evidence_interface),
                         ),
                         typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
                             unreachable!("validated named signature contract must bind witness evidence")

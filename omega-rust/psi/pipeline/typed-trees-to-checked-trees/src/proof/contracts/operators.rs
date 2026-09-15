@@ -1,5 +1,4 @@
-use crate::proof::contract_fact_kind;
-use crate::proof::fact_handles;
+use crate::proof::proposition_vocabulary::{contract_fact_kind, fact_handles};
 use arena::HandleSpan;
 use checked_trees::{
     CheckedOperatorContractUse, CheckedOperatorFacts, ContractOperatorUseFact, ContractProofFact,
