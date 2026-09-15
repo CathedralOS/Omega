@@ -1,9 +1,18 @@
 //! Symbol spellings derived from compiler-private identity rather than source
 //! names, and the lookups that answer with an invalid handle when two rows match.
+//!
+//! The target-derived spellings — the process-entry name and each
+//! `SectionKind` name — resolve through the declared
+//! [`object_target_policy`](crate::object_target_policy) matrix rather than
+//! reading the object format alone, so an undeclared
+//! (architecture, object-format) pair fails closed instead of inheriting
+//! whichever format arm happened to match.
 
-use crate::{ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolPlan, SymbolSection};
+use crate::{
+    ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolPlan, SymbolSection, object_target_policy,
+};
 use function_identity::MachineFunctionIdentity;
-use target::{NativeTarget, NormalizedForeignLocator, ObjectFormat};
+use target::{NativeTarget, NormalizedForeignLocator};
 
 pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> ObjectSymbolHandle {
     object
@@ -121,21 +130,21 @@ pub fn private_function_symbol_name(identity: MachineFunctionIdentity) -> Option
 }
 
 pub fn entry_symbol_name(target: NativeTarget) -> String {
-    match target.object_format {
-        ObjectFormat::MachO => "_main".to_owned(),
-        ObjectFormat::Elf | ObjectFormat::Coff => "main".to_owned(),
-    }
+    object_target_policy(target)
+        .expect("no object policy is declared for this (architecture, object-format) pair")
+        .entry_symbol_name
+        .to_owned()
 }
 
 pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
-    match (target.object_format, kind) {
-        (ObjectFormat::MachO, SectionKind::Text) => "__TEXT,__text".to_owned(),
-        (ObjectFormat::MachO, SectionKind::Data) => "__DATA,__data".to_owned(),
-        (ObjectFormat::MachO, SectionKind::Bss) => "__DATA,__bss".to_owned(),
-        (_, SectionKind::Text) => ".text".to_owned(),
-        (_, SectionKind::Data) => ".data".to_owned(),
-        (_, SectionKind::Bss) => ".bss".to_owned(),
+    let policy = object_target_policy(target)
+        .expect("no object policy is declared for this (architecture, object-format) pair");
+    match kind {
+        SectionKind::Text => policy.text_section_name,
+        SectionKind::Data => policy.data_section_name,
+        SectionKind::Bss => policy.bss_section_name,
     }
+    .to_owned()
 }
 
 pub fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
@@ -147,10 +156,18 @@ pub fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> Stri
 
 #[cfg(test)]
 mod tests {
-    use super::{object_symbol_handle_by_foreign_locator, private_function_symbol_name};
-    use crate::{NormalizedImportPlan, ObjectPlan, SymbolKind, SymbolPlan, SymbolSection};
+    use super::{
+        entry_symbol_name, object_symbol_handle_by_foreign_locator, private_function_symbol_name,
+        section_name, symbol_section_name,
+    };
+    use crate::{
+        NormalizedImportPlan, ObjectPlan, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
+    };
     use function_identity::{MachineFunctionIdentity, StateKey};
-    use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
+    use target::{
+        Architecture, ForeignLocatorCandidate, NativeTarget, ObjectFormat, TargetProfile,
+        normalize_foreign_locator,
+    };
 
     #[test]
     fn private_function_names_bind_role_handles_generations_and_segment() {
@@ -250,6 +267,85 @@ mod tests {
         assert!(
             !object_symbol_handle_by_foreign_locator(&object, &locator).is_valid(),
             "ambiguous exact rows must fail closed"
+        );
+    }
+
+    #[test]
+    fn target_derived_names_follow_the_declared_pair_rows() {
+        for (target, entry, text, data, bss) in [
+            (
+                NativeTarget::linux_arm64(),
+                "main",
+                ".text",
+                ".data",
+                ".bss",
+            ),
+            (
+                NativeTarget::macos_arm64(),
+                "_main",
+                "__TEXT,__text",
+                "__DATA,__data",
+                "__DATA,__bss",
+            ),
+            (NativeTarget::linux_x64(), "main", ".text", ".data", ".bss"),
+            (
+                NativeTarget::windows_x64(),
+                "main",
+                ".text",
+                ".data",
+                ".bss",
+            ),
+            (NativeTarget::uefi_x64(), "main", ".text", ".data", ".bss"),
+        ] {
+            assert_eq!(entry_symbol_name(target), entry);
+            assert_eq!(section_name(target, SectionKind::Text), text);
+            assert_eq!(section_name(target, SectionKind::Data), data);
+            assert_eq!(section_name(target, SectionKind::Bss), bss);
+            assert_eq!(
+                symbol_section_name(target, SymbolSection::Section(SectionKind::Text)),
+                text
+            );
+        }
+        // A section-less symbol derives no spelling and never consults the
+        // matrix.
+        assert_eq!(
+            symbol_section_name(
+                NativeTarget {
+                    architecture: Architecture::Aarch64,
+                    object_format: ObjectFormat::Coff,
+                    pointer_size: 8,
+                    pointer_alignment: 8,
+                },
+                SymbolSection::None
+            ),
+            ""
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "no object policy is declared")]
+    fn entry_symbol_name_fails_closed_on_undeclared_pair() {
+        // (Aarch64, COFF) used to inherit "main" from the `Elf | Coff` arm.
+        let _ = entry_symbol_name(NativeTarget {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "no object policy is declared")]
+    fn section_name_fails_closed_on_wrong_architecture_pair() {
+        // (x86-64, Mach-O) used to inherit "__TEXT,__text" from the MachO arm.
+        let _ = section_name(
+            NativeTarget {
+                architecture: Architecture::X86_64,
+                object_format: ObjectFormat::MachO,
+                pointer_size: 8,
+                pointer_alignment: 8,
+            },
+            SectionKind::Text,
         );
     }
 }

@@ -8,7 +8,7 @@ mod text_section;
 pub use publication::*;
 pub use text_section::*;
 
-use crate::{SectionKind, section_name};
+use crate::object_target_policy;
 use optimization_core::{
     OptimizationSelectionIdentity, RelocationFreeObjectContainerIdentity,
     RelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
@@ -173,30 +173,18 @@ pub fn validate_relocation_free_object(
     if object.recomputed_identity()? != object.identity {
         return Err(RelocationFreeObjectError::StaleObjectIdentity);
     }
-    if !matches!(
-        object.target,
-        NativeTarget {
-            architecture: Architecture::Aarch64,
-            object_format: ObjectFormat::Elf | ObjectFormat::MachO,
-            pointer_size: 8,
-            pointer_alignment: 8,
-        } | NativeTarget {
-            architecture: Architecture::X86_64,
-            object_format: ObjectFormat::Elf | ObjectFormat::Coff,
-            pointer_size: 8,
-            pointer_alignment: 8,
-        }
-    ) {
+    // Canonical targets are exactly the declared matrix pairs — Aarch64 with
+    // ELF or Mach-O, x86-64 with ELF or COFF — on a 64-bit pointer contract.
+    let Some(policy) = object_target_policy(object.target) else {
+        return Err(RelocationFreeObjectError::NonCanonicalTarget);
+    };
+    if object.target.pointer_size != 8 || object.target.pointer_alignment != 8 {
         return Err(RelocationFreeObjectError::NonCanonicalTarget);
     }
-    if object.text_section.name != section_name(object.target, SectionKind::Text) {
+    if object.text_section.name != policy.text_section_name {
         return Err(RelocationFreeObjectError::WrongTextSectionName);
     }
-    let expected_alignment = match object.target.architecture {
-        Architecture::Aarch64 => 4,
-        Architecture::X86_64 => 1,
-    };
-    if object.text_section.alignment != expected_alignment {
+    if object.text_section.alignment != policy.text_section_alignment {
         return Err(RelocationFreeObjectError::WrongTextSectionAlignment);
     }
     if u64::try_from(object.text_section.bytes.len())
@@ -561,8 +549,8 @@ impl<'a> Cursor<'a> {
 #[cfg(test)]
 mod tests {
     use super::{
-        FuelScheduleIdentity, MachineId, NativeTarget, ObjectLocalSymbolId,
-        OptimizationSelectionIdentity, RelocationFreeFunctionSymbol,
+        Architecture, FuelScheduleIdentity, MachineId, NativeTarget, ObjectFormat,
+        ObjectLocalSymbolId, OptimizationSelectionIdentity, RelocationFreeFunctionSymbol,
         RelocationFreeObjectContainerIdentity, RelocationFreeObjectDecodeError,
         RelocationFreeObjectError, RelocationFreeObjectPlan, RelocationFreeObjectPlanIdentity,
         RelocationFreeObjectRelocationRequirements, RelocationFreeObjectSymbolLinkage,
@@ -664,6 +652,35 @@ mod tests {
             validate_relocation_free_object(&object),
             Err(RelocationFreeObjectError::NonCanonicalTarget)
         );
+    }
+
+    #[test]
+    fn object_validation_fails_closed_on_undeclared_target_pairs() {
+        // The matrix admits four of the six (architecture, object-format)
+        // pairs; (Aarch64, Coff) and (X86_64, MachO) must reject even when the
+        // section name and alignment happen to match a declared row.
+        for target in [
+            NativeTarget {
+                architecture: Architecture::Aarch64,
+                object_format: ObjectFormat::Coff,
+                pointer_size: 8,
+                pointer_alignment: 8,
+            },
+            NativeTarget {
+                architecture: Architecture::X86_64,
+                object_format: ObjectFormat::MachO,
+                pointer_size: 8,
+                pointer_alignment: 8,
+            },
+        ] {
+            let mut object = plan();
+            object.target = target;
+            object.identity = object.recomputed_identity().unwrap();
+            assert_eq!(
+                validate_relocation_free_object(&object),
+                Err(RelocationFreeObjectError::NonCanonicalTarget)
+            );
+        }
     }
 
     #[test]

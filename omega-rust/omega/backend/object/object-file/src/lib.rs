@@ -40,7 +40,11 @@
 //! object-format combinations - Aarch64 with Elf or MachO, X86_64 with Elf or
 //! Coff - each additionally requiring `pointer_size` and `pointer_alignment` of
 //! exactly 8. Aarch64 with Coff and X86_64 with MachO reject as
-//! `NonCanonicalTarget`.
+//! `NonCanonicalTarget`. Those four pairs are the declared object target
+//! matrix in `target_matrix`: every target-derived spelling (entry symbol,
+//! section names) and the canonical text alignment resolve through
+//! `object_target_policy`, and an undeclared pair answers `None` there rather
+//! than matching a format wildcard.
 
 //! The architecture and object-format tag mappings are written out three times:
 //! as `u32` in `container/ids.rs`, as `u8` in the relocation-free object codec,
@@ -106,6 +110,7 @@ mod relocation_free_text_section;
 mod relocations;
 mod sections;
 mod symbols;
+mod target_matrix;
 
 pub use container::*;
 pub use names::*;
@@ -115,3 +120,4 @@ pub use relocation_free_text_section::*;
 pub use relocations::*;
 pub use sections::*;
 pub use symbols::*;
+pub use target_matrix::*;
