@@ -887,6 +887,254 @@ machine Inspector::inspect(
     let mut invalid = lowered.semantic_module.clone();
     invalid.placed_view_inputs[0].placement_commitment = [0; 32];
     assert!(terminal_codec::encode_module(&invalid).is_err());
+
+    // The roster reaches the native-realization optimization stage unchanged:
+    // the artifact-sections entrance is custody-owning, so the validated
+    // optimized plan keeps the exact rows inside its replay context beside
+    // the unchanged abstract plan.
+    let empty_selections =
+        optimization_core::OptimizationSelections::new([]).expect("empty selections");
+    let stage_optimized = native_realization::optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &profile,
+        native_realization::compiler_baseline_request_v1(&empty_selections),
+    )
+    .expect("placed-view input survives the native-realization optimization stage");
+    assert_eq!(stage_optimized.plan(), &codec_plan.plan);
+    assert_eq!(
+        stage_optimized
+            .verified_input()
+            .context()
+            .module()
+            .placed_view_inputs,
+        lowered.semantic_module.placed_view_inputs
+    );
+
+    // The same stage accepts the custody-owning optimizer input moved out of
+    // the native-admitted artifact: the exact handoff the realization
+    // pipeline performs. The fail-closed extraction above remains the route
+    // for consumers without custody support.
+    let stage_input = native_input.into_optimization_input_with_placed_view_inputs();
+    assert_eq!(
+        stage_input.context().module().placed_view_inputs,
+        lowered.semantic_module.placed_view_inputs
+    );
+    let stage_optimized = native_realization::optimize_verified_abstract_input(
+        stage_input,
+        native_realization::compiler_baseline_request_v1(&empty_selections),
+    )
+    .expect("custody-owning optimizer input reaches the optimization stage");
+    assert_eq!(stage_optimized.plan(), &codec_plan.plan);
+    assert_eq!(
+        stage_optimized
+            .verified_input()
+            .context()
+            .module()
+            .placed_view_inputs,
+        lowered.semantic_module.placed_view_inputs
+    );
+
+    // End-to-end native placement rejoins the optimized plan and its retained
+    // roster through the exact placement-plan carrier. The derived entry ABI
+    // is the only authority the roster participates in; it still grants no
+    // backing, range, access, or lifetime authority by itself.
+    let inspect = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Inspector::inspect")
+        .expect("placed-view consumer");
+    let source_input = checked
+        .facts
+        .placed_view_inputs
+        .iter()
+        .find(|input| input.machine == inspect.symbol)
+        .expect("checked direct placed-view input");
+    let canonical_artifact = || {
+        terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &terminal_codec::build_identity_optimization_execution_record(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+            )
+            .expect("identity optimization record for the placed-view module"),
+            None,
+        )
+        .expect("canonical artifact for the placed-view module")
+    };
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut placed = codec_plan.clone();
+        placed.plan = stage_optimized.plan().clone();
+        placed.placed_view_inputs = stage_optimized
+            .verified_input()
+            .context()
+            .module()
+            .placed_view_inputs
+            .clone();
+        let selections = [
+            abstract_operations_to_target_operations::SelectedPlacedViewInputPlan {
+                terminal_input: &placed.placed_view_inputs[0],
+                placement_plan: &source_input.placement,
+            },
+        ];
+        let target_plan = abstract_operations_to_target_operations::
+            lower_to_target_operations_with_placed_view_inputs(&placed, target, &selections)
+            .expect("optimized placed-view input reaches the placed-entry ABI");
+        let [placed_input] = target_plan.placed_view_inputs.as_slice() else {
+            panic!("one target placed-view input")
+        };
+        assert_eq!(placed_input.terminal, placed.placed_view_inputs[0]);
+        assert_eq!(placed_input.abi_parameter_ordinal, 0);
+        assert_eq!(placed_input.referent_byte_size, 24);
+        assert_eq!(placed_input.referent_alignment, 8);
+        assert_eq!(
+            placed_input.placement,
+            target_plan.entry_call_plan.parameters[0]
+        );
+        assert_eq!(
+            placed_input.placement.shape.byte_size as usize,
+            target.pointer_size
+        );
+        assert_eq!(
+            placed_input.placement.shape.alignment as usize,
+            target.pointer_alignment
+        );
+        assert_eq!(
+            abstract_operations_to_target_operations::validate_placed_view_input_translation(
+                &placed,
+                &selections,
+                target,
+                &target_plan,
+            ),
+            Ok(())
+        );
+
+        // A stale placement-plan identity still rejects the exact join.
+        let mut stale_plan = placed.clone();
+        stale_plan.placed_view_inputs[0].placement_report_fingerprint ^= 1;
+        let stale_selections = [
+            abstract_operations_to_target_operations::SelectedPlacedViewInputPlan {
+                terminal_input: &stale_plan.placed_view_inputs[0],
+                placement_plan: &source_input.placement,
+            },
+        ];
+        assert!(matches!(
+            abstract_operations_to_target_operations::
+                lower_to_target_operations_with_placed_view_inputs(
+                    &stale_plan,
+                    target,
+                    &stale_selections,
+                ),
+            Err(abstract_operations_to_target_operations::LoweringError::PlacedViewInput(
+                abstract_operations_to_target_operations::
+                    PlacedViewInputTranslationError::PlacementPlanIdentityMismatch
+            ))
+        ));
+
+        // A substituted roster inside an emitted candidate rejects at
+        // translation validation.
+        let mut corrupted = target_plan.clone();
+        corrupted.placed_view_inputs[0]
+            .terminal
+            .placement_commitment[0] ^= 1;
+        assert_eq!(
+            abstract_operations_to_target_operations::
+                validate_placed_view_input_translation(
+                    &placed,
+                    &selections,
+                    target,
+                    &corrupted,
+                ),
+            Err(abstract_operations_to_target_operations::
+                PlacedViewInputTranslationError::CandidateInputRosterMismatch)
+        );
+
+        // The complete optimized plan reaches the physical stage, and the
+        // emitted object rejoins the canonical Terminal artifact with the
+        // roster still visible inside the joined module.
+        let emit_object = || {
+            let physical = native_realization::
+                stage_optimized_verified_physical_pipeline_with_provider_executions(
+                    native_realization::optimize_artifact_sections(
+                        &semantic,
+                        &proof,
+                        &profile,
+                        native_realization::compiler_baseline_request_v1(&empty_selections),
+                    )
+                    .expect("placed-view module re-optimizes for the physical stage"),
+                    target,
+                    &[],
+                )
+                .expect("placed-view module reaches physical custody");
+            let emitted = machine_emission::stage_optimized_function_fragment_emission(
+                physical.into_function_fragment_emission_source(),
+            )
+            .expect("function-fragment emission");
+            let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+                .expect("frame application");
+            let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
+                .expect("text section");
+            object_file::stage_optimized_relocation_free_object_container(text)
+                .expect("relocation-free object container")
+        };
+        let staged = object_file::stage_validated_optimized_object_artifact(
+            canonical_artifact(),
+            emit_object(),
+        )
+        .expect("emitted object rejoins the canonical Terminal artifact");
+        assert_eq!(
+            object_file::validate_optimized_object_artifact(&staged),
+            Ok(staged.custody())
+        );
+        assert_eq!(
+            terminal_codec::decode_module(staged.terminal().semantic_bytes())
+                .expect("staged terminal decodes")
+                .placed_view_inputs,
+            lowered.semantic_module.placed_view_inputs
+        );
+
+        // A stale Terminal artifact substituted beside an identically emitted
+        // object fails the semantic join rather than replaying stale custody.
+        let mut stale_module = lowered.semantic_module.clone();
+        stale_module.placed_view_inputs[0].placement_commitment[0] ^= 1;
+        let stale_artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &stale_module,
+            &lowered.proof_bundle,
+            &terminal_codec::build_identity_optimization_execution_record(
+                &stale_module,
+                &lowered.proof_bundle,
+            )
+            .expect("identity optimization record for the stale module"),
+            None,
+        )
+        .expect("stale canonical artifact encodes");
+        assert!(matches!(
+            object_file::stage_validated_optimized_object_artifact(stale_artifact, emit_object(),),
+            Err(object_file::OptimizedObjectArtifactError::InvalidTerminalArtifact)
+                | Err(object_file::OptimizedObjectArtifactError::SemanticMismatch)
+                | Err(object_file::OptimizedObjectArtifactError::ProofMismatch)
+        ));
+    }
+
+    // The image-emitting realization boundary stays fail-closed: it cannot
+    // yet bind the view pointer into an emitted entry shim, so executable
+    // realization rejects a nonempty roster instead of silently erasing the
+    // declared input.
+    let realization_error = native_realization::prepare_native_realization_input(
+        &canonical_artifact(),
+        &profile,
+        &optimization_core::PostTerminalOptimizationSelections::default(),
+    )
+    .expect_err("executable realization still rejects plan-laid input custody");
+    assert!(
+        realization_error.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("PlacedViewInputsRequireCustodyLowering")),
+        "executable realization rejection names the custody boundary: {realization_error:?}"
+    );
 }
 
 #[test]

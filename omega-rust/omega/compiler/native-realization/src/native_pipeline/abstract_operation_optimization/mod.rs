@@ -22,6 +22,12 @@ use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, lower_artifact_for_optimization,
 };
 
+/// Artifact-sections admission followed by the complete abstract
+/// optimization phase. This entrance is custody-owning: an admitted
+/// placed-view roster stays retained inside the returned plan's verified
+/// input as semantic custody and never grants backing, range, access, or
+/// lifetime authority by itself. Consumers without custody support use
+/// `try_into_optimization_input` upstream instead.
 pub fn optimize_artifact_sections(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
@@ -36,7 +42,7 @@ pub fn optimize_artifact_sections(
         },
         profile,
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| admitted.into_optimization_input_with_placed_view_inputs())
     .map_err(OptimizationPipelineError::ArtifactLowering)?;
     optimize_verified_abstract_input(input, request)
 }
