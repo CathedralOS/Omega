@@ -1,11 +1,15 @@
-use super::{
-    AssignmentRangeContext, BigInt, BinaryOperator, BoundedStateReturnObligation, ExpressionHandle,
-    ExpressionNode, IntegerRange, ProofPlan, StatementNode, apply_left_literal_guard,
-    apply_right_literal_guard, arrival_stability, collect_read_place_paths, integer_binary_range,
-    integer_range_for_return_value,
+use crate::checker::arrival_stability;
+use crate::checker::assignment_stability::collect_read_place_paths;
+use crate::checker::guards::{apply_left_literal_guard, apply_right_literal_guard};
+use crate::checker::integer_ranges::{AssignmentRangeContext, integer_range_for_return_value};
+use crate::obligations::{
+    BoundedStateReturnObligation, IntegerRange, ProofPlan, integer_binary_range,
 };
+use numerics::bignum::BigInt;
 use typed_trees::domain::ProofFact;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::statement::StatementNode;
 
 /// Refine a bounded return using joined arrivals and authored assumptions. This
 /// proves the body under those assumptions, not the assumptions themselves:
