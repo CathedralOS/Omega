@@ -1,8 +1,9 @@
 use super::{
-    GPR64, X86_64_FLOAT32_TO_BITS, validate_x86_64_register_constraint_catalog,
+    X86_64_FLOAT32_TO_BITS, validate_x86_64_register_constraint_catalog,
     x86_64_physical_register_model, x86_64_register_constraint_catalog,
     x86_64_system_v_mixed_unit_call_keys,
 };
+use crate::register_model::physical_model::GPR64;
 use register_model::validate_physical_register_model;
 #[test]
 fn transport_and_mixed_call_constraints_reject_forged_classes_and_clobbers() {

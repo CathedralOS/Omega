@@ -1,9 +1,9 @@
 //! Mixed scalar input banks with explicit integer aggregate result fragments.
 
-use super::{
+use super::{x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys};
+use register_model::{
     RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
-    x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
 };
 /// System V rows ordered by result fragment count (1–2), then mixed Unit-call key.
 pub fn x86_64_system_v_mixed_aggregate_call_keys() -> Vec<RegisterConstraintKey> {
