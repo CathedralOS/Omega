@@ -1,4 +1,4 @@
-use super::type_reference_for_symbol;
+use crate::authored_selections::operator_targets::type_reference_for_symbol;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{TypedTrees, data::DataMember, statement::StatementNode};
 

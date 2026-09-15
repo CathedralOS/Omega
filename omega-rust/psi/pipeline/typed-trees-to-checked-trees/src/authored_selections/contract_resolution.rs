@@ -10,7 +10,7 @@ use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, expression::ExpressionNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum CheckedContractOperatorResolution {
+pub(crate) enum CheckedContractOperatorResolution {
     Declaration(SymbolHandle),
     Builtin,
 }
@@ -35,7 +35,7 @@ pub(super) fn checked_operand_type(
     containing_expression: typed_trees::expression::ExpressionHandle,
     operand: typed_trees::expression::ExpressionHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    super::authored_operand_type(program, operand)
+    crate::authored_selections::operator_targets::authored_operand_type(program, operand)
         .or_else(|| {
             super::contexts::checked_expression_type_reference_from_exact_owner(
                 program,
@@ -48,7 +48,7 @@ pub(super) fn checked_operand_type(
             let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
                 return None;
             };
-            super::exact_named_operator_call(program, call)
+            crate::authored_selections::call_targets::exact_named_operator_call(program, call)
                 .or_else(|| {
                     checked_named_operator_call(
                         program,
@@ -73,11 +73,12 @@ pub(super) fn checked_named_operator_call<'program>(
     let operand_types = arguments
         .iter()
         .map(|argument| {
-            super::authored_operand_type(program, *argument).or_else(|| {
-                super::contexts::checked_expression_type_reference_from_exact_owner(
-                    program, facts, expression, *argument,
-                )
-            })
+            crate::authored_selections::operator_targets::authored_operand_type(program, *argument)
+                .or_else(|| {
+                    super::contexts::checked_expression_type_reference_from_exact_owner(
+                        program, facts, expression, *argument,
+                    )
+                })
         })
         .collect::<Vec<_>>();
     if operand_types.iter().all(Option::is_none) {
@@ -241,16 +242,33 @@ fn contract_contains_expression(
 ) -> bool {
     match program.proof_facts.get(fact) {
         typed_trees::domain::ProofFact::Expression(root) => {
-            super::expression_contains(program, *root, expression, &mut Vec::new())
+            crate::authored_selections::member_targets::expression_contains(
+                program,
+                *root,
+                expression,
+                &mut Vec::new(),
+            )
         }
         typed_trees::domain::ProofFact::Membership(membership) => {
-            super::expression_contains(program, membership.value, expression, &mut Vec::new())
+            crate::authored_selections::member_targets::expression_contains(
+                program,
+                membership.value,
+                expression,
+                &mut Vec::new(),
+            )
         }
         typed_trees::domain::ProofFact::Proposition(application) => program
             .expression_table
             .expression_handles(application.arguments)
             .iter()
-            .any(|root| super::expression_contains(program, *root, expression, &mut Vec::new())),
+            .any(|root| {
+                crate::authored_selections::member_targets::expression_contains(
+                    program,
+                    *root,
+                    expression,
+                    &mut Vec::new(),
+                )
+            }),
     }
 }
 
