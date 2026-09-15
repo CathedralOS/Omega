@@ -5515,6 +5515,707 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     ));
 }
 
+/// Shared one-field-substitution driver for installation-header coverage: a
+/// representable substitution still encodes and round-trips, the recomputed
+/// installation fingerprint differs from the authentic record's published
+/// identity, and replay against the unchanged image rejects the substitution.
+fn assert_header_substitution_rejected(
+    record: &image_emission::InstallationRecord,
+    image: &image_emission::ExecutableImage,
+    authentic: image_emission::InstallationFingerprint,
+    field: &str,
+    mutate: impl Fn(&mut image_emission::InstallationRecord),
+) {
+    let mut changed = record.clone();
+    mutate(&mut changed);
+    assert_ne!(changed, *record, "{field}: substitution changes the record");
+    let bytes = encode_installation_record(&changed)
+        .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
+    let replayed = decode_installation_record(&bytes)
+        .unwrap_or_else(|error| panic!("{field}: substituted record decodes: {error:?}"));
+    assert_eq!(
+        replayed, changed,
+        "{field}: codec preserves the substituted record"
+    );
+    assert_ne!(
+        installation_fingerprint(&replayed)
+            .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+        authentic,
+        "{field}: recomputed identity differs from the authentic record"
+    );
+    assert_eq!(
+        validate_installation_record(&replayed, image),
+        Err(InstallationError::ImageBindingMismatch),
+        "{field}: independent replay rejects the substitution"
+    );
+}
+
+/// Every representable installation-header axis — program identity, target,
+/// subsystem, profile decision, the committed component-progress projection,
+/// the bound image fingerprint and section layout, and the compiler
+/// text-validation receipt — is authenticated custody: a one-field
+/// substitution either cannot encode canonically or still encodes, recomputes
+/// a distinct installation fingerprint, and independent replay rejects it.
+/// Axes bound to the emitted image reject through `validate_installation_record`.
+/// The admission-owned axes — the caller-supplied profile decision and the
+/// component-progress identities — are not image facts, so the image join
+/// cannot see them; their custody is the published record identity that a
+/// deployment journal replays against its pinned fingerprint.
+#[test]
+fn installation_header_rejects_every_one_field_substitution() {
+    let plan = two_function_plan();
+    let artifact = build_object_artifact(&plan).expect("artifact");
+    let image = emit_executable_image(&artifact, 3).expect("Linux image");
+    let record = build_installation_record_with_evidence(
+        &image,
+        ProfileDecisionId::new(11).expect("profile decision"),
+        std::iter::empty::<&dyn ProviderExecutionEvidence>(),
+        Some(&TestComponentProgressAcceptance {
+            manifest: 0x1122,
+            acceptance: 0x3344,
+        }),
+    )
+    .expect("installation record");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic_evidence = record.compiler_text_validation();
+    let authentic_progress = record
+        .component_progress()
+        .expect("committed component progress");
+    assert_eq!(authentic_progress.manifest_identity(), 0x1122);
+    assert_eq!(authentic_progress.acceptance_identity(), 0x3344);
+    assert_eq!(record.subsystem(), None);
+
+    // A relocation-bearing sibling image supplies well-typed foreign values
+    // for the bound image fingerprint and the receipt digest axes.
+    let mut other_plan = internal_call_plan(NativeTarget::linux_x64());
+    account_x86_unit_call(&mut other_plan);
+    let other_artifact = build_object_artifact(&other_plan).expect("other artifact");
+    let other_image = emit_executable_image(&other_artifact, 3).expect("other image");
+    let other =
+        build_installation_record(&other_image, ProfileDecisionId::new(7).expect("profile"))
+            .expect("other record");
+    let other_fingerprint = other.image();
+    let other_evidence = other.compiler_text_validation();
+    assert_ne!(other_fingerprint, record.image());
+    assert_ne!(
+        other_evidence.encoded_text_digest, authentic_evidence.encoded_text_digest,
+        "sibling text differs"
+    );
+    assert_ne!(
+        other_evidence.final_compiler_text_digest, authentic_evidence.final_compiler_text_digest,
+        "sibling final text differs"
+    );
+    assert_ne!(
+        other_evidence.relocation_envelope_digest, authentic_evidence.relocation_envelope_digest,
+        "a retained relocation changes the envelope commitment"
+    );
+    assert_ne!(
+        other_evidence.derivation_digest, authentic_evidence.derivation_digest,
+        "sibling derivation identity differs"
+    );
+
+    // Component-progress projections differing in exactly one committed
+    // identity.
+    let manifest_only = build_installation_record_with_evidence(
+        &image,
+        ProfileDecisionId::new(11).expect("profile decision"),
+        std::iter::empty::<&dyn ProviderExecutionEvidence>(),
+        Some(&TestComponentProgressAcceptance {
+            manifest: 0x5566,
+            acceptance: 0x3344,
+        }),
+    )
+    .expect("manifest-substituted record")
+    .component_progress();
+    let acceptance_only = build_installation_record_with_evidence(
+        &image,
+        ProfileDecisionId::new(11).expect("profile decision"),
+        std::iter::empty::<&dyn ProviderExecutionEvidence>(),
+        Some(&TestComponentProgressAcceptance {
+            manifest: 0x1122,
+            acceptance: 0x7788,
+        }),
+    )
+    .expect("acceptance-substituted record")
+    .component_progress();
+    assert_ne!(manifest_only, record.component_progress());
+    assert_ne!(acceptance_only, record.component_progress());
+
+    // Axes joined to the emitted image: each substitution still encodes and
+    // round-trips, recomputes a distinct installation fingerprint, and replay
+    // against the unchanged image rejects it.
+    let image_bound: Vec<(&str, Box<dyn Fn(&mut image_emission::InstallationRecord)>)> = vec![
+        (
+            "psi.program_fingerprint",
+            Box::new(|record| {
+                record.psi_mut_for_test().program_fingerprint =
+                    SemanticFingerprint::from_bytes([0xa5; 32]);
+            }),
+        ),
+        (
+            "target.architecture",
+            Box::new(|record| {
+                record.target_mut_for_test().architecture = target::Architecture::Aarch64;
+            }),
+        ),
+        (
+            "target",
+            Box::new(|record| {
+                *record.target_mut_for_test() = NativeTarget::macos_arm64();
+            }),
+        ),
+        (
+            "image",
+            Box::new(move |record| {
+                *record.image_mut_for_test() = other_fingerprint;
+            }),
+        ),
+        (
+            "image_sections.layout.text_address",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().layout.text_address += 0x1000;
+            }),
+        ),
+        (
+            "image_sections.layout.data_address",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().layout.data_address += 0x1000;
+            }),
+        ),
+        (
+            "image_sections.layout.bss_address",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().layout.bss_address += 0x1000;
+            }),
+        ),
+        (
+            "compiler_text_validation",
+            Box::new(move |record| {
+                *record.compiler_text_validation_mut_for_test() = other_evidence;
+            }),
+        ),
+        // `derivation_report_fingerprint` is report compatibility only: it is
+        // outside the derivation-digest join, so the substitution is
+        // representable without recomputing the receipt's own identity.
+        (
+            "compiler_text_validation.derivation_report_fingerprint",
+            Box::new(|record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .derivation_report_fingerprint += 1;
+            }),
+        ),
+    ];
+    for (field, mutate) in image_bound {
+        assert_header_substitution_rejected(&record, &image, authentic_fingerprint, field, mutate);
+    }
+
+    // Every receipt input joined by the derivation digest remains
+    // representable once the containing identity is honestly recomputed:
+    // encoding accepts the consistent receipt and replay still rejects it
+    // against the unchanged image.
+    let recomputed_receipt: Vec<(&str, Box<dyn Fn(&mut image_emission::InstallationRecord)>)> = vec![
+        (
+            "compiler_text_validation.encoded_text_digest",
+            Box::new(move |record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.encoded_text_digest = other_evidence.encoded_text_digest;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+        (
+            "compiler_text_validation.final_compiler_text_digest",
+            Box::new(move |record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.final_compiler_text_digest = other_evidence.final_compiler_text_digest;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+        (
+            "compiler_text_validation.relocation_envelope_digest",
+            Box::new(move |record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.relocation_envelope_digest = other_evidence.relocation_envelope_digest;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+        (
+            "compiler_text_validation.encoded_text_report_fingerprint",
+            Box::new(|record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.encoded_text_report_fingerprint += 1;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+        (
+            "compiler_text_validation.final_compiler_text_report_fingerprint",
+            Box::new(|record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.final_compiler_text_report_fingerprint += 1;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+        (
+            "compiler_text_validation.relocation_envelope_report_fingerprint",
+            Box::new(|record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.relocation_envelope_report_fingerprint += 1;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+        (
+            "compiler_text_validation.checked_instruction_validation_report_fingerprint",
+            Box::new(|record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.checked_instruction_validation_report_fingerprint += 1;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+        (
+            "compiler_text_validation.checked_instruction_footprint_report_fingerprint",
+            Box::new(|record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.checked_instruction_footprint_report_fingerprint += 1;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+        (
+            "compiler_text_validation.text_relocation_count",
+            Box::new(|record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.text_relocation_count += 1;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+        (
+            "compiler_text_validation.checked_instruction_validation_count",
+            Box::new(|record| {
+                let evidence = record.compiler_text_validation_mut_for_test();
+                evidence.checked_instruction_validation_count += 1;
+                evidence.derivation_digest = evidence.recomputed_derivation_digest();
+            }),
+        ),
+    ];
+    for (field, mutate) in recomputed_receipt {
+        assert_header_substitution_rejected(&record, &image, authentic_fingerprint, field, mutate);
+    }
+
+    // Admission-owned axes are not image facts: the image join cannot see
+    // them, so the substitution only breaks the published record identity —
+    // the recomputed-fingerprint mismatch a deployment journal applies.
+    let admission_bound: Vec<(&str, Box<dyn Fn(&mut image_emission::InstallationRecord)>)> = vec![
+        (
+            "profile_decision",
+            Box::new(|record| {
+                *record.profile_decision_mut_for_test() =
+                    ProfileDecisionId::new(12).expect("profile decision");
+            }),
+        ),
+        (
+            "component_progress.manifest",
+            Box::new(move |record| {
+                *record.component_progress_mut_for_test() = manifest_only;
+            }),
+        ),
+        (
+            "component_progress.acceptance",
+            Box::new(move |record| {
+                *record.component_progress_mut_for_test() = acceptance_only;
+            }),
+        ),
+        (
+            "component_progress",
+            Box::new(|record| {
+                *record.component_progress_mut_for_test() = None;
+            }),
+        ),
+    ];
+    for (field, mutate) in admission_bound {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted record decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted record"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Ok(()),
+            "{field}: admission-owned axes sit outside the image join"
+        );
+    }
+
+    // The remaining header axes are not independently representable:
+    // canonical encoding rejects them before any identity or replay check.
+    let encode_rejected: Vec<(
+        &str,
+        Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+        InstallationError,
+    )> = vec![
+        // ELF and Mach-O records carry no subsystem fact.
+        (
+            "subsystem",
+            Box::new(|record| {
+                *record.subsystem_mut_for_test() = Some(3);
+            }),
+            InstallationError::UnexpectedSubsystem,
+        ),
+        // `object_format` has no representable substitution on an x86-64
+        // record: Mach-O emits only for AArch64 and COFF requires a
+        // subsystem.
+        (
+            "target.object_format",
+            Box::new(|record| {
+                record.target_mut_for_test().object_format = target::ObjectFormat::MachO;
+            }),
+            InstallationError::UnsupportedTarget(NativeTarget {
+                architecture: target::Architecture::X86_64,
+                object_format: target::ObjectFormat::MachO,
+                pointer_size: 8,
+                pointer_alignment: 8,
+            }),
+        ),
+        (
+            "target.object_format",
+            Box::new(|record| {
+                record.target_mut_for_test().object_format = target::ObjectFormat::Coff;
+            }),
+            InstallationError::MissingCoffSubsystem,
+        ),
+        (
+            "target.pointer_size",
+            Box::new(|record| {
+                record.target_mut_for_test().pointer_size = 4;
+            }),
+            InstallationError::UnsupportedTarget(NativeTarget {
+                architecture: target::Architecture::X86_64,
+                object_format: target::ObjectFormat::Elf,
+                pointer_size: 4,
+                pointer_alignment: 8,
+            }),
+        ),
+        (
+            "target.pointer_alignment",
+            Box::new(|record| {
+                record.target_mut_for_test().pointer_alignment = 16;
+            }),
+            InstallationError::UnsupportedTarget(NativeTarget {
+                architecture: target::Architecture::X86_64,
+                object_format: target::ObjectFormat::Elf,
+                pointer_size: 8,
+                pointer_alignment: 16,
+            }),
+        ),
+        // The section projection re-derives its facts from the retained
+        // function roster and the initialized-data prefix.
+        (
+            "image_sections.layout.text_address",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().layout.text_address = 0;
+            }),
+            InstallationError::InvalidImageSectionLayout,
+        ),
+        (
+            "image_sections.text_byte_count",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().text_byte_count += 8;
+            }),
+            InstallationError::InvalidImageSectionLayout,
+        ),
+        (
+            "image_sections.data_byte_count",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().data_byte_count += 8;
+            }),
+            InstallationError::InvalidImageSectionLayout,
+        ),
+        (
+            "image_sections.final_data_fingerprint",
+            Box::new(|record| {
+                record.image_sections_mut_for_test().final_data_fingerprint =
+                    image_emission::InitializedDataFingerprint::for_test([0x33; 32]);
+            }),
+            InstallationError::InvalidImageSectionLayout,
+        ),
+        // Every receipt input bound by the derivation digest — and the digest
+        // itself — is non-canonical without a consistent recomputation.
+        (
+            "compiler_text_validation.encoded_text_digest",
+            Box::new(move |record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .encoded_text_digest = other_evidence.encoded_text_digest;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.final_compiler_text_digest",
+            Box::new(move |record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .final_compiler_text_digest = other_evidence.final_compiler_text_digest;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.relocation_envelope_digest",
+            Box::new(move |record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .relocation_envelope_digest = other_evidence.relocation_envelope_digest;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.derivation_digest",
+            Box::new(move |record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .derivation_digest = other_evidence.derivation_digest;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.encoded_text_report_fingerprint",
+            Box::new(|record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .encoded_text_report_fingerprint += 1;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.final_compiler_text_report_fingerprint",
+            Box::new(|record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .final_compiler_text_report_fingerprint += 1;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.relocation_envelope_report_fingerprint",
+            Box::new(|record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .relocation_envelope_report_fingerprint += 1;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.checked_instruction_validation_report_fingerprint",
+            Box::new(|record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .checked_instruction_validation_report_fingerprint += 1;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.checked_instruction_footprint_report_fingerprint",
+            Box::new(|record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .checked_instruction_footprint_report_fingerprint += 1;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.text_relocation_count",
+            Box::new(|record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .text_relocation_count += 1;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+        (
+            "compiler_text_validation.checked_instruction_validation_count",
+            Box::new(|record| {
+                record
+                    .compiler_text_validation_mut_for_test()
+                    .checked_instruction_validation_count += 1;
+            }),
+            InstallationError::InvalidCompilerTextDerivationDigest,
+        ),
+    ];
+    for (field, mutate, expected) in encode_rejected {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, record, "{field}: substitution changes the record");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: substituted record is rejected at canonical encoding"
+        );
+    }
+
+    // The subsystem axis is representable only where the writer records it:
+    // on a PE/COFF image the substituted subsystem still encodes and replay
+    // against the unchanged image rejects it.
+    let mut coff_plan = two_function_plan();
+    coff_plan.target = NativeTarget::windows_x64();
+    let coff_artifact = build_object_artifact(&coff_plan).expect("COFF artifact");
+    let coff_image = emit_executable_image(&coff_artifact, 3).expect("PE image");
+    let coff_record =
+        build_installation_record(&coff_image, ProfileDecisionId::new(19).expect("profile"))
+            .expect("COFF record");
+    assert_eq!(coff_record.subsystem(), Some(3));
+    validate_installation_record(&coff_record, &coff_image).expect("COFF binding");
+    let coff_fingerprint = installation_fingerprint(&coff_record).expect("COFF fingerprint");
+    assert_header_substitution_rejected(
+        &coff_record,
+        &coff_image,
+        coff_fingerprint,
+        "subsystem",
+        |record| {
+            *record.subsystem_mut_for_test() = Some(4);
+        },
+    );
+    for (field, mutate, expected) in [
+        (
+            "subsystem",
+            Box::new(|record: &mut image_emission::InstallationRecord| {
+                *record.subsystem_mut_for_test() = None;
+            }) as Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+            InstallationError::MissingCoffSubsystem,
+        ),
+        // A retained subsystem is non-canonical on every non-COFF target.
+        (
+            "target",
+            Box::new(|record: &mut image_emission::InstallationRecord| {
+                *record.target_mut_for_test() = NativeTarget::linux_x64();
+            }) as Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+            InstallationError::UnexpectedSubsystem,
+        ),
+        (
+            "target.object_format",
+            Box::new(|record: &mut image_emission::InstallationRecord| {
+                record.target_mut_for_test().object_format = target::ObjectFormat::MachO;
+            }) as Box<dyn Fn(&mut image_emission::InstallationRecord)>,
+            InstallationError::UnsupportedTarget(NativeTarget {
+                architecture: target::Architecture::X86_64,
+                object_format: target::ObjectFormat::MachO,
+                pointer_size: 8,
+                pointer_alignment: 8,
+            }),
+        ),
+    ] {
+        let mut changed = coff_record.clone();
+        mutate(&mut changed);
+        assert_ne!(
+            changed, coff_record,
+            "{field}: substitution changes the record"
+        );
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: substituted COFF record is rejected at canonical encoding"
+        );
+    }
+
+    // Axes without an in-memory representation still reject at the wire: the
+    // fixed magic and format marker, the single unstable vocabulary marker,
+    // unknown enum tags, the reserved field, zero profile and committed
+    // progress identities, and presence-flag lies are alternate or malformed
+    // encodings, never a canonical record.
+    let canonical = encode_installation_record(&record).expect("canonical bytes");
+    let mut foreign_magic = canonical.clone();
+    foreign_magic[0] ^= 0xff;
+    assert_eq!(
+        decode_installation_record(&foreign_magic),
+        Err(InstallationError::InvalidMagic)
+    );
+    let mut foreign_format = canonical.clone();
+    foreign_format[8..10].copy_from_slice(&(INSTALLATION_FORMAT_MARKER + 1).to_le_bytes());
+    assert_eq!(
+        decode_installation_record(&foreign_format),
+        Err(InstallationError::UnsupportedFormatMarker(
+            INSTALLATION_FORMAT_MARKER + 1
+        ))
+    );
+    let mut foreign_marker = canonical.clone();
+    foreign_marker[10..12].copy_from_slice(&(VocabularyMarker::CURRENT.get() + 1).to_le_bytes());
+    assert_eq!(
+        decode_installation_record(&foreign_marker),
+        Err(InstallationError::UnsupportedVocabularyMarker(
+            VocabularyMarker::CURRENT.get() + 1
+        ))
+    );
+    let mut foreign_architecture = canonical.clone();
+    foreign_architecture[44] = 0;
+    assert_eq!(
+        decode_installation_record(&foreign_architecture),
+        Err(InstallationError::InvalidArchitectureTag(0))
+    );
+    let mut foreign_object_format = canonical.clone();
+    foreign_object_format[45] = 0;
+    assert_eq!(
+        decode_installation_record(&foreign_object_format),
+        Err(InstallationError::InvalidObjectFormatTag(0))
+    );
+    let mut nonzero_reserved = canonical.clone();
+    nonzero_reserved[66] = 1;
+    assert_eq!(
+        decode_installation_record(&nonzero_reserved),
+        Err(InstallationError::NonzeroReservedField)
+    );
+    let mut zero_profile = canonical.clone();
+    zero_profile[68..76].fill(0);
+    assert_eq!(
+        decode_installation_record(&zero_profile),
+        Err(InstallationError::ZeroProfileDecision)
+    );
+    // The committed progress identities sit at fixed header offsets behind
+    // the presence flag; pinning the bytes before zeroing keeps the axes
+    // aligned with the encoder layout.
+    assert_eq!(&canonical[76..84], &0x1122_u64.to_le_bytes());
+    assert_eq!(&canonical[84..92], &0x3344_u64.to_le_bytes());
+    let mut zero_manifest = canonical.clone();
+    zero_manifest[76..84].fill(0);
+    assert_eq!(
+        decode_installation_record(&zero_manifest),
+        Err(InstallationError::ZeroComponentProgressManifestIdentity)
+    );
+    let mut zero_acceptance = canonical.clone();
+    zero_acceptance[84..92].fill(0);
+    assert_eq!(
+        decode_installation_record(&zero_acceptance),
+        Err(InstallationError::ZeroComponentProgressAcceptanceIdentity)
+    );
+    let mut hidden_subsystem = canonical.clone();
+    hidden_subsystem[64..66].copy_from_slice(&3_u16.to_le_bytes());
+    assert_eq!(
+        decode_installation_record(&hidden_subsystem),
+        Err(InstallationError::NonCanonicalSubsystem)
+    );
+    // A presence flag without its payload decodes an out-of-shape record.
+    let mut claimed_subsystem = canonical.clone();
+    claimed_subsystem[46] = 1;
+    assert_eq!(
+        decode_installation_record(&claimed_subsystem),
+        Err(InstallationError::UnexpectedSubsystem)
+    );
+    let mut dropped_progress = canonical.clone();
+    dropped_progress[47] = 0;
+    assert_eq!(
+        decode_installation_record(&dropped_progress),
+        Err(InstallationError::InvalidCallSiteOwnerTag(0)),
+        "an absent progress flag cannot absorb the committed identity bytes"
+    );
+}
+
 /// Every representable scalar field of an installed function row is an
 /// authenticated custody axis: a one-field substitution still encodes,
 /// recomputes a distinct installation fingerprint, and independent replay

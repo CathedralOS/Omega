@@ -357,6 +357,46 @@ impl InstallationRecord {
         &mut self.port_effects
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn psi_mut_for_test(&mut self) -> &mut TerminalPsiIdentity {
+        &mut self.psi
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn target_mut_for_test(&mut self) -> &mut NativeTarget {
+        &mut self.target
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn subsystem_mut_for_test(&mut self) -> &mut Option<u16> {
+        &mut self.subsystem
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn profile_decision_mut_for_test(&mut self) -> &mut ProfileDecisionId {
+        &mut self.profile_decision
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn component_progress_mut_for_test(&mut self) -> &mut Option<InstalledComponentProgress> {
+        &mut self.component_progress
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn image_mut_for_test(&mut self) -> &mut ImageFingerprint {
+        &mut self.image
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn image_sections_mut_for_test(&mut self) -> &mut InstalledImageSections {
+        &mut self.image_sections
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn compiler_text_validation_mut_for_test(&mut self) -> &mut CompilerTextValidationEvidence {
+        &mut self.compiler_text_validation
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
@@ -471,6 +511,11 @@ pub struct InitializedDataFingerprint([u8; 32]);
 impl InitializedDataFingerprint {
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub const fn for_test(bytes: [u8; 32]) -> Self {
+        Self(bytes)
     }
 }
 
