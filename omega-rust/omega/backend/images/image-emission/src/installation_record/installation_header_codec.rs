@@ -12,9 +12,10 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use super::{
-    INSTALLATION_FORMAT_MARKER, ImageFingerprint, InstallationError, InstallationRecord, MAGIC,
-    Reader, decode_boolean, push_u16, push_u64,
+    INSTALLATION_FORMAT_MARKER, ImageFingerprint, InstallationError, InstallationRecord, Reader,
+    decode_boolean, push_u16, push_u64,
 };
+use crate::installation_record::envelope_codec::MAGIC;
 
 pub(super) struct DecodedInstallationHeader {
     pub(super) psi: TerminalPsiIdentity,

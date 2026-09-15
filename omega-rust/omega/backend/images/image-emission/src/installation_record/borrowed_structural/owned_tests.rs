@@ -6,7 +6,7 @@ use super::{
     StructuralSourceLocation, ValueLocation, ValueShape, evaluate_call_plan, outgoing_pointer_fits,
     owned_copy_is_exact, parameter_homes, pointer_location, scalar_result_is_exact,
 };
-use crate::installation_record::internal_unit_calls_match_object;
+use crate::installation_record::record_validation::internal_unit_calls_match_object;
 use crate::installation_record::resource_tests::installed_function_with_unit_call;
 use machine_code::{
     InternalUnitCallArgumentRecord, InternalUnitCallRecord, UnitParameterHomeRecord,
