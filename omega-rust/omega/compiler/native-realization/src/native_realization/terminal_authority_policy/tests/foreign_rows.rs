@@ -1,8 +1,11 @@
 //! Optimizer module role: test leaf. Exact foreign-row admission and substitution rejection.
 
+use super::super::{
+    TerminalAuthorityPolicyBuildError, current_terminal_authority_policy,
+    terminal_authority_policy_with_rows,
+};
+use super::{foreign_mechanism, row};
 use effects::TerminalAuthorityClass;
-
-use super::*;
 
 #[test]
 fn all_normalized_foreign_locator_roles_classify_only_by_exact_row() {

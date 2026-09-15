@@ -1,6 +1,6 @@
 //! ProgramStorage wrapper manifest envelope and closed wire-axis mutations.
-
-use super::super::*;
+use super::super::super::OptimizedProgramStorageSemanticWrapperObjectDecodeError;
+use super::super::OptimizedProgramStorageSemanticWrapperObjectManifest;
 use super::fixture::manifest_fixture;
 use super::wire_offsets::wire_offsets;
 

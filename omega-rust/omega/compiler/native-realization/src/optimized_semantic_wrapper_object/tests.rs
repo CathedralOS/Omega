@@ -1,4 +1,12 @@
-use super::*;
+use super::{
+    OptimizedProgramStorageSemanticWrapperObjectError,
+    OptimizedProgramStorageSemanticWrapperObjectManifest,
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    StagedOptimizedProgramStorageSemanticWrapperEncoding,
+    ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest, compose_object,
+    construct_manifest, decode_optimized_program_storage_semantic_wrapper_object,
+    encode_optimized_program_storage_semantic_wrapper_object, validate_object,
+};
 use crate::optimized_semantic_wrapper_object::model::WRAPPER_SYMBOL_NAME;
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,

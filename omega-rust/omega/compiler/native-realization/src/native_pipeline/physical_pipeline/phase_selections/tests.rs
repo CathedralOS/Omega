@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    OptimizationExecutionPhase, OptimizedVerifiedPhysicalPipelineError,
+    PostTerminalOptimizationSelections, validate_physical_selections,
+};
 use optimization_core::{Optimization, OptimizationSelections};
 
 #[test]

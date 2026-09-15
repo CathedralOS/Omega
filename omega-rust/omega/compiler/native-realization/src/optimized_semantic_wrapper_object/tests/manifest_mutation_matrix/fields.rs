@@ -1,6 +1,8 @@
 //! Reauthenticated logical-field mutations against canonical manifest replay.
-
-use super::super::*;
+use super::super::{
+    OptimizedProgramStorageSemanticWrapperObjectError,
+    OptimizedProgramStorageSemanticWrapperObjectManifest,
+};
 use super::fixture::manifest_fixture;
 use crate::optimized_semantic_wrapper_object::object::validate_manifest;
 use object_file::ObjectLocalSymbolId;

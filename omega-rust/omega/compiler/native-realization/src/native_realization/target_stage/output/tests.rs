@@ -1,4 +1,4 @@
-use super::*;
+use super::{Arc, NativeTargetStageResult, ValidatedOptimizedTargetOperations};
 use crate::tests::fixtures::checked_source::checked;
 use optimization_core::{Optimization, OptimizationSelections};
 use proof_admission::AdmissionProfile;

@@ -1,8 +1,11 @@
 //! Exact checked-physical receiving-policy admission.
 
+use super::super::{
+    TerminalAuthorityPolicyBuildError, current_terminal_authority_policy,
+    terminal_authority_policy_with_rows,
+};
+use super::{TerminalMechanismIdentity, row};
 use effects::{CheckedPhysicalTerminalMechanismIdentity, TerminalAuthorityClass};
-
-use super::*;
 
 fn port_write(target: target::TargetProfile, port: u16) -> TerminalMechanismIdentity {
     CheckedPhysicalTerminalMechanismIdentity::port_write(target, port).into()

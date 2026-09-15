@@ -1,14 +1,17 @@
 //! Optimizer module role: test leaf. Compiler-intrinsic inventory closure and identity.
 
-use effects::{CompilerIntrinsicExecutionIdentity, TerminalAuthorityClass};
-use symbols::BuiltinFunction;
+use super::super::{
+    COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION,
+    current_compiler_intrinsic_terminal_authority_policy,
+};
 
-use super::*;
 use crate::native_realization::terminal_authority_policy::{
     classification::classify_from_inventory,
     commitment::complete_policy_commitment,
     inventory::{CLOSED_POLICY_ROW_COUNT, closed_policy_mechanisms},
 };
+use effects::{CompilerIntrinsicExecutionIdentity, TerminalAuthorityClass};
+use symbols::BuiltinFunction;
 
 #[test]
 fn closed_policy_inventory_is_demand_complete() {

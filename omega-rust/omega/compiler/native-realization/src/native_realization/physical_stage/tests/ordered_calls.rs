@@ -1,7 +1,10 @@
 //! Source entry reaches the same physical stages with empty and selected phases.
 
-use super::*;
-
+use super::super::{NativeRealizationRequest, lower_realization_physical_stage};
+use super::{
+    OptimizedFragmentPublicationRequest, emit_optimized_fragments, lower_realization_input,
+    lower_realization_optimization_stage, lower_realization_target_stage,
+};
 #[test]
 fn source_ordered_calls_reach_executable_publication() {
     let checked = crate::tests::fixtures::checked_source::checked(
