@@ -25,8 +25,10 @@ use super::{
 };
 
 mod canonical_goal;
+mod elision;
 pub use canonical_goal::CanonicalScalarGoal;
 use canonical_goal::canonical_goal;
+pub use elision::{ProofBearingScalarLeafElision, elidable_proof_bearing_scalar_leaf};
 
 /// One proof-bearing scalar leaf row. The canonical goal is operation-local;
 /// any multi-operation affine, interval, shift, or divide summary belongs to

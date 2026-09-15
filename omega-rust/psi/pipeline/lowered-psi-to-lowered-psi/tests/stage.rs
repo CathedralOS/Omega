@@ -38,25 +38,28 @@ fn selections_without_a_stage_rule_execute_the_identity_for_that_rule() {
 }
 
 #[test]
-fn unported_selections_fail_closed_instead_of_recording_identity() {
+fn every_catalog_selection_executes_as_an_identity_on_a_clean_input() {
+    // The selection catalog is exhaustive: every rule has a stage
+    // implementation, and each must leave a minimal already-clean module
+    // unchanged while still recording its execution.
     for optimization in PsiOptimization::ALL {
-        if matches!(
-            optimization,
-            PsiOptimization::ControlFlowCleanup
-                | PsiOptimization::CopyPropagation
-                | PsiOptimization::DeadPureScalarElimination
-                | PsiOptimization::GlobalValueNumbering
-                | PsiOptimization::SparseConditionalConstantPropagation
-        ) {
-            continue;
-        }
+        let lowered = minimal_unit_lowered();
         let selections = PsiOptimizationSelections::new([optimization]).unwrap();
+        let optimized = run_psi_optimization(lowered.clone(), selections)
+            .unwrap_or_else(|error| panic!("{optimization:?} must execute: {error:?}"));
         assert_eq!(
-            run_psi_optimization(minimal_unit_lowered(), selections),
-            Err(PsiOptimizationStageError::UnsupportedSelection(
-                optimization
-            )),
-            "{optimization:?} must not be recorded as an executed identity"
+            optimized.lowered(),
+            &lowered,
+            "{optimization:?} must not rewrite a clean input"
+        );
+        assert_eq!(
+            optimized.execution().selections().as_slice(),
+            &[optimization],
+            "{optimization:?} must be recorded as the executed selection"
+        );
+        assert_eq!(
+            optimized.execution().input_semantic(),
+            optimized.execution().output_semantic()
         );
     }
 }

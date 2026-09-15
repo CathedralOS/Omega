@@ -62,6 +62,7 @@ pub enum PsiOptimizationStageError {
     InvalidSparseConditionalConstantPropagationRewrite(
         terminal_verifier::SparseConditionalConstantPropagationRewriteError,
     ),
+    InvalidProofCheckElisionRewrite(terminal_verifier::ProofCheckElisionRewriteError),
     InvalidModule(ModuleError),
     InvalidSemantic(CodecError),
     InvalidProof(ProofCodecError),
@@ -93,6 +94,9 @@ impl std::fmt::Display for PsiOptimizationStageError {
                     formatter,
                     "invalid sparse conditional constant propagation rewrite: {error:?}"
                 )
+            }
+            Self::InvalidProofCheckElisionRewrite(error) => {
+                write!(formatter, "invalid proof check elision rewrite: {error:?}")
             }
             Self::InvalidModule(error) => write!(formatter, "invalid optimization input: {error}"),
             Self::InvalidSemantic(error) => {
