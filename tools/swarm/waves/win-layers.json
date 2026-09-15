@@ -1,0 +1,84 @@
+{
+  "wave": "win-layers",
+  "max_acu_limit": 4,
+  "devin_mode": "fusion",
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "win-layers"],
+  "owner_label_prefix": "Jarod / win-layers",
+  "exclusions": [
+    "MODULE-NAMESPACE-RESOLUTION",
+    "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
+    "PROOF-CERTIFICATION-BRIDGE",
+    "CASE-CONSTRAINTS",
+    "PCC-PRODUCT-PUBLICATION",
+    "SPILL-REALIZATION",
+    "TRANSLATION-VALIDATION",
+    "CUSTODY-MUTATION-COVERAGE",
+    "BOOTSTRAP-RUNTIME-SOURCE",
+    "GENERAL-CYCLIC-EXECUTION",
+    "BORROW-PROOF-CONVERGENCE",
+    "GAMMA-DERIVATION-CHECKER",
+    "CRASH-CONTRACT",
+    "DECLARATIVE-PEEPHOLES",
+    "ADDRESS-TRANSLATION-CANARY",
+    "PROOF-KERNEL-CORE",
+    "FRAME-LAYOUT",
+    "FLOAT-PROVIDERS",
+    "OPERATOR-MACHINE-SUPPLY",
+    "TARGET-SEMANTIC-APPLICATIONS",
+    "SUBJECT-QUALIFIED-ARTIFACT-PROOFS",
+    "PSI-SHARED-OWNERS",
+    "RUNTIME-VALUE-GENERICS"
+  ],
+  "sessions": [
+    {
+      "name": "dependency-purposes",
+      "board": "TASKS.md",
+      "item": "BUILD-DEPENDENCY-PURPOSES",
+      "host": "local",
+      "layer": 0,
+      "owning_paths": [
+        "omega-rust/omega/packages",
+        "omega-rust/omega/build/build-declarations"
+      ],
+      "suggested_first_slice": "Retain one explicit build/product edge through acquisition or declaration projection: e.g. a purpose-tagged dependency edge that survives lock/review, with a rejection witness for a cycle or missing purpose. Bounded slice only; the item is large."
+    },
+    {
+      "name": "semantic-exclusions",
+      "board": "TASKS.md",
+      "item": "BUILD-SEMANTIC-EXCLUSIONS",
+      "host": "local",
+      "layer": 0,
+      "owning_paths": [
+        "omega-rust/omega/build/trust-model",
+        "omega-rust/omega/build/trust-ledger"
+      ],
+      "suggested_first_slice": "Define one exact typed exclusion case (crash or service) in the build configuration model with a canonical union rule and a conservative rejection for incomplete evidence. Re-claim narrower or corrected paths if the exclusions model actually lives elsewhere under omega-rust/omega/build/."
+    },
+    {
+      "name": "product-references",
+      "board": "TASKS.md",
+      "item": "BUILD-PRODUCT-REFERENCES",
+      "host": "local",
+      "layer": 1,
+      "owning_paths": [
+        "omega-rust/omega/build/provider-planning",
+        "omega-rust/omega/build/representation-planning"
+      ],
+      "suggested_first_slice": "Implement one designated product-operand or qualified non-callable entry/provider reference shape in the Build root/provider owners, exercising whatever purpose-aware resolution layer 0 landed. Wrong-scope or description-to-callable confusion must reject."
+    },
+    {
+      "name": "exclusion-realization",
+      "board": "TASKS.md",
+      "item": "BUILD-EXCLUSION-REALIZATION",
+      "host": "local",
+      "layer": 1,
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation",
+        "omega-rust/omega/build/build-output"
+      ],
+      "suggested_first_slice": "Join one semantic exclusion case from layer 0 through the receiving-policy or admission route to a checked rejection — no second classifier. Bounded slice: one exclusion class realized end-to-end beats breadth."
+    }
+  ]
+}
