@@ -1069,7 +1069,9 @@ fn install_flattened_macho_image(
     let placement = executable_installation::CodePlacementAuthority::from_admitted_provider(
         executable_installation::CodePlacementId::from_normalized_identity(0x501b)
             .expect("placement"),
-        executable_installation::InstallationScopeId::from_normalized_identity(0x501c)
+        // The authority's scope identity must equal the artifact installation
+        // scope the placement site carries.
+        executable_installation::InstallationScopeId::from_normalized_identity(0x5001)
             .expect("installation scope"),
         executable_installation::InstallationAudience::DormantLocal,
         &extent,

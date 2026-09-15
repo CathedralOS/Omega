@@ -48,7 +48,9 @@ sha2 = "0.10"
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
-image-emission = { path = ".", features = ["test-support"] }
+image-emission = { path = ".", features = ["test-support", "installed-artifact"] }
+executable-installation = { path = "../../runtime/executable-installation" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 register-model = { path = "../../../representations/register-model" }
 abstract-operations-to-target-operations = { path = "../../../pipeline/abstract-operations-to-target-operations" }
 terminal-psi-to-abstract-operations = { path = "../../../pipeline/terminal-psi-to-abstract-operations" }
