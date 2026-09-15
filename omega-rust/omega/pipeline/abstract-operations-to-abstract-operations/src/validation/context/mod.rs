@@ -80,7 +80,11 @@ fn validate_psi_optimization_unit_with_context(
         &projected_context,
         require_initial_revision,
     )?;
-    frontier_validation::validate_surviving_frontiers(input, unit)?;
+    frontier_validation::validate_surviving_frontiers(
+        input,
+        unit,
+        &cycle_admission.snapshot.components,
+    )?;
     Ok(ranked_cycles::ValidatedOptimizerCycleComponents::new(
         cycle_admission.snapshot,
         ranked_cycles::ValidatedOptimizerRankingCertificates::new(cycle_admission.rankings),

@@ -1,10 +1,14 @@
 //! Surviving obligation-owner and structural-frontier custody.
 
-use super::super::{BTreeMap, O, OptimizationFact, PsiOptimizationFunction, PsiProvenance};
+use super::super::{
+    BTreeMap, O, OptimizationFact, PsiOptimizationFunction, PsiProvenance,
+    invariant_member_place_parameters,
+};
 use super::{OptimizationUnitValidationError, PsiOptimizationUnit};
 pub(super) fn validate_surviving_frontiers(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
+    components: &[optimization_unit::OptimizerCycleComponent],
 ) -> Result<(), OptimizationUnitValidationError> {
     let context = input.context();
     let reconstructed = context
@@ -19,7 +23,7 @@ pub(super) fn validate_surviving_frontiers(
         .map(|fact| (fact.obligation, fact))
         .collect::<BTreeMap<_, _>>();
     for function in &unit.functions {
-        validate_surviving_byte_operations(context.module(), function)?;
+        validate_surviving_byte_operations(context.module(), function, components)?;
         let Some(frontiers) = context.structural_frontiers().machine(function.machine) else {
             return Err(
                 OptimizationUnitValidationError::MissingStructuralFrontierMachine(function.machine),
@@ -86,7 +90,18 @@ pub(super) fn validate_surviving_frontiers(
 fn validate_surviving_byte_operations(
     module: &terminal_psi::TerminalModule,
     function: &PsiOptimizationFunction,
+    components: &[optimization_unit::OptimizerCycleComponent],
 ) -> Result<(), OptimizationUnitValidationError> {
+    // Member structural parameters whose reaching edges agree on one
+    // representative root — reconstructed here from the transformed unit's own
+    // structural bindings. A surviving byte observation may re-spell its root
+    // as that representative; every other place stays byte-exact.
+    let representatives: BTreeMap<semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId> =
+        components
+            .iter()
+            .filter(|component| component.id.machine == function.machine)
+            .flat_map(|component| invariant_member_place_parameters(function, component))
+            .collect();
     for operation in function
         .blocks
         .iter()
@@ -259,7 +274,8 @@ fn validate_surviving_byte_operations(
                 ),
                 _ => return false,
             };
-            original.result == result && original.kind == kind
+            original.result == result
+                && byte_operation_kind_matches(&original.kind, &kind, &representatives)
         });
         if !matches {
             return Err(if let Some(obligation) = obligation {
@@ -276,4 +292,48 @@ fn validate_surviving_byte_operations(
         }
     }
     Ok(())
+}
+
+/// Whether `actual` is `expected` modulo an observation root rebound to its
+/// member structural parameter's invariant representative. Only the two
+/// byte-observation kinds admitted for root rebinds tolerate the substitution
+/// — `ByteSequenceLength`'s whole root and
+/// `StructuralByteSequenceFieldLength`'s root with its projection path and
+/// field still byte-exact — and only when the expected root resolves to the
+/// actual one. Every other kind, place, and payload stays byte-exact.
+fn byte_operation_kind_matches(
+    expected: &terminal_psi::OperationKind,
+    actual: &terminal_psi::OperationKind,
+    representatives: &BTreeMap<semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId>,
+) -> bool {
+    if expected == actual {
+        return true;
+    }
+    let root_matches = |expected: semantic_vocabulary::PlaceId,
+                        actual: semantic_vocabulary::PlaceId| {
+        representatives.get(&expected) == Some(&actual)
+    };
+    match (expected, actual) {
+        (
+            terminal_psi::OperationKind::ByteSequenceLength { source: expected },
+            terminal_psi::OperationKind::ByteSequenceLength { source: actual },
+        ) => root_matches(*expected, *actual),
+        (
+            terminal_psi::OperationKind::StructuralByteSequenceFieldLength {
+                source: expected_source,
+                path: expected_path,
+                field: expected_field,
+            },
+            terminal_psi::OperationKind::StructuralByteSequenceFieldLength {
+                source: actual_source,
+                path: actual_path,
+                field: actual_field,
+            },
+        ) => {
+            expected_path == actual_path
+                && expected_field == actual_field
+                && root_matches(*expected_source, *actual_source)
+        }
+        _ => false,
+    }
 }

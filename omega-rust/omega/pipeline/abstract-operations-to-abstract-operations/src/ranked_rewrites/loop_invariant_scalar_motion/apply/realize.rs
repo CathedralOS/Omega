@@ -89,6 +89,15 @@ pub(crate) fn realize(
                     value_use.value = *representative;
                 }
             }
+            if let Some((parameter, representative)) = planned.root_rewrite
+                && !crate::validation::substitute_invariant_place_root(
+                    &mut node.operation,
+                    parameter,
+                    representative,
+                )
+            {
+                return Err(LoopInvariantScalarMotionError::CandidateMismatch);
+            }
             Ok(node)
         })
         .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;
