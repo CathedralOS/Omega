@@ -12,7 +12,11 @@ pub(super) fn lower_and_select_structural_call() -> StagedOptimizedSelectedInstr
         request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, NativeTarget::uefi_x64()).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(NativeTarget::uefi_x64()),
+    )
+    .unwrap();
     let legalized = legalize_target_operations(
         target.target_operations(),
         target.optimized().plan(),

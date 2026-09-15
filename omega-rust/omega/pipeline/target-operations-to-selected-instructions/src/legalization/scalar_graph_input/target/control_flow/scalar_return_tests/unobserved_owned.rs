@@ -85,9 +85,11 @@ fn owned_fixture(
         panic!("return");
     };
     cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(place(2)));
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&plan, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
@@ -205,9 +207,11 @@ fn owned_arrival_field_read_requires_the_matching_native_graph() {
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    let observed_target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&plan, native)
-            .expect("an established owned arrival supports an exact field read");
+    let observed_target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .expect("an established owned arrival supports an exact field read");
     crate::legalization::scalar_graph_input::match_input(
         &observed_target.functions[0],
         &plan.functions[0],
@@ -251,9 +255,11 @@ fn unobserved_owned_unrestricted_arrivals_keep_abi_without_affine_disposal() {
         panic!("return");
     };
     cleanup_actions.clear();
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&plan, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
@@ -285,8 +291,11 @@ fn unobserved_owned_unrestricted_arrivals_keep_abi_without_affine_disposal() {
         parameter.multiplicity = terminal_psi::StructuralMultiplicity::Linear;
     }
     assert!(
-        abstract_operations_to_target_operations::lower_to_target_operations(&plan, native)
-            .is_err()
+        abstract_operations_to_target_operations::lower_to_target_operations(
+            &plan,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native)
+        )
+        .is_err()
     );
 }
 
@@ -302,9 +311,11 @@ fn unobserved_owned_arrivals_do_not_supply_missing_arithmetic_authority() {
         right: value(4),
         obligation: ObligationId::new(1).unwrap(),
     };
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&plan, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),

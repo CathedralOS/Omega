@@ -91,9 +91,11 @@ fn expanded(
             residual_affine_discards: Vec::new(),
         },
     ]);
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&plan, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(&plan, old.fuel_schedule)
         .unwrap();
     (plan, target, unit)

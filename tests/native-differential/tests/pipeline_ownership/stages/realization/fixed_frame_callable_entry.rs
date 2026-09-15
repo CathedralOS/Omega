@@ -110,7 +110,11 @@ fn staged_fixed_frame_callable(
         ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     let selected = stage_optimized_instruction_selection(target).unwrap();
     let liveness = stage_optimized_liveness(selected).unwrap();
     let ranges = stage_optimized_live_ranges(liveness).unwrap();

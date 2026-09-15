@@ -98,15 +98,18 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
             ))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("exact multiplication should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("exact multiplication should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("exact-multiply host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("exact-multiply host selection");
     }
 }
 
@@ -169,8 +172,9 @@ fn checked_source_exact_multiply_uses_joint_runtime_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("joint-bound exact multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("joint-bound exact multiplication should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("joint-bound exact multiplication should select");
     }
 }
 
@@ -237,8 +241,9 @@ fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("signed joint-bound exact multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("signed joint-bound exact multiplication should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("signed joint-bound exact multiplication should select");
     }
 }
 
@@ -314,8 +319,9 @@ fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("negative signed joint-bound multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("negative signed joint-bound multiplication should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("negative signed joint-bound multiplication should select");
     }
 }
 
@@ -382,8 +388,9 @@ fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("runtime-negation exact multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("runtime-negation exact multiplication should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("runtime-negation exact multiplication should select");
     }
 }
 
@@ -476,7 +483,8 @@ fn checked_source_exact_multiply_uses_all_signed_i64_runtime_bounds() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("signed i64 runtime-bound multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("signed i64 runtime-bound multiplication should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("signed i64 runtime-bound multiplication should select");
     }
 }

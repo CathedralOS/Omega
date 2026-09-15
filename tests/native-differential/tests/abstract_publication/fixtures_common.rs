@@ -33,7 +33,7 @@ pub(super) fn lower_optimized_to_target_operations(
 > {
     let target_operations = abstract_operations_to_target_operations::lower_to_target_operations(
         optimized.plan(),
-        target,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(target),
     )?;
     Ok(TestLoweredOptimizedTargetOperations {
         optimized,

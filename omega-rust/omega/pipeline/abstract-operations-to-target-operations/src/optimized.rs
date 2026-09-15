@@ -54,7 +54,7 @@ impl ValidatedOptimizedTargetOperations {
 /// One target lowering entrance for identity and selected abstract programs.
 /// Native admissions are explicit inputs, not a reason to select a different
 /// target producer. Translation coverage still names only reconstructed families.
-pub fn lower_validated_abstract_to_target_operations(
+fn lower_validated_abstract_to_target_operations(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
@@ -65,8 +65,15 @@ pub fn lower_validated_abstract_to_target_operations(
     let installed = installation
         .as_ref()
         .map(|value| value as &dyn installation_evidence::ProviderInstallationEvidence);
-    let program = crate::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
-        optimized.plan(), target, settlements, installed, ieee_float_fma, native_callbacks,
+    let program = crate::lower_to_target_operations_and_native_callbacks(
+        optimized.plan(),
+        crate::TargetLoweringRequest {
+            target,
+            settlements,
+            installation: installed,
+            ieee_float_fma,
+        },
+        native_callbacks,
     )?;
     // Semantic replay can establish that a candidate implements a boundary, but
     // cannot establish which candidate the caller selected. Join against the
@@ -88,42 +95,51 @@ pub fn lower_validated_abstract_to_target_operations(
 }
 
 // Compatibility entrances delegate to the same authority-aware transform.
+/// The admitted settlements an optimized target lowering consumes beyond the
+/// validated plan and its target.
+pub struct OptimizedTargetLoweringRequest<'a> {
+    pub target: NativeTarget,
+    pub settlements: &'a [AdmittedBoundarySettlement<'a>],
+    /// The exact installation retained beside the target operations it
+    /// authorized.
+    pub installation: Option<AdmittedProviderInstallation>,
+    pub ieee_float_fma: &'a [AdmittedIeeeFloatFmaSettlement<'a>],
+    pub native_callbacks: &'a [crate::AdmittedNativeCallbackArgument],
+}
+
+impl OptimizedTargetLoweringRequest<'_> {
+    /// A lowering with no admitted settlements.
+    pub fn new(target: NativeTarget) -> Self {
+        Self {
+            target,
+            settlements: &[],
+            installation: None,
+            ieee_float_fma: &[],
+            native_callbacks: &[],
+        }
+    }
+}
+
+/// One target lowering entrance for identity and selected abstract programs.
+/// Native admissions are explicit request data, not a reason to select a
+/// different target producer.
 pub fn lower_optimized_to_target_operations(
     optimized: ValidatedOptimizedAbstractPlan,
-    target: NativeTarget,
+    request: OptimizedTargetLoweringRequest<'_>,
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
-    lower_validated_abstract_to_target_operations(optimized, target, &[], None, &[], &[])
-}
-
-pub fn lower_optimized_to_target_operations_with_ieee_float_fma_settlements(
-    optimized: ValidatedOptimizedAbstractPlan,
-    target: NativeTarget,
-    settlements: &[AdmittedIeeeFloatFmaSettlement<'_>],
-) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
-    lower_validated_abstract_to_target_operations(optimized, target, &[], None, settlements, &[])
-}
-
-pub fn lower_optimized_to_target_operations_with_provider_executions(
-    optimized: ValidatedOptimizedAbstractPlan,
-    target: NativeTarget,
-    settlements: &[AdmittedBoundarySettlement<'_>],
-) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
-    lower_validated_abstract_to_target_operations(optimized, target, settlements, None, &[], &[])
-}
-
-/// Retain the exact installation beside the target operations it authorized.
-pub fn lower_optimized_to_target_operations_with_provider_executions_and_installation(
-    optimized: ValidatedOptimizedAbstractPlan,
-    target: NativeTarget,
-    settlements: &[AdmittedBoundarySettlement<'_>],
-    installation: AdmittedProviderInstallation,
-) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
+    let OptimizedTargetLoweringRequest {
+        target,
+        settlements,
+        installation,
+        ieee_float_fma,
+        native_callbacks,
+    } = request;
     lower_validated_abstract_to_target_operations(
         optimized,
         target,
         settlements,
-        Some(installation),
-        &[],
-        &[],
+        installation,
+        ieee_float_fma,
+        native_callbacks,
     )
 }

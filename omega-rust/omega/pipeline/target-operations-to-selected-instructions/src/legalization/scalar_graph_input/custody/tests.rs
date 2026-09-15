@@ -727,7 +727,9 @@ fn verified_countdown() -> VerifiedPsiOptimizationUnit {
 fn target(source: &VerifiedPsiOptimizationUnit) -> target_operations::TargetOperationPlan {
     abstract_operations_to_target_operations::lower_to_target_operations(
         source.input().plan(),
-        target::NativeTarget::macos_arm64(),
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            target::NativeTarget::macos_arm64(),
+        ),
     )
     .unwrap()
 }

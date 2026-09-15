@@ -212,7 +212,10 @@ fn incoming_record_return_replay_rejects_substituted_source_placement_and_captur
         let optimized = optimized_record(true, &[64]);
         let target =
             abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, native,
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                    native,
+                ),
             )
             .unwrap();
         let environment =

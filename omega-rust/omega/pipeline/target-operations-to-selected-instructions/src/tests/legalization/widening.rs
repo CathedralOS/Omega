@@ -48,13 +48,22 @@ fn fixture(
             operand: ValueId::new(5).unwrap(),
         },
     );
-    let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
-        &source, native, &[AdmittedBoundarySettlement {
-            boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
-            realization: target_operations::HostedWriteByteI32Realization.into(),
-        }],
-    ).unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &[AdmittedBoundarySettlement {
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                    CompilerBuiltinExecution::HostedWriteByteI32,
+                ),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+        },
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),

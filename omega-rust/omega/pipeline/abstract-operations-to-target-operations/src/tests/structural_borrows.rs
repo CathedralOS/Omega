@@ -90,8 +90,11 @@ fn relevant_erased_record_fields_have_no_runtime_layout_or_scalar_access() {
             },
         );
         for target in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
-            let lowered = crate::lower_to_target_operations(&source, target)
-                .expect("erased carrier occupies no bytes");
+            let lowered = crate::lower_to_target_operations(
+                &source,
+                crate::TargetLoweringRequest::new(target),
+            )
+            .expect("erased carrier occupies no bytes");
             crate::validate_abstract_to_target_translation(&source, target, &lowered)
                 .expect("independent receiver shape replay");
             let entry = lowered
@@ -138,7 +141,11 @@ fn relevant_erased_record_fields_have_no_runtime_layout_or_scalar_access() {
                 .expect("scalar field store");
             *store = erased_field;
             assert!(
-                crate::lower_to_target_operations(&source, NativeTarget::macos_arm64()).is_err(),
+                crate::lower_to_target_operations(
+                    &source,
+                    crate::TargetLoweringRequest::new(NativeTarget::macos_arm64())
+                )
+                .is_err(),
                 "runtime erasure grants no scalar access"
             );
         }
@@ -348,7 +355,9 @@ fn mutate_call_arguments(
 fn projected_field_borrow_retains_borrowed_reference_and_validates() {
     for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let source = projected_field_borrow_plan();
-        let target = crate::lower_to_target_operations(&source, native).unwrap();
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .unwrap();
         crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
         let argument = target.functions[0]
             .graph
@@ -390,7 +399,9 @@ fn projected_field_borrow_retains_borrowed_reference_and_validates() {
 fn projected_field_borrow_rejects_substituted_identity_access_shape_and_placement() {
     let source = projected_field_borrow_plan();
     let native = NativeTarget::linux_x64();
-    let target = crate::lower_to_target_operations(&source, native).unwrap();
+    let target =
+        crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+            .unwrap();
     let expected =
         crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
             machine: MachineId::new(1).unwrap(),
@@ -428,7 +439,9 @@ fn projected_field_borrow_rejects_substituted_identity_access_shape_and_placemen
 fn projected_field_borrow_rejects_substituted_home_identity() {
     let source = projected_field_borrow_plan();
     let native = NativeTarget::linux_x64();
-    let target = crate::lower_to_target_operations(&source, native).unwrap();
+    let target =
+        crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+            .unwrap();
     let expected =
         crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
             machine: MachineId::new(1).unwrap(),
@@ -482,7 +495,9 @@ fn projected_field_borrow_rejects_substituted_home_identity() {
 fn projected_field_borrow_rejects_substituted_callee_plan() {
     let source = projected_field_borrow_plan();
     let native = NativeTarget::linux_x64();
-    let target = crate::lower_to_target_operations(&source, native).unwrap();
+    let target =
+        crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+            .unwrap();
     let expected =
         crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
             machine: MachineId::new(1).unwrap(),
@@ -518,7 +533,9 @@ fn projected_field_borrow_rejects_substituted_callee_plan() {
 fn call_scalar_arguments_reject_substituted_identity_and_placement() {
     let source = projected_field_borrow_scalar_argument_plan();
     let native = NativeTarget::linux_x64();
-    let target = crate::lower_to_target_operations(&source, native).unwrap();
+    let target =
+        crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+            .unwrap();
     crate::validate_abstract_to_target_translation(&source, native, &target)
         .expect("honest scalar argument transport");
     let expected =

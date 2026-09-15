@@ -14,7 +14,11 @@ fn scalar_sequence_replay_rejects_substituted_order_operands_proofs_and_fuel() {
             compiler_baseline_request_v1(&OptimizationSelections::new([]).unwrap()),
         )
         .unwrap();
-        let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+        let target = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .unwrap();
         let legalized = legalize_target_operations(
             target.target_operations(),
             target.optimized().plan(),
@@ -98,8 +102,11 @@ fn exact_scalar_sequences_reach_shared_native_publication() {
                 )
                 .expect("the source DAG and every arithmetic proof are independently verified");
                 let post_terminal = optimized.selections().project_post_terminal();
-                let target_program =
-                    lower_optimized_to_target_operations(optimized, target).unwrap();
+                let target_program = lower_optimized_to_target_operations(
+                    optimized,
+                    OptimizedTargetLoweringRequest::new(target),
+                )
+                .unwrap();
                 let physical = stage_optimized_verified_physical_pipeline(
                     target_program,
                     post_terminal.selections(),

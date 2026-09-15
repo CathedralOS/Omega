@@ -81,15 +81,18 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
             .any(|operation| matches!(operation, AbstractOperation::ExactIntegerDivide { .. }))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("exact division should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("exact division should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("exact-divide host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("exact-divide host selection");
     }
 }
 
@@ -131,9 +134,11 @@ fn checked_source_signed_exact_divide_truncates_toward_zero() {
         )
         .and_then(|admitted| admitted.try_into_plan())
         .expect("signed exact division should cross the Omega boundary");
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("signed exact-divide host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("signed exact-divide host selection");
     }
 }
 
@@ -218,15 +223,18 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
             .any(|operation| matches!(operation, AbstractOperation::ExactIntegerRemainder { .. }))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("exact remainder should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("exact remainder should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("exact-remainder host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("exact-remainder host selection");
     }
 }
 
@@ -269,9 +277,11 @@ fn checked_source_signed_exact_remainder_is_truncating() {
         )
         .and_then(|admitted| admitted.try_into_plan())
         .expect("signed exact remainder should cross the Omega boundary");
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("signed exact-remainder host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("signed exact-remainder host selection");
     }
 }
 
@@ -414,15 +424,18 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
             .any(|operation| matches!(operation, AbstractOperation::WrappingIntegerDivide { .. }))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("wrapping division should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("wrapping division should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("wrapping-divide host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("wrapping-divide host selection");
     }
 }
 
@@ -527,9 +540,11 @@ fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
         )
         .and_then(|admitted| admitted.try_into_plan())
         .expect("signed wrapping division should cross the Omega boundary");
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("signed wrapping-divide host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("signed wrapping-divide host selection");
     }
 }
 
@@ -682,15 +697,18 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
             ))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("wrapping remainder should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("wrapping remainder should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("wrapping-remainder host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("wrapping-remainder host selection");
     }
 }
 
@@ -733,9 +751,11 @@ fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative
         )
         .and_then(|admitted| admitted.try_into_plan())
         .expect("signed wrapping remainder should cross the Omega boundary");
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("signed wrapping-remainder host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("signed wrapping-remainder host selection");
     }
 }
 
@@ -887,15 +907,18 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
             ))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("saturating division should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("saturating division should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("saturating-divide host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("saturating-divide host selection");
     }
 }
 
@@ -937,15 +960,18 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("signed saturating division should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("signed saturating-divide should select for both Linux targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("signed saturating-divide should select for both Linux targets");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("signed saturating-divide host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("signed saturating-divide host selection");
     }
 }
 
@@ -1098,15 +1124,18 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
             ))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("saturating remainder should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("saturating remainder should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("saturating-remainder host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("saturating-remainder host selection");
     }
 }
 
@@ -1148,15 +1177,18 @@ fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negati
     .and_then(|admitted| admitted.try_into_plan())
     .expect("signed saturating remainder should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("signed saturating-remainder should select for both Linux targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("signed saturating-remainder should select for both Linux targets");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("signed saturating-remainder host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("signed saturating-remainder host selection");
     }
 }
 
@@ -1224,13 +1256,18 @@ fn checked_source_signed_saturating_i64_ordinary_divisors_execute_on_the_host() 
         .and_then(|admitted| admitted.try_into_plan())
         .unwrap_or_else(|error| panic!("lower {machine}: {error:?}"));
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let _target_operations = lower_to_target_operations(&abstract_operations, target)
-                .unwrap_or_else(|error| panic!("select {machine} for {target:?}: {error:?}"));
+            let _target_operations = lower_to_target_operations(
+                &abstract_operations,
+                TargetLoweringRequest::new(target),
+            )
+            .unwrap_or_else(|error| panic!("select {machine} for {target:?}: {error:?}"));
         }
 
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .unwrap_or_else(|error| panic!("select host {machine}: {error:?}"));
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .unwrap_or_else(|error| panic!("select host {machine}: {error:?}"));
     }
 }
 
@@ -1348,8 +1385,11 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
         .and_then(|admitted| admitted.try_into_plan())
         .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let _target_operations = lower_to_target_operations(&abstract_operations, target)
-                .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
+            let _target_operations = lower_to_target_operations(
+                &abstract_operations,
+                TargetLoweringRequest::new(target),
+            )
+            .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
         }
     }
 }
@@ -1406,8 +1446,9 @@ fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_on
     .and_then(|admitted| admitted.try_into_plan())
     .expect("negative-divisor artifact should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("negative-divisor control should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("negative-divisor control should select");
     }
 }
 
@@ -1463,8 +1504,11 @@ fn checked_source_negative_one_range_uses_policy_appropriate_dividend_evidence()
         .and_then(|admitted| admitted.try_into_plan())
         .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let _target_operations = lower_to_target_operations(&abstract_operations, target)
-                .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
+            let _target_operations = lower_to_target_operations(
+                &abstract_operations,
+                TargetLoweringRequest::new(target),
+            )
+            .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
         }
     }
 }

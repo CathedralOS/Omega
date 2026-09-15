@@ -91,7 +91,8 @@ fn target_artifact(
     )
     .unwrap();
     abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-        optimized, target,
+        optimized,
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
     )
 }
 

@@ -102,12 +102,22 @@ pub(crate) fn fixture(
         unreachable!()
     };
     cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
-    let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
-        &source, native, &[AdmittedBoundarySettlement {
-            boundary, execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
-            realization: target_operations::HostedReadByteRealization.into(),
-        }],
-    ).unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &[AdmittedBoundarySettlement {
+                boundary,
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                    CompilerBuiltinExecution::HostedReadByte,
+                ),
+                realization: target_operations::HostedReadByteRealization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+        },
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
@@ -177,13 +187,22 @@ pub(crate) fn two_results_fixture(
         0,
         TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(2).unwrap()),
     );
-    let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
-        &source, native, &[AdmittedBoundarySettlement {
-            boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
-            realization: target_operations::HostedReadByteRealization.into(),
-        }],
-    ).unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &[AdmittedBoundarySettlement {
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                    CompilerBuiltinExecution::HostedReadByte,
+                ),
+                realization: target_operations::HostedReadByteRealization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+        },
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
@@ -336,12 +355,20 @@ fn read_byte_rejects_same_width_unsigned_payload() {
     cases[1].fields[0].field_type = terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(
         IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
     ));
-    let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
-        &source, native, &[AdmittedBoundarySettlement {
-            boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
-            realization: target_operations::HostedReadByteRealization.into(),
-        }],
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &[AdmittedBoundarySettlement {
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                    CompilerBuiltinExecution::HostedReadByte,
+                ),
+                realization: target_operations::HostedReadByteRealization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+        },
     );
     assert!(
         target.is_err(),
@@ -372,12 +399,20 @@ fn read_byte_requires_produced_octets_to_fit_retained_bounds_at_each_native_gate
             )
             .unwrap(),
         );
-        let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
-            &source, native, &[AdmittedBoundarySettlement {
-                boundary: BoundaryMachineId::new(1).unwrap(),
-                execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
-                realization: target_operations::HostedReadByteRealization.into(),
-            }],
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest {
+                target: native,
+                settlements: &[AdmittedBoundarySettlement {
+                    boundary: BoundaryMachineId::new(1).unwrap(),
+                    execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                        CompilerBuiltinExecution::HostedReadByte,
+                    ),
+                    realization: target_operations::HostedReadByteRealization.into(),
+                }],
+                installation: None,
+                ieee_float_fma: &[],
+            },
         );
         assert_eq!(
             target.is_ok(),

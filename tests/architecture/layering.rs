@@ -2263,7 +2263,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !target_stage.contains("match authority {")
             && !target_stage.contains("optimize_verified_abstract_input(")
             && !target_stage.contains("PostTerminalOptimizationContinuation")
-            && target_stage.contains("lower_validated_abstract_to_target_operations")
+            && target_stage.contains("lower_optimized_to_target_operations")
             && !target_stage.contains("optimization_selections")
             && !target_output.contains("Optimized(Box<")
             && !physical_stage.contains("struct NativePhysicalStageResult")
@@ -2328,7 +2328,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "native admission must retain one verified program and optimizer context without caller-assembled authority pairs or duplicate artifact lowering"
     );
     let ordinary_target_stage = target_stage
-        .find("lower_validated_abstract_to_target_operations(")
+        .find("lower_optimized_to_target_operations(")
         .expect("identity and selected execution use one target producer");
     let ordinary_target_result = target_stage
         .find("Ok(NativeTargetStageResult::new(target))")

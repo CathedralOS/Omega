@@ -5,7 +5,7 @@ use target_operations::{TargetOperationPlanWithPlacedViewInputs, TargetPlacedVie
 
 use crate::{
     LoweringError, PlacedViewInputTranslationError, SelectedPlacedViewInputPlan,
-    lower_to_target_operations,
+    TargetLoweringRequest, lower_to_target_operations,
 };
 
 /// Lower the first bounded plan-laid input family: one direct program-entry
@@ -18,7 +18,7 @@ pub fn lower_to_target_operations_with_placed_view_inputs(
     target: NativeTarget,
     selections: &[SelectedPlacedViewInputPlan<'_>],
 ) -> Result<TargetOperationPlanWithPlacedViewInputs, LoweringError> {
-    let plan = lower_to_target_operations(&source.plan, target)?;
+    let plan = lower_to_target_operations(&source.plan, TargetLoweringRequest::new(target))?;
     let (entry_call_plan, placed_view_inputs) =
         derive_placed_entry_abi(source, target, selections)?;
     let lowered = TargetOperationPlanWithPlacedViewInputs {
@@ -38,8 +38,9 @@ pub fn validate_placed_view_input_translation(
     expected_target: NativeTarget,
     candidate: &TargetOperationPlanWithPlacedViewInputs,
 ) -> Result<(), PlacedViewInputTranslationError> {
-    let expected_plan = lower_to_target_operations(&source.plan, expected_target)
-        .map_err(|_| PlacedViewInputTranslationError::CandidatePlanMismatch)?;
+    let expected_plan =
+        lower_to_target_operations(&source.plan, TargetLoweringRequest::new(expected_target))
+            .map_err(|_| PlacedViewInputTranslationError::CandidatePlanMismatch)?;
     if candidate.plan != expected_plan {
         return Err(PlacedViewInputTranslationError::CandidatePlanMismatch);
     }

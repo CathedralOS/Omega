@@ -109,7 +109,9 @@ fn fixture() -> AbstractOperationPlan {
 fn owned_array_calls_preserve_constructed_and_returned_home_identity() {
     let plan = fixture();
     for target in [NativeTarget::macos_arm64(), NativeTarget::linux_x64()] {
-        let lowered = crate::lower_to_target_operations(&plan, target).unwrap();
+        let lowered =
+            crate::lower_to_target_operations(&plan, crate::TargetLoweringRequest::new(target))
+                .unwrap();
         let graph = &lowered.functions[0].graph;
         let producers = graph.blocks[0]
             .operations
@@ -159,6 +161,12 @@ fn owned_array_calls_reject_unavailable_places_and_borrowed_actuals() {
                     StructuralMultiplicity::Affine
             }
         }
-        assert!(crate::lower_to_target_operations(&plan, NativeTarget::macos_arm64()).is_err());
+        assert!(
+            crate::lower_to_target_operations(
+                &plan,
+                crate::TargetLoweringRequest::new(NativeTarget::macos_arm64())
+            )
+            .is_err()
+        );
     }
 }

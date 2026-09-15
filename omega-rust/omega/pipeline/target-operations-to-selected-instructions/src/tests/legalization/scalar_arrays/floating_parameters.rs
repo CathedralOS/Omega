@@ -28,7 +28,9 @@ fn floating_array_parameters_replay_exact_scalar_type_and_distinct_aggregate_abi
         *elements = vec![incoming];
         let target = abstract_operations_to_target_operations::lower_to_target_operations(
             &source,
-            target::NativeTarget::linux_x64(),
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(
+                target::NativeTarget::linux_x64(),
+            ),
         )
         .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(

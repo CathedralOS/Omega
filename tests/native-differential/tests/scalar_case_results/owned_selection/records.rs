@@ -356,7 +356,8 @@ fn selected_record_loan_rejects_changed_origin_geometry_and_home() {
     )
     .unwrap();
     let compiled = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-        optimized, target,
+        optimized,
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
     )
     .unwrap();
     for mutation in 0..4 {

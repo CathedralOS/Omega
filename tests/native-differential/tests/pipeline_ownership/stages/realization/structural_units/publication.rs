@@ -231,10 +231,15 @@ fn stage(
     .expect("verified structural source");
     let post_terminal = optimized.selections().project_post_terminal();
     let target = if providers.is_empty() {
-        lower_optimized_to_target_operations_with_provider_executions(
+        lower_optimized_to_target_operations(
             optimized,
-            NativeTarget::uefi_x64(),
-            settlements,
+            OptimizedTargetLoweringRequest {
+                target: NativeTarget::uefi_x64(),
+                settlements,
+                installation: None,
+                ieee_float_fma: &[],
+                native_callbacks: &[],
+            },
         )
         .expect("structural target lowering")
     } else {
@@ -246,11 +251,15 @@ fn stage(
             providers,
         )
         .expect("independently admitted structural provider");
-        lower_optimized_to_target_operations_with_provider_executions_and_installation(
+        lower_optimized_to_target_operations(
             optimized,
-            NativeTarget::uefi_x64(),
-            settlements,
-            installation,
+            OptimizedTargetLoweringRequest {
+                target: NativeTarget::uefi_x64(),
+                settlements,
+                installation: Some(installation),
+                ieee_float_fma: &[],
+                native_callbacks: &[],
+            },
         )
         .expect("structural target retains provider selection")
     };

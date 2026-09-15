@@ -7,10 +7,8 @@ mod placed_view_inputs;
 mod validation;
 
 pub use lowering::{
-    lower_to_target_operations, lower_to_target_operations_with_provider_executions,
-    lower_to_target_operations_with_provider_executions_and_installation,
-    lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma,
-    lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks,
+    TargetLoweringRequest, lower_to_target_operations,
+    lower_to_target_operations_and_native_callbacks,
 };
 pub use model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedIeeeFloatFmaSettlement,
@@ -18,11 +16,8 @@ pub use model::{
     SelectedPlacedViewInputPlan,
 };
 pub use optimized::{
-    ValidatedOptimizedTargetOperations, lower_optimized_to_target_operations,
-    lower_optimized_to_target_operations_with_ieee_float_fma_settlements,
-    lower_optimized_to_target_operations_with_provider_executions,
-    lower_optimized_to_target_operations_with_provider_executions_and_installation,
-    lower_validated_abstract_to_target_operations,
+    OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
+    lower_optimized_to_target_operations,
 };
 pub use placed_view_inputs::{
     lower_to_target_operations_with_placed_view_inputs, validate_placed_view_input_translation,

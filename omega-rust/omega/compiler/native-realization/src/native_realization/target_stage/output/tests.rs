@@ -27,13 +27,9 @@ fn optimized_target(
         crate::compiler_baseline_request_v1(&selections),
     )
     .expect("complete abstract optimization");
-    abstract_operations_to_target_operations::lower_validated_abstract_to_target_operations(
+    abstract_operations_to_target_operations::lower_optimized_to_target_operations(
         abstract_program,
-        target,
-        &[],
-        None,
-        &[],
-        &[],
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
     )
     .expect("independently validated target lowering")
 }

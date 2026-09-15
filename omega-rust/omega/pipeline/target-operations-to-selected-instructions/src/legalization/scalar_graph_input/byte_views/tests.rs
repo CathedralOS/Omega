@@ -81,9 +81,16 @@ fn mixed_case_fixture() -> (
             realization,
         },
     );
-    let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
-        &plan, native, &settlements,
-    ).unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &settlements,
+            installation: None,
+            ieee_float_fma: &[],
+        },
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),

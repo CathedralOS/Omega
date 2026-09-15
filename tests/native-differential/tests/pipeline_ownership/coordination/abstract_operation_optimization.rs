@@ -427,8 +427,11 @@ fn non_u64_expression_fails_at_ordinary_graph_legalization_boundary() {
         request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
     )
     .unwrap();
-    let target =
-        lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .unwrap();
     assert!(matches!(
         stage_optimized_instruction_selection(target),
         Err(OptimizedSelectionPipelineError::Legalization(
@@ -449,8 +452,11 @@ fn non_u64_conditional_fails_at_ordinary_graph_legalization_boundary() {
         request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
     )
     .unwrap();
-    let target =
-        lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .unwrap();
     assert!(matches!(
         stage_optimized_instruction_selection(target),
         Err(OptimizedSelectionPipelineError::Legalization(

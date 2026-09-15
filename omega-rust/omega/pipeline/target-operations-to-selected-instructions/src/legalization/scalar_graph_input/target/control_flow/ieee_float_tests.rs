@@ -149,7 +149,8 @@ fn ieee_comparisons_preserve_float_calls_and_block_arrivals() {
             ] {
                 let source = fixture(format, comparison);
                 let target = abstract_operations_to_target_operations::lower_to_target_operations(
-                    &source, native,
+                    &source,
+                    abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
                 )
                 .unwrap();
                 let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -178,7 +179,9 @@ fn ieee_comparison_replay_rejects_changed_operands_format_relation_and_arrival()
     );
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &source,
-        ::target::NativeTarget::macos_arm64(),
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            ::target::NativeTarget::macos_arm64(),
+        ),
     )
     .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -238,7 +241,9 @@ fn ieee_comparison_replay_rejects_changed_operands_format_relation_and_arrival()
     assert!(
         abstract_operations_to_target_operations::lower_to_target_operations(
             &changed_source,
-            ::target::NativeTarget::macos_arm64()
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(
+                ::target::NativeTarget::macos_arm64()
+            )
         )
         .is_err()
     );
@@ -299,7 +304,8 @@ fn ten_float_arguments_retain_incoming_outgoing_stack_and_result_abi() {
             ::target::NativeTarget::macos_arm64(),
         ] {
             let target = abstract_operations_to_target_operations::lower_to_target_operations(
-                &source, native,
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
             let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(

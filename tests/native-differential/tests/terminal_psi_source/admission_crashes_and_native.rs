@@ -193,7 +193,10 @@ fn checked_crash_branches_execute_but_native_graph_crashes_remain_unsupported() 
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("two crash leaves should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        assert!(lower_to_target_operations(&abstract_operations, target).is_err());
+        assert!(
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .is_err()
+        );
     }
 }
 
@@ -298,6 +301,9 @@ fn interpreted_terminal_source_matches_target_lowering() {
     );
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified terminal Psi should lower without source state");
-    let _target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
-        .expect("constant terminal requirements should select for the host");
+    let _target_operations = lower_to_target_operations(
+        &abstract_operations,
+        TargetLoweringRequest::new(NativeTarget::host()),
+    )
+    .expect("constant terminal requirements should select for the host");
 }

@@ -87,6 +87,9 @@ fn source_boolean_jump_bindings_reach_stack_parameter_target_control() {
     .expect("Boolean state chain should verify");
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("Boolean jump bindings should lower without frontend state");
-    let _target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
-        .expect("Boolean jump bindings should select for the host");
+    let _target_operations = lower_to_target_operations(
+        &abstract_operations,
+        TargetLoweringRequest::new(NativeTarget::host()),
+    )
+    .expect("Boolean jump bindings should select for the host");
 }

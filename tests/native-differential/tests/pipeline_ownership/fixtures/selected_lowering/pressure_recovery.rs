@@ -4,8 +4,8 @@ use super::baseline::request;
 use crate::tests::{
     AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
     MachineContract, MachineId, NativeTarget, ObligationId, Operation, OperationId, OperationKind,
-    OperationResult, Optimization, OptimizationSelections, PressureRematerializationPolicy,
-    RecoveryClassificationPolicy, ScalarType, SpillChoicePolicy,
+    OperationResult, Optimization, OptimizationSelections, OptimizedTargetLoweringRequest,
+    PressureRematerializationPolicy, RecoveryClassificationPolicy, ScalarType, SpillChoicePolicy,
     StagedFixedFrameFunctionRelativeRealization, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedAllocationLegality, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine, TerminalMachineResult,
@@ -335,7 +335,11 @@ pub(crate) fn staged_active_resident_exact_add_bridge_chain(
         ),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target).unwrap()
 }
 
@@ -355,7 +359,11 @@ pub(crate) fn staged_active_resident_exact_add_original_victim_chain(
         ),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target).unwrap()
 }
 
@@ -371,7 +379,11 @@ pub(crate) fn staged_active_resident_exact_add_chain_with_selections(
         request(selections),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target).unwrap()
 }
 

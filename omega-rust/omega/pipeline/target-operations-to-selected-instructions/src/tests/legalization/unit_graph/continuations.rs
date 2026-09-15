@@ -53,9 +53,11 @@ fn linear_unit_continuations_cross_translation_and_selected_replay() {
         if bind {
             bind_successor(&mut source);
         }
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let receipt =
             abstract_operations_to_target_operations::validate_abstract_to_target_translation(
                 &source, native, &target,
@@ -111,9 +113,11 @@ fn linear_continuation_corruption_cannot_bypass_mandatory_graph_replay() {
     for native in targets() {
         let mut source = continuation_source(native);
         bind_successor(&mut source);
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),

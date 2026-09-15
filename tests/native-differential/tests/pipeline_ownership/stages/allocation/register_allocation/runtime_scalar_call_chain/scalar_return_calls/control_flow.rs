@@ -40,7 +40,11 @@ fn branch_call_selection_rejects_changed_join_bindings_and_edges() {
     )
     .unwrap();
     let staged = stage_optimized_instruction_selection(
-        lower_optimized_to_target_operations(optimized, NativeTarget::windows_x64()).unwrap(),
+        lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(NativeTarget::windows_x64()),
+        )
+        .unwrap(),
     )
     .unwrap();
     for mutation in 0..5 {

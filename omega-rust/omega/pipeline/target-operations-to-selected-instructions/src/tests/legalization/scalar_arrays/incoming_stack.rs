@@ -53,7 +53,8 @@ fn incoming_stack_array_replay_rejects_transport_and_charge_substitution() {
                     projected_qualifications: Vec::new(),
                 });
             let target = abstract_operations_to_target_operations::lower_to_target_operations(
-                &source, native,
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
             let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(

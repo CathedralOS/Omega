@@ -370,7 +370,11 @@ fn run_atomic_machine(
     let commits = optimized.commits().to_vec();
     let ledger = optimized.transformation_ledger().clone();
     let pre_manifest = optimized.pre_physical_manifest().record().clone();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     let register_environment = baseline_target_register_environment(target.target()).unwrap();
     let selected =
         target_operations_to_selected_instructions::stage_optimized_instruction_selection(
@@ -487,7 +491,11 @@ fn run_machine(ordinal: usize, artifact: &CorpusArtifact, target: NativeTarget) 
     let commits = optimized.commits().to_vec();
     let ledger = optimized.transformation_ledger().clone();
     let pre_manifest = optimized.pre_physical_manifest().record().clone();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     // The pipeline crate's one-argument shorthand is #[cfg(test)] pub(crate) on
     // purpose, so production keeps the register environment as its own stage.
     // Build it the way stage_non_allocation_recovery_physical_pipeline does.

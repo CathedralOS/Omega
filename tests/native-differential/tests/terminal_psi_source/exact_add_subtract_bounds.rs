@@ -89,15 +89,18 @@ fn checked_source_exact_add_uses_known_addend_bound() {
             ))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("exact addition should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("exact addition should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("exact-add host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("exact-add host selection");
     }
 }
 
@@ -184,15 +187,18 @@ fn checked_source_exact_add_uses_joint_runtime_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("joint-bound exact addition should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("joint-bound exact addition should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("joint-bound exact addition should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("joint-bound exact-add host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("joint-bound exact-add host selection");
     }
 }
 
@@ -255,8 +261,9 @@ fn checked_source_exact_add_uses_signed_nonnegative_runtime_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("signed joint-bound exact addition should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("signed joint-bound exact addition should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("signed joint-bound exact addition should select");
     }
 }
 
@@ -319,8 +326,9 @@ fn checked_source_exact_add_uses_signed_nonpositive_runtime_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("signed lower joint-bound exact addition should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("signed lower joint-bound exact addition should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("signed lower joint-bound exact addition should select");
     }
 }
 
@@ -421,15 +429,18 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
             ))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("exact subtraction should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("exact subtraction should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("exact-subtract host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("exact-subtract host selection");
     }
 }
 
@@ -488,8 +499,9 @@ fn checked_source_exact_subtract_uses_joint_runtime_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("joint-bound exact subtraction should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("joint-bound exact subtraction should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("joint-bound exact subtraction should select");
     }
 }
 
@@ -552,8 +564,9 @@ fn checked_source_exact_subtract_uses_signed_nonnegative_runtime_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("signed joint-bound exact subtraction should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("signed joint-bound exact subtraction should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("signed joint-bound exact subtraction should select");
     }
 }
 
@@ -616,8 +629,9 @@ fn checked_source_exact_subtract_uses_signed_nonpositive_runtime_bound() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("signed upper joint-bound exact subtraction should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("signed upper joint-bound exact subtraction should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("signed upper joint-bound exact subtraction should select");
     }
 }
 
@@ -692,8 +706,11 @@ fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
         .and_then(|admitted| admitted.try_into_plan())
         .expect("signed i64 add/subtract should cross Omega");
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let _target_operations = lower_to_target_operations(&abstract_operations, target)
-                .expect("signed i64 add/subtract should select");
+            let _target_operations = lower_to_target_operations(
+                &abstract_operations,
+                TargetLoweringRequest::new(target),
+            )
+            .expect("signed i64 add/subtract should select");
         }
     }
 }
@@ -777,8 +794,11 @@ fn checked_source_exact_arithmetic_uses_unsigned_u64_runtime_bounds() {
         .and_then(|admitted| admitted.try_into_plan())
         .expect("unsigned u64 arithmetic should cross Omega");
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let _target_operations = lower_to_target_operations(&abstract_operations, target)
-                .expect("unsigned u64 arithmetic should select");
+            let _target_operations = lower_to_target_operations(
+                &abstract_operations,
+                TargetLoweringRequest::new(target),
+            )
+            .expect("unsigned u64 arithmetic should select");
         }
     }
 }

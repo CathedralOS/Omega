@@ -34,16 +34,11 @@ fn publish(
         crate::compiler_baseline_request_v1(&selections),
     )
     .expect("ordinary abstract optimization");
-    let targeted =
-        abstract_operations_to_target_operations::lower_validated_abstract_to_target_operations(
-            optimized,
-            target,
-            &[],
-            None,
-            &[],
-            &[],
-        )
-        .expect("ordinary target lowering");
+    let targeted = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+        optimized,
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
+    )
+    .expect("ordinary target lowering");
     let physical = crate::stage_optimized_verified_physical_pipeline(
         targeted,
         selections.project_post_terminal().selections(),

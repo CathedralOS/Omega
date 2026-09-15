@@ -48,7 +48,9 @@ pub(in crate::tests) fn plain_unit_fixture() -> (
     };
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &abstract_plan,
-        target::NativeTarget::linux_x64(),
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            target::NativeTarget::linux_x64(),
+        ),
     )
     .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(

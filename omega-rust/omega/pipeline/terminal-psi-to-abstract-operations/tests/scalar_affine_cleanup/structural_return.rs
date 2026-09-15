@@ -361,9 +361,11 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
     ] {
-        let physical =
-            abstract_operations_to_target_operations::lower_to_target_operations(&lowered, target)
-                .expect("explicit no-code local preserves native return support");
+        let physical = abstract_operations_to_target_operations::lower_to_target_operations(
+            &lowered,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(target),
+        )
+        .expect("explicit no-code local preserves native return support");
         assert_eq!(
             physical.functions[0].provenance.operations,
             [semantic_vocabulary::OperationId::new(2).unwrap()]

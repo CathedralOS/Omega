@@ -297,7 +297,11 @@ fn fixed_view_recovery_publishes_the_same_owned_program_contract() {
             .unwrap(),
         )
         .unwrap();
-        let target_input = lower_optimized_to_target_operations(optimized, target).unwrap();
+        let target_input = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .unwrap();
         let selected = stage_optimized_instruction_selection(target_input).unwrap();
         let ranges =
             stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();

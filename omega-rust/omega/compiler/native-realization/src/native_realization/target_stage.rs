@@ -18,15 +18,16 @@ pub(crate) fn lower_realization_target_stage(
     request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeTargetStageResult, Vec<Diagnostic>> {
     let NativeOptimizationStageResult { program } = optimization_stage;
-    let target =
-        abstract_operations_to_target_operations::lower_validated_abstract_to_target_operations(
-            program,
-            request.target,
+    let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+        program,
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
+            target: request.target,
             settlements,
-            provider_installation,
-            request.ieee_float_fma,
-            request.native_callbacks,
-        )
-        .map_err(|error| realization_error("target lowering", error))?;
+            installation: provider_installation,
+            ieee_float_fma: request.ieee_float_fma,
+            native_callbacks: request.native_callbacks,
+        },
+    )
+    .map_err(|error| realization_error("target lowering", error))?;
     Ok(NativeTargetStageResult::new(target))
 }

@@ -183,7 +183,8 @@ fn lower(
     let post_terminal = optimized.selections().project_post_terminal();
     let target_program =
         abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-            optimized, target,
+            optimized,
+            abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
         )
         .unwrap();
     (target_program, post_terminal)

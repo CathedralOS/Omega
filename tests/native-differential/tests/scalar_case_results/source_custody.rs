@@ -474,7 +474,10 @@ fn case_dispatch_rejects_substituted_result_and_state_parameter_sources() {
             .unwrap();
             let compiled =
                 abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                    optimized, target,
+                    optimized,
+                    abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                        target,
+                    ),
                 )
                 .unwrap();
             let legalized = target_operations_to_selected_instructions::legalize_target_operations(

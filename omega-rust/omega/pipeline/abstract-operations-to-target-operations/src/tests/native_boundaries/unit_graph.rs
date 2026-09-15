@@ -116,16 +116,20 @@ fn fixture() -> AbstractOperationPlan {
 fn lower(
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetOperationPlan, crate::LoweringError> {
-    crate::lower_to_target_operations_with_provider_executions(
+    crate::lower_to_target_operations(
         plan,
-        NativeTarget::linux_x64(),
-        &[crate::AdmittedBoundarySettlement {
-            boundary: plan.boundary_machines[0].id,
-            execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
-            ),
-            realization: target_operations::HostedWriteByteI32Realization.into(),
-        }],
+        crate::TargetLoweringRequest {
+            target: NativeTarget::linux_x64(),
+            settlements: &[crate::AdmittedBoundarySettlement {
+                boundary: plan.boundary_machines[0].id,
+                execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                ),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+        },
     )
 }
 

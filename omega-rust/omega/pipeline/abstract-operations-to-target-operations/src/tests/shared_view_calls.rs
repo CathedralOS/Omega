@@ -101,7 +101,8 @@ fn scalar_graph_lowers_shared_view_call_transport() {
         NativeTarget::windows_x64(),
         NativeTarget::macos_arm64(),
     ] {
-        let lowered = lower_to_target_operations(&source, target).unwrap();
+        let lowered =
+            lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
         let caller = &lowered.functions[0];
         let placement = caller.graph.parameters[0].placement.clone();
         for operation in &caller.graph.blocks[0].operations[..2] {
@@ -145,7 +146,8 @@ fn scalar_graph_lowers_literal_descriptor_calls() {
         NativeTarget::windows_x64(),
         NativeTarget::macos_arm64(),
     ] {
-        let lowered = lower_to_target_operations(&source, target).unwrap();
+        let lowered =
+            lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
         let operations = &lowered.functions[0].graph.blocks[0].operations;
         assert!(matches!(
             operations[0],
@@ -167,5 +169,11 @@ fn scalar_graph_lowers_literal_descriptor_calls() {
     }
     let producer = source.functions[0].operations.remove(0);
     source.functions[0].operations.insert(2, producer);
-    assert!(lower_to_target_operations(&source, NativeTarget::macos_arm64()).is_err());
+    assert!(
+        lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(NativeTarget::macos_arm64())
+        )
+        .is_err()
+    );
 }

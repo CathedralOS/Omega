@@ -310,7 +310,7 @@ fn assert_return_cleanup_replay(artifact: &super::CanonicalTerminalArtifact) {
     ] {
         let target = abstract_operations_to_target_operations::lower_to_target_operations(
             verified.input().plan(),
-            native,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
         target_operations_to_selected_instructions::legalize_target_operations(

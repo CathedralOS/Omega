@@ -31,9 +31,11 @@ fn module_type_catalog_is_shared_across_functions_and_native_stages() {
         }];
         source.functions.push(function);
     }
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     assert_eq!(target.functions.len(), 64);
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,

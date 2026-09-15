@@ -4,10 +4,11 @@ use crate::tests::{
     AdmissionProfile, Block, BlockId, ContractId, EdgeId, ExplicitOptimizationRequest, IntegerSign,
     IntegerType, IntegerValue, MachineContract, MachineId, NativeTarget, ObligationId, Operation,
     OperationId, OperationKind, OperationResult, Optimization, OptimizationSelections,
-    OptimizationWorkBudget, ScalarType, StagedOptimizedSelectedInstructions, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
-    VocabularyMarker, budget, lower_optimized_to_target_operations, operation_proof_bundle,
-    optimize_artifact_sections, stage_optimized_instruction_selection,
+    OptimizationWorkBudget, OptimizedTargetLoweringRequest, ScalarType,
+    StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker, budget,
+    lower_optimized_to_target_operations, operation_proof_bundle, optimize_artifact_sections,
+    stage_optimized_instruction_selection,
 };
 
 pub(crate) fn conditional_exact_binary_artifact(subtract: bool) -> (Vec<u8>, Vec<u8>) {
@@ -250,7 +251,11 @@ pub(crate) fn staged_exact_add_conditional_with_selections(
         ExplicitOptimizationRequest::new(selections, budget).unwrap(),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target).unwrap()
 }
 
@@ -277,7 +282,11 @@ pub(crate) fn staged_exact_subtract_conditional_with_selections(
         ExplicitOptimizationRequest::new(selections, budget).unwrap(),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target).unwrap()
 }
 

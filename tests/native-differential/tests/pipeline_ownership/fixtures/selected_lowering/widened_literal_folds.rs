@@ -4,9 +4,9 @@ use super::baseline::request;
 use crate::tests::{
     AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
     MachineContract, MachineId, NativeTarget, ObligationId, Operation, OperationId, OperationKind,
-    OperationResult, Optimization, OptimizationSelections, ScalarType,
-    StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
+    OperationResult, Optimization, OptimizationSelections, OptimizedTargetLoweringRequest,
+    ScalarType, StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
     lower_optimized_to_target_operations, operation_proof_bundle, optimize_artifact_sections,
     stage_optimized_instruction_selection,
 };
@@ -287,7 +287,11 @@ pub(crate) fn staged_widened_u8_exact_add_conditional(
         request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target).unwrap()
 }
 
@@ -302,6 +306,10 @@ pub(crate) fn staged_widened_u8_exact_subtract_conditional(
         request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target).unwrap()
 }

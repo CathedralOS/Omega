@@ -124,9 +124,11 @@ pub(super) fn fixture(
         },
     ];
     source.functions.push(callee);
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),

@@ -35,7 +35,11 @@ fn reflexive_less_or_equal_uses_one_semantic_parameter_in_the_ordinary_graph() {
             request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
         )
         .unwrap();
-        let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+        let target = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .unwrap();
         let staged = stage_optimized_instruction_selection(target).unwrap();
         validate_legalized_operations(
             staged.optimized_target().target_operations(),

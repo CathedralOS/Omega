@@ -68,7 +68,8 @@ fn scalar_abi_binds_ordered_values_types_and_canonical_placements() {
         NativeTarget::linux_arm64(),
     ] {
         let (plan, parameters, result) = mixed_fixed_integer_plan();
-        let lowered = lower_to_target_operations(&plan, target).unwrap();
+        let lowered =
+            lower_to_target_operations(&plan, TargetLoweringRequest::new(target)).unwrap();
         let abi = lowered.functions[0]
             .scalar_abi
             .as_ref()
@@ -106,11 +107,21 @@ fn address_shapes_reject_and_boolean_parameters_keep_their_type() {
     let (mut address, _, _) = mixed_fixed_integer_plan();
     let address_type = IntegerType::address(64).unwrap();
     address.functions[0].parameters[0].scalar_type = ScalarType::Integer(address_type);
-    assert!(lower_to_target_operations(&address, NativeTarget::linux_x64()).is_err());
+    assert!(
+        lower_to_target_operations(
+            &address,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        )
+        .is_err()
+    );
 
     let (mut boolean, _, _) = mixed_fixed_integer_plan();
     boolean.functions[0].parameters[0].scalar_type = ScalarType::Boolean;
-    let lowered = lower_to_target_operations(&boolean, NativeTarget::linux_x64()).unwrap();
+    let lowered = lower_to_target_operations(
+        &boolean,
+        TargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .unwrap();
     let abi = lowered.functions[0]
         .scalar_abi
         .as_ref()
@@ -134,7 +145,9 @@ fn unit_and_unsupported_width_functions_publish_no_scalar_abi() {
         psi_edge: EdgeId::new(701).unwrap(),
         cleanup_actions: Vec::new(),
     }];
-    let lowered = lower_to_target_operations(&unit, NativeTarget::linux_x64()).unwrap();
+    let lowered =
+        lower_to_target_operations(&unit, TargetLoweringRequest::new(NativeTarget::linux_x64()))
+            .unwrap();
     assert_eq!(lowered.functions[0].scalar_abi, None);
 
     let machine = MachineId::new(730).unwrap();
@@ -183,6 +196,10 @@ fn unit_and_unsupported_width_functions_publish_no_scalar_abi() {
             ],
         }],
     };
-    let lowered = lower_to_target_operations(&unsupported, NativeTarget::linux_x64()).unwrap();
+    let lowered = lower_to_target_operations(
+        &unsupported,
+        TargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .unwrap();
     assert_eq!(lowered.functions[0].scalar_abi, None);
 }

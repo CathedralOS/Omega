@@ -100,7 +100,8 @@ fn publish(
     let post_terminal = optimized.selections().project_post_terminal();
     let target_operations =
         abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-            optimized, target,
+            optimized,
+            abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
         )
         .unwrap_or_else(|error| panic!("lower scalar-case source on {target:?}: {error:#?}"));
     let physical = native_realization::stage_optimized_verified_physical_pipeline(

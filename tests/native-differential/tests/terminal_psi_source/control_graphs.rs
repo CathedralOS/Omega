@@ -64,8 +64,9 @@ fn checked_source_nested_jump_expressions_reach_terminal_and_target_lowering() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("computed nested jump should cross the Omega abstract boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("computed nested jump should select for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("computed nested jump should select for both native targets");
     }
 }
 
@@ -156,8 +157,9 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("computed conditional edge should cross the Omega abstract boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("computed conditional edge should select for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("computed conditional edge should select for both native targets");
     }
 }
 
@@ -252,8 +254,9 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("short-circuit computed edge should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("short-circuit computed edge should select for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("short-circuit computed edge should select for both native targets");
     }
 }
 
@@ -308,8 +311,9 @@ fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("mixed-scalar Boolean short-circuit graph should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("mixed-scalar Boolean short-circuit graph should select natively");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("mixed-scalar Boolean short-circuit graph should select natively");
     }
 }
 
@@ -330,8 +334,11 @@ fn source_closed_integer_chain_matches_target_lowering() {
     .expect("closed integer state chain should verify");
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("closed integer state chain should lower without frontend state");
-    let _target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
-        .expect("closed integer state chain should select for the host");
+    let _target_operations = lower_to_target_operations(
+        &abstract_operations,
+        TargetLoweringRequest::new(NativeTarget::host()),
+    )
+    .expect("closed integer state chain should select for the host");
 }
 
 #[test]
@@ -375,10 +382,11 @@ fn source_runtime_arithmetic_retains_target_parameter_abi_and_provenance() {
             NativeTarget::macos_arm64(),
             NativeTarget::windows_x64(),
         ] {
-            let target_operations = lower_to_target_operations(&abstract_operations, target)
-                .unwrap_or_else(|error| {
-                    panic!("{machine} should select for {target:?}: {error:?}")
-                });
+            let target_operations = lower_to_target_operations(
+                &abstract_operations,
+                TargetLoweringRequest::new(target),
+            )
+            .unwrap_or_else(|error| panic!("{machine} should select for {target:?}: {error:?}"));
             let [function] = target_operations.functions.as_slice() else {
                 panic!("{machine} must retain one target function");
             };

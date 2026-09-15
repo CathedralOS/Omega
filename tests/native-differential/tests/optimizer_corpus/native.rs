@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use abstract_operations_to_target_operations::lower_optimized_to_target_operations;
+use abstract_operations_to_target_operations::{
+    OptimizedTargetLoweringRequest, lower_optimized_to_target_operations,
+};
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
@@ -72,8 +74,11 @@ pub(super) fn assert_bool_result_arms_atomic(
     )
     .expect("atomic host-native artifact should admit baseline optimization");
     let post_terminal = optimized.selections().project_post_terminal();
-    let target = lower_optimized_to_target_operations(optimized, NativeTarget::host())
-        .expect("atomic host-native artifact should lower to target operations");
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(NativeTarget::host()),
+    )
+    .expect("atomic host-native artifact should lower to target operations");
     let physical = native_realization::stage_optimized_verified_physical_pipeline(
         target,
         post_terminal.selections(),
@@ -131,7 +136,8 @@ fn publish_placed_memory(
     let post_terminal = optimized.selections().project_post_terminal();
     let target_operations =
         abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-            optimized, target,
+            optimized,
+            abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
         )
         .unwrap_or_else(|error| {
             panic!("lower placed-memory corpus artifact on {target:?}: {error}")

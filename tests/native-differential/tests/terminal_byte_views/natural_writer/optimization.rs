@@ -169,14 +169,23 @@ fn natural_writer_legalization_requires_verified_custody_and_exact_payloads() {
         native_realization::compiler_baseline_request_v1(&selections),
     )
     .unwrap();
-    let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations_with_provider_executions(
-        optimized, NativeTarget::macos_arm64(), &[AdmittedBoundarySettlement {
-            boundary: lowered.semantic_module.boundary_machines[0].id,
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::HostedWriteByteI32),
-            realization: target_operations::HostedWriteByteI32Realization.into(),
-        }],
-    ).unwrap();
+    let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+        optimized,
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
+            target: NativeTarget::macos_arm64(),
+            settlements: &[AdmittedBoundarySettlement {
+                boundary: lowered.semantic_module.boundary_machines[0].id,
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                ),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+            native_callbacks: &[],
+        },
+    )
+    .unwrap();
     let abstracted = target.optimized();
     let legalized = target_operations_to_selected_instructions::legalize_target_operations(
         target.target_operations(),

@@ -19,7 +19,8 @@ fn windows_indirect_aggregate_returns_retain_destination_and_shifted_arguments()
     .unwrap();
     let target = NativeTarget::windows_x64();
     let compiled = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-        optimized, target,
+        optimized,
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
     )
     .expect("indirect result reaches ordinary lowering");
     let legalized = legalize_target_operations(
@@ -287,7 +288,10 @@ fn aggregate_selection_rejects_substituted_result_and_dispatch() {
         .unwrap();
         let compiled =
             abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, target,
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                    target,
+                ),
             )
             .unwrap();
         let legalized = target_operations_to_selected_instructions::legalize_target_operations(

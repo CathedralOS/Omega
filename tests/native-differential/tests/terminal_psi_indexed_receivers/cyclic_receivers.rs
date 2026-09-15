@@ -135,7 +135,9 @@ fn cyclic_record_field_store_replay_rejects_type_access_and_source_substitution(
     )));
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         optimized.plan(),
-        NativeTarget::windows_x64(),
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            NativeTarget::windows_x64(),
+        ),
     )
     .unwrap();
     let legalized = target_operations_to_selected_instructions::legalize_target_operations(

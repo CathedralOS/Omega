@@ -139,7 +139,8 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                     },
                 ];
                 let target = abstract_operations_to_target_operations::lower_to_target_operations(
-                    &source, native,
+                    &source,
+                    abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
                 )
                 .unwrap();
                 let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -278,7 +279,10 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                     destination.access = access;
                     assert!(
                         abstract_operations_to_target_operations::lower_to_target_operations(
-                            &changed, native
+                            &changed,
+                            abstract_operations_to_target_operations::TargetLoweringRequest::new(
+                                native
+                            )
                         )
                         .is_err()
                     );
@@ -294,7 +298,10 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                 destination.multiplicity = StructuralMultiplicity::Linear;
                 assert!(
                     abstract_operations_to_target_operations::lower_to_target_operations(
-                        &linear, native
+                        &linear,
+                        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+                            native
+                        )
                     )
                     .is_err()
                 );
@@ -355,9 +362,11 @@ fn multiple_record_inputs_keep_exact_field_store_destination_through_replay() {
             path: Vec::new(),
             field,
         };
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
@@ -485,9 +494,11 @@ fn fixture(
     });
     operations.append(&mut source.functions[0].operations);
     source.functions[0].operations = operations;
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),

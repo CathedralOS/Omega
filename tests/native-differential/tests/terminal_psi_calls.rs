@@ -1,5 +1,5 @@
 use abstract_operations::AbstractOperation;
-use abstract_operations_to_target_operations::lower_to_target_operations;
+use abstract_operations_to_target_operations::{TargetLoweringRequest, lower_to_target_operations};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
@@ -143,8 +143,11 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
     )
     .and_then(|admitted| admitted.try_into_plan())
     .expect("lower scalar call fixture");
-    let _target = lower_to_target_operations(&abstract_plan, NativeTarget::linux_x64())
-        .expect("select Linux x86-64 scalar call ABI");
+    let _target = lower_to_target_operations(
+        &abstract_plan,
+        TargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .expect("select Linux x86-64 scalar call ABI");
     let mut wrong_arity = module.clone();
     let OperationKind::Call { arguments, .. } =
         &mut wrong_arity.machines[0].blocks[0].operations[1].kind
@@ -295,8 +298,11 @@ fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
         abstract_plan.functions[0].operations[1],
         AbstractOperation::Call { .. }
     ));
-    let _target =
-        lower_to_target_operations(&abstract_plan, NativeTarget::host()).expect("select call ABI");
+    let _target = lower_to_target_operations(
+        &abstract_plan,
+        TargetLoweringRequest::new(NativeTarget::host()),
+    )
+    .expect("select call ABI");
 }
 
 #[test]
@@ -391,8 +397,11 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
             .iter()
             .any(|operation| matches!(operation, AbstractOperation::Crash { .. }))
     );
-    let _target = lower_to_target_operations(&abstract_plan, NativeTarget::host())
-        .expect("select crash-capable call ABI");
+    let _target = lower_to_target_operations(
+        &abstract_plan,
+        TargetLoweringRequest::new(NativeTarget::host()),
+    )
+    .expect("select crash-capable call ABI");
 }
 
 fn call_module() -> TerminalModule {

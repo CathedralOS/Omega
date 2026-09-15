@@ -92,8 +92,11 @@ fn single_scalar_call_uses_shared_instruction_selection() {
         request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
     )
     .unwrap();
-    let target =
-        lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target)
         .expect("a single call is an ordinary call sequence, not an unsupported topology");
 }

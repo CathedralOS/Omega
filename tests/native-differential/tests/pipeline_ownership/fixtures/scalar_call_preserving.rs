@@ -133,6 +133,10 @@ pub(crate) fn staged_scalar_call_preserving(
         request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target).unwrap()
 }

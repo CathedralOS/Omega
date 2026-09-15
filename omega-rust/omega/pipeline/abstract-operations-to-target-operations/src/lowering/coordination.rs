@@ -6,6 +6,7 @@ use super::shared::*;
 
 mod projected_qualifications;
 
+#[cfg(test)]
 pub(crate) fn lower_to_target_operations_with_settlements(
     plan: &AbstractOperationPlan,
     target: NativeTarget,

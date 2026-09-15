@@ -62,7 +62,10 @@ fn bitwise_graph_preserves_operand_types_and_independent_replay(exclusive: bool)
                 );
                 let targeted =
                     abstract_operations_to_target_operations::lower_to_target_operations(
-                        &source, native,
+                        &source,
+                        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+                            native,
+                        ),
                     )
                     .unwrap();
                 let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -227,7 +230,7 @@ fn register_calls_retain_the_target_abi_home_area() {
     ] {
         let target = abstract_operations_to_target_operations::lower_to_target_operations(
             &abstract_plan,
-            native,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
         )
         .unwrap();
         let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
@@ -264,7 +267,9 @@ fn one_call_and_equal_constant_operands_have_no_fixture_topology_requirement() {
     *value = semantic_vocabulary::IntegerValue::Unsigned(7);
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &abstract_plan,
-        target::NativeTarget::linux_x64(),
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            target::NativeTarget::linux_x64(),
+        ),
     )
     .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -522,7 +527,8 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
         for arity in 0..=capacity {
             let source = register_arity_source(arity);
             let target = abstract_operations_to_target_operations::lower_to_target_operations(
-                &source, native,
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
             let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -550,9 +556,11 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
             }
         }
         let source = register_arity_source(capacity + 1);
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),

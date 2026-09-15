@@ -54,7 +54,9 @@ fn projected_case_native_replay_rejects_another_element_or_offset() {
     .unwrap();
     let compiled = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
         optimized,
-        NativeTarget::macos_arm64(),
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+            NativeTarget::macos_arm64(),
+        ),
     )
     .unwrap();
     let legalized = target_operations_to_selected_instructions::legalize_target_operations(

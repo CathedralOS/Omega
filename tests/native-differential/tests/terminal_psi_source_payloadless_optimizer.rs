@@ -2,7 +2,7 @@
 
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
-use abstract_operations_to_target_operations::lower_to_target_operations;
+use abstract_operations_to_target_operations::{TargetLoweringRequest, lower_to_target_operations};
 use checked_trees_to_lowered_psi::lower_machine;
 use optimization_unit::recompute_psi_optimization_unit_identity;
 use optimization_unit_semantics::{
@@ -125,8 +125,11 @@ fn source_payloadless_producer_retains_ordinary_and_optimizer_custody() {
     )
     .and_then(|admitted| admitted.try_into_optimization_input())
     .expect("optimizer-only lowering retains the exact producer");
-    let targeted = lower_to_target_operations(optimizer_input.plan(), NativeTarget::linux_x64())
-        .expect("payloadless results use the same ordinary aggregate path");
+    let targeted = lower_to_target_operations(
+        optimizer_input.plan(),
+        TargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .expect("payloadless results use the same ordinary aggregate path");
     assert!(
         targeted
             .functions

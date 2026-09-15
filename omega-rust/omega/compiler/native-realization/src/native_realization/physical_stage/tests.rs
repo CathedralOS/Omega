@@ -47,7 +47,10 @@ fn physical_and_object_publication_retain_the_original_abstract_allocation() {
         let post_terminal = optimized.selections().project_post_terminal();
         let target_program =
             abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, target,
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                    target,
+                ),
             )
             .unwrap();
         let physical = crate::stage_optimized_verified_physical_pipeline(
@@ -209,7 +212,9 @@ fn malformed_unit_inputs_reject_at_legalization() {
     .unwrap();
     let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
         optimized,
-        target::NativeTarget::linux_x64(),
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+            target::NativeTarget::linux_x64(),
+        ),
     )
     .unwrap();
     let original = target.optimized().plan();

@@ -16,12 +16,12 @@ fn unit_functions_require_explicit_graph_blocks() {
         cleanup_actions: Vec::new(),
     }];
     let target = NativeTarget::linux_x64();
-    let lowered = lower_to_target_operations(&source, target).unwrap();
+    let lowered = lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
     assert_eq!(lowered.functions[0].graph.blocks.len(), 1);
     crate::validate_abstract_to_target_translation(&source, target, &lowered).unwrap();
     source.functions[0].block_entries.clear();
     assert!(matches!(
-        lower_to_target_operations(&source, target),
+        lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
         Err(LoweringError::UnsupportedControlFlow(_))
     ));
 }
@@ -37,7 +37,7 @@ fn common_graph_cannot_bypass_fma_occurrence_settlement() {
         cleanup_actions: Vec::new(),
     }];
     let target = NativeTarget::linux_x64();
-    let lowered = lower_to_target_operations(&source, target).unwrap();
+    let lowered = lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
     let value = ValueId::new(1).unwrap();
     let operation = OperationId::new(2).unwrap();
     source.functions[0].operations.splice(
@@ -59,7 +59,7 @@ fn common_graph_cannot_bypass_fma_occurrence_settlement() {
         ],
     );
     assert_eq!(
-        lower_to_target_operations(&source, target),
+        lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
         Err(LoweringError::MissingIeeeFloatFmaSettlement(operation))
     );
     assert_eq!(
@@ -81,7 +81,8 @@ fn scalar_graph_retains_incoming_register_and_stack_abi() {
     ] {
         for count in [1, 9] {
             let source = parameter_return_plan(count);
-            let lowered = lower_to_target_operations(&source, target).unwrap();
+            let lowered =
+                lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
             let graph = &lowered.functions[0].graph;
             assert_eq!(graph.scalar_parameters.len(), count);
             assert_eq!(
@@ -125,7 +126,8 @@ fn scalar_graph_retains_incoming_register_and_stack_abi() {
 fn scalar_graph_call_keeps_callee_abi_and_effect_custody() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let source = direct_call_plan(9);
-        let lowered = lower_to_target_operations(&source, target).unwrap();
+        let lowered =
+            lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
         let graph = &lowered.functions[0].graph;
         let [
             TargetUnitOperation::ScalarCall {
@@ -160,7 +162,10 @@ fn scalar_graph_rejects_missing_block_ownership() {
     let mut source = parameter_return_plan(1);
     source.functions[0].block_entries.clear();
     assert!(matches!(
-        lower_to_target_operations(&source, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::UnsupportedControlFlow(_))
     ));
 }
@@ -174,7 +179,10 @@ fn scalar_graph_rejects_undefined_returns_and_unimplemented_cleanup() {
     };
     *value = unknown;
     assert_eq!(
-        lower_to_target_operations(&source, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::UnknownValue(unknown))
     );
     let mut source = parameter_return_plan(1);
@@ -187,7 +195,13 @@ fn scalar_graph_rejects_undefined_returns_and_unimplemented_cleanup() {
     cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(
         PlaceId::new(999).unwrap(),
     ));
-    assert!(lower_to_target_operations(&source, NativeTarget::linux_x64()).is_err());
+    assert!(
+        lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        )
+        .is_err()
+    );
 }
 
 pub(super) fn constant_conditional_plan(select_true: bool) -> AbstractOperationPlan {

@@ -22,8 +22,11 @@ fn copy_propagation_projects_shortened_blocks_and_rewritten_edges() {
         &optimized.plan().functions[0].operations[2],
         AbstractOperation::Return { value, .. } if *value == ValueId::new(1_034).unwrap()
     ));
-    let target =
-        lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .unwrap();
     assert_eq!(target.optimized().commits().len(), 1);
 }
 
