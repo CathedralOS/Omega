@@ -1,9 +1,15 @@
 //! Shared synchronized stages and atomic replacement publication.
-
-use super::*;
+use super::{
+    CapabilityDirectory, CapabilityFile, CapabilityOpenOptions, FollowSymlinks, OsStr, OsString,
+    Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, SeekFrom, io_error,
+    read_bytes_bounded, record_error_message, synchronize_directory,
+    verify_capability_regular_identity,
+};
+use cap_fs_ext::OpenOptionsFollowExt;
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt;
 use cap_std::fs::Permissions;
+use std::io::Seek;
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 
