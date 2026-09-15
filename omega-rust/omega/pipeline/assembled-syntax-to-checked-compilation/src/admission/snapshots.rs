@@ -1,7 +1,4 @@
-//! Checked-Psi observations emitted by the production compiler route.
-//!
-//! Native backend diagrams belonged to the retired StateGraph compatibility
-//! harness. Target realization owns its own retained artifacts and reports.
+//! Checked-Psi snapshot files written beside an admitted compilation.
 
 use artifacts::ArtifactWriter;
 use diagnostics::Diagnostic;

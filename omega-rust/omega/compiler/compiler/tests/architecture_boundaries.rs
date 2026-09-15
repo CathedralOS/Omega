@@ -449,8 +449,7 @@ fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
     let repo_root = repo_root();
     let compiler_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
     let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
-    let reporting_path = repo_root
-        .join("omega-rust/omega/compiler/compiler/src/pipeline/reporting/checked_observations.rs");
+    let reporting_path = repo_root.join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission/observations.rs");
     let compiler = fs::read_to_string(&compiler_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", compiler_path.display()));
     let driver = fs::read_to_string(&driver_path)

@@ -105,7 +105,7 @@ pub fn check_prepared_local_project(
     let admission = compiler::admit_checked_compilation(&checked, &accepted_trust_admissions)
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     admission
-        .write_observations(&options, artifact_policy)
+        .write_observations(&options.build_dir(), artifact_policy)
         .map_err(CheckPreparedLocalProjectError::ObservationOutput)?;
     let settlement = admission.into_settlement();
     CompileReport::checked(
