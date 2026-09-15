@@ -8,7 +8,6 @@ use super::{
     run_bounded_canary_jobs,
 };
 use compiler::CheckedCompileRequest;
-use std::io::Write;
 
 #[path = "../fixture_rosters/proof_and_float_suites.rs"]
 pub(super) mod fixture_roster;
