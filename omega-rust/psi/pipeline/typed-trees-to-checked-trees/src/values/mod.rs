@@ -12,7 +12,10 @@ mod evaluation;
 mod expression;
 mod snapshots;
 pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
-pub(crate) use evaluation::{BoundScalarValues, ScalarValueSource};
+pub(crate) use evaluation::{
+    BoundScalarValues, ScalarValueSource, admitted_integer, integer_magnitude, integer_type,
+    wrapping_cast_value,
+};
 pub(crate) use snapshots::{
     PlaceScalarValues, integer_bounds_at_place, literal_at_place, scalar_value_at_place,
 };
@@ -52,6 +55,7 @@ pub(crate) fn mutable_scalar_parameter_type(
 
 #[cfg(test)]
 pub(crate) use scalar::build_checked_scalar_computation_plans;
+#[cfg(test)]
 pub(crate) use scalar::scalar_qualified_call_expression;
 pub(crate) use scalar::{
     CallArrayConstruction, build_checked_scalar_expression_plans,

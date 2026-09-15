@@ -1,5 +1,6 @@
 //! Payload evaluation for the shared selected-call custody walk.
 use super::ScalarValue;
+use super::conversions::{ConversionKind, SelectedConversion};
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::transfers::scalar_values::CallValues;
@@ -9,6 +10,7 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::{CheckedScalarExpression, CheckedStructuralPredicatePathSegment};
 use facts::FactPlan;
 use facts::IntegerRange;
+use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 
 pub(super) struct LiveValues<'a, 'plans> {
@@ -41,6 +43,10 @@ pub(super) trait CapturedValue: Sized {
     ) -> Option<Self> {
         None
     }
+    /// Apply one authored conversion step to a captured call result. A step
+    /// that cannot describe a normal-return value fails the capture, never a
+    /// guess at the destination carrier.
+    fn convert(self, conversion: &SelectedConversion) -> Option<Self>;
 }
 
 impl CapturedValue for ScalarValue {
@@ -90,6 +96,43 @@ impl CapturedValue for ScalarValue {
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
         crate::values::evaluate_checked_scalar(expression, values)
+    }
+
+    fn convert(self, conversion: &SelectedConversion) -> Option<Self> {
+        let ScalarValue::Integer(value) = self else {
+            return None;
+        };
+        if conversion.source == conversion.target {
+            return Some(Self::Integer(value));
+        }
+        let source = crate::values::integer_type(conversion.source)?;
+        let target = crate::values::integer_type(conversion.target)?;
+        // The callee's declared carrier already constrained the captured
+        // magnitude; admission failing here means the snapshot never denoted
+        // a source value, so there is nothing to convert.
+        let admitted = crate::values::admitted_integer(source, &value)?;
+        let converted = match &conversion.kind {
+            ConversionKind::Widen => source.widen_value_to(target, admitted)?,
+            ConversionKind::Wrapping => {
+                crate::values::wrapping_cast_value(conversion.target, admitted)?
+            }
+            ConversionKind::Trapping => source.exact_cast_value_to(target, admitted)?,
+            ConversionKind::Saturating => {
+                let minimum = crate::values::integer_magnitude(target.minimum_value());
+                let maximum = crate::values::integer_magnitude(target.maximum_value());
+                return Some(Self::Integer(value.max(minimum).min(maximum)));
+            }
+            ConversionKind::Exact(range) => {
+                // The retained occurrence fact proved the spelling's range;
+                // a captured value outside it never denoted this conversion's
+                // normal return.
+                if value < range.minimum || value > range.maximum {
+                    return None;
+                }
+                source.exact_cast_value_to(target, admitted)?
+            }
+        };
+        Some(Self::Integer(crate::values::integer_magnitude(converted)))
     }
 }
 
@@ -162,6 +205,46 @@ impl CapturedValue for IntegerRange {
         let primitive = program.primitive_type_reference(parameter.type_reference)?;
         crate::values::bounds::declared_bounds(program, parameter.type_reference, primitive)
             .or_else(|| crate::values::bounds::primitive_range(primitive))
+    }
+
+    fn convert(self, conversion: &SelectedConversion) -> Option<Self> {
+        let carrier = crate::values::bounds::primitive_range(conversion.target)?;
+        // These branches mirror the cast arms of `bounds::evaluate`: widening
+        // is transparent, wrapping keeps the interval only inside the
+        // carrier, a representable normal return is the meet, and a partial
+        // exact conversion keeps the meet with its proved spelling range.
+        let bounds = match &conversion.kind {
+            ConversionKind::Widen => self,
+            ConversionKind::Wrapping => {
+                if crate::values::bounds::contains(&carrier, &self) {
+                    self
+                } else {
+                    carrier.clone()
+                }
+            }
+            ConversionKind::Trapping => Self {
+                minimum: self.minimum.max(carrier.minimum.clone()),
+                maximum: self.maximum.min(carrier.maximum.clone()),
+            },
+            ConversionKind::Saturating => {
+                let clamp = |endpoint: BigInt| {
+                    endpoint
+                        .max(carrier.minimum.clone())
+                        .min(carrier.maximum.clone())
+                };
+                Self {
+                    minimum: clamp(self.minimum),
+                    maximum: clamp(self.maximum),
+                }
+            }
+            ConversionKind::Exact(range) => Self {
+                minimum: self.minimum.max(range.minimum.clone()),
+                maximum: self.maximum.min(range.maximum.clone()),
+            },
+        };
+        // A meet that cannot denote a normal-return value, and any interval
+        // escaping the target carrier, fails the capture outright.
+        crate::values::bounds::contains(&carrier, &bounds).then_some(bounds)
     }
 }
 

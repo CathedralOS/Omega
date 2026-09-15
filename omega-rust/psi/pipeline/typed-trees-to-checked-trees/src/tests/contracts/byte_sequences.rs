@@ -539,6 +539,95 @@ fn mutable_formal_call_results_read_the_lent_places_incoming_value() {
 }
 
 #[test]
+fn converted_call_results_carry_their_conversion_bounds() {
+    // A selected call nested inside authored value conversions is still a
+    // selected call: each conversion's own law transforms the callee's
+    // captured result range, and the indexed write consumes the converted
+    // range. A conversion that cannot describe a normal-return byte, and a
+    // callee whose captured result escapes it, both fail closed.
+    for (definitions, statement, succeeds) in [
+        // Wrapping keeps a captured interval that already fits the carrier.
+        (
+            "machine digit(value: u64) -> u64 { value % 10 + 48 }",
+            "output[position] = ((digit(unknown) as u8 in Wrapping) as u8);",
+            true,
+        ),
+        // An interval inside the carrier but outside the predicate, and one
+        // that can actually wrap to the full carrier, both reject.
+        (
+            "machine digit(value: u64) -> u64 { value % 200 + 48 }",
+            "output[position] = ((digit(unknown) as u8 in Wrapping) as u8);",
+            false,
+        ),
+        (
+            "machine digit(value: u64) -> u64 { value % 300 + 48 }",
+            "output[position] = ((digit(unknown) as u8 in Wrapping) as u8);",
+            false,
+        ),
+        // Trapping keeps the representable meet; a result that need not be
+        // representable describes no normal-return byte.
+        (
+            "machine digit(value: u64) -> u64 { value % 10 + 48 }",
+            "output[position] = ((digit(unknown) as u8 in Trapping) as u8);",
+            true,
+        ),
+        (
+            "machine digit(value: u64) -> u64 { value }",
+            "output[position] = ((digit(unknown) as u8 in Trapping) as u8);",
+            false,
+        ),
+        // Saturating clamps the captured interval into the carrier.
+        (
+            "machine digit(value: u64) -> u64 { value % 10 + 48 }",
+            "output[position] = ((digit(unknown) as u8 in Saturating) as u8);",
+            true,
+        ),
+        (
+            "machine digit(value: u64) -> u64 { value % 200 + 48 }",
+            "output[position] = ((digit(unknown) as u8 in Saturating) as u8);",
+            false,
+        ),
+        // An effect-free nested Unit call inside the callee stays
+        // transparent; a real write footprint still retires the capture.
+        (
+            "machine observe(value: u64) {}
+             machine digit(value: u64) -> u64 { observe(value + 1); value % 10 + 48 }",
+            "output[position] = ((digit(unknown) as u8 in Wrapping) as u8);",
+            true,
+        ),
+        (
+            "machine poke(cell: &mut u64) { cell = 255; }
+             machine digit(value: u64) -> u64 { let mut scratch: u64 = 0; poke(&mut scratch); value % 10 + 48 }",
+            "output[position] = ((digit(unknown) as u8 in Wrapping) as u8);",
+            false,
+        ),
+        // A landed local keeps the converted bounds, and a same-carrier retag
+        // of a byte callee stays transparent.
+        (
+            "machine digit(value: u64) -> u64 { value % 10 + 48 }",
+            "let saved: u8 = ((digit(unknown) as u8 in Wrapping) as u8); output[position] = saved;",
+            true,
+        ),
+        (
+            "machine digit(value: u64) -> u8 { ((value % 10 + 48) as u8 in Wrapping) as u8 }",
+            "output[position] = (digit(unknown) as u8);",
+            true,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            {definitions}
+            machine write(output: &mut [u8; 4], position: u64 [0..=3], unknown: u64)
+            requires output in Ascii
+            ensures output in Ascii {{ {statement} }}
+            "#
+        );
+        check(&source, succeeds);
+    }
+}
+
+#[test]
 fn concatenation_uses_the_shared_predicate_law_without_domain_names() {
     for (predicate, literal, succeeds) in [
         ("ascii_only", "ascii", true),
