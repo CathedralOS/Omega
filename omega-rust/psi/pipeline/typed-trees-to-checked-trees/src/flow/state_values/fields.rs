@@ -2,6 +2,12 @@
 
 use super::*;
 use crate::field_domain::ByteSequencePredicate;
+use arena::HandleSpan;
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 
 #[cfg(test)]
 mod tests;

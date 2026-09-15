@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::expression::ExpressionHandle;
+use symbols::SymbolHandle;
 
 fn field(symbol: u32, literal: u32, predicates: Vec<ByteSequencePredicate>) -> FieldValue {
     FieldValue {

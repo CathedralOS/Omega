@@ -1,4 +1,14 @@
 use super::*;
+use crate::labels::semantic_contract_fact_kind;
+use arena::{Handle, HandleSpan};
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::{
+    ContractProofFactKind, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef,
+};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
+use symbols::SymbolHandle;
 
 pub(super) struct ResolvedOperatorStatementCall<'program> {
     pub(super) operator: &'program typed_trees::operator::OperatorDefinition,

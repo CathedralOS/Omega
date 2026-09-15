@@ -3,8 +3,9 @@
 //! qualified fields inside the selected case so borrow and Terminal consumers
 //! see the same Case/Field path; never repair a conflicting retained identity.
 
-use super::*;
 use crate::lookup::{first_valid_name_path_symbol, machine_by_symbol};
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 
 #[cfg(test)]
 mod tests;

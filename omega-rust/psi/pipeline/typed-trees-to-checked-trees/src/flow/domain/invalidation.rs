@@ -1,3 +1,7 @@
+use checked_trees::{
+    DomainFacts, FlowInvalidationFact, FlowInvalidationSource, FlowSemanticContextRef,
+};
+use facts::{FactPayload, FactPlace, FactPlan};
 mod matching;
 
 use super::*;

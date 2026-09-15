@@ -1,4 +1,8 @@
-use super::*;
+use arena::HandleSpan;
+use checked_trees::{
+    CheckedOperatorContractUse, CheckedOperatorFacts, ContractOperatorUseFact, ContractProofFact,
+    ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef,
+};
 
 pub(crate) fn build_contract_operator_use_facts(
     program: &typed_trees::TypedTrees,
@@ -89,10 +93,12 @@ fn append_contract_operator_use(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use checked_trees::expression::ExpressionHandle;
     use checked_trees::{
         CheckedOperatorCandidateFact, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
         CheckedValueOrigin,
     };
+    use symbols::SymbolHandle;
     use typed_trees::domain::ProofFact;
     use typed_trees::operator::OperatorDefinition;
     use typed_trees::signature::{SignatureContract, SignatureContractKind};

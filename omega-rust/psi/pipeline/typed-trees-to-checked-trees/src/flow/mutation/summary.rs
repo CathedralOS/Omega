@@ -8,6 +8,10 @@
 use super::local_origins::rebase_local_write_places;
 use super::*;
 use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
+use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
+use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StateMutationSummaryCache {

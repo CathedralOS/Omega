@@ -1,4 +1,12 @@
 use super::*;
+use arena::{Handle, HandleSpan};
+use checked_trees::statement::StatementNode;
+use checked_trees::{
+    BorrowFacts, DomainFacts, FlowBorrowActivationFact, FlowBorrowWeakeningReason, FlowCallFact,
+    FlowConstraintKind, FlowConstraintRef, FlowInvalidationSource, FlowSemanticContextRef,
+    FlowStatementFact, ProofFacts, StateBorrowFact,
+};
+use facts::{FactPlan, ProgramPoint};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_state_statement_flow_facts(

@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 
 /// Observing a place evaluates its address and calls, without moving the place.
 pub(in crate::flow::ownership) fn append(

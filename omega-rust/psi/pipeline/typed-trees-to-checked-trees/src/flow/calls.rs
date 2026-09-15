@@ -1,4 +1,12 @@
 use super::*;
+use arena::HandleSpan;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::{
+    BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
+    FlowSemanticContextRef, ProofFacts,
+};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
+use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_call_flow_fact(

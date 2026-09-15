@@ -1,5 +1,8 @@
-use super::*;
 use crate::flow::effective_member_symbol;
+use checked_trees::ContractCallFact;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use facts::FactPlan;
+use symbols::SymbolHandle;
 
 pub(crate) fn instantiate_call_contract_expression_place(
     program: &typed_trees::TypedTrees,

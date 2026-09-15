@@ -1,4 +1,8 @@
 use super::*;
+use arena::{Handle, HandleSpan};
+use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use facts::{FactPlan, ProgramPoint};
+use symbols::SymbolHandle;
 
 #[test]
 fn repeated_call_checking_retains_shared_context_storage() {

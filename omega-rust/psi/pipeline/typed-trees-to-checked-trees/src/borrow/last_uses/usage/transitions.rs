@@ -1,5 +1,5 @@
 use super::expressions::{expression_uses_local_name, expression_uses_symbol};
-use crate::context::*;
+use symbols::SymbolHandle;
 
 pub(super) fn transition_guard_uses_symbol(
     program: &typed_trees::TypedTrees,

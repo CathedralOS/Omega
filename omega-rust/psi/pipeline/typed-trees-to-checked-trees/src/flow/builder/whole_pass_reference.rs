@@ -2,6 +2,8 @@
 //! Kept test-only so scheduling changes can compare complete published evidence.
 
 use super::*;
+use checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
+use facts::{FactPlan, ProgramPoint};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_whole_pass_reference(

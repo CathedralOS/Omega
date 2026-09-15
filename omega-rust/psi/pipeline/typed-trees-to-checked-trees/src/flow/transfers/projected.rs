@@ -1,6 +1,10 @@
 //! Whole-place assignment transports live predicates on its contained fields.
 
 use super::*;
+use arena::HandleSpan;
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::ExpressionHandle;
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_copied_field_predicates(

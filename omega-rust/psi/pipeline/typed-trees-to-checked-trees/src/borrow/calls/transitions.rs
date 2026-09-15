@@ -1,4 +1,5 @@
 use super::*;
+use checked_trees::statement::TransitionTargetNode;
 
 pub(super) fn collect_transition_target_borrow_calls(
     collection: &mut BorrowCallCollection<'_>,

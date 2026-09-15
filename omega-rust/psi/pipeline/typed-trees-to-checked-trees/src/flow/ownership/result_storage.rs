@@ -2,6 +2,7 @@
 //! origins of references stored in that result or discharge its permissions.
 
 use super::*;
+use checked_trees::expression::ExpressionNode;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 

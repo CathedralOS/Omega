@@ -12,6 +12,10 @@
 //! expressions; those still require their selected normalization/equality proof.
 
 use super::*;
+use arena::HandleSpan;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence};
 
 impl Execution<'_, '_, '_> {
     pub(super) fn append_result_domains(

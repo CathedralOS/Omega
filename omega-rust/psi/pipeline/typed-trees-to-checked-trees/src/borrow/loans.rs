@@ -2,8 +2,12 @@ use crate::borrow::view_link::{
     ViewReturnSource, is_borrow_carrying_data, is_mutably_borrow_carrying_data,
     resolve_signature_view_return_source,
 };
-use crate::context::*;
 use crate::semantic_calls::find_state;
+use arena::Handle;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::name::Identifier;
+use checked_trees::statement::StatementNode;
+use symbols::SymbolHandle;
 
 use super::accesses::{self, borrow_access_place};
 use super::tracker::{BorrowOwnerSegment, StateLoanTracker};

@@ -1,4 +1,9 @@
 use super::*;
+use arena::HandleSpan;
+use checked_trees::{
+    BorrowCallFact, BorrowFacts, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef,
+};
+use facts::{FactPlan, ProgramPoint};
 
 mod invalidation;
 

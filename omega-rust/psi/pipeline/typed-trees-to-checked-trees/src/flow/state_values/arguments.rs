@@ -1,7 +1,12 @@
 //! Save one completed jump argument while its operand facts are still live.
 
 use super::*;
+use arena::HandleSpan;
 use checked_trees::CheckedScalarExpressionRole;
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::statement::StatementNode;
+use facts::FactPlan;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn capture_argument(

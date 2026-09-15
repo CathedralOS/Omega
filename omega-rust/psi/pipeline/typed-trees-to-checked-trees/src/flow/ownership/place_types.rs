@@ -1,4 +1,7 @@
 use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
+use symbols::SymbolHandle;
 
 pub(crate) fn expression_type_reference_in_state(
     program: &typed_trees::TypedTrees,

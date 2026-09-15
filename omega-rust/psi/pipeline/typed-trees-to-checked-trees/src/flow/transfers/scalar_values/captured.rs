@@ -1,8 +1,13 @@
 //! Payload evaluation for the shared selected-call custody walk.
 
 use super::*;
+use arena::HandleSpan;
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::ExpressionNode;
 use checked_trees::{CheckedScalarExpression, CheckedStructuralPredicatePathSegment};
+use facts::FactPlan;
 use facts::IntegerRange;
+use symbols::SymbolHandle;
 
 pub(super) struct LiveValues<'a, 'plans> {
     pub program: &'a typed_trees::TypedTrees,

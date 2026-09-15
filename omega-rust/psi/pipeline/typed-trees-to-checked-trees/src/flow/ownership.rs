@@ -1,4 +1,7 @@
 use super::*;
+use checked_trees::BorrowFacts;
+use checked_trees::statement::StatementNode;
+use symbols::SymbolHandle;
 
 mod calls;
 mod events;

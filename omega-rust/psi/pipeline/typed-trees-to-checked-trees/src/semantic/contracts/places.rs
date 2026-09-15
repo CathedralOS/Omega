@@ -1,8 +1,11 @@
-use crate::context::*;
 use crate::flow::effective_member_symbol;
 use crate::semantic_calls::call_target_parameters;
 use crate::semantic_places::{append_place_segment, resolve_place_member_symbol};
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofFacts};
 use facts::PlaceHandle;
+use facts::{FactPlace, FactPlan};
+use symbols::SymbolHandle;
 
 #[cfg(test)]
 mod tests;

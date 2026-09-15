@@ -1,4 +1,8 @@
 use super::*;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint};
+use symbols::SymbolHandle;
 
 fn integer_expression(program: &mut typed_trees::TypedTrees, value: i64) -> ExpressionHandle {
     program

@@ -1,8 +1,9 @@
+use crate::labels::semantic_proof_obligation_kind;
+use checked_trees::{CheckedTrees, ProofFacts};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
 mod contracts;
 mod field_domains;
 mod points;
-
-use crate::context::*;
 pub(crate) use crate::semantic_calls::{
     CallSite, call_site_argument_expressions, call_target_parameters, call_target_type_parameters,
     find_call_site, find_state, find_state_in_machine,

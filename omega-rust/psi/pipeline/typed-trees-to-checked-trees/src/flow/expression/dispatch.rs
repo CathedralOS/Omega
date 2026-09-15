@@ -3,6 +3,10 @@
 //! only unchanged stable inputs can publish branch-local comparison evidence.
 
 use super::*;
+use arena::HandleSpan;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::{FlowConstraintRef, FlowSemanticContextRef};
+use facts::{FactPayload, ProgramPoint};
 use typed_trees::expression::{MatchPattern, TableMatchExpression};
 
 impl Execution<'_, '_, '_> {

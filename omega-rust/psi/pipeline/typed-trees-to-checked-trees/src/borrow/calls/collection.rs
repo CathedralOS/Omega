@@ -1,5 +1,7 @@
-use super::*;
 use crate::borrow::accesses::collect_call_argument_accesses;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
+use symbols::SymbolHandle;
 
 pub(super) struct BorrowCallCollection<'a> {
     pub(super) program: &'a typed_trees::TypedTrees,

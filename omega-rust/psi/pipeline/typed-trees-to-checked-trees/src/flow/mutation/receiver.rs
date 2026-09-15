@@ -1,5 +1,7 @@
 use super::*;
 use crate::lookup::statement_call_receiver_members;
+use checked_trees::{BorrowCallFact, BorrowFacts};
+use symbols::SymbolHandle;
 
 pub(crate) fn call_receiver_is_mutable(
     program: &typed_trees::TypedTrees,

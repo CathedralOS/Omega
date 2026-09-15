@@ -1,5 +1,8 @@
 use super::symbols::{machine_by_symbol, machine_symbol_from_type_reference_handle};
-use super::*;
+use ::symbols::SymbolHandle;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
+use checked_trees::name::Identifier;
+use checked_trees::statement::TableCall;
 
 pub(crate) fn statement_call_can_dispatch_to_machine(
     program: &typed_trees::TypedTrees,

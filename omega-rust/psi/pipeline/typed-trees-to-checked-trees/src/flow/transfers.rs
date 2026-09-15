@@ -1,5 +1,13 @@
 use super::*;
+use arena::HandleSpan;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
+use checked_trees::{BorrowFacts, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 use facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdentity};
+use symbols::SymbolHandle;
 
 mod byte_sequences;
 mod constructed;

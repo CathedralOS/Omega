@@ -1,5 +1,11 @@
 use super::*;
 use crate::flow::mutation::close_storage_places_over_aliases_with_resolver;
+use arena::HandleSpan;
+use checked_trees::{
+    BorrowCallFact, BorrowFacts, DomainFacts, FlowConstraintRef, FlowInvalidationFact,
+    FlowInvalidationSource, FlowSemanticContextRef,
+};
+use facts::FactPlan;
 
 pub(in crate::flow) struct CallInvalidationResult {
     pub(in crate::flow) post_contexts: HandleSpan<FlowSemanticContextRef>,

@@ -1,4 +1,6 @@
-use crate::context::*;
+use crate::labels::semantic_contract_fact_kind;
+use checked_trees::ContractProofFact;
+use facts::FactPayload;
 
 pub(super) fn semantic_contract_payload(
     program: &typed_trees::TypedTrees,

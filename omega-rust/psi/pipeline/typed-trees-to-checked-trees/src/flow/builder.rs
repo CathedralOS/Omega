@@ -12,6 +12,8 @@
 //! This is not a generation-preserving suffix rollback into a live fact plan.
 
 use super::*;
+use checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
+use facts::{FactPlan, ProgramPoint};
 
 #[cfg(test)]
 pub(super) mod tests;

@@ -1,4 +1,4 @@
-use crate::context::*;
+use checked_trees::BorrowFacts;
 pub(crate) mod accesses;
 mod calls;
 mod last_uses;

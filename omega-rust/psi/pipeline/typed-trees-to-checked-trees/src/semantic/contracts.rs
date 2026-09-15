@@ -1,3 +1,12 @@
+use arena::HandleSpan;
+use checked_trees::{
+    ContractCallFact, ContractProofFact, ContractProofFactKind, ContractProofFactOwner,
+    ContractProofFactRef, ProofFacts,
+};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FactRef, ProgramPoint,
+    QualificationEvidence,
+};
 mod payload;
 mod places;
 #[cfg(test)]

@@ -1,5 +1,8 @@
 use super::*;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use records::append_argument_access;
+use symbols::SymbolHandle;
 
 pub(super) struct BorrowAccessCollection<'a> {
     pub(super) program: &'a typed_trees::TypedTrees,

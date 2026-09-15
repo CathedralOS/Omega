@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 
 fn typed_source(source: &str) -> typed_trees::TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)

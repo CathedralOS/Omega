@@ -1,4 +1,5 @@
-use crate::context::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 
 use super::super::tracker::BorrowOwnerSegment;
 

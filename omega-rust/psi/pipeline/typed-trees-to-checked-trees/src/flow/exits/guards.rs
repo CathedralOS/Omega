@@ -1,4 +1,11 @@
 use super::super::*;
+use arena::{Handle, HandleSpan};
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
+use symbols::SymbolHandle;
 use typed_trees::statement::TransitionGuardNode;
 
 #[allow(clippy::too_many_arguments)]

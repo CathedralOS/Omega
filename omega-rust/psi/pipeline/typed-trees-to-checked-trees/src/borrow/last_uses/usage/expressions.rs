@@ -1,5 +1,6 @@
-use crate::context::*;
 use crate::lookup::first_valid_name_path_symbol;
+use checked_trees::expression::ExpressionHandle;
+use symbols::SymbolHandle;
 
 pub(super) fn expression_uses_symbol(
     program: &typed_trees::TypedTrees,

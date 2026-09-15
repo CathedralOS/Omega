@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 
 pub(crate) fn relative_place_segments_from_expression(
     program: &typed_trees::TypedTrees,

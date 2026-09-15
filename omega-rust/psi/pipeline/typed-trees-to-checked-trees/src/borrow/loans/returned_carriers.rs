@@ -3,6 +3,8 @@
 
 use super::*;
 use crate::borrow::view_link::ViewReturnFieldSource;
+use checked_trees::expression::ExpressionHandle;
+use symbols::SymbolHandle;
 
 /// Follow finite call operands without collapsing carried source leaves into
 /// the single-place query used for bare reference inputs.

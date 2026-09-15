@@ -1,6 +1,8 @@
 //! Operation meaning required before call operands supply fixed storage coordinates.
 
 use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 
 pub(super) fn call_operands_have_builtin_coordinates(
     program: &typed_trees::TypedTrees,
