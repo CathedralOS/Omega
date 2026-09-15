@@ -89,14 +89,14 @@ pub(crate) fn lower_rebound_dynamic_unit_machine(
 pub(crate) fn lower_direct_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
-) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_dynamic_composed_unit_machine(checked, plan, DynamicLoweringLane::Direct)
 }
 
 pub(crate) fn lower_rebound_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedReboundDynamicScalarCallPlan,
-) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_dynamic_composed_unit_machine(
         checked,
         &plan.latest,
@@ -107,6 +107,6 @@ pub(crate) fn lower_rebound_dynamic_composed_unit_machine(
 pub(crate) fn lower_stored_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedStoredDynamicScalarCallPlan,
-) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_dynamic_composed_unit_machine(checked, &plan.call, DynamicLoweringLane::Stored(plan))
 }

@@ -1819,6 +1819,19 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 }
 
 #[test]
+fn expression_preparation_does_not_depend_on_machine_producers() {
+    let root = workspace_root()
+        .join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/expression_preparation");
+    let source = recursive_rust_source(&root);
+    for producer in ["scalar_graph", "unit", "returns", "machine_lowering"] {
+        assert!(
+            !source.contains(&format!("crate::{producer}::")),
+            "shared expression preparation must not depend on {producer} assembly"
+        );
+    }
+}
+
+#[test]
 fn first_psi_source_slice_stays_fail_closed() {
     let root = workspace_root();
     let source_root = root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src");

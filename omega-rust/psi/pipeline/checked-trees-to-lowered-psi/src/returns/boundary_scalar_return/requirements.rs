@@ -11,7 +11,7 @@ pub(crate) fn checked_requirements(
     plan: &CheckedBoundaryScalarReturnMachinePlan,
 ) -> Result<Vec<Option<ClosedScalarContractValue>>, LoweringError> {
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     let contract = checked
         .facts
         .contract_plans

@@ -27,7 +27,7 @@ pub(super) fn validate_establishment(
         return unsupported("reference establishment has no carrier producer");
     };
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, machine.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
     let position = validation::reference_result_custody::source_parameter(&checked.typed, state)
         .ok_or(LoweringError::Unsupported(
             "reference completion has no exact ingress source",
@@ -167,7 +167,7 @@ pub(super) fn validate_consumer(
         return Ok(false);
     };
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let record_result = caller.operations.iter().find_map(|operation| match operation {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
         | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
@@ -215,7 +215,7 @@ pub(super) fn validate_consumer(
     }
     super::structural_calls::validate_custody(checked, caller.machine, caller.state, producer)?;
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)

@@ -74,7 +74,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
     lane: DynamicLoweringLane<'_>,
-) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     let caller = match lane {
         DynamicLoweringLane::Direct => validate_exact_direct_plan(checked, plan)?,
         DynamicLoweringLane::Rebound(initial) => {
@@ -371,7 +371,7 @@ pub(crate) fn retain_dynamic_source_owners(
     realizations: &[LoweredDynamicRealization],
     helpers: &[ForwardedHelperIds],
     mut sources: Vec<(symbols::SymbolHandle, MachineId)>,
-) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     if !sources
         .iter()
         .any(|(source, _)| *source == plan.caller_machine)
@@ -394,5 +394,5 @@ pub(crate) fn retain_dynamic_source_owners(
             .map_or(machine, |transfer| transfer.caller_machine);
         sources.push((source, helper.machine));
     }
-    crate::machine_lowering::machine_dispatch::SourceMappedLowered::new(terminal, sources)
+    crate::producer_result::SourceMappedLowered::new(terminal, sources)
 }

@@ -46,7 +46,7 @@ pub(super) fn validate(
         .next()
         .is_none_or(|tail| tail.arms != *arms || tail.fallback != *fallback)
         || retained.next().is_some()
-        || crate::scalar_graph::scalar_source_custody::guarded_exits::validate(
+        || crate::expression_preparation::source_custody::guarded_exits::validate(
             checked,
             state.state,
             *arms,
@@ -145,7 +145,7 @@ pub(super) fn validate(
         {
             return unsupported("ordered return exchanged its destination or value custody");
         }
-        crate::unit::attached_unit::structural_values::source_custody::validate(
+        crate::expression_preparation::source_custody::structural::validate(
             checked,
             plan.machine,
             state.state,
@@ -332,7 +332,7 @@ fn emit_return(
             "ordered return value was not established",
         ))?;
     let (_, source_state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
     // A selected result participates in the cleanup correspondence even though
     // the return transfers it rather than discarding it.
     let mut discards = vec![(source, false)];

@@ -95,7 +95,7 @@ pub(crate) fn validate_assignment(
     value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state_symbol)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let parameter = checked
         .state_parameters(state)
         .get(destination.position as usize)
@@ -122,7 +122,7 @@ pub(crate) fn validate_symbol_assignment(
 ) -> Result<(), LoweringError> {
     use checked_trees::{expression::ExpressionNode, statement::StatementNode};
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state_symbol)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let Some(StatementNode::Assignment(assignment)) = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -170,7 +170,7 @@ pub(crate) fn validate_symbol_assignment(
             {
                 return unsupported("primitive store RHS computation has different custody");
             }
-            let source = crate::scalar_graph::scalar_source_custody::locate(
+            let source = crate::expression_preparation::source_custody::locate(
                 checked,
                 state_symbol,
                 statement_index,
@@ -207,7 +207,7 @@ pub(crate) fn validate_symbol_assignment(
             {
                 return unsupported("primitive store computation differs from its authored RHS");
             }
-            crate::scalar_graph::scalar_source_custody::validate_computation_calls(
+            crate::expression_preparation::source_custody::validate_computation_calls(
                 checked,
                 machine.symbol,
                 state_symbol,
@@ -215,7 +215,7 @@ pub(crate) fn validate_symbol_assignment(
                 *handle,
                 assignment.value,
             )?;
-            return crate::scalar_graph::scalar_source_custody::value_correspondence::validate(
+            return crate::expression_preparation::source_custody::value_correspondence::validate(
                 checked,
                 state_symbol,
                 statement_index,
@@ -251,7 +251,7 @@ pub(crate) fn validate_symbol_assignment(
     {
         return unsupported("primitive store RHS differs from its authored assignment");
     }
-    crate::scalar_graph::scalar_source_custody::validate_namespace(checked, binding)
+    crate::expression_preparation::source_custody::validate_namespace(checked, binding)
 }
 
 pub(crate) fn emit(

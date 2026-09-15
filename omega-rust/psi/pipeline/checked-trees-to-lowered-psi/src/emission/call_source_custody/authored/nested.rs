@@ -15,7 +15,7 @@ pub(crate) fn authored_postorder(
     statement_index: u32,
 ) -> Result<Vec<(u32, ExpressionHandle)>, LoweringError> {
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let statement = statements
         .get(statement_index as usize)
@@ -135,7 +135,7 @@ pub(crate) fn authored_postorder(
                     )?;
                 } else {
                     let (owner, target) =
-                        crate::scalar_graph::scalar_source_custody::authored_state(
+                        crate::expression_preparation::source_custody::authored_state(
                             checked,
                             call.target_symbol,
                         )?;

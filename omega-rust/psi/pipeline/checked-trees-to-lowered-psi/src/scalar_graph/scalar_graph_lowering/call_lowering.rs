@@ -4,11 +4,11 @@ use crate::emission::expression_validation::validate_direct_parameter_types;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::calls::{LoweredDirectCallBinding, ScalarCallCrashScope};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::scalar_bindings as storage;
+use crate::expression_preparation::bindings as storage;
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
+use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
 use crate::scalar_graph::scalar_graph_lowering::structural_values;
-use crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications;
-use crate::scalar_graph::scalar_source_custody as source_custody;
 use crate::scalar_graph::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
     QualifiedScalarType, StructuralAccess, StructuralArgument, StructuralPathSegment,

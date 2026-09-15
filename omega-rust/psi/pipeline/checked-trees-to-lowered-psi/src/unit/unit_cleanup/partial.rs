@@ -19,7 +19,7 @@ pub(crate) use anonymous::validate_permissions as validate_anonymous_partial_per
 pub(super) fn lower_partial_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
-) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     let plan = &partial.machine;
     if checked
         .facts
@@ -168,7 +168,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     if anonymous {
         anonymous::validate(checked, partial)?;
         let (source_machine, source_state) =
-            crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+            crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
         if source_machine.symbol != plan.machine
             || checked
                 .statement_table

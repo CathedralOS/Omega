@@ -10,8 +10,8 @@ use super::super::{
     allocate_dense, emit_direct_expression, place_id,
 };
 use super::{
-    CheckedScalarComputationKind, CheckedTrees, Computation, LoweringError, ScalarType,
-    unsupported, validate_direct_parameter_types,
+    CheckedScalarComputationKind, CheckedTrees, LoweringError, ScalarType, unsupported,
+    validate_direct_parameter_types,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -26,26 +26,6 @@ pub(crate) struct Slot {
     pub(super) structural_type: StructuralTypeId,
     pub(super) leaf_type: ScalarType,
     pub(super) leaf_count: u64,
-}
-
-pub(crate) fn extend_elements(
-    plans: &checked_trees::CheckedScalarComputationPlans,
-    arguments: &[CheckedScalarComputationStructuralArgument],
-    pending: &mut Vec<Computation>,
-) -> Result<(), LoweringError> {
-    for argument in arguments {
-        if let CheckedScalarComputationStructuralArgument::Array { elements, .. } = argument {
-            pending.extend(
-                plans
-                    .operands
-                    .span(*elements)
-                    .ok_or(LoweringError::Unsupported(
-                        "computed array elements have a stale span",
-                    ))?,
-            );
-        }
-    }
-    Ok(())
 }
 
 pub(crate) fn prepare(

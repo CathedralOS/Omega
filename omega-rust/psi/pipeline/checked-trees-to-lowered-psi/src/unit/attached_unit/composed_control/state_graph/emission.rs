@@ -258,12 +258,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         )?;
         evaluation.scalar_bindings = Some(bindings.clone());
         evaluation.structural_fields =
-            crate::scalar_graph::scalar_bindings::StructuralScalarFieldBinding::collect(
+            crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
                 &evaluation.structural_parameters,
                 &catalogs.structural_types,
             );
         evaluation.structural_cases =
-            crate::scalar_graph::scalar_bindings::structural_cases::StructuralCaseBinding::collect(
+            crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding::collect(
                 &evaluation.structural_parameters,
                 &catalogs.structural_types,
             );

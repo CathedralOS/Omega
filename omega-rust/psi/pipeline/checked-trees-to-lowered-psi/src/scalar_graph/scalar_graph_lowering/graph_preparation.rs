@@ -5,6 +5,7 @@ use crate::emission::expression_validation::validate_direct_parameter_types;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_computations as computations;
 use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_scalar_graph_successor;
 use crate::scalar_graph::scalar_graph_lowering::contract_lowering::{
@@ -20,7 +21,6 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
 use crate::scalar_graph::scalar_graph_lowering::{
     bindings, branch_destinations, cycles, guards, structural_values,
 };
-use crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::{
     CheckedScalarBranchDestination, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
     CheckedScalarStateTerminator, CheckedTrees, ClosedScalarContractValue, LoweringError,

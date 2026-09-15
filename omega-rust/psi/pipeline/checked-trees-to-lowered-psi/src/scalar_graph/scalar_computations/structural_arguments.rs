@@ -20,7 +20,7 @@ pub(super) fn lower(
             target_machine,
         )?;
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, target_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, target_state)?;
     if target.entry_state()? != target_state
         || target.structural_parameters().len() != arguments.len()
         || !target.entry_claims().is_empty()

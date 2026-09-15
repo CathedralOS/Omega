@@ -25,8 +25,8 @@ use crate::emission::expression_validation::{
 };
 use crate::emission::operation_emission::emit_direct_expression;
 use crate::emission::scalar_types::terminal_scalar_type;
+use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::scalar_graph::scalar_graph_lowering::lower_checked_scalar_expression;
 use crate::terminal_identities::{
     allocate_dense, obligation_id, place_id, structural_type_id, value_id,
 };

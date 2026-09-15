@@ -9,7 +9,8 @@ pub(crate) fn discards_result(
     state: symbols::SymbolHandle,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> Result<bool, LoweringError> {
-    let (_, source) = crate::scalar_graph::scalar_source_custody::authored_state(checked, state)?;
+    let (_, source) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let statement = checked
         .statement_table
         .statements(source.statement_nodes)
@@ -32,7 +33,7 @@ pub(crate) fn validate_discarded_structural(
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let Some(StatementNode::Call(call)) = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -72,7 +73,7 @@ pub(crate) fn validate_structural(
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     if coordinate.call_ordinal != 0 {
         let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
         let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
@@ -192,7 +193,7 @@ pub(crate) fn validate(
     coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> Result<(), LoweringError> {
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     if coordinate.call_ordinal == 0
         && matches!(checked.statement_table.statements(state.statement_nodes)
             .get(coordinate.statement_index as usize), Some(StatementNode::Call(call)) if call.discards_result)

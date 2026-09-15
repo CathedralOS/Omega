@@ -203,7 +203,7 @@ fn indexed_primitive_read_receiver_rejects_changed_source_path() {
         *path.last_mut().unwrap() =
             checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index);
         assert!(
-            crate::scalar_graph::scalar_source_custody::validate_storage_read_expression(
+            crate::expression_preparation::source_custody::validate_storage_read_expression(
                 &checked,
                 binding.state,
                 binding.statement_ordinal,

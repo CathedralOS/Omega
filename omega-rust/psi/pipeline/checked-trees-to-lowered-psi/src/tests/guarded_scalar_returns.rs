@@ -1,7 +1,7 @@
 use super::{checked_source, lower_machine};
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_machine;
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
-use crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications;
 use crate::terminal_identities::machine_id;
 use checked_trees::types::PrimitiveType;
 use terminal_psi::{OperationKind, Terminator};
@@ -103,7 +103,8 @@ fn unconditional_scalar_return_cannot_replace_or_omit_an_authored_guard() {
         .find(|plan| plan.scalar_control.is_some())
         .unwrap();
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(&checked, plan.state).unwrap();
+        crate::expression_preparation::source_custody::authored_state(&checked, plan.state)
+            .unwrap();
     let statement_count = checked
         .statement_table
         .statements(state.statement_nodes)

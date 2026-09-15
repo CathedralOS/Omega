@@ -84,7 +84,7 @@ pub(crate) fn validate_linear_result_consumer(
     }
     super::validate_custody(checked, machine, state, producer)?;
     super::validate_custody(checked, machine, state, operation)?;
-    let (_, producer_state) = crate::scalar_graph::scalar_source_custody::authored_state(
+    let (_, producer_state) = crate::expression_preparation::source_custody::authored_state(
         checked,
         *producer_target_state,
     )?;
@@ -104,7 +104,7 @@ pub(crate) fn validate_linear_result_consumer(
         result,
     )?;
     let (_, source_state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(source_state.statement_nodes)
@@ -351,7 +351,7 @@ pub(crate) fn validate_usage(
             // A selection carries both the chosen source and its complement.
             // This replaces each candidate's old unconditional death, without
             // claiming that every arm moves that candidate into the result.
-            super::super::structural_values::source_custody::validate(
+            crate::expression_preparation::source_custody::structural::validate(
                 checked,
                 caller.machine,
                 caller.state,
@@ -372,7 +372,7 @@ pub(crate) fn validate_usage(
             let result_local_symbol = checked
                 .statement_table
                 .statements(
-                    crate::scalar_graph::scalar_source_custody::authored_state(
+                    crate::expression_preparation::source_custody::authored_state(
                         checked,
                         caller.state,
                     )?
@@ -446,8 +446,10 @@ pub(crate) fn validate_usage(
                 .owned_selection_at(caller.state, destination.statement_index)
                 .is_none()
         {
-            let (_, state) =
-                crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+            let (_, state) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                caller.state,
+            )?;
             if let Some(StatementNode::LocalData(local)) = checked
                 .statement_table
                 .statements(state.statement_nodes)
@@ -537,8 +539,10 @@ pub(crate) fn validate_usage(
                 }
                 continue;
             }
-            let (_, state) =
-                crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+            let (_, state) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                caller.state,
+            )?;
             let reference_record_end = validation::reference_result_custody::local_record_loans(
                 &checked.typed,
                 &checked.facts,
@@ -826,7 +830,7 @@ pub(crate) fn validate_consumer(
         .any(|(_, expression)| expression_producer(checked, *expression).is_some());
     validate_nested_execution_order(checked, caller, coordinate.statement_index, authored_nested)?;
     let (source_machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     for (index, (argument, parameter)) in structural_arguments
         .iter()
@@ -957,7 +961,7 @@ pub(crate) fn validate_consumer(
                 // A literal has no local symbol. Its call occurrence and formal
                 // position own the constructor even when it has no leaf values.
                 let (source_expression, source_type) =
-                    super::super::scalar_arrays::construction_expression(
+                    crate::expression_preparation::source_custody::array_sources::construction_expression(
                         checked,
                         caller.machine,
                         caller.state,
@@ -1058,7 +1062,7 @@ pub(crate) fn validate_consumer(
                         && !(validation::is_closed_primitive_array_type(
                             &checked.typed,
                             local.type_reference,
-                        ) || super::super::structural_values::plain_record(
+                        ) || crate::expression_preparation::source_custody::structural::plain_record(
                             checked,
                             local.type_reference,
                         )))
@@ -1294,7 +1298,7 @@ fn validate_nested_execution_order(
         .eq(expected.iter().filter_map(|(ordinal, expression)| {
             if *ordinal != 0
                 && let ExpressionNode::Call(call) = checked.expression_table.expression(*expression)
-                && crate::scalar_graph::scalar_source_custody::authored_state(
+                && crate::expression_preparation::source_custody::authored_state(
                     checked,
                     call.target_symbol,
                 )

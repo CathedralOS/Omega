@@ -5,7 +5,7 @@ use super::super::{
     BTreeSet, ByteSequenceCarrier, CheckedUnitEntryClaimPlan, CheckedUnitStructuralPathSegment,
     ClaimId, PermissionClaimIdentity, ServiceId, ServiceReachId, ServiceReachInterface,
     ServiceReachPlan, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
 use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, Multiplicity, PlaceId, ScalarType,
@@ -14,6 +14,7 @@ use super::{
     allocate_dense, lookup_claim_id, lookup_domain_id, lookup_service_id, lookup_type_id, place_id,
     require_valid_service_row, terminal_scalar_type, unsupported,
 };
+use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 mod service_forward;
 mod source_path;
 pub(crate) use source_path::{expression_producer, source_path, source_place_path};
@@ -1037,22 +1038,6 @@ fn structural_result_source(
         return unsupported("Unit structural result argument disagrees with its producer cleanup");
     }
     Ok(source)
-}
-
-pub(crate) fn lower_structural_path(
-    path: &[CheckedUnitStructuralPathSegment],
-) -> Vec<StructuralPathSegment> {
-    path.iter()
-        .map(|segment| match segment {
-            CheckedUnitStructuralPathSegment::Referent => StructuralPathSegment::Referent,
-            CheckedUnitStructuralPathSegment::Field(identity) => {
-                StructuralPathSegment::Field(identity.clone())
-            }
-            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                StructuralPathSegment::FixedIndex(*index)
-            }
-        })
-        .collect()
 }
 
 pub(crate) fn lower_projected_qualifications(

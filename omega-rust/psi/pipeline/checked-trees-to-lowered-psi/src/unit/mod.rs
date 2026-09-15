@@ -40,11 +40,10 @@ use terminal_psi::{
     StructuralCaseDeclaration, StructuralCaseSuccessorEdge, StructuralDomainDeclaration,
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalBlockNaturalRank,
-    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalNaturalCycle,
-    TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalBlockNaturalRank, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
     program_local_root_introduction_compatibility_report_identity,
 };
 use terminal_verifier::{ObligationEvidence, ProofBundle};
@@ -63,6 +62,10 @@ use crate::emission::operation_emission::{
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
 };
+use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
+use crate::expression_preparation::prepare_expression::{
+    lower_checked_scalar_expression, lower_checked_scalar_expression_at,
+};
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{
@@ -78,9 +81,6 @@ use crate::returns::structural_types::{
     terminal_byte_sequence_carrier, terminal_structural_field_type,
 };
 use crate::scalar_graph::scalar_carriers;
-use crate::scalar_graph::scalar_graph_lowering::{
-    lower_checked_scalar_expression, lower_checked_scalar_expression_at,
-};
 use crate::terminal_identities::{
     TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
     boundary_machine_id, claim_id, contract_id, dense_identity, edge_id, lookup_claim_id,
@@ -91,8 +91,8 @@ use crate::terminal_identities::{
 use crate::unit::attached_unit::{
     checked_unit_call_closure_including, checked_unit_target_reach_matches,
     collect_service_summary, lower_installation_machine_service_ceiling,
-    lower_nominal_cleanup_closure, lower_root_service_reach, lower_structural_path,
-    lower_unit_effect_closure, lower_unit_parameters, unique_unit_machine,
+    lower_nominal_cleanup_closure, lower_root_service_reach, lower_unit_effect_closure,
+    lower_unit_parameters, unique_unit_machine,
 };
 
 pub(crate) mod attached_unit;

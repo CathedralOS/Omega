@@ -35,7 +35,7 @@ pub(super) fn validate_call_source(
         *coordinate,
     )?;
     let (source_machine, source_state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     if source_machine.symbol != caller.machine
         || *target_machine != target.source_machine()
         || *target_state != target.entry_state()?
@@ -246,7 +246,7 @@ fn validate_constructed_local(
         return unsupported("scalar wrapper local is not a whole declared record");
     }
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)

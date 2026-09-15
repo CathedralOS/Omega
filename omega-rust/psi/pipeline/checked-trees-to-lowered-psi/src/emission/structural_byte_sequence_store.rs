@@ -36,7 +36,7 @@ pub(crate) fn validate_assignment(
     store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
 ) -> Result<(), LoweringError> {
     let (owner, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state_symbol)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     if owner.symbol != machine {
         return unsupported("byte-field store has a different authored machine");
     }

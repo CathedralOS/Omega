@@ -11,7 +11,6 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::statement::{StatementNode, TableLocalData};
 
-pub(crate) mod borrows;
 pub(super) mod unit_calls;
 
 pub(crate) struct PrimitiveLocal {
@@ -27,7 +26,7 @@ pub(crate) fn source<'checked>(
     before: u32,
 ) -> Result<&'checked TableLocalData, LoweringError> {
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     let mut matches = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -67,7 +66,7 @@ pub(crate) fn validate_roster(
     plan: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     for (ordinal, statement) in checked
         .statement_table
         .statements(state.statement_nodes)
@@ -146,7 +145,7 @@ pub(crate) fn validate_roster(
         {
             return unsupported("primitive local substituted its initializer");
         }
-        crate::scalar_graph::scalar_source_custody::validate_pure(
+        crate::expression_preparation::source_custody::validate_pure(
             checked,
             binding,
             terminal_scalar_type(*primitive_type)?,
@@ -170,7 +169,7 @@ pub(super) fn validate_argument_source(
     };
     let local = source(checked, plan, symbol, coordinate.statement_index)?;
     let (machine, _) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     let (root, path, access) =
         parameters::source_path(checked, machine, local.type_reference, expression)?;
     if root != symbol
@@ -186,7 +185,7 @@ pub(super) fn validate_argument_source(
     {
         return unsupported("primitive local argument substituted its authored borrow");
     }
-    borrows::validate(
+    crate::expression_preparation::source_custody::borrow_occurrences::validate(
         checked,
         plan,
         coordinate,

@@ -1,6 +1,6 @@
 use super::super::super::OperationKind;
 use super::super::CheckedScalarComputationKind;
-use super::CheckedTrees;
+use checked_trees::CheckedTrees;
 use checked_trees::expression::ExpressionNode;
 
 fn checked(source: &str) -> CheckedTrees {

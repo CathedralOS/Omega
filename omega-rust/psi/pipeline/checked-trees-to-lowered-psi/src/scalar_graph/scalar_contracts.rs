@@ -105,8 +105,9 @@ fn strict_result_bound(left: ScalarTerm, right: ScalarTerm) -> Proposition {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{IntegerSign, IntegerType, ScalarType};
+    use super::super::{IntegerType, ScalarType};
     use super::{Proposition, ScalarTerm, strict_result_bound};
+    use semantic_vocabulary::IntegerSign;
     use semantic_vocabulary::ValueId;
 
     mod parameter_namespace;

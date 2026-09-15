@@ -67,7 +67,7 @@ pub(crate) fn requires_shared_catalog(
             !state.structural_parameters.is_empty()
                 || !state.primitive_locals.is_empty()
                 || !state.unit_operations.is_empty()
-        }) || !crate::scalar_graph::scalar_computations::structural_call_targets(
+        }) || !crate::expression_preparation::computation_graph::structural_call_targets(
             checked, machine,
         )?
         .is_empty()
@@ -306,7 +306,7 @@ pub(crate) fn lower_scalar_call_closure(
     closure: &[symbols::SymbolHandle],
 ) -> Result<LoweredPsi, LoweringError> {
     let qualifications =
-        crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications::prepare(
+        crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
             checked, closure,
         )?;
     let prepared = closure

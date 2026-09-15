@@ -74,13 +74,14 @@ pub(super) fn discover(
         }
         for machine_symbol in &closure {
             let computed_structural_roots =
-                crate::scalar_graph::scalar_computations::structural_call_targets(
+                crate::expression_preparation::computation_graph::structural_call_targets(
                     checked,
                     *machine_symbol,
                 )?;
-            for target in
-                crate::scalar_graph::scalar_computations::call_targets(checked, *machine_symbol)?
-            {
+            for target in crate::expression_preparation::computation_graph::call_targets(
+                checked,
+                *machine_symbol,
+            )? {
                 if computed_structural_roots.contains(&target) {
                     CheckedScalarCallee::find_for_unit_call(checked, target)?;
                     if !structural_scalar_roots.contains(&target) {

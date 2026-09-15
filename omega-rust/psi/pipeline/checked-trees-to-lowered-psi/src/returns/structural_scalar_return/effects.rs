@@ -13,7 +13,7 @@ pub(super) fn validate(
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<bool, LoweringError> {
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     if machine.symbol != plan.machine {
         return unsupported("scalar return effects have a different authored machine");
     }
@@ -300,7 +300,7 @@ pub(super) fn validate(
     {
         return unsupported("primitive store return result differs from its authored expression");
     }
-    crate::scalar_graph::scalar_source_custody::validate_namespace(checked, binding)?;
+    crate::expression_preparation::source_custody::validate_namespace(checked, binding)?;
     Ok(true)
 }
 

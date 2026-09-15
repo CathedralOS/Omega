@@ -66,7 +66,7 @@ fn selected_roots(
             if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } =
                 operation
             {
-                crate::unit::attached_unit::structural_values::source_custody::validate(
+                crate::expression_preparation::source_custody::structural::validate(
                     checked,
                     machine,
                     state.state,

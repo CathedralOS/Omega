@@ -5,6 +5,10 @@ use checked_trees::{
 };
 
 use crate::lowering_error::LoweringError;
+use crate::producer_result::{
+    ConformancePublication, DebugPublication, LoweredSelectedMachine, LoweringCompletion,
+    OperandProofCompletion, SourceMappedLowered, SourceMapping,
+};
 use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::returns::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::returns::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
@@ -29,74 +33,6 @@ use crate::unit::unit_cleanup::{
     lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
 };
 use lowered_psi::LoweredPsi;
-
-/// Work remaining after a producer has assembled its machines.
-#[derive(Default)]
-pub(crate) struct LoweringCompletion {
-    pub(crate) conformances: ConformancePublication,
-    pub(crate) finalize_operands: bool,
-    pub(crate) omit_debug: bool,
-    /// The scalar closure producer allocates machine IDs in source closure order.
-    pub(crate) scalar_source_order: bool,
-}
-
-#[derive(Default)]
-pub(crate) enum ConformancePublication {
-    #[default]
-    Reconstruct,
-    ExactRoot,
-    BoundedRoot,
-    BoundedModule,
-}
-
-pub(crate) struct LoweredSelectedMachine {
-    pub(crate) terminal: LoweredPsi,
-    /// Checked source closure selected by the producer; not inferred from emitted ordinals.
-    pub(crate) source_machines: Vec<symbols::SymbolHandle>,
-    pub(crate) completion: LoweringCompletion,
-    pub(crate) exact_sources: Option<Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>>,
-}
-
-pub(crate) struct SourceMappedLowered {
-    pub(crate) terminal: LoweredPsi,
-    /// Exact catalog owners, ordered by the emitted machine table.
-    pub(crate) source_machine_ids: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
-}
-
-impl SourceMappedLowered {
-    pub(crate) fn new(
-        terminal: LoweredPsi,
-        sources: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
-    ) -> Result<Self, LoweringError> {
-        if sources.len() != terminal.semantic_module.machines.len()
-            || sources.iter().enumerate().any(|(index, (source, id))| {
-                sources[..index]
-                    .iter()
-                    .any(|(prior_source, prior_id)| prior_source == source || prior_id == id)
-            })
-        {
-            return unsupported("source owners do not match the exact machine catalog");
-        }
-        let source_machine_ids = terminal
-            .semantic_module
-            .machines
-            .iter()
-            .map(|machine| {
-                sources
-                    .iter()
-                    .find(|(_, id)| *id == machine.id)
-                    .copied()
-                    .ok_or(LoweringError::Unsupported(
-                        "emitted machine has no exact source owner",
-                    ))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self {
-            terminal,
-            source_machine_ids,
-        })
-    }
-}
 
 pub fn select_terminal_machine<'checked>(
     checked: &'checked CheckedTrees,
@@ -147,7 +83,7 @@ fn selected_machine(
         terminal: terminal?,
         source_machines,
         completion,
-        exact_sources: None,
+        source_mapping: SourceMapping::EntryOnly,
     })
 }
 
@@ -164,7 +100,7 @@ fn source_mapped_machine(
             .map(|(source, _)| *source)
             .collect(),
         completion,
-        exact_sources: Some(lowered.source_machine_ids),
+        source_mapping: SourceMapping::ExactCatalog(lowered.source_machine_ids),
     })
 }
 
@@ -443,7 +379,7 @@ pub(crate) fn lower_selected_machine(
         return selected_machine(
             lower_nominal_affine_unit_cleanup_machine(checked, plan),
             LoweringCompletion {
-                finalize_operands: true,
+                operands: OperandProofCompletion::Finalize,
                 ..Default::default()
             },
             vec![selection.machine],
@@ -476,8 +412,8 @@ pub(crate) fn lower_selected_machine(
         return source_mapped_machine(
             lower_partial_affine_unit_cleanup_machine(checked, plan),
             LoweringCompletion {
-                finalize_operands: true,
-                omit_debug: true,
+                operands: OperandProofCompletion::Finalize,
+                debug: DebugPublication::Omit,
                 ..Default::default()
             },
         );
@@ -500,7 +436,7 @@ pub(crate) fn lower_selected_machine(
                 .map(|(source, _)| *source)
                 .collect(),
             completion: LoweringCompletion::default(),
-            exact_sources: Some(lowered.source_machine_ids),
+            source_mapping: SourceMapping::ExactCatalog(lowered.source_machine_ids),
         });
     }
     if let Some(plan) = checked
@@ -555,7 +491,7 @@ pub(crate) fn lower_selected_machine(
         return selected_machine(
             crate::returns::affine_return::lower_affine_return_machine(checked, selection.machine),
             LoweringCompletion {
-                omit_debug: true,
+                debug: DebugPublication::Omit,
                 ..Default::default()
             },
             vec![selection.machine],
@@ -588,10 +524,10 @@ pub(crate) fn lower_selected_machine(
                 .map(|(source, _)| *source)
                 .collect(),
             completion: LoweringCompletion {
-                omit_debug: true,
+                debug: DebugPublication::Omit,
                 ..Default::default()
             },
-            exact_sources: Some(composed.source_machine_ids),
+            source_mapping: SourceMapping::ExactCatalog(composed.source_machine_ids),
         });
     }
     if let Some(plan) = checked
@@ -632,8 +568,8 @@ pub(crate) fn lower_selected_machine(
         return source_mapped_machine(
             lower_unit_effect_closure(checked, selection.machine),
             LoweringCompletion {
-                finalize_operands: true,
-                omit_debug: true,
+                operands: OperandProofCompletion::Finalize,
+                debug: DebugPublication::Omit,
                 ..Default::default()
             },
         );
@@ -652,8 +588,8 @@ pub(crate) fn lower_selected_machine(
             return source_mapped_machine(
                 lower_unit_effect_closure(checked, selection.machine),
                 LoweringCompletion {
-                    finalize_operands: true,
-                    omit_debug: true,
+                    operands: OperandProofCompletion::Finalize,
+                    debug: DebugPublication::Omit,
                     ..Default::default()
                 },
             );
@@ -680,8 +616,7 @@ pub(crate) fn lower_selected_machine(
         return source_mapped_machine(
             crate::unit::attached_unit::lower_scalar_effect_closure(checked, selection.machine),
             LoweringCompletion {
-                finalize_operands: true,
-                scalar_source_order: true,
+                operands: OperandProofCompletion::Finalize,
                 ..Default::default()
             },
         );
@@ -692,15 +627,15 @@ pub(crate) fn lower_selected_machine(
     } else {
         lower_scalar_call_closure(checked, &closure)
     };
-    selected_machine(
-        terminal,
-        LoweringCompletion {
-            finalize_operands: true,
-            scalar_source_order: true,
+    Ok(LoweredSelectedMachine {
+        terminal: terminal?,
+        completion: LoweringCompletion {
+            operands: OperandProofCompletion::Finalize,
             ..Default::default()
         },
-        closure,
-    )
+        source_machines: closure,
+        source_mapping: SourceMapping::ScalarClosureOrder,
+    })
 }
 
 fn joined_source_machines(

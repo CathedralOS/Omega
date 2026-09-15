@@ -365,7 +365,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph guard has no exact source binding",
                     ))?;
-                crate::scalar_graph::scalar_source_custody::validate_pure(
+                crate::expression_preparation::source_custody::validate_pure(
                     checked,
                     binding,
                     ScalarType::Boolean,

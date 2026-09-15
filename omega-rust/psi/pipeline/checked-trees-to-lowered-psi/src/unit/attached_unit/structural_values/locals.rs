@@ -41,7 +41,7 @@ pub(crate) fn bind_local(
         _ => return Ok(()),
     };
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, machine.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)

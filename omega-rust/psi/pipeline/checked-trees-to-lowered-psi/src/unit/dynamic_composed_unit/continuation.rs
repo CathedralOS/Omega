@@ -39,7 +39,7 @@ pub(super) fn lower(
     continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
     caller: DynamicCallerShape,
     lane: DynamicLoweringLane<'_>,
-) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     if plan.caller_structural_scalar_field_store.is_some() {
         return unsupported(
             "direct dynamic result control cannot also retain a caller field store",

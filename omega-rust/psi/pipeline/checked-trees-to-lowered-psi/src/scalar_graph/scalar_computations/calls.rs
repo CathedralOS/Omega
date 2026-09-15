@@ -205,8 +205,10 @@ impl Expansion<'_> {
             self.checked,
             target_machine,
         )?;
-        let (_, source_state) =
-            crate::scalar_graph::scalar_source_custody::authored_state(self.checked, target_state)?;
+        let (_, source_state) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            target_state,
+        )?;
         let parameters = callee.structural_parameters();
         let mut scalar_ordinal = 0usize;
         let mut structural_ordinal = 0usize;
@@ -256,7 +258,10 @@ impl Expansion<'_> {
                             "computed case has no reserved structural result",
                         ))?
                         .clone();
-                    let retained = cases::fields(self.checked, subject)?;
+                    let retained = crate::expression_preparation::computation_graph::fields(
+                        self.checked,
+                        subject,
+                    )?;
                     if retained.len() != slot.fields.len()
                         || retained
                             .iter()

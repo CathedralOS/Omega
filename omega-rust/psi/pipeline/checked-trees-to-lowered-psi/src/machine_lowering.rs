@@ -20,8 +20,10 @@ use lowered_psi::{CallbackTerminalLoweringReceipt, LoweredCallbackPsi, LoweredPs
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::machine_lowering::debug_map::build_debug_map;
 use crate::machine_lowering::machine_dispatch::{
-    ConformancePublication, LoweredSelectedMachine, lower_selected_machine,
-    select_terminal_machine, select_terminal_machine_by_symbol,
+    lower_selected_machine, select_terminal_machine, select_terminal_machine_by_symbol,
+};
+use crate::producer_result::{
+    ConformancePublication, DebugPublication, LoweredSelectedMachine, OperandProofCompletion,
 };
 use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
 use crate::proofs::float_meaning_projection::{
@@ -105,14 +107,14 @@ fn lower_terminal_selection(
         terminal: mut lowered,
         completion,
         source_machines,
-        exact_sources,
+        source_mapping,
     } = lower_selected_machine(checked, selection)?;
-    let has_exact_source_owners = exact_sources.is_some();
+    let has_exact_source_owners = source_mapping.exact_owners().is_some();
     // Reborrow custody belongs to every included source body, not only the
     // requested entry. Use the lowering route's exact source mapping; ordinal
     // correspondence is not evidence of a callee's identity.
     let entry_source = [(selection.machine, lowered.semantic_module.entry)];
-    let handoff_sources = exact_sources.as_deref().unwrap_or(&entry_source);
+    let handoff_sources = source_mapping.exact_owners().unwrap_or(&entry_source);
     for source in &source_machines {
         if checked
             .facts
@@ -147,28 +149,8 @@ fn lower_terminal_selection(
             &mut lowered.semantic_module.reborrow_root_handoffs,
         )?;
     }
-    let direct_float_source_machines = if let Some(sources) = exact_sources {
-        sources
-    } else if completion.scalar_source_order {
-        if source_machines.len() != lowered.semantic_module.machines.len() {
-            return unsupported(
-                "scalar call closure source and Terminal machine tables must correspond exactly",
-            );
-        }
-        source_machines
-            .iter()
-            .copied()
-            .zip(
-                lowered
-                    .semantic_module
-                    .machines
-                    .iter()
-                    .map(|machine| machine.id),
-            )
-            .collect::<Vec<_>>()
-    } else {
-        vec![(selection.machine, lowered.semantic_module.entry)]
-    };
+    let direct_float_source_machines =
+        source_mapping.projection_sources(&lowered, selection.machine, &source_machines)?;
     // Specialization custody applies to ordinary calls as well as calls that
     // produce proof evidence. Reuse exact source owners and call occurrences;
     // display names and matching callback signatures cannot select a body.
@@ -332,7 +314,7 @@ fn lower_terminal_selection(
     )?;
     // Unit closures can be provisional inputs to cleanup/borrow assembly.
     // Discharge operand obligations only after the selected module is complete.
-    if completion.finalize_operands {
+    if completion.operands == OperandProofCompletion::Finalize {
         finalize_operation_proofs(&mut lowered)?;
     } else if lowered
         .semantic_module
@@ -347,7 +329,7 @@ fn lower_terminal_selection(
             .map_err(LoweringError::InvalidTerminalModule)?;
     }
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
-        && !completion.omit_debug
+        && completion.debug == DebugPublication::FromCheckedPlan
     {
         checked
             .facts

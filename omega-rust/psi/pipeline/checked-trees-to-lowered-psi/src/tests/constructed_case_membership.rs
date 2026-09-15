@@ -472,8 +472,11 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
                     panic!("retained local constructor");
                 };
                 Some(
-                    crate::scalar_graph::scalar_computations::cases::fields(&checked, construction)
-                        .unwrap()[0]
+                    crate::expression_preparation::computation_graph::fields(
+                        &checked,
+                        construction,
+                    )
+                    .unwrap()[0]
                         .value,
                 )
             }
@@ -504,7 +507,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
         );
     }
     let (_, source_state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(&checked, state).unwrap();
+        crate::expression_preparation::source_custody::authored_state(&checked, state).unwrap();
     let other = checked
         .statement_table
         .statements(source_state.statement_nodes)
@@ -586,7 +589,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
     let CheckedScalarComputationKind::Value(value) = &original.kind else {
         panic!("literal field");
     };
-    crate::scalar_graph::scalar_source_custody::value_correspondence::validate(
+    crate::expression_preparation::source_custody::value_correspondence::validate(
         &checked,
         state,
         0,
@@ -599,7 +602,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
         panic!("donor literal");
     };
     assert!(
-        crate::scalar_graph::scalar_source_custody::value_correspondence::validate(
+        crate::expression_preparation::source_custody::value_correspondence::validate(
             &checked,
             state,
             0,

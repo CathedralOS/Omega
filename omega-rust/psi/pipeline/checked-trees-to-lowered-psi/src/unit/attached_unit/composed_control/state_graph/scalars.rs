@@ -7,7 +7,7 @@ use super::super::super::{
 use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::scalar_graph::scalar_bindings::ScalarBindings;
+use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::{CheckedScalarBindingDestination, CheckedScalarBindingValue};
 
 fn role(
@@ -71,7 +71,7 @@ pub(super) fn validate(
         {
             return unsupported("Unit graph scalar storage destination disagrees with source");
         }
-        crate::scalar_graph::scalar_source_custody::validate_pure(
+        crate::expression_preparation::source_custody::validate_pure(
             checked,
             source,
             terminal_scalar_type(binding.primitive_type)?,
@@ -96,7 +96,7 @@ pub(super) fn emit_prefix(
         .with_structural_parameters(parameters)
         .with_structural_observations(structural_types);
     let (_, authored) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
     for (position, parameter) in state.scalar_parameters.iter().enumerate() {
         let source = &checked.state_parameters(authored)[parameter.source_position as usize];
         if source.is_mutable {

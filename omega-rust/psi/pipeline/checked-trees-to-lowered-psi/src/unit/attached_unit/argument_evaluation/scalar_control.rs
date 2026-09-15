@@ -36,7 +36,7 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| {
-                crate::scalar_graph::scalar_bindings::ScalarBindings::new(values.len())
+                crate::expression_preparation::bindings::ScalarBindings::new(values.len())
             })
             .with_primitive_storage(&self.primitive_storage)
             .with_local_cases(&self.local_cases)
@@ -146,7 +146,7 @@ impl Evaluation {
                 )?
             }
             CheckedScalarStateTerminator::Guarded { arms, fallback } => {
-                crate::scalar_graph::scalar_source_custody::guarded_exits::validate(
+                crate::expression_preparation::source_custody::guarded_exits::validate(
                     checked,
                     machine.state,
                     *arms,

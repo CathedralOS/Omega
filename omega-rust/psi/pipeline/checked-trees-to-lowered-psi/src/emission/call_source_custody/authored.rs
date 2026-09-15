@@ -32,7 +32,7 @@ pub(crate) fn locate(
 ) -> Result<AuthoredCall, LoweringError> {
     let call = locate_source(checked, caller_state, coordinate)?;
     let (machine, _) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     if machine.symbol != caller_machine
         || call.target_machine != target_machine
         || call.target_state != target_state
@@ -49,7 +49,7 @@ pub(crate) fn locate_source(
 ) -> Result<AuthoredCall, LoweringError> {
     let program = &checked.typed;
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
@@ -188,7 +188,7 @@ pub(crate) fn locate_source(
         if parameter.is_self
             || parameter.is_const
             || (parameter.is_mutable
-                && !crate::scalar_graph::scalar_source_custody::supported_mutable_parameter(
+                && !crate::expression_preparation::source_custody::supported_mutable_parameter(
                     primitive,
                 ))
             || !program.expression_table.expression_is_valid(argument)

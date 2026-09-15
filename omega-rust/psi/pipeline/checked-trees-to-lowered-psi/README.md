@@ -6,14 +6,19 @@ the completed module, and attaches debug companions. Its result is unsealed Psi;
 optimization and portable publication belong to the following stages.
 
 [Machine selection](src/machine_lowering/machine_dispatch.rs) owns plan precedence. Each selected
-producer supplies its source closure and the work still required before
-returning: conformance publication, operand proof completion, and debug
-eligibility. The coordinator does not classify the source shape again.
+producer supplies its source closure and a shared
+[result contract](src/producer_result.rs): conformance publication, operand
+proof validation or finalization, and checked-plan debug publication or omission.
+The coordinator does not classify the source shape again. Producers import this
+contract directly, without depending on dispatch.
 
 An included source is not necessarily an exact emitted-machine owner.
-Catalog-producing paths retain explicit source-to-machine bindings; other paths
-must not invent callee custody from table position. Reborrow publication keeps
-rejecting when the required exact owner is unavailable.
+The source-mapping choice is entry-only, scalar-closure order, or exact catalog
+bindings. Catalog-producing paths retain explicit source-to-machine bindings;
+other paths must not invent callee custody from table position. Scalar order can
+join projection sources after checking table lengths, but it is not exact-owner
+evidence. Reborrow publication keeps rejecting when the required exact owner is
+unavailable.
 
 The plan families beneath the coordinator are concept-owned modules beside
 `lib.rs`; each root file names the work its directory owns:
@@ -22,8 +27,11 @@ The plan families beneath the coordinator are concept-owned modules beside
   cleanup Unit machines, plus the runtime requirements they derive.
 - [`returns`](src/returns/mod.rs): affine, boundary-scalar, payloadless and
   structural return machines, with the structural types they publish.
-- [`scalar_graph`](src/scalar_graph/mod.rs): scalar-graph preparation, bindings,
-  computations, call closure, source custody and module assembly.
+- [`scalar_graph`](src/scalar_graph/mod.rs): scalar-graph preparation,
+  computation expansion, call closure and module assembly.
+- [Expression preparation](src/expression_preparation/prepare_expression.rs):
+  shared source-bound expressions, storage bindings, qualifications and
+  independent source replay consumed by Unit, return and scalar producers.
 - [`emission`](src/emission/mod.rs): operation and store emission shared by Unit
   and scalar bodies, with the call-operand source custody it replays.
 - [`retention`](src/retention/mod.rs): checked custody installed on the assembled
@@ -84,9 +92,19 @@ Emission also owns [primitive scalar types](src/emission/scalar_types.rs),
 [lowered-expression validation](src/emission/expression_validation.rs).
 Unit, return and scalar-graph producers consume these shared operations directly.
 Graph cycle checks and branch staging remain in scalar-graph preparation; local
-place allocation stays there too. Source-bound expression preparation still
-depends on scalar bindings and source-custody reconstruction; that dependency is
-not removed by relocating the emitted-value vocabulary.
+place allocation stays there too.
+
+[Expression preparation](src/expression_preparation/prepare_expression.rs)
+joins the checked expression to its authored role, prepares its scalar or Boolean
+form, and independently replays source custody before returning it. Its
+[bindings](src/expression_preparation/bindings/bind_values.rs) resolve current
+storage and structural paths. [Source replay](src/expression_preparation/source_custody/replay_source.rs)
+owns exact call and borrow occurrences, constructor operands, comparisons,
+record observations and structural ownership. These operations use shared
+[checked-graph queries](src/expression_preparation/computation_graph.rs), not
+the producer's block expansion. [Qualifications](src/expression_preparation/qualifications.rs)
+prepare the selected closure's declaration namespace. No preparation module
+imports a machine producer; producers consume the shared operations directly.
 
 Working plans live with these operations, not in the pipeline root's namespace.
 Content result records remain with [content lowering](src/proofs/content_conservation.rs).

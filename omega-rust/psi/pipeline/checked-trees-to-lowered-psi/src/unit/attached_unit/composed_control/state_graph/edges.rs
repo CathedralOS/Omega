@@ -294,7 +294,7 @@ pub(super) fn validate_bindings(
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph scalar successor has no checked source expression",
                     ))?;
-                crate::scalar_graph::scalar_source_custody::validate_pure(
+                crate::expression_preparation::source_custody::validate_pure(
                     checked,
                     binding,
                     terminal_scalar_type(target.primitive_type)?,

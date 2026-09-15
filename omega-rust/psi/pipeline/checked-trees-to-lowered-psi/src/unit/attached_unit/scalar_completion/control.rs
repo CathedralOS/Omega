@@ -23,7 +23,7 @@ pub(super) fn validate(
         return unsupported("ordinary body has conflicting completion owners");
     }
     let (source, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, machine.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
     if source.symbol != machine.machine
         || checked.machine_states(source).len() != 1
         || checked.primitive_type_reference(state.return_type) != Some(control.primitive_type)
@@ -44,7 +44,7 @@ pub(super) fn validate(
             unconditional(checked, machine, control, *statement_ordinal)?
         }
         CheckedScalarStateTerminator::Guarded { arms, fallback } => {
-            crate::scalar_graph::scalar_source_custody::guarded_exits::validate(
+            crate::expression_preparation::source_custody::guarded_exits::validate(
                 checked,
                 machine.state,
                 *arms,
@@ -87,7 +87,7 @@ fn unconditional(
     statement_ordinal: u32,
 ) -> Result<usize, LoweringError> {
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, machine.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let prefix = statement_ordinal as usize;
     let tail = statements.get(prefix..).ok_or(LoweringError::Unsupported(
@@ -115,7 +115,7 @@ fn unconditional(
     if !complete_return {
         return unsupported("ordered scalar return differs from its unconditional authored tail");
     }
-    let located = crate::scalar_graph::scalar_source_custody::locate(
+    let located = crate::expression_preparation::source_custody::locate(
         checked,
         machine.state,
         statement_ordinal,
@@ -133,7 +133,7 @@ fn conditional(
     control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<usize, LoweringError> {
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, machine.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let CheckedScalarStateTerminator::Conditional {
         guard_statement_ordinal,
@@ -166,27 +166,28 @@ fn conditional(
     else {
         return unsupported("ordered scalar completion must retain a returning false arm");
     };
-    let shape_matches =
-        match tail {
-            [StatementNode::Transition(_)] => *is_continuation && guard.continuation.is_valid(),
-            [StatementNode::Transition(_), StatementNode::Expression(_)] => {
-                !*is_continuation && !guard.continuation.is_valid()
-            }
-            [
-                StatementNode::Transition(_),
-                StatementNode::Transition(fallback),
-            ] => !*is_continuation
+    let shape_matches = match tail {
+        [StatementNode::Transition(_)] => *is_continuation && guard.continuation.is_valid(),
+        [StatementNode::Transition(_), StatementNode::Expression(_)] => {
+            !*is_continuation && !guard.continuation.is_valid()
+        }
+        [
+            StatementNode::Transition(_),
+            StatementNode::Transition(fallback),
+        ] => {
+            !*is_continuation
                 && !guard.continuation.is_valid()
                 && !fallback.continuation.is_valid()
                 && fallback.exit == TransitionExit::Ordinary
                 && (fallback.guard == TransitionGuardNode::Always
-                    || crate::scalar_graph::scalar_source_custody::guarded_exits::complementary(
+                    || crate::expression_preparation::source_custody::guarded_exits::complementary(
                         checked,
                         machine.state,
                         *guard_statement_ordinal,
-                    )?),
-            _ => false,
-        };
+                    )?)
+        }
+        _ => false,
+    };
     if !shape_matches {
         return unsupported("ordered scalar completion differs from its complete authored tail");
     }
@@ -203,7 +204,7 @@ fn conditional(
         } else {
             CheckedScalarExpressionRole::Return
         };
-        let located = crate::scalar_graph::scalar_source_custody::locate(
+        let located = crate::expression_preparation::source_custody::locate(
             checked,
             machine.state,
             *statement_ordinal,

@@ -76,13 +76,14 @@ pub(super) fn prepare(
     {
         return unsupported("scalar Unit call disagrees with its exact target custody");
     }
-    let flow_call = crate::unit::attached_unit::retain_exact_flow_call(
-        checked,
-        machine,
-        state.state,
-        *coordinate,
-        *target_state,
-    )?;
+    let flow_call =
+        crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call(
+            checked,
+            machine,
+            state.state,
+            *coordinate,
+            *target_state,
+        )?;
     crate::emission::call_source_custody::validate_operation(
         checked,
         machine,
@@ -126,7 +127,7 @@ pub(super) fn prepare(
     {
         return unsupported("scalar Unit calls with services require scalar service lowering");
     }
-    let borrow = crate::unit::attached_unit::primitive_locals::borrows::call(
+    let borrow = crate::expression_preparation::source_custody::borrow_occurrences::call(
         checked,
         machine,
         state.state,
@@ -143,7 +144,7 @@ pub(super) fn prepare(
         .statement_table
         .expression_handles(source_call.arguments);
     let access_positions =
-        crate::scalar_graph::scalar_source_custody::computation_calls::rejoin_call_accesses(
+        crate::expression_preparation::source_custody::computation_calls::rejoin_call_accesses(
             checked,
             machine,
             state.state,
@@ -224,7 +225,7 @@ pub(super) fn prepare(
             LoweringError::Unsupported("scalar Unit argument has no authored access position"),
         )?;
         let actual_position =
-            crate::scalar_graph::scalar_source_custody::computation_calls::primitive_arguments::validate(
+            crate::expression_preparation::source_custody::computation_calls::primitive_arguments::validate(
                 checked,
                 caller_state,
                 coordinate.statement_index,

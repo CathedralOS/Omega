@@ -49,7 +49,7 @@ pub(super) fn validate(
     source: &ReceiverSource,
 ) -> Result<(), LoweringError> {
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let (ordinal, local) = declaration(
         checked,
         state,
