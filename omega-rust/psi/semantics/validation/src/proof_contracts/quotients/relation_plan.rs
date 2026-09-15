@@ -936,7 +936,10 @@ fn exact_quotient_relation(
     program: &TypedTrees,
     quotient_type: TypeReferenceHandle,
 ) -> ExactRelationLookup {
-    let Some(quotient) = super::quotient_for_type(program, quotient_type) else {
+    let Some(quotient) = crate::proof_contracts::quotients::legacy_candidates::quotient_for_type(
+        program,
+        quotient_type,
+    ) else {
         return ExactRelationLookup::NotQuotient;
     };
     let Some(metadata) = quotient.quotient.as_ref() else {

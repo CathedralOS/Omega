@@ -8805,7 +8805,10 @@ fn derived_direct_terminal_plan_remains_non_executable() {
     program.push_machine(machine);
     let mut diagnostics = Vec::new();
 
-    super::super::reject_quotient_operation_requests(&program, &mut diagnostics);
+    crate::proof_contracts::quotients::formation_collection::reject_quotient_operation_requests(
+        &program,
+        &mut diagnostics,
+    );
 
     assert_eq!(diagnostics.len(), 1);
     assert!(
@@ -9274,7 +9277,10 @@ fn derived_immutable_alias_fallthrough_remains_non_executable() {
     program.push_machine(machine);
     let mut diagnostics = Vec::new();
 
-    super::super::reject_quotient_operation_requests(&program, &mut diagnostics);
+    crate::proof_contracts::quotients::formation_collection::reject_quotient_operation_requests(
+        &program,
+        &mut diagnostics,
+    );
 
     assert_eq!(diagnostics.len(), 1);
     assert!(
@@ -9320,7 +9326,10 @@ fn nonterminal_expression_request_cannot_claim_direct_result_flow() {
     program.push_machine(machine);
     let mut diagnostics = Vec::new();
 
-    super::super::reject_quotient_operation_requests(&program, &mut diagnostics);
+    crate::proof_contracts::quotients::formation_collection::reject_quotient_operation_requests(
+        &program,
+        &mut diagnostics,
+    );
 
     assert_eq!(diagnostics.len(), 1);
     assert!(
@@ -9580,7 +9589,10 @@ fn rejected_two_argument_lift_reports_reconstructed_q_and_p_coordinates() {
     program.push_machine(public_machine);
 
     let mut diagnostics = Vec::new();
-    super::super::reject_quotient_operation_requests(&program, &mut diagnostics);
+    crate::proof_contracts::quotients::formation_collection::reject_quotient_operation_requests(
+        &program,
+        &mut diagnostics,
+    );
 
     assert_eq!(diagnostics.len(), 1);
     let message = &diagnostics[0].message;
