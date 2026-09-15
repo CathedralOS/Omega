@@ -3,4 +3,7 @@
 //! across each call.
 
 mod allocation;
+mod corruption;
+mod encoding_layout;
 mod fixture;
+mod publication;
