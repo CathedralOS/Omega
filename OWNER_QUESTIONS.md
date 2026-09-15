@@ -40,7 +40,62 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-None currently. Settled mathematical binding and proof rules live in the
+### Q1. Execution settlement as a pipeline stage
+
+Context: after typing, the compiler evaluates the build machine, resolves and
+types any source it generated, filters target machines, settles providers,
+dispatch, entry bindings and task activations, admits package declarations,
+validates wire compatibility, then checks and seals `CheckedCompilation`.
+Today that work is `omega/compiler/compiler/src/pipeline/checked_entry` plus
+the preparation `phase_transitions.rs` does around the checking call, about
+three thousand lines inside the coordinator, and every product consumes the
+compiler-owned carrier it produces.
+
+Problem: a pipeline stage takes the prior stage's output and returns its own;
+this one has no crate, so the coordinator is the stage and the products depend
+on the coordinator's internals. Products cannot move out until the carrier
+lives below them.
+
+Proposal: one crate under `omega/compiler/` (it depends on build-layer crates,
+so it cannot sit in the rank-3 pipeline layer) named for its product, owning
+`CheckedCompilation`, `CheckedCompileRequest`, `PreparedCheckedSource` and
+`compile_to_checked`, with the build-continuation re-entry as its one seam.
+The compiler keeps `compile(request)`, request and outcome types, and
+re-exports.
+
+Alternates: leave it in the compiler (status quo, blocks every product move);
+fold it into typed-trees-to-checked-trees (impossible: that is a Psi stage and
+this work is Omega provider and build settlement); split it into two stages,
+build continuation and provider settlement (defensible, but they share the
+same sidecars and today's tests pin their ordering as one route).
+
+Premise check: this is not a new capability, only a home for existing work;
+the question is only whether the owner wants a new crate here.
+
+### Q2. An Omega-side Terminal product stage
+
+Context: `omega/compiler/compiler/src/compiler/terminal_product*` (1.7k
+lines) builds the retained Terminal artifact from a checked compilation:
+boundary application projection, callback thunks, compiler-intrinsic
+settlement, float-comparison custody, and the report. The Psi crate
+`terminal-production` owns the Psi part; the Omega part has no crate, so the
+coordinator hosts it. `terminal_native_realization.rs` (480 lines) is the
+retained-native re-entry over the same product.
+
+Problem: same as Q1. The compiler should call one product entry per requested
+product and receive a report.
+
+Proposal: one crate under `omega/compiler/` for the Omega Terminal product,
+sibling of `native-realization`, consuming the sealed checked compilation from
+the Q1 stage and returning the retained artifact and its report. Native glue
+(`compiler/native*`) then moves into `native-realization`.
+
+Alternates: put the Omega part into Psi's `terminal-production` (impossible:
+Psi cannot depend on Omega providers and packages); leave in the compiler
+(status quo); merge with Q1 into one "checked to products" crate (rejected:
+two products with different authority, and native already has its crate).
+
+Depends on Q1 for the carrier's home. Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
 proofs remain on `TASKS.md`; genuinely new semantic or trust choices belong here.

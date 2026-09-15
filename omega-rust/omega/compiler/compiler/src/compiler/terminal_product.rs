@@ -152,10 +152,11 @@ fn project_terminal_native_realization_proposal(
             ))]
         })?;
     let demanded_intrinsics =
-        super::intrinsic_settlements::demanded_boundary_identities(&terminal_module)?;
+        provider_planning::compiler_intrinsics::demanded_boundary_identities(&terminal_module)?;
     let builtin_proposals =
-        super::intrinsic_settlements::derive_compiler_intrinsic_settlement_proposals(
-            checked,
+        provider_planning::compiler_intrinsics::derive_selected_intrinsic_settlement_proposals(
+            checked.selected_provider_plans().plans(),
+            checked.selected_provider_provenance(),
             &demanded_intrinsics,
         )?
         .into_iter()

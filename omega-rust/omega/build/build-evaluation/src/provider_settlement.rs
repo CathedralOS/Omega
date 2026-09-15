@@ -1,8 +1,11 @@
-use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::provider::target_machines::SelectedTargetMachineDeclarations;
+//! Provider settlement for the checked program: plans derived, validated
+//! and selected with provenance over the settled target machines.
+
+use crate::target_machines::SelectedTargetMachineDeclarations;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
+use package_compilation::PackageCompilationInputs;
 use provider_planning::ProviderSelection;
 use provider_planning::SelectedProviderReviewProvenance;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
@@ -11,18 +14,18 @@ use typed_trees::TypedTrees;
 
 /// Final typed provider choices and their evidence, retained for checking and
 /// selected execution. Candidate plans stay separate from selected plan facts.
-pub(in crate::pipeline) struct CheckedProviderSelection {
-    pub(in crate::pipeline) provider_plans: Vec<ProviderPlan>,
-    pub(in crate::pipeline) evaluated_via_bindings: EvaluatedViaBindingTable,
-    pub(in crate::pipeline) selected_provider_plan_facts: SelectedProviderPlanFacts,
-    pub(in crate::pipeline) selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
-    pub(in crate::pipeline) external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
+pub struct CheckedProviderSelection {
+    pub provider_plans: Vec<ProviderPlan>,
+    pub evaluated_via_bindings: EvaluatedViaBindingTable,
+    pub selected_provider_plan_facts: SelectedProviderPlanFacts,
+    pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
+    pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
 }
 
 /// Settle the final authored/generated target roster, validate and select its
 /// provider candidates, then bind fused erasure and exact invocation evidence.
 /// This must precede deferred const evaluation and typed-to-checked settlement.
-pub(in crate::pipeline) fn settle_checked_providers(
+pub fn settle_checked_providers(
     typed: &mut TypedTrees,
     selected_target_machine_declarations: SelectedTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,

@@ -18,7 +18,7 @@ pub(super) fn validate_terminal_authority_permissions(
     checked: &crate::pipeline::CheckedCompilation,
     terminal_authority_permission_policy: &native_realization::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
-    super::super::terminal_authority_permissions::validate_package_terminal_authority_permissions(
+    native_realization::validate_package_terminal_authority_permissions(
         checked
             .resolved_semantic_bindings()
             .flat_map(|binding| binding.terminal_authority_permissions()),
@@ -115,10 +115,11 @@ pub(super) fn realize(
             &checked_boundary_operator_scope,
         )?;
     let demanded_intrinsics =
-        crate::compiler::intrinsic_settlements::demanded_boundary_identities(&terminal_module)?;
+        provider_planning::compiler_intrinsics::demanded_boundary_identities(&terminal_module)?;
     let intrinsic_proposals =
-        crate::compiler::intrinsic_settlements::derive_compiler_intrinsic_settlement_proposals(
-            checked,
+        provider_planning::compiler_intrinsics::derive_selected_intrinsic_settlement_proposals(
+            checked.selected_provider_plans().plans(),
+            checked.selected_provider_provenance(),
             &demanded_intrinsics,
         )?;
     let selected_plans = checked.selected_provider_plans().plans();
@@ -210,11 +211,11 @@ pub(super) fn realize(
 
 #[cfg(test)]
 mod tests {
-    use crate::compiler::terminal_authority_permissions::validate_package_terminal_authority_permissions;
     use effects::{
         ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
         provider_plan::{ProviderPlanDigest, ServiceSchemaDigest},
     };
+    use native_realization::validate_package_terminal_authority_permissions;
     use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
     use semantic_vocabulary::PackageKeyIdentity;
 

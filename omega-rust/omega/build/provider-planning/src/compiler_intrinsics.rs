@@ -6,21 +6,20 @@
 //! canonical Terminal artifact receive a structural proposal. The consuming
 //! lowerer independently accepts it through its local target catalog.
 
-use crate::pipeline::CheckedCompilation;
+use crate::CompilerIntrinsicExecutionIdentity;
+use crate::SelectedProviderReviewProvenance;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
-use provider_planning::CompilerIntrinsicExecutionIdentity;
-use provider_planning::SelectedProviderReviewProvenance;
 use std::collections::BTreeSet;
 
 #[derive(Debug)]
-pub(super) struct CompilerIntrinsicSettlementProposal {
-    pub(super) requirement_identity: String,
-    pub(super) plan_index: usize,
-    pub(super) execution: target_operations::CompilerBuiltinExecution,
+pub struct CompilerIntrinsicSettlementProposal {
+    pub requirement_identity: String,
+    pub plan_index: usize,
+    pub execution: target_operations::CompilerBuiltinExecution,
 }
 
-pub(super) fn demanded_boundary_identities(
+pub fn demanded_boundary_identities(
     module: &terminal_psi::TerminalModule,
 ) -> Result<BTreeSet<String>, Vec<Diagnostic>> {
     let declarations = module
@@ -49,17 +48,6 @@ pub(super) fn demanded_boundary_identities(
     Ok(demanded)
 }
 
-pub(super) fn derive_compiler_intrinsic_settlement_proposals(
-    checked: &CheckedCompilation,
-    demanded_boundaries: &BTreeSet<String>,
-) -> Result<Vec<CompilerIntrinsicSettlementProposal>, Vec<Diagnostic>> {
-    derive_selected_intrinsic_settlement_proposals(
-        checked.selected_provider_plans().plans(),
-        checked.selected_provider_provenance(),
-        demanded_boundaries,
-    )
-}
-
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
     plan_index: usize,
@@ -67,7 +55,7 @@ struct SelectedIntrinsicRow<'a> {
     execution: Option<CompilerIntrinsicExecutionIdentity>,
 }
 
-fn derive_selected_intrinsic_settlement_proposals(
+pub fn derive_selected_intrinsic_settlement_proposals(
     plans: &[ProviderPlan],
     provenance: &[SelectedProviderReviewProvenance],
     demanded_boundaries: &BTreeSet<String>,

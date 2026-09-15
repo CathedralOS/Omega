@@ -12,14 +12,12 @@ use diagnostics::Diagnostic;
 
 pub(crate) mod admission;
 pub(crate) mod execution;
-mod intrinsic_settlements;
 mod native;
 mod native_checked;
 pub(crate) mod optimization;
 pub(crate) mod options;
 pub(crate) mod package;
 pub(crate) mod request;
-mod terminal_authority_permissions;
 pub(crate) mod terminal_native_realization;
 pub(crate) mod terminal_product;
 

@@ -1,8 +1,11 @@
-use super::PackageCompilationInputs;
-use build_evaluation::BuildMachineFilesystemScope;
-use build_evaluation::ReviewOnlyBuildFilesystemReplayRecord;
+//! Bind a request's package and root staging scope, reopening matching
+//! review evidence, before build admission.
+
+use crate::BuildMachineFilesystemScope;
+use crate::ReviewOnlyBuildFilesystemReplayRecord;
 use build_time_evaluation::BuildMachineFilesystemSponsor;
 use diagnostics::Diagnostic;
+use package_compilation::PackageCompilationInputs;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -14,13 +17,13 @@ static NEXT_CAPTURED_SOURCE_SNAPSHOT: AtomicU64 = AtomicU64::new(0);
 
 /// Reopen matching review evidence and bind the request's package/root staging
 /// scope before build admission. Replay remains review-only filesystem custody.
-pub(super) fn prepare_filesystem_scope(
+pub fn prepare_filesystem_scope(
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
     replay_record: Option<&ReviewOnlyBuildFilesystemReplayRecord>,
-    build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    build_snapshot: Option<&crate::BuildSnapshotRequest>,
 ) -> Result<BuildMachineFilesystemScope, Vec<Diagnostic>> {
     if replay_record.is_some() && build_snapshot.is_some() {
         return Err(vec![Diagnostic::error(
@@ -33,7 +36,7 @@ pub(super) fn prepare_filesystem_scope(
                 inputs
                     .canonical_source_metadata(inputs.root())
                     .map(|metadata| {
-                        build_evaluation::BuildCanonicalSourceMetadataIdentity::new(
+                        crate::BuildCanonicalSourceMetadataIdentity::new(
                             metadata.policy_version(),
                             *metadata.source_content_commitment(),
                         )
@@ -53,9 +56,9 @@ pub(super) fn prepare_filesystem_scope(
     }
     let filesystem_replay = replay_record
         .map(|record| {
-            build_evaluation::rehydrate_review_only_build_filesystem_replay_record(
+            crate::rehydrate_review_only_build_filesystem_replay_record(
                 record,
-                super::BuildFilesystemReplayRecordLimits::new(
+                crate::BuildFilesystemReplayRecordLimits::new(
                     record.canonical_bytes().len(),
                     4_096,
                 ),
@@ -75,7 +78,7 @@ pub(super) fn prepare_filesystem_scope(
             .unwrap_or_else(|| std::path::PathBuf::from("build"))
     });
     let mut build_machine_filesystem_scope = if let Some(inputs) = package_inputs {
-        build_evaluation::BuildMachineFilesystemScope::for_package_root(
+        crate::BuildMachineFilesystemScope::for_package_root(
             inputs
                 .package_root(inputs.root())
                 .expect("validated package inputs retain their root")
@@ -85,11 +88,7 @@ pub(super) fn prepare_filesystem_scope(
             inputs.canonical_source_metadata(inputs.root()).cloned(),
         )
     } else {
-        build_evaluation::BuildMachineFilesystemScope::for_root(
-            root_path,
-            build_dir,
-            filesystem_sponsor,
-        )
+        crate::BuildMachineFilesystemScope::for_root(root_path, build_dir, filesystem_sponsor)
     };
     if let Some(build_snapshot) = build_snapshot {
         // One capture authority produces the immutable input inventory and

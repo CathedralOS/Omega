@@ -154,11 +154,11 @@ pub fn realize_retained_native_artifact(
                 "receiving lowerer selections differ from the exact post-Terminal build proposal",
             ));
         }
-        super::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
-        proposal.package_terminal_authority_permissions(),
-        &accepted_package_terminal_authority_permission_policy,
-    )?;
-        super::terminal_authority_permissions::validate_package_terminal_authority_permissions(
+        native_realization::validate_retained_package_terminal_authority_permissions(
+            proposal.package_terminal_authority_permissions(),
+            &accepted_package_terminal_authority_permission_policy,
+        )?;
+        native_realization::validate_package_terminal_authority_permissions(
             accepted_package_terminal_authority_permission_policy
                 .rows()
                 .iter(),
@@ -177,7 +177,8 @@ pub fn realize_retained_native_artifact(
                 format!("canonical semantics could not be decoded: {error}"),
             )
         })?;
-        let demanded = super::intrinsic_settlements::demanded_boundary_identities(&module)?;
+        let demanded =
+            provider_planning::compiler_intrinsics::demanded_boundary_identities(&module)?;
         let exact_import_plans = exact_demanded_import_plans(&proposal, &demanded)?;
         let native_settlements = rejoin_external_import_settlements(&exact_import_plans, imports)?;
 

@@ -41,6 +41,10 @@ pub use native_pipeline::{
     optimization_pipeline_report_from_ordinary_callable_entry, optimize_artifact_sections,
     optimize_verified_abstract_input, stage_optimized_verified_physical_pipeline,
 };
+pub use native_realization::terminal_authority_permissions::{
+    validate_package_terminal_authority_permissions,
+    validate_retained_package_terminal_authority_permissions,
+};
 pub use native_realization::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CallbackCustodyNativeRealizationError,
     CompilerIntrinsicTerminalAuthorityPolicy, MissingTerminalAuthorityPermission,
