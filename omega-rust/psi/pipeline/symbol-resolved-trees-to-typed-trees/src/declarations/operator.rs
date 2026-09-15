@@ -1,6 +1,6 @@
-use crate::declarations::data::lower_type_parameters;
-use crate::declarations::domain::lower_proof_facts;
+use crate::contracts::proof_facts::lower_proof_facts;
 use crate::lowerer::Lowerer;
+use crate::signatures::type_parameters::lower_type_parameters;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 

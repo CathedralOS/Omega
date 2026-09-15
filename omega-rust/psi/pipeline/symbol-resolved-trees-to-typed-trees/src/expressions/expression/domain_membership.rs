@@ -118,7 +118,7 @@ pub(super) fn lower_domain_membership_expression(
             domain_symbol.arena_index()
         )));
     };
-    let expanded = crate::declarations::domain::expand_domain_reference(
+    let expanded = crate::type_reference::domain_aliases::expand_domain_reference(
         program,
         domain_symbol,
         vec![domain_definition.name.clone()],
