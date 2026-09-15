@@ -17,8 +17,12 @@
 //! activation. An authored `RequiredOutput {}` or `OutputReceipt {}` has the
 //! declared type name instead of the private marker name, so it can never
 //! satisfy `described_output_obligation` or name a table row.
-
-use super::*;
+use super::{
+    BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemGrantRootIdentity,
+    FilesystemHostOperation, FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
+    FilesystemLogicalHandleOutputSource, FilesystemOperationAttemptOutcome, Frame, Halt,
+    SymbolHandle, Value, rooted_build_path_parts, validate_build_relative_path,
+};
 use crate::MAX_BUILD_OUTPUT_OBLIGATIONS;
 
 /// The marker type name carried by issued `RequiredOutput` values. An
