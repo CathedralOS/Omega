@@ -193,8 +193,13 @@ impl RankingOrder {
         }
 
         match measure_body_shape(program, measure)? {
-            MeasureBodyShape::ParameterForward { carrier } => {
-                if identity_subject_matches(program, state, decreases, carrier) {
+            MeasureBodyShape::ParameterForward {
+                carrier,
+                constraints,
+            } => {
+                if identity_subject_matches(program, state, decreases, carrier)
+                    && measure_constraints_cover_subject(program, state, decreases, &constraints)
+                {
                     Some(Self::CustomNatDescending)
                 } else {
                     None
@@ -477,6 +482,57 @@ fn find_declared_measure<'program>(
     });
     let measure = matching.next()?;
     matching.next().is_none().then_some(measure)
+}
+
+/// A constrained identity view applies only where its declared refinements
+/// hold: the subject's enforced bounds must fit inside every `Range` on the
+/// measure's parameter and result. Since the produced rank forwards the
+/// subject itself, one containment discharges the domain and the result claim
+/// together. Declared endpoints must be exact integers — an approximate bound
+/// cannot promise a fixed domain.
+fn measure_constraints_cover_subject(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    subject: ExpressionHandle,
+    constraints: &[(ExpressionHandle, ExpressionHandle, bool)],
+) -> bool {
+    if constraints.is_empty() {
+        return true;
+    }
+    let Some(machine) = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+    }) else {
+        return false;
+    };
+    let Some((subject_low, subject_high)) =
+        validation::immutable_integer_expression_bounds(program, machine, state, subject)
+    else {
+        return false;
+    };
+    constraints.iter().all(|(minimum, maximum, end_inclusive)| {
+        let Some((minimum, minimum_high)) =
+            validation::immutable_integer_expression_bounds(program, machine, state, *minimum)
+        else {
+            return false;
+        };
+        let Some((maximum_low, mut maximum)) =
+            validation::immutable_integer_expression_bounds(program, machine, state, *maximum)
+        else {
+            return false;
+        };
+        // The declared endpoints must be exact integers before the exclusive
+        // end is normalized onto its greatest included value.
+        if minimum != minimum_high || maximum != maximum_low {
+            return false;
+        }
+        if !end_inclusive {
+            maximum -= 1;
+        }
+        subject_low >= minimum && subject_high <= maximum
+    })
 }
 
 fn identity_subject_matches(

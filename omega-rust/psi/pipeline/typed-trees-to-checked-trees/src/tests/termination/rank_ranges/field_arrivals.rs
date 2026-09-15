@@ -10,6 +10,11 @@ const COMPUTED: &str = include_str!(concat!(
     "/../../../../tests/omega/pass/termination/measure_field_computed_arrival/main.omg"
 ));
 
+const FRESH: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/measure_field_fresh_arrival/main.omg"
+));
+
 fn prove(source: &str) {
     lower_typed_trees(typed(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
@@ -117,6 +122,80 @@ fn computed_record_dependencies_do_not_authorize_effects_or_operator_meanings() 
 
 fn reject(source: &str) {
     crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+}
+
+#[test]
+fn fresh_record_arrival_carries_the_ranked_role() {
+    prove(FRESH);
+    // The role follows the unique owner-typed formal, not its spelling.
+    prove(&FRESH.replace("pending", "delivered"));
+    prove(&FRESH.replace("remaining: 3", "remaining: 0"));
+    // The fresh literal still descends when its edge closes a cycle: the
+    // guard proves `3 < countdown.remaining`, and the backedge rebuilds the
+    // record through the ordinary computed-arrival path.
+    let cyclic = FRESH.replace(
+        "true -> iterate(Countdown {\n                remaining: pending.remaining - 1,\n                limit: pending.limit\n            })",
+        "true -> walk(Countdown { remaining: pending.remaining - 1, limit: pending.limit })",
+    );
+    assert_ne!(cyclic, FRESH);
+    prove(&cyclic);
+}
+
+#[test]
+fn fresh_record_arrival_still_owes_membership_pinning_and_descent() {
+    for source in [
+        // A fresh field value must still land inside the declared rank range.
+        FRESH.replace("remaining: 3", "remaining: 6"),
+        // A dynamic endpoint cannot be pinned by a literal that never
+        // forwards it.
+        FRESH
+            .replace(
+                "terminates by",
+                "requires countdown.remaining <= countdown.limit;\nterminates by",
+            )
+            .replace("in 0..=5", "in 0..=countdown.limit"),
+        // Inside a cycle the constant reset is not a decrease.
+        FRESH.replace(
+            "remaining: pending.remaining - 1",
+            "remaining: pending.limit",
+        ),
+        // Forwarding a different record does not establish the ranked field.
+        FRESH
+            .replace(
+                "machine walk(countdown: Countdown)",
+                "machine walk(countdown: Countdown, spare: Countdown)",
+            )
+            .replace(
+                "iterate(Countdown { remaining: 3, limit: 5 })",
+                "iterate(spare)",
+            ),
+    ] {
+        reject(&source);
+    }
+}
+
+#[test]
+fn fresh_record_arrival_needs_a_unique_owner_typed_slot() {
+    let (declarations, _) = FRESH.split_once("machine walk").expect("declarations");
+    reject(&format!(
+        "{declarations}
+        machine walk(countdown: Countdown)
+        terminates by countdown -> Countdown::Remaining in 0..=5;
+        -> u64 {{
+            transition countdown.remaining > 3 {{
+                true -> iterate(Countdown {{ remaining: 3, limit: 5 }}, Countdown {{ remaining: 2, limit: 5 }})
+                false -> countdown.remaining
+            }}
+            state iterate(first: Countdown, second: Countdown) {{
+                transition first.remaining > 0 {{
+                    true -> iterate(Countdown {{ remaining: first.remaining - 1, limit: first.limit }}, second)
+                    false -> first.remaining
+                }}
+            }}
+        }}"
+    ));
+    // A borrowed record is not an owned record slot the view can rank.
+    reject(&FRESH.replace("pending: Countdown", "pending: &Countdown"));
 }
 
 #[test]

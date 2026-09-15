@@ -185,6 +185,31 @@ fn identity_measure_transports_named_arrivals_and_pins_range_endpoints() {
 }
 
 #[test]
+fn constrained_measure_signature_is_discharged_against_the_subject() {
+    let constrained = COUNTDOWN
+        .replace("(value: u64)", "(value: u64 [0..=5])")
+        .replace("-> u64 {", "-> u64 [0..=5] {");
+    prove(&constrained);
+    // A declared domain wider than the subject's bounds still covers it,
+    // including an exclusive end normalized to the same `0..=5` extent.
+    prove(&constrained.replace("value: u64 [0..=5])", "value: u64 [0..=6])"));
+    prove(&constrained.replace("value: u64 [0..=5])", "value: u64 [0..6])"));
+    for source in [
+        // The subject `0..=5` does not satisfy a `1..=5` domain or result.
+        constrained.replace("value: u64 [0..=5])", "value: u64 [1..=5])"),
+        constrained.replace("-> u64 [0..=5] {", "-> u64 [1..=5] {"),
+        // A narrower declared domain does not cover the subject either.
+        constrained.replace("value: u64 [0..=5])", "value: u64 [0..=4])"),
+        // A non-range refinement cannot be discharged by bounds.
+        constrained.replace("value: u64 [0..=5])", "value: u64 in Saturating)"),
+        // An unrestricted subject cannot promise the declared domain.
+        constrained.replace("remaining: u64 [0..=5]", "remaining: u64"),
+    ] {
+        reject(&source);
+    }
+}
+
+#[test]
 fn nonidentity_measure_bodies_cannot_reuse_the_parameter_rank() {
     for body in ["nonexistent", "Other::value", "self", "0", "value + 1"] {
         reject(&COUNTDOWN.replace("{ value }", &format!("{{ {body} }}")));
