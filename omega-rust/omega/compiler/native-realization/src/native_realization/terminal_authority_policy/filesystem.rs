@@ -31,6 +31,25 @@ use super::TerminalAuthorityPolicyRow;
 const ORDINARY_RELEASE_CONTRACT_DOMAIN: &[u8] =
     b"omega.checked-syscall-argument-contract.filesystem-ordinary-release.v1\0";
 
+/// Domain separation for one retained bounded Source native-handle
+/// query-release occurrence inside a verified build filesystem replay
+/// record. The occurrence commitment binds the verified record's own strong
+/// commitment and the occurrence's ordinal position in the retained event
+/// sequence, so one record can carry several proved occurrences without
+/// letting them share a contract.
+const NATIVE_HANDLE_QUERY_RELEASE_OCCURRENCE_DOMAIN: &[u8] =
+    b"omega.filesystem-ordinary-release.native-handle-query-occurrence.v1\0";
+
+/// Operation tags of the retained bounded Source native-handle query-release
+/// chain in the checked filesystem replay grammar
+/// (`FilesystemSourceNativeHandleQueryChainReplayRecord`): constrained
+/// `open_path_handle`, admitted `final_path_name_by_handle`/`get_last_error`
+/// observations, and the releasing `close_handle`.
+const OPEN_PATH_HANDLE_TAG: u16 = 28;
+const CLOSE_HANDLE_TAG: u16 = 29;
+const FINAL_PATH_NAME_BY_HANDLE_TAG: u16 = 31;
+const GET_LAST_ERROR_TAG: u16 = 35;
+
 /// One canonical `FilesystemHost` requirement's settled cohort disposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemCohortDisposition {
@@ -103,6 +122,86 @@ pub fn filesystem_ordinary_release_contract(
     FilesystemOrdinaryReleaseContract(CheckedSyscallArgumentContractIdentity::from_digest(
         digest.finalize().into(),
     ))
+}
+
+/// Realize every retained bounded Source native-handle query-release
+/// occurrence in one verified build filesystem replay record into its
+/// ordinary-release contract, in authored operation order.
+///
+/// The retained record replays through the verified build-evaluation
+/// boundary: rehydration reconstructs each retained event through the
+/// checked replay record constructors, so every attempt this routine
+/// attributes to an occurrence already proved the exact constrained
+/// acquisition/observation/release lifecycle — the constrained
+/// `open_path_handle` contract, `Resolved` handle preservation through
+/// admitted `final_path_name_by_handle`/`get_last_error` observations, and
+/// one successful `close_handle` retiring the identity exactly once.
+///
+/// Each occurrence's commitment binds the verified record's own strong
+/// commitment and the occurrence's ordinal position among the retained
+/// query-release occurrences. Minting a contract establishes no
+/// classification by itself: the row still emits only through
+/// `filesystem_release_mechanism_row` for the direct-syscall mechanism
+/// carrying the exact coordinate. Stale or substituted evidence fails
+/// closed — a tampered record cannot rehydrate, a different record commits
+/// differently, and a mechanism bound to one occurrence cannot inherit
+/// another occurrence's contract.
+///
+/// Attempts that do not form a complete retained occurrence earn no
+/// contract: failed acquisition, escapes, invalidating calls, early
+/// retirement, deferred deletion, and missing or late release all fail the
+/// checked constructors upstream, and a partial sequence is never an
+/// occurrence here.
+pub fn filesystem_native_handle_query_release_contracts(
+    record: &build_evaluation::ReviewOnlyBuildFilesystemReplayRecord,
+    limits: build_evaluation::BuildFilesystemReplayRecordLimits,
+) -> Result<
+    Vec<FilesystemOrdinaryReleaseContract>,
+    build_evaluation::BuildFilesystemReplayRecordError,
+> {
+    let replay =
+        build_evaluation::rehydrate_review_only_build_filesystem_replay_record(record, limits)?;
+    let attempts = replay.attempts();
+    let mut contracts = Vec::new();
+    let mut cursor = 0;
+    while cursor < attempts.len() {
+        if attempts[cursor].operation_tag() != OPEN_PATH_HANDLE_TAG {
+            cursor += 1;
+            continue;
+        }
+        cursor += 1;
+        let observations_start = cursor;
+        while cursor < attempts.len()
+            && matches!(
+                attempts[cursor].operation_tag(),
+                FINAL_PATH_NAME_BY_HANDLE_TAG | GET_LAST_ERROR_TAG
+            )
+        {
+            cursor += 1;
+        }
+        let complete = cursor < attempts.len()
+            && attempts[cursor].operation_tag() == CLOSE_HANDLE_TAG
+            && attempts[observations_start..cursor]
+                .iter()
+                .any(|attempt| attempt.operation_tag() == FINAL_PATH_NAME_BY_HANDLE_TAG);
+        if !complete {
+            // Successful rehydration already admitted the record's event
+            // structure, so an incomplete run is not a retained occurrence.
+            continue;
+        }
+        let mut digest = Sha256::new();
+        digest.update(NATIVE_HANDLE_QUERY_RELEASE_OCCURRENCE_DOMAIN);
+        digest.update(record.commitment());
+        digest.update(
+            u64::try_from(contracts.len())
+                .expect("bounded occurrence ordinals fit u64")
+                .to_le_bytes(),
+        );
+        let occurrence_commitment: [u8; 32] = digest.finalize().into();
+        contracts.push(filesystem_ordinary_release_contract(occurrence_commitment));
+        cursor += 1;
+    }
+    Ok(contracts)
 }
 
 /// Look up the settled cohort for one canonical `FilesystemHost` requirement
