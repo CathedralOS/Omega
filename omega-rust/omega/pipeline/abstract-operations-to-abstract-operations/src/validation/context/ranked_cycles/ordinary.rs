@@ -16,9 +16,12 @@ pub(super) fn rederive_components(
         };
         // VerifiedPsiOptimizationInput authenticates this Terminal body and its
         // safety evidence, including grouped Natural evidence when present.
-        // Reconstruct topology independently of current IR; unranked components
-        // acquire no termination or work certificate.
-        let terminal = topology::derive_components(&graph::terminal_graph(machine));
+        // The verifier's canonical cyclic-component surface owns Terminal-side
+        // member identity — the topology every retained Natural row was
+        // validated against — while the current optimizer body is still
+        // reconstructed independently below and must equal it exactly.
+        // Unranked components acquire no termination or work certificate.
+        let terminal = topology::derive_terminal_components(machine)?;
         if terminal.is_empty() {
             // Acyclic source machines retain their existing pruning rules.
             // A new current cycle there receives no admitted-machine authority.
