@@ -1,5 +1,14 @@
-use super::*;
+use super::{
+    ACTIVE_FAIL_CANARIES, ArtifactEmissionPolicy, CANARY_UMBRELLA_LOCK, CHECKED_ONLY_FAIL_CANARIES,
+    CROSS_TARGET_FAIL_CANARIES, CanaryCompileProduct, CanaryCompileSpec, Command, CompileRequest,
+    CompilerOptions, RequestedCompileProduct, check_canary, compile, compile_canary_without_output,
+    compile_canary_without_output_for_target, compile_native_canary_without_output,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
+    fail_canary, fs, interpret, pass_canary, retained_float_differential_result_identity,
+    run_bounded_canary_jobs,
+};
 use compiler::CheckedCompileRequest;
+use std::io::Write;
 
 #[path = "../fixture_rosters/proof_and_float_suites.rs"]
 pub(super) mod fixture_roster;

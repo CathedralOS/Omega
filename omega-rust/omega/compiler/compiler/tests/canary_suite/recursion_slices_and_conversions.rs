@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_reviewed_repository_fixture,
+    compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts, executable_name, fs, interpret,
+    pass_canary, unique_no_output_build_dir,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/recursion_slices_and_conversions.rs"]

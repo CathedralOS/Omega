@@ -1,6 +1,10 @@
 //! Replay rejects changes to the exact field write, its address and its proof.
-use super::*;
 
+use super::{
+    AdmissionProfile, Legalized, NativeTarget, Role, Selected, Target, legalize_target_operations,
+    select_instructions, selection_constraints, validate_legalized_operations,
+    validate_selected_instructions,
+};
 #[test]
 fn indexed_field_write_replay_rejects_address_extent_and_evidence_changes() {
     let terminal = super::super::indexed::indexed_replacement(false);

@@ -1,5 +1,12 @@
-use super::*;
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, Stdio, compile,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    compile_with_auxiliary_artifacts, copy_dir_recursive, executable_name, fs, interpret,
+    pass_canary, production_compile, repo_root, run_bounded_canary_jobs, run_canary,
+    sample_project,
+};
 use compiler::CheckedCompileRequest;
+use std::io::Write;
 
 #[path = "../fixture_rosters/abi_runtime_values_and_strings.rs"]
 pub(super) mod fixture_roster;

@@ -1,4 +1,13 @@
-use super::*;
+use super::{
+    ACTIVE_FAIL_CANARIES, ACTIVE_PASS_CANARIES, ArtifactEmissionPolicy, CHECKED_ONLY_FAIL_CANARIES,
+    CHECKED_ONLY_PASS_CANARIES, CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport,
+    CompileRequest, CompilerOptions, Path, RequestedCompileProduct, check_canary, compile,
+    compile_canary_without_output, compile_reviewed_repository_fixture,
+    compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts,
+    compile_with_auxiliary_artifacts, executable_name, fail_canary, fs,
+    hosted_main_program_entry_build, pass_canary, unique_no_output_build_dir,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/reports_and_capabilities.rs"]

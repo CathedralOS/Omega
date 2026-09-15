@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding, Path, TempTree,
+    compile_to_checked, identity,
+};
 use compiler::CheckedCompileRequest;
 
 fn root_inputs(root: &Path) -> PackageCompilationInputs {

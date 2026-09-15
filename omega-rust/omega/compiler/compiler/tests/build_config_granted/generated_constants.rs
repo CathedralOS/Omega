@@ -1,6 +1,8 @@
 //! Generated source consumes retained authored constants after admitted build execution.
-
-use super::*;
+use super::{
+    FilesystemSponsor, Project, compile_to_checked, package_inputs,
+    set_canonical_source_tree_permissions,
+};
 use compiler::CheckedCompileRequest;
 
 #[test]

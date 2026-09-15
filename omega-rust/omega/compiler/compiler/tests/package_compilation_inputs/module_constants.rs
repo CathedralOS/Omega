@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageKeyIdentity, PackageSourceBinding,
+    Path, TempTree, compile_to_checked, identity,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "module_constants/lexical_aggregate_values.rs"]

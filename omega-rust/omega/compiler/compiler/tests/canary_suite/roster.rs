@@ -26,7 +26,12 @@ use super::time_hosts_and_indexed_storage::fixture_roster as time_hosts_and_inde
 use super::value_and_type_checks::fixture_roster as value_and_type_checks;
 use super::value_calls_and_dispatch::fixture_roster as value_calls_and_dispatch;
 use super::wire_and_algorithms::fixture_roster as wire_and_algorithms;
-use super::*;
+use super::{
+    ACTIVE_FAIL_CANARIES, ACTIVE_PASS_CANARIES, CHECKED_ONLY_FAIL_CANARIES,
+    CHECKED_ONLY_PASS_CANARIES, CROSS_TARGET_FAIL_CANARIES, CROSS_TARGET_PASS_CANARIES, Path,
+    PathBuf, ROOTED_TARGET_BACKEND_PASS_CANARIES, WINDOWS_HOST_PASS_CANARIES, fs, repo_root,
+    unique_no_output_build_dir,
+};
 
 #[path = "../fixture_rosters/access_plans.rs"]
 mod access_plans;

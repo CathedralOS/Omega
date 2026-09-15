@@ -1,5 +1,10 @@
-use super::*;
-
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, check_canary, compile,
+    compile_canary_without_output, compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_target, compile_single_file_hosted_main,
+    compile_with_auxiliary_artifacts, executable_name, fail_canary, fs, native_hosted_target,
+    pass_canary, unique_no_output_build_dir,
+};
 #[path = "../fixture_rosters/atomics_and_target_canaries.rs"]
 pub(super) mod fixture_roster;
 

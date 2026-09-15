@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    compile_reviewed_repository_fixture, compile_rooted_backend_canary_without_output_for_target,
+    pass_canary,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/structural_selected_operator.rs"]

@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding, Sources, compile,
+    compile_to_checked, identity, root_inputs, selections,
+};
 use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
 use compiler::CheckedCompileRequest;
 

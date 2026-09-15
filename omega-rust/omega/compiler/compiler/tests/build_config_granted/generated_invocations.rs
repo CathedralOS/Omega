@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    FilesystemSponsor, Project, compile_to_checked, package_inputs,
+    set_canonical_source_tree_permissions,
+};
 use compiler::CheckedCompileRequest;
 
 fn compile_generated_invocation(

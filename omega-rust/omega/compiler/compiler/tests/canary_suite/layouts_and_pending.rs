@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    ACTIVE_PENDING_CANARIES, CanaryCompileProduct, CanaryCompileSpec, Command,
+    PendingCanaryExpectation, compile, compile_canary_without_output,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_target, executable_name, fs, interpret, pass_canary, pending_canary,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/layouts_and_pending.rs"]

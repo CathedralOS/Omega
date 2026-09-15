@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding, TempTree,
+    compile_to_checked, identity,
+};
 use compiler::CheckedCompileRequest;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionTarget,

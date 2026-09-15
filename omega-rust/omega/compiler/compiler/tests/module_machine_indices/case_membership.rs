@@ -1,4 +1,4 @@
-use super::*;
+use super::{Sources, StatementNode, compile, compile_to_checked, root_inputs};
 use compiler::CheckedCompileRequest;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
 use typed_trees::expression::ExpressionNode;
