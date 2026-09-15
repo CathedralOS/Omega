@@ -463,10 +463,17 @@ fn checked_nominal_machine_use_reports_retain_strong_contract_and_plan_authority
         "checked nominal-use compact coordinates must be reports beside strong contract and plan commitments",
     );
 
-    let planning_path =
-        root.join("omega-rust/omega/build/provider-planning/src/calling_policy_plans.rs");
-    let planning = fs::read_to_string(&planning_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", planning_path.display()));
+    let planning_root =
+        root.join("omega-rust/omega/build/provider-planning/src/calling_policy_plans");
+    let planning = ["plan_computation.rs", "callback_bindings.rs", "tests.rs"]
+        .iter()
+        .map(|file| {
+            let path = planning_root.join(file);
+            fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
         planning.contains("validated.contract_commitment_digest()")
             && planning
