@@ -1,5 +1,5 @@
 //! Shared terminal-jump fusion and exact custody.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::SharedJumpFusionRule;
 use super::super::{

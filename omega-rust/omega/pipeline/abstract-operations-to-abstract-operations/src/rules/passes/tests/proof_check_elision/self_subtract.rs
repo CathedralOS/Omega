@@ -1,5 +1,5 @@
 //! Exact self-subtraction tests.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::{
     LiveProofCertifiedExactIntegerSelfSubtractEliminationRule, PROOF_CHECK_ELISION_PASS_NAME,

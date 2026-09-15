@@ -1,5 +1,5 @@
 //! Scalar pruning does not remove a retained descriptor telescope.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::ConstantConditionalFoldRule;
 use super::super::{

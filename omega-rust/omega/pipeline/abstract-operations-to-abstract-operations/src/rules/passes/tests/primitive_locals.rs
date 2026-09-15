@@ -13,7 +13,7 @@ use super::{
     compute_analysis, id, reconstruct_psi_optimization_unit_seed,
     validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
 };
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 use terminal_psi::{
     StructuralMultiplicity, StructuralOperationResult, StructuralTypeDeclaration,
     StructuralTypeShape,

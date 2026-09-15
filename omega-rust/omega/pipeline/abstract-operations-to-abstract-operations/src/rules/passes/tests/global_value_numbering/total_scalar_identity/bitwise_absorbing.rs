@@ -1,5 +1,5 @@
 //! Exact-width bitwise absorbing-literal and overlap custody.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::{
     BitwiseAbsorbingLiteralIdentityRule, BitwiseNeutralLiteralIdentityRule,

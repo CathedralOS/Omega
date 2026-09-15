@@ -1,5 +1,5 @@
 //! Linear and path-qualified empty-block threading.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::{LinearEmptyBlockThreadRule, PathQualifiedEmptyBlockThreadRule};
 use super::super::{

@@ -1,5 +1,5 @@
 //! Catalog-level coverage for proof check elision.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::ProofCertifiedDeadScalarEliminationRule;
 use super::super::{

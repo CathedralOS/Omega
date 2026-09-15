@@ -1,5 +1,5 @@
 //! Adjacent and non-adjacent block-merge behavior.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::{
     AdjacentBlockMergeRule, ConstantConditionalFoldRule, NonAdjacentBlockMergeRule,

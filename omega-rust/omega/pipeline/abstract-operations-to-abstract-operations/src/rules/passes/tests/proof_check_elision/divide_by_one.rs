@@ -1,5 +1,5 @@
 //! Division-by-one tests.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::LiveProofCertifiedIntegerDivideByOneEliminationRule;
 use super::super::{

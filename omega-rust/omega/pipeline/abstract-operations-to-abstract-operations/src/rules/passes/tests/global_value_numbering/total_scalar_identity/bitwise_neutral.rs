@@ -1,5 +1,5 @@
 //! Exact-width bitwise neutral-literal rule coverage.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::BitwiseNeutralLiteralIdentityRule;
 use super::super::super::{

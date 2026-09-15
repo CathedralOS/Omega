@@ -1,5 +1,5 @@
 //! Self-remainder tests.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::{
     LiveProofCertifiedIntegerSelfRemainderEliminationRule, PROOF_CHECK_ELISION_PASS_NAME,
