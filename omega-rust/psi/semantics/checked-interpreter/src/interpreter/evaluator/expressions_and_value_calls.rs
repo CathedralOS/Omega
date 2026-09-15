@@ -502,10 +502,16 @@ impl<'program> Evaluator<'program> {
         if let Some(value) = self.try_build_product_entry_value_call(handle, call, frame)? {
             return Ok(value);
         }
+        if let Some(value) = self.try_build_product_schema_value_call(handle, call, frame)? {
+            return Ok(value);
+        }
         if let Some(value) = self.try_build_output_obligation_value_call(call, frame)? {
             return Ok(value);
         }
         if let Some(value) = self.try_required_output_path_value_call(call, frame)? {
+            return Ok(value);
+        }
+        if let Some(value) = self.try_product_type_schema_path_value_call(call, frame)? {
             return Ok(value);
         }
         if let Some(request) = &call.private_layout_operation {

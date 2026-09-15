@@ -23,6 +23,7 @@ impl<'program> Evaluator<'program> {
             root_build: None,
             executed_root_bindings: Vec::new(),
             product_entry_descriptions: Vec::new(),
+            product_schema_descriptions: Vec::new(),
             stdin,
             stdin_cursor: 0,
             virtual_ticks: 0,

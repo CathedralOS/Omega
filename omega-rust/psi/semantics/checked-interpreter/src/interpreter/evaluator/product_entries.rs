@@ -13,7 +13,7 @@ use super::{BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, Symb
 /// The compiler-created `Build.product` facet value inside the canonical
 /// Build activation. An authored `BuildProduct {}` has the same static shape
 /// but never this marker name, so it cannot perform the query.
-const PRODUCT_FACET_TYPE: &str = "$OmegaBuildProductFacet";
+pub(super) const PRODUCT_FACET_TYPE: &str = "$OmegaBuildProductFacet";
 
 /// The marker type name carried by issued `ProductEntryRef` values. An
 /// authored `ProductEntryRef {}` has the declared type name instead and is

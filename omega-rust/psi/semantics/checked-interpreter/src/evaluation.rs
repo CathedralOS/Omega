@@ -359,6 +359,21 @@ pub struct DescribedProductEntry {
     pub slot: String,
 }
 
+/// One product-type-schema description issued by the compiler-owned
+/// `Build.product.schema` query during build evaluation. Same marker
+/// discipline as `DescribedProductEntry`: the evaluator keeps this payload
+/// in a private side table and the `ProductTypeSchema` value handed to
+/// evaluated code carries only an opaque index into it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DescribedProductSchema {
+    /// Exact product data declaration the description selected in its
+    /// query's lexical package scope.
+    pub schema_symbol: symbols::SymbolHandle,
+    /// The selected declaration's canonical path, retained for `path()`
+    /// inspection and diagnostics.
+    pub canonical_path: String,
+}
+
 /// One executed `roots.bind` declaration plus, when its implementation
 /// operand was a delegated description, the exact product entry the compiler
 /// issued for it.

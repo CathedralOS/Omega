@@ -592,10 +592,11 @@ pub data BuildOutput {
 }
 pub data BuildLog {
 }
-// Compiler-owned product-selection facet. `builder.product.entry` is the
-// only route to a `ProductEntryRef`: the evaluator answers the query by
-// lexical lookup under the call occurrence's package and returns an opaque
-// marker; the declared body is never executed.
+// Compiler-owned product-selection facet. `builder.product.entry` and
+// `builder.product.schema` are the only routes to compiler-issued product
+// descriptions: the evaluator answers each query by lexical lookup under the
+// call occurrence's package and returns an opaque marker; the declared
+// bodies are never executed.
 pub data BuildProduct {
 }
 // A restricted, non-callable product-entry description. Authored code can
@@ -603,6 +604,13 @@ pub data BuildProduct {
 // operand can consume it, and only the compiler-issued marker value carries
 // the exact selected identity.
 pub data ProductEntryRef [copy] {
+}
+// A restricted, non-callable product-type-schema description (the
+// `ProductTypeSchema` of wiki/spec/build/scoped_execution.md). Authored
+// code can retain, copy, and hand it to helpers, and `schema.path()`
+// inspects the declaration it describes, but only the compiler-issued
+// marker value carries the exact selected identity.
+pub data ProductTypeSchema [copy] {
 }
 // Compiler-owned required-output obligation marker. `builder.output.require`
 // is the only route to one: the evaluator issues an opaque marker whose row
@@ -730,6 +738,11 @@ pub machine BuildOutput::fail(&mut self, obligation: RequiredOutput, diagnostic:
 pub machine RequiredOutput::path(&self) -> &[u8] {
     ""
 }
+// The described product declaration's canonical path. The evaluator answers
+// from its private description table; the declared body never executes.
+pub machine ProductTypeSchema::path(&self) -> &[u8] {
+    ""
+}
 pub machine BuildLog::write_line(&mut self, text: &[u8]) {
 }
 // Fallible logical query: select the exact product machine `path` declares in
@@ -738,6 +751,13 @@ pub machine BuildLog::write_line(&mut self, text: &[u8]) {
 // declared body is only a statically well-typed stand-in.
 pub machine BuildProduct::entry(&self, path: &[u8], slot: &[u8]) -> ProductEntryRef {
     ProductEntryRef {}
+}
+// Fallible logical query: select the exact product data declaration `path`
+// names in this call occurrence's own package. The evaluator intercepts the
+// call and returns the restricted schema-description marker; this declared
+// body is only a statically well-typed stand-in.
+pub machine BuildProduct::schema(&self, path: &[u8]) -> ProductTypeSchema {
+    ProductTypeSchema {}
 }
 // compiler-owned optimization enable machine
 // compiler-owned optimization report machine
