@@ -1,7 +1,9 @@
 //! Indexed-domain compatibility conditions and their retained discharge routes.
 
-use crate::manifest_coordinates::{exact_program_point_label, qualification_symbol_label};
-use crate::manifest_values::push_json_string;
+use crate::encoding::manifest_coordinates::{
+    exact_program_point_label, qualification_symbol_label,
+};
+use crate::encoding::manifest_values::push_json_string;
 use checked_trees::CheckedTrees;
 
 /// Public PDI3 compatibility surface. The named condition and its exact

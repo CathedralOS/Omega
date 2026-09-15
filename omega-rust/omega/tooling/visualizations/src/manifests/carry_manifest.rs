@@ -3,8 +3,10 @@
 #[cfg(test)]
 mod tests;
 
-use crate::manifest_coordinates::machine_overload_identity;
-use crate::manifest_values::{push_carry_policy_json, push_claim_identity_json, push_json_string};
+use crate::encoding::manifest_coordinates::machine_overload_identity;
+use crate::encoding::manifest_values::{
+    push_carry_policy_json, push_claim_identity_json, push_json_string,
+};
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 

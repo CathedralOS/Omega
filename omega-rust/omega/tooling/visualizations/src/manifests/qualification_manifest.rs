@@ -3,11 +3,11 @@
 #[cfg(test)]
 mod tests;
 
-use crate::manifest_coordinates::{
+use crate::encoding::manifest_coordinates::{
     exact_program_point_label, machine_overload_identity, program_point_name,
     qualification_symbol_label,
 };
-use crate::manifest_values::{push_carry_policy_json, push_json_string};
+use crate::encoding::manifest_values::{push_carry_policy_json, push_json_string};
 use checked_trees::CheckedTrees;
 
 /// Public checked qualification-evidence surface. The fact's program point and

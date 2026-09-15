@@ -597,9 +597,9 @@ fn trust_tooling_compact_coordinates_retain_strong_evidence_and_report_labels() 
     let report = fs::read_to_string(&report_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", report_path.display()));
     let visualization = [
-        "qualification_manifest.rs",
-        "machine_contract_manifest.rs",
-        "task_activation_manifest.rs",
+        "manifests/qualification_manifest.rs",
+        "manifests/machine_contract_manifest.rs",
+        "manifests/task_activation_manifest.rs",
     ]
     .map(|owner| {
         let path = root

@@ -3,11 +3,11 @@
 #[cfg(test)]
 mod tests;
 
-use crate::manifest_coordinates::{
+use crate::encoding::manifest_coordinates::{
     callable_overload_identity, machine_overload_identity, qualification_symbol_label,
     state_label_from_symbol, symbol_label,
 };
-use crate::manifest_values::{
+use crate::encoding::manifest_values::{
     push_claim_identity_json, push_json_string, push_permission_event_source_json,
 };
 use checked_trees::CheckedTrees;

@@ -3,7 +3,7 @@
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 
-pub(super) fn machine_overload_identity(
+pub(crate) fn machine_overload_identity(
     program: &CheckedTrees,
     machine_symbol: SymbolHandle,
 ) -> Option<String> {
@@ -15,7 +15,7 @@ pub(super) fn machine_overload_identity(
         .map(|identity| identity.identity())
 }
 
-pub(super) fn callable_overload_identity(
+pub(crate) fn callable_overload_identity(
     program: &CheckedTrees,
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
@@ -49,7 +49,7 @@ pub(super) fn callable_overload_identity(
     })
 }
 
-pub(super) fn program_point_name(point: facts::ProgramPoint) -> &'static str {
+pub(crate) fn program_point_name(point: facts::ProgramPoint) -> &'static str {
     use facts::ProgramPoint;
     match point {
         ProgramPoint::Global => "global",
@@ -65,7 +65,7 @@ pub(super) fn program_point_name(point: facts::ProgramPoint) -> &'static str {
     }
 }
 
-pub(super) fn exact_program_point_label(
+pub(crate) fn exact_program_point_label(
     program: &CheckedTrees,
     point: facts::ProgramPoint,
 ) -> String {
@@ -139,7 +139,7 @@ pub(super) fn exact_program_point_label(
     }
 }
 
-pub(super) fn state_label_from_symbol(program: &CheckedTrees, symbol: SymbolHandle) -> String {
+pub(crate) fn state_label_from_symbol(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     program
         .machines()
         .iter()
@@ -153,7 +153,7 @@ pub(super) fn state_label_from_symbol(program: &CheckedTrees, symbol: SymbolHand
         .unwrap_or_else(|| symbol_label(program, symbol))
 }
 
-pub(super) fn symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> String {
+pub(crate) fn symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     if symbol.is_valid() {
         format!(
             "{} (#{})",
@@ -164,7 +164,7 @@ pub(super) fn symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> Stri
         "invalid".to_owned()
     }
 }
-pub(super) fn qualification_symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> String {
+pub(crate) fn qualification_symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     if !symbol.is_valid() {
         return "<unknown>".to_owned();
     }
