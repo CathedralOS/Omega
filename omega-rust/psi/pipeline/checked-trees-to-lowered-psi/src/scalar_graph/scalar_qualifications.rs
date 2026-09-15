@@ -4,8 +4,8 @@
 //! Catalog membership names a theory; it never substitutes for a cast's checked
 //! introduction evidence. Preparation freezes identities before any machine emits.
 
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::machine_lowering::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::unsupported;
 use crate::scalar_graph::scalar_graph_lowering::terminal_scalar_type;
 use checked_trees::types::{
     DomainConstraintSubject, PrimitiveType, TypeConstraintNode, TypeReferenceHandle,

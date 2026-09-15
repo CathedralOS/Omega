@@ -4,7 +4,7 @@ use checked_trees::{
     CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
 };
 
-use crate::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::LoweringError;
 use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::returns::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::returns::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
@@ -32,16 +32,16 @@ use lowered_psi::LoweredPsi;
 
 /// Work remaining after a producer has assembled its machines.
 #[derive(Default)]
-pub(super) struct LoweringCompletion {
-    pub(super) conformances: ConformancePublication,
-    pub(super) finalize_operands: bool,
-    pub(super) omit_debug: bool,
+pub(crate) struct LoweringCompletion {
+    pub(crate) conformances: ConformancePublication,
+    pub(crate) finalize_operands: bool,
+    pub(crate) omit_debug: bool,
     /// The scalar closure producer allocates machine IDs in source closure order.
-    pub(super) scalar_source_order: bool,
+    pub(crate) scalar_source_order: bool,
 }
 
 #[derive(Default)]
-pub(super) enum ConformancePublication {
+pub(crate) enum ConformancePublication {
     #[default]
     Reconstruct,
     ExactRoot,
@@ -49,12 +49,12 @@ pub(super) enum ConformancePublication {
     BoundedModule,
 }
 
-pub(super) struct LoweredSelectedMachine {
-    pub(super) terminal: LoweredPsi,
+pub(crate) struct LoweredSelectedMachine {
+    pub(crate) terminal: LoweredPsi,
     /// Checked source closure selected by the producer; not inferred from emitted ordinals.
-    pub(super) source_machines: Vec<symbols::SymbolHandle>,
-    pub(super) completion: LoweringCompletion,
-    pub(super) exact_sources: Option<Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>>,
+    pub(crate) source_machines: Vec<symbols::SymbolHandle>,
+    pub(crate) completion: LoweringCompletion,
+    pub(crate) exact_sources: Option<Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>>,
 }
 
 pub(crate) struct SourceMappedLowered {
@@ -172,7 +172,7 @@ fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {
     Err(LoweringError::Unsupported(message))
 }
 
-pub(super) fn lower_selected_machine(
+pub(crate) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {

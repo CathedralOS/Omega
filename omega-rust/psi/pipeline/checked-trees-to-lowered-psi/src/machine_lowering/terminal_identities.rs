@@ -11,7 +11,7 @@ use semantic_vocabulary::{
     ValueId,
 };
 
-use crate::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::LoweringError;
 
 pub(crate) const TERMINAL_MACHINE_IDENTITY_STRIDE: u64 = 1_u64 << 32;
 // Structural Unit call requirements occupy the upper half of the module-wide

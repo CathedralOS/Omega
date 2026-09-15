@@ -62,13 +62,13 @@ use terminal_verifier::{
     ObligationEvidence,
 };
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::machine_lowering::lowering_error::{LoweringError, unsupported};
+use crate::machine_lowering::terminal_identities::{
+    dense_identity, lookup_claim_id, machine_id, obligation_id, proposition_id, value_id,
+};
 use crate::scalar_graph::scalar_graph_lowering::{
     integer_landing_scalar_type, integer_scalar_type, integer_value,
     lower_checked_scalar_expression, terminal_scalar_type,
-};
-use crate::terminal_identities::{
-    dense_identity, lookup_claim_id, machine_id, obligation_id, proposition_id, value_id,
 };
 
 pub(crate) mod content_conservation;

@@ -6,7 +6,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-use crate::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::LoweringError;
 
 pub(super) fn validate(
     checked: &CheckedTrees,

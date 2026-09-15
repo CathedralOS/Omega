@@ -2,8 +2,12 @@
 
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::machine_lowering::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::unsupported;
+use crate::machine_lowering::terminal_identities::block_id;
+use crate::machine_lowering::terminal_identities::edge_id;
+use crate::machine_lowering::terminal_identities::obligation_id;
+use crate::machine_lowering::terminal_identities::value_id;
 use crate::proofs::crash_routes::lower_checked_crash_route_buckets;
 use crate::scalar_graph::boolean_control::{
     boolean_decision_block_count, emit_reserved_boolean_tuple_stage_blocks,
@@ -12,10 +16,6 @@ use crate::scalar_graph::boolean_control::{
 use crate::scalar_graph::scalar_graph_lowering::{
     contains_short_circuit, direct_expression_contains_short_circuit,
 };
-use crate::terminal_identities::block_id;
-use crate::terminal_identities::edge_id;
-use crate::terminal_identities::obligation_id;
-use crate::terminal_identities::value_id;
 use semantic_vocabulary::{BlockId, MachineId, ObligationId, QualifiedScalarType, ValueId};
 use terminal_psi::{
     Block, Operation, OperationKind, StructuralArgument, Terminator, ValueDeclaration,

@@ -7,7 +7,7 @@
 use terminal_psi::{TerminalModule, retain_non_executable_quotient_correspondence};
 use validation::NonExecutableQuotientCorrespondenceBatch;
 
-use crate::lowering_error::LoweringError;
+use crate::machine_lowering::lowering_error::LoweringError;
 
 /// Install a complete proof-only quotient-correspondence batch derived by
 /// semantic validation.

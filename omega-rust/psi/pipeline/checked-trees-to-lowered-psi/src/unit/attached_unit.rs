@@ -263,9 +263,12 @@ pub(crate) fn retain_exact_unit_boundary<'plans>(
 pub(crate) fn lower_unit_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
-) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
     let closure = lower_shared_unit_closure(checked, entry, &[entry], None)?;
-    crate::machine_dispatch::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
+    crate::machine_lowering::machine_dispatch::SourceMappedLowered::new(
+        closure.lowered,
+        closure.machine_ids,
+    )
 }
 
 /// Nominal cleanup assembles the final caller and cleanup contracts itself,
@@ -314,7 +317,7 @@ enum RuntimeRequirementOwner {
 pub(crate) fn lower_scalar_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
-) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
     let mut closure = assemble_unit_closure(
         checked,
         entry,
@@ -324,7 +327,10 @@ pub(crate) fn lower_scalar_effect_closure(
         true,
     )?;
     finalize_operation_proofs(&mut closure.lowered)?;
-    crate::machine_dispatch::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
+    crate::machine_lowering::machine_dispatch::SourceMappedLowered::new(
+        closure.lowered,
+        closure.machine_ids,
+    )
 }
 
 fn assemble_unit_closure(

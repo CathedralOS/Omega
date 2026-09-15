@@ -41,7 +41,13 @@ use terminal_psi::{
 use terminal_verifier::ProofBundle;
 
 use crate::emission::operation_emission::emit_direct_expression;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::machine_lowering::lowering_error::{LoweringError, unsupported};
+use crate::machine_lowering::terminal_identities::{
+    TERMINAL_MACHINE_IDENTITY_STRIDE, allocate_dense, block_id, boundary_machine_id, claim_id,
+    contract_id, dense_identity, edge_id, lookup_claim_id, lookup_domain_id, lookup_machine_id,
+    lookup_service_id, lookup_type_id, machine_id, obligation_id, operation_id, place_id,
+    service_id, structural_domain_id, structural_field_id, structural_type_id, value_id,
+};
 use crate::proofs::content_conservation;
 use crate::proofs::content_conservation::{
     RESULT_STRUCTURAL_PLACE_ID, lower_boundary_content_guarantees,
@@ -67,12 +73,6 @@ use crate::scalar_graph::scalar_graph_lowering::{
 use crate::scalar_graph::shared_runtime_parameters::{
     normalize_shared_boolean_comparison_leaves, resolve_shared_boolean_member_fields,
     shared_boolean_runtime_parameters, valid_shared_boolean_runtime_inputs,
-};
-use crate::terminal_identities::{
-    TERMINAL_MACHINE_IDENTITY_STRIDE, allocate_dense, block_id, boundary_machine_id, claim_id,
-    contract_id, dense_identity, edge_id, lookup_claim_id, lookup_domain_id, lookup_machine_id,
-    lookup_service_id, lookup_type_id, machine_id, obligation_id, operation_id, place_id,
-    service_id, structural_domain_id, structural_field_id, structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{
     checked_unit_boundary_identity, checked_unit_target_reach_matches,

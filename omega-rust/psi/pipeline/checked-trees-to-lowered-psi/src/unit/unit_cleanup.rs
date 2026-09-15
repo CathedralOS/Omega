@@ -757,6 +757,6 @@ fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> 
 pub(crate) fn lower_partial_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
-) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
     partial::lower_partial_affine_unit_cleanup_machine(checked, partial)
 }

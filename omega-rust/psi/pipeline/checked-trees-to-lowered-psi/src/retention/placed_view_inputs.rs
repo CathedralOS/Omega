@@ -8,7 +8,7 @@ use checked_trees::{CheckedPlacedViewInput, CheckedTrees};
 use semantic_vocabulary::MachineId;
 use terminal_psi::{StructuralAccess, TerminalModule, TerminalPlacedViewInput};
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::machine_lowering::lowering_error::{LoweringError, unsupported};
 
 pub(crate) fn retain_selected_placed_view_inputs(
     checked: &CheckedTrees,

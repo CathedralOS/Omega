@@ -14,7 +14,7 @@ use super::{
     lower_unit_parameters, machine_id, service_id, structural_domain_id, terminal_scalar_type,
     unsupported,
 };
-use crate::machine_dispatch::SourceMappedLowered;
+use crate::machine_lowering::machine_dispatch::SourceMappedLowered;
 use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScalarCalls;
 use crate::unit::attached_unit::argument_evaluation;
 
