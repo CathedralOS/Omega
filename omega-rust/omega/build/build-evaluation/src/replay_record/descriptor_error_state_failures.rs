@@ -1,5 +1,6 @@
 //! Exact bad-descriptor failure and immediate `errno` shapes.
 
+use super::BuildFilesystemReplayRecordError;
 use super::handle_failures::{
     operand_free_unknown_descriptor_failure_shape_is_exact,
     unknown_descriptor_open_at_failure_shape_is_exact,
@@ -12,7 +13,8 @@ use super::handle_failures::{
     unknown_descriptor_write_payload_failure_shape_is_exact,
 };
 use super::read_dir_failures::unknown_descriptor_read_dir_failure_shape_is_exact;
-use super::{AttemptShape, BuildFilesystemReplayRecordError, ShapeResult};
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeResult;
 
 const ERRNO_OPERATION_TAG: u16 = 50;
 const REAL_SCOPED_PROVIDER_TAG: u8 = 2;

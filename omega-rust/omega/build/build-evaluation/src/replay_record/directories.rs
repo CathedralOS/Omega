@@ -1,4 +1,7 @@
-use super::{AttemptShape, BuildFilesystemReplayRecordError, ShapeResult, ShapeScalar};
+use super::BuildFilesystemReplayRecordError;
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeResult;
+use crate::replay_record::attempt_codec::ShapeScalar;
 
 const CREATE_DIRECTORY_OPERATION_TAG: u16 = 11;
 

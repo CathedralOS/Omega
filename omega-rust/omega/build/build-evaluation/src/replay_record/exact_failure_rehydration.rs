@@ -1,5 +1,6 @@
 //! Typed rehydration for one exact unknown-handle failure shape.
 
+use super::BuildFilesystemReplayRecordError;
 use super::handle_failures::{
     operand_free_unknown_descriptor_failure_shape_is_exact,
     operand_free_unknown_descriptor_operation,
@@ -17,10 +18,11 @@ use super::handle_failures::{
 };
 use super::native_mutation_failures::unknown_native_handle_mutation_failure_shape_is_exact;
 use super::read_dir_failures::unknown_descriptor_read_dir_failure_shape_is_exact;
-use super::{
-    AttemptShape, BuildFilesystemReplayRecordError, ShapeScalar, clone_bytes,
-    rehydrate_operand_free_unknown_descriptor_kind, rehydrate_unknown_native_handle_mutation_kind,
-};
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeScalar;
+use crate::replay_record::record::clone_bytes;
+use crate::replay_record::rehydration::rehydrate_operand_free_unknown_descriptor_kind;
+use crate::replay_record::rehydration::rehydrate_unknown_native_handle_mutation_kind;
 
 pub(super) fn exact_single_failure_shape_is_supported(shape: &AttemptShape<'_>) -> bool {
     operand_free_unknown_descriptor_failure_shape_is_exact(shape)

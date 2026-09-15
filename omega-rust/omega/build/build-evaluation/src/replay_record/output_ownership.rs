@@ -1,7 +1,9 @@
-use super::{
-    AttemptShape, BuildFilesystemReplayRecordError, ShapeLogicalInput, ShapeLogicalInputResolution,
-    ShapeResult, ShapeScalar,
-};
+use super::BuildFilesystemReplayRecordError;
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeLogicalInput;
+use crate::replay_record::attempt_codec::ShapeLogicalInputResolution;
+use crate::replay_record::attempt_codec::ShapeResult;
+use crate::replay_record::attempt_codec::ShapeScalar;
 
 const CHANGE_FILE_OWNER_OPERATION_TAG: u16 = 49;
 

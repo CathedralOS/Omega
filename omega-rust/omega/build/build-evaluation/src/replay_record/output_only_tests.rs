@@ -1,13 +1,21 @@
 use super::{
-    BuildFilesystemGrantAccess, BuildFilesystemLogicalHandleInputResolution,
-    BuildFilesystemLogicalHandleKind, BuildFilesystemLogicalHandleOutputSource,
-    BuildFilesystemOperationAttempt, BuildFilesystemOperationResult, BuildFilesystemProvider,
-    BuildFilesystemReplayDisposition, BuildFilesystemReplayRecordLimits,
-    BuildFilesystemReplayVerdict, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationSummary, capture_verified_build_filesystem_replay_record,
+    BuildFilesystemReplayRecordLimits, capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
-    rehydrate_review_only_build_filesystem_replay_record, validate_first_rung,
+    rehydrate_review_only_build_filesystem_replay_record,
 };
+use crate::BuildFilesystemGrantAccess;
+use crate::BuildFilesystemLogicalHandleInputResolution;
+use crate::BuildFilesystemLogicalHandleKind;
+use crate::BuildFilesystemLogicalHandleOutputSource;
+use crate::BuildFilesystemOperationAttempt;
+use crate::BuildFilesystemOperationResult;
+use crate::BuildFilesystemProvider;
+use crate::BuildFilesystemReplayDisposition;
+use crate::BuildFilesystemReplayVerdict;
+use crate::BuildFilesystemRoot;
+use crate::BuildFilesystemScalarOperandValue;
+use crate::BuildObservationSummary;
+use crate::replay_record::shape_validation::validate_first_rung;
 use crate::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemAuthorizedPath,
     BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,

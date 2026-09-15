@@ -1,7 +1,9 @@
-use super::{
-    AttemptShape, BuildFilesystemReplayRecordError, ShapeLogicalInput, ShapeLogicalInputResolution,
-    ShapeResult, validate_close_shape,
-};
+use super::BuildFilesystemReplayRecordError;
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeLogicalInput;
+use crate::replay_record::attempt_codec::ShapeLogicalInputResolution;
+use crate::replay_record::attempt_codec::ShapeResult;
+use crate::replay_record::shape_validation::validate_close_shape;
 
 pub(super) fn validate_output_duplicate_shapes(
     duplicate: &AttemptShape<'_>,

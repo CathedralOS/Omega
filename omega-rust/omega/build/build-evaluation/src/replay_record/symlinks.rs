@@ -1,4 +1,7 @@
-use super::{AttemptShape, BuildFilesystemReplayRecordError, ShapeResult, clone_bytes};
+use super::BuildFilesystemReplayRecordError;
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeResult;
+use crate::replay_record::record::clone_bytes;
 
 const SYMLINK_OPERATION_TAG: u16 = 20;
 

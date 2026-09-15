@@ -1,12 +1,20 @@
 use super::{
-    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason, BuildFilesystemOperationAttempt,
-    BuildFilesystemOperationObservationClass, BuildFilesystemOperationResult,
-    BuildFilesystemProvider, BuildFilesystemReplayDisposition, BuildFilesystemReplayRecordLimits,
-    BuildFilesystemReplayVerdict, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationSummary, MAGIC, capture_verified_build_filesystem_replay_record,
+    BuildFilesystemReplayRecordLimits, capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
     rehydrate_review_only_build_filesystem_replay_record,
 };
+use crate::BuildFilesystemGrantAccess;
+use crate::BuildFilesystemGrantRefusalReason;
+use crate::BuildFilesystemOperationAttempt;
+use crate::BuildFilesystemOperationObservationClass;
+use crate::BuildFilesystemOperationResult;
+use crate::BuildFilesystemProvider;
+use crate::BuildFilesystemReplayDisposition;
+use crate::BuildFilesystemReplayVerdict;
+use crate::BuildFilesystemRoot;
+use crate::BuildFilesystemScalarOperandValue;
+use crate::BuildObservationSummary;
+use crate::replay_record::record::MAGIC;
 use crate::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemAuthorizedPath, BuildFilesystemGrantRefusal,
     BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
