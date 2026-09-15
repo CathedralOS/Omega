@@ -167,14 +167,14 @@ pub(crate) fn build_check_facts(
     let index_compatibility = index_compatibility::build_index_compatibility_facts(
         program, &operators, &semantic, &flow,
     )?;
-    flow.terminal_scalar_graphs = crate::flow::build_checked_scalar_graph_plans(
+    flow.terminal_scalar_graphs = crate::execution::build_checked_scalar_graph_plans(
         program,
         &values.scalar_expressions,
         &values.scalar_computations,
         &values.structural_values,
     );
-    flow.terminal_machines = crate::flow::build_checked_terminal_machine_selections(program);
-    flow.terminal_debug = crate::flow::build_checked_terminal_debug_plans(program);
+    flow.terminal_machines = crate::execution::build_checked_terminal_machine_selections(program);
+    flow.terminal_debug = crate::execution::build_checked_terminal_debug_plans(program);
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
     let (machine_suspensions, machine_blocking) = project_operational_rows(&operational);
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.

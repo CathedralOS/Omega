@@ -24,25 +24,7 @@ pub(crate) use value_origins::{value_origin_at_call, value_origin_at_call_resolv
 mod state;
 mod state_values;
 mod statements;
-mod terminal_cleanup;
-mod terminal_debug;
-mod terminal_scalar;
-mod terminal_unit;
-pub(crate) use terminal_unit::ScalarCalleePlans;
-#[cfg(test)]
-pub(crate) use terminal_unit::shared_convergence::shared_integer_runtime_parameter_positions_for_test;
-pub(crate) use terminal_unit::structural_computation_argument;
-pub(crate) use terminal_unit::types::byte_sequence_carrier;
 
-#[cfg(test)]
-pub(crate) fn exact_two_field_record_projection_for_test(
-    program: &typed_trees::TypedTrees,
-    root_type: typed_trees::types::TypeReferenceHandle,
-    moved_field: symbols::SymbolHandle,
-    target_type: typed_trees::types::TypeReferenceHandle,
-) -> Option<(String, String, String, String)> {
-    terminal_unit::exact_two_field_record_projection(program, root_type, moved_field, target_type)
-}
 mod entry_origins;
 mod transfers;
 
@@ -60,11 +42,11 @@ use call_phases::{
 use calls::build_call_flow_fact;
 pub(crate) use calls::call_target_return_type;
 pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependencies;
+pub(crate) use common::proof_contract_call;
 use common::{
     append_constraint_ref, append_flow_contexts, append_flow_contexts_for_points,
     append_place_segments, appended_span_since, borrow_state_fact,
-    project_constraint_refs_to_active_contexts, proof_contract_call, retained_constraint_refs,
-    retained_flow_contexts,
+    project_constraint_refs_to_active_contexts, retained_constraint_refs, retained_flow_contexts,
 };
 use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
@@ -85,6 +67,7 @@ use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,
     resolve_operator_for_call, resolve_operator_statement_call,
 };
+pub(crate) use place::contextual_canonical_place_from_expression;
 
 pub(crate) fn resolved_operator_statement_symbol(
     program: &typed_trees::TypedTrees,
@@ -112,21 +95,4 @@ pub(crate) use place::{
 use reach::attach_reach_summaries;
 use state::build_state_flow_fact;
 use statements::append_state_statement_flow_facts;
-pub(crate) use terminal_cleanup::build_checked_structural_control_cleanup_plans;
-pub(crate) use terminal_debug::build_checked_terminal_debug_plans;
-pub(crate) use terminal_scalar::{
-    build_checked_scalar_graph_plans, build_checked_terminal_machine_selections,
-    finalize_checked_scalar_graph_plans, finalize_scalar_unit_operations,
-};
-pub(crate) use terminal_unit::calls::projected_argument_path;
-pub(crate) use terminal_unit::control::build_checked_structural_unit_control_plans;
-pub(crate) use terminal_unit::returns::{
-    build_checked_boundary_scalar_return_plans, build_checked_primitive_store_scalar_return_plans,
-    build_checked_structural_call_return_plans, build_checked_structural_return_plans,
-    build_checked_structural_scalar_return_plans, reconcile_primitive_store_scalar_returns,
-};
-pub(crate) use terminal_unit::{
-    build_checked_nominal_affine_unit_cleanup_plans,
-    build_checked_partial_affine_unit_cleanup_plans, build_checked_unit_effect_plans,
-};
 use transfers::propagate_statement_transfers;

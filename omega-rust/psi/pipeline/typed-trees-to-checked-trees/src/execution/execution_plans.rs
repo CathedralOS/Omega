@@ -1,6 +1,6 @@
 //! Build dependent execution plans without publishing intermediate checked facts.
 
-use crate::flow;
+use crate::execution;
 use crate::{SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication};
 use checked_trees::{
     CheckFacts, CheckedBoundaryScalarReturnPlans, CheckedStructuralScalarReturnPlans,
@@ -28,19 +28,20 @@ pub(crate) fn build_execution_plans(
     operator_applications: &[SelectedOperatorApplication],
     ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
 ) -> ExecutionPlans {
-    let boundary_returns = flow::build_checked_boundary_scalar_return_plans(program, facts);
-    let primitive_returns = flow::build_checked_primitive_store_scalar_return_plans(program, facts);
+    let boundary_returns = execution::build_checked_boundary_scalar_return_plans(program, facts);
+    let primitive_returns =
+        execution::build_checked_primitive_store_scalar_return_plans(program, facts);
     let structural_callees = match previous_returns {
         Some(previous) => {
-            flow::reconcile_primitive_store_scalar_returns(previous, primitive_returns)
+            execution::reconcile_primitive_store_scalar_returns(previous, primitive_returns)
         }
         None => primitive_returns,
     };
-    let scalar_callees = flow::ScalarCalleePlans {
+    let scalar_callees = execution::ScalarCalleePlans {
         boundary_returns: &boundary_returns,
         structural_returns: &structural_callees,
     };
-    let unit_effects = flow::build_checked_unit_effect_plans(
+    let unit_effects = execution::build_checked_unit_effect_plans(
         program,
         facts,
         scalar_callees,
@@ -48,7 +49,7 @@ pub(crate) fn build_execution_plans(
         ieee_float_fma_applications,
     );
     let mut cleanup_diagnostics = Vec::new();
-    let structural_scalar_returns = flow::build_checked_structural_scalar_return_plans(
+    let structural_scalar_returns = execution::build_checked_structural_scalar_return_plans(
         program,
         facts,
         &unit_effects,

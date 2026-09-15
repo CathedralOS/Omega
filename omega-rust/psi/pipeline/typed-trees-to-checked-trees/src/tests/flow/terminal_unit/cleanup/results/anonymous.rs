@@ -224,7 +224,7 @@ fn anonymous_projection_permissions_cannot_be_removed_duplicated_or_rebound() {
                 {
                     // The public rebuild refreshes call plans; partial cleanup has
                     // its own existing producer and must also be rederived.
-                    let rebuilt = crate::flow::build_checked_partial_affine_unit_cleanup_plans(
+                    let rebuilt = crate::execution::build_checked_partial_affine_unit_cleanup_plans(
                         &changed.typed,
                         &changed.facts,
                         &changed.facts.flow.terminal_unit_effects,

@@ -151,10 +151,10 @@ fn unit_tail_rejects_stale_outer_call_capture() {
             2 => call.call_ordinal = 1,
             _ => call.target_symbol = symbol,
         }
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },

@@ -97,10 +97,10 @@ fn scalar_boundary_wrapper_retains_reordered_scalar_formals_and_actuals() {
             }
             _ => plans.push(plans[index].clone()),
         }
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
@@ -333,8 +333,10 @@ fn scalar_parameter_range_collector_keeps_unsupported_endpoint_rows() {
         contract.closed_scalar_values.has_crash_clauses(),
         contract.closed_scalar_values.has_outcome_specific_clauses(),
     );
-    let rebuilt =
-        crate::flow::build_checked_boundary_scalar_return_plans(&missing.typed, &missing.facts);
+    let rebuilt = crate::execution::build_checked_boundary_scalar_return_plans(
+        &missing.typed,
+        &missing.facts,
+    );
     assert!(
         rebuilt.for_machine(target).is_none(),
         "a missing implicit range is not an empty contract"
@@ -460,10 +462,10 @@ fn unit_scalar_call_rejects_drifted_retained_boundary_return_registration() {
         } else {
             plan.state = arena::Handle::invalid();
         }
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
@@ -608,10 +610,10 @@ fn scalar_boundary_wrapper_transfers_exact_linear_claim_with_mixed_signature() {
                 .type_identity
                 .push_str("-foreign"),
         }
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
@@ -835,10 +837,10 @@ fn unit_scalar_call_rejoins_ordinary_body_without_legacy_boundary_return_row() {
         .terminal_boundary_scalar_returns
         .machines
         .retain(|plan| plan.machine != target);
-    let rebuilt = crate::flow::build_checked_unit_effect_plans(
+    let rebuilt = crate::execution::build_checked_unit_effect_plans(
         &checked.typed,
         &checked.facts,
-        crate::flow::ScalarCalleePlans {
+        crate::execution::ScalarCalleePlans {
             boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
         },

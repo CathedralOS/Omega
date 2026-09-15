@@ -254,7 +254,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `recursive_sum`, `dual_accumulator_recursion`, `subslice_sum`,
   `slice_accum_probe`, and `framed_payload` sources. The first producer gap is
   indexed primitive-array storage in
-  `typed-trees-to-checked-trees/src/flow/terminal_unit/structural_scalar_store.rs`:
+  `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store/build_structural_scalar_store.rs`:
   a primitive element has no record field ID. Extend ordinary primitive access
   with canonical paths as described below, not synthetic fields or helper calls.
   The unchanged i32-slice customer also needs typed scalar views (the existing
@@ -1116,7 +1116,7 @@ Owners include
   [separate safety/progress rules](wiki/spec/language/termination.md) for
   `print_squares` and the Console writer. Owners:
   `terminal-verifier/src/validation/control_flow.rs`, Psi's shared
-  `flow/terminal_unit/` and `checked-trees-to-lowered-psi/src/unit/attached_unit/`,
+  `execution/unit/` and `checked-trees-to-lowered-psi/src/unit/attached_unit/`,
   and Omega's ordinary `lowering/control_flow/` plus receiving graph replay.
   Unit/scalar/aggregate functions already share that native graph; do not
   recreate the deleted Unit planner or unsigned-countdown native route.
@@ -1689,7 +1689,7 @@ Owners include
   located without reading a stored pointer/descriptor. Computed IEEE stores need
   a real source-selected operation, result transport and ordinary store
   composition, not widened admission: Psi's
-  `flow/terminal_unit/selected_ieee_float.rs` and Omega's shared graph/provider
+  `execution/unit/selected_ieee_float.rs` and Omega's shared graph/provider
   route must retain format, selected occurrence and result evidence. The removed
   Unit/FMA planner is not a dependency to rebuild.
 
@@ -1900,7 +1900,7 @@ Owners include
   catalog — no raw code pointer, no duplicated placement authority. At
   `888fb154ff` the telescope admission is landed: `build_call_operation` and
   `build_static_boundary_requirements`
-  (`flow/terminal_unit/{calls,control}.rs`) discharge each `Machine{Nominal}`
+  (`execution/unit/calls/build_calls.rs`, `execution/unit/control/build_control.rs`) discharge each `Machine{Nominal}`
   signature type parameter through a `nominal_machine_use` at the exact site
   (ordinal plus satisfaction row), taking the binder's destination from an ABI
   `native callback` entry where the ordinal declares one and otherwise

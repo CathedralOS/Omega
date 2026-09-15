@@ -7,6 +7,19 @@ use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
 
 #[test]
+fn initial_finalization_restores_complete_rosters_without_changing_check_evidence() {
+    let checked = checked(SOURCE);
+    let expected = checked.facts.clone();
+    let mut facts = expected.clone();
+    facts.flow.terminal_boundary_scalar_returns = Default::default();
+    facts.flow.terminal_structural_scalar_returns = Default::default();
+    facts.flow.terminal_unit_effects = Default::default();
+    let rebuilt = crate::execution::finalize_execution::finalize_execution(&checked.typed, facts)
+        .expect("complete initial execution plans");
+    assert_eq!(rebuilt, expected);
+}
+
+#[test]
 fn failed_selected_rebuild_preserves_previously_published_facts() {
     let source = format!(
         r#"{SOURCE}
@@ -52,6 +65,16 @@ fn failed_selected_rebuild_preserves_previously_published_facts() {
         .clear();
     checked.facts.flow.terminal_unit_effects.machines.clear();
     let before = checked.clone();
+    let initial_diagnostics = crate::execution::finalize_execution::finalize_execution(
+        &checked.typed,
+        checked.facts.clone(),
+    )
+    .expect_err("initial finalization must also reject the missing cleanup premise");
+    assert!(initial_diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove automatic cleanup requires at scalar return edge")
+    }));
     let diagnostics =
         crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
             .expect_err("missing cleanup premise rejects the complete rebuild");
@@ -84,10 +107,10 @@ fn unit_planning_uses_explicit_callees_without_publishing_them() {
     let structural_returns =
         std::mem::take(&mut checked.facts.flow.terminal_structural_scalar_returns);
     let before = checked.clone();
-    let rebuilt = crate::flow::build_checked_unit_effect_plans(
+    let rebuilt = crate::execution::build_checked_unit_effect_plans(
         &checked.typed,
         &checked.facts,
-        crate::flow::ScalarCalleePlans {
+        crate::execution::ScalarCalleePlans {
             boundary_returns: &boundary_returns,
             structural_returns: &structural_returns,
         },
@@ -246,7 +269,7 @@ fn primitive_discovery_keeps_nominal_return_cleanup_in_the_dependent_phase() {
         nominal.cleanup_actions.as_slice(),
         [checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)]
     ));
-    let independent = crate::flow::build_checked_primitive_store_scalar_return_plans(
+    let independent = crate::execution::build_checked_primitive_store_scalar_return_plans(
         &checked.typed,
         &checked.facts,
     );
@@ -344,10 +367,10 @@ fn primitive_scalar_call_rejects_deleted_duplicate_or_drifted_body_registration(
             }
             _ => unreachable!(),
         }
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
@@ -445,10 +468,10 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
             position: substituted_position,
             primitive_type: PrimitiveType::U64,
         };
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },

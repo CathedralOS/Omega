@@ -385,10 +385,10 @@ fn primitive_local_rejects_stale_scalar_facts_and_source_custody() {
                     .destination = arena::Handle::invalid();
             }
         }
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &original.typed,
             &changed,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
@@ -491,10 +491,10 @@ fn primitive_local_rejects_missing_or_substituted_borrow_events() {
             3 => changed.borrow.calls.get_mut(call_handle).call_ordinal = 1,
             _ => changed.borrow.calls.get_mut(call_handle).statement_index = 0,
         }
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &original.typed,
             &changed,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
@@ -562,10 +562,10 @@ fn primitive_local_returned_binding_rejects_input_or_storage_namespace_substitut
             })
             .unwrap();
         assignment.expression = substituted.clone();
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &original.typed,
             &changed,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
@@ -668,10 +668,10 @@ fn computed_primitive_assignment_keeps_exact_rhs_and_destination() {
                 changed.values.scalar_computations.roots.append(root);
             }
         }
-        let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::build_checked_unit_effect_plans(
             &original.typed,
             &changed,
-            crate::flow::ScalarCalleePlans {
+            crate::execution::ScalarCalleePlans {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },

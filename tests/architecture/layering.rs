@@ -1939,12 +1939,12 @@ fn direct_add_proof_search_exposes_its_semantic_owners() {
 fn composed_unit_lowering_exposes_its_semantic_owners() {
     let root = workspace_root();
     let typed =
-        root.join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit");
+        root.join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/unit");
     let terminal =
         root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit");
     for (entrance, modules) in [
         (
-            typed.join("composed_control.rs"),
+            typed.join("composed_control/build_composed_control.rs"),
             &[
                 "assembly",
                 "custody",
@@ -1977,10 +1977,19 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", entrance.display()));
         let directory = entrance.with_extension("");
         for module in modules {
+            let declaration = format!("mod {module};");
+            let explicit_source = source.find(&declaration).and_then(|offset| {
+                let line_start = source[..offset].rfind('\n').map_or(0, |start| start + 1);
+                let prefix = source[..line_start].trim_end();
+                let attribute = prefix.lines().last()?;
+                let relative = attribute.strip_prefix("#[path = \"")?.strip_suffix("\"]")?;
+                Some(entrance.parent()?.join(relative))
+            });
             assert!(
-                source.contains(&format!("mod {module};"))
+                source.contains(&declaration)
                     && (directory.join(format!("{module}.rs")).is_file()
-                        || directory.join(module).join("mod.rs").is_file()),
+                        || directory.join(module).join("mod.rs").is_file()
+                        || explicit_source.is_some_and(|filename| filename.is_file())),
                 "composed Unit entrance {} must name an existing `{module}` rung",
                 entrance.display()
             );
@@ -2001,7 +2010,7 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
         }
     }
     let typed_nested = typed.join("composed_control/nested_control");
-    let typed_nested_entrance = typed_nested.join("mod.rs");
+    let typed_nested_entrance = typed_nested.join("build_control.rs");
     let typed_nested_source =
         std::fs::read_to_string(&typed_nested_entrance).unwrap_or_else(|error| {
             panic!(

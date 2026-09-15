@@ -112,7 +112,10 @@ fn named_machine_back_edge_retains_entry_state_cleanup_and_shared_unit_plan() {
     };
     assert_eq!(successor.target_state, entry);
     assert_eq!(
-        crate::flow::build_checked_structural_control_cleanup_plans(&checked.typed, &checked.facts),
+        crate::execution::build_checked_structural_control_cleanup_plans(
+            &checked.typed,
+            &checked.facts
+        ),
         checked.facts.flow.terminal_structural_control_cleanups,
     );
 }
@@ -153,8 +156,10 @@ fn structural_conditional_edges_retain_independent_affine_parameter_cleanup() {
         plan.edges[1].trivial_affine_discard_parameter_positions,
         [0]
     );
-    let rebuilt =
-        crate::flow::build_checked_structural_control_cleanup_plans(&checked.typed, &checked.facts);
+    let rebuilt = crate::execution::build_checked_structural_control_cleanup_plans(
+        &checked.typed,
+        &checked.facts,
+    );
     assert_eq!(
         rebuilt, checked.facts.flow.terminal_structural_control_cleanups,
         "the checked edge plan is reconstructed from typed ownership evidence"
@@ -162,7 +167,7 @@ fn structural_conditional_edges_retain_independent_affine_parameter_cleanup() {
     let mut missing_evidence = checked.facts.clone();
     missing_evidence.flow.ownership.permissions = Default::default();
     assert!(
-        crate::flow::build_checked_structural_control_cleanup_plans(
+        crate::execution::build_checked_structural_control_cleanup_plans(
             &checked.typed,
             &missing_evidence,
         )
@@ -366,7 +371,7 @@ fn attached_unit_direct_record_projection_retains_transfer_and_maximal_sibling()
             "Terminal structural control deliberately has no path-segment jump carrier"
         );
 
-        let rebuilt = crate::flow::build_checked_structural_control_cleanup_plans(
+        let rebuilt = crate::execution::build_checked_structural_control_cleanup_plans(
             &checked.typed,
             &checked.facts,
         );
@@ -384,7 +389,7 @@ fn attached_unit_direct_record_projection_retains_transfer_and_maximal_sibling()
         drifted_edge.residual_affine_discards[0].path = drifted_edge.transfer.path.clone();
         assert_ne!(
             drifted,
-            crate::flow::build_checked_structural_control_cleanup_plans(
+            crate::execution::build_checked_structural_control_cleanup_plans(
                 &checked.typed,
                 &checked.facts,
             ),
@@ -394,7 +399,7 @@ fn attached_unit_direct_record_projection_retains_transfer_and_maximal_sibling()
         let mut missing_exit = checked.facts.clone();
         missing_exit.flow.ownership.permissions = Default::default();
         assert!(
-            crate::flow::build_checked_structural_control_cleanup_plans(
+            crate::execution::build_checked_structural_control_cleanup_plans(
                 &checked.typed,
                 &missing_exit,
             )
@@ -559,7 +564,7 @@ fn projected_transition_shape_helper_rejects_nominal_root_cleanup() {
         })
         .expect("left field");
     assert!(
-        crate::flow::exact_two_field_record_projection_for_test(
+        crate::execution::exact_two_field_record_projection_for_test(
             &typed,
             source_parameter.type_reference,
             moved_field,
@@ -1475,7 +1480,7 @@ fn owned_call_result_cleanup_requires_exact_transfer_on_every_edge() {
     );
     let (machine, state) = machine_and_entry_state(&checked, "route");
     let rebuild = |facts: &checked_trees::CheckFacts| {
-        crate::flow::build_checked_structural_control_cleanup_plans(&checked.typed, facts)
+        crate::execution::build_checked_structural_control_cleanup_plans(&checked.typed, facts)
     };
     let plans = rebuild(&checked.facts);
     let plan = plans
