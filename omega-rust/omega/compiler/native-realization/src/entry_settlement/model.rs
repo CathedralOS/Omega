@@ -1,6 +1,6 @@
 use super::calling_plans::validate_paired_calling_plans;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
-use terminal_production::CheckedProgramEntryTerminalReceipt;
+use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 /// Exact build-owned source-entry custody carried into native realization.
 /// This is declaration and calling-contract evidence only: it owns no runtime

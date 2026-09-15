@@ -112,7 +112,7 @@ fn ordinary_erased_fields_cannot_acquire_fused_root_establishment() {
 
 pub(crate) fn fused_service_custody() -> (
     terminal_codec::CanonicalTerminalArtifact,
-    terminal_production::CheckedProgramEntryTerminalReceipt,
+    terminal_psi::CheckedProgramEntryTerminalReceipt,
     program_entry_plan::SelectedProgramEntrySourceSignature,
     program_entry_plan::ProgramEntryFusedServiceEstablishment,
 ) {

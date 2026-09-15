@@ -3,7 +3,7 @@ use optimization_core::{OptimizationSelections, PostTerminalOptimizationSelectio
 
 pub(super) struct PreparedTerminalNativeArtifact {
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_program_entry: terminal_production::CheckedProgramEntryTerminalReceipt,
+    checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     checked_boundary_operator_scope:
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
 }

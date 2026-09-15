@@ -125,7 +125,7 @@ fn project_terminal_native_realization_proposal(
     checked: &crate::CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    checked_program_entry: terminal_production::CheckedProgramEntryTerminalReceipt,
+    checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],

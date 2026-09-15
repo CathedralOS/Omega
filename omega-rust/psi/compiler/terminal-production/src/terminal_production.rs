@@ -13,14 +13,9 @@ use lowered_psi_to_lowered_psi::{
 use lowered_psi_to_terminal_psi::{
     CheckedBoundaryOperatorApplicationScope, finalize_terminal_artifact,
 };
-use semantic_vocabulary::MachineId;
 use terminal_codec::terminal_psi_identity;
-use terminal_psi::TerminalMachineResult;
+use terminal_psi::{CheckedProgramEntryTerminalReceipt, TerminalMachineResult};
 mod receiver_eligibility;
-pub use receiver_eligibility::{
-    CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverEligibility,
-    CheckedProgramEntryReceiverProjection,
-};
 /// Canonical Terminal output coupled to its non-caller-authored checked D29
 /// demand scope.
 #[derive(Debug, PartialEq, Eq)]
@@ -248,54 +243,6 @@ impl<C> CallbackCustodyTerminalArtifactProductionError<C> {
 
     pub fn into_parts(self) -> (TerminalArtifactProductionError, C) {
         (self.error, self.callback_custody)
-    }
-}
-
-/// Durable source-to-Terminal join for one checked `ProgramEntry`.
-///
-/// The source-signature identity is computed by the build-owned declaration
-/// checker and supplied here as opaque digest bytes. The remaining fields are
-/// reconstructed by this producer from the exact checked machine and the
-/// canonical Terminal module. This receipt owns no target, calling convention,
-/// runtime roots, image, installation, or publication authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedProgramEntryTerminalReceipt {
-    source_signature_identity: [u8; 32],
-    source_machine_name: String,
-    source_machine_symbol: symbols::SymbolHandle,
-    terminal_psi_identity: terminal_psi::TerminalPsiIdentity,
-    terminal_entry: MachineId,
-    receiver_eligibility: Option<CheckedProgramEntryReceiverEligibility>,
-}
-
-impl CheckedProgramEntryTerminalReceipt {
-    /// Checked-source eligibility for zero establishment and no-code owned
-    /// receiver disposal. Absence does not reject generic Terminal production.
-    pub const fn receiver_eligibility(&self) -> Option<&CheckedProgramEntryReceiverEligibility> {
-        self.receiver_eligibility.as_ref()
-    }
-    pub const fn source_signature_identity(&self) -> [u8; 32] {
-        self.source_signature_identity
-    }
-
-    pub fn source_machine_name(&self) -> &str {
-        &self.source_machine_name
-    }
-
-    /// The exact checked machine this Terminal entry was produced from.
-    /// Settlement compares this symbol, not the display name: a qualified name
-    /// cannot rejoin the selected identity when another package declares a
-    /// same-named machine.
-    pub const fn source_machine_symbol(&self) -> symbols::SymbolHandle {
-        self.source_machine_symbol
-    }
-
-    pub const fn terminal_psi_identity(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.terminal_psi_identity
-    }
-
-    pub const fn terminal_entry(&self) -> MachineId {
-        self.terminal_entry
     }
 }
 
@@ -567,14 +514,14 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(TerminalArtifactProductionError::Lowering)?;
         Ok((
             artifact,
-            CheckedProgramEntryTerminalReceipt {
+            CheckedProgramEntryTerminalReceipt::new(
                 source_signature_identity,
                 source_machine_name,
                 source_machine_symbol,
                 terminal_psi_identity,
                 terminal_entry,
                 receiver_eligibility,
-            },
+            ),
             boundary_operator_scope,
             lowered,
         ))

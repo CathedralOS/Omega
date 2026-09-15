@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+symbols = { path = "../../foundation/symbols" }
 language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 sha2 = "0.10"

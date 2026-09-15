@@ -452,7 +452,7 @@ fn assert_erased_service_settlement_requires_its_source_row(root: &Path) {
     let eligible = produced.receipt().receiver_eligibility().unwrap();
     assert!(matches!(
         eligible.projection(),
-        terminal_production::CheckedProgramEntryReceiverProjection::Erased { .. }
+        terminal_psi::CheckedProgramEntryReceiverProjection::Erased { .. }
     ));
     assert_eq!(eligible.fused_service_fields().len(), 1);
     assert_eq!(

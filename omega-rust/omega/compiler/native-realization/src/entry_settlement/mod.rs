@@ -10,7 +10,7 @@ pub use model::{
     ValidatedNativeProgramEntrySettlement,
 };
 
-use terminal_production::CheckedProgramEntryTerminalReceipt;
+use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 /// Independently replay the complete source-signature, target, calling-plan,
 /// Terminal-Psi, and entry-identity join without invoking the Psi receipt
@@ -111,7 +111,7 @@ pub fn validate_native_program_entry_settlement(
             .iter()
             .filter(|parameter| parameter.is_self);
         match eligibility.projection() {
-            terminal_production::CheckedProgramEntryReceiverProjection::Retained {
+            terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
                 terminal_self,
                 source_position,
             } => {
@@ -127,9 +127,7 @@ pub fn validate_native_program_entry_settlement(
                     return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
                 }
             }
-            terminal_production::CheckedProgramEntryReceiverProjection::Erased {
-                source_position,
-            } => {
+            terminal_psi::CheckedProgramEntryReceiverProjection::Erased { source_position } => {
                 if receivers.next().is_some()
                     || entry
                         .structural_parameters

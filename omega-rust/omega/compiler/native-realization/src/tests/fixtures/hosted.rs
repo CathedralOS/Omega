@@ -1,7 +1,7 @@
 //! Hosted ProgramEntry artifact, terminal receipt, and source-signature custody.
 
 use super::checked_source::checked;
-use terminal_production::CheckedProgramEntryTerminalReceipt;
+use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 pub(in crate::tests) fn hosted_custody() -> (
     terminal_codec::CanonicalTerminalArtifact,
