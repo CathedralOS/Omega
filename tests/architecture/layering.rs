@@ -5169,7 +5169,9 @@ fn build_time_const_layout_fingerprints_are_report_only_beside_exact_replay() {
         root.join("omega-rust/psi/semantics/build-time-evaluation/src/layouts/layout_plans");
 
     let record = std::fs::read_to_string(layout_plans.join("const_materializable.rs"))
-        .expect("read fixed-layout ConstMaterializable implementation");
+        .expect("read fixed-layout ConstMaterializable implementation")
+        + &std::fs::read_to_string(layout_plans.join("const_materializable/tests.rs"))
+            .expect("read fixed-layout ConstMaterializable tests");
     let record_carrier = record
         .split("impl ValidatedConstMaterialization")
         .next()
@@ -5191,7 +5193,9 @@ fn build_time_const_layout_fingerprints_are_report_only_beside_exact_replay() {
     );
 
     let sum = std::fs::read_to_string(layout_plans.join("const_sum_materializable.rs"))
-        .expect("read conventional-sum ConstMaterializable implementation");
+        .expect("read conventional-sum ConstMaterializable implementation")
+        + &std::fs::read_to_string(layout_plans.join("const_sum_materializable/tests.rs"))
+            .expect("read conventional-sum ConstMaterializable tests");
     let sum_carrier = sum
         .split("impl ValidatedConstSumMaterialization")
         .next()
