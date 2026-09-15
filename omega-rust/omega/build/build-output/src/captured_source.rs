@@ -353,6 +353,14 @@ fn materialize_captured_source(
         )));
     }
 
+    // Kind validation finishes before any write so a rejected inventory
+    // leaves the backing untouched rather than partially materialized.
+    for (relative_path, entry) in &input.entries {
+        if let CapturedSourceEntry::File { executable, .. } = entry {
+            validate_captured_executable_mode(relative_path, *executable)?;
+        }
+    }
+
     for (relative_path, entry) in &input.entries {
         let native = captured_native_path(destination, relative_path)?;
         match entry {
@@ -631,6 +639,9 @@ fn unseal_captured_file(path: &Path) -> Result<(), CapturedSourceMaterialization
             ))
         })?
         .permissions();
+    // This arm never compiles on Unix: the readonly attribute is the seal
+    // here, so clearing it is exactly the unseal this host needs.
+    #[allow(clippy::permissions_set_readonly_false)]
     permissions.set_readonly(false);
     std::fs::set_permissions(path, permissions).map_err(|error| {
         materialization_error(format!(
@@ -735,6 +746,33 @@ fn set_captured_file_mode(
             path.display()
         ))
     })
+}
+
+#[cfg(unix)]
+fn validate_captured_executable_mode(
+    _relative_path: &[u8],
+    _executable: bool,
+) -> Result<(), CapturedSourceMaterializationError> {
+    Ok(())
+}
+
+/// A host without an executable file class cannot materialize a captured
+/// executable source file faithfully; the inventory refuses before any write
+/// rather than produce a snapshot whose re-inspection would disagree with
+/// the canonical metadata index the build's grants enforce.
+#[cfg(not(unix))]
+fn validate_captured_executable_mode(
+    relative_path: &[u8],
+    executable: bool,
+) -> Result<(), CapturedSourceMaterializationError> {
+    if executable {
+        Err(materialization_error(format!(
+            "this host cannot materialize captured source file `{}`'s executable mode",
+            String::from_utf8_lossy(relative_path)
+        )))
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(unix)]
@@ -990,9 +1028,35 @@ mod tests {
         );
     }
 
+    /// A portable inventory: no executable class and no symlink, so every
+    /// supported host can materialize it.
+    fn ordinary_input() -> CapturedBuildSourceInput {
+        CapturedBuildSourceInput::from_capture_rows(
+            index(&[
+                (b"", CanonicalFilesystemMetadataRowKind::Directory),
+                (b"templates", CanonicalFilesystemMetadataRowKind::Directory),
+                (
+                    b"templates/banner.tmpl",
+                    CanonicalFilesystemMetadataRowKind::File {
+                        executable: false,
+                        logical_byte_length: 11,
+                    },
+                ),
+            ]),
+            [
+                (b"templates".to_vec(), CapturedSourceEntry::Directory),
+                (
+                    b"templates/banner.tmpl".to_vec(),
+                    CapturedSourceEntry::file(b"HELLO WORLD".to_vec(), false),
+                ),
+            ],
+        )
+        .expect("assemble ordinary captured build source input")
+    }
+
     #[test]
     fn materialized_snapshot_reinspects_exact_kinds_bytes_and_modes() {
-        let input = input_with_template();
+        let input = ordinary_input();
         let fixture = Fixture::new("materialize");
         let backing = fixture.0.join("snapshot");
         std::fs::create_dir(&backing).expect("create empty backing");
@@ -1005,13 +1069,9 @@ mod tests {
             std::fs::read(&template).expect("read materialized template"),
             b"HELLO WORLD"
         );
-        assert_eq!(
-            std::fs::read(backing.join("tools/run.sh")).expect("read materialized tool"),
-            b"RUN"
-        );
         assert!(
-            !backing.join("link").exists(),
-            "captured links materialize as inert evidence only"
+            backing.join("templates").is_dir(),
+            "captured directories materialize as concrete directories"
         );
         #[cfg(unix)]
         {
@@ -1025,14 +1085,6 @@ mod tests {
                 0o444
             );
             assert_eq!(
-                std::fs::symlink_metadata(backing.join("tools/run.sh"))
-                    .unwrap()
-                    .permissions()
-                    .mode()
-                    & 0o777,
-                0o555
-            );
-            assert_eq!(
                 std::fs::symlink_metadata(backing.join("templates"))
                     .unwrap()
                     .permissions()
@@ -1041,6 +1093,72 @@ mod tests {
                 0o555
             );
         }
+        #[cfg(not(unix))]
+        {
+            assert!(
+                std::fs::symlink_metadata(&template)
+                    .unwrap()
+                    .permissions()
+                    .readonly(),
+                "the readonly attribute is the materialized file seal here"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn materialized_snapshot_reinspects_executable_modes_and_inert_links() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let input = input_with_template();
+        let fixture = Fixture::new("materialize-modes");
+        let backing = fixture.0.join("snapshot");
+        std::fs::create_dir(&backing).expect("create empty backing");
+        input
+            .materialize_into(&backing)
+            .expect("materialize captured source input");
+
+        assert_eq!(
+            std::fs::read(backing.join("tools/run.sh")).expect("read materialized tool"),
+            b"RUN"
+        );
+        assert!(
+            !backing.join("link").exists(),
+            "captured links materialize as inert evidence only"
+        );
+        assert_eq!(
+            std::fs::symlink_metadata(backing.join("tools/run.sh"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o555
+        );
+    }
+
+    #[cfg(not(unix))]
+    #[test]
+    fn materialization_rejects_an_unrepresentable_executable_mode() {
+        let input = input_with_template();
+        let fixture = Fixture::new("executable-mode");
+        let backing = fixture.0.join("snapshot");
+        std::fs::create_dir(&backing).expect("create empty backing");
+
+        let error = input
+            .materialize_into(&backing)
+            .expect_err("this host cannot represent a captured executable mode");
+        assert!(
+            error.message().contains("executable mode"),
+            "unexpected materialization error: {}",
+            error.message()
+        );
+        assert!(
+            std::fs::read_dir(&backing)
+                .expect("enumerate rejected backing")
+                .next()
+                .is_none(),
+            "an unrepresentable inventory rejects before any write"
+        );
     }
 
     #[test]
