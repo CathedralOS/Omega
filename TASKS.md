@@ -2447,15 +2447,26 @@ Owners include
   binder, a common concrete result, and dispatch around a region-sized operation;
   runtime arguments depend on RUNTIME-VALUE-GENERICS, not generic JIT execution.
 
-  Resume evidence (win-w2, selected-dispatch guard slice): selected boundary
-  requirements declaring local generic binders are now excluded individually in
-  `build/selected-dispatch/src/boundary_dispatch.rs` — they retain Fused
-  service-field/parameter joins but supply no dispatch row, calls to them
-  reject instead of reaching the unbound template, and a generic machine bound
-  to a nongeneric requirement rejects. Remaining open slice: extract the exact
-  tuple roster from explicit OR/equality constraints, produce tuple-keyed
-  family rows so eligible tuples settle instead of rejecting, and retain them
-  through Terminal dynamic-call/descriptor and native table replay.
+  Resume evidence (macw4-finite-dispatch-2, macOS x86-64, `omega --check
+  --target linux_x86_64` probes plus 65 selected-dispatch tests): the roster
+  slice landed at 61b0e258b0 — `signature_families.rs` extracts the explicit
+  `Binder == literal || ...` roster (order/duplicates normalize, correlated
+  `&&` alternatives keep authored groupings, partial tuples/opaque
+  predicates/ranges never enumerate), `adapter_rows.rs` publishes one
+  tuple-keyed row per declared tuple, statement and expression calls select
+  exactly one settled tuple, and the checked interpreter replays by canonical
+  tuple. The coverage slice on this branch: a roster tuple with no checked
+  provider specialization now leaves the whole requirement dynamically
+  ineligible instead of publishing a truncated table, so one selected
+  conformance covers every declared tuple or supplies no dynamic rows.
+  Remaining open slice: retain `family_tuple` rows through Terminal
+  dynamic-call/descriptor (`terminal_module/boundary/dynamic_dispatch.rs` has
+  no tuple coordinate) and Omega native table replay; runtime `Value`-binder
+  requirement spellings still need trait-signature parser admission
+  (`<Width: u32>` is admitted only on machine declarations today), and
+  boundary calls never demand provider specializations, so every roster tuple
+  needs one static call site until a dynamic selection generates the complete
+  family.
 
   Acceptance: widths 16/32/64 need no handwritten suffix-method family; source
   alternative order and duplicates normalize deterministically. One selected
