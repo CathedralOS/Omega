@@ -406,7 +406,10 @@ fn effect_records_do_not_derive_typed_body_or_provider_summaries() {
     let provider_records = std::fs::read_to_string(
         root.join("omega-rust/omega/representations/effects/src/capabilities/provider_plan.rs"),
     )
-    .unwrap();
+    .unwrap()
+        + &rust_source(
+            &root.join("omega-rust/omega/representations/effects/src/capabilities/provider_plan"),
+        );
     let provider_derivation = std::fs::read_to_string(
         root.join("omega-rust/omega/build/provider-planning/src/service_schema.rs"),
     )
