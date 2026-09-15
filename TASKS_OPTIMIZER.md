@@ -568,9 +568,23 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   firing on both Linux targets, the unencodable-4096 boundary,
   decision-field substitution, and wrong-policy negatives; the validator
   restates the relationship independently as `indexed_read_fold_admission`
-  instead of reusing the pair descriptor). Remaining: further unit roles
-  and the other non-isolated relationships — trap-, stack-, and
-  control-flow-carrying forms still have no descriptor variant.
+  instead of reusing the pair descriptor).
+  `PairOperandShape::BinaryRightLiteralConstantResult` declares a
+  constant-result grammar — the fold drops the surviving dividend `Use`
+  and every dead scratch `Def` past the result, each proven dead in the
+  function — and `PairUnitEffects::BoundEarlyClobberConsumerOperands`
+  admits the fixed pins and early-clobber marks an `idiv`-class remainder
+  realization declares while still rejecting tied operands;
+  `WRAPPING_REMAINDER_ONE_MATERIALIZE` folds `MaterializeI64(1)` feeding
+  `WrappingRemainderI64` into a `MaterializeI64` of zero at the result
+  register under `LiteralFoldPolicy::WRAPPING_REMAINDER_V1`, discharging
+  the consumer's architectural fault surface (334 crate lib tests pass,
+  including firing on both Linux targets, scratch-custody,
+  decision-field substitution, and wrong-policy negatives; the replay
+  re-derives the divisor literal, result register, dropped-`Def` custody,
+  and rebuilt materialization row independently). Remaining: further
+  unit roles and the other non-isolated relationships — trap-, stack-,
+  and control-flow-carrying forms still have no descriptor variant.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
   removal, address folding, compare/test selection, and scheduling only where
