@@ -28,24 +28,69 @@ const NATURAL_LOOP_SOURCE: &str = r#"
     }
 "#;
 
-fn natural_loop_unit() -> (
+/// `scale` is an invariant loop parameter: the entry edge binds it from the
+/// function parameter and the recursive edge binds it to itself, while the
+/// `entries` measure still descends. `scale + scale` is therefore a
+/// side-effect-free scalar computation the loop recomputes identically every
+/// iteration — the non-constant family this boundary now relocates.
+const INVARIANT_COMPUTATION_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u64 in Wrapping, entries: &[u8])
+    terminates by entries -> Slice::Length;
+    {
+        let doubled: u64 in Wrapping = scale + scale;
+        transition entries.len > 0 {
+            true -> scan(scale, entries[1..])
+            _ -> done(doubled)
+        }
+        state done(r: u64 in Wrapping) {}
+    }
+"#;
+
+/// Same computation shape, but the recursive edge advances `scale`, so the
+/// loop parameter is genuinely loop-carried and `scale + scale` must stay
+/// inside the component.
+const VARIANT_COMPUTATION_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u64 in Wrapping, entries: &[u8])
+    terminates by entries -> Slice::Length;
+    {
+        let doubled: u64 in Wrapping = scale + scale;
+        transition entries.len > 0 {
+            true -> scan(scale + 1, entries[1..])
+            _ -> done(doubled)
+        }
+        state done(r: u64 in Wrapping) {}
+    }
+"#;
+
+fn lowered_unit(
+    source: &str,
+    label: &str,
+) -> (
     terminal_psi::TerminalModule,
     terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
 ) {
-    let tokens = Lexer::new(NATURAL_LOOP_SOURCE)
+    let tokens = Lexer::new(source)
         .tokenize()
-        .expect("tokenize natural loop");
-    let syntax = parse_syntax_trees(&tokens).expect("parse natural loop");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve natural loop");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type natural loop");
-    let checked = lower_typed_trees(typed).expect("check natural loop");
+        .unwrap_or_else(|error| panic!("tokenize {label}: {error:?}"));
+    let syntax =
+        parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("parse {label}: {error:?}"));
+    let resolved = resolve(ResolutionRequest::new(&syntax))
+        .unwrap_or_else(|error| panic!("resolve {label}: {error:?}"));
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .unwrap_or_else(|error| panic!("type {label}: {error:?}"));
+    let checked =
+        lower_typed_trees(typed).unwrap_or_else(|error| panic!("check {label}: {error:?}"));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::scan")
-        .expect("lower natural loop");
+        .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
-        .expect("encode natural-loop semantics");
+        .unwrap_or_else(|error| panic!("encode {label} semantics: {error:?}"));
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
-            .expect("encode natural-loop proof");
+            .unwrap_or_else(|error| panic!("encode {label} proof: {error:?}"));
     let input = lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -55,13 +100,20 @@ fn natural_loop_unit() -> (
         &proof_admission::AdmissionProfile::default(),
     )
     .and_then(|admitted| admitted.try_into_optimization_input())
-    .expect("optimizer-only natural admission");
+    .unwrap_or_else(|error| panic!("optimizer-only {label} admission: {error:?}"));
     let verified = build_verified_psi_optimization_unit(
         input,
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
-    .expect("build natural-loop optimizer unit");
+    .unwrap_or_else(|error| panic!("build {label} optimizer unit: {error:?}"));
     (lowered.semantic_module, verified)
+}
+
+fn natural_loop_unit() -> (
+    terminal_psi::TerminalModule,
+    terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
+) {
+    lowered_unit(NATURAL_LOOP_SOURCE, "natural loop")
 }
 
 fn preheader(session: &VerifiedPsiOptimizationSession) -> semantic_vocabulary::BlockId {
@@ -214,16 +266,16 @@ fn natural_loop_hoists_every_invariant_scalar_leaf_and_ledgers_source_custody() 
     assert_eq!(candidate.relocations().len(), 2);
     for relocation in candidate.relocations() {
         assert_eq!(relocation.destination().block, preheader);
-        assert_eq!(relocation.leaf().location().block, {
+        assert_eq!(relocation.node().location().block, {
             let [component] = session.cycle_components().components() else {
                 panic!("one component")
             };
             assert!(
                 component
                     .members
-                    .contains(&relocation.leaf().location().block)
+                    .contains(&relocation.node().location().block)
             );
-            relocation.leaf().location().block
+            relocation.node().location().block
         });
     }
     let validated = validate_loop_invariant_scalar_motion(&session, candidate)
@@ -244,21 +296,21 @@ fn natural_loop_hoists_every_invariant_scalar_leaf_and_ledgers_source_custody() 
         let row = record
             .provenance
             .iter()
-            .find(|row| row.input == PsiRealizationSite::Node(relocation.leaf().location()))
+            .find(|row| row.input == PsiRealizationSite::Node(relocation.node().location()))
             .expect("every moved leaf has exact ledger custody");
         assert_eq!(
             row.disposition,
             ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(relocation.destination()))
         );
-        assert_eq!(&row.sources, relocation.leaf().provenance());
-        assert_eq!(&row.fuel, relocation.leaf().fuel());
+        assert_eq!(&row.sources, relocation.node().provenance());
+        assert_eq!(&row.fuel, relocation.node().fuel());
     }
     for relocation in candidate.relocations() {
         let destination = block(applied.session().unit(), relocation.destination().block);
         let node = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
         assert_eq!(
             node.provenance.first(),
-            Some(&PsiProvenance::Operation(relocation.leaf().psi_operation()))
+            Some(&PsiProvenance::Operation(relocation.node().psi_operation()))
         );
     }
     assert!(
@@ -397,5 +449,266 @@ fn natural_loop_relocation_does_not_thaw_any_other_component_node() {
                 block
             }
         ) if mutated_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn invariant_computation_hoists_rebinding_entry_parameter_to_its_representative() {
+    let (_, verified) = lowered_unit(INVARIANT_COMPUTATION_SOURCE, "invariant computation loop");
+    let session =
+        VerifiedPsiOptimizationSession::new(verified).expect("verified invariant-computation loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one natural loop component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let [function_parameter] = function.parameters.as_slice() else {
+        panic!("one scalar function parameter")
+    };
+    let function_parameter = function_parameter.value;
+    let header = function
+        .blocks
+        .iter()
+        .find(|block| block.id == entry.target)
+        .expect("entry target exists");
+    let [header_parameter] = header.parameters.as_slice() else {
+        panic!("one scalar header parameter")
+    };
+    let header_parameter = header_parameter.value;
+    let preheader = entry.source;
+    let addition = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .filter(move |block| block.id == *member)
+                .flat_map(|block| &block.nodes)
+        })
+        .find(|node| matches!(node.operation, AbstractOperation::WrappingIntegerAdd { .. }))
+        .expect("invariant computation lives in the loop");
+    let addition_operation = match addition.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == addition_operation)
+        .expect("invariant computation is a planned relocation");
+    assert_eq!(
+        relocation.node().operand_rewrites(),
+        &[(header_parameter, function_parameter)],
+    );
+    assert_eq!(relocation.destination().block, preheader);
+    // The scalar-constant leaves relocate alongside it in the same atomic plan.
+    assert!(candidate.relocations().len() >= 3);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    assert_eq!(applied.session().unit().identity, candidate.output());
+
+    let destination = block(applied.session().unit(), relocation.destination().block);
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::WrappingIntegerAdd {
+            result,
+            left,
+            right,
+            ..
+        } => {
+            assert_eq!(*result, relocation.node().result());
+            assert_eq!(*left, function_parameter);
+            assert_eq!(*right, function_parameter);
+        }
+        operation => panic!("relocated computation keeps its operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    assert!(
+        moved
+            .uses
+            .iter()
+            .all(|value_use| value_use.value == function_parameter)
+    );
+
+    let [record] = applied.ledger().records() else {
+        panic!("one atomic relocation has one ledger record")
+    };
+    let row = record
+        .provenance
+        .iter()
+        .find(|row| row.input == PsiRealizationSite::Node(relocation.node().location()))
+        .expect("moved computation has exact ledger custody");
+    assert_eq!(
+        row.disposition,
+        ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(relocation.destination()))
+    );
+    assert_eq!(&row.sources, relocation.node().provenance());
+    assert_eq!(&row.fuel, relocation.node().fuel());
+
+    // Every moved node is now outside the member roster; the loop-carried
+    // comparison and slice measure stay inside, so the plan is a fixed point.
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn loop_carried_computation_is_not_relocated() {
+    let (_, verified) = lowered_unit(VARIANT_COMPUTATION_SOURCE, "variant computation loop");
+    let session =
+        VerifiedPsiOptimizationSession::new(verified).expect("verified variant-computation loop");
+    // Scalar-constant leaves still relocate; the loop-carried `scale + scale`
+    // and `scale + 1` computations must not.
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    for relocation in candidate.relocations() {
+        assert!(
+            relocation.node().operand_rewrites().is_empty(),
+            "a variant computation must never be planned"
+        );
+    }
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let [component] = applied.session().cycle_components().components() else {
+        panic!("one natural loop component")
+    };
+    let additions_inside = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            applied
+                .session()
+                .unit()
+                .functions
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .filter(move |block| block.id == *member)
+                .flat_map(|block| &block.nodes)
+        })
+        .filter(|node| matches!(node.operation, AbstractOperation::WrappingIntegerAdd { .. }))
+        .count();
+    assert!(
+        additions_inside > 0,
+        "the loop-carried computation remains inside the component"
+    );
+}
+
+#[test]
+fn relocating_a_variant_computation_is_rejected_by_the_freeze_fence() {
+    let (_, verified) = lowered_unit(INVARIANT_COMPUTATION_SOURCE, "invariant computation loop");
+    let session =
+        VerifiedPsiOptimizationSession::new(verified).expect("verified invariant-computation loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one natural loop component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let member = component.members[0];
+    let preheader = entry.source;
+    let (input, mut unit) = session.into_parts();
+    let comparison = block(&unit, member)
+        .nodes
+        .iter()
+        .find(|node| matches!(node.operation, AbstractOperation::IntegerLessThan { .. }))
+        .expect("loop-carried comparison exists")
+        .provenance
+        .first()
+        .copied()
+        .expect("comparison carries its operation identity");
+    let operation = match comparison {
+        PsiProvenance::Operation(operation) => operation,
+        _ => panic!("comparison carries its operation identity"),
+    };
+    // Hand-move a computation whose operands are defined inside the component:
+    // the relocation fence must reject it because no invariant substitution
+    // exists, not merely because the shape differs.
+    let moved = take_operation(&mut unit, operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn forged_operand_rewrite_is_rejected_by_the_freeze_fence() {
+    let (_, verified) = lowered_unit(INVARIANT_COMPUTATION_SOURCE, "invariant computation loop");
+    let session =
+        VerifiedPsiOptimizationSession::new(verified).expect("verified invariant-computation loop");
+    let candidate = propose_loop_invariant_scalar_motion(&session, 1)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let [component] = applied.session().cycle_components().components() else {
+        panic!("one natural loop component")
+    };
+    let machine = component.id.machine;
+    let member = component.members[0];
+    let (input, mut unit) = applied.into_session().into_parts();
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| !relocation.node().operand_rewrites().is_empty())
+        .expect("the invariant computation carries an operand rewrite");
+    // Forging the rebound operand back to the loop parameter must fail the
+    // seed-derived substitution, not just dominance bookkeeping.
+    let forged = find_operation_mut(&mut unit, relocation.node().psi_operation());
+    if let AbstractOperation::WrappingIntegerAdd { right, .. } = &mut forged.operation {
+        *right = relocation.node().operand_rewrites()[0].0;
+    }
+    forged.uses[1].value = relocation.node().operand_rewrites()[0].0;
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
     ));
 }

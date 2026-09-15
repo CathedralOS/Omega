@@ -25,16 +25,16 @@ pub(super) fn candidate(
     let output = apply::realize(
         session.unit(),
         component,
-        &plan.leaves,
+        &plan.nodes,
         plan.certificate_tail,
     )?;
     let relocations = plan
-        .leaves
+        .nodes
         .iter()
-        .map(|leaf| {
+        .map(|node| {
             Ok(LoopInvariantScalarRelocation {
-                leaf: leaf.clone(),
-                destination: apply::operation_location(&output, leaf.psi_operation)
+                node: node.clone(),
+                destination: apply::operation_location(&output, node.psi_operation)
                     .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?,
             })
         })
@@ -106,11 +106,11 @@ fn reconstruct_provenance(
             let (sources, fuel) = candidate
                 .relocations
                 .iter()
-                .find(|relocation| relocation.leaf.location == input_location)
+                .find(|relocation| relocation.node.location == input_location)
                 .map(|relocation| {
                     (
-                        relocation.leaf.provenance.clone(),
-                        relocation.leaf.fuel.clone(),
+                        relocation.node.provenance.clone(),
+                        relocation.node.fuel.clone(),
                     )
                 })
                 .unwrap_or_else(|| (node.provenance.clone(), node.fuel.clone()));

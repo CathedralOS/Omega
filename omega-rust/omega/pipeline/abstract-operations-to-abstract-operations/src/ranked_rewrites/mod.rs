@@ -11,8 +11,8 @@ pub use countdown_invariant_constant_relocation::{
     validate_countdown_invariant_constant_relocation,
 };
 pub use loop_invariant_scalar_motion::{
-    AppliedLoopInvariantScalarMotion, LoopInvariantScalarLeaf, LoopInvariantScalarMotionCandidate,
-    LoopInvariantScalarMotionError, LoopInvariantScalarRelocation,
+    AppliedLoopInvariantScalarMotion, LoopInvariantScalarMotionCandidate,
+    LoopInvariantScalarMotionError, LoopInvariantScalarNode, LoopInvariantScalarRelocation,
     ValidatedLoopInvariantScalarMotion, apply_loop_invariant_scalar_motion,
     propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,
 };

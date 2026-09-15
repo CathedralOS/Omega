@@ -1,12 +1,17 @@
 //! Optimizer module role: validation leaf. Exact ranked-body relocation normalization.
 //!
 //! A transformed cyclic body stays frozen against the reconstructed seed
-//! except for independently admitted scalar-leaf motion: an admissible
-//! source-owned scalar constant may relocate from one of its component's
-//! member blocks into the tail of that component's unique-entry preheader.
-//! Definition/use sites and the function-wide effect sequence are derived
-//! coordinates rebuilt by core validation, so the comparison below retains
-//! every source-owned field rather than the refreshed coordinates.
+//! except for independently admitted scalar motion: an admissible
+//! source-owned scalar constant leaf, or an admissible scalar computation
+//! whose uses are all defined outside the component or name provably
+//! invariant parameters of the entry target, may relocate from one of its
+//! component's member blocks into the tail of that component's unique-entry
+//! preheader. Moved computations rebind each invariant-parameter operand to
+//! the representative the entry edge binds — the substitution is re-derived
+//! here from the seed, not trusted from the transformed unit. Definition/use
+//! sites and the function-wide effect sequence are derived coordinates
+//! rebuilt by core validation, so the comparison below retains every
+//! source-owned field rather than the refreshed coordinates.
 
 use super::*;
 
@@ -97,9 +102,24 @@ pub(super) fn validate(
         {
             return Err(mismatch(machine, entry.source));
         }
-        if !crate::validation::admissible_scalar_leaf_relocation(relocation.expected)
-            || !same_relocated_node(relocation.expected, relocation.current)
-        {
+        // Leaf relocations move byte-exact; invariant computations rebind
+        // entry-target parameters to the representatives this validator
+        // re-derives from the expected seed, so a forged operand rewrite
+        // cannot carry different authority than the loop's own edges prove.
+        let substitution =
+            if crate::validation::admissible_scalar_leaf_relocation(relocation.expected) {
+                BTreeMap::new()
+            } else {
+                match crate::validation::invariant_scalar_operand_substitution(
+                    expected,
+                    component,
+                    relocation.expected,
+                ) {
+                    Some(substitution) => substitution,
+                    None => return Err(mismatch(machine, relocation.expected_block)),
+                }
+            };
+        if !same_relocated_node(relocation.expected, relocation.current, &substitution) {
             return Err(mismatch(machine, relocation.expected_block));
         }
     }
@@ -179,13 +199,27 @@ fn retained_nodes<'block>(
         .collect()
 }
 
-fn same_relocated_node(expected: &OptimizationNode, current: &OptimizationNode) -> bool {
-    expected.operation == current.operation
+fn same_relocated_node(
+    expected: &OptimizationNode,
+    current: &OptimizationNode,
+    substitution: &BTreeMap<ValueId, ValueId>,
+) -> bool {
+    let mut operation = expected.operation.clone();
+    crate::validation::substitute_invariant_scalar_operands(&mut operation, substitution);
+    operation == current.operation
         && expected.provenance == current.provenance
         && expected.fuel == current.fuel
         && position_normalized_definitions(expected) == position_normalized_definitions(current)
-        && expected.uses.is_empty()
-        && current.uses.is_empty()
+        && expected
+            .uses
+            .iter()
+            .map(|value_use| {
+                substitution
+                    .get(&value_use.value)
+                    .copied()
+                    .unwrap_or(value_use.value)
+            })
+            .eq(current.uses.iter().map(|value_use| value_use.value))
         && expected.successors == current.successors
         && expected.ownership == current.ownership
 }

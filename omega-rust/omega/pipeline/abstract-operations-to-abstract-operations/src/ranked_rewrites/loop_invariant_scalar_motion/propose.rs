@@ -23,7 +23,7 @@ pub(super) fn all(
     Ok(candidates)
 }
 
-/// Plan the exact admissible-leaf relocation for one component, realize the
+/// Plan the exact admissible-node relocation for one component, realize the
 /// transformed unit, and bind the observed destinations into the candidate.
 fn component_candidate(
     session: &VerifiedPsiOptimizationSession,
@@ -35,17 +35,17 @@ fn component_candidate(
     let output = apply::realize(
         session.unit(),
         component,
-        &plan.leaves,
+        &plan.nodes,
         plan.certificate_tail,
     )?;
     let relocations = plan
-        .leaves
+        .nodes
         .iter()
-        .map(|leaf| {
+        .map(|node| {
             Ok(LoopInvariantScalarRelocation {
-                destination: apply::operation_location(&output, leaf.psi_operation)
+                destination: apply::operation_location(&output, node.psi_operation)
                     .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?,
-                leaf: leaf.clone(),
+                node: node.clone(),
             })
         })
         .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;
@@ -65,11 +65,12 @@ fn component_candidate(
 }
 
 /// The independently replayable relocation plan for one component: every
-/// admissible scalar-constant leaf still inside a member block, plus the
-/// number of countdown-certificate constants already occupying the preheader
-/// tail (the dedicated countdown boundary owns their role order).
+/// admissible scalar node still inside a member block — a scalar-constant
+/// leaf or an invariant scalar computation — plus the number of
+/// countdown-certificate constants already occupying the preheader tail (the
+/// dedicated countdown boundary owns their role order).
 pub(super) struct ComponentPlan {
-    pub(super) leaves: Vec<LoopInvariantScalarLeaf>,
+    pub(super) nodes: Vec<LoopInvariantScalarNode>,
     pub(super) certificate_tail: usize,
 }
 
@@ -117,7 +118,9 @@ pub(super) fn component_plan(
             )
         })
         .count();
-    let mut leaves = Vec::new();
+    let insertion = terminator_index - certificate_tail;
+    let sites = crate::validation::value_definition_sites(function);
+    let mut nodes = Vec::new();
     for member in &component.members {
         let block = function
             .blocks
@@ -125,9 +128,43 @@ pub(super) fn component_plan(
             .find(|block| block.id == *member)
             .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
         for (index, node) in block.nodes.iter().enumerate() {
-            if !crate::validation::admissible_scalar_leaf_relocation(node) {
-                continue;
-            }
+            let operand_rewrites = if crate::validation::admissible_scalar_leaf_relocation(node) {
+                Vec::new()
+            } else {
+                let Some(substitution) = crate::validation::invariant_scalar_operand_substitution(
+                    function, component, node,
+                ) else {
+                    continue;
+                };
+                // Every rebound operand must already be visible where the
+                // relocated run lands: a function parameter, a preheader
+                // block parameter, or a preheader node defined ahead of the
+                // run. Representatives defined by other dominating blocks
+                // would need a dominance query this family does not run, so
+                // they stay inside the loop.
+                let representable =
+                    substitution
+                        .values()
+                        .all(|representative| match sites.get(representative) {
+                            Some(ValueDefinitionSite::FunctionParameter(_)) => true,
+                            Some(ValueDefinitionSite::BlockParameter { block, .. })
+                                if *block == entry.source =>
+                            {
+                                true
+                            }
+                            Some(ValueDefinitionSite::Node {
+                                block,
+                                node: defined,
+                            }) if *block == entry.source => {
+                                usize::try_from(*defined).is_ok_and(|defined| defined < insertion)
+                            }
+                            _ => false,
+                        });
+                if !representable {
+                    continue;
+                }
+                substitution.into_iter().collect()
+            };
             let psi_operation = match node.provenance.first() {
                 Some(PsiProvenance::Operation(operation)) => *operation,
                 _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
@@ -138,7 +175,7 @@ pub(super) fn component_plan(
             let [definition] = node.definitions.as_slice() else {
                 return Err(LoopInvariantScalarMotionError::CandidateMismatch);
             };
-            leaves.push(LoopInvariantScalarLeaf {
+            nodes.push(LoopInvariantScalarNode {
                 psi_operation,
                 result: definition.value,
                 scalar_type: definition.scalar_type,
@@ -148,16 +185,17 @@ pub(super) fn component_plan(
                     node: u32::try_from(index)
                         .map_err(|_| LoopInvariantScalarMotionError::CoordinateOverflow)?,
                 },
+                operand_rewrites,
                 provenance: node.provenance.clone(),
                 fuel: node.fuel.clone(),
             });
         }
     }
-    if leaves.is_empty() {
+    if nodes.is_empty() {
         return Ok(None);
     }
     Ok(Some(ComponentPlan {
-        leaves,
+        nodes,
         certificate_tail,
     }))
 }

@@ -2,7 +2,7 @@
 
 use super::*;
 
-mod relocated_scalar_leaves;
+mod relocated_scalars;
 
 pub(super) fn validate_frozen_component_blocks(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
@@ -27,7 +27,7 @@ pub(super) fn validate_frozen_component_blocks(
     // Prefix definitions and exit observations matter for unranked, Natural,
     // and countdown cycles alike. Topology equality alone cannot preserve
     // them; the relocation normalization retains every source-owned field
-    // while admitting only scalar-leaf motion into a component's own
+    // while admitting only scalar motion into a component's own
     // unique-entry preheader. Immutable signature/contract and accepted-fact
     // custody are checked separately by the enclosing context validator. The
     // bare seed has not yet acquired that verified metadata.
@@ -46,7 +46,7 @@ pub(super) fn validate_frozen_component_blocks(
             .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
                 machine,
             ))?;
-        relocated_scalar_leaves::validate(
+        relocated_scalars::validate(
             machine,
             expected_function,
             current_function,

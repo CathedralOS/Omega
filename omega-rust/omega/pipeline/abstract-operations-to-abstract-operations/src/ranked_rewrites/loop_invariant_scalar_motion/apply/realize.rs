@@ -1,16 +1,17 @@
-//! Optimizer module role: application leaf. Canonical leaf movement and derived-coordinate refresh.
+//! Optimizer module role: application leaf. Canonical node movement and derived-coordinate refresh.
 
 use std::collections::BTreeMap;
 
 use super::super::*;
 
-/// Remove every planned leaf node at its exact source location and insert the
+/// Remove every planned scalar node at its exact source location, rebind any
+/// invariant-parameter operands to their entry representatives, and insert the
 /// run ahead of the component preheader's entry terminator, before any
 /// already-relocated countdown-certificate constants.
 pub(crate) fn realize(
     unit: &PsiOptimizationUnit,
     component: &optimization_unit::OptimizerCycleComponent,
-    leaves: &[LoopInvariantScalarLeaf],
+    nodes: &[LoopInvariantScalarNode],
     certificate_tail: usize,
 ) -> Result<PsiOptimizationUnit, LoopInvariantScalarMotionError> {
     let mut output = unit.clone();
@@ -21,10 +22,10 @@ pub(crate) fn realize(
         .find(|function| function.machine == machine)
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
     // Remove in descending node order inside each block so earlier removals do
-    // not shift later coordinates, then reassemble the run in leaf order.
-    let mut requests = leaves
+    // not shift later coordinates, then reassemble the run in plan order.
+    let mut requests = nodes
         .iter()
-        .map(|leaf| (leaf.location, leaf.psi_operation))
+        .map(|node| (node.location, node.psi_operation))
         .collect::<Vec<_>>();
     requests.sort_by_key(|(location, _)| (location.block, std::cmp::Reverse(location.node)));
     let mut removed = BTreeMap::new();
@@ -65,14 +66,29 @@ pub(crate) fn realize(
             return Err(LoopInvariantScalarMotionError::CandidateMismatch);
         }
     }
-    let nodes = leaves
+    let nodes = nodes
         .iter()
-        .map(|leaf| {
-            removed
-                .remove(&leaf.psi_operation)
-                .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)
+        .map(|planned| {
+            let mut node = removed
+                .remove(&planned.psi_operation)
+                .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
+            let substitution = planned
+                .operand_rewrites
+                .iter()
+                .copied()
+                .collect::<BTreeMap<_, _>>();
+            crate::validation::substitute_invariant_scalar_operands(
+                &mut node.operation,
+                &substitution,
+            );
+            for value_use in &mut node.uses {
+                if let Some(representative) = substitution.get(&value_use.value) {
+                    value_use.value = *representative;
+                }
+            }
+            Ok(node)
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;
     let Some(&entry) = component.entries.first() else {
         return Err(LoopInvariantScalarMotionError::CandidateMismatch);
     };
