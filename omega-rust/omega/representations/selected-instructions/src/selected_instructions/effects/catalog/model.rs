@@ -390,9 +390,15 @@ pub enum MachineLatencyKnowledge {
 pub struct MachineEncodedEffects {
     /// Numbered selected operands whose incoming values affect the encoded
     /// result. Internal reads of values defined earlier in a multi-instruction
-    /// realization are deliberately excluded.
+    /// realization are deliberately excluded. Admission requires this list to
+    /// restate the constraint row's read contract exactly; the only surfaces
+    /// that consume fewer operands are a return — whose operand homes are the
+    /// caller's contract, not the encoding's inputs — and an all-aliased
+    /// subtract, whose `x - x` result depends on neither input home.
     pub external_operand_reads: Vec<u16>,
-    /// Numbered selected operands whose physical homes are written.
+    /// Numbered selected operands whose physical homes are written. Admission
+    /// requires this list to equal the constraint row's contracted
+    /// definitions exactly.
     pub external_operand_writes: Vec<u16>,
     pub implicit_unit_uses: Vec<register_model::RegisterUnitId>,
     pub implicit_unit_defs: Vec<register_model::RegisterUnitId>,

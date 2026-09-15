@@ -741,9 +741,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 );
 
                 // Encoded operand custody: losing a declared read or write
-                // stays inside the admitted shape and needs canonical replay,
-                // while inventing custody the row does not offer fails
-                // structural admission.
+                // understates the contracted surface and fails structural
+                // admission; canonical replay never sees the forgery.
                 let expected = &contract.alternatives[index];
                 if let Some(&dropped) = expected.reads.last() {
                     let mut corrupted = catalog.clone();
@@ -754,7 +753,9 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     reads.retain(|read| *read != dropped);
                     assert_eq!(
                         validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::SemanticMismatch),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
                         "{key:?} lost operand read must reject"
                     );
                 }
@@ -767,13 +768,15 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     writes.retain(|write| *write != dropped);
                     assert_eq!(
                         validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::SemanticMismatch),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
                         "{key:?} lost operand write must reject"
                     );
                 }
                 // A read the row does offer but the form does not take — the
-                // zeroing subtraction form — is still an admitted read set;
-                // only canonical replay sees the missing read.
+                // zeroing subtraction form — is just as contracted out: the
+                // all-aliased surface owns its empty read set.
                 let unread = row.operands.iter().find(|operand| {
                     matches!(
                         operand.access,
@@ -790,7 +793,9 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     reads.sort_unstable();
                     assert_eq!(
                         validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::SemanticMismatch),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
                         "{key:?} invented operand read must reject"
                     );
                 }
@@ -1004,9 +1009,32 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                         .applicability =
                         MachineAlternativeApplicability::ResultAliasesOperand { result, operand };
+                    // The drifted window contracts every input back into the
+                    // read surface: a form whose honest reads are already the
+                    // full contract still needs canonical replay, while the
+                    // all-aliased subtract's empty read set now understates
+                    // its own applicability and fails structural admission.
+                    let contracted_reads = row
+                        .operands
+                        .iter()
+                        .filter(|operand| {
+                            matches!(
+                                operand.access,
+                                RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
+                            )
+                        })
+                        .map(|operand| operand.operand)
+                        .collect::<Vec<u16>>();
+                    let expected_rejection = if expected.reads == contracted_reads.as_slice() {
+                        EffectRejection::SemanticMismatch
+                    } else {
+                        EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic),
+                        )
+                    };
                     assert_eq!(
                         validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::SemanticMismatch),
+                        Err(expected_rejection),
                         "{key:?} admitted alias-window drift must reject"
                     );
                 }
