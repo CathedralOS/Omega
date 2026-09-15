@@ -1,9 +1,11 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER,
     SignatureContractKind, StatementNode, SymbolHandle, TraitDefinition, TransitionGuardNode,
-    TransitionTargetNode, TypedTrees, collect_equality_conjuncts, display_structural_term,
-    is_arm_pattern_marker, split_structural_machine_name, structural_call_machine_name,
-    structural_term, term_contains,
+    TransitionTargetNode, TypedTrees, is_arm_pattern_marker, split_structural_machine_name,
+    structural_call_machine_name, structural_term, term_contains,
+};
+use crate::proof_contracts::contract_entailment::law_conformance::{
+    collect_equality_conjuncts, display_structural_term,
 };
 use std::cell::Cell;
 use typed_trees::types::TypeReferenceHandle;

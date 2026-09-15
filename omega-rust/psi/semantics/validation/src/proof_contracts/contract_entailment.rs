@@ -156,7 +156,6 @@ use crate::proof_contracts::contract_entailment::structural_case_arms::{
 };
 use arithmetic_judgment::{Engine, Judgment, Polynomial};
 use inductive_judgment::inductive_transition_entailment;
-use law_conformance::{collect_equality_conjuncts, display_structural_term};
 use quotient_congruence::{quotient_equality_from_requires, quotient_equality_names};
 use structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use structural_terms::{
