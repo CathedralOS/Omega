@@ -405,11 +405,11 @@ fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority(
 fn private_authority_carriers_retain_strong_subject_commitments() {
     let root = workspace_root();
 
-    let access_path = root.join("omega-rust/psi/foundation/access-plans/src/lib.rs");
+    let access_path = root.join("omega-rust/psi/foundation/access-plans/src/access_plan.rs");
     let access = fs::read_to_string(&access_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", access_path.display()));
     assert!(
-        access.contains("struct AccessLayoutCommitment([u8; 32])")
+        access.contains("struct AccessLayoutCommitment(pub(crate) [u8; 32])")
             && access.contains("layout_report_fingerprint: u64")
             && access.contains("layout_commitment: AccessLayoutCommitment")
             && access.contains("key.layout_commitment != self.layout_commitment"),

@@ -2,10 +2,114 @@ use extents::{Extent, ExtentLoan};
 
 use super::{
     AccessPlanDiagnostic, AdmittedResourceProfile, OwnedPlacementAdmission,
-    OwnedPlacementRejection, PlaceEstablishmentError, PlacedView, PlacementAdmission,
-    PlacementAdmissionId, PlacementRejection, PlacementResourceCompatibility,
-    ValidatedPlacementPlan, validate_placement_resources,
+    OwnedPlacementRejection, PlacedView, PlacementResourceCompatibility, ValidatedPlacementPlan,
+    validate_placement_resources,
 };
+use crate::ResourceProfileReceiptId;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlacementAdmissionId(pub(crate) u64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlacedOccurrenceId(u64);
+
+/// One accepted placement that owns the exact extent loan checked by the
+/// provider. It cannot be reused to admit another range or another loan.
+#[derive(Debug)]
+pub struct PlacementAdmission<'extent> {
+    pub(crate) identity: PlacementAdmissionId,
+    pub(crate) placement_plan: ValidatedPlacementPlan,
+    pub(crate) profile_receipt: ResourceProfileReceiptId,
+    pub(crate) profile: AdmittedResourceProfile,
+    pub(crate) resources: PlacementResourceCompatibility,
+    pub(crate) loan: ExtentLoan<'extent>,
+}
+
+#[derive(Debug)]
+pub struct PlacementRejection<'extent> {
+    loan: ExtentLoan<'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+/// Failed borrowed placed-view establishment returns the highest valid
+/// loan-bearing admission intact for corrected retry or withdrawal.
+#[derive(Debug)]
+pub struct PlaceEstablishmentError<'extent> {
+    admission: PlacementAdmission<'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl PlacementAdmissionId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
+        if identity == 0 {
+            return Err(AccessPlanDiagnostic(
+                "placement-admission identity cannot be zero".into(),
+            ));
+        }
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+impl PlacedOccurrenceId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
+        if identity == 0 {
+            return Err(AccessPlanDiagnostic(
+                "placed-occurrence identity cannot be zero".into(),
+            ));
+        }
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+impl<'extent> PlacementAdmission<'extent> {
+    pub const fn identity(&self) -> PlacementAdmissionId {
+        self.identity
+    }
+
+    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
+        self.profile_receipt
+    }
+
+    pub const fn resources(&self) -> &PlacementResourceCompatibility {
+        &self.resources
+    }
+
+    /// Cancel permission-only admission and recover the exact source loan.
+    ///
+    /// No placed content has been established at this stage, so withdrawal
+    /// makes no content, destruction, vacancy, or allocator-release claim.
+    pub fn withdraw(self) -> ExtentLoan<'extent> {
+        self.loan
+    }
+}
+
+impl<'extent> PlaceEstablishmentError<'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (PlacementAdmission<'extent>, AccessPlanDiagnostic) {
+        (self.admission, self.diagnostic)
+    }
+}
+
+impl<'extent> PlacementRejection<'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (ExtentLoan<'extent>, AccessPlanDiagnostic) {
+        (self.loan, self.diagnostic)
+    }
+}
 
 pub fn admit_placement<'extent>(
     identity: PlacementAdmissionId,

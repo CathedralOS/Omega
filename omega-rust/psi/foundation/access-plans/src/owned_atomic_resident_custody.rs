@@ -14,10 +14,12 @@ use super::owned_resident_custody::validate_resident_observation;
 use super::{
     AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, ObservationModel,
     OwnedPlacementAdmission, PlacedFieldProjection, PlacedOccurrenceId, PlacementAdmissionId,
-    PlacementAuthorityRef, PlacementResourceCompatibility, ResourceProfileReceiptId,
-    ValidatedPlacementPlan, project_placed_field, replay_owned_admission_resources,
-    validate_owned_content_binding,
+    PlacementResourceCompatibility, ResourceProfileReceiptId, ValidatedPlacementPlan,
 };
+use crate::field_projection::project_placed_field;
+use crate::owned_resident_custody::replay_owned_admission_resources;
+use crate::owned_resident_custody::validate_owned_content_binding;
+use crate::placement_authority::PlacementAuthorityRef;
 
 /// Dormant provider-established content for one exact Atomic-only placement.
 #[derive(Debug)]

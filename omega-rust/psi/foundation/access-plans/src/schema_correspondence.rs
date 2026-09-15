@@ -8,10 +8,12 @@
 
 use super::{
     AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
-    PlacedFieldProjection, PlacedView, PlacementAdmission, PlacementAdmissionId,
-    PlacementAuthorityRef, PlacementPlanId, ResourceProfileReceiptId, ValidatedPlacementPlan,
-    place, project_placed_field, validate_placement_admission,
+    PlacedFieldProjection, PlacedView, PlacementAdmission, PlacementAdmissionId, PlacementPlanId,
+    ResourceProfileReceiptId, ValidatedPlacementPlan, place,
 };
+use crate::field_projection::project_placed_field;
+use crate::placement_admission::validate_placement_admission;
+use crate::placement_authority::PlacementAuthorityRef;
 use extents::{ExtentLoan, LoanPolarity};
 
 macro_rules! normalized_identity {

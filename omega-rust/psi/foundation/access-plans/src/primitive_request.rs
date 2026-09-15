@@ -3,9 +3,41 @@ use extents::ResidentClaimId;
 use super::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, BorrowPolarity,
     BoundaryReach, EffectFootprint, EffectiveFieldSupply, LogicalFieldExtent, ObservationModel,
-    PlacedOccurrenceId, PlacementAdmissionId, PlacementPlanId, PrimitiveAccessRequest,
-    ResourceProfileReceiptId, authorize_descriptor, effect_footprints_conflict,
+    PlacedOccurrenceId, PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId,
+    effect_footprints_conflict,
 };
+use crate::authorization::authorize_descriptor;
+use crate::placement_authority::PlacementAuthorityRef;
+use crate::{AccessFieldKey, AuthorizedFieldAccess, FieldAccessDescriptor};
+
+/// Canonical input to target-specific placed-memory lowering.
+///
+/// Construction is sealed behind `PlacedFieldAccess::into_primitive_request`.
+/// Target lowering may choose a stronger instruction where architecture law
+/// requires it, but may not weaken the exact event recorded here.
+#[derive(Debug)]
+pub struct PrimitiveAccessRequest<'view, 'extent> {
+    pub(crate) plan: PlacementPlanId,
+    pub(crate) profile_receipt: ResourceProfileReceiptId,
+    pub(crate) effective_supply: EffectiveFieldSupply,
+    pub(crate) admission: PlacementAdmissionId,
+    pub(crate) primitive_address: u64,
+    pub(crate) key: AccessFieldKey,
+    pub(crate) field: String,
+    pub(crate) transfer_width_bits: u16,
+    pub(crate) logical_extent: LogicalFieldExtent,
+    pub(crate) effect_footprint: EffectFootprint,
+    pub(crate) observation: ObservationModel,
+    pub(crate) current_borrow: BorrowPolarity,
+    pub(crate) source_loan: BorrowPolarity,
+    pub(crate) operation: AccessOperation,
+    pub(crate) reach: BoundaryReach,
+    pub(crate) resident_claim: Option<ResidentClaimId>,
+    pub(crate) placed_occurrence: Option<PlacedOccurrenceId>,
+    pub(crate) descriptor: FieldAccessDescriptor,
+    pub(crate) authorization: AuthorizedFieldAccess,
+    pub(crate) _authority: PlacementAuthorityRef<'view, 'extent>,
+}
 
 impl PrimitiveAccessRequest<'_, '_> {
     pub const fn plan(&self) -> PlacementPlanId {

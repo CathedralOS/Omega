@@ -1,10 +1,34 @@
 use extents::{ExtentLoan, LoanPolarity};
 
 use super::{
-    AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, PlacedFieldProjection, PlacedView,
-    PlacedViewRetirementError, PlacementAdmissionId, PlacementAuthorityRef, project_placed_field,
-    validate_placement_admission,
+    AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, PlacedFieldProjection,
+    PlacementAdmissionId,
 };
+use crate::AdmittedResourceProfile;
+use crate::ResourceProfileReceiptId;
+use crate::field_projection::project_placed_field;
+use crate::placement_admission::validate_placement_admission;
+use crate::placement_authority::PlacementAuthorityRef;
+use crate::{PlacementResourceCompatibility, ValidatedPlacementPlan};
+
+/// A plan-qualified interpretation of one borrowed concrete range.
+#[derive(Debug)]
+pub struct PlacedView<'extent> {
+    pub(crate) loan: ExtentLoan<'extent>,
+    pub(crate) plan: ValidatedPlacementPlan,
+    pub(crate) profile_receipt: ResourceProfileReceiptId,
+    pub(crate) profile: AdmittedResourceProfile,
+    pub(crate) resources: PlacementResourceCompatibility,
+    pub(crate) admission: PlacementAdmissionId,
+}
+
+/// Failed ordinary borrowed-view retirement preserves the complete
+/// loan-bearing view for corrected retry.
+#[derive(Debug)]
+pub struct PlacedViewRetirementError<'extent> {
+    view: PlacedView<'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
 
 impl<'extent> PlacedView<'extent> {
     pub const fn admission(&self) -> PlacementAdmissionId {

@@ -7,9 +7,11 @@ use super::{
     AccessFieldKey, AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
     AtomicAccessOperation, AuthorizedFieldAccess, BorrowPolarity, BoundaryReach, EffectFootprint,
     EffectiveFieldSupply, ObservationModel, PlacedOccurrenceId, PlacementAdmissionId,
-    PlacementAuthorityRef, PlacementPlanId, PlacementResourceCompatibility, PrimitiveAccessRequest,
-    ResourceProfileReceiptId, ValidatedPlacementPlan, authorize_descriptor,
+    PlacementPlanId, PlacementResourceCompatibility, PrimitiveAccessRequest,
+    ResourceProfileReceiptId, ValidatedPlacementPlan,
 };
+use crate::authorization::authorize_descriptor;
+use crate::placement_authority::PlacementAuthorityRef;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn project_placed_field<'view, 'extent>(

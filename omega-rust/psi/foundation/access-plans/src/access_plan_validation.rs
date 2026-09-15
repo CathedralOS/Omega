@@ -4,8 +4,8 @@ use super::{
     AccessExposure, AccessFieldEntry, AccessPermissions, AccessPlan, AccessPlanDiagnostic,
     ExternalRead, FieldAccess, FieldAccessDescriptor, LogicalFieldExtent, LogicalFieldFragment,
     ObservationModel, RelativeEffectFootprint, ValidatedAccessPlan,
-    non_authoritative_access_plan_compatibility_fingerprint,
 };
+use crate::normalized_identities::non_authoritative_access_plan_compatibility_fingerprint;
 
 /// Validate one complete normalized access policy against its retained layout.
 pub fn validate_access_plan(

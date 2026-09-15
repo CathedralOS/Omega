@@ -4,13 +4,92 @@ use extents::{
 };
 
 use super::{
-    AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, DormantOwnedResident,
-    EstablishedOwnedPlacement, ObservationModel, OwnedPlacementAdmission, OwnedPlacementRejection,
-    OwnedResidentRetirementError, OwnedResidentViewEstablishmentError, OwnedStableAdoptionError,
-    PlacedFieldProjection, PlacedOccurrenceId, PlacementAdmissionId, PlacementAuthorityRef,
-    PlacementResourceCompatibility, ResourceProfileReceiptId, ValidatedPlacementPlan,
-    project_placed_field, validate_owned_resident_authority,
+    AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, ObservationModel, PlacedFieldProjection,
+    PlacedOccurrenceId, PlacementAdmissionId, PlacementResourceCompatibility,
+    ResourceProfileReceiptId, ValidatedPlacementPlan,
 };
+use crate::AdmittedResourceProfile;
+use crate::field_projection::project_placed_field;
+use crate::owned_resident_custody::validate_owned_resident_authority;
+use crate::placement_authority::PlacementAuthorityRef;
+
+/// One accepted whole-range placement admission that retains the exact owned
+/// Extent checked against provider supply.
+///
+/// This is permission to establish placed content, not evidence that content
+/// already exists. A later explicit Stable initialize/validate/adopt or
+/// External adopt route must consume this carrier. Withdrawing it therefore
+/// returns only the original granted Extent and establishes no `Vacant` fact.
+#[derive(Debug)]
+#[must_use = "an owned placement admission retains linear Extent authority"]
+pub struct OwnedPlacementAdmission {
+    pub(crate) identity: PlacementAdmissionId,
+    pub(crate) placement_plan: ValidatedPlacementPlan,
+    pub(crate) profile_receipt: ResourceProfileReceiptId,
+    pub(crate) profile: AdmittedResourceProfile,
+    pub(crate) resources: PlacementResourceCompatibility,
+    pub(crate) extent: Extent,
+}
+
+/// Failed owned admission returns the exact moved Extent rather than losing
+/// or reconstructing its authority account.
+#[derive(Debug)]
+pub struct OwnedPlacementRejection {
+    pub(crate) extent: Extent,
+    pub(crate) diagnostic: AccessPlanDiagnostic,
+}
+
+/// Dormant provider-validated Stable content whose exact Extent authority and
+/// resident claim are retained by the accepted placement admission.
+///
+/// This is the first content-establishing owned carrier. It deliberately has
+/// neither field projection nor a route back to a bare Extent. An explicit
+/// view transition creates one fresh active placed occurrence; checked
+/// destruction or move-out must land before another retirement route can
+/// establish `Vacant` and release storage authority.
+#[derive(Debug)]
+#[must_use = "dormant resident content retains linear Extent and content custody"]
+pub struct DormantOwnedResident {
+    pub(crate) admission: OwnedPlacementAdmission,
+    pub(crate) content: ProviderExistingContentGrant,
+}
+
+/// Failed owned resident-view establishment preserves the complete dormant
+/// content authority and the exact requested occurrence for corrected retry.
+#[derive(Debug)]
+pub struct OwnedResidentViewEstablishmentError {
+    resident: DormantOwnedResident,
+    occurrence: PlacedOccurrenceId,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+/// One active owned view of provider-established Stable resident content.
+/// The occurrence is fresh for this view while `resident_claim` remains the
+/// identity of the same dormant content across view/retirement cycles.
+#[derive(Debug)]
+#[must_use = "active owned placed content retains linear resident custody"]
+pub struct EstablishedOwnedPlacement {
+    pub(crate) admission: OwnedPlacementAdmission,
+    pub(crate) content: ProviderExistingContentGrant,
+    pub(crate) occurrence: PlacedOccurrenceId,
+}
+
+/// Failed resident-preserving retirement returns the complete active carrier;
+/// no dormant claim is minted from drifted placement authority.
+#[derive(Debug)]
+pub struct OwnedResidentRetirementError {
+    established: EstablishedOwnedPlacement,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+/// Failed Stable adoption preserves both linear inputs for a corrected retry
+/// or explicit cancellation.
+#[derive(Debug)]
+pub struct OwnedStableAdoptionError {
+    pub(crate) admission: OwnedPlacementAdmission,
+    pub(crate) content: ProviderExistingContentGrant,
+    pub(crate) diagnostic: AccessPlanDiagnostic,
+}
 
 impl OwnedPlacementAdmission {
     pub const fn identity(&self) -> PlacementAdmissionId {

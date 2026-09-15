@@ -1,8 +1,8 @@
 use super::{
     AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalReadBehavior,
     ResourceProfile, ResourceRegion, TransferRule, ValidatedResourceProfile,
-    non_authoritative_resource_profile_compatibility_fingerprint,
 };
+use crate::normalized_identities::non_authoritative_resource_profile_compatibility_fingerprint;
 
 /// Normalize one provider resource profile into exact disjoint supply rows.
 pub fn validate_resource_profile(

@@ -1,9 +1,9 @@
 use super::{
-    AccessExposure, AccessLayoutCommitment, AccessPlan, AccessPlanId, AtomicCapability,
-    AtomicPermissions, BoundaryReach, ExternalCapability, ExternalRead, ExternalReadBehavior,
-    FieldAccess, PlacementPlanId, ResourceProfileId, ResourceRegion, StableCapability,
-    TransferRule,
+    AccessExposure, AccessPlan, AccessPlanId, AtomicCapability, AtomicPermissions, BoundaryReach,
+    ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, PlacementPlanId,
+    ResourceProfileId, ResourceRegion, StableCapability, TransferRule,
 };
+use crate::access_plan::AccessLayoutCommitment;
 use extents::{ExtentContentInterpretation, ExtentContentInterpretationId};
 use layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
