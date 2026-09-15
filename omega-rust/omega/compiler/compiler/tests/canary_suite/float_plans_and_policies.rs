@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    ArtifactEmissionPolicy, CanaryCompileProduct, CanaryCompileSpec, Command, CompileRequest,
+    CompilerOptions, RequestedCompileProduct, compile, compile_canary_without_output,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_target, executable_name, fail_canary, fs,
+    hosted_main_program_entry_build, interpret, pass_canary,
+    reviewed_repository_fixture_package_inputs,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "float_match_interpreter.rs"]

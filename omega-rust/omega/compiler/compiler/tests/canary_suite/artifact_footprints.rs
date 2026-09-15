@@ -1,5 +1,10 @@
-use super::*;
-
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport,
+    compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_target_with_auxiliary_artifacts, compile_single_file_hosted_main,
+    compile_with_auxiliary_artifacts, fs, hosted_main_program_entry_build, native_hosted_target,
+    pass_canary, production_compile,
+};
 #[path = "../fixture_rosters/artifact_footprints.rs"]
 pub(super) mod fixture_roster;
 

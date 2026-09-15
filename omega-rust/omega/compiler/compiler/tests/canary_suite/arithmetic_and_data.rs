@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_canary_without_output,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
+    fs, interpret, pass_canary, unique_no_output_build_dir,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/arithmetic_and_data.rs"]

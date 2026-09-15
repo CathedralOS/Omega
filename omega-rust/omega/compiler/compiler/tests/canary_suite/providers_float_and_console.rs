@@ -1,4 +1,12 @@
-use super::*;
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, CompileRequest,
+    CompilerOptions, Path, RequestedCompileProduct, compile, compile_reviewed_repository_fixture,
+    compile_rooted_backend_canary_without_output_for_target,
+    compile_rooted_backend_canary_without_output_for_target_and_permission_policy,
+    compile_rooted_canary_for_native_host, compile_rooted_canary_for_target, executable_name, fs,
+    hosted_main_program_entry_build, interpret, pass_canary,
+    reviewed_repository_fixture_package_inputs,
+};
 use compiler::CheckedCompileRequest;
 use native_realization as native;
 

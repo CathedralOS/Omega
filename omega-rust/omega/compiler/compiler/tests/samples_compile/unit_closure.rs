@@ -1,6 +1,5 @@
 //! The real entry's checked closure is separate from native provider admission.
-
-use super::*;
+use super::{compile_sample_to_checked, repo_root};
 use checked_trees::CheckedUnitEffectOperationPlan;
 
 #[test]

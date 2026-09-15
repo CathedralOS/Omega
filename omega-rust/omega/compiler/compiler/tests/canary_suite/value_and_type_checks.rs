@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    Command, CompileReport, check_canary, compile_rooted_canary_for_native_host,
+    compile_single_file_hosted_main, fail_canary, fs, pass_canary,
+};
 #[path = "../fixture_rosters/value_and_type_checks.rs"]
 pub(super) mod fixture_roster;
 

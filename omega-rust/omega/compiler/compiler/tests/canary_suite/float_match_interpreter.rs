@@ -1,4 +1,4 @@
-use super::*;
+use super::{compile_reviewed_repository_fixture, pass_canary};
 use compiler::CheckedCompileRequest;
 
 #[test]

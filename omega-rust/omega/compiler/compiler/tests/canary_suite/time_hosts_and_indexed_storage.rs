@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, compile_canary_without_output,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_target, compile_single_file_hosted_main,
+    compile_with_auxiliary_artifacts, executable_name, fail_canary, fs,
+    hosted_main_program_entry_build, interpret, pass_canary, repo_root,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/time_hosts_and_indexed_storage.rs"]

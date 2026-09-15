@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, PathBuf, compile, compile_canary_without_output,
+    compile_canary_without_output_for_target, fail_canary, fs, pass_canary,
+};
 #[path = "../fixture_rosters/inline_asm.rs"]
 pub(super) mod fixture_roster;
 

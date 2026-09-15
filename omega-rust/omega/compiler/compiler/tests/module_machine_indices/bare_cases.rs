@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding, Sources,
+    StatementNode, compile, compile_to_checked, identity, root_inputs, selections,
+};
 use compiler::CheckedCompileRequest;
 
 #[test]

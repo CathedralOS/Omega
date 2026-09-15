@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CheckedCompilation, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+    Path, Sources, assert_same_machine_types, compile, compile_to_checked, identity, machine_types,
+    root_inputs, selections,
+};
 use compiler::CheckedCompileRequest;
 
 fn keep(index: &str) -> String {

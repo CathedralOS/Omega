@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, check_canary,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts, executable_name, fail_canary,
+    fs, interpret, pass_canary, production_compile, unique_no_output_build_dir,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/wire_and_algorithms.rs"]

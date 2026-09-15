@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_reviewed_repository_fixture,
+    compile_rooted_canary_for_native_host, executable_name, fs, interpret, pass_canary,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/domains_control_and_structures.rs"]

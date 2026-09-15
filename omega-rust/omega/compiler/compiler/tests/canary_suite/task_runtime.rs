@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Diagnostic, check_canary, compile_canary_without_output, compile_reviewed_repository_fixture,
+    fail_canary, pass_canary,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/task_runtime.rs"]

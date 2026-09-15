@@ -1,5 +1,12 @@
-use super::*;
+use super::{
+    AcceptedSemanticBindingRole, CanaryCompileProduct, CanaryCompileSpec, Command,
+    FilesystemServiceBinding, InterpretOptions, Path, Stdio, compile,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    compile_with_auxiliary_artifacts, executable_name, fs, hosted_main_program_entry_build,
+    interpret, interpret_entry_with_options, pass_canary, run_canary, unique_no_output_build_dir,
+};
 use compiler::CheckedCompileRequest;
+use std::io::Write;
 
 #[path = "../fixture_rosters/host_text_filesystem_and_abi.rs"]
 pub(super) mod fixture_roster;

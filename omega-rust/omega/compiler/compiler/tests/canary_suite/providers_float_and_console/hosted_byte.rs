@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    compile_reviewed_repository_fixture, compile_rooted_backend_canary_without_output_for_target,
+    fixture_roster, native, pass_canary, replay_parts,
+};
 use compiler::CheckedCompileRequest;
 use provider_planning::CompilerIntrinsicExecutionIdentity;
 

@@ -1,6 +1,8 @@
 //! Early ordinary evaluation and deferred selected evaluation share each source interval.
-
-use super::*;
+use super::{
+    BuildDeclarationKind, PackageCompilationInputs, PackageSourceBinding, Path, TempTree,
+    compile_to_checked, fs, identity,
+};
 use compiler::CheckedCompileRequest;
 
 const FLOAT_LENGTH: &str = r#"

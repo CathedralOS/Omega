@@ -1,4 +1,14 @@
-use super::*;
+use super::{
+    ACTIVE_PASS_CANARIES, CANARY_UMBRELLA_LOCK, CHECKED_ONLY_PASS_CANARIES,
+    CROSS_TARGET_PASS_CANARIES, CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport,
+    Path, ROOTED_BACKEND_PASS_CANARIES, ROOTED_TARGET_BACKEND_PASS_CANARIES, check_canary, compile,
+    compile_canary_without_output_for_target, compile_native_canary_without_output,
+    compile_reviewed_repository_fixture, compile_rooted_backend_canary_without_output,
+    compile_rooted_backend_canary_without_output_for_target, compile_rooted_canary_for_native_host,
+    compile_with_auxiliary_artifacts, exact_native_coverage, fail_canary, fs,
+    hosted_main_program_entry_build, pass_canary, production_compile, run_bounded_canary_jobs,
+    unique_no_output_build_dir,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "entry_and_abi/hosted_receiver.rs"]

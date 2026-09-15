@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Diagnostic, compile_canary_without_output, fail_canary, pass_canary};
 #[path = "../fixture_rosters/relational_invariants.rs"]
 pub(super) mod fixture_roster;
 

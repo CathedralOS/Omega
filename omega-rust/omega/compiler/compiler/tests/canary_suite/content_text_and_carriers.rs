@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, ContentAlgebraIdentity,
+    ContentArithmeticOperator, ContentConservationOwnerKind, ContentConservationTerm,
+    ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression, ContentScalarExpression,
+    compile_canary_without_output, compile_reviewed_repository_fixture,
+    compile_rooted_canary_for_native_host, compile_rooted_canary_for_target, executable_name,
+    fail_canary, fs, interpret, pass_canary, production_compile,
+};
 use compiler::CheckedCompileRequest;
 
 #[path = "../fixture_rosters/content_text_and_carriers.rs"]

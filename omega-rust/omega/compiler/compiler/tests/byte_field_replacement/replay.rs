@@ -1,7 +1,7 @@
 //! Hostile projection changes are checked against one immutable verified artifact.
+use super::{AdmissionProfile, NativeTarget};
 #[path = "indexed_replay.rs"]
 mod indexed;
-use super::*;
 use legalized_operations::LegalizedScalarInstructionKind as Legalized;
 use selected_instructions::{
     SelectedInstructionKind as Selected, SelectedMemoryAccessRole as Role,

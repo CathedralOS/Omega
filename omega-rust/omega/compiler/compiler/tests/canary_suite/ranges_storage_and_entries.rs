@@ -1,5 +1,9 @@
-use super::*;
-
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, compile,
+    compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts,
+    compile_rooted_canary_for_target, fs, hosted_main_program_entry_build, pass_canary,
+};
 #[path = "../fixture_rosters/ranges_storage_and_entries.rs"]
 pub(super) mod fixture_roster;
 

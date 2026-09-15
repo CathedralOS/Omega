@@ -1,5 +1,5 @@
 //! Runtime fixture acceptance is explicit, target-bound and separate from checking.
-use super::*;
+use super::{compile_to_checked, repo_root, sample_native_package_inputs, sample_package_inputs};
 use compiler::CheckedCompileRequest;
 
 fn byte_identity(

@@ -1,5 +1,13 @@
-use super::*;
+use super::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, Stdio, compile,
+    compile_reviewed_repository_fixture, compile_rooted_backend_canary_without_output_for_target,
+    compile_rooted_backend_canary_without_output_for_target_and_permission_policy,
+    compile_rooted_canary_for_native_host, compile_rooted_canary_for_target,
+    compile_with_auxiliary_artifacts, executable_name, fs, hosted_main_program_entry_build,
+    interpret, pass_canary,
+};
 use compiler::CheckedCompileRequest;
+use std::io::Write;
 
 #[path = "../fixture_rosters/value_calls_and_dispatch.rs"]
 pub(super) mod fixture_roster;

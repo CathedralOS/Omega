@@ -1,5 +1,5 @@
 use super::super::ExactNativeCanaryCoverageIndex;
-use super::*;
+use super::{load, pass_canaries};
 use std::path::Path;
 
 const REPOSITORY_MACRO: &str = r#"

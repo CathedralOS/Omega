@@ -1,4 +1,4 @@
-use super::*;
+use super::{TempTree, compile_to_checked, identity, root_inputs};
 use compiler::CheckedCompilation;
 use compiler::CheckedCompileRequest;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;

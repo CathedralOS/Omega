@@ -1,6 +1,9 @@
 //! Bounded input is shared checked library code, not a target line intrinsic.
-
-use super::*;
+use super::super::{interpret_entry, repo_root, sample_project};
+use super::{
+    checked_adapter_identity, compile_reviewed_repository_fixture, fixture_roster, interpret,
+    pass_canary,
+};
 use compiler::CheckedCompileRequest;
 
 #[test]
