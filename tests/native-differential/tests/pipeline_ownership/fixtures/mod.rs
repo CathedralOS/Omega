@@ -1,6 +1,7 @@
 //! Optimizer module role: stage group. Typed fixture catalog shared by stage-specific integration tests.
 
 mod allocated_machine;
+mod call_spanning_reload;
 mod common;
 mod control_flow;
 mod ordinary_graph_controls;
@@ -13,6 +14,7 @@ mod target_translation;
 mod validation;
 
 pub(crate) use allocated_machine::*;
+pub(crate) use call_spanning_reload::*;
 pub(crate) use common::*;
 pub(crate) use control_flow::*;
 pub(crate) use ordinary_graph_controls::*;
