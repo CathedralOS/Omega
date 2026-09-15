@@ -4,7 +4,7 @@ use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::StagedOptimizedPostAllocationMachinePlan;
 
-use super::{
+use crate::{
     OptimizedSelectedFormEncodingError, SelectedFormEncoding, SelectedFormEncodingCounts,
     SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
     row_encoding::encode_row,
