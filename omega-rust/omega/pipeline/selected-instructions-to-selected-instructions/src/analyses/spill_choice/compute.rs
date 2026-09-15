@@ -118,9 +118,11 @@ fn reject_constraint_topologies(
     if !ranges.tied_pairs.is_empty() {
         return Err(SpillChoiceError::UnsupportedTiedOperands { function });
     }
-    if !ranges.early_clobbers.is_empty() {
-        return Err(SpillChoiceError::UnsupportedEarlyClobber { function });
-    }
+    // Untied early-clobber rows are admitted: the home-assignment conflict
+    // model already names their hazard, so this stage carries the same
+    // directional write-before-read check against every assigned home.
+    // Pressure handling under an early-clobber topology still refuses
+    // inside `compute_function` once no legal home remains.
     Ok(())
 }
 
@@ -183,6 +185,13 @@ fn compute_function(
         )
     });
     let mut active = Vec::<ActiveHome>::new();
+    // Every register already given a home, regardless of whether its
+    // interval still overlaps the scheduling frontier. Early-clobber
+    // hazards are pointwise — the definition's write precedes the uses'
+    // read inside one instruction — so a use whose interval just closed
+    // still forbids the incoming definition's write units, and an
+    // early definition already seated still forbids an incoming use.
+    let mut assigned = Vec::<(VirtualRegisterId, RegisterViewId)>::new();
     for (position, start, end) in order {
         WorkCounter::add(&mut work.rule_evaluations, 1)?;
         let register = &legality.virtual_registers[position];
@@ -221,6 +230,12 @@ fn compute_function(
                 &ranges.interference,
                 physical,
                 None,
+            ) && !early_clobber_conflicts(
+                register.virtual_register,
+                view,
+                &assigned,
+                ranges,
+                physical,
             ) {
                 selected = Some(*candidate);
                 break;
@@ -235,7 +250,18 @@ fn compute_function(
                 view,
             });
             active.sort_by_key(|entry| (entry.end, entry.register));
+            assigned.push((register.virtual_register, view));
             continue;
+        }
+
+        // Victim selection around an early-clobbered home is not modeled:
+        // the definition already occupies its view while its uses are still
+        // read, so evicting either side of that hazard needs evidence this
+        // bounded policy does not carry.
+        if !ranges.early_clobbers.is_empty() {
+            return Err(SpillChoiceError::UnsupportedEarlyClobber {
+                function: function_index,
+            });
         }
 
         let block = register.points[0].block;
@@ -420,6 +446,12 @@ fn common_candidates(
     for point in &register.points[1..] {
         common.retain(|candidate| point.candidates.binary_search(candidate).is_ok());
     }
+    // Early-clobber definition points carry their own legality candidates:
+    // the home must also satisfy every view constraint the early point
+    // names, matching the home-assignment domain construction.
+    for point in &register.early_clobber_points {
+        common.retain(|candidate| point.candidates.binary_search(candidate).is_ok());
+    }
     if common.is_empty() {
         return Err(SpillChoiceError::NoCommonCandidate {
             function,
@@ -427,6 +459,42 @@ fn common_candidates(
         });
     }
     Ok(common)
+}
+
+/// Directional write-before-read conflicts for early-clobber definitions,
+/// mirroring the home-assignment model: an incoming definition may not take
+/// a view whose write units touch a seated use's storage, and an incoming
+/// use may not take a view whose storage a seated definition writes early.
+fn early_clobber_conflicts(
+    incoming: VirtualRegisterId,
+    view: &RegisterView,
+    assigned: &[(VirtualRegisterId, RegisterViewId)],
+    ranges: &crate::FunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> bool {
+    assigned.iter().any(|(seated, seated_view_id)| {
+        let seated_view = &physical.model().views[usize::from(seated_view_id.0)];
+        ranges.early_clobbers.iter().any(|early| {
+            (early.def_virtual_register == incoming
+                && early
+                    .uses
+                    .iter()
+                    .any(|used| used.virtual_register == *seated)
+                && view
+                    .write_units
+                    .iter()
+                    .any(|unit| seated_view.units.contains(unit)))
+                || (early.def_virtual_register == *seated
+                    && early
+                        .uses
+                        .iter()
+                        .any(|used| used.virtual_register == incoming)
+                    && seated_view
+                        .write_units
+                        .iter()
+                        .any(|unit| view.units.contains(unit)))
+        })
+    })
 }
 
 fn checked_view(

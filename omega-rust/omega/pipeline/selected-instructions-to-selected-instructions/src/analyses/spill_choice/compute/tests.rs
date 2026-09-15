@@ -115,45 +115,111 @@ fn ranges(intervals: &[(u32, u32)]) -> FunctionLiveRanges {
 }
 
 #[test]
-fn spill_choice_rejects_early_clobber_phase_hazards() {
-    let mut early_ranges = ranges(&[(0, 0), (1, 1), (2, 2)]);
-    early_ranges.early_clobbers.extend([
-        EarlyClobberConstraint {
+fn spill_choice_admits_untied_early_clobber_but_refuses_its_pressure() {
+    // An untied early-clobber topology is admitted: the definition's home
+    // must avoid the write-before-read hazard its uses carry, which the
+    // directional conflict check models. Pressure under the topology still
+    // refuses because victim selection around an early home is not modeled.
+    let mut early_legality = legality(&[(0, 1), (0, 1), (2, 2)]);
+    early_legality.virtual_registers[2]
+        .early_clobber_points
+        .push(crate::VirtualEarlyClobberPointLegality {
             block: SelectedBlockId(0),
             position: LivenessPosition(0),
-            instruction: SelectedInstructionId(0),
-            early_point: LiveRangePoint(0),
-            def_operand: 1,
-            def_virtual_register: VirtualRegisterId(1),
-            def_class: RegisterClassId(0),
-            def_point: LiveRangePoint(1),
-            uses: vec![EarlyClobberUse {
+            instruction: SelectedInstructionId(1),
+            operand: 2,
+            point: LiveRangePoint(2),
+            candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+        });
+    let mut early_ranges = ranges(&[(0, 1), (0, 1), (2, 2)]);
+    // The uses interfere with each other but not with the definition at
+    // fragment resolution; only the early-clobber row forbids sharing.
+    early_ranges.interference = vec![VirtualInterference {
+        lower: VirtualRegisterId(0),
+        higher: VirtualRegisterId(1),
+    }];
+    early_ranges.early_clobbers.push(EarlyClobberConstraint {
+        block: SelectedBlockId(0),
+        position: LivenessPosition(0),
+        instruction: SelectedInstructionId(1),
+        early_point: LiveRangePoint(2),
+        def_operand: 2,
+        def_virtual_register: VirtualRegisterId(2),
+        def_class: RegisterClassId(0),
+        def_point: LiveRangePoint(3),
+        uses: vec![
+            EarlyClobberUse {
                 operand: 0,
                 virtual_register: VirtualRegisterId(0),
                 class: RegisterClassId(0),
-            }],
-        },
-        EarlyClobberConstraint {
-            block: SelectedBlockId(0),
-            position: LivenessPosition(1),
-            instruction: SelectedInstructionId(1),
-            early_point: LiveRangePoint(2),
-            def_operand: 1,
-            def_virtual_register: VirtualRegisterId(2),
-            def_class: RegisterClassId(0),
-            def_point: LiveRangePoint(3),
-            uses: vec![EarlyClobberUse {
-                operand: 0,
+            },
+            EarlyClobberUse {
+                operand: 1,
                 virtual_register: VirtualRegisterId(1),
                 class: RegisterClassId(0),
-            }],
-        },
-    ]);
-    assert_eq!(early_ranges.early_clobbers.len(), 2);
+            },
+        ],
+    });
+    assert_eq!(reject_constraint_topologies(0, &early_ranges), Ok(()));
+
+    // Both uses seat first and claim both views; the definition's write at
+    // the early point may not clobber either use's storage, so no legal
+    // home remains and the bounded policy refuses the pressure.
+    let mut work = WorkCounter::default();
     assert_eq!(
-        reject_constraint_topologies(0, &early_ranges),
+        compute_function(0, &early_legality, &early_ranges, &physical(), &mut work),
         Err(SpillChoiceError::UnsupportedEarlyClobber { function: 0 })
     );
+
+    // With one hazard-free view still available the same topology computes
+    // cleanly — the definition avoids the conflicting use's home.
+    let mut free_view = physical().model().clone();
+    free_view.views.push(RegisterView {
+        id: RegisterViewId(2),
+        name: "r2".into(),
+        class: RegisterClassId(0),
+        units: vec![RegisterUnitId(2)],
+        write_units: vec![RegisterUnitId(2)],
+        bits: 64,
+        write_semantics: RegisterWriteSemantics::ExactView,
+        allocatable: true,
+    });
+    free_view.units.push(RegisterUnit {
+        id: RegisterUnitId(2),
+        name: "r2.storage".into(),
+        bits: 64,
+        kind: RegisterUnitKind::IntegerLane,
+    });
+    free_view.classes[0].views.push(RegisterViewId(2));
+    let free_view = validate_physical_register_model(free_view).unwrap();
+    let mut free_legality = legality(&[(0, 1), (0, 1), (2, 2)]);
+    for register in &mut free_legality.virtual_registers {
+        for point in &mut register.points {
+            point.candidates.push(RegisterViewId(2));
+        }
+    }
+    free_legality.virtual_registers[2]
+        .early_clobber_points
+        .push(crate::VirtualEarlyClobberPointLegality {
+            block: SelectedBlockId(0),
+            position: LivenessPosition(0),
+            instruction: SelectedInstructionId(1),
+            operand: 2,
+            point: LiveRangePoint(2),
+            candidates: vec![RegisterViewId(0), RegisterViewId(1), RegisterViewId(2)],
+        });
+    let mut work = WorkCounter::default();
+    let computed =
+        compute_function(0, &free_legality, &early_ranges, &free_view, &mut work).unwrap();
+    assert!(computed.choice.is_none());
+    let replay = crate::analyses::spill_choice::validate::replay_function_for_test(
+        0,
+        &free_legality,
+        &early_ranges,
+        &free_view,
+    )
+    .unwrap();
+    assert_eq!((computed, work.usage()), replay);
 
     let mut tied = ranges(&[(0, 0), (1, 1), (2, 2)]);
     tied.tied_pairs.extend([
@@ -187,6 +253,8 @@ fn spill_choice_rejects_early_clobber_phase_hazards() {
         Err(SpillChoiceError::UnsupportedTiedOperands { function: 0 })
     );
 
+    // A tied component still rejects even when an untied early-clobber row
+    // rides beside it.
     let mut composed = ranges(&[(0, 0), (1, 2), (2, 2), (3, 3)]);
     composed.tied_pairs.extend([
         crate::DistinctUseDefTie {
