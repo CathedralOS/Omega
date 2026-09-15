@@ -427,9 +427,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   frame-layout corruption replay
   (`.../register_allocation/callee_saved_requirements/`,
   `.../register_allocation/callee_save_storage/`,
-  `.../register_allocation/runtime_scalar_call_chain/`). Remaining:
-  structural-argument calls and reload intervals that survive an intervening
-  call
+  `.../register_allocation/runtime_scalar_call_chain/`). A caller passing a
+  borrowed structural argument through three scalar-returning call sites —
+  extent pointer live across every call, scalar parameter live across the
+  first call, first result live across the second — now reaches the same
+  chain: clobber-candidate exclusion and callee-saved homes on all five
+  targets, legalized-plan and call-template corruption replay on all five
+  targets, exact frame-layout and protocol-encoding replay, and fixed-frame
+  object-artifact publication with custody rejection on both Linux ISAs
+  (`tests/native-differential/.../fixtures/structural_call_preserving.rs`,
+  `.../register_allocation/structural_call_chain/`). Remaining: reload
+  intervals that survive an intervening call
   (`selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs`
   excludes them).
 
