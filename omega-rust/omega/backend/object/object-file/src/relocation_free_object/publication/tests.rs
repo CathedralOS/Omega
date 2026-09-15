@@ -1,7 +1,16 @@
 //! Object-container manifest codec tests.
 
-use super::*;
-
+use super::{
+    FuelScheduleIdentity, FunctionFragmentObjectContainerManifest,
+    FunctionFragmentObjectContainerManifestDecodeError,
+    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentObjectContainerStage,
+    FunctionFragmentObjectContainerStatistics, FunctionFragmentObjectContainerUnavailableData,
+    FunctionFragmentTextSectionManifestIdentity, MachineId, NativeTarget, ObjectLocalSymbolId,
+    OptimizationSelectionIdentity, RelocationFreeObjectContainerIdentity,
+    RelocationFreeObjectPlanIdentity, RelocationFreeObjectRelocationRequirements,
+    RelocationFreeObjectSymbolPolicy, SelectedInstructionPlanIdentity, SemanticFingerprint,
+    TerminalPsiIdentity, TerminalRelocationFreeTextSectionIdentity, VocabularyMarker,
+};
 #[test]
 fn manifest_codec_rejects_wrong_magic_version_and_trailing_bytes() {
     let unavailable = FunctionFragmentObjectContainerUnavailableData::Unavailable;

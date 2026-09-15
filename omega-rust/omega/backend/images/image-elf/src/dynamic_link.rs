@@ -154,7 +154,10 @@ pub fn plan_elf_dynamic_link_inputs(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ElfImportLocator, FinalImage, NormalizedElfInterpreterPlan, TargetProfile,
+        plan_elf_dynamic_link_inputs,
+    };
     use arena::Handle;
     use image::{
         FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,

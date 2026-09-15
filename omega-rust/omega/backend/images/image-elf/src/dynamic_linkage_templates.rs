@@ -998,7 +998,16 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AARCH64_PLT_ENTRY, AARCH64_PLT_HEADER, Candidate, ELF64_RELA_SIZE,
+        ElfProcedureLinkageFixup, ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage,
+        ElfProcedureLinkagePlacementConstraintKind, ElfProcedureLinkageSemanticTarget,
+        ElfProcedureLinkageTemplatePolicy, TargetProfile,
+        ValidatedElfProcedureLinkageRelocationPlan, X86_PLT_HEADER, checked_product, checked_sum,
+        checked_u32, derive_contents, non_authoritative_template_compatibility_fingerprint,
+        plan_elf_procedure_linkage_templates, read_field, read_u32, read_u64, validate_candidate,
+        validate_contents, validate_fixup_coverage,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_sections, plan_elf_procedure_linkage_relocations,

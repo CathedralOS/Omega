@@ -1,6 +1,13 @@
 //! Canonical object-local symbols and section assembly from current placed text.
-use super::*;
 
+use crate::{
+    ObjectLocalSymbolId, RelocationFreeFunctionSymbol, RelocationFreeObjectFromTextError,
+    RelocationFreeObjectPlan, RelocationFreeObjectRelocationRequirements,
+    RelocationFreeObjectSymbolLinkage, RelocationFreeObjectSymbolPolicy,
+    RelocationFreeObjectSymbolRole, RelocationFreeObjectTextSection, SectionKind,
+    canonical_private_machine_symbol_name, section_name, validate_relocation_free_object,
+};
+use optimization_core::{OptimizationSelectionIdentity, RelocationFreeObjectPlanIdentity};
 pub fn construct_relocation_free_object_from_text(
     text: &machine_code::RelocationFreeTextSectionPlacement,
     selections: OptimizationSelectionIdentity,

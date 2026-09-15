@@ -1459,7 +1459,15 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, DYNAMIC_MAX_PAGE_SIZE, ElfLoadProgramHeader, ElfLoadProgramHeaderKind,
+        ElfPlacedDynamicSectionKind, ElfProcedureLinkagePlacementConstraintKind,
+        ElfRelativeSectionPayloadRegion, ElfSectionPlacementResolutionKind, IMAGE_BASE, PF_R, PF_W,
+        PF_X, ValidatedElfRelativeSectionPayloadLayout, aarch64_page_delta_covers_extent,
+        checked_align, checked_product, checked_sum, derive_contents,
+        non_authoritative_layout_compatibility_fingerprint, plan_elf_dynamic_load_layout,
+        retained_target, validate_abi, validate_candidate, validate_deferred_constraint_envelope,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_section_roster, plan_elf_dynamic_sections,

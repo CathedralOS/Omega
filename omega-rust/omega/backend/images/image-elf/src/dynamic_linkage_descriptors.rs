@@ -564,7 +564,17 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ElfProcedureLinkageSectionDescriptor,
+        ElfProcedureLinkageSectionDescriptorContents, ElfProcedureLinkageSectionInfo,
+        ElfProcedureLinkageSectionKind, ElfProcedureLinkageSectionLink,
+        PROCEDURE_LINKAGE_NAME_SUFFIX, SHF_AARCH64_PURECODE, SHF_ALLOC, SHF_EXECINSTR,
+        SHF_INFO_LINK, SHF_WRITE, SHT_PROGBITS, SHT_RELA, TargetProfile,
+        ValidatedElfProcedureLinkageTemplatePlan, checked_sum, checked_u32, derive_contents,
+        non_authoritative_descriptor_compatibility_fingerprint,
+        plan_elf_procedure_linkage_section_descriptors, target, validate_candidate,
+        validate_contents, validate_name,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_sections, plan_elf_procedure_linkage_relocations,

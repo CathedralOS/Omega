@@ -1,7 +1,16 @@
 //! Canonical object-artifact and manifest wire encoding.
 
-use super::*;
-
+use super::{
+    Architecture, FunctionFragmentEmissionManifestIdentity,
+    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, MachineId, NativeTarget, ObjectFormat,
+    OptimizationSelectionIdentity, OptimizedObjectArtifactIdentity,
+    OptimizedObjectArtifactManifest, OptimizedObjectArtifactRecord,
+    OptimizedObjectArtifactRecordDecodeError, OptimizedObjectArtifactStatistics,
+    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity, SemanticFingerprint,
+    TerminalPsiIdentity, VocabularyMarker,
+};
 pub(super) fn encode_artifact_content(record: &OptimizedObjectArtifactRecord) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&record.psi_artifact);

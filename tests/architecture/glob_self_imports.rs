@@ -25,7 +25,6 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/artifacts/component-candidate", 1),
     ("omega-rust/omega/backend/artifacts/native-artifact", 11),
     ("omega-rust/omega/backend/images/image", 4),
-    ("omega-rust/omega/backend/images/image-elf", 22),
     ("omega-rust/omega/backend/images/image-emission", 34),
     ("omega-rust/omega/backend/images/image-macho", 1),
     (
@@ -42,7 +41,6 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ),
     ("omega-rust/omega/backend/layout", 2),
     ("omega-rust/omega/backend/machine-emission", 9),
-    ("omega-rust/omega/backend/object/object-file", 12),
     ("omega-rust/omega/backend/plans/backend-plan", 2),
     ("omega-rust/omega/backend/plans/program-entry-plan", 9),
     ("omega-rust/omega/backend/register-environment", 4),

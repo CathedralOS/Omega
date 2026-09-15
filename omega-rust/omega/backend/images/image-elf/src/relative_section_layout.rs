@@ -426,7 +426,13 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ElfDynamicRosterSectionKind, ElfRelativeSectionPayloadRegion,
+        ElfRelativeSectionPayloadRegionSpans, SECTION_COUNT, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE,
+        ValidatedElfIndexedSectionPayloadPlan, checked_align, checked_sum, classify_region,
+        derive_contents, non_authoritative_layout_compatibility_fingerprint,
+        plan_elf_relative_section_payload_layout, validate_candidate, validate_contents,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_section_roster, plan_elf_dynamic_sections,

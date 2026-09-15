@@ -560,7 +560,18 @@ impl<'a> Cursor<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FuelScheduleIdentity, MachineId, NativeTarget, ObjectLocalSymbolId,
+        OptimizationSelectionIdentity, RelocationFreeFunctionSymbol,
+        RelocationFreeObjectContainerIdentity, RelocationFreeObjectDecodeError,
+        RelocationFreeObjectError, RelocationFreeObjectPlan, RelocationFreeObjectPlanIdentity,
+        RelocationFreeObjectRelocationRequirements, RelocationFreeObjectSymbolLinkage,
+        RelocationFreeObjectSymbolPolicy, RelocationFreeObjectSymbolRole,
+        RelocationFreeObjectTextSection, SelectedInstructionPlanIdentity, SemanticFingerprint,
+        TerminalPsiIdentity, TerminalRelocationFreeTextSectionIdentity, VocabularyMarker,
+        canonical_private_machine_symbol_name, decode_relocation_free_object,
+        encode_relocation_free_object, validate_relocation_free_object,
+    };
 
     fn plan() -> RelocationFreeObjectPlan {
         let machine = MachineId::new(7).unwrap();

@@ -1092,7 +1092,13 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageKind,
+        ElfAppliedProcedureLinkageStorage, ElfProcedureLinkageFixupKind,
+        ValidatedElfDynamicFileEnvelope, apply_elf_procedure_linkage_fixups, derive_contents,
+        encode_field, load_layout, non_authoritative_resolved_linkage_compatibility_fingerprint,
+        validate_candidate, validate_nonoverlapping_applications,
+    };
     use crate::{
         apply_elf_dynamic_address_fixups, apply_elf_section_header_placements,
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_load_layout,

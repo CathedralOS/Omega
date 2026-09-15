@@ -1,6 +1,12 @@
 //! Bind object publication claims and the source custody receipt.
-use super::*;
 
+use super::{
+    FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerManifestIdentity,
+    FunctionFragmentObjectContainerStage, FunctionFragmentObjectContainerUnavailableData,
+    RelocationFreeObjectContainer, RelocationFreeObjectContainerError, RelocationFreeObjectPlan,
+    StagedOptimizedFixedFrameTextSection, StagedRelocationFreeObjectContainerCustodyReceipt,
+    ValidatedFunctionFragmentObjectContainerManifest,
+};
 pub(super) fn construct_manifest(
     source: &StagedOptimizedFixedFrameTextSection,
     object: &RelocationFreeObjectPlan,

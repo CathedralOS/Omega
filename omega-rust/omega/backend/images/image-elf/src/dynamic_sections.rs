@@ -846,7 +846,13 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ElfDynamicSectionContents, ElfDynamicSymbol, ElfSysvHash,
+        PlannedElfDynamicLinkInputs, SHN_UNDEF, STB_GLOBAL, STT_FUNC, VER_NEED_CURRENT,
+        build_gnu_hash, derive_contents, elf_hash, gnu_hash, plan_elf_dynamic_sections,
+        validate_candidate, validate_contents, validate_gnu_hash_reachability,
+        validate_hash_reachability,
+    };
     use crate::plan_elf_dynamic_link_inputs;
     use arena::Handle;
     use image::{

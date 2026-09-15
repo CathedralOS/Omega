@@ -805,7 +805,12 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ValidatedElfDynamicSectionPlan, decode_dynsym, decode_gnu_hash,
+        decode_sysv_hash, decode_verneed, decode_versym, encode_payloads,
+        non_authoritative_payload_compatibility_fingerprint, read_u16, read_u32, referenced_string,
+        serialize_elf_dynamic_sections, validate_candidate, validate_payloads,
+    };
     use crate::{plan_elf_dynamic_link_inputs, plan_elf_dynamic_sections};
     use arena::Handle;
     use image::{

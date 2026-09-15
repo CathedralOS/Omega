@@ -189,7 +189,9 @@ pub(crate) fn canonical_referenced_imports(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ElfImportLocator, FinalImage, FinalImageSection, SymbolKind, canonical_referenced_imports,
+    };
     use arena::Handle;
     use image::{
         FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,

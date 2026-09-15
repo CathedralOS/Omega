@@ -640,7 +640,14 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Candidate, ElfAddressFreeSectionDescriptor, ElfDynamicSectionDescriptorContents,
+        ElfDynamicSectionKind, SECTION_NAME_TABLE_NAME_OFFSET, SECTION_NAME_TABLE_SEED, SHF_ALLOC,
+        SHT_DYNSYM, SHT_GNU_HASH, SHT_GNU_VERNEED, SHT_GNU_VERSYM, SHT_HASH, SHT_PROGBITS,
+        SHT_STRTAB, ValidatedElfDynamicSectionPayloads, derive_contents, name_at,
+        non_authoritative_descriptor_compatibility_fingerprint,
+        plan_elf_dynamic_section_descriptors, read_u32, validate_candidate, validate_contents,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_sections, serialize_elf_dynamic_sections,
     };

@@ -670,7 +670,13 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CANONICAL_KINDS, Candidate, ElfDynamicRosterSectionKind, ElfDynamicSectionRosterContents,
+        ElfNumericSectionDescriptor, ValidatedElfSectionNameTablePlan, checked_u32,
+        derive_contents, index_for_kind, non_authoritative_roster_compatibility_fingerprint,
+        plan_elf_dynamic_section_roster, validate_candidate, validate_contents, validate_name,
+        validate_row_against_owner,
+    };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
         plan_elf_dynamic_sections, plan_elf_dynamic_table_section_descriptor,

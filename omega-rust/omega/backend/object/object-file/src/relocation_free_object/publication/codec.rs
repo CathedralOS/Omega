@@ -1,5 +1,15 @@
 //! Canonical version-1 publication encoding, not admission against a source.
-use super::*;
+use super::{
+    Architecture, FuelScheduleIdentity, FunctionFragmentObjectContainerManifest,
+    FunctionFragmentObjectContainerManifestDecodeError,
+    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentObjectContainerStage,
+    FunctionFragmentObjectContainerStatistics, FunctionFragmentObjectContainerUnavailableData,
+    FunctionFragmentTextSectionManifestIdentity, MachineId, NativeTarget, ObjectFormat,
+    ObjectLocalSymbolId, OptimizationSelectionIdentity, RelocationFreeObjectContainerIdentity,
+    RelocationFreeObjectPlanIdentity, RelocationFreeObjectRelocationRequirements,
+    RelocationFreeObjectSymbolPolicy, SelectedInstructionPlanIdentity, SemanticFingerprint,
+    TerminalPsiIdentity, TerminalRelocationFreeTextSectionIdentity, VocabularyMarker,
+};
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTOM\0\0";
 const MANIFEST_VERSION: u32 = 1;
 impl FunctionFragmentObjectContainerManifest {
