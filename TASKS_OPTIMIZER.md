@@ -650,9 +650,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   block, rebinding each to the source and dropping the destination roster
   row, admitting a source redefinition on the last use's own instruction
   but none inside the open interval, each under replayed
-  restore-by-content validation (crate `nextest`: 335 pass). Remaining:
-  address folding, scheduling, and left-operand literal folding (immediate
-  forms fix the literal as the subtrahend).
+  restore-by-content validation — and `rewrites/address_fold` rebinds the
+  base operand of a `Load8`/`Load16`/`Load32`/`Load64`, referent `Store`,
+  or `AddressOffset` whose last in-block definition of it is an
+  `AddressOffset` to that producer's own base, carrying the combined
+  displacement at the scaled unsigned bound every target encoder shares
+  while nothing inside the open interval redefines the base and the
+  semantic access roster stays untouched (crate `nextest`: 354 pass).
+  Remaining: scheduling and left-operand literal folding (immediate forms
+  fix the literal as the subtrahend).
 
 ## Proof-, ownership-, and state-aware optimization
 
