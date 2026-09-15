@@ -2,8 +2,11 @@
 //!
 //! Paths are write-frame metadata only. Equality uses resolved declarations and
 //! the complete argument tree of an eligible normal-return call.
-
-use super::*;
+use super::{
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
+    PrimitiveType, State, TypeReferenceNode, TypedTrees, ValueEnv, analyze,
+    declared_place_type_raw, place_path, place_paths_overlap, primitive_range,
+};
 use crate::places::collection_length_receiver;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;

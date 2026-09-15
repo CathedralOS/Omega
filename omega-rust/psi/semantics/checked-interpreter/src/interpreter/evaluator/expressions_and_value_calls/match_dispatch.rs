@@ -3,8 +3,10 @@
 //! for custody: reinterpreting the expressions would duplicate their effects.
 //! A settled compiler execution child authorizes IEEE semantics; a declaration,
 //! readable operator name or source classification alone does not.
-
-use super::*;
+use super::{
+    ArithmeticDomain, BinaryOperator, EvalResult, Evaluator, ExpressionHandle, Frame, Halt,
+    PrimitiveType, Value, unsupported,
+};
 use arena::Handle;
 use checked_trees::CheckedOperatorOccurrence;
 use typed_trees::expression::{MatchPattern, TableMatchArm, TableMatchExpression};

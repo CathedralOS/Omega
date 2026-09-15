@@ -827,7 +827,10 @@ fn align_up(value: usize, align: usize) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        DataMember, MAX_CUSTODY_DESCENDANT_TYPE_DEPTH, TypeReferenceHandle, TypeReferenceNode,
+        TypedTrees, nested_custody_record, type_contains_erased_descendant,
+    };
     use language_core::BindingRelevance;
     use typed_trees::data::{DataDefinition, DataField};
     use typed_trees::name::Identifier;

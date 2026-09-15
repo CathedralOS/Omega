@@ -122,7 +122,7 @@ fn ambiguous_schema_receiver(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{TypedTrees, WireField, WireMember, WireSchema, validate_nested_schema_cycles};
     use language_core::BindingRelevance;
     use typed_trees::name::Identifier;
     use typed_trees::types::TypeReferenceNode;

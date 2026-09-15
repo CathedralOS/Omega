@@ -1,6 +1,5 @@
 //! Ordinary proof-library names do not introduce compiler-owned term forms.
-
-use super::*;
+use super::{Engine, ExpressionNode, Judgment, ProofFact, TypedTrees};
 use crate::proven_machine_contract_expressions;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;

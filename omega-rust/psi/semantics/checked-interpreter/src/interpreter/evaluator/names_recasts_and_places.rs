@@ -1,5 +1,10 @@
-use super::*;
-
+use super::{
+    ArithmeticDomain, Cell, DataDefinition, DataMember, EvalResult, Evaluator, ExpressionHandle,
+    ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet,
+    MutableRecordProjectionStep, MutableScalarRecast, PrimitiveType, SemanticFloatFormat,
+    SymbolHandle, TableNamePath, Value, apply_arithmetic_domain, interpreter_f32_from_bits,
+    interpreter_f32_to_bits, trap, unsupported,
+};
 impl<'program> Evaluator<'program> {
     pub(super) fn field_cell(&self, container: &Cell, field: &str) -> EvalResult<Cell> {
         let container = self.deref_cell(container.clone());

@@ -1,4 +1,5 @@
-use super::*;
+use super::super::OperatorSpelling;
+use super::{ExpressionNode, TypeReferenceNode, immutable_integer_expression_bounds, query, typed};
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::name::Identifier;

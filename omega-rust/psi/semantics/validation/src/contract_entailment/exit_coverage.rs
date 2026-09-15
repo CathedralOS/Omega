@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, StatementNode, TransitionGuardNode,
+    TypedTrees,
+};
 /// Arm-wise entailment judges listed arms. Reusing that result for every
 /// callable exit additionally requires that no implicit path was omitted.
 /// Unsupported coverage stays with the path-sensitive exit prover.

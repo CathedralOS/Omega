@@ -1,6 +1,9 @@
 //! Rejoin a write-only receiver with its attached storage declaration.
-
-use super::*;
+use super::{
+    DataDefinition, DataShapeKind, Diagnostic, ExpressionHandle, ExpressionNode, Machine,
+    MachineSupplyMode, ReferenceAccess, SymbolHandle, TypeReferenceNode, TypedTrees, WriteOnlyRoot,
+    closed_write_only_data_by_symbol, write_only_record,
+};
 use typed_trees::data::DataField;
 use typed_trees::expression::TableNamePath;
 use typed_trees::statement::TableCall;

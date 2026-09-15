@@ -416,7 +416,7 @@ pub(super) fn validate_abstract(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BinaryOperator, ExactDefinednessConditions, exact_definedness_conditions};
 
     #[test]
     fn exact_division_definedness_follows_the_shared_policy_catalog() {

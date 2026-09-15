@@ -1,7 +1,11 @@
 //! The same generic receiver requirement selected by ordinary call validation.
 
-use super::*;
-
+use super::{
+    Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, StateParameter,
+    TypeReferenceHandle, TypeReferenceNode, TypedTrees, ValueEnv, WritableRoots,
+    argument_matches_type_reference_handle, declared_place_type, declared_receiver_type_reference,
+    declared_reference_access, validate_call_arguments_with_type_correspondence,
+};
 /// The requirement already selected its trait telescope. Raw signature handles
 /// still name that telescope (`&mut Message`, not the caller's `&mut M`), so a
 /// stored reference must compare under its bound rather than against raw ids.

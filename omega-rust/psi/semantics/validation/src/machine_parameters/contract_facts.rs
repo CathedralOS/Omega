@@ -310,7 +310,7 @@ fn contract_kind_name(kind: &SignatureContractKind) -> &'static str {
 
 #[cfg(test)]
 mod membership_tests {
-    use super::*;
+    use super::{SignatureContractKind, normalized_facts};
 
     #[test]
     fn callable_membership_refinement_retains_normalized_indices() {

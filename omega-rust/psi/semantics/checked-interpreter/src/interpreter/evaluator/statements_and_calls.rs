@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    ArithmeticDomain, Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
+    Machine, MutableScalarRecast, State, StatementNode, SymbolHandle, TableCall, TableTransition,
+    TransitionDecision, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, Value, trap,
+};
 impl<'program> Evaluator<'program> {
     pub(super) fn exec_statement(
         &mut self,

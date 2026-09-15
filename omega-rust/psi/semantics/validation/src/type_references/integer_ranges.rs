@@ -183,7 +183,9 @@ pub fn closed_integer_range_maximum(
 
 #[cfg(test)]
 mod policy_tests {
-    use super::*;
+    use super::{
+        TypeReferenceHandle, TypeReferenceNode, TypedTrees, is_arithmetic_policy_only_integer,
+    };
 
     fn field(spelling: &str) -> (TypedTrees, TypeReferenceHandle) {
         let source = format!("data Carrier {{ value: {spelling}; }}");

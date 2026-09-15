@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    declared_place_type_raw,
+};
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 use typed_trees::name::Identifier;

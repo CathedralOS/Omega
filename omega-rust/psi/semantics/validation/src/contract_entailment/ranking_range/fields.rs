@@ -1,6 +1,9 @@
 //! A direct owned field is a distinct arithmetic coordinate, never its record.
-
-use super::*;
+use super::{
+    BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
+    Polynomial, PrimitiveType, RankingRangeState, State, TypeReferenceNode, TypedTrees,
+    exact_integer_parameter,
+};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::{DataField, DataMember};
 use typed_trees::signature::StateParameter;

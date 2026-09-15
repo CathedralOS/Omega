@@ -68,7 +68,7 @@ fn value_bounds(interval: Interval, known: Option<u64>) -> Option<(u128, u128)> 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BinaryOperator, Interval, binary_fits};
 
     fn interval(low: i64, high: i64) -> Interval {
         Interval {

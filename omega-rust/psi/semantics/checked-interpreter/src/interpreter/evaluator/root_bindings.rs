@@ -1,6 +1,5 @@
 //! Executed Build declarations retain coordinates, not target-selection authority.
-
-use super::*;
+use super::{Cell, EvalResult, Evaluator, Frame, Halt, State, TypeReferenceNode, trap};
 use typed_trees::statement::{RootBinding, StatementHandle};
 
 impl<'program> Evaluator<'program> {

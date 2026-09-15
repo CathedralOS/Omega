@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{EvalResult, Evaluator, Frame, Halt, SymbolHandle, TableCall, Value, unsupported};
 impl<'program> Evaluator<'program> {
     /// The VIRTUAL TimeHost read ops (std::time rung 4, D12). The
     /// interpreter's clock is deterministic: `sleep` advances virtual_ticks
@@ -285,7 +284,8 @@ mod byte_input_rejection_tests;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::CheckedTrees;
+    use super::{Evaluator, Halt};
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};

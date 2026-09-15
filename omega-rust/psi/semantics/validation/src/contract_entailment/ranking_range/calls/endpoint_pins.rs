@@ -1,8 +1,13 @@
 //! Conserved endpoint inputs through members that author no range of their own.
 //! Candidate slots name equal transported values, never inferred ranking views.
 
-use super::*;
-
+use super::super::super::SymbolHandle;
+use super::super::{StrictArithmeticBindingValue, comparison_proven};
+use super::{
+    BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Polynomial, RankingRangeCallMember,
+    TypedTrees, collect_guard, entry_comparisons, exact_integer_parameter, integer_bindings,
+    meanings, scalar_entry,
+};
 pub(crate) struct RankingRangeCallEdge<'program> {
     pub source: usize,
     pub destination: usize,

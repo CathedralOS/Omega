@@ -3,9 +3,11 @@
 //! This module owns the mutable abstract environment and its merge/invalidation
 //! rules. Expression analysis and guard recognition remain in the parent.
 
+use super::{
+    ExpressionHandle, Interval, Machine, State, TypedTrees, canonical_path_pair, ordered_values,
+    place_path, place_paths_overlap,
+};
 use std::collections::{BTreeMap, BTreeSet};
-
-use super::*;
 
 /// S4 flow-sensitive value environment: the proven interval of each place
 /// (`self.field`, local) along the straight-line prefix of a state body. Lets the

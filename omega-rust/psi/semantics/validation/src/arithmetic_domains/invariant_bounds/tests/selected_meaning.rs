@@ -1,4 +1,5 @@
-use super::*;
+use super::super::OperatorSpelling;
+use super::{Interval, builtin_comparison_intervals, immutable_integer_expression_bounds, typed};
 use typed_trees::typed_trees::{
     ClosedConformanceApplication, ClosedConformanceRowIdentity, MachineSpecialization,
 };

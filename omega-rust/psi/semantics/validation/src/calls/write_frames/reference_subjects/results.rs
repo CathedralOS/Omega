@@ -1,8 +1,12 @@
 //! Exact direct-reference results share the frozen-prefix result-leaf query.
 //! The result has one reference leaf, not a separate body-analysis rule.
 
-use super::*;
-
+use super::super::{TableCallExpression, machine_state_by_symbol, result_origins};
+use super::{
+    ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
+    Machine, StoredLocalOrigins, TopLevelSymbols, TypedTrees, caller_aliases, stored_origins,
+    type_reference_is_reference, value_origin,
+};
 pub(super) fn call_expression(
     program: &TypedTrees,
     mut expression: ExpressionHandle,

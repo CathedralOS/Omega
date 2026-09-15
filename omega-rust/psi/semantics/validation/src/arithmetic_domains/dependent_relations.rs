@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    ArithmeticDomain, ExpressionHandle, ExpressionNode, Interval, Machine, State,
+    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+};
 /// R1 relational refinement (the ONE closed subtraction rule): `self.F - i`
 /// where `i`'s DECLARED range carries the dependent maximum `self.F + k`
 /// (recognizer class) satisfies `F - i >= -k` -- at k=0 the

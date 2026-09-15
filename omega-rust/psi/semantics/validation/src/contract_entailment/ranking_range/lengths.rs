@@ -1,6 +1,8 @@
 //! Exact slice metadata coordinates, kept separate from scalar parameter values.
-
-use super::*;
+use super::{
+    BigInt, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial, State,
+    TypeReferenceNode, TypedTrees,
+};
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;

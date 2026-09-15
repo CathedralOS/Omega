@@ -1,5 +1,9 @@
-use super::*;
-
+use super::{
+    Cell, EvalResult, Evaluator, Frame, Halt, SymbolHandle, TableCall, Value, WireInterpField,
+    WireInterpScalarField, wire_argument_declared_type, wire_decoded_scalar_value,
+    wire_nested_decode_scalar_fields, wire_nested_scalar_fields, wire_scalar_in_range,
+    wire_scalar_varint_value,
+};
 impl<'program> Evaluator<'program> {
     /// `Schema::encode(&value, &mut out, &mut written)` -- the
     /// compact_binary v0 encoder the compiler synthesizes for a wire schema

@@ -1549,7 +1549,11 @@ pub struct FsGrants {
 
 #[cfg(test)]
 mod canonical_filesystem_metadata_tests {
-    use super::*;
+    use super::{
+        CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT, CanonicalFilesystemMetadataIndex,
+        CanonicalFilesystemMetadataIndexError, CanonicalFilesystemMetadataRow,
+        CanonicalFilesystemMetadataRowKind,
+    };
 
     pub(crate) fn row(
         path: &[u8],

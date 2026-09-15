@@ -1,6 +1,8 @@
 //! The existing scalar-return boundary operation with a whole parameter receiver.
-
-use super::*;
+use super::{
+    ExpressionHandle, ExpressionNode, Machine, State, StatementNode, TypedTrees,
+    initializer_target_is_supported,
+};
 use typed_trees::expression::TableCallExpression;
 
 pub(super) fn is_supported(

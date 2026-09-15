@@ -178,7 +178,14 @@ pub(crate) fn source_write_refusal_attempt(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ACCESS_DENIED_ERROR, ACCESS_DENIED_RESULT, FilesystemGrantAccess,
+        FilesystemGrantRefusalReason, FilesystemGrantRootIdentity, FilesystemObservationProvider,
+        FilesystemOperationAttempt, FilesystemOperationAttemptOutcome, FilesystemOperationResult,
+        FilesystemScalarOperandValue, FilesystemSourceWriteRefusalReplayKind,
+        FilesystemSourceWriteRefusalReplayRecord, source_write_refusal_attempt,
+        source_write_refusal_record_from_attempt,
+    };
 
     fn exact_attempt(kind: FilesystemSourceWriteRefusalReplayKind) -> FilesystemOperationAttempt {
         source_write_refusal_attempt(

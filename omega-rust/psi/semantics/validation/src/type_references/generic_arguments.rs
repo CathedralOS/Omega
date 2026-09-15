@@ -961,7 +961,9 @@ pub(super) fn validate_generic_argument_bounds(
 
 #[cfg(test)]
 mod const_range_tests {
-    use super::*;
+    use super::{
+        SymbolHandle, TypeParameterKind, TypeReferenceNode, validate_closed_const_argument,
+    };
 
     #[test]
     fn closed_const_arguments_check_declared_bounds_without_a_call_or_result() {

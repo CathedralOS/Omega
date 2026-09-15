@@ -1,7 +1,10 @@
 //! Exact, transient rank-range obligations use the ordinary arithmetic engine.
 //! The checked ranking owner selects the view and supplies one actual edge.
-
-use super::*;
+use super::{
+    BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
+    Polynomial, ProofFact, SignatureContractKind, StrictArithmeticBindingValue,
+    StrictArithmeticSymbolBinding, TypedTrees, inductive_judgment,
+};
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 

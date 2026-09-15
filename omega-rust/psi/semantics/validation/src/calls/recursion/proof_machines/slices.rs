@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    ExpressionHandle, ExpressionNode, Machine, StatementNode, TransitionGuardNode,
+    TransitionTargetNode, TypedTrees, collect_self_entry_call_arguments,
+};
 pub(super) fn guarded_slice_tail_call(
     program: &TypedTrees,
     machine: &Machine,

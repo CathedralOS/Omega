@@ -1,7 +1,13 @@
 //! Content-independent receiver addresses through closed fields and fixed arrays.
 
-use super::*;
-
+use super::super::{
+    TypeReferenceHandle, direct_write_only_root, fixed_unrestricted_write_only_array_shape,
+    is_supported_checked_referee, validate_expression,
+};
+use super::{
+    DataDefinition, Diagnostic, ExpressionHandle, ExpressionNode, TypedTrees, WriteOnlyRoot,
+    bare_field, write_only_record,
+};
 #[cfg(test)]
 mod tests;
 

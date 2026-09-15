@@ -1,4 +1,4 @@
-use super::*;
+use super::{ExpressionNode, builtin_monotonic_integer_update_bounds};
 use typed_trees::statement::StatementNode;
 
 fn bounds(

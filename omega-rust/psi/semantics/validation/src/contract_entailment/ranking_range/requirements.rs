@@ -1,6 +1,10 @@
 //! Ordinary call requirements share exact arithmetic coordinates, not rank facts.
-
-use super::*;
+use super::{
+    BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, Machine, Polynomial, ProofFact,
+    SignatureContractKind, State, StrictArithmeticBindingValue, TypedTrees, collect_guard,
+    comparison_proven, field_coordinates, fields, inductive_judgment, integer_bindings, lengths,
+    meanings,
+};
 use field_coordinates::FieldCoordinates;
 use fields::FieldCoordinate;
 

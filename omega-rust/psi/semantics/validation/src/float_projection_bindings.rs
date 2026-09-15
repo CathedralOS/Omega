@@ -189,7 +189,7 @@ pub(crate) fn validate_float_projection_operator_bindings(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{TypedTrees, validate_float_projection_operator_bindings};
     use typed_trees::name::Identifier;
     use typed_trees::operator::OperatorDefinition;
     use typed_trees::signature::StateParameter;

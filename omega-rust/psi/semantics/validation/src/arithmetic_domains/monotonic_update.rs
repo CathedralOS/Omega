@@ -1,6 +1,8 @@
 //! Normal-completion bounds for builtin positive-literal counter updates.
-
-use super::*;
+use super::{
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
+    PrimitiveType, State, TypedTrees, declared_place_type_raw, primitive_range,
+};
 use numerics::integer_policy::{IntegerPolicyPrimitive, IntegerResultLaw, integer_policy_bridge};
 
 #[cfg(test)]

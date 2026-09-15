@@ -1,5 +1,11 @@
-use super::*;
-
+use super::{
+    BTreeMap, BuildEvaluationSponsor, CALL_DEPTH_BUDGET, Cell, CellMeter, CheckedTrees,
+    DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
+    FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, Halt, Machine, MutableScalarRecast,
+    PrimitiveType, RefCell, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
+    TypeReferenceHandle, TypeReferenceNode, TypedTrees, Value, ambient_step_budget, trap,
+    unsupported, wrap_to_width,
+};
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn new(
         program: &'program TypedTrees,
@@ -1100,7 +1106,8 @@ impl<'program> Evaluator<'program> {
 
 #[cfg(test)]
 mod build_evaluation_configuration_tests {
-    use super::*;
+    use super::super::STEP_BUDGET;
+    use super::{Evaluator, TypedTrees};
 
     #[test]
     fn compiler_build_configuration_replaces_the_initial_interpreter_ceiling() {

@@ -1,4 +1,14 @@
-use super::*;
+use super::{
+    Arc, BuildIncludedSource, EvaluationObservations, FILESYSTEM_HOST, FilesystemAccess,
+    FilesystemGrantRootIdentity, FilesystemLogicalHandleIdentity,
+    FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
+    FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
+    FilesystemOperationResult, FilesystemReplay, FilesystemScalarOperandValue, InterpretOptions,
+    Lexer, PathBuf, ResolutionRequest, SourceMap, SourceOrigin, interpret_entry_with_options,
+    lower_symbol_resolved_trees, lower_typed_trees, nonempty_side_lane_attempts,
+    parse_syntax_trees_into_with_id, parse_syntax_trees_with_id, resolve, source_input,
+    unknown_descriptor_seek_attempt,
+};
 use crate::filesystem_replay::{
     FilesystemInputUnknownDescriptorOpenAtReplayRecord as OpenAtRecord,
     unknown_descriptor_open_at_attempt, unknown_descriptor_open_at_attempt_is_exact,

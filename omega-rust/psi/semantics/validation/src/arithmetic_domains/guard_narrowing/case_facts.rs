@@ -14,8 +14,12 @@
 //! not. Ordinary write invalidation retires the projected paths exactly like
 //! guard-derived facts, so a payload write inside the arm cannot leave a
 //! stale `where` fact believed.
-
-use super::*;
+use super::super::TypeReferenceHandle;
+use super::{
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
+    PrimitiveType, ProofFact, State, TypedTrees, ValueEnv, comparison_interval, literal_i64,
+    meaning, ordered_values, primitive_range, range_constraint_interval,
+};
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 

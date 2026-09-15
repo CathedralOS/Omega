@@ -1,6 +1,10 @@
 //! Stable computed values are not compile-time integer constants.
-
-use super::*;
+use super::{
+    ExpressionHandle, ExpressionNode, ImmutableIntegerBoundOffset, StatementNode, SymbolHandle,
+    TableLocalData, TypedTrees, immutable_integer_bound_symbol_offset,
+    immutable_integer_bound_value_symbol, normalize_immutable_integer_bound_expression,
+    normalize_immutable_integer_bound_to_usize,
+};
 use typed_trees::expression::{BinaryOperator, Expression, NamePath, TableBinaryExpression};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;

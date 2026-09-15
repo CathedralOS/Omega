@@ -1,6 +1,9 @@
 //! Expressions whose exact metadata/field coordinates enter one range judgment.
-
-use super::*;
+use super::{
+    ExpressionHandle, Machine, ProofFact, RankingRangeMeasure, RankingRangePremises,
+    SignatureContractKind, State, TypeConstraintNode, TypeReferenceNode, TypedTrees,
+    exact_integer_parameter,
+};
 use typed_trees::expression::TableRangeExpression;
 
 pub(super) fn expressions(

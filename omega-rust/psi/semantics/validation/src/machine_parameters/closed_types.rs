@@ -2,7 +2,10 @@
 //! This grants neither callable admission nor a returned-view loan.
 
 use super::type_refinement::{TypeBinding, required_type_matches_exact};
-use super::*;
+use super::{
+    ExpressionHandle, ExpressionNode, Machine, State, StaticMachineArgument, SymbolHandle,
+    TypeParameterKind, TypedTrees, machine_and_state, machine_parameter_signature,
+};
 use typed_trees::signature::StateSignature;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 

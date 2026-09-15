@@ -600,7 +600,7 @@ fn same_array_carrier(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{TypeReferenceNode, TypedTrees, same_array_carrier};
     use typed_trees::types::FixedArrayLength;
 
     #[test]

@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    TypedTrees, assignment_copies_primitive_referent, assignment_replaces_untracked_reference,
+    state_reference_parameter_binding_is_stable,
+};
 use typed_trees::statement::StatementNode;
 
 fn typed(source: &str) -> TypedTrees {

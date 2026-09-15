@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    ExpressionNode, RankProjection, StatementNode, SymbolHandle, TypedTrees, admitted_components,
+    extend_runtime_adjacency, weak_edges_are_acyclic,
+};
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 

@@ -1,7 +1,10 @@
 //! The fixed scalar dependency set whose duplicated state slots must stay equal.
 //! Unrelated payload copies retain independent values, even in numeric carriers.
-
-use super::*;
+use super::{
+    ExpressionHandle, ExpressionNode, Machine, ProofFact, RankingRangeMeasure,
+    RankingRangePremises, SignatureContractKind, TypeConstraintNode, TypeReferenceNode, TypedTrees,
+    exact_integer_parameter,
+};
 use symbols::SymbolHandle;
 use typed_trees::expression::TableRangeExpression;
 

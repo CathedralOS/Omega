@@ -233,7 +233,12 @@ pub(crate) fn output_absent_remove_attempt(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FilesystemGrantRootIdentity, FilesystemInputOutputAbsentRemovesReplayRecord,
+        FilesystemOperationAttemptOutcome, FilesystemOperationResult,
+        FilesystemOutputAbsentRemoveKind, FilesystemOutputAbsentRemoveReplayRecord,
+        output_absent_remove_attempt, output_absent_remove_record_from_attempt,
+    };
 
     fn root() -> FilesystemGrantRootIdentity {
         FilesystemGrantRootIdentity::new(9).unwrap()

@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    Diagnostic, TypedTrees, build_open_invariant_crash_sites, canonicalize_valuations,
+    meet_valuations, validate_default_domain_writes,
+};
 const CYCLE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../tests/omega/pass/dependent/valuation_order_cycle/main.omg"

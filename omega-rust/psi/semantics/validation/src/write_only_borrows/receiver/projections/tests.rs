@@ -1,7 +1,10 @@
 //! Attached array projections retain their exact declared receiver type.
 
-use super::*;
-
+use super::super::super::{DataMember, StatementNode};
+use super::super::{SymbolHandle, TypeReferenceNode};
+use super::{
+    ExpressionHandle, ExpressionNode, TypedTrees, WriteOnlyRoot, bare_field, captured_type, record,
+};
 fn typed_source(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

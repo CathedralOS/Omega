@@ -1,5 +1,8 @@
+use super::super::{
+    RankingRangeCallMember, RankingRangeCallProgress, prove_ranking_range_call_entry,
+};
 use super::ranges::progress;
-use super::*;
+use super::{RankProjection, TypedTrees, admitted, typed_source};
 
 const CLAMPED: &str = "data Main {}
 machine Main::first(&mut self, limit: u64, cursor: u64, capacity: u64)

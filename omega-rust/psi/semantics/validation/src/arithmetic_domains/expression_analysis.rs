@@ -4,8 +4,18 @@
 //! expression. Declaration checks, flow-state ownership, and total-proposition
 //! formation stay in their dedicated modules.
 
-use super::*;
-
+use super::{
+    ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
+    Machine, PrimitiveType, State, TableCallExpression, TypeReferenceNode, TypedTrees, ValueEnv,
+    arithmetic_operator_spelling, bitwise, call_return_type, declared_place_type_raw,
+    exact_unsigned_widened_multiply_fits, float_source_proves_int_cast, guard_narrowing,
+    infer_return_interval, integer_bit_width, integer_interval_fits_primitive, is_arithmetic,
+    is_atomic_type, known_u64_value, literal_interval, ordered_values,
+    overflow_operand_value_call_target, place_path, primitive_name, primitive_range,
+    range_constraint_interval, refine_dependent_product, refine_dependent_product_factor,
+    refine_dependent_subtract, resolve_named_float_arithmetic, resolve_unique_self_call_state,
+    u64_exact_shift_left_fits, unsigned_representability,
+};
 fn integer_policy_primitive(
     operator: BinaryOperator,
 ) -> Option<numerics::integer_policy::IntegerPolicyPrimitive> {

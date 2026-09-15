@@ -234,7 +234,10 @@ fn project(low: i128, high: i128) -> Interval {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BinaryOperator, Carrier, Interval, PrimitiveType, binary, binary_unsigned_value,
+        complement, complement_unsigned_value, project, value_number,
+    };
 
     const OPERATORS: [BinaryOperator; 3] = [
         BinaryOperator::BitwiseAnd,

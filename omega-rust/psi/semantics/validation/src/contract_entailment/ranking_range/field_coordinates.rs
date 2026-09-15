@@ -1,8 +1,10 @@
 //! Exact owned fields used by one ranking judgment. Root-template projections
 //! and current-state projections share an atom only through a unique, nominally
 //! checked arrival role. Record ancestry alone never proves copy equality.
-
-use super::*;
+use super::{
+    BTreeMap, Comparison, Engine, ExpressionHandle, ExpressionNode, Polynomial, RankingRangeState,
+    State, TypedTrees, fields,
+};
 use fields::FieldCoordinate;
 use symbols::SymbolHandle;
 

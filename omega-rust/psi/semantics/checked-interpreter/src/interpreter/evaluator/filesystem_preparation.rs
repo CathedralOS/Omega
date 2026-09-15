@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation,
+    FilesystemLogicalHandleKind, Frame, Halt, Value, real_fs, rooted_build_path_parts, trap,
+    unsupported, validate_build_relative_path,
+};
 use crate::{
     FilesystemByteOperand, FilesystemMutableByteOperand, FilesystemMutableByteOperandResolution,
     FilesystemMutableI64Operand, FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand,
@@ -1743,7 +1747,17 @@ impl<'program> Evaluator<'program> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FILETIME_BYTES, FIND_DATA_OUTPUT_BYTES, FilesystemHostOperation,
+        FilesystemLogicalHandleKind, FilesystemMutableByteOperandResolution,
+        FilesystemMutableI64OperandResolution, FilesystemScalarOperandValue,
+        FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES, OVERLAPPED_BYTES,
+        PATH_MAX_OUTPUT_BYTES, PreparedByteOutput, PreparedFilesystemCall,
+        PreparedFilesystemLogicalHandleInput, PreparedFilesystemLogicalHandleOutput,
+        PreparedI64Output, PreparedMutableByteInput, PreparedTransferCount, STAT_OUTPUT_BYTES,
+        TIMESPEC_PAIR_BYTES, Value, check_filesystem_arity, checked_filesystem_transfer_count,
+        checked_relative_component, rooted_package_build_operation_refusal, synthetic_handle_fd,
+    };
 
     fn array_output(length: usize) -> PreparedByteOutput {
         PreparedByteOutput::Array(

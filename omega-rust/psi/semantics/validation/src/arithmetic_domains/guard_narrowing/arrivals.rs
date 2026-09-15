@@ -1,8 +1,15 @@
 //! State arrivals use the source evaluation environment and the exact jump
 //! argument telescope. Each round starts from an overapproximation, including
 //! every backedge; stopping before convergence only loses precision.
-
-use super::*;
+use super::super::{
+    TypeReferenceHandle, TypeReferenceNode, analyze, enforced_declared_range,
+    record_unsigned_literal_assignment,
+};
+use super::{
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
+    ProofFact, SignatureContractKind, State, TypedTrees, ValueEnv, declared_place_type_raw,
+    incoming_guard_env, literal_i64, narrow_env_by_condition, ordered_values, place_path,
+};
 use crate::CallFrameResolver;
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};

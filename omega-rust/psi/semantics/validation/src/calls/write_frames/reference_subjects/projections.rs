@@ -1,8 +1,10 @@
 //! Validate receiver-rooted owned projections in their exact attached scope.
 //! Typed `Self` names the machine, not a data declaration or a frozen load.
 
-use super::*;
-
+use super::{
+    ExpressionHandle, ExpressionNode, FrameSourcePlace, Machine, PlaceSegment, TypeReferenceHandle,
+    TypedTrees, stored_origins, type_reference_is_reference, validate_owned_projection,
+};
 /// Check every retained selector before fact-place normalization can map an
 /// inherited field to its storage declaration. This also covers a suffix
 /// selected through a local alias, whose canonical root may later become self.

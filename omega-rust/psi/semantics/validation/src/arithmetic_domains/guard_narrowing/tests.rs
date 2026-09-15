@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    BinaryOperator, ExpressionNode, Interval, TypedTrees, ValueEnv,
+    arrival_integer_expression_bounds, fall_through_narrowed_env, guard_narrowed_env,
+    incoming_guard_env, incoming_guard_environments,
+};
 use typed_trees::statement::StatementNode;
 
 mod equality_meaning;

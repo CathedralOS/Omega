@@ -1,4 +1,5 @@
-use super::{LARGE_ARGUMENT, anonymous_integer_landing_warnings, typed, width_grants};
+use super::super::anonymous_integer_landing_warnings;
+use super::{LARGE_ARGUMENT, typed, width_grants};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 

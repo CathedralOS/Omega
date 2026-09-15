@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    TypeReferenceHandle, TypeReferenceNode, TypedTrees, has_plain_owned_contents,
+    has_plain_owned_contents_with_numeric_constraints, has_stable_observable_contents,
+};
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

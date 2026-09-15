@@ -90,7 +90,7 @@ fn raw_frame_place_path(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ExpressionHandle, FramePathPrecision, TypedTrees, frame_place_path};
     use arena::HandleSpan;
     use symbols::SymbolHandle;
     use typed_trees::expression::{ExpressionNode, TableIndexedExpression, TableNamePath};

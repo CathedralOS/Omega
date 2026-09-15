@@ -1,5 +1,6 @@
-use super::*;
-
+use super::{
+    EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, Value, trap, unsupported,
+};
 impl Evaluator<'_> {
     /// Replace a window's exact element footprint without rebinding its backing
     /// array or observing the previous element values. Source checking owns

@@ -547,7 +547,7 @@ impl Value {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BuildEvaluationSponsor, CellMeter, TextBuffer, TextByteMeter, Value};
     use crate::BuildEvaluationSponsorLimits;
 
     #[test]

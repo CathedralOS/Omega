@@ -1,4 +1,9 @@
-use super::*;
+use super::super::meaning;
+use super::{
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State,
+    StatementNode, TransitionGuardNode, TransitionTargetNode, TypedTrees, ValueEnv, analyze,
+    narrow_env_by_condition,
+};
 use typed_trees::statement::TableTransition;
 
 /// Analyze an exact target-arm argument without importing facts from another occurrence.
