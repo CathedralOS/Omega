@@ -1,4 +1,7 @@
-use super::*;
+use crate::BTreeMap;
+use crate::ContentProjectionExpression;
+use crate::ContentProjectionScalar;
+use crate::StructuralTypeId;
 
 pub(crate) fn validate_content_projection_scalar(
     value: &ContentProjectionScalar,

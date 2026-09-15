@@ -3,8 +3,16 @@
 //! This entrance admits candidate custody and the structural-identity analysis
 //! contract. Witness reconstruction, closed-region observation, and exhaustive
 //! operation rewriting descend into named leaves.
-
-use super::*;
+use crate::AnalysisInvalidationSet;
+use crate::AnalysisKind;
+use crate::AnalysisSet;
+use crate::OptimizationRuleIdentity;
+use crate::OptimizationSafetyClass;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::ValidatedPsiRewrite;
+use crate::validate_psi_optimization_unit;
 
 mod observation;
 mod operation_rewrite;

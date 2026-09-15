@@ -1,4 +1,7 @@
 //! Borrowed local calls require establishment and cannot transfer the local owner.
+use crate::EdgeId;
+use crate::PlaceId;
+use crate::StructuralTypeId;
 
 use crate::tests::*;
 use crate::validate_psi_optimization_unit;

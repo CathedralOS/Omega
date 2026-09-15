@@ -1,7 +1,13 @@
 //! Current whole-owned edge transactions and parameter establishment order.
-
-use super::*;
+use crate::OptimizationUnitValidationError;
+use crate::current_ownership::CurrentOwnership;
 use abstract_operations::AbstractStructuralBinding;
+use optimization_unit::OptimizationBlock;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::BlockId;
+use std::collections::BTreeSet;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
 
 pub(super) fn bind_owned_parameters(

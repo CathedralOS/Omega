@@ -3,8 +3,14 @@
 //! This entrance admits candidate custody and the analysis contract. Exact
 //! rule classification, the exhaustive operation partition, and independent
 //! rewrite replay descend into named leaves.
-
-use super::*;
+use crate::AnalysisInvalidationSet;
+use crate::AnalysisKind;
+use crate::AnalysisSet;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::ValidatedPsiRewrite;
+use crate::validate_psi_optimization_unit;
 
 mod operation_partition;
 mod rule_catalog;

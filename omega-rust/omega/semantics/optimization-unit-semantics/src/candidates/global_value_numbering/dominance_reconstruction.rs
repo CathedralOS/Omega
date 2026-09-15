@@ -1,6 +1,11 @@
 //! Independent reachability and dominance reconstruction.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::PsiOptimizationFunction;
+use crate::ScalarType;
+use crate::ValueDefinitionSite;
+use crate::ValueId;
 
 pub(crate) fn independent_reachable_dominators(
     function: &PsiOptimizationFunction,

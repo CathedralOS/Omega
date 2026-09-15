@@ -1,6 +1,10 @@
 //! Rejoin retained edge snapshots after cleanup and whole owned rebinding.
-
-use super::*;
+use crate::BTreeMap;
+use crate::OwnershipFrontierOwnedPlace;
+use crate::OwnershipFrontierSnapshot;
+use crate::PlaceId;
+use crate::PsiOptimizationFunction;
+use crate::unit_validation::core::affine_authority::valid_edge_partial_affine_transition;
 use abstract_operations::AbstractStructuralBinding;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 

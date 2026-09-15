@@ -1,6 +1,16 @@
 //! Block indexing, node metadata, edge indexing, and total-CFG validation.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::MachineId;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::expected_definitions;
+use crate::expected_ownership;
+use crate::expected_uses;
+use crate::is_terminator;
+use crate::provenance_matches_operation;
+use crate::successors_match_operation;
 
 pub(super) struct FunctionControlFlow<'a> {
     pub(super) blocks: BTreeMap<BlockId, &'a optimization_unit::OptimizationBlock>,

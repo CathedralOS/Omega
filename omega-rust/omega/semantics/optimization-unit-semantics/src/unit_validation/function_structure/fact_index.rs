@@ -1,6 +1,7 @@
 //! Retained optimization-fact reconstruction and exact index validation.
-
-use super::*;
+use crate::OptimizationFact;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
 
 pub(crate) fn validate_fact_index(
     function: &PsiOptimizationFunction,

@@ -1,6 +1,33 @@
 //! Function structural-root uniqueness and operation replay tests.
-
-use super::super::*;
+use super::super::id;
+use crate::ClaimId;
+use crate::IntegerSign;
+use crate::IntegerType;
+use crate::IntegerValue;
+use crate::O;
+use crate::OperationId;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::ScalarType;
+use crate::StructuralDomainId;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::ValueId;
+use crate::tests::OperationResultCfgShape;
+use crate::tests::boolean_structural_field_unit;
+use crate::tests::content_entry_claim;
+use crate::tests::direct_realization_boolean_structural_field_unit;
+use crate::tests::direct_realization_integer_structural_field_unit;
+use crate::tests::install_content_owner;
+use crate::tests::operation_result_cfg_unit;
+use crate::tests::refresh_function_derivatives;
+use crate::tests::refresh_identity;
+use crate::tests::refresh_node_derivatives;
+use crate::tests::structural_domain;
+use crate::tests::structural_result_call_unit;
+use crate::tests::structural_scalar_field_store_unit;
+use crate::validate_psi_optimization_unit;
 
 #[test]
 fn projected_case_membership_replays_exact_path_case_access_and_identity() {

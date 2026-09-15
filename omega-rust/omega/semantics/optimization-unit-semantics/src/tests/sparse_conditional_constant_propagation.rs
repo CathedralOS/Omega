@@ -1,6 +1,18 @@
 //! SCCP range and independent-evaluation tests.
-
-use super::*;
+use super::id;
+use crate::ValidatedIntegerRangeComparisonKind;
+use crate::ValidatedIntegerRangePairComparisonKind;
+use crate::independently_evaluate_integer_range_comparison;
+use crate::independently_evaluate_integer_range_pair_comparison;
+use crate::independently_validated_integer_range_comparison_kind;
+use crate::independently_validated_integer_range_pair_comparison_kind;
+use abstract_operations::AbstractOperation;
+use optimization_core::OptimizationRuleIdentity;
+use semantic_vocabulary::IntegerSign;
+use semantic_vocabulary::IntegerType;
+use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::OperationId;
+use semantic_vocabulary::ValueId;
 
 #[test]
 fn range_equality_rule_orientation_and_evaluation_are_independently_closed() {

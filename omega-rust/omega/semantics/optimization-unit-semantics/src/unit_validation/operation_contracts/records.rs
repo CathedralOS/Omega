@@ -5,7 +5,16 @@
 //! Source admission alone cannot authorize substituted fields or child homes in
 //! a rewritten optimization unit; dominance and current ownership are checked
 //! separately against the same operands.
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::O;
+use crate::PlaceId;
+use crate::PsiOptimizationFunction;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::is_nonempty_field_path;
+use crate::resolve_structural_path;
+use crate::structural_source_contract;
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape,

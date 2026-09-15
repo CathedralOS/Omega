@@ -1,6 +1,9 @@
 //! Exact proof-bearing operations mapped to canonical scalar goals.
-
-use super::*;
+use crate::O;
+use semantic_vocabulary::OperationId;
+use semantic_vocabulary::ScalarTerm;
+use semantic_vocabulary::ScalarType;
+use terminal_semantics::CanonicalScalarGoal;
 
 pub(super) fn proof_range_goal(
     operation: &O,

@@ -4,8 +4,7 @@
 //! proof-certified, and compatible-policy reconstruction descend into separate
 //! leaves; compatible-policy keeps its directional leader/redundant join.
 //! Canonical commutative operand order is shared here and nowhere else.
-
-use super::*;
+use crate::ValueId;
 
 mod compatible_policy;
 mod model;

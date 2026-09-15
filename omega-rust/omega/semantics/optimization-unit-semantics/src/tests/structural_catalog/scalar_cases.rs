@@ -1,6 +1,14 @@
 //! Constructor payload identity, scalar use and declaration corruption controls.
-
-use super::super::*;
+use super::super::{AbstractOperation, id};
+use crate::OperationId;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::ValueId;
+use crate::tests::refresh_identity;
+use crate::tests::refresh_node_derivatives;
+use crate::tests::unit;
 
 fn scalar_case_unit() -> PsiOptimizationUnit {
     let mut candidate = unit();

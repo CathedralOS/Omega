@@ -1,6 +1,16 @@
 //! Whole-array custody and leaf identity survive ordinary construction and calls.
-
-use super::super::*;
+use super::super::id;
+use crate::OperationId;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::ScalarType;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::ValueId;
+use crate::tests::refresh_function_derivatives;
+use crate::tests::refresh_identity;
+use crate::tests::structural_result_call_unit;
+use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation as O;
 use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 

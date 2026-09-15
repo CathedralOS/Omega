@@ -1,6 +1,6 @@
 //! Independently reconstructed successor edges and edge custody.
-
-use super::*;
+use crate::OptimizationEdge;
+use crate::PsiProvenance;
 
 pub(crate) fn successors_match_operation(
     operation: &abstract_operations::AbstractOperation,

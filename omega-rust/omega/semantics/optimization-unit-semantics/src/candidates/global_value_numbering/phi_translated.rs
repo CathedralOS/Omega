@@ -1,9 +1,37 @@
 //! Phi-translated join validation and rewrite application.
+use crate::AnalysisInvalidationSet;
+use crate::AnalysisKind;
+use crate::AnalysisSet;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::NodeLocation;
+use crate::OptimizationFact;
+use crate::OptimizationSafetyClass;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::PhiTranslatedScalarIncoming;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ValidatedPsiRewrite;
+use crate::ValueDefinition;
+use crate::ValueDefinitionSite;
+use crate::candidates::global_value_numbering::ScalarCseProofClass;
+use crate::expected_definitions;
+use crate::expected_ownership;
+use crate::expected_uses;
+use crate::preserve_edge_custody;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_declared_places;
+use crate::reconstruct_fact_index;
+use crate::reconstruct_phi_translated_cse_accounting;
+use crate::rewrite_scalar_value_uses;
+use crate::rewrite_successor_operation;
+use crate::validate_psi_optimization_unit;
 
 use super::admission::*;
 use super::dominance_reconstruction::*;
 use super::expression_keys::*;
-use super::*;
 
 /// Independently validate one obligation-free, proof-certified, or
 /// proof-certified compatible-policy scalar

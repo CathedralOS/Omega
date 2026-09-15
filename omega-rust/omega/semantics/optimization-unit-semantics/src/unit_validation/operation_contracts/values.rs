@@ -1,4 +1,13 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::StructuralTypeId;
+use crate::ValueDefinition;
+use crate::ValueDefinitionSite;
+use crate::ValueId;
 
 pub(super) fn collect_value_definitions(
     function: &PsiOptimizationFunction,

@@ -1,7 +1,10 @@
 //! Exhaustive independent partition of operations eligible for dead-scalar removal.
+use crate::O;
+use crate::OptimizationRuleIdentity;
+use crate::ScalarType;
+use crate::ValueId;
 
 use super::rule_catalog::{DeadScalarFamily, dead_scalar_family};
-use super::*;
 
 /// Independent exhaustive mirror of the producer's closed safety partition.
 /// A new abstract operation cannot compile until this validator decides that

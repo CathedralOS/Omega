@@ -3,8 +3,9 @@
 //! The entrance owns complete place/claim admission. Dominance, scalar value
 //! metadata, provenance, successor edges, ownership, and terminator
 //! classification descend into independently named evidence leaves.
-
-use super::*;
+use crate::ClaimId;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
 
 mod control_flow;
 mod edges;

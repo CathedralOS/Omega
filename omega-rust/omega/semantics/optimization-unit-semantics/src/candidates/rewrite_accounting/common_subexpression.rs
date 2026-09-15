@@ -1,4 +1,12 @@
-use super::*;
+use crate::BlockId;
+use crate::DeadScalarNodeRewrite;
+use crate::LocalScalarCommonSubexpressionRewrite;
+use crate::NodeLocation;
+use crate::PhiTranslatedScalarGvnRewrite;
+use crate::ProvenanceDisposition;
+use crate::PsiOptimizationFunction;
+use crate::PsiRealizationSite;
+use crate::reconstruct_dead_scalar_node_accounting;
 
 pub(crate) fn reconstruct_local_cse_accounting(
     function: &PsiOptimizationFunction,

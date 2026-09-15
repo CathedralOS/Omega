@@ -1,7 +1,5 @@
 //! Optimizer module role: stage group. Independent validation of complete Psi optimization units and retained context.
 
-use super::*;
-
 mod core;
 mod derived_metadata;
 mod function_structure;

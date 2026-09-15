@@ -1,6 +1,14 @@
 //! Structural-root uniqueness, availability, observation, and return contracts.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::PsiOptimizationFunction;
+use crate::ScalarType;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::structural_root_key;
 
 mod availability;
 mod primitive_locals;

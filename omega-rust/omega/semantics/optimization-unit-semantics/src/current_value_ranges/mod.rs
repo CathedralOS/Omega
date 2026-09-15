@@ -4,25 +4,10 @@
 //! applicability at a requested operation entry. Proof goals, interval
 //! algebra, range reconstruction, and availability descend into named leaves.
 
-use std::collections::BTreeMap;
+use optimization_unit::{PsiOptimizationUnit, ValueRangeFact};
+use semantic_vocabulary::{BlockId, MachineId};
 
-use abstract_operations::AbstractOperation as O;
-use optimization_core::ValueRangeFactIdentity;
-use optimization_unit::{
-    OptimizationFact, ProofQuestionOwner, PsiOptimizationFunction, PsiOptimizationUnit,
-    ScalarConstantValue, ValueDefinitionSite, ValueRangeFact, ValueRangeRegion, ValueRangeScope,
-    ValueRangeSupport, value_range_fact_identity,
-};
-use semantic_vocabulary::{
-    BlockId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    Proposition, ScalarTerm, ScalarType, ValueId,
-};
-use terminal_semantics::CanonicalScalarGoal;
-
-use crate::{
-    OptimizationUnitValidationError, independent_reachable_dominators, scalar_value_definition,
-    validate_psi_optimization_unit, validator_scalar_constant_facts,
-};
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 
 mod availability;
 mod intervals;

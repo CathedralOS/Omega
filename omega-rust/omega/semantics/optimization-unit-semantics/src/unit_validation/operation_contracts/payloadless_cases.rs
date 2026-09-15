@@ -1,4 +1,12 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::O;
+use crate::PsiOptimizationFunction;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::proposition_structural_roots;
+use crate::resolve_structural_path;
+use crate::structural_paths_may_overlap;
 
 pub(crate) fn plain_scalar_sum_call(
     operation: &O,

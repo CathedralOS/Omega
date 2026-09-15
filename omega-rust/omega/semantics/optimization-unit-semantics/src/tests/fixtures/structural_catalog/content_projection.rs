@@ -1,4 +1,4 @@
-use super::super::id;
+use super::super::super::id;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{ClaimId, PlaceId, StructuralDomainId, StructuralTypeId};
 

@@ -1,6 +1,30 @@
 //! Structural dominance and operation-result fixture units.
+use super::super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, FuelScheduleIdentity, SemanticFingerprint, TerminalPsiIdentity,
+    VocabularyMarker, id, reconstruct_psi_optimization_unit_seed,
+};
 
-use super::*;
+use crate::BlockId;
+use crate::BoundaryMachineId;
+use crate::EdgeId;
+use crate::MachineId;
+use crate::OperationId;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::StructuralDomainId;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::ValueId;
+use crate::expected_definitions;
+use crate::expected_edges;
+use crate::expected_ownership;
+use crate::expected_provenance;
+use crate::expected_uses;
+use crate::reconstruct_fact_index;
+use crate::tests::explicit_trivial_affine_return_unit;
+use crate::tests::refresh_identity;
+use crate::tests::structural_type;
 use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
 mod operation_results;

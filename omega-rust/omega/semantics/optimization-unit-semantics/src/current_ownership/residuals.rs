@@ -1,6 +1,11 @@
 //! Independently reconstruct the maximal live record/array path complement.
-
-use super::*;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use terminal_psi::StructuralFieldType;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::StructuralTypeShape;
 
 pub(super) fn partial_affine_residuals(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

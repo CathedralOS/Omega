@@ -1,6 +1,15 @@
 //! Provider-attachment specialization replay tests.
-
-use super::super::*;
+use super::super::{AbstractOperation, id};
+use crate::BoundaryMachineId;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::StructuralPlaceKind;
+use crate::tests::provider_attachment_specialization_unit;
+use crate::tests::refresh_identity;
+use crate::tests::refresh_node_derivatives;
+use crate::tests::structural_leaf_field;
+use crate::validate_psi_optimization_unit;
 
 #[test]
 fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {

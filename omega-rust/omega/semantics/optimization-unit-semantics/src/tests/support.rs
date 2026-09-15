@@ -1,4 +1,11 @@
-use super::*;
+use crate::PsiOptimizationUnit;
+use crate::expected_definitions;
+use crate::expected_edges;
+use crate::expected_ownership;
+use crate::expected_provenance;
+use crate::expected_uses;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_fact_index;
 
 pub(crate) fn refresh_identity(unit: &mut PsiOptimizationUnit) {
     unit.identity = recompute_psi_optimization_unit_identity(unit);

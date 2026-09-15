@@ -1,7 +1,5 @@
 //! Optimizer module role: stage group. Independent CFG rewrite validation by exact graph transformation.
 
-use super::*;
-
 mod block_merging;
 mod constant_conditionals;
 mod contract;

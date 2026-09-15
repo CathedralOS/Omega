@@ -1,7 +1,42 @@
 //! Exact remainder-by-unit laws and candidate acceptance.
+use crate::AnalysisInvalidationSet;
+use crate::AnalysisKind;
+use crate::AnalysisSet;
+use crate::IntegerCarrier;
+use crate::IntegerSign;
+use crate::IntegerType;
+use crate::IntegerValue;
+use crate::O;
+use crate::ObservationKnowledge;
+use crate::OperationId;
+use crate::OptimizationFact;
+use crate::OptimizationRuleIdentity;
+use crate::OptimizationSafetyClass;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::ProvenanceDisposition;
+use crate::ProvenanceRewrite;
+use crate::PsiOptimizationUnit;
+use crate::PsiRealizationSite;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ScalarConstantValue;
+use crate::ScalarType;
+use crate::ValidatedPsiRewrite;
+use crate::ValueDefinition;
+use crate::ValueDefinitionSite;
+use crate::ValueId;
+use crate::independently_accepted_operation_fact;
+use crate::literal_scalar_constant_fact_identity;
+use crate::observation_at;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_closed_scalar_node_boundary;
+use crate::reconstruct_fact_index;
+use crate::same_closed_scalar_observation;
+use crate::scalar_value_definition;
+use crate::validate_psi_optimization_unit;
 
 use super::identity_classification::*;
-use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct IndependentRemainderUnitConstant {

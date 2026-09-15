@@ -1,5 +1,12 @@
 //! Exact whole shared-view and plain owned telescopes; ownership replays separately.
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::PsiOptimizationFunction;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeShape,

@@ -1,6 +1,24 @@
 //! Independent SCCP lattice and machine-snapshot reconstruction.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::EdgeId;
+use crate::OptimizationEdge;
+use crate::OptimizationFact;
+use crate::PsiOptimizationFunction;
+use crate::PsiProvenance;
+use crate::ScalarConstantValue;
+use crate::ScalarType;
+use crate::SccpBlockRow;
+use crate::SccpEdgeRow;
+use crate::SccpEdgeState;
+use crate::SccpMachineSnapshot;
+use crate::SccpValueRow;
+use crate::SccpValueState;
+use crate::ValueDefinition;
+use crate::ValueId;
+use crate::derived_sccp_scalar_constant_fact_identity;
+use crate::literal_scalar_constant_fact_identity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ValidatorSccpValue {
@@ -384,7 +402,10 @@ pub(crate) fn validator_integer_value_type(
 
 #[cfg(test)]
 mod structural_case_tests {
-    use super::*;
+    use super::{BlockId, EdgeId, ValueId};
+    use crate::PlaceId;
+    use crate::candidates::sparse_conditional_constant_propagation::snapshot_reconstruction::validator_scalar_operation_successors;
+    use crate::validator_scalar_constant_facts;
     use abstract_operations::{AbstractOperation as O, AbstractSuccessor, ValueBinding};
     use optimization_unit::{ValueDefinition, ValueDefinitionSite};
     use semantic_vocabulary::{ScalarType, StructuralCaseId, StructuralFieldId};

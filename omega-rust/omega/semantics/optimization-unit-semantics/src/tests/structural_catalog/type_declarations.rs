@@ -1,6 +1,20 @@
 //! Structural type graph, field, case, and erasure declaration tests.
-
-use super::super::*;
+use super::super::id;
+use crate::BoundaryMachineId;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::ScalarType;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::tests::provider_attachment_specialization_unit;
+use crate::tests::refresh_identity;
+use crate::tests::structural_case;
+use crate::tests::structural_catalog_unit;
+use crate::tests::structural_field;
+use crate::tests::structural_leaf_field;
+use crate::tests::structural_type;
+use crate::tests::unit;
+use crate::validate_psi_optimization_unit;
 
 #[test]
 fn structural_type_graph_accepts_dag_shared_descendants_and_disconnected_components() {

@@ -1,6 +1,9 @@
 //! Entry-claim and parameter-definition metadata contracts.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::ValueDefinitionSite;
 
 pub(super) fn validate_entry_claim_index(
     function: &PsiOptimizationFunction,

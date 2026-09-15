@@ -1,4 +1,12 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::NodeLocation;
+use crate::NonAdjacentBlockMergeRewrite;
+use crate::ProvenanceDisposition;
+use crate::PsiOptimizationFunction;
+use crate::PsiRealizationSite;
+use crate::ScalarSubstitution;
 
 pub(crate) fn reconstruct_non_adjacent_merge_accounting(
     function: &PsiOptimizationFunction,

@@ -1,7 +1,5 @@
 //! Optimizer module role: stage group. Independent candidate acceptance, organized by the producing pass family.
 
-use super::*;
-
 mod control_flow_cleanup;
 mod copy_propagation;
 mod dead_scalar_elimination;

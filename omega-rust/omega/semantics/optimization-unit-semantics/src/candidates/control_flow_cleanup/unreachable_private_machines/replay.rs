@@ -1,6 +1,20 @@
 //! Independent unreachable private-machine replay mechanics.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::MachineId;
+use crate::NodeLocation;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::ProvenanceDisposition;
+use crate::PsiOptimizationFunction;
+use crate::PsiOptimizationUnit;
+use crate::PsiRealizationSite;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ValidatedPsiRewrite;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::validate_psi_optimization_unit;
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,

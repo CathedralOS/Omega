@@ -1,6 +1,35 @@
 //! Service hierarchy and root-reach tests.
-
-use super::*;
+use super::id;
+use crate::BTreeMap;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::ServiceId;
+use crate::StructuralTypeId;
+use crate::expected_definitions;
+use crate::expected_edges;
+use crate::expected_ownership;
+use crate::expected_provenance;
+use crate::expected_uses;
+use crate::operation_service_contract_matches;
+use crate::reconstruct_fact_index;
+use crate::refresh_root_service_reach;
+use crate::tests::install_service_catalog;
+use crate::tests::installation_root_service_unit;
+use crate::tests::multiple_installation_root_service_unit;
+use crate::tests::provider_service_unit;
+use crate::tests::refresh_identity;
+use crate::tests::refresh_node_derivatives;
+use crate::tests::scalar_boundary_call_unit;
+use crate::tests::scalar_call_unit;
+use crate::tests::service_effect_unit;
+use crate::tests::structural_call_unit;
+use crate::tests::structural_result_call_unit;
+use crate::validate_psi_optimization_unit;
+use abstract_operations::AbstractOperation;
+use abstract_operations::AbstractResult;
+use semantic_vocabulary::OperationId;
+use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::ValueId;
 
 #[test]
 fn replays_service_catalog_hierarchy_ceilings_and_concrete_effects() {

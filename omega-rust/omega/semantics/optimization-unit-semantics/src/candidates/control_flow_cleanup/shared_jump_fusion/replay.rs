@@ -1,6 +1,28 @@
 //! Independent shared terminal-jump fusion replay mechanics.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::PsiOptimizationFunction;
+use crate::PsiOptimizationUnit;
+use crate::PsiProvenance;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ScalarSubstitution;
+use crate::ValidatedPsiRewrite;
+use crate::expected_definitions;
+use crate::expected_edges;
+use crate::expected_ownership;
+use crate::expected_uses;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_adjacent_merge_ownership_is_identity;
+use crate::reconstruct_declared_places;
+use crate::reconstruct_fact_index;
+use crate::reconstruct_shared_terminal_fusion_accounting;
+use crate::rewrite_scalar_substitutions;
+use crate::validate_psi_optimization_unit;
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,

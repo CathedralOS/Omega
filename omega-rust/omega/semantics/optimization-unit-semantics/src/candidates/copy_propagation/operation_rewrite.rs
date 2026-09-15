@@ -1,6 +1,6 @@
 //! Exhaustive scalar-use and incoming-binding rewrite mechanics.
-
-use super::*;
+use crate::RedundantBlockParameterRewrite;
+use crate::ValueId;
 
 pub(crate) fn rewrite_block_parameter_operation(
     operation: &mut abstract_operations::AbstractOperation,

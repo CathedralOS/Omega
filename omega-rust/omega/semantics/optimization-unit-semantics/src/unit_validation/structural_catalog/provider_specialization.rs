@@ -1,4 +1,11 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BoundaryMachineId;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
 
 /// Replay the exact specialization which replaces one relevant opaque Record
 /// field with a canonical boundary-specific provider-root roster. These roots

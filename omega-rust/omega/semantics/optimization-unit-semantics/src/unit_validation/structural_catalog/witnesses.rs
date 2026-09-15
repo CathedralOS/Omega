@@ -1,4 +1,10 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::PsiProvenance;
+use crate::expected_provenance;
 
 pub(crate) fn validate_byte_sequence_literal_witnesses(
     function: &PsiOptimizationFunction,

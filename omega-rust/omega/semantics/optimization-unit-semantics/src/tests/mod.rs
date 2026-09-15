@@ -1,20 +1,13 @@
 //! Optimizer module role: stage group.
-use super::*;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, AbstractResult,
 };
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-};
+use optimization_core::{OptimizationPassIdentity, OptimizationRuleContract};
 use optimization_unit::OwnershipFrontierFact;
-use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite,
-    PsiRewriteCandidate, ValueUse, reconstruct_psi_optimization_unit_seed,
-};
+use optimization_unit::{ValueUse, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
-    FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+    FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 

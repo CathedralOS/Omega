@@ -1,6 +1,23 @@
 //! Independent linear empty-block replay mechanics.
-
-use super::*;
+use crate::NodeLocation;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ValidatedPsiRewrite;
+use crate::expected_definitions;
+use crate::expected_edges;
+use crate::expected_ownership;
+use crate::expected_uses;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_declared_places;
+use crate::reconstruct_fact_index;
+use crate::reconstruct_linear_thread_accounting;
+use crate::reconstruct_linear_thread_bindings;
+use crate::reconstruct_linear_thread_ownership_is_identity;
+use crate::validate_psi_optimization_unit;
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,

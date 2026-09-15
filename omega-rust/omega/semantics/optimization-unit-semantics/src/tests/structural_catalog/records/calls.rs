@@ -1,6 +1,22 @@
 //! Record result contracts compose with scalar work and loans of owned storage.
-use super::*;
+use super::{AbstractOperation, id};
+use crate::EdgeId;
+use crate::MachineId;
+use crate::OperationId;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::ValueId;
+use crate::tests::refresh_function_derivatives;
+use crate::tests::structural_catalog::records::record_unit;
+use crate::tests::unit;
+use crate::validate_psi_optimization_unit;
 use abstract_operations::{AbstractFunctionResult, AbstractResult};
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralTypeShape;
 use terminal_psi::{
     StructuralArgument, StructuralParameterDeclaration, StructuralResultDeclaration,
 };

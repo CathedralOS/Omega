@@ -3,8 +3,11 @@
 //! This entrance owns the exact rule and patch routing join. Integer and
 //! boolean acceptance, typed-range comparison, observation equality, exact
 //! arithmetic, and SCCP snapshot reconstruction descend into named leaves.
-
-use super::*;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ValidatedPsiRewrite;
 
 mod boolean_candidate;
 mod boolean_evaluation;

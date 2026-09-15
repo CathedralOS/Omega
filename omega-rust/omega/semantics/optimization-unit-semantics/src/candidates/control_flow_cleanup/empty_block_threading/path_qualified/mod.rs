@@ -1,6 +1,12 @@
 //! Optimizer module role: executable entrance. Path-qualified empty-block validation.
-
-use super::*;
+use crate::AnalysisInvalidationSet;
+use crate::AnalysisKind;
+use crate::AnalysisSet;
+use crate::OptimizationSafetyClass;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::ValidatedPsiRewrite;
 
 mod replay;
 

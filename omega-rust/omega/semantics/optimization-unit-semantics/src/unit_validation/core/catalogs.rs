@@ -1,6 +1,24 @@
 //! Active/pruned machine rosters and structural/service catalog validation.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BoundaryMachineId;
+use crate::MachineId;
+use crate::OperationId;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::PsiOptimizationUnit;
+use crate::ScalarType;
+use crate::ServiceId;
+use crate::StructuralTypeId;
+use crate::ValueId;
+use crate::boundary_structural_signature_matches;
+use crate::index_service_catalog;
+use crate::index_structural_catalogs;
+use crate::unit_validation::function_structure;
+use crate::valid_service_ceiling;
+use crate::validate_function;
+use crate::validate_provider_service_refinements;
+use crate::validate_root_service_reach;
 
 pub(super) struct UnitIndexes<'a> {
     pub(super) machines: BTreeMap<MachineId, &'a PsiOptimizationFunction>,

@@ -1,6 +1,20 @@
 //! Primitive locals retain their own operation-result place and scalar observations.
+use super::super::{
+    AbstractOperation, AbstractOperationPlan, AbstractResult, id,
+    reconstruct_psi_optimization_unit_seed,
+};
 
-use super::*;
+use crate::BlockId;
+use crate::EdgeId;
+use crate::IntegerSign;
+use crate::IntegerType;
+use crate::IntegerValue;
+use crate::MachineId;
+use crate::OperationId;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::ScalarType;
+use crate::ValueId;
 
 pub(crate) fn primitive_local_plan() -> AbstractOperationPlan {
     let mut plan = super::scalar_units::write_only_store_plan(false);

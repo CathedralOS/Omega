@@ -1,6 +1,13 @@
 //! Function structural-signature and attachment catalog tests.
-
-use super::super::*;
+use super::super::id;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::tests::byte_literal_boundary_unit;
+use crate::tests::refresh_identity;
+use crate::tests::structural_call_unit;
+use crate::validate_psi_optimization_unit;
 
 #[test]
 fn structural_signatures_replay_attachment_and_unique_self_legality() {

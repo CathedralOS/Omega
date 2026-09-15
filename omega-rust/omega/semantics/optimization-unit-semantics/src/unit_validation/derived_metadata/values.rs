@@ -1,6 +1,9 @@
 //! Independently reconstructed scalar definitions and uses.
-
-use super::*;
+use crate::BlockId;
+use crate::ScalarType;
+use crate::ValueDefinition;
+use crate::ValueDefinitionSite;
+use crate::ValueUse;
 
 pub(crate) fn expected_definitions(
     operation: &abstract_operations::AbstractOperation,

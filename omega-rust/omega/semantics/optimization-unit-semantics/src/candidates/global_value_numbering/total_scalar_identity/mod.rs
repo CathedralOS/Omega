@@ -5,8 +5,6 @@
 //! typed law literal, `validation` joins exact rule custody, and `application`
 //! realizes the independently admitted rewrite.
 
-use super::super::*;
-
 mod application;
 mod classification;
 mod evidence;

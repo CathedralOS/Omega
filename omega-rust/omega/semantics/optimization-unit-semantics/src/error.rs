@@ -1,6 +1,18 @@
 //! Public failure vocabulary for unit and rewrite validation.
-
-use super::*;
+use crate::BlockId;
+use crate::BoundaryMachineId;
+use crate::ClaimId;
+use crate::EdgeId;
+use crate::MachineId;
+use crate::OperationId;
+use crate::OptimizationUnitIdentity;
+use crate::PlaceId;
+use crate::PsiProvenance;
+use crate::ServiceId;
+use crate::StructuralDomainId;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::ValueId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {

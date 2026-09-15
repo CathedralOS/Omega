@@ -1,4 +1,13 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::StructuralDomainId;
+use crate::StructuralTypeId;
+use crate::validate_structural_cases;
+use crate::validate_structural_content_projection;
+use crate::validate_structural_fields;
+use crate::validate_structural_type_graph;
 
 pub(super) fn index_structural_types(
     unit: &PsiOptimizationUnit,

@@ -1,8 +1,27 @@
 //! Redundant-parameter witness reconstruction and rewrite acceptance.
+use crate::BTreeSet;
+use crate::BlockParameterIncomingBinding;
+use crate::NodeLocation;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::ProvenanceDisposition;
+use crate::PsiOptimizationUnit;
+use crate::PsiRealizationSite;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ValidatedPsiRewrite;
+use crate::ValueDefinitionSite;
+use crate::expected_definitions;
+use crate::expected_edges;
+use crate::expected_ownership;
+use crate::expected_uses;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_fact_index;
+use crate::reconstruct_psi_closed_region_observation;
+use crate::validate_psi_optimization_unit;
 
 use super::observation::*;
 use super::operation_rewrite::rewrite_block_parameter_operation;
-use super::*;
 
 pub(super) fn validate_redundant_block_parameter_candidate(
     input: &PsiOptimizationUnit,

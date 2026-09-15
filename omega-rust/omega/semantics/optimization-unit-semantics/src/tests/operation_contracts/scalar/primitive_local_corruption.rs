@@ -1,4 +1,8 @@
 //! Hostile current-IR roots, SSA observations, and occurrence metadata.
+use crate::BlockId;
+use crate::EdgeId;
+use crate::PlaceId;
+use crate::StructuralTypeId;
 
 use crate::tests::*;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};

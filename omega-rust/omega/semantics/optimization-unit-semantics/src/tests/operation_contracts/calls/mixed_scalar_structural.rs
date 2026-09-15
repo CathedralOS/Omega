@@ -1,4 +1,7 @@
+use crate::PsiOptimizationUnit;
+use crate::recompute_psi_optimization_unit_identity;
 use crate::tests::*;
+use crate::validate_psi_optimization_unit;
 use optimization_unit::{ValueDefinition, ValueDefinitionSite};
 
 #[test]

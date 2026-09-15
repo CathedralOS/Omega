@@ -1,5 +1,14 @@
 //! Exclusive transfers consume source names even when their descriptor still exists.
-use super::*;
+use super::{AbstractOperation, id};
+use crate::BlockId;
+use crate::MachineId;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::tests::refresh_node_derivatives;
+use crate::tests::structural_transfers::transfer_unit;
+use crate::validate_psi_optimization_unit;
+use terminal_psi::StructuralAccess;
 
 fn mutable_transfer_unit() -> PsiOptimizationUnit {
     let mut candidate = transfer_unit();

@@ -1,6 +1,7 @@
 //! Closed independent scalar-expression key vocabularies.
-
-use super::*;
+use crate::IntegerType;
+use crate::ScalarType;
+use crate::ValueId;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum IndependentTotalScalarExpressionKey {
     BooleanConstant(bool),

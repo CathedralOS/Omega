@@ -1,7 +1,14 @@
 //! Provenance uniqueness, logical fuel, and effect-chain replay.
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::EdgeId;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::PsiProvenance;
 
 use super::control_flow::block_reaches;
-use super::*;
 
 pub(crate) fn validate_provenance_fuel_effects(
     function: &PsiOptimizationFunction,

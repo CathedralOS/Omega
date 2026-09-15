@@ -1,6 +1,26 @@
 //! Independent adjacent block-merge replay mechanics.
-
-use super::*;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::PsiOptimizationUnit;
+use crate::PsiProvenance;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ScalarSubstitution;
+use crate::ValidatedPsiRewrite;
+use crate::expected_definitions;
+use crate::expected_ownership;
+use crate::expected_uses;
+use crate::independent_reachable_dominators;
+use crate::independently_replacement_dominates_uses;
+use crate::preserve_edge_custody;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_adjacent_merge_accounting;
+use crate::reconstruct_adjacent_merge_ownership_witness;
+use crate::reconstruct_declared_places;
+use crate::reconstruct_fact_index;
+use crate::rewrite_scalar_value_uses;
+use crate::validate_psi_optimization_unit;
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,

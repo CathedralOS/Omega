@@ -1,5 +1,11 @@
 //! Byte payloads and checked view coordinates retain exact scalar carriers.
-use super::*;
+use crate::BTreeMap;
+use crate::IntegerSign;
+use crate::IntegerType;
+use crate::O;
+use crate::ScalarType;
+use crate::ValueDefinition;
+use crate::ValueId;
 
 pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDefinition>) -> bool {
     let scalar = |value: ValueId| definitions.get(&value).map(|row| row.scalar_type);
