@@ -2139,7 +2139,7 @@ Owners include
   optional closed-vocabulary token after `machine`, records it as
   `syntax_trees::item::Machine::spelling`, and rejects tokens on `satisfies`
   realizations, `boundary requirement`, and conformance members
-  (`tokens-to-syntax-trees/src/declarations/machines.rs`, `declarations/mod.rs`,
+  (`tokens-to-syntax-trees/src/declarations/machines.rs`, `declarations/parse_declaration.rs`,
   `declarations/conformance.rs`; tests in
   `tests/properties_and_requirements.rs`). Next frontier: carry
   `spelling` into symbol-resolved/typed/checked representations
@@ -2237,7 +2237,7 @@ Owners include
   Resume evidence (8c0d4dbb45, Linux x86-64, debug `omega --check` on a
   std-free probe): `machine Main::prefix_count<Count: u32>(&self, base: u32)
   -> u32 { Count }` rejects in the parser with "expected `satisfies`, found
-  punctuation `>`", because `tokens-to-syntax-trees/src/parameters/generics.rs`
+  punctuation `>`", because `tokens-to-syntax-trees/src/parameters/parse_generic_parameters.rs`
   reads `<Name: X ...>` only as the `T: Subject satisfies Carrier`
   conformance-binder form; the same program under `<const Count: u32>` with a
   static `<3>` argument compiles. Every representation carries one value-binder

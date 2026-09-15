@@ -1,10 +1,12 @@
 use crate::bodies::trait_default::parse_trait_default_machine_body;
 use crate::contracts::signature::parse_signature_clauses;
-use crate::input::{Input, ParseResult};
-use crate::parameters::generics::GenericParameterSyntax;
-use crate::parameters::generics::parse_generic_parameters;
-use crate::parameters::{parse_optional_parameters, parse_optional_return_type, parse_parameter};
-use crate::type_syntax::parse_type_reference_handle;
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
+use crate::parameters::parse_generic_parameters::parse_generic_parameters;
+use crate::parameters::parse_parameters::{
+    parse_optional_parameters, parse_optional_return_type, parse_parameter,
+};
+use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -32,7 +34,10 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     let mut conformance_bounds = generic_parameters.conformance_bounds;
     if input.at_contextual("where") {
         let (mut bounds, next) =
-            crate::contracts::conformance::parse_generic_conformance_bounds(syntax_trees, input)?;
+            crate::contracts::conformance::parse_conformance::parse_generic_conformance_bounds(
+                syntax_trees,
+                input,
+            )?;
         input = next;
         conformance_bounds.append(&mut bounds);
     }

@@ -1,4 +1,4 @@
-use crate::input::{Input, ParseResult};
+use crate::input::token_cursor::{Input, ParseResult};
 use tokens::PunctuationKind;
 
 /// Parse the closed property set that attaches to one authored binding

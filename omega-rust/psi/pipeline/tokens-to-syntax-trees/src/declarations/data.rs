@@ -1,11 +1,11 @@
-use crate::input::{Input, ParseResult, parse_path_handle_span};
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::binding_properties::parse_binding_relevance_brackets;
-use crate::parameters::generics::GenericParameterSyntax;
-use crate::parameters::generics::parse_generic_parameters;
-use crate::type_syntax::properties::parse_property_brackets;
-use crate::type_syntax::{
+use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
+use crate::parameters::parse_generic_parameters::parse_generic_parameters;
+use crate::type_syntax::parse_type::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
+use crate::type_syntax::properties::parse_property_brackets;
 use arena::{Handle, HandleSpan};
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
@@ -68,7 +68,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             })?;
             input = next.take_contextual("satisfies")?;
             let ((trait_name, trait_lifetime_arguments, trait_arguments), next) =
-                crate::contracts::conformance::parse_conformance_trait_application(
+                crate::contracts::conformance::parse_conformance::parse_conformance_trait_application(
                     syntax_trees,
                     input,
                 )?;

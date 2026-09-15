@@ -1,7 +1,7 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::context::ExpressionContext;
-use crate::input::{Input, ParseResult};
-use crate::type_syntax::parse_cast_target_type_reference_handle;
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::type_syntax::parse_type::parse_cast_target_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -10,8 +10,8 @@ use syntax_trees::expression::{
 };
 use tokens::{KeywordKind, PunctuationKind};
 
+use super::parse_expression::{parse_expression_handle, parse_expression_handle_in};
 use super::primary::parse_primary_expression_handle;
-use super::{parse_expression_handle, parse_expression_handle_in};
 
 pub(crate) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -75,7 +75,7 @@ pub(crate) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
     Ok(((arguments, evidence_arguments.into_boxed_slice()), input))
 }
 
-pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
+pub(crate) fn parse_postfix_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
@@ -523,7 +523,10 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                                 domain_name.clone(),
                             );
                         let (arguments, rest) =
-                            crate::type_syntax::parse_domain_argument_handles(syntax_trees, rest)?;
+                            crate::type_syntax::parse_type::parse_domain_argument_handles(
+                                syntax_trees,
+                                rest,
+                            )?;
                         semantic_domain_arguments = arguments;
                         input = rest;
                     }
@@ -645,9 +648,6 @@ fn take_range_separator<'tokens, 'source>(
         input.take_punctuation(PunctuationKind::DotDot, "..")
     }
 }
-
-#[cfg(test)]
-mod static_targets;
 
 fn build_call_expression_handle(
     syntax_trees: &mut SyntaxTrees,

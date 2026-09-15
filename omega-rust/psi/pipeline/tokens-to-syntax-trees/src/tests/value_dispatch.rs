@@ -10,9 +10,9 @@ fn value_match_retains_subject_once_ordered_duplicate_arms_and_spans() {
         let source_id = source::SourceId::default();
         let tokens = Lexer::new(&source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source_id);
-        let (expression, rest) = crate::expressions::parse_expression_handle(
+        let (expression, rest) = crate::expressions::parse_expression::parse_expression_handle(
             &mut trees,
-            crate::input::Input::new(source_id, &tokens),
+            crate::input::token_cursor::Input::new(source_id, &tokens),
         )
         .expect("ordered value match");
         assert!(rest.tokens.is_empty());
@@ -117,9 +117,9 @@ fn value_match_rejects_empty_and_unimplemented_binding_patterns() {
         let tokens = Lexer::new(source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source::SourceId::default());
         assert!(
-            crate::expressions::parse_expression_handle(
+            crate::expressions::parse_expression::parse_expression_handle(
                 &mut trees,
-                crate::input::Input::new(source::SourceId::default(), &tokens),
+                crate::input::token_cursor::Input::new(source::SourceId::default(), &tokens),
             )
             .is_err()
         );

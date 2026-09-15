@@ -1,6 +1,6 @@
 use crate::expressions::context::ExpressionContext;
-use crate::expressions::parse_bitwise_or_expression_handle;
-use crate::input::{Input, ParseResult, parse_path_handle_span};
+use crate::expressions::parse_expression::parse_bitwise_or_expression_handle;
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,

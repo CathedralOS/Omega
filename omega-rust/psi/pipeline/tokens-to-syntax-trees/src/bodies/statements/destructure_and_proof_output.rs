@@ -1,8 +1,8 @@
 //! Destructuring `let` bindings and proof-output bindings.
 
 use crate::diagnostics::parse_error::ParseError;
-use crate::expressions::parse_expression_handle;
-use crate::input::Input;
+use crate::expressions::parse_expression::parse_expression_handle;
+use crate::input::token_cursor::Input;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;

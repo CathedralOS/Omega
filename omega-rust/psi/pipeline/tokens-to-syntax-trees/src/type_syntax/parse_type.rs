@@ -7,12 +7,10 @@
 //! Match likewise retains its whole tree: only semantic checking can establish
 //! coverage, compatible arms, and the selected execution path.
 
-pub(crate) mod properties;
-
-use crate::expressions::{
+use crate::expressions::parse_expression::{
     parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
 };
-use crate::input::{Input, ParseResult};
+use crate::input::token_cursor::{Input, ParseResult};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode};
@@ -22,14 +20,7 @@ use syntax_trees::types::{
 };
 use tokens::{KeywordKind, PunctuationKind};
 
-#[cfg(test)]
-mod qualified_names;
-#[cfg(test)]
-mod remainder_tests;
-#[cfg(test)]
-mod value_dispatch_tests;
-
-pub(super) fn parse_type_reference_handle<'tokens, 'source>(
+pub(crate) fn parse_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
@@ -39,7 +30,7 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
 /// Cast/recast targets leave their trailing `in <Domain>` for the cast parser:
 /// it is an arithmetic/semantic qualification on the conversion, and recasts
 /// reject it. Nested type references retain their ordinary domain grammar.
-pub(super) fn parse_cast_target_type_reference_handle<'tokens, 'source>(
+pub(crate) fn parse_cast_target_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
@@ -81,7 +72,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             let (length, input) = if input
                 .tokens
                 .first()
-                .is_some_and(crate::input::is_identifier_token_for_parser)
+                .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
             {
                 let (name, input) = input.take_identifier()?;
                 // `[T; table_size()]`: a zero-argument machine call in length
@@ -256,7 +247,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             } else if input
                 .tokens
                 .first()
-                .is_some_and(crate::input::is_identifier_token_for_parser)
+                .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
             {
                 // An identifier-starting argument is ambiguous until the base
                 // declaration supplies its parameter kinds: `Box<T>` is a type
@@ -601,7 +592,7 @@ fn apply_in_domain_suffix<'tokens, 'source>(
 /// Parse the proof-static argument pack used by a domain-family declaration or
 /// application. PDI2 accepts closed literals/named constants and direct const
 /// binders; PDI3 owns operator expressions over those binders.
-pub(super) fn parse_domain_argument_handles<'tokens, 'source>(
+pub(crate) fn parse_domain_argument_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<TypeReferenceHandle>> {
@@ -672,7 +663,7 @@ pub(super) fn parse_domain_argument_handles<'tokens, 'source>(
     ))
 }
 
-pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
+pub(crate) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
@@ -729,7 +720,7 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
 /// Parse a `'name` lifetime if present, returning its identifier. The lexer
 /// emits `'` as `Apostrophe` punctuation immediately followed by the name
 /// identifier (frozen decision 15 stage 2).
-pub(super) fn parse_optional_lifetime<'tokens, 'source>(
+pub(crate) fn parse_optional_lifetime<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Option<syntax_trees::identifier::Identifier>> {
     if !input.at_punctuation(PunctuationKind::Apostrophe) {
@@ -740,7 +731,7 @@ pub(super) fn parse_optional_lifetime<'tokens, 'source>(
     Ok((Some(name), input))
 }
 
-pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
+pub(crate) fn parse_type_constraint_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<TypeConstraintNode>> {

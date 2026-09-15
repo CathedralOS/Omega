@@ -4,9 +4,9 @@
 //! as an ordinary expression. Package/module-scoped `const NAME` uses the same
 //! syntax with no type scope; semantic evaluation and resolution happen later.
 
-use crate::expressions::parse_expression_handle;
-use crate::input::{Input, ParseResult};
-use crate::type_syntax::parse_type_reference_handle;
+use crate::expressions::parse_expression::parse_expression_handle;
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::type_syntax::parse_type::parse_type_reference_handle;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::ConstDefinition;

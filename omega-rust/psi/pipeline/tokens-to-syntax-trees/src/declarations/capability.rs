@@ -1,7 +1,7 @@
 use crate::contracts::facts::parse_proof_facts_until;
-use crate::input::{Input, ParseResult};
-use crate::parameters::parse_callable_signature;
-use crate::type_syntax::parse_type_reference_handle;
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::parameters::parse_parameters::parse_callable_signature;
+use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{

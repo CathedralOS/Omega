@@ -1,15 +1,10 @@
-pub(crate) mod conformance;
-pub(crate) mod facts;
-pub(crate) mod signature;
-pub(crate) mod state_arrival;
+use super::conformance::parse_conformance::parse_generic_conformance_bounds;
 
-use conformance::parse_generic_conformance_bounds;
-
-use crate::expressions::{
+use crate::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals,
     parse_expression_handle_without_struct_literals_or_membership,
 };
-use crate::input::{Input, ParseResult, parse_path_handle_span};
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -418,8 +413,10 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         // fallback, so the machine silently parsed as VOID -- the declared
         // `-> usize` never reached any state.
         if input.at_punctuation(PunctuationKind::Arrow) {
-            let (parsed, rest) =
-                crate::parameters::parse_optional_return_type(syntax_trees, input)?;
+            let (parsed, rest) = crate::parameters::parse_parameters::parse_optional_return_type(
+                syntax_trees,
+                input,
+            )?;
             return_type = parsed;
             input = rest;
             continue;

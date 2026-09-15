@@ -1,9 +1,9 @@
 //! Inline assembly blocks: instructions, `where` contracts and clobbers.
 
-use crate::bodies::transitions::parse_transition_block_target_handle;
+use crate::bodies::transitions::targets::parse_target::parse_transition_block_target_handle;
 use crate::diagnostics::parse_error::ParseError;
-use crate::expressions::parse_expression_handle;
-use crate::input::{Input, ParseResult};
+use crate::expressions::parse_expression::parse_expression_handle;
+use crate::input::token_cursor::{Input, ParseResult};
 use arena::{Handle, HandleSpan};
 use language_core::inline_assembly::{
     AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,

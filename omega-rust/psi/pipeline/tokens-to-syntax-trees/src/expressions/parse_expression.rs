@@ -1,7 +1,5 @@
-mod context;
-
 use crate::expressions::context::ExpressionContext;
-use crate::input::{Input, ParseResult};
+use crate::input::token_cursor::{Input, ParseResult};
 use numerics::literals::IntegerLiteral;
 use source::SourceText;
 use syntax_trees::SyntaxTrees;
@@ -11,31 +9,24 @@ use syntax_trees::expression::{
 };
 use tokens::{KeywordKind, PunctuationKind};
 
-mod membership;
-mod postfix;
-mod primary;
+use super::membership::parse_membership_expression_handle;
+use super::parse_postfix::parse_postfix_expression_handle;
 
-use membership::parse_membership_expression_handle;
-pub(crate) use postfix::memory_ordering_from_expression;
-pub(super) use postfix::parse_argument_list_after_open_paren_handle;
-use postfix::parse_postfix_expression_handle;
-pub(crate) use postfix::try_parse_static_symbol_application;
-
-pub(super) fn parse_expression_handle<'tokens, 'source>(
+pub(crate) fn parse_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)
 }
 
-pub(super) fn parse_expression_handle_without_struct_literals<'tokens, 'source>(
+pub(crate) fn parse_expression_handle_without_struct_literals<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     parse_expression_handle_in(syntax_trees, input, ExpressionContext::NoStructLiteral)
 }
 
-pub(super) fn parse_expression_handle_without_struct_literals_or_membership<'tokens, 'source>(
+pub(crate) fn parse_expression_handle_without_struct_literals_or_membership<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
@@ -51,7 +42,7 @@ pub(super) fn parse_expression_handle_without_struct_literals_or_membership<'tok
 /// stops above the comparison/equality/logical layers while retaining ordinary
 /// integer precedence, shifts, bitwise operators, unary syntax, and grouped
 /// subexpressions.
-pub(super) fn parse_const_integer_expression_handle<'tokens, 'source>(
+pub(crate) fn parse_const_integer_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
@@ -65,7 +56,7 @@ pub(super) fn parse_const_integer_expression_handle<'tokens, 'source>(
     Ok((handle, rest.with_depth(outer_depth)))
 }
 
-fn parse_expression_handle_in<'tokens, 'source>(
+pub(super) fn parse_expression_handle_in<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
@@ -115,7 +106,7 @@ fn parse_or_expression_handle<'tokens, 'source>(
     )
 }
 
-pub(super) fn parse_bitwise_or_expression_handle<'tokens, 'source>(
+pub(crate) fn parse_bitwise_or_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     context: ExpressionContext,

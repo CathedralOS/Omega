@@ -1,9 +1,9 @@
 use super::namespace::take_optional_semicolon;
-use crate::contracts::conformance::parse_conformance_trait_application;
+use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
 use crate::declarations::machines::parse_machine;
-use crate::input::{Input, ParseResult, parse_path_handle_span};
-use crate::parameters::generics::GenericParameterSyntax;
-use crate::parameters::generics::parse_generic_parameters;
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
+use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConformanceBody, ConformanceMember, Item, State};

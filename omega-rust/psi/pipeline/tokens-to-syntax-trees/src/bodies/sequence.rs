@@ -1,5 +1,5 @@
-use crate::bodies::statements::parse_statement_handles;
-use crate::input::{Input, ParseResult};
+use crate::bodies::statements::parse_statement::parse_statement_handles;
+use crate::input::token_cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::statement::StatementHandle;
@@ -14,7 +14,7 @@ pub(crate) enum BodyKind {
 impl BodyKind {
     fn at_end(self, input: Input<'_, '_>) -> bool {
         match self {
-            Self::MachineEntry => super::starts_machine_member(input),
+            Self::MachineEntry => super::parse_body::starts_machine_member(input),
             Self::ExplicitState => input.at_punctuation(PunctuationKind::RightBrace),
         }
     }

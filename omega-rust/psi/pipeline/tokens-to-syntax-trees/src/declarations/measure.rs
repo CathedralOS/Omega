@@ -1,6 +1,6 @@
-use crate::expressions::parse_expression_handle;
-use crate::input::{Input, ParseResult, parse_path_handle_span};
-use crate::parameters::{parse_optional_parameters, parse_optional_return_type};
+use crate::expressions::parse_expression::parse_expression_handle;
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;

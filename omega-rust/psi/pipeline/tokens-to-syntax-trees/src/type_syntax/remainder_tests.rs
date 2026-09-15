@@ -1,6 +1,6 @@
-use super::{TypeConstraintNode, TypeReferenceNode};
 use source_files_to_tokens::Lexer;
 use syntax_trees::item::{DataMember, Item};
+use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 #[test]
 fn an_empty_parenthesis_pair_remains_a_unit_type_argument() {

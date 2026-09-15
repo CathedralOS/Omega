@@ -1,20 +1,20 @@
 use crate::bodies as body;
 use crate::declarations::operator::parse_operator_spelling;
 use crate::input::paths::join_path_identifier;
-use crate::input::{Input, ParseResult, parse_path_handle_span};
-use crate::parameters::generics::GenericParameterSyntax;
-use crate::parameters::generics::parse_generic_parameters;
-use crate::parameters::{parse_optional_parameters, parse_optional_return_type};
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
+use crate::parameters::parse_generic_parameters::parse_generic_parameters;
+use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::Machine;
 use tokens::PunctuationKind;
 
-use crate::contracts::conformance::parse_satisfies_traits;
-use crate::contracts::parse_machine_clauses;
+use crate::bodies::tail_calls::rewrite_terminal_tail_self_calls;
+use crate::contracts::conformance::parse_conformance::parse_satisfies_traits;
+use crate::contracts::parse_contract_clauses::parse_machine_clauses;
 use crate::parameters::contracts::parse_machine_parameter_contracts;
-use body::rewrite_terminal_tail_self_calls;
 
 pub(crate) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -107,7 +107,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         entry_name,
     } = split_machine_path(syntax_trees, path);
 
-    let ((states, bodyless), input) = body::parse_body(
+    let ((states, bodyless), input) = body::parse_body::parse_body(
         syntax_trees,
         input,
         entry_name.clone(),

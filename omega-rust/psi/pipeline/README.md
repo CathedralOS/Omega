@@ -160,7 +160,7 @@ protocol is required by the product lexer.
 [Parsing](tokens-to-syntax-trees/src/parser.rs) builds arena-backed syntax roots
 and tables, retaining grammar, spans and literal structure without choosing
 symbols, types, effects or proof evidence. The
-[expression parser](tokens-to-syntax-trees/src/expressions/mod.rs) uses an
+[expression parser](tokens-to-syntax-trees/src/expressions/parse_expression.rs) uses an
 explicit binary-operator stack and reversed unary prefixes; membership is a
 separate grammar boundary, and postfix scratch is not retained across nested
 primary parsing. Groups, aggregates, arguments and types still recurse. This is
@@ -168,16 +168,21 @@ not a stackless-parser claim; ordinary accepted input must not rely on an
 enlarged host thread stack.
 
 The parser's sibling domains expose grammar ownership directly:
-[declarations](tokens-to-syntax-trees/src/declarations/mod.rs) dispatch root
-forms; [parameters](tokens-to-syntax-trees/src/parameters/mod.rs) own shared
-callable and generic binders; [contracts](tokens-to-syntax-trees/src/contracts/mod.rs)
+[declarations](tokens-to-syntax-trees/src/declarations/parse_declaration.rs) dispatch root
+forms; [parameters](tokens-to-syntax-trees/src/parameters/parse_parameters.rs) own shared
+callable and generic binders; [contracts](tokens-to-syntax-trees/src/contracts/parse_contract_clauses.rs)
 own clauses, facts, and conformance applications;
-[bodies](tokens-to-syntax-trees/src/bodies/mod.rs) own entries and states;
-[type syntax](tokens-to-syntax-trees/src/type_syntax/mod.rs) owns type references
+[bodies](tokens-to-syntax-trees/src/bodies/parse_body.rs) own entries and states;
+[type syntax](tokens-to-syntax-trees/src/type_syntax/parse_type.rs) owns type references
 and property grammar. Shared grammar does not live under whichever declaration
-first needed it. Each domain root performs its work, rather than forwarding to
-another hidden coordinator. `parser::parse_error` remains a public compatibility
-path to the diagnostic type, not a container for grammar modules.
+first needed it. Each named entry file performs its work, rather than forwarding
+to another hidden coordinator. Rust-only source registration stays in
+[`lib.rs`](tokens-to-syntax-trees/src/lib.rs); implementation files neither use
+`mod.rs` nor pair `name.rs` with a `name/` directory. This keeps responsibility
+names independent of Rust's module-root convention for future Omega source,
+without assuming identical import or visibility semantics. `parser::parse_error`
+remains a public compatibility path to the diagnostic type, not a container for
+grammar modules.
 
 Preserve authored clause occurrences separately from normalized meaning:
 memberless `reaches` differs from omission, and each authored `suspends` or

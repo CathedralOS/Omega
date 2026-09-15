@@ -1,10 +1,8 @@
-pub mod parse_error;
-
 use crate::diagnostics::parse_error::ParseError;
-use crate::input::Input;
+use crate::input::token_cursor::Input;
 use tokens::{CommentKind, KeywordKind, PunctuationKind, Token, TokenKind};
 
-pub(super) fn unexpected_eof<'tokens, 'source>(
+pub(crate) fn unexpected_eof<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     expected: impl Into<String>,
 ) -> ParseError {
@@ -18,7 +16,7 @@ pub(super) fn unexpected_eof<'tokens, 'source>(
     )
 }
 
-pub(super) fn expected<'tokens, 'source>(
+pub(crate) fn expected<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     token: &Token<'source>,
     expected: impl Into<String>,
@@ -33,7 +31,7 @@ pub(super) fn expected<'tokens, 'source>(
     )
 }
 
-pub(super) fn expected_one_of_here<'tokens, 'source>(
+pub(crate) fn expected_one_of_here<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     expected: &[&str],
 ) -> ParseError {

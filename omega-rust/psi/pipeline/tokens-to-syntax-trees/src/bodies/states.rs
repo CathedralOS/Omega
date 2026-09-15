@@ -1,7 +1,7 @@
 use crate::bodies::sequence::{BodyKind, parse_statements};
 use crate::contracts::state_arrival::parse_state_arrival_contracts;
-use crate::input::{Input, ParseResult};
-use crate::parameters::{parse_optional_parameters, parse_optional_return_type};
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::State;
 use tokens::PunctuationKind;

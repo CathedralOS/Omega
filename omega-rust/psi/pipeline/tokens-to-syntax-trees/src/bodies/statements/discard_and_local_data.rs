@@ -1,9 +1,9 @@
 //! Discard statements, `if` transition statements and local data bindings.
 
 use crate::bodies::statements::statement_tables::expression_handle_to_statement_call;
-use crate::expressions::parse_expression_handle;
-use crate::input::{Input, ParseResult};
-use crate::type_syntax::parse_type_reference_handle_allowing_borrow;
+use crate::expressions::parse_expression::parse_expression_handle;
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableIndexedExpression, TableMemberExpression,
