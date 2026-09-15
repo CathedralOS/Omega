@@ -6,18 +6,19 @@ use super::{
     ComponentArtifactId, ComponentContractId, ComponentProgressDemandIdentity,
     ComponentProgressReceiptBinding, ComponentProviderId, ComponentVersionPin,
     ComponentVersionPinId, ComposedFuelDemand, DomainStackDemand, EntryControl, EntryStack,
-    EntryStubId, EstablishedProgramLocalRoot, ExternalRootCandidate, ExternalRootDiagnostic,
-    ExternalRootEntryClaim, ExternalRootId, ExternalRootResultClaim, FixedFuelCall,
-    FixedFuelLocalEvidence, FixedFuelProviderSummary, FuelProvisionId, FuelScheduleIdentity,
-    FuelValidationReceiptId, GatewayAdmissionReceiptId, GatewayDispatchContractId,
-    GeneratedProgramStorageAdapterLiveFrameDemand, InstalledCode, InstalledCodeId,
-    InstalledExternalRoot, InstalledProgramLocalRootOccurrence, InstalledProgramLocalRootSubject,
-    InstalledProviderOccurrenceId, InstalledRootLedger, InstalledRootRemoval,
-    InterruptAcknowledgementId, InterruptAcknowledgementReceipt, InterruptAcknowledgementReceiptId,
-    InterruptEntryReceipt, InterruptEntryReceiptId, InterruptInvocationId, InterruptMaskControlId,
-    InterruptMaskGuardId, InterruptMaskRestoreReceipt, InterruptMaskSaveReceipt,
-    InterruptMaskStateId, InterruptMaskTransitionReceiptId, LogicalFuelResourceColumn,
-    MachineRegister, MachineStateResourceColumn, NestingRelationId, OpaqueCallbackProviderId,
+    EntryStubId, EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,
+    ExternalRootCandidate, ExternalRootDiagnostic, ExternalRootEntryClaim, ExternalRootId,
+    ExternalRootResultClaim, FixedFuelCall, FixedFuelLocalEvidence, FixedFuelProviderSummary,
+    FuelProvisionId, FuelScheduleIdentity, FuelValidationReceiptId, GatewayAdmissionReceiptId,
+    GatewayDispatchContractId, GeneratedProgramStorageAdapterLiveFrameDemand, InstalledCode,
+    InstalledCodeId, InstalledExternalRoot, InstalledProgramLocalRootOccurrence,
+    InstalledProgramLocalRootSubject, InstalledProviderOccurrenceId, InstalledRootLedger,
+    InstalledRootRemoval, InterruptAcknowledgementId, InterruptAcknowledgementReceipt,
+    InterruptAcknowledgementReceiptId, InterruptEntryReceipt, InterruptEntryReceiptId,
+    InterruptInvocationId, InterruptMaskControlId, InterruptMaskGuardId,
+    InterruptMaskRestoreReceipt, InterruptMaskSaveReceipt, InterruptMaskStateId,
+    InterruptMaskTransitionReceiptId, LogicalFuelResourceColumn, MachineRegister,
+    MachineStateResourceColumn, NestingRelationId, OpaqueCallbackProviderId,
     OpaqueCallbackRegistrationCapacityOccurrence, OpaqueCallbackRegistrationCapacityOccurrenceId,
     OpaqueCallbackRegistrationId, OpaqueCallbackRegistrationReceipt,
     OpaqueCallbackRegistrationReceiptId, OpaqueCallbackUnregistrationContractId,
@@ -433,6 +434,17 @@ pub(crate) fn boundary() -> ValidatedBoundaryEntryPlan {
     .expect("validated boundary")
 }
 
+fn two_parameter_boundary() -> ValidatedBoundaryEntryPlan {
+    evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::SystemVAMD64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(8, 8), ValueShape::integer(8, 8)],
+            result: None,
+        },
+    )
+    .expect("validated two-parameter boundary")
+}
+
 fn provider_selected_boundary() -> ValidatedBoundaryEntryPlan {
     let signature = CallSignature {
         parameters: vec![ValueShape::integer(8, 8)],
@@ -765,10 +777,18 @@ pub(crate) fn candidate_for_code_with_root(
     code: &InstalledCode,
     root_identity: u64,
 ) -> ExternalRootCandidate {
+    candidate_for_code_with_root_on_boundary(entry, code, root_identity, &boundary())
+}
+
+pub(crate) fn candidate_for_code_with_root_on_boundary(
+    entry: EntryStubId,
+    code: &InstalledCode,
+    root_identity: u64,
+    boundary: &ValidatedBoundaryEntryPlan,
+) -> ExternalRootCandidate {
     let root = root_id(root_identity, ExternalRootId::from_normalized_identity);
     let provider = root_id(2, RootProviderId::from_normalized_identity);
     let nesting_relation = root_id(6, NestingRelationId::from_normalized_identity);
-    let boundary = boundary();
     ExternalRootCandidate {
         identity: root,
         entry,
@@ -802,7 +822,7 @@ pub(crate) fn candidate_for_code_with_root(
                 root,
                 provider,
                 nesting_relation,
-                &boundary,
+                boundary,
                 code,
                 entry,
                 EntryStack::Interrupted,
@@ -2533,9 +2553,25 @@ fn install_test_root_pair_with_ids_unsealed<'code>(
     InstalledExternalRoot<'code>,
     InstalledExternalRoot<'code>,
 ) {
-    let mut first_candidate = candidate_for_code_with_root(entry, code, first.0);
+    install_test_root_pair_with_ids_unsealed_on_boundary(code, first, second, entry, &boundary())
+}
+
+fn install_test_root_pair_with_ids_unsealed_on_boundary<'code>(
+    code: &'code mut InstalledCode,
+    first: (u64, u64, u64, u64, Vec<ExternalRootEntryClaim>),
+    second: (u64, u64, u64, u64, Vec<ExternalRootEntryClaim>),
+    entry: EntryStubId,
+    boundary: &ValidatedBoundaryEntryPlan,
+) -> (
+    InstalledRootLedger,
+    InstalledExternalRoot<'code>,
+    InstalledExternalRoot<'code>,
+) {
+    let mut first_candidate =
+        candidate_for_code_with_root_on_boundary(entry, code, first.0, boundary);
     first_candidate.entry_claims = first.4;
-    let mut second_candidate = candidate_for_code_with_root(entry, code, second.0);
+    let mut second_candidate =
+        candidate_for_code_with_root_on_boundary(entry, code, second.0, boundary);
     second_candidate.entry_claims = second.4;
     let first_input = first_candidate
         .stack
@@ -2558,11 +2594,10 @@ fn install_test_root_pair_with_ids_unsealed<'code>(
     first_candidate.stack.realization = composition.clone();
     second_candidate.stack.realization = composition;
 
-    let boundary = boundary();
     let first_validated =
-        validate_external_root(first_candidate, &boundary).expect("first root plan");
+        validate_external_root(first_candidate, boundary).expect("first root plan");
     let second_validated =
-        validate_external_root(second_candidate, &boundary).expect("second root plan");
+        validate_external_root(second_candidate, boundary).expect("second root plan");
     let target_profile = target::TargetProfile::UefiX64;
     let target_slot = target_profile.program_entry_slot();
     let first_slot = RootSlotAuthority::for_target_program_entry(target_slot)
@@ -2632,6 +2667,28 @@ fn program_local_required_root_slot_closure(entry: EntryStubId) -> VerifiedRequi
         .expect("required program-entry selection")],
     )
     .expect("complete required root-slot closure")
+}
+
+fn install_program_local_two_parameter_roots<'code>(
+    code: &'code mut InstalledCode,
+    entry: EntryStubId,
+    entry_claims: Vec<ExternalRootEntryClaim>,
+) -> (
+    InstalledRootLedger,
+    InstalledExternalRoot<'code>,
+    InstalledExternalRoot<'code>,
+) {
+    let (mut ledger, first, second) = install_test_root_pair_with_ids_unsealed_on_boundary(
+        code,
+        (1, 20, 21, 22, entry_claims.clone()),
+        (101, 120, 121, 122, entry_claims),
+        entry,
+        &two_parameter_boundary(),
+    );
+    ledger
+        .seal_required_root_slot_closure(program_local_required_root_slot_closure(entry))
+        .expect("installed required root-slot closure");
+    (ledger, first, second)
 }
 
 fn install_program_local_required_root<'code>(
@@ -2812,6 +2869,39 @@ fn program_local_root_module() -> TerminalModule {
     }
 }
 
+fn program_local_two_schema_module() -> TerminalModule {
+    let mut module = program_local_root_module();
+    let machine = &mut module.boundary_machines[0];
+    machine
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: semantic_vocabulary::PlaceId::new(2).expect("place identity"),
+            position: 1,
+            is_self: false,
+            structural_type: machine.structural_parameters[0].structural_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            access: terminal_psi::StructuralAccess::Owned,
+            qualifications: machine.structural_parameters[0].qualifications.clone(),
+            projected_qualifications: Vec::new(),
+        });
+    machine.requires.push(StructuralDomainRequirement {
+        argument_index: 1,
+        domain: machine.structural_parameters[0].qualifications[0],
+    });
+    let mut second = machine.program_local_root_introductions[0].clone();
+    second.argument_index = 1;
+    second.source_parameter_position = 1;
+    second.compatibility_report_identity =
+        program_local_root_introduction_compatibility_report_identity(
+            "TestRoot::entry",
+            "Region::Owned",
+            "Region",
+            &second,
+        );
+    machine.program_local_root_introductions.push(second);
+    module
+}
+
 fn program_local_extent_module() -> TerminalModule {
     let mut module = program_local_root_module();
     let algebra = semantic_vocabulary::ContentAlgebra {
@@ -2885,8 +2975,12 @@ fn program_local_root_catalog(
 }
 
 fn program_local_claim() -> ExternalRootEntryClaim {
+    program_local_claim_at(0)
+}
+
+fn program_local_claim_at(parameter_index: usize) -> ExternalRootEntryClaim {
     ExternalRootEntryClaim {
-        parameter_index: 0,
+        parameter_index,
         domain: "Region::Owned".into(),
         effective_carry: language_semantics::CarryPolicy::STRICT,
     }
@@ -2995,6 +3089,17 @@ fn program_local_subject<'root, 'code>(
     subject_place: u64,
     length: Option<u64>,
 ) -> InstalledProgramLocalRootSubject<'root, 'code> {
+    program_local_subject_at(root, invocation, subject_place, 0, 0, length)
+}
+
+fn program_local_subject_at<'root, 'code>(
+    root: &'root InstalledExternalRoot<'code>,
+    invocation: u64,
+    subject_place: u64,
+    argument_index: u32,
+    source_parameter_position: u32,
+    length: Option<u64>,
+) -> InstalledProgramLocalRootSubject<'root, 'code> {
     let scalars = length
         .into_iter()
         .map(|length| {
@@ -3009,8 +3114,8 @@ fn program_local_subject<'root, 'code>(
         root,
         ProgramLocalRootEntryInvocationId::from_normalized_identity(invocation)
             .expect("entry invocation identity"),
-        0,
-        0,
+        argument_index,
+        source_parameter_position,
         "Region::Owned",
         "Region",
         ProgramLocalRootSubjectPlaceId::from_normalized_identity(subject_place)
@@ -3915,6 +4020,394 @@ fn installed_subject_establishes_exact_capacity_lineage_once_and_pins_the_epoch(
         .retire_established(established, &mut lifecycle)
         .expect("the exact lifecycle retires the root");
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn aggregate_capacity_reconstruction_sums_the_live_group_for_one_epoch() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        790,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 890, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_subject(&root, 990, 1090, Some(8)),
+        )
+        .expect("exact counted subject establishes its root");
+    let reconstructed = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&established])
+        .expect("the complete live group reconstructs its aggregate capacity");
+    assert_eq!(
+        reconstructed
+            .cohort()
+            .installed_code()
+            .normalized_identity(),
+        code_identity
+    );
+    assert_eq!(
+        reconstructed.cohort().lifecycle_ledger(),
+        lifecycle.identity()
+    );
+    assert_eq!(reconstructed.cohort().lifecycle_epoch(), 10);
+    assert_eq!(
+        reconstructed
+            .aggregate()
+            .occurrence_identities()
+            .collect::<Vec<_>>(),
+        vec![established.occurrence_identity()]
+    );
+    assert_eq!(reconstructed.aggregate().cardinality().get(), 1);
+    assert_eq!(
+        reconstructed.capacity(),
+        &EstablishedProgramLocalRootCapacity::CountedQuantity(numerics::bignum::BigInt::from_u64(
+            9
+        ))
+    );
+
+    let substituted_lifecycle = program_local_lifecycle(
+        791,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let rejected = installation
+        .reconstruct_aggregate_capacity(&substituted_lifecycle, [&established])
+        .expect_err("a foreign lifecycle cannot reconstruct the epoch aggregate");
+    assert!(rejected.0.contains("live lease"));
+
+    let retired = installation
+        .retire_established(established, &mut lifecycle)
+        .expect("the exact lifecycle retires the root");
+    assert_eq!(
+        retired.identity(),
+        reconstructed
+            .aggregate()
+            .occurrence_identities()
+            .next()
+            .expect("single live member")
+    );
+    let rejected = installation
+        .reconstruct_aggregate_capacity(
+            &lifecycle,
+            std::iter::empty::<&EstablishedProgramLocalRoot>(),
+        )
+        .expect_err("an empty roster cannot reconstruct the epoch aggregate");
+    assert!(rejected.0.contains("at least one"));
+}
+
+#[test]
+fn aggregate_capacity_reconstruction_composes_the_interval_member_set() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        790,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 890, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_extent_subject(&root, 990, 1090, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let reconstructed = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&established])
+        .expect("the live interval group reconstructs its separated set");
+    assert_eq!(
+        reconstructed.capacity(),
+        &EstablishedProgramLocalRootCapacity::IntervalSet(
+            language_semantics::content::CanonicalIntervalSet::singleton(
+                numerics::bignum::BigInt::from_u64(0x4000),
+                numerics::bignum::BigInt::from_u64(0x4100),
+            )
+            .expect("exact member interval")
+        )
+    );
+    let retired = installation
+        .retire_established(established, &mut lifecycle)
+        .expect("the exact lifecycle retires the root");
+    assert_eq!(retired.identity().lifecycle_epoch(), 10);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn aggregate_capacity_reconstruction_rejects_mixed_schemas_cohorts_and_installations() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_two_schema_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let claims = vec![program_local_claim_at(0), program_local_claim_at(1)];
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_two_parameter_roots(&mut code, entry, claims);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [first_prebinding, second_prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("two verified installed prebindings")
+        .try_into()
+        .expect("two producer schemas");
+    let mut lifecycle = program_local_lifecycle(
+        790,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let first_lease = program_local_epoch_lease(&mut lifecycle, 890, 10, "TestRoot::entry");
+    let second_lease = program_local_epoch_lease(&mut lifecycle, 891, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [
+                ProgramLocalRootCohortMember::new(first_prebinding.identity(), &root, first_lease),
+                ProgramLocalRootCohortMember::new(
+                    second_prebinding.identity(),
+                    &root,
+                    second_lease,
+                ),
+            ],
+        )
+        .expect("exact two-schema epoch cohort")
+        .into_runtime();
+    let first = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_subject_at(&root, 990, 1090, 0, 0, Some(8)),
+        )
+        .expect("first schema establishes on its exact parameter subject");
+    let second = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_subject_at(&root, 991, 1091, 1, 1, Some(4)),
+        )
+        .expect("second schema establishes on its exact parameter subject");
+
+    let mixed = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&first, &second])
+        .expect_err("two aggregate schema groups cannot merge into one roster");
+    assert!(mixed.0.contains("distinct aggregate schemas"));
+    let repeated = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&first, &first])
+        .expect_err("one occurrence cannot supply two roster members");
+    assert!(repeated.0.contains("repeats one exact occurrence"));
+
+    let first_group = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&first])
+        .expect("the first exact group reconstructs alone");
+    assert_eq!(
+        first_group.capacity(),
+        &EstablishedProgramLocalRootCapacity::CountedQuantity(numerics::bignum::BigInt::from_u64(
+            9
+        ))
+    );
+    let second_group = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&second])
+        .expect("the second exact group reconstructs alone");
+    assert_eq!(
+        second_group.capacity(),
+        &EstablishedProgramLocalRootCapacity::CountedQuantity(numerics::bignum::BigInt::from_u64(
+            5
+        ))
+    );
+    assert_ne!(
+        first_group
+            .aggregate()
+            .occurrence_identities()
+            .collect::<Vec<_>>(),
+        second_group
+            .aggregate()
+            .occurrence_identities()
+            .collect::<Vec<_>>()
+    );
+
+    publish_program_local_era(
+        &mut lifecycle,
+        11,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+        111,
+        true,
+    );
+    let next_first_lease = program_local_epoch_lease(&mut lifecycle, 892, 11, "TestRoot::entry");
+    let next_second_lease = program_local_epoch_lease(&mut lifecycle, 893, 11, "TestRoot::entry");
+    let mut next_runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [
+                ProgramLocalRootCohortMember::new(
+                    first_prebinding.identity(),
+                    &root,
+                    next_first_lease,
+                ),
+                ProgramLocalRootCohortMember::new(
+                    second_prebinding.identity(),
+                    &root,
+                    next_second_lease,
+                ),
+            ],
+        )
+        .expect("the next exact epoch cohort")
+        .into_runtime();
+    let next_first = installation
+        .establish(
+            &mut next_runtime,
+            &lifecycle,
+            program_local_subject_at(&root, 992, 1092, 0, 0, Some(6)),
+        )
+        .expect("the same schema establishes in the next epoch");
+    let spanned = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&next_first, &first])
+        .expect_err("two lifecycle cohorts cannot merge into one roster");
+    assert!(spanned.0.contains("distinct lifecycle cohorts"));
+    let stale = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&first])
+        .expect_err("the closed epoch's roster no longer reconstructs");
+    assert!(stale.0.contains("live lease"));
+    let next_group = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&next_first])
+        .expect("the next epoch's exact group reconstructs alone");
+    assert_eq!(next_group.cohort().lifecycle_epoch(), 11);
+    assert_eq!(
+        next_group.capacity(),
+        &EstablishedProgramLocalRootCapacity::CountedQuantity(numerics::bignum::BigInt::from_u64(
+            7
+        ))
+    );
+
+    let mut foreign_code = installed_code(2, entry);
+    let foreign_code_identity = foreign_code.identity().normalized_identity();
+    let (mut foreign_root_ledger, foreign_root, _foreign_open) =
+        install_program_local_two_parameter_roots(
+            &mut foreign_code,
+            entry,
+            vec![program_local_claim_at(0), program_local_claim_at(1)],
+        );
+    let mut foreign_installation = foreign_root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("foreign program-local cohort verifier");
+    let [foreign_first_prebinding, foreign_second_prebinding] = foreign_installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&foreign_root])
+        .expect("foreign verified installed prebindings")
+        .try_into()
+        .expect("two foreign producer schemas");
+    let mut foreign_lifecycle = program_local_lifecycle(
+        792,
+        10,
+        foreign_root.installed_artifact_occurrence_digest(),
+        foreign_code_identity,
+        "TestRoot::entry",
+    );
+    let foreign_first_lease =
+        program_local_epoch_lease(&mut foreign_lifecycle, 894, 10, "TestRoot::entry");
+    let foreign_second_lease =
+        program_local_epoch_lease(&mut foreign_lifecycle, 895, 10, "TestRoot::entry");
+    let mut foreign_runtime = foreign_installation
+        .seal_epoch_cohort(
+            &foreign_lifecycle,
+            [
+                ProgramLocalRootCohortMember::new(
+                    foreign_first_prebinding.identity(),
+                    &foreign_root,
+                    foreign_first_lease,
+                ),
+                ProgramLocalRootCohortMember::new(
+                    foreign_second_prebinding.identity(),
+                    &foreign_root,
+                    foreign_second_lease,
+                ),
+            ],
+        )
+        .expect("foreign exact epoch cohort")
+        .into_runtime();
+    let foreign_first = foreign_installation
+        .establish(
+            &mut foreign_runtime,
+            &foreign_lifecycle,
+            program_local_subject_at(&foreign_root, 993, 1093, 0, 0, Some(3)),
+        )
+        .expect("the foreign schema establishes in its own installation");
+    let foreign = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&foreign_first])
+        .expect_err("a foreign installation's occurrence cannot enter this aggregate");
+    assert!(foreign.0.contains("no exact established occurrence"));
+    let foreign_group = foreign_installation
+        .reconstruct_aggregate_capacity(&foreign_lifecycle, [&foreign_first])
+        .expect("the foreign installation reconstructs its own exact group");
+    assert_eq!(
+        foreign_group
+            .cohort()
+            .installed_code()
+            .normalized_identity(),
+        foreign_code_identity
+    );
 }
 
 #[test]

@@ -1349,6 +1349,205 @@ impl ProgramLocalRootInstallationLedger {
             epoch_lease: lease_identity,
         })
     }
+
+    /// Reconstruct the exact aggregate capacity of one live aggregate schema
+    /// group in one sealed epoch cohort of this installed artifact instance.
+    ///
+    /// Reconstruction is accounting evidence, not minting: every presented
+    /// member must be an exact occurrence still established under this ledger,
+    /// and the presented set must equal the group's complete live membership
+    /// for its lifecycle cohort. An omitted, pending, retired, repeated,
+    /// substituted, or cross-group member rejects, so the derived capacity
+    /// cannot be understated or supplied ambiently. Equal evaluated capacities
+    /// across distinct occurrences each contribute — row equality grants no
+    /// merging authority — and interval members whose evaluated ranges overlap
+    /// reject rather than silently share one range. Retired occurrences leave
+    /// the live aggregate; a still-pending member blocks it.
+    pub fn reconstruct_aggregate_capacity<'root, 'code: 'root>(
+        &self,
+        lifecycle: &ComponentEraEntryLedger,
+        roots: impl IntoIterator<Item = &'root EstablishedProgramLocalRoot<'root, 'code>>,
+    ) -> Result<ProgramLocalRootEpochAggregateCapacity, ExternalRootDiagnostic> {
+        let roots = roots.into_iter().collect::<Vec<_>>();
+        if roots.is_empty() {
+            return Err(ExternalRootDiagnostic(
+                "program-local aggregate capacity reconstruction requires at least one exact established member".into(),
+            ));
+        }
+
+        let mut presented = BTreeSet::new();
+        let mut cohort_key = None;
+        let mut group_key = None;
+        let mut canonical = None;
+        for root in &roots {
+            let identity = root.occurrence_identity();
+            if !self.established_occurrences.contains(&identity) {
+                return Err(ExternalRootDiagnostic(
+                    "program-local aggregate capacity reconstruction names no exact established occurrence of this installation".into(),
+                ));
+            }
+            if !presented.insert(identity) {
+                return Err(ExternalRootDiagnostic(
+                    "program-local aggregate capacity reconstruction repeats one exact occurrence"
+                        .into(),
+                ));
+            }
+            let member_cohort = (identity.lifecycle_ledger, identity.lifecycle_epoch);
+            if let Some(cohort) = cohort_key {
+                if cohort != member_cohort {
+                    return Err(ExternalRootDiagnostic(
+                        "program-local aggregate capacity reconstruction spans distinct lifecycle cohorts".into(),
+                    ));
+                }
+            } else {
+                cohort_key = Some(member_cohort);
+            }
+            let Some(prebinding) = self.prebindings.get(&identity.prebinding) else {
+                return Err(ExternalRootDiagnostic(
+                    "program-local aggregate capacity reconstruction names no canonical installed prebinding".into(),
+                ));
+            };
+            if prebinding != root.prebinding() {
+                return Err(ExternalRootDiagnostic(
+                    "program-local aggregate capacity reconstruction substituted the canonical installed prebinding".into(),
+                ));
+            }
+            let member_key = (
+                prebinding.psi.vocabulary_marker.get(),
+                *prebinding.psi.program_fingerprint.as_bytes(),
+                prebinding.identity.installed_code,
+                prebinding.identity.schema_digest,
+            );
+            if let Some(key) = group_key {
+                if key != member_key {
+                    return Err(ExternalRootDiagnostic(
+                        "program-local aggregate capacity reconstruction spans distinct aggregate schemas".into(),
+                    ));
+                }
+            } else {
+                group_key = Some(member_key);
+            }
+            if canonical.is_none() {
+                canonical = Some(prebinding);
+            }
+            if lifecycle
+                .validate_program_local_root_epoch_lease(&root.occurrence.epoch_lease)
+                .is_err()
+                || root.occurrence.epoch_lease.ledger() != identity.lifecycle_ledger
+                || root.occurrence.epoch_lease.era_identity() != identity.lifecycle_epoch
+            {
+                return Err(ExternalRootDiagnostic(
+                    "program-local aggregate capacity member is not held by a live lease in its exact lifecycle epoch".into(),
+                ));
+            }
+            if !capacity_matches_algebra(root.capacity(), &prebinding.algebra) {
+                return Err(ExternalRootDiagnostic(
+                    "program-local aggregate capacity member does not match its verified content algebra".into(),
+                ));
+            }
+        }
+
+        let cohort_key = cohort_key.expect("nonempty reconstruction has one lifecycle cohort");
+        let group_key = group_key.expect("nonempty reconstruction has one aggregate schema");
+        let canonical = canonical.expect("nonempty reconstruction has one canonical prebinding");
+        if !self.sealed_epoch_cohorts.contains(&cohort_key) {
+            return Err(ExternalRootDiagnostic(
+                "program-local aggregate capacity reconstruction names no sealed epoch cohort"
+                    .into(),
+            ));
+        }
+        if lifecycle.identity() != cohort_key.0
+            || !lifecycle.live_eras().any(|(era, _, _)| era == cohort_key.1)
+        {
+            return Err(ExternalRootDiagnostic(
+                "program-local aggregate capacity reconstruction is not in a live epoch of the exact lifecycle ledger".into(),
+            ));
+        }
+
+        let expected = self
+            .active_occurrences
+            .iter()
+            .filter(|identity| {
+                identity.lifecycle_ledger == cohort_key.0
+                    && identity.lifecycle_epoch == cohort_key.1
+                    && self
+                        .prebindings
+                        .get(&identity.prebinding)
+                        .is_some_and(|prebinding| {
+                            (
+                                prebinding.psi.vocabulary_marker.get(),
+                                *prebinding.psi.program_fingerprint.as_bytes(),
+                                prebinding.identity.installed_code,
+                                prebinding.identity.schema_digest,
+                            ) == group_key
+                        })
+            })
+            .copied()
+            .collect::<BTreeSet<_>>();
+        if presented != expected {
+            return Err(ExternalRootDiagnostic(
+                "program-local aggregate capacity reconstruction omits, substitutes, or adds a live member of the exact aggregate schema group".into(),
+            ));
+        }
+
+        let capacity = match canonical.algebra.kind {
+            ContentAlgebraKind::CountedQuantity => {
+                let mut total = BigInt::zero();
+                for root in &roots {
+                    let Some(quantity) = root.capacity().counted_quantity() else {
+                        return Err(ExternalRootDiagnostic(
+                            "program-local counted aggregate member has no evaluated counted quantity".into(),
+                        ));
+                    };
+                    total = total.add(quantity);
+                }
+                EstablishedProgramLocalRootCapacity::CountedQuantity(total)
+            }
+            ContentAlgebraKind::IntervalSet => {
+                let mut sets = Vec::with_capacity(roots.len());
+                for root in &roots {
+                    let Some(set) = root.capacity().interval_set() else {
+                        return Err(ExternalRootDiagnostic(
+                            "program-local interval aggregate member has no evaluated interval set"
+                                .into(),
+                        ));
+                    };
+                    sets.push(set);
+                }
+                EstablishedProgramLocalRootCapacity::IntervalSet(
+                    CanonicalIntervalSet::separate(sets).map_err(|error| {
+                        ExternalRootDiagnostic(format!(
+                            "program-local interval aggregate members cannot compose one separated set: {error:?}"
+                        ))
+                    })?,
+                )
+            }
+        };
+
+        Ok(ProgramLocalRootEpochAggregateCapacity {
+            cohort: InstalledProgramLocalRootEpochCohortId {
+                installed_code: canonical.identity.installed_code,
+                lifecycle_ledger: cohort_key.0,
+                lifecycle_epoch: cohort_key.1,
+            },
+            aggregate: ProgramLocalRootEpochAggregate {
+                psi: canonical.psi,
+                artifact: canonical.artifact,
+                requirement_identity: canonical.requirement_identity.clone(),
+                argument_index: canonical.argument_index,
+                source_parameter_position: canonical.source_parameter_position,
+                qualification_identity: canonical.qualification_identity.clone(),
+                carrier_identity: canonical.carrier_identity.clone(),
+                schema_digest: canonical.identity.schema_digest,
+                schema_compatibility_report_identity: canonical
+                    .schema_compatibility_report_identity,
+                algebra: canonical.algebra.clone(),
+                per_occurrence_capacity: canonical.per_occurrence_capacity.clone(),
+                occurrence_identities: presented.into_iter().collect(),
+            },
+            capacity,
+        })
+    }
 }
 
 fn capacity_scalar_keys(
@@ -1663,6 +1862,40 @@ impl ProgramLocalRootEpochAggregate {
                 .expect("sealed program-local cohort cardinality fits u64"),
         )
         .expect("sealed aggregate group is nonempty")
+    }
+}
+
+/// Exact reconstructed capacity of one live program-local aggregate schema
+/// group in one sealed epoch cohort of one installed artifact instance.
+///
+/// The retained aggregate row reports the group's complete live established
+/// membership — a retired member has already left the epoch's demand — while
+/// `capacity` is the verifier-derived composition of every member's evaluated
+/// per-occurrence capacity: the exact counted sum or separated interval union.
+/// This is accounting evidence for the artifact instance and lifecycle epoch,
+/// not minting, lifecycle, or row-equality authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[must_use = "program-local aggregate capacity reports are exact accounting evidence"]
+pub struct ProgramLocalRootEpochAggregateCapacity {
+    cohort: InstalledProgramLocalRootEpochCohortId,
+    aggregate: ProgramLocalRootEpochAggregate,
+    capacity: EstablishedProgramLocalRootCapacity,
+}
+
+impl ProgramLocalRootEpochAggregateCapacity {
+    pub const fn cohort(&self) -> InstalledProgramLocalRootEpochCohortId {
+        self.cohort
+    }
+
+    /// The group's symbolic row rebound to its live established membership.
+    pub const fn aggregate(&self) -> &ProgramLocalRootEpochAggregate {
+        &self.aggregate
+    }
+
+    /// The reconstructed evaluated capacity: exact sum over counted-quantity
+    /// members or the separated union of interval-set members.
+    pub const fn capacity(&self) -> &EstablishedProgramLocalRootCapacity {
+        &self.capacity
     }
 }
 
