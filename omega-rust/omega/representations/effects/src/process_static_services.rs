@@ -446,7 +446,10 @@ fn sort_active(active: &mut [ActiveServiceRegistration]) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AtomicServiceHandoverReceipt, ProcessStaticServiceContract, ProcessStaticServicePolicy,
+        ProcessStaticServiceRegistry, ServiceRegistrationCandidate,
+    };
 
     fn contract(policy: ProcessStaticServicePolicy) -> ProcessStaticServiceContract {
         ProcessStaticServiceContract {

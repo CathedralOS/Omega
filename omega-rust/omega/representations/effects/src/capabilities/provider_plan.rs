@@ -1689,7 +1689,15 @@ impl ServiceSchema {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundaryCallingPlanCommitment, EvaluatedBindingEvaluationDigest,
+        EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
+        EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
+        NormalizedForeignLocator, ProviderBinding, ProviderPlan, ProviderPlanRow,
+        ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
+        ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
+        ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
+    };
 
     fn evaluated_import(locator: NormalizedForeignLocator, seed: u8) -> EvaluatedForeignImport {
         let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)

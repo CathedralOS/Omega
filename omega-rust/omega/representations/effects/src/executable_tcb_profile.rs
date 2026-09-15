@@ -249,7 +249,13 @@ const fn manifest_scope(completeness: &ScopeCompleteness) -> ExecutionScope {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ContainmentGuarantee, ExactExecutableTcbAllowance, ExecutableEntryOrigin,
+        ExecutableIdentity, ExecutableTcbEntry, ExecutableTcbManifest, ExecutableTcbProfile,
+        ExecutableTcbProfileViolation, ExecutionScope, ImplementationEvidence, IncompleteCause,
+        IncompleteScopePolicy, ProviderIdentity, ProviderPlan, ScopeCompleteness,
+        SelectedProviderRequirement, evaluate_executable_tcb_profile,
+    };
     use crate::{ContainmentEvidence, OpaqueInProcessBinding};
 
     fn opaque_entry() -> ExecutableTcbEntry {

@@ -895,7 +895,13 @@ impl ProgramLocalRootEpochLeaseReleaseError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraEntryReceipt,
+        ComponentEraEntryState, ComponentEraLeaveReceipt, ComponentEraLedgerId,
+        ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt,
+        ComponentEraRetirementReceipt, ExecutableTcbProfileAcceptance,
+        InstalledArtifactOccurrenceDigest, ProgramLocalRootEpochLeaseId,
+    };
     use crate::{
         ExecutableTcbManifest, ExecutableTcbProfile, ExecutionScope, IncompleteScopePolicy,
         ScopeCompleteness, evaluate_executable_tcb_profile,

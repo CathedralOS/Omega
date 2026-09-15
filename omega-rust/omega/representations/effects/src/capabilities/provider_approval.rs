@@ -96,7 +96,10 @@ impl BoundaryCallApproval {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
+        SymbolHandle,
+    };
 
     #[test]
     fn approved_provider_authorizes_its_exact_boundary_capability() {

@@ -948,6 +948,13 @@ fn encode_authority_classes(digest: &mut Sha256, disposition: &TerminalAuthority
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        BTreeSet, CheckedPhysicalTerminalMechanismIdentity, CheckedSyscallArgumentContractIdentity,
+        CompilerIntrinsicExecutionIdentity, CompilerNumericType,
+        CompilerPrimitiveFloatBinaryOperation, PortableFilesystemAuthorityFacet,
+        SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityDisposition,
+        compiler_intrinsic_execution_identity_bytes, terminal_mechanism_identity_bytes,
+    };
     #[test]
     fn canonical_disposition_recovery_retains_storage_and_rejects_normalization() {
         use super::{TerminalAuthorityClass as Class, TerminalAuthorityDisposition};
@@ -973,8 +980,6 @@ mod tests {
             assert_eq!(rejected.as_ptr(), pointer);
         }
     }
-
-    use super::*;
 
     #[test]
     fn terminal_authority_class_order_matches_canonical_tags() {

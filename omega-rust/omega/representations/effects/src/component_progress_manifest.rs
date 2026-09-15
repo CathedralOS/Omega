@@ -367,7 +367,10 @@ fn compatibility_report_fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckedComponentProgressDemand, ComponentProgressManifest, SelectedProviderPlanFacts,
+        ServiceProgressSubject, digest_manifest,
+    };
     use crate::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
         ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
