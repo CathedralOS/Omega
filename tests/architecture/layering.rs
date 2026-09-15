@@ -3428,7 +3428,8 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
     let codec_path = root
         .join("omega-rust/omega/backend/runtime/executable-installation/src/executable_installation/container_bytes.rs");
     let codec = std::fs::read_to_string(&codec_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", codec_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", codec_path.display()))
+        + &recursive_production_rust_source(&codec_path.with_extension(""));
     assert!(
         codec.contains("const SECTION_AUTHORITY_COMMITMENTS: u16 = 9;")
             && codec.contains("OMEGA_EXECUTABLE_CONTAINER_V2_MARKER")
