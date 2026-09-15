@@ -32,8 +32,8 @@ pub(super) fn lower_transition_statement(
                     .outcome_proof_selectors(transition.proof_selectors)
                     .iter()
                     .map(|selector| typed::statement::OutcomeProofSelector {
-                        output_field: crate::name::lower_name(&selector.output_field),
-                        binding: crate::name::lower_name(&selector.binding),
+                        output_field: crate::lowerer::name::lower_name(&selector.output_field),
+                        binding: crate::lowerer::name::lower_name(&selector.binding),
                     }),
             ),
         exit: match transition.exit {
@@ -97,7 +97,7 @@ fn lower_transition_target(
                 arguments: lowered_arguments,
                 evidence_arguments: evidence_arguments
                     .iter()
-                    .map(crate::name::lower_name)
+                    .map(crate::lowerer::name::lower_name)
                     .collect::<Vec<_>>()
                     .into_boxed_slice(),
                 source_span: *source_span,

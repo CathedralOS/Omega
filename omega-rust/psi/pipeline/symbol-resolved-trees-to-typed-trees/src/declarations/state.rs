@@ -1,6 +1,6 @@
-use crate::domain::lower_proof_facts;
+use crate::declarations::domain::lower_proof_facts;
+use crate::expressions::statement::lower_statement_node;
 use crate::lowerer::Lowerer;
-use crate::statement::lower_statement_node;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -14,7 +14,7 @@ pub(crate) fn lower_state(
 ) -> Result<typed::state::State, Diagnostic> {
     let mut typed_state = typed::state::State {
         symbol: state.symbol,
-        name: crate::name::lower_name(&state.name),
+        name: crate::lowerer::name::lower_name(&state.name),
         parameters: Default::default(),
         return_type: state
             .return_type
@@ -90,7 +90,10 @@ pub(crate) fn lower_state(
                     }
                 },
                 keyword_source_span: contract.keyword_source_span,
-                binding: contract.binding.as_ref().map(crate::name::lower_name),
+                binding: contract
+                    .binding
+                    .as_ref()
+                    .map(crate::lowerer::name::lower_name),
                 facts,
                 token_count: contract.token_count,
             },
@@ -129,7 +132,8 @@ pub(crate) fn lower_state(
     {
         if let resolved::statement::StatementNode::ProofOutputBindingStatement(package) = statement
         {
-            let call = crate::expression::lower_expression_handle(lowerer, package.call)?;
+            let call =
+                crate::expressions::expression::lower_expression_handle(lowerer, package.call)?;
             let runtime_call_statement_index = package
                 .bindings
                 .iter()
@@ -169,8 +173,8 @@ pub(crate) fn lower_state(
                         .bindings
                         .iter()
                         .map(|binding| typed::typed_trees::ProofOutputSelector {
-                            output_field: crate::name::lower_name(&binding.output_field),
-                            binding: crate::name::lower_name(&binding.binding),
+                            output_field: crate::lowerer::name::lower_name(&binding.output_field),
+                            binding: crate::lowerer::name::lower_name(&binding.binding),
                         })
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
@@ -356,12 +360,12 @@ pub(crate) fn lower_state_signature(
 ) -> Result<typed::signature::StateSignature, Diagnostic> {
     let mut typed_signature = typed::signature::StateSignature {
         symbol: signature.symbol,
-        name: crate::name::lower_name(&signature.name),
+        name: crate::lowerer::name::lower_name(&signature.name),
         spelling: signature.spelling,
         lifetime_parameters: signature
             .lifetime_parameters
             .iter()
-            .map(crate::name::lower_name)
+            .map(crate::lowerer::name::lower_name)
             .collect(),
         type_parameters: Default::default(),
         is_default: signature.is_default,
@@ -370,8 +374,8 @@ pub(crate) fn lower_state_signature(
             .native_callback_parameters
             .iter()
             .map(|parameter| typed::signature::NativeCallbackParameter {
-                name: crate::name::lower_name(&parameter.name),
-                binder: crate::name::lower_name(&parameter.binder),
+                name: crate::lowerer::name::lower_name(&parameter.name),
+                binder: crate::lowerer::name::lower_name(&parameter.binder),
                 native_ordinal: parameter.native_ordinal,
             })
             .collect(),
@@ -402,7 +406,7 @@ pub(crate) fn lower_state_signature(
     };
 
     typed_signature.type_parameters =
-        crate::data::lower_type_parameters(lowerer, signature.type_parameters)?;
+        crate::declarations::data::lower_type_parameters(lowerer, signature.type_parameters)?;
     typed_signature.where_facts = lower_proof_facts(lowerer, signature.where_facts)?;
 
     // #66/DOM1/P1a: collect every declared domain on constrained parameters.
@@ -484,7 +488,10 @@ pub(crate) fn lower_state_signature(
                     }
                 },
                 keyword_source_span: contract.keyword_source_span,
-                binding: contract.binding.as_ref().map(crate::name::lower_name),
+                binding: contract
+                    .binding
+                    .as_ref()
+                    .map(crate::lowerer::name::lower_name),
                 facts,
                 token_count: contract.token_count,
             },
@@ -554,7 +561,7 @@ pub(crate) fn lower_authored_invocations(
             )
         };
         lowered.push(typed::signature::AuthoredInvocation {
-            name: crate::name::lower_name(declaration),
+            name: crate::lowerer::name::lower_name(declaration),
             source_span: declaration.source_span(),
             target,
         });
@@ -692,14 +699,14 @@ pub(crate) fn lower_state_parameter(
     parameter: &resolved::signature::StateParameter,
 ) -> Result<typed::signature::StateParameter, Diagnostic> {
     let type_reference = lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
-    crate::domain_constraints::normalize_domain_constraints_for_type(
+    crate::declarations::domain_constraints::normalize_domain_constraints_for_type(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         type_reference,
     )?;
     Ok(typed::signature::StateParameter {
         symbol: parameter.symbol,
-        name: crate::name::lower_name(&parameter.name),
+        name: crate::lowerer::name::lower_name(&parameter.name),
         type_reference,
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,

@@ -1,12 +1,12 @@
-use crate::equatable::EqualityScope;
-use crate::expression::domain_membership::{
+use crate::expressions::equatable::EqualityScope;
+use crate::expressions::expression::domain_membership::{
     lower_case_membership_expression, lower_domain_membership_expression,
 };
-use crate::expression::name_paths::{
+use crate::expressions::expression::name_paths::{
     lower_name_path_members_into_table, lower_table_name_path_node_into_table,
 };
-use crate::expression::operators::lower_binary_operator;
-use crate::name::lower_name;
+use crate::expressions::expression::operators::lower_binary_operator;
+use crate::lowerer::name::lower_name;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -357,7 +357,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let target_symbol = if !call.target_symbol.is_valid() {
                     self.program
                         .map(|program| {
-                            crate::call_results::computed_receiver_method_target(
+                            crate::expressions::call_results::computed_receiver_method_target(
                                 program,
                                 &self.target_trees.expression_table,
                                 receiver,
@@ -375,7 +375,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 } else {
                     call.machine_arguments
                         .iter()
-                        .map(crate::expression::lower_static_machine_argument)
+                        .map(crate::expressions::expression::lower_static_machine_argument)
                         .collect::<Vec<_>>()
                         .into_boxed_slice()
                 };
@@ -675,7 +675,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     } else {
                         typed::expression::QuotientTheoremRole::ForwardPreconditionTransport
                     },
-                    application: crate::expression::lower_static_machine_argument(selected),
+                    application: crate::expressions::expression::lower_static_machine_argument(
+                        selected,
+                    ),
                 },
             )
             .collect::<Vec<_>>()
@@ -683,7 +685,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
 
         Ok(Some(typed::expression::QuotientOperationRequest {
             kind,
-            representative_operation: crate::expression::lower_static_machine_argument(
+            representative_operation: crate::expressions::expression::lower_static_machine_argument(
                 representative_operation,
             ),
             theorem_evidence,
@@ -761,7 +763,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         }
 
         Ok(Some(typed::expression::PrivateLayoutOperationRequest {
-            selected_slot: crate::expression::lower_static_machine_argument(selected_slot),
+            selected_slot: crate::expressions::expression::lower_static_machine_argument(
+                selected_slot,
+            ),
         }))
     }
 

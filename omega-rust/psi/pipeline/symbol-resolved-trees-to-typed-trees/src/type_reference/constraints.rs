@@ -1,4 +1,4 @@
-use crate::expression::lower_expression_handle_from_table;
+use crate::expressions::expression::lower_expression_handle_from_table;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -23,7 +23,7 @@ pub(super) fn lower_type_constraint_node_span_from_table(
     {
         let constraint = match constraint {
             resolved::types::TypeConstraintNode::Named(name) => {
-                typed::types::TypeConstraintNode::Named(crate::name::lower_name(name))
+                typed::types::TypeConstraintNode::Named(crate::lowerer::name::lower_name(name))
             }
             resolved::types::TypeConstraintNode::Domain(domain) => {
                 let arguments = source_trees
@@ -41,7 +41,7 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let name = crate::name::lower_name(&domain.name);
+                let name = crate::lowerer::name::lower_name(&domain.name);
                 typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
                     subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
                     name,
@@ -161,7 +161,7 @@ fn lower_type_constraint_node_with_context(
 ) -> Result<typed::types::TypeConstraintNode, Diagnostic> {
     match constraint {
         resolved::types::TypeConstraint::Named(name) => Ok(
-            typed::types::TypeConstraintNode::Named(crate::name::lower_name(name)),
+            typed::types::TypeConstraintNode::Named(crate::lowerer::name::lower_name(name)),
         ),
         resolved::types::TypeConstraint::Domain(domain) => {
             let arguments = source_trees
@@ -179,7 +179,7 @@ fn lower_type_constraint_node_with_context(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let name = crate::name::lower_name(&domain.name);
+            let name = crate::lowerer::name::lower_name(&domain.name);
             Ok(typed::types::TypeConstraintNode::Domain(
                 typed::types::DomainConstraint {
                     subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),

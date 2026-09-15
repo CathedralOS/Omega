@@ -1,4 +1,4 @@
-use crate::expression::lower_expression_handle;
+use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
@@ -32,7 +32,7 @@ pub(crate) fn lower_measure_definition(
     for member in lowerer.source_trees.measure_path_members(measure.name) {
         lowerer
             .typed_trees
-            .push_measure_path_member(&mut typed_measure, crate::name::lower_name(member));
+            .push_measure_path_member(&mut typed_measure, crate::lowerer::name::lower_name(member));
     }
 
     let mut lowered_components = Vec::new();
@@ -60,7 +60,7 @@ fn lower_measure_parameter(
     let type_reference = lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
     Ok(typed_trees::signature::StateParameter {
         symbol: parameter.symbol,
-        name: crate::name::lower_name(&parameter.name),
+        name: crate::lowerer::name::lower_name(&parameter.name),
         type_reference,
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,

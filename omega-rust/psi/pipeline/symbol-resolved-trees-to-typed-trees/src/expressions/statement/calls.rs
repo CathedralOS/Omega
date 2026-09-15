@@ -26,20 +26,20 @@ pub(super) fn lower_call_statement(
         receiver_symbol: call.receiver_symbol,
         target_symbol: call.target_symbol,
         receiver: lower_statement_path_members(lowerer, call.receiver),
-        target: crate::name::lower_name(&call.target),
+        target: crate::lowerer::name::lower_name(&call.target),
         static_machine_parameter: symbols::SymbolHandle::invalid(),
         static_requirement_dispatch: None,
         machine_arguments: call
             .machine_arguments
             .iter()
-            .map(crate::expression::lower_static_machine_argument)
+            .map(crate::expressions::expression::lower_static_machine_argument)
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         arguments,
         evidence_arguments: call
             .evidence_arguments
             .iter()
-            .map(crate::name::lower_name)
+            .map(crate::lowerer::name::lower_name)
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         operational_acknowledgement: call.operational_acknowledgement,

@@ -24,11 +24,15 @@ pub(crate) fn lower_statement_node(
         resolved::statement::StatementNode::RootBinding(binding) => Ok(
             typed::statement::StatementNode::RootBinding(typed::statement::RootBinding {
                 receiver: lower_statement_expression(lowerer, binding.receiver)?,
-                slot: binding.slot.iter().map(crate::name::lower_name).collect(),
+                slot: binding
+                    .slot
+                    .iter()
+                    .map(crate::lowerer::name::lower_name)
+                    .collect(),
                 implementation: binding
                     .implementation
                     .iter()
-                    .map(crate::name::lower_name)
+                    .map(crate::lowerer::name::lower_name)
                     .collect(),
                 implementation_operand: if binding.implementation_operand.is_valid() {
                     lower_statement_expression(lowerer, binding.implementation_operand)?
@@ -103,7 +107,7 @@ pub(crate) fn lower_statement_node(
             Ok(typed::statement::StatementNode::LocalData(
                 typed::statement::TableLocalData {
                     symbol: local_data.symbol,
-                    name: crate::name::lower_name(&local_data.name),
+                    name: crate::lowerer::name::lower_name(&local_data.name),
                     type_reference,
                     initial_value: local_data
                         .initial_value

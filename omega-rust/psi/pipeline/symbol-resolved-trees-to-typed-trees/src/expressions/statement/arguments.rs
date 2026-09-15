@@ -1,4 +1,4 @@
-use crate::expression::lower_expression_handle;
+use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -50,7 +50,7 @@ pub(super) fn lower_statement_path_members(
         lowerer
             .typed_trees
             .statement_table
-            .push_name_path_member(&mut lowered_path, crate::name::lower_name(member));
+            .push_name_path_member(&mut lowered_path, crate::lowerer::name::lower_name(member));
     }
 
     lowered_path

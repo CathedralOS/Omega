@@ -3,7 +3,7 @@
 //! value -- only its domain -- so comparing against it is an error that
 //! suggests `in`. The brace form (`Command::Move { dx: 1 }`) IS a constructed
 //! value: when the sum declares `Type satisfies Equatable;` the compare is
-//! legal and expands to synthesized structural equality (`crate::equatable`);
+//! legal and expands to synthesized structural equality (`crate::expressions::equatable`);
 //! without the conformance it stays an error that now suggests declaring it.
 //! Payload-less cases stay legal `==` operands everywhere (tag identity is
 //! the only thing equality could mean for them).
@@ -254,7 +254,7 @@ fn check_equality_operand(
             // A declared `Type satisfies Equatable;` synthesizes structural
             // equality, so the constructed-case compare is legal and lowers
             // to the inline expansion (`expression::table::structural_equality`).
-            if crate::equatable::equatable_conformance_declared(program, &data_name) {
+            if crate::expressions::equatable::equatable_conformance_declared(program, &data_name) {
                 return Ok(());
             }
             // FACT position over RECURSIVE (hence proof-only) data: no

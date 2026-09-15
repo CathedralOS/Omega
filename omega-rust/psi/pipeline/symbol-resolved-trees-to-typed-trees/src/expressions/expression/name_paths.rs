@@ -1,4 +1,4 @@
-use crate::name::lower_name;
+use crate::lowerer::name::lower_name;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 

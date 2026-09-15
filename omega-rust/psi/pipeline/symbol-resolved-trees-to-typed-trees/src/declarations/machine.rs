@@ -1,8 +1,8 @@
-use crate::data::lower_type_parameters;
-use crate::domain::lower_proof_facts;
-use crate::expression::lower_expression_handle;
+use crate::declarations::data::lower_type_parameters;
+use crate::declarations::domain::lower_proof_facts;
+use crate::declarations::state::{lower_authored_invocations, lower_state};
+use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
-use crate::state::{lower_authored_invocations, lower_state};
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -40,8 +40,11 @@ fn lower_machine_contents(
     }
     let mut typed_machine = typed::machine::Machine {
         symbol: machine.symbol,
-        name: crate::name::lower_name(&machine.name),
-        attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
+        name: crate::lowerer::name::lower_name(&machine.name),
+        attached_data: machine
+            .attached_data
+            .as_ref()
+            .map(crate::lowerer::name::lower_name),
         attached_data_symbol: machine.attached_data_symbol,
         attached_data_application: typed::types::TypeReferenceHandle::invalid(),
         // `lower_machine` validates the exact clone origin before entering
@@ -62,7 +65,7 @@ fn lower_machine_contents(
         lifetime_parameters: machine
             .lifetime_parameters
             .iter()
-            .map(crate::name::lower_name)
+            .map(crate::lowerer::name::lower_name)
             .collect(),
         type_parameters: arena::HandleSpan::empty(),
         owned_data: arena::HandleSpan::empty(),
@@ -88,7 +91,7 @@ fn lower_machine_contents(
             |lowerer| {
                 Ok::<_, Diagnostic>(typed::machine::OwnedData {
                     symbol: owned_data.symbol,
-                    name: crate::name::lower_name(&owned_data.name),
+                    name: crate::lowerer::name::lower_name(&owned_data.name),
                     type_reference: lower_type_reference_into_table(
                         lowerer,
                         &owned_data.type_reference,
@@ -167,20 +170,23 @@ fn lower_machine_contents(
             &mut typed_machine,
             typed::machine::TraitConformance {
                 symbol: conformance.symbol,
-                name: crate::name::lower_name(&conformance.name),
+                name: crate::lowerer::name::lower_name(&conformance.name),
                 trait_lifetime_arguments,
                 arguments,
                 requirement: conformance
                     .requirement
                     .as_ref()
-                    .map(crate::name::lower_name),
+                    .map(crate::lowerer::name::lower_name),
                 requirement_symbol: symbols::SymbolHandle::invalid(),
                 requirement_source_span: conformance
                     .requirement
                     .as_ref()
                     .filter(|requirement| requirement.is_source_backed())
                     .map(|requirement| requirement.source_span()),
-                alias: conformance.alias.as_ref().map(crate::name::lower_name),
+                alias: conformance
+                    .alias
+                    .as_ref()
+                    .map(crate::lowerer::name::lower_name),
                 external_binding: conformance.external_binding,
                 via_expression,
                 external_binding_source_span: conformance.external_binding_source_span,
@@ -197,16 +203,19 @@ fn lower_machine_contents(
             .conformance_bounds
             .push(typed::machine::GenericConformanceBound {
                 binder: bound.binder,
-                binder_name: bound.binder_name.as_ref().map(crate::name::lower_name),
+                binder_name: bound
+                    .binder_name
+                    .as_ref()
+                    .map(crate::lowerer::name::lower_name),
                 subject: bound.subject,
-                subject_name: crate::name::lower_name(&bound.subject_name),
+                subject_name: crate::lowerer::name::lower_name(&bound.subject_name),
                 carrier: bound.carrier,
-                carrier_name: crate::name::lower_name(&bound.carrier_name),
+                carrier_name: crate::lowerer::name::lower_name(&bound.carrier_name),
                 arguments,
                 selected_conformance: bound
                     .selected_conformance
                     .as_ref()
-                    .map(crate::expression::lower_static_machine_argument),
+                    .map(crate::expressions::expression::lower_static_machine_argument),
             });
     }
 
@@ -274,7 +283,10 @@ fn lower_machine_contents(
             typed::signature::SignatureContract {
                 kind: lower_contract_kind(&contract.kind),
                 keyword_source_span: contract.keyword_source_span,
-                binding: contract.binding.as_ref().map(crate::name::lower_name),
+                binding: contract
+                    .binding
+                    .as_ref()
+                    .map(crate::lowerer::name::lower_name),
                 facts,
                 token_count: contract.token_count,
             },
@@ -290,7 +302,7 @@ fn lower_machine_contents(
         let state = lowerer.source_trees.machine_state(*state);
         // The state body's value-typing scope lets `==` lowering find an
         // operand's data type for structural-equality expansion.
-        lowerer.equality_scope = Some(crate::equatable::EqualityScope::for_state(
+        lowerer.equality_scope = Some(crate::expressions::equatable::EqualityScope::for_state(
             lowerer.source_trees,
             machine,
             state,

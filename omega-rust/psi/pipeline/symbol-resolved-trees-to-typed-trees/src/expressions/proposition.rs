@@ -1,4 +1,4 @@
-use crate::expression::lower_expression_handle_from_table_in_fact_position;
+use crate::expressions::expression::lower_expression_handle_from_table_in_fact_position;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
@@ -11,7 +11,7 @@ pub(crate) fn lower_proposition_definition(
 ) -> Result<typed::proposition::PropositionDefinition, Diagnostic> {
     let mut typed_proposition = typed::proposition::PropositionDefinition {
         symbol: proposition.symbol,
-        name: crate::name::lower_name(&proposition.name),
+        name: crate::lowerer::name::lower_name(&proposition.name),
         is_public: proposition.is_public,
         binders: Default::default(),
         parameters: Default::default(),
@@ -43,7 +43,7 @@ pub(crate) fn lower_proposition_definition(
             &mut typed_proposition,
             typed::proposition::PropositionBinder {
                 symbol: binder.symbol,
-                name: crate::name::lower_name(&binder.name),
+                name: crate::lowerer::name::lower_name(&binder.name),
                 kind,
                 bounds: typed::data::DataProperties {
                     carry: binder.bounds.carry,
@@ -57,7 +57,7 @@ pub(crate) fn lower_proposition_definition(
         .source_trees
         .state_parameters(proposition.parameters)
     {
-        let parameter = crate::state::lower_state_parameter(lowerer, parameter)?;
+        let parameter = crate::declarations::state::lower_state_parameter(lowerer, parameter)?;
         lowerer
             .typed_trees
             .push_proposition_parameter(&mut typed_proposition, parameter);
@@ -240,14 +240,14 @@ pub(crate) fn lower_proposition_application(
             path: argument
                 .path
                 .iter()
-                .map(crate::name::lower_name)
+                .map(crate::lowerer::name::lower_name)
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
             const_literal: argument.const_literal.clone(),
             evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
                 typed::expression::EvidenceProjection {
-                    term: crate::name::lower_name(&projection.term),
-                    member: crate::name::lower_name(&projection.member),
+                    term: crate::lowerer::name::lower_name(&projection.term),
+                    member: crate::lowerer::name::lower_name(&projection.member),
                 }
             }),
             symbol,
@@ -296,7 +296,7 @@ pub(crate) fn lower_proposition_application(
 
     Ok(typed::proposition::PropositionApplication {
         proposition: call.target_symbol,
-        name: crate::name::lower_name(&call.target),
+        name: crate::lowerer::name::lower_name(&call.target),
         binder_arguments: typed_binder_arguments.into_boxed_slice(),
         arguments,
     })

@@ -1,9 +1,9 @@
-use crate::expression::{
+use crate::declarations::operator::lower_operator_definition;
+use crate::expressions::expression::{
     lower_expression_handle_from_table, lower_expression_handle_from_table_in_fact_position,
 };
 use crate::lowerer::Lowerer;
-use crate::name::lower_name;
-use crate::operator::lower_operator_definition;
+use crate::lowerer::name::lower_name;
 use crate::type_reference::lower_type_reference_into_table;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
@@ -168,7 +168,7 @@ pub(crate) fn lower_domain_definition(
     };
 
     typed_domain.type_parameters =
-        crate::data::lower_type_parameters(lowerer, domain.type_parameters)?;
+        crate::declarations::data::lower_type_parameters(lowerer, domain.type_parameters)?;
 
     for operator in lowerer.source_trees.operator_definitions(domain.operators) {
         let operator = lowerer.with_type_reference_exposure(
@@ -219,7 +219,9 @@ pub(crate) fn lower_proof_facts(
                     )
                 {
                     let application =
-                        crate::proposition::lower_proposition_application(lowerer, call)?;
+                        crate::expressions::proposition::lower_proposition_application(
+                            lowerer, call,
+                        )?;
                     let handle = lowerer.typed_trees.proof_facts.append_to_span(
                         &mut lowered,
                         typed::domain::ProofFact::Proposition(application),

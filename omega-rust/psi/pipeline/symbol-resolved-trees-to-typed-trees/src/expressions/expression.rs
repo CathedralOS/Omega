@@ -40,7 +40,7 @@ pub(crate) fn lower_expression_handle_from_table(
     )
 }
 
-pub(super) fn lower_expression_handle_from_table_with_self_substitution(
+pub(crate) fn lower_expression_handle_from_table_with_self_substitution(
     program: Option<&resolved::SymbolResolvedTrees>,
     source: &resolved::expression::ExpressionTable,
     target: &mut typed::TypedTrees,
@@ -75,7 +75,7 @@ pub(crate) fn lower_static_machine_argument(
         path: argument
             .path
             .iter()
-            .map(crate::name::lower_name)
+            .map(crate::lowerer::name::lower_name)
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         application: argument.application.as_ref().map(|application| {
@@ -83,7 +83,7 @@ pub(crate) fn lower_static_machine_argument(
                 lifetime_arguments: application
                     .lifetime_arguments
                     .iter()
-                    .map(crate::name::lower_name)
+                    .map(crate::lowerer::name::lower_name)
                     .collect::<Vec<_>>()
                     .into_boxed_slice(),
                 arguments: application
@@ -97,8 +97,8 @@ pub(crate) fn lower_static_machine_argument(
         const_literal: argument.const_literal.clone(),
         evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
             typed::expression::EvidenceProjection {
-                term: crate::name::lower_name(&projection.term),
-                member: crate::name::lower_name(&projection.member),
+                term: crate::lowerer::name::lower_name(&projection.term),
+                member: crate::lowerer::name::lower_name(&projection.member),
             }
         }),
         symbol: argument.symbol,

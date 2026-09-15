@@ -1,5 +1,5 @@
 use super::lower_expression_handle_from_table_with_self_substitution;
-use crate::name::lower_name;
+use crate::lowerer::name::lower_name;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -10,7 +10,7 @@ use typed_trees as typed;
 /// the guard tag clamp, value-position enum-constant folding, and the
 /// interpreter's tag-only enum equality all consume it unchanged. The
 /// user-facing bare-case `==` error cannot re-flag it because that check
-/// runs on the RESOLVED trees, before this lowering (see `crate::equality`).
+/// runs on the RESOLVED trees, before this lowering (see `crate::expressions::equality`).
 ///
 /// Returns `None` when the membership domain does not name a case of a data
 /// definition, so the caller falls back to declared-domain lowering.
@@ -118,7 +118,7 @@ pub(super) fn lower_domain_membership_expression(
             domain_symbol.arena_index()
         )));
     };
-    let expanded = crate::domain::expand_domain_reference(
+    let expanded = crate::declarations::domain::expand_domain_reference(
         program,
         domain_symbol,
         vec![domain_definition.name.clone()],

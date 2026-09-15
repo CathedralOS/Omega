@@ -120,7 +120,7 @@ pub(crate) fn normalize_qualification_casts_from(
             .iter()
             .filter(|domain| {
                 same_semantic_name(domain.name.as_str(), &name)
-                    && crate::domain_constraints::domain_accepts_carrier(
+                    && crate::declarations::domain_constraints::domain_accepts_carrier(
                         program,
                         domain,
                         cast.target_type,
@@ -213,7 +213,7 @@ pub(crate) fn normalize_qualification_casts_from(
                     base_type: authored.target_type,
                     constraints,
                 });
-            crate::domain_constraints::normalize_domain_constraints_for_type(
+            crate::declarations::domain_constraints::normalize_domain_constraints_for_type(
                 source, program, result,
             )?;
             result
