@@ -538,3 +538,124 @@ fn generic_to_generic_requires_still_owes_the_unestablished_fact() {
         "{error:#?}"
     );
 }
+
+#[test]
+fn runtime_value_subjects_reach_transition_targets_in_a_cloned_machine() {
+    // A multi-state template cloned for a runtime `Value` subject carries the
+    // realized subject as a trailing parameter on every cloned state, so a
+    // `->` transition between them owes the target that appended subject
+    // exactly as a rewritten call site does.
+    let mut program = typed(
+        "data Main { values: [u8; 8]; }
+         machine Main::walk<Count: u8>(&mut self, n: u8) {
+             transition n == 3 {
+                 true -> allowed(n)
+                 false -> denied()
+             }
+             state allowed(&mut self, n: u8) { self.values[3] = Count; }
+             state denied(&mut self) { self.values[4] = Count; }
+         }
+         machine Main::main(&mut self) {
+             let n: u8 = 3;
+             self.walk<n>(n);
+         }",
+    );
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+        .expect("a transitioned runtime subject specializes");
+    let [receipt] = program.machine_specializations.as_slice() else {
+        panic!("one specialization for the runtime tuple");
+    };
+    let instance = instance(&program, receipt);
+    let states = program.machine_states(instance);
+    assert_eq!(states.len(), 3, "entry plus the two transition targets");
+    for state in states {
+        let parameters = program.state_parameters(state);
+        let last = parameters.last().expect("a trailing realized parameter");
+        assert_eq!(
+            last.name.as_str(),
+            "Count",
+            "every cloned state carries the realized subject parameter"
+        );
+    }
+    // The entry state's transitions forward its own realized parameter to
+    // each named sibling target, after the authored arguments. The guarded
+    // `transition` form lowers to one statement per arm.
+    let entry = &states[0];
+    let clone_state_symbols: Vec<_> = states.iter().map(|state| state.symbol).collect();
+    let transitions: Vec<_> = program
+        .statement_table
+        .statements(entry.statement_nodes)
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::Transition(transition) => Some(transition),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        transitions.len(),
+        2,
+        "both dispatch arms lower to transitions"
+    );
+    let entry_realized = program.state_parameters(entry).last().unwrap().symbol;
+    let mut named_targets = 0;
+    for transition in transitions {
+        for target in [transition.target, transition.continuation] {
+            let typed_trees::statement::TransitionTargetNode::Named {
+                path, arguments, ..
+            } = program.statement_table.transition_target(target)
+            else {
+                continue;
+            };
+            if !clone_state_symbols.contains(&path.symbol) {
+                continue;
+            }
+            named_targets += 1;
+            let arguments = program.statement_table.expression_handles(*arguments);
+            let ExpressionNode::Name(subject) = program
+                .expression_table
+                .expression(*arguments.last().expect("an appended subject argument"))
+            else {
+                panic!("the trailing transition argument is the subject name");
+            };
+            assert_eq!(
+                subject.symbol, entry_realized,
+                "the transition forwards the containing state's realized subject"
+            );
+        }
+    }
+    assert_eq!(
+        named_targets, 2,
+        "both `allowed` and `denied` targets carry the forwarded subject"
+    );
+    // The clone remains an ordinary attached Unit machine: checked lowering
+    // keeps its composed plan, and the entry conditional's edges record the
+    // forwarded subject as an exact scalar argument per target.
+    let clone_symbol = instance.symbol;
+    let checked =
+        crate::lower_typed_trees(program).expect("forwarded transition subjects validate");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(clone_symbol)
+        .expect("the cloned multi-state body keeps its composed unit plan");
+    assert_eq!(plan.states.len(), 3, "entry plus both transition targets");
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &plan.states[0].terminator
+    else {
+        panic!("the guarded dispatch stays a conditional terminator");
+    };
+    assert_eq!(
+        when_true.scalar_arguments.len(),
+        2,
+        "`allowed` receives the authored argument and the forwarded subject"
+    );
+    assert_eq!(
+        when_false.scalar_arguments.len(),
+        1,
+        "`denied` receives the forwarded subject alone"
+    );
+}
