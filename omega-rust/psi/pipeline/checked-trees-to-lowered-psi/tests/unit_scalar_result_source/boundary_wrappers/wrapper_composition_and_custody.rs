@@ -1,0 +1,545 @@
+use super::{artifact, execute, integer, source};
+use crate::{CheckedUnitEffectOperationPlan, checked_from_source};
+use proof_admission::AdmissionProfile;
+use terminal_codec::{decode_module, decode_proof_bundle};
+use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
+
+#[test]
+fn scalar_wrapper_explicit_entry_predicate_survives_call_proofs() {
+    let source = source()
+        .replace(
+            "Scalar::measure() -> i32 reaches Host",
+            "Scalar::measure(value: i32) -> i32\nrequires value >= 1\nreaches Host",
+        )
+        .replace("Host::measure(70)", "Host::measure(value)")
+        .replace("Scalar::measure();", "Scalar::measure(70);");
+    let checked = checked_from_source(&source);
+    let artifact = artifact(&checked);
+    let module = decode_module(&artifact.0).unwrap();
+    assert_eq!(
+        module
+            .machines
+            .iter()
+            .find(|machine| !machine.parameters.is_empty())
+            .unwrap()
+            .contract
+            .requires
+            .len(),
+        1
+    );
+    let (status, observed) = execute(&artifact);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observed.arguments, [vec![integer(70)], vec![integer(70)]]);
+}
+
+#[test]
+fn parameterized_wrappers_nested_as_actuals_keep_one_body_and_ordered_effects() {
+    let source = source()
+        .replace("Scalar::measure() ->", "Scalar::measure(value: i32) ->")
+        .replace("Host::measure(70)", "Host::measure(value)")
+        .replace(
+            "Scalar::measure();",
+            "Scalar::measure(Scalar::measure(70));",
+        );
+    let artifact = artifact(&checked_from_source(&source));
+    assert_eq!(decode_module(&artifact.0).unwrap().machines.len(), 2);
+    let (status, observed) = execute(&artifact);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(
+        observed.arguments,
+        [vec![integer(70)], vec![integer(70)], vec![integer(70)]]
+    );
+}
+
+#[test]
+fn scalar_wrapper_signature_and_parameter_range_custody_reject_mutations() {
+    let source = source()
+        .replace(
+            "Scalar::measure() ->",
+            "Scalar::measure(value: i32 [1..=100]) ->",
+        )
+        .replace("Host::measure(70)", "Host::measure(value)")
+        .replace("Scalar::measure();", "Scalar::measure(70);");
+    let original = checked_from_source(&source);
+    for mutation in 0..4 {
+        let mut checked = original.clone();
+        let plan = &mut checked.facts.flow.terminal_boundary_scalar_returns.machines[0];
+        match mutation {
+            0 => plan.scalar_parameters.clear(),
+            1 => plan.scalar_parameters[0].source_position = 1,
+            2 => plan.scalar_parameters[0].primitive_type = typed_trees::types::PrimitiveType::Bool,
+            3 => {
+                let machine = plan.machine;
+                let contract = checked
+                    .facts
+                    .contract_plans
+                    .machines
+                    .iter_mut()
+                    .find(|contract| contract.machine == machine)
+                    .unwrap();
+                contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+                    Vec::new(),
+                    contract.closed_scalar_values.ensures().to_vec(),
+                    contract.closed_scalar_values.has_crash_clauses(),
+                    contract.closed_scalar_values.has_outcome_specific_clauses(),
+                );
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&checked, "Scalar::measure").is_err(),
+            "mutation {mutation}"
+        );
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn repeated_wrappers_share_boundaries_and_nested_helper_identities() {
+    let source = format!(
+        "machine identity(value: i32) -> i32\nrequires 0i32 == 0i32\nensures 0i32 == 0i32\n{{ value }}\n{}",
+        source().replace("Host::measure(70)", "Host::measure(identity(identity(70)))")
+            .replace("Host::finish(result);", "let second: i32 = Scalar::measure();\n Host::finish(result);\n Host::finish(second);")
+    );
+    let artifact = artifact(&checked_from_source(&source));
+    let module = decode_module(&artifact.0).unwrap();
+    assert_eq!(
+        module.machines.len(),
+        3,
+        "one helper, one wrapper, one caller"
+    );
+    assert_eq!(module.boundary_machines.len(), 2);
+    let (status, observed) = execute(&artifact);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observed.arguments, vec![vec![integer(70)]; 4]);
+}
+
+#[test]
+fn wrapper_boundary_and_direct_boundary_share_one_exact_declaration() {
+    let source = source().replace(
+        "Host::finish(result);",
+        "let direct: i32 = Host::measure(21);\n Host::finish(result);\n Host::finish(direct);",
+    );
+    let artifact = artifact(&checked_from_source(&source));
+    assert_eq!(
+        decode_module(&artifact.0).unwrap().boundary_machines.len(),
+        2
+    );
+    let (_, observed) = execute(&artifact);
+    assert_eq!(
+        observed.arguments,
+        [
+            vec![integer(70)],
+            vec![integer(21)],
+            vec![integer(70)],
+            vec![integer(21)]
+        ]
+    );
+}
+
+#[test]
+fn scalar_wrapper_registration_and_result_drift_reject() {
+    for mutation in 0..4 {
+        let mut checked = checked_from_source(&source());
+        let plans = &mut checked.facts.flow.terminal_boundary_scalar_returns;
+        match mutation {
+            0 => plans.machines.push(plans.machines[0].clone()),
+            1 => plans.machines[0].result_type = typed_trees::types::PrimitiveType::Bool,
+            2 => plans.boundary_machines.clear(),
+            3 => plans.machines[0].attachment_type_identity = "named(name(Main))".into(),
+            _ => unreachable!(),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn wrappers_nested_as_operands_share_the_complete_unit_catalog() {
+    let source = source()
+        .replace("Host::measure(70)", "Host::measure(Other::measure())")
+        .replace(
+            "data Main {}",
+            r#"
+            data Other {}
+            machine Other::measure() -> i32 reaches Host {
+                let result: i32 = Host::measure(70);
+                result
+            }
+            data Main {}
+        "#,
+        )
+        .replace(
+            "let result: i32 = Scalar::measure();\n    Host::finish(result);",
+            "Host::finish(Scalar::measure());",
+        );
+    let artifact = artifact(&checked_from_source(&source));
+    let module = decode_module(&artifact.0).unwrap();
+    assert_eq!(module.machines.len(), 3);
+    assert_eq!(module.boundary_machines.len(), 2);
+    let (status, observed) = execute(&artifact);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observed.arguments, vec![vec![integer(70)]; 3]);
+}
+
+#[test]
+fn selected_wrapper_type_duplicates_and_cross_owner_conflicts_reject() {
+    for duplicate in [false, true] {
+        let mut checked = checked_from_source(&source());
+        let declaration = checked
+            .facts
+            .flow
+            .terminal_boundary_scalar_returns
+            .structural_types
+            .iter()
+            .find(|plan| plan.identity == "named(name(Scalar))")
+            .unwrap()
+            .clone();
+        if duplicate {
+            checked
+                .facts
+                .flow
+                .terminal_boundary_scalar_returns
+                .structural_types
+                .push(declaration);
+        } else {
+            let mut conflicting = declaration;
+            conflicting.shape = checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
+                typed_trees::types::PrimitiveType::Bool,
+            );
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .structural_types
+                .push(conflicting);
+        }
+        assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err());
+    }
+}
+
+#[test]
+fn equal_selected_type_declarations_coalesce_without_changing_module_bytes() {
+    let mut checked = checked_from_source(&source());
+    let original = artifact(&checked);
+    let declaration = checked
+        .facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .structural_types
+        .iter()
+        .find(|plan| plan.identity == "named(name(Scalar))")
+        .unwrap()
+        .clone();
+    // Ordinary scalar bodies now retain this same selected type themselves.
+    // Cross-catalog equality coalesces; duplicate/conflicting rows within a
+    // catalog remain covered by the independent rejection test above.
+    let ordinary = &mut checked.facts.flow.terminal_unit_effects.structural_types;
+    assert_eq!(
+        ordinary
+            .iter()
+            .filter(|plan| plan.identity == declaration.identity)
+            .collect::<Vec<_>>(),
+        vec![&declaration]
+    );
+    ordinary.retain(|plan| plan.identity != declaration.identity);
+    assert_eq!(artifact(&checked), original);
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .structural_types
+        .push(declaration);
+    assert_eq!(artifact(&checked), original);
+}
+
+#[test]
+fn removing_wrapper_service_authority_rejects_independently() {
+    let artifact = artifact(&checked_from_source(&source()));
+    let proof = decode_proof_bundle(&artifact.1).unwrap();
+    for root in [false, true] {
+        let mut module = decode_module(&artifact.0).unwrap();
+        if root {
+            module.root_service_reach.concrete.clear();
+        } else {
+            module
+                .machines
+                .iter_mut()
+                .find(|machine| machine.id != module.entry)
+                .unwrap()
+                .published_service_ceiling
+                .clear();
+        }
+        assert!(
+            terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn wrapper_operand_crash_preserves_call_ceiling_and_prevents_boundary_effects() {
+    let source = format!(
+        "machine abort() -> i32 crashes Abort {{ crash Abort; }}\n{}",
+        source()
+            .replace("Host::measure(70)", "Host::measure(abort())")
+            .replace("reaches Host {", "reaches Host crashes Abort {")
+            .replace("reaches Host\n{", "reaches Host\ncrashes Abort\n{")
+    );
+    for source in [
+        source.clone(),
+        source.replace(
+            "let result: i32 = Host::measure(abort());\n            result",
+            "Host::measure(abort())",
+        ),
+    ] {
+        let artifact = artifact(&checked_from_source(&source));
+        let (status, observed) = execute(&artifact);
+        let TerminalExecutionStatus::Crashed(crash) = status else {
+            panic!("the nested helper must crash before invoking the boundary")
+        };
+        assert_eq!(crash.cause, terminal_psi::CrashCause::Abort);
+        assert!(observed.arguments.is_empty());
+        let mut module = decode_module(&artifact.0).unwrap();
+        let proof = decode_proof_bundle(&artifact.1).unwrap();
+        let entry = module
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        for operation in entry
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+        {
+            if let terminal_psi::OperationKind::Call {
+                crash_continuations,
+                ..
+            }
+            | terminal_psi::OperationKind::CallStructuralScalar {
+                crash_continuations,
+                ..
+            } = &mut operation.kind
+            {
+                crash_continuations.clear();
+            }
+        }
+        assert!(
+            terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn ordinary_boundary_wrapper_replays_actual_body_and_call_custody() {
+    let source = source().replace(
+        "    machine finish",
+        "    machine alternate(value: i32) -> i32 reaches Host;\n    machine finish",
+    );
+    // Retain a real same-signature alternative boundary through another body;
+    // Main's reachable closure still calls only the authored measure target.
+    let source = format!(
+        "{source}\nmachine alternate_helper() -> i32 reaches Host {{ let value: i32 = Host::alternate(70); value }}"
+    );
+    let mut original = checked_from_source(&source);
+    let target = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Scalar::measure")
+        .unwrap()
+        .symbol;
+    let host = original
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Host")
+        .unwrap();
+    let alternate_symbol = original
+        .trait_machine_signatures(host)
+        .iter()
+        .find(|signature| signature.name.as_str() == "alternate")
+        .unwrap()
+        .symbol;
+    let alternate = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.machine == alternate_symbol)
+        .unwrap();
+    let alternate_state = alternate.state;
+    let alternate_contract = alternate.contract_report_fingerprint;
+    original
+        .facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .machines
+        .retain(|plan| plan.machine != target);
+    let body = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(target)
+        .unwrap();
+    let body_reach = body.service_reach;
+    let caller = original.facts.flow.terminal_unit_effects.machines.iter()
+        .find(|plan| plan.operations.iter().any(|operation| matches!(operation,
+            CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } if *target_machine == target))).unwrap();
+    let caller_symbol = caller.machine;
+    let CheckedUnitEffectOperationPlan::ScalarCall { service_reach: call_reach, .. } = caller.operations.iter().find(|operation| matches!(operation,
+        CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } if *target_machine == target)).unwrap() else { unreachable!(); };
+    let empty_reach = call_reach.direct;
+    assert_ne!(empty_reach, body_reach.direct);
+    let state = body.state;
+    let published = artifact(&original);
+    let (status, observed) = execute(&published);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observed.arguments, [vec![integer(70)], vec![integer(70)]]);
+    for mutation in [
+        "missing body",
+        "duplicate body",
+        "missing boundary",
+        "duplicate boundary",
+        "redirect boundary",
+        "completion",
+        "order",
+        "contract",
+        "body direct",
+        "body transitive",
+        "published reach",
+        "inferred reach",
+        "call direct",
+        "call transitive",
+        "missing state",
+        "duplicate state",
+    ] {
+        let mut changed = original.clone();
+        if mutation == "missing state" || mutation == "duplicate state" {
+            let (handle, retained) = changed
+                .facts
+                .flow
+                .control
+                .states
+                .iter()
+                .find(|(_, row)| row.machine_symbol == target && row.state_symbol == state)
+                .unwrap();
+            let retained = retained.clone();
+            if mutation == "missing state" {
+                changed
+                    .facts
+                    .flow
+                    .control
+                    .states
+                    .get_mut(handle)
+                    .state_symbol = symbols::SymbolHandle::invalid();
+            } else {
+                changed.facts.flow.control.states.insert(retained);
+            }
+        } else if mutation == "call direct" || mutation == "call transitive" {
+            let caller = changed
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter_mut()
+                .find(|plan| plan.machine == caller_symbol)
+                .unwrap();
+            let CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. } = caller.operations.iter_mut().find(|operation| matches!(operation,
+                CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } if *target_machine == target)).unwrap() else { unreachable!(); };
+            if mutation == "call direct" {
+                service_reach.direct = body_reach.direct;
+            } else {
+                service_reach.transitive = empty_reach;
+            }
+        }
+        let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
+        let position = plans
+            .iter()
+            .position(|plan| plan.machine == target)
+            .unwrap();
+        if mutation == "missing body" {
+            plans.remove(position);
+        } else if mutation == "duplicate body" {
+            plans.push(plans[position].clone());
+        } else {
+            let plan = &mut plans[position];
+            let boundary = plan
+                .operations
+                .iter()
+                .position(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+                    )
+                })
+                .unwrap();
+            match mutation {
+                "missing boundary" => {
+                    plan.operations.remove(boundary);
+                }
+                "duplicate boundary" => {
+                    plan.operations
+                        .insert(boundary, plan.operations[boundary].clone());
+                }
+                "redirect boundary" => {
+                    let CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                        target_machine,
+                        target_state,
+                        target_contract_report_fingerprint,
+                        ..
+                    } = &mut plan.operations[boundary]
+                    else {
+                        unreachable!();
+                    };
+                    *target_machine = alternate_symbol;
+                    *target_state = alternate_state;
+                    *target_contract_report_fingerprint = alternate_contract;
+                }
+                "completion" => plan.scalar_result.as_mut().unwrap().binding_ordinal += 1,
+                "order" => plan.operations.swap(boundary, boundary + 1),
+                "body direct" => plan.service_reach.direct = empty_reach,
+                "body transitive" => plan.service_reach.transitive = empty_reach,
+                "published reach" => {
+                    plan.contract_service_reach.interface =
+                        language_semantics::ServiceReachInterface::PublishedCeiling(empty_reach)
+                }
+                "inferred reach" => plan.contract_service_reach.checked_inferred = empty_reach,
+                "call direct" | "call transitive" | "missing state" | "duplicate state" => {}
+                "contract" => {
+                    plan.contract_commitment =
+                        checked_trees::MachineContractCommitment::from_digest([0; 32])
+                }
+                _ => unreachable!(),
+            }
+        }
+        // Do not rebuild source plans here: the receiving stage must reject
+        // corrupted retained evidence despite an otherwise valid typed source.
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
+                .produce_artifact()
+                .is_err(),
+            "{mutation}"
+        );
+    }
+}
