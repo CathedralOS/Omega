@@ -200,6 +200,85 @@ impl<'base> ConstantSelection<'base> {
         candidates.next().is_none().then_some(selected)
     }
 
+    /// Select one non-generic declared domain under module name law for a
+    /// pre-resolution fact evaluation. This is the same selection the full
+    /// resolver later applies to the fact's retained path: qualified spellings
+    /// name the exact `module::Carrier::Domain` declaration, relative attached
+    /// spellings reach a module-owned domain only from its own module, a leaf
+    /// reaches a foreign domain only through a narrow import of the exact
+    /// declaration, and unmoduled domains keep root scope.
+    ///
+    /// `None` means undecidable here — nothing selected, competing owners,
+    /// a generic family (its closed membership belongs to the downstream
+    /// family normalization), or a retained-base domain with no declaration in
+    /// this forest. Callers keep the fact as a checked obligation rather than
+    /// discharge it against a guessed owner.
+    pub(super) fn domain<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        authored: &str,
+        reference: source::SourceSpan,
+    ) -> Option<&'syntax syntax_trees::item::DomainDefinition> {
+        let children = self.symbols.child_handles(self.symbols.root())?;
+        let mut pool = Vec::new();
+        for symbol in children {
+            if self.symbols.get(symbol).kind != SymbolKind::Domain
+                || !self
+                    .symbols
+                    .source_reference_can_see_symbol(reference, symbol)
+                || !crate::symbols::domain_name_reaches(
+                    &self.symbols,
+                    symbol,
+                    self.symbols.name(symbol),
+                    authored,
+                    reference,
+                )
+            {
+                continue;
+            }
+            let Some(span) = self.symbols.symbol_source_span(symbol) else {
+                continue;
+            };
+            let mut declarations = syntax.root_items().filter_map(|item| match item {
+                Item::Domain(definition)
+                    if definition.name.source_span() == span
+                        && definition.name.as_str() == self.symbols.name(symbol) =>
+                {
+                    Some(definition)
+                }
+                _ => None,
+            });
+            let Some(definition) = declarations.next() else {
+                continue;
+            };
+            if declarations.next().is_some() || !definition.type_parameters.is_empty() {
+                continue;
+            }
+            pool.push((symbol, definition));
+        }
+        let preferred = crate::symbols::prefer_module_local_domain(
+            &self.symbols,
+            pool.iter().map(|(symbol, _)| *symbol).collect(),
+            reference,
+        );
+        let pool: Vec<_> = pool
+            .into_iter()
+            .filter(|(symbol, _)| preferred.contains(symbol))
+            .collect();
+        let (first_symbol, first) = pool.first()?;
+        // Same complete logical path is one semantic candidate, matching the
+        // post-resolution lookup's name/identity collapse. Competing owners
+        // decline; the retained fact still owes its exact selection.
+        let first_path = self.symbols.display_path(*first_symbol, "::");
+        if pool
+            .iter()
+            .any(|(symbol, _)| self.symbols.display_path(*symbol, "::") != first_path)
+        {
+            return None;
+        }
+        Some(*first)
+    }
+
     /// Select the nominal carrier in the authored type/constructor's source.
     /// Header handles remain transient; declaration custody is rejoined after
     /// ordinary resolution allocates the receiving generic slot.
