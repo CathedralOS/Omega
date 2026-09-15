@@ -2502,7 +2502,8 @@ fn program_local_root_cohort_keys_do_not_collapse_to_compact_schema_identity() {
         "omega-rust/omega/backend/runtime/external-roots/src/program_local/program_local_roots.rs",
     );
     let cohort = std::fs::read_to_string(&cohort_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", cohort_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", cohort_path.display()))
+        + &recursive_rust_source(&cohort_path.with_extension(""));
     let extent_path =
         root.join("omega-rust/omega/backend/runtime/external-roots/src/program_local/program_local_extents.rs");
     let extents = std::fs::read_to_string(&extent_path)
@@ -2553,7 +2554,8 @@ fn component_era_artifact_occurrence_joins_require_strong_installation_evidence(
         "omega-rust/omega/backend/runtime/external-roots/src/program_local/program_local_roots.rs",
     );
     let cohort = std::fs::read_to_string(&cohort_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", cohort_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", cohort_path.display()))
+        + &recursive_rust_source(&cohort_path.with_extension(""));
 
     assert!(
         installation.contains("omega.installed-artifact-occurrence.sha256.v1\\0")
