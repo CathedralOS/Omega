@@ -45,6 +45,11 @@ pub(super) struct CheckedExecution {
         provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
     pub(super) external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
     pub(super) root_grants: Vec<String>,
+    /// Behavior exclusions authored by the authoritative build machine
+    /// (wiki/spec/build/behavior_exclusions.md): product-admission
+    /// requirements over the exact selected executable composition, each
+    /// retaining its exact toolchain case identity and authored span.
+    pub(super) behavior_exclusions: Vec<build_evaluation::AuthoredBehaviorExclusion>,
     pub(super) build_evaluation_usage: Option<build_evaluation::BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<build_evaluation::BuildObservationSummary>,
 }
@@ -288,6 +293,7 @@ pub(super) fn check_selected_execution(
         evaluated_via_bindings,
         external_binding_rows,
         root_grants,
+        behavior_exclusions: build_config.behavior_exclusions,
         build_evaluation_usage,
         build_observation_summary,
     })

@@ -131,6 +131,31 @@ pub(super) fn build_reaches_filesystem_facet(
     false
 }
 
+/// Locate the exact toolchain machine `qualified_name` declared in the
+/// injected `<build-prelude>` virtual source (for example
+/// `Build::exclude_crash`). An authored same-named machine on authored data
+/// never matches: the toolchain origin and qualified name must both hold.
+pub(super) fn toolchain_build_prelude_machine(
+    typed: &TypedTrees,
+    qualified_name: &str,
+) -> Option<SymbolHandle> {
+    typed
+        .machines()
+        .iter()
+        .find(|machine| {
+            machine.name.as_str() == qualified_name
+                && typed
+                    .symbols
+                    .symbol_source_span(machine.symbol)
+                    .and_then(|span| typed.symbols.source_file(span))
+                    .is_some_and(|file| {
+                        file.origin == source::SourceOrigin::Toolchain
+                            && file.path == Path::new("<build-prelude>")
+                    })
+        })
+        .map(|machine| machine.symbol)
+}
+
 pub(super) fn is_exact_toolchain_build_prelude_data(
     typed: &TypedTrees,
     symbol: SymbolHandle,

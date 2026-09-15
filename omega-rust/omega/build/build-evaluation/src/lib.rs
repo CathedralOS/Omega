@@ -61,8 +61,9 @@ mod wire_protocol;
 pub use observation_identity::BuildObservationIdentity;
 
 pub use behavior_exclusions::{
-    BehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions,
-    EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusion,
+    BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, EvidenceGap,
+    EvidenceGapKind, ProhibitedBehavior, ProhibitedSite, authored_behavior_exclusion_set,
     establish_behavior_exclusions,
 };
 
@@ -85,7 +86,10 @@ use build_time_evaluation::{
 pub use configuration::{ApplicationIdentifier, BuildConfig, HostedApplicationIntent, PccRequests};
 
 use configuration::extract_build_config;
-pub use declarations::{WireCompatibilityDemand, harvest_provider_selections, harvest_root_grants};
+pub use declarations::{
+    WireCompatibilityDemand, harvest_behavior_exclusions, harvest_provider_selections,
+    harvest_root_grants,
+};
 
 use declarations::harvest_wire_compatibility_demands;
 use diagnostics::Diagnostic;
@@ -638,7 +642,7 @@ pub fn execute_admitted_build_program(
     let AdmittedBuildProgram {
         prepared,
         machine,
-        operational_plan: _,
+        operational_plan,
         service_reach_plan: _,
         filesystem_scope,
         evaluation_sponsor,
@@ -1409,6 +1413,7 @@ pub fn execute_admitted_build_program(
     config.opaque_representation_selections =
         representation_planning::harvest_opaque_representation_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
+    config.behavior_exclusions = harvest_behavior_exclusions(typed, &operational_plan, machine)?;
     config.root_bindings = root_bindings;
     let captured_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
     let (staged_output_tree, complete_replay_verified) = match (

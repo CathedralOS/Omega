@@ -163,6 +163,15 @@ impl CheckedCompilation {
         self.execution.pcc_requests
     }
 
+    /// Behavior exclusions authored by the authoritative build machine
+    /// (wiki/spec/build/behavior_exclusions.md): product-admission
+    /// requirements over the exact selected executable composition. Each row
+    /// retains the exact toolchain `CrashCause` case symbol it named, the
+    /// typed machine that spelled it, and its authored source span.
+    pub fn behavior_exclusions(&self) -> &[build_evaluation::AuthoredBehaviorExclusion] {
+        &self.execution.behavior_exclusions
+    }
+
     /// Reconciled root package identity for package-aware compilation.
     /// Standalone compilation has no package identity.
     pub const fn package_identity(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
