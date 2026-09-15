@@ -19,7 +19,9 @@ pub(super) fn argument_pointer(
         pointer
     };
     let Some(stack_byte_offset) =
-        crate::structural_reference_input::stack_pointer_offset(&target.destination)
+        crate::structural_inputs::structural_reference_input::stack_pointer_offset(
+            &target.destination,
+        )
     else {
         return Ok(Some(pointer));
     };

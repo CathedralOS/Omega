@@ -133,16 +133,21 @@ fn bounded_owned_fields_keep_range_identity_without_storage_or_write_authority()
         };
         fields[0].field_type = bounded;
         let identity = StructuralTypeId::new(1).unwrap();
-        assert!(crate::unobserved_owned_input::plain_type(
-            identity,
-            &contract.structural_types,
-        ));
+        assert!(
+            crate::structural_inputs::unobserved_owned_input::plain_type(
+                identity,
+                &contract.structural_types,
+            )
+        );
         assert_eq!(
-            crate::structural_reference_input::shape(identity, &contract.structural_types),
+            crate::structural_inputs::structural_reference_input::shape(
+                identity,
+                &contract.structural_types
+            ),
             Some(ValueShape::integer(16, 8)),
         );
         assert_eq!(
-            crate::structural_reference_input::store(
+            crate::structural_inputs::structural_reference_input::store(
                 identity,
                 &[],
                 semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
@@ -153,7 +158,7 @@ fn bounded_owned_fields_keep_range_identity_without_storage_or_write_authority()
             "layout eligibility does not discharge restricted-field writes",
         );
         assert_eq!(
-            crate::structural_reference_input::store(
+            crate::structural_inputs::structural_reference_input::store(
                 identity,
                 &[],
                 semantic_vocabulary::StructuralFieldId::new(2).unwrap(),
@@ -387,7 +392,9 @@ fn unused_owned_bindings_select_and_replay_without_homes_or_copies() {
             source: semantic_vocabulary::PlaceId::new(1).unwrap(),
             length_byte_offset: 8,
         };
-        assert!(!crate::unobserved_owned_input::accepts(&observed));
+        assert!(!crate::structural_inputs::unobserved_owned_input::accepts(
+            &observed
+        ));
         assert!(
             build(
                 0,

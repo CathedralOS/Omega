@@ -395,7 +395,7 @@ fn check_successor(
         .zip(&source.structural_bindings)
     {
         if semantic.argument.access == terminal_psi::StructuralAccess::Owned
-            && crate::unobserved_owned_input::accepts(function)
+            && crate::structural_inputs::unobserved_owned_input::accepts(function)
         {
             if actual.semantic != *semantic
                 || actual.transport != selected_instructions::SelectedStructuralTransport::Unused

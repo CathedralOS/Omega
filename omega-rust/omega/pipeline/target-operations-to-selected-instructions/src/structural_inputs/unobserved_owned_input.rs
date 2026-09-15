@@ -56,7 +56,7 @@ pub(crate) fn plain_type(
         }
     }
     // Geometry replay also rejects recursive storage and unsupported scalar widths.
-    crate::structural_reference_input::shape(root, declarations).is_some()
+    crate::structural_inputs::structural_reference_input::shape(root, declarations).is_some()
 }
 
 pub(crate) fn accepts(function: &LegalizedScalarFunction) -> bool {

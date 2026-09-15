@@ -120,7 +120,7 @@ pub(in crate::selection) fn validate_with_environment(
         if block.id != SelectedBlockId(0) {
             replay.block_cursor = 0;
         }
-        if !crate::unobserved_owned_input::accepts(source) {
+        if !crate::structural_inputs::unobserved_owned_input::accepts(source) {
             structural::block_entry(source, source_block, &mut replay)?;
         }
         for (operation_index, operation) in source_block.instructions.iter().enumerate() {

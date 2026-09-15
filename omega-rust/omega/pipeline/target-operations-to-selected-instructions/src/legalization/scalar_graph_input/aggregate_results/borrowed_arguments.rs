@@ -123,11 +123,17 @@ pub(super) fn reconstruct(
             }
         }
     };
-    let (selected, offset) =
-        crate::structural_reference_input::project(root, &argument.path, &plan.structural_types)
-            .ok_or(invalid.clone())?;
-    let referent = crate::structural_reference_input::shape(selected, &plan.structural_types)
-        .ok_or(invalid.clone())?;
+    let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
+        root,
+        &argument.path,
+        &plan.structural_types,
+    )
+    .ok_or(invalid.clone())?;
+    let referent = crate::structural_inputs::structural_reference_input::shape(
+        selected,
+        &plan.structural_types,
+    )
+    .ok_or(invalid.clone())?;
     let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
     let placement = call
         .parameters

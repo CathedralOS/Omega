@@ -16,7 +16,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
         || function.structural_parameters.iter().any(|parameter| {
             parameter.access == terminal_psi::StructuralAccess::Owned
                 && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && crate::structural_reference_input::owned_aggregate_shape(
+                && crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
                     parameter.structural_type,
                     &plan.structural_types,
                 ).is_some()
@@ -287,7 +287,7 @@ pub(super) fn header(
                 {
                     return Err(invalid);
                 }
-                crate::structural_reference_input::shape(
+                crate::structural_inputs::structural_reference_input::shape(
                     result.structural_type,
                     &plan.structural_types,
                 )
@@ -303,8 +303,11 @@ pub(super) fn header(
         .collect::<Result<Vec<_>, _>>()?;
     for parameter in &abstracted.structural_parameters {
         shapes.push(
-            crate::structural_reference_input::parameter_shape(parameter, &plan.structural_types)
-                .ok_or(invalid.clone())?,
+            crate::structural_inputs::structural_reference_input::parameter_shape(
+                parameter,
+                &plan.structural_types,
+            )
+            .ok_or(invalid.clone())?,
         );
     }
     let expected = evaluate_call_plan(
@@ -664,12 +667,12 @@ pub(in crate::legalization) fn home_layout(
             return Err(LegalizationError::SourceCustodyMismatch);
         }
         return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
-            crate::structural_reference_input::primitive_array_shape(
+            crate::structural_inputs::structural_reference_input::primitive_array_shape(
                 result.structural_type,
                 &plan.structural_types,
             )
             .or_else(|| {
-                crate::structural_reference_input::shape(
+                crate::structural_inputs::structural_reference_input::shape(
                     result.structural_type,
                     &plan.structural_types,
                 )

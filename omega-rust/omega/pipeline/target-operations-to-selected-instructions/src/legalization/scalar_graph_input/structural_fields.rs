@@ -45,7 +45,7 @@ pub(in crate::legalization) fn replacement(
     {
         return None;
     }
-    crate::structural_reference_input::byte_field_storage(
+    crate::structural_inputs::structural_reference_input::byte_field_storage(
         parameter.structural_type,
         path,
         *field,
@@ -99,7 +99,7 @@ pub(in crate::legalization) fn read(
         {
             return None;
         }
-        crate::structural_reference_input::byte_field_length(
+        crate::structural_inputs::structural_reference_input::byte_field_length(
             parameter.structural_type,
             path,
             *field,
@@ -219,7 +219,7 @@ pub(in crate::legalization) fn read(
         access,
         path: runtime_path,
     };
-    crate::structural_reference_input::field_read(
+    crate::structural_inputs::structural_reference_input::field_read(
         structural_type,
         &source.path,
         field,

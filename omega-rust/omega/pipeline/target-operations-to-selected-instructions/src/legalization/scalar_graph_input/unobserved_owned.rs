@@ -166,7 +166,7 @@ pub(super) fn validate(
         .zip(&graph.parameters)
         .enumerate()
     {
-        let shape = crate::structural_reference_input::shape(
+        let shape = crate::structural_inputs::structural_reference_input::shape(
             parameter.structural_type,
             &plan.structural_types,
         )
@@ -261,7 +261,7 @@ pub(super) fn validate(
         )
         .collect::<Vec<_>>();
     if declarations.iter().any(|parameter| {
-        !crate::unobserved_owned_input::plain_type(
+        !crate::structural_inputs::unobserved_owned_input::plain_type(
             parameter.structural_type,
             &plan.structural_types,
         )

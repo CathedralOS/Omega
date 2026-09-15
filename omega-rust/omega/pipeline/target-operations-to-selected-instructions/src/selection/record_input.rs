@@ -25,7 +25,10 @@ pub(super) fn fields(
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
-        || crate::structural_reference_input::shape(result.structural_type, declarations)? != *shape
+        || crate::structural_inputs::structural_reference_input::shape(
+            result.structural_type,
+            declarations,
+        )? != *shape
     {
         return None;
     }
@@ -126,7 +129,7 @@ pub(super) fn fields(
                 if matches.next().is_some() || child_type != *nested || !plain_owned {
                     return None;
                 }
-                crate::structural_reference_input::shape(*nested, declarations)?
+                crate::structural_inputs::structural_reference_input::shape(*nested, declarations)?
             }
             _ => return None,
         };

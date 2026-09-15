@@ -50,7 +50,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn project_plan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/mod.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering.rs",
         coordination_marker: "pub fn lower_to_target_operations(",
     },
     RequiredCoordinationEntrance {

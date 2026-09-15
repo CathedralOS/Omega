@@ -40,13 +40,14 @@ pub(super) fn replace(
     {
         return Err(invalid());
     }
-    let (metadata_offset, _) = crate::structural_reference_input::byte_field_storage(
-        parameter.semantic.structural_type,
-        &destination.path,
-        *field,
-        &signature.structural_types,
-    )
-    .ok_or_else(invalid)?;
+    let (metadata_offset, _) =
+        crate::structural_inputs::structural_reference_input::byte_field_storage(
+            parameter.semantic.structural_type,
+            &destination.path,
+            *field,
+            &signature.structural_types,
+        )
+        .ok_or_else(invalid)?;
     let byte_offset = metadata_offset.checked_add(8).ok_or_else(invalid)?;
     let (_, count, _, count_type) = builder.resolve(*length).ok_or_else(invalid)?;
     if count_type
@@ -187,13 +188,14 @@ pub(super) fn replace_byte(
     {
         return Err(invalid());
     }
-    let (metadata_offset, _) = crate::structural_reference_input::byte_field_storage(
-        parameter.semantic.structural_type,
-        &destination.path,
-        *field,
-        &signature.structural_types,
-    )
-    .ok_or_else(invalid)?;
+    let (metadata_offset, _) =
+        crate::structural_inputs::structural_reference_input::byte_field_storage(
+            parameter.semantic.structural_type,
+            &destination.path,
+            *field,
+            &signature.structural_types,
+        )
+        .ok_or_else(invalid)?;
     let payload_offset = metadata_offset.checked_add(8).ok_or_else(invalid)?;
     let (_, index_register, _, index_type) = builder.resolve(*index).ok_or_else(invalid)?;
     let (_, value_register, _, value_type) = builder.resolve(*value).ok_or_else(invalid)?;

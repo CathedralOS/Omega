@@ -29,14 +29,20 @@ pub(super) fn argument(
         .find(|parameter| parameter.place == semantic.place)
         .ok_or(invalid.clone())?;
     let types = &plan.structural_types;
-    let root_shape = crate::structural_reference_input::shape(source.structural_type, types)
-        .ok_or(invalid.clone())?;
-    let (structural_type, source_byte_offset) =
-        crate::structural_reference_input::project(source.structural_type, &semantic.path, types)
+    let root_shape =
+        crate::structural_inputs::structural_reference_input::shape(source.structural_type, types)
             .ok_or(invalid.clone())?;
+    let (structural_type, source_byte_offset) =
+        crate::structural_inputs::structural_reference_input::project(
+            source.structural_type,
+            &semantic.path,
+            types,
+        )
+        .ok_or(invalid.clone())?;
     let referent =
-        crate::structural_reference_input::shape(structural_type, types).ok_or(invalid.clone())?;
-    let byte_view = crate::structural_reference_input::fixed_byte_array_view(
+        crate::structural_inputs::structural_reference_input::shape(structural_type, types)
+            .ok_or(invalid.clone())?;
+    let byte_view = crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
         source,
         semantic,
         destination.structural_type,

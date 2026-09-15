@@ -430,7 +430,7 @@ pub(super) fn validate_operation(
                 .iter()
                 .find(|parameter| parameter.place == destination.place)
                 .ok_or(invalid.clone())?;
-            let (offset, _) = crate::structural_reference_input::store(
+            let (offset, _) = crate::structural_inputs::structural_reference_input::store(
                 expected_destination.structural_type,
                 expected_path,
                 *expected_field,

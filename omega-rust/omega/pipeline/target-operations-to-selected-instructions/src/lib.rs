@@ -2,15 +2,17 @@
 
 //! Optimizer module role: crate map. Mandatory target legalization followed by validated instruction selection.
 //!
-//! Enter `legalization/mod.rs` for the raw-target to legal-operation join and
-//! `selection/mod.rs` for the legal-operation to selected-CFG join.
+//! Start at `optimized.rs`: the stage entrance owns the target-register
+//! environment, runs legalization and selection, replays both independently
+//! and joins their custody. `legalization` is the raw-target to
+//! legal-operation join, `selection` the legal-operation to selected-CFG join,
+//! and `structural_inputs` the input-only reconstruction of structural
+//! storage, parameter shape and unobserved-owned eligibility both consume.
 
 mod legalization;
 mod optimized;
 mod selection;
-mod structural_reference_input;
-mod structural_unit_input;
-mod unobserved_owned_input;
+mod structural_inputs;
 
 pub use legalization::{
     LegalizationError, LegalizationSource, LegalizationValidationReceipt,

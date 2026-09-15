@@ -2711,7 +2711,7 @@ fn optimization_projection_stops_before_target_realization() {
 
     let realization_root =
         root.join("omega-rust/omega/pipeline/abstract-operations-to-target-operations/src");
-    let realization_entrance_path = realization_root.join("optimized.rs");
+    let realization_entrance_path = realization_root.join("lowering/optimized.rs");
     let realization_entrance =
         std::fs::read_to_string(&realization_entrance_path).unwrap_or_else(|error| {
             panic!(
@@ -2719,7 +2719,7 @@ fn optimization_projection_stops_before_target_realization() {
                 realization_entrance_path.display()
             )
         });
-    let realization_model_path = realization_root.join("optimized.rs");
+    let realization_model_path = realization_root.join("lowering/optimized.rs");
     let realization_model =
         std::fs::read_to_string(&realization_model_path).unwrap_or_else(|error| {
             panic!(
@@ -4291,7 +4291,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     }
     assert!(!header.contains("crate::lowering"));
     assert!(!replay.contains("crate::lowering"));
-    let entrance = std::fs::read_to_string(stage.join("optimized.rs")).unwrap();
+    let entrance = std::fs::read_to_string(stage.join("lowering/optimized.rs")).unwrap();
     assert_eq!(
         entrance
             .matches("Ok(ValidatedOptimizedTargetOperations {")

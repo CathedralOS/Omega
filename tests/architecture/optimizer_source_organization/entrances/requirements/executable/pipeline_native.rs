@@ -18,11 +18,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn baseline_target_register_environment",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/optimized/mod.rs",
+        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/optimized.rs",
         coordination_marker: "pub fn stage_optimized_instruction_selection",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/optimized.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/optimized.rs",
         coordination_marker: "validate_abstract_to_target_translation",
     },
     RequiredCoordinationEntrance {

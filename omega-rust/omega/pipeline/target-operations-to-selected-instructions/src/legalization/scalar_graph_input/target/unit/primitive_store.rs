@@ -51,7 +51,7 @@ pub(super) fn validate(
         || path != expected_path
         || destination_type != declared_type
         || destination_placement != &parameter.placement
-        || crate::structural_reference_input::primitive_store(
+        || crate::structural_inputs::structural_reference_input::primitive_store(
             expected_destination,
             expected_path,
             value.scalar_type,

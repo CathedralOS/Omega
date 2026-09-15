@@ -242,7 +242,7 @@ pub(super) fn validate(
             if destination != expected
                 || path != expected_path
                 || value != expected_value
-                || crate::structural_reference_input::primitive_store(
+                || crate::structural_inputs::structural_reference_input::primitive_store(
                     expected,
                     expected_path,
                     expected_value.scalar_type,
@@ -273,7 +273,7 @@ pub(super) fn validate(
                 || path != expected_path
                 || field != expected_field
                 || value != expected_value
-                || crate::structural_reference_input::store(
+                || crate::structural_inputs::structural_reference_input::store(
                     expected.structural_type,
                     expected_path,
                     *expected_field,

@@ -42,13 +42,14 @@ pub(super) fn replace(
     {
         return Err(replay.invalid());
     }
-    let (metadata_offset, _) = crate::structural_reference_input::byte_field_storage(
-        parameter.semantic.structural_type,
-        &destination.path,
-        *field,
-        &signature.structural_types,
-    )
-    .ok_or_else(|| replay.invalid())?;
+    let (metadata_offset, _) =
+        crate::structural_inputs::structural_reference_input::byte_field_storage(
+            parameter.semantic.structural_type,
+            &destination.path,
+            *field,
+            &signature.structural_types,
+        )
+        .ok_or_else(|| replay.invalid())?;
     let byte_offset = metadata_offset
         .checked_add(8)
         .ok_or_else(|| replay.invalid())?;
@@ -204,13 +205,14 @@ pub(super) fn replace_byte(
     {
         return Err(replay.invalid());
     }
-    let (metadata_offset, _) = crate::structural_reference_input::byte_field_storage(
-        parameter.semantic.structural_type,
-        &destination.path,
-        *field,
-        &signature.structural_types,
-    )
-    .ok_or_else(|| replay.invalid())?;
+    let (metadata_offset, _) =
+        crate::structural_inputs::structural_reference_input::byte_field_storage(
+            parameter.semantic.structural_type,
+            &destination.path,
+            *field,
+            &signature.structural_types,
+        )
+        .ok_or_else(|| replay.invalid())?;
     let payload_offset = metadata_offset
         .checked_add(8)
         .ok_or_else(|| replay.invalid())?;
