@@ -23,6 +23,10 @@ boundary data MappingToken [linear];
 
 data Mapping [linear] {
     token: MappingToken;
+    source_base: addr;
+    source_length: u64;
+    destination_base: addr;
+    destination_length: u64;
     install: TranslationInstallObligations;
     release: TranslationReleaseObligations;
 }

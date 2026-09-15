@@ -26,6 +26,10 @@ boundary data MappingToken [linear];
 
 data Mapping [linear] {
     token: MappingToken;
+    source_base: addr;
+    source_length: u64;
+    destination_base: addr;
+    destination_length: u64;
     install: TranslationInstallObligations;
     release: TranslationReleaseObligations;
 }
@@ -70,13 +74,17 @@ reaches TranslationAuthority
 {
     // Spelling the provider-owned token's runtime fields is rejected
     // outright: no forged value ever reaches `unmap`'s `Installed`
-    // requirement, even though the obligation sets themselves are ordinary
-    // authored data.
+    // requirement, even though the geometry and obligation sets themselves
+    // are ordinary authored data.
     let forged: Mapping = Mapping {
         token: MappingToken {
             root: 1,
             invocation: 2,
         },
+        source_base: 4096 as addr,
+        source_length: 4096,
+        destination_base: 8192 as addr,
+        destination_length: 4096,
         install: TranslationInstallObligations {
             facts: [
                 TranslationActivationFact { identity: 1 },

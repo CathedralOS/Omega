@@ -37,15 +37,31 @@
 // requalification where the model stages them per carrier; dropping a
 // field at `activate` is not a spelling one type admits.
 //
-// Nothing here grants access to the mapped range: placed access
-// (wiki/spec/resources/placed_access.md -- `Vacant`/`Resident` place/take/read
-// operations) is still undeclared, so this contract pins custody, state,
-// ordering, and obligation visibility, not content. This slice models
-// owned fixed placement and shared borrowed source custody with the
-// shootdown as the one residual debt; the Cathedral package carrying real
-// page-table installation remains a later slice.
+// The carrier also exposes the mapping's recorded geometry -- source and
+// destination base and length as inert `addr`/`u64` fields minted by the
+// `map` crossing, the same provider-visible surface the model's
+// `PendingMap` offers as `source_base()`/`destination_base()` reads for
+// deriving target translation entries. The values are provider-recorded
+// evidence bound by the receipt crossings, not source-proven facts, and
+// reading them grants no access: an address is data, not authority.
+//
+// Beside the contract sits `cathedral/`, the OS package's first surface
+// carrying real page-table installation: a fully backed four-level
+// hierarchy over qualified table extents, raw entry encoding, the level
+// walk, and the hardware boundary requirements (entry store, root
+// activation, leaf invalidation) its install/remove routes compose.
+// `cathedral_install_and_teardown` drives the package against the exact
+// pending mapping's recorded geometry: install through the walk, the
+// activation receipt, leaf clear plus local invalidate, the release
+// receipt, and the cross-core shootdown discharge. Interpreting stored
+// table memory is still the undeclared placed-access surface
+// (wiki/spec/resources/placed_access.md), so the hardware crossings remain
+// boundary requirements; demand-grown intermediate tables and multi-page
+// installation are the package's next edges.
 use omega::language::core::assembly;
 use omega::language::core::extent;
+use cathedral::hardware;
+use cathedral::installer;
 
 // One translation-activation fact an install receipt must establish,
 // spelled as authored contract data. The identity is inert: naming a fact
@@ -84,9 +100,15 @@ boundary data MappingToken [linear];
 // The owned-route carrier: an unforgeable provider identity beside the
 // authored obligation sets the mapping binds. A consumer holding only the
 // carrier still discovers the exact fact sets its activation or release
-// receipt must establish.
+// receipt must establish. The geometry fields are the provider's recorded
+// evidence for the consumed ranges -- the surface a provider reads to
+// derive translation entries -- and carry no authority of their own.
 data Mapping [linear] {
     token: MappingToken;
+    source_base: addr;
+    source_length: u64;
+    destination_base: addr;
+    destination_length: u64;
     install: TranslationInstallObligations;
     release: TranslationReleaseObligations;
 }
@@ -110,6 +132,10 @@ boundary data BorrowedMappingToken [linear];
 data BorrowedMapping [linear] {
     token: BorrowedMappingToken;
     held_source: &Extent in Granted;
+    source_base: addr;
+    source_length: u64;
+    destination_base: addr;
+    destination_length: u64;
     install: TranslationInstallObligations;
     release: TranslationReleaseObligations;
 }
@@ -293,6 +319,49 @@ reaches TranslationAuthority + MachineControl
     owed.discharge();
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = source;
+    Reclaimed { destination: released_destination, source: released_source }
+}
+
+// The Cathedral provider flow end to end: the pending carrier's recorded
+// geometry feeds the package's real install -- the four-level walk, the
+// entry stores, and the root activation -- before the authority's receipt
+// crossing marks the mapping installed. Teardown runs the same pair in
+// reverse: the package clears the leaf and invalidates the page's local
+// translation, the release crossing returns both ranges' custody plus the
+// owed shootdown, and `discharge` completes the cross-core debt.
+machine cathedral_install_and_teardown(
+    authority: &TranslationAuthority,
+    hardware: &TranslationHardware,
+    tables: &mut CathedralPageTables,
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> Reclaimed
+requires
+    source.length == destination.length
+reaches TranslationAuthority + TranslationHardware + MachineControl
+{
+    let install: TranslationInstallObligations = TranslationInstallObligations {
+        facts: [
+            TranslationActivationFact { identity: 8 },
+            TranslationActivationFact { identity: 9 }
+        ],
+    };
+    let release: TranslationReleaseObligations = TranslationReleaseObligations {
+        facts: [
+            TranslationCompletionFact { identity: 10 },
+            TranslationCompletionFact { identity: 11 }
+        ],
+    };
+    let pending: Mapping in Pending =
+        authority.map(source, destination, install, release);
+    tables.install(hardware, pending.source_base, pending.destination_base);
+    let installed: Mapping in Installed = authority.activate(pending);
+    tables.remove(hardware, installed.destination_base);
+    let unmapped: Unmapped = authority.unmap(installed);
+    let owed: Shootdown in Owed = unmapped.shootdown;
+    owed.discharge();
+    let released_destination: Extent in Granted = unmapped.destination;
+    let released_source: Extent in Granted = unmapped.source;
     Reclaimed { destination: released_destination, source: released_source }
 }
 

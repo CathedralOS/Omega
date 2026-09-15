@@ -3,8 +3,8 @@
 // public constructor, so source cannot assemble a `BorrowedMapping` and
 // requalify it `Installed` -- only the provider's establishing routes mint
 // the token (wiki/spec/resources/extents.md "Mapping and reclamation").
-// The authored obligation sets beside it are ordinary data and change
-// nothing about that gate.
+// The authored geometry and obligation sets beside it are ordinary data
+// and change nothing about that gate.
 use omega::language::core::extent;
 
 data TranslationActivationFact {
@@ -28,6 +28,10 @@ boundary data BorrowedMappingToken [linear];
 data BorrowedMapping [linear] {
     token: BorrowedMappingToken;
     held_source: &Extent in Granted;
+    source_base: addr;
+    source_length: u64;
+    destination_base: addr;
+    destination_length: u64;
     install: TranslationInstallObligations;
     release: TranslationReleaseObligations;
 }
@@ -78,6 +82,10 @@ reaches TranslationAuthority
             identity: 7,
         },
         held_source: &source,
+        source_base: 4096 as addr,
+        source_length: 4096,
+        destination_base: 8192 as addr,
+        destination_length: 4096,
         install: TranslationInstallObligations {
             facts: [
                 TranslationActivationFact { identity: 1 },

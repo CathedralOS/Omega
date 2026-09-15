@@ -1,0 +1,103 @@
+// Cathedral's page-table provider: the install and teardown routes a
+// translation authority's receipts stand behind.
+//
+// `CathedralPageTables` owns a fully backed four-level hierarchy: every
+// level's table already exists as a `Table` over `Extent in Granted`, so the
+// first surface installs without a backing allocator. Demand-grown tables --
+// minting an intermediate level out of a frame supply when a walk meets an
+// empty slot -- are the next edge and need the same split/conservation
+// surface the bump allocator's package uses.
+//
+// `install` performs the real descent: the destination base yields one 9-bit
+// index per level, each level's entry points at the next table's frame, and
+// the leaf entry binds the source frame. The stores cross through
+// `TranslationHardware` -- the provider's admitted hardware edge -- and the
+// route finishes by activating the root table. This surface installs the
+// terminal leaf for the mapping's first page; multi-page iteration over the
+// mapped length is a later edge of the same route.
+//
+// `remove` is the release half: it recomputes the leaf slot from the same
+// virtual base -- the deterministic `level_index` of the same input -- writes
+// `TableEntry::EMPTY` over it, and invalidates the page's local translation.
+// Only the leaf carries the mapping -- the upper entries describe the
+// hierarchy itself and stay. The mapping contract's `Shootdown` still owes
+// the cross-core completion after this local work returns.
+//
+// Both routes take the mapping's geometry as inert `addr` data. Whoever
+// drives them -- in this canary, the contract's driver reading the pending
+// carrier's provider-visible evidence -- supplies the same ranges the
+// authority crossing consumed; the receipt crossings, not these values, are
+// what bind an install to a mapping.
+use omega::language::core::assembly;
+use cathedral::tables;
+use cathedral::hardware;
+
+// A fully backed four-level page-table hierarchy over qualified table
+// extents, root first. Cathedral owns every table's backing for the
+// hierarchy's whole life.
+pub data CathedralPageTables {
+    pml4: Table;
+    pdpt: Table;
+    pd: Table;
+    pt: Table;
+}
+
+// Install one mapping through the complete walk: each level's slot takes a
+// next-level entry naming the child table's frame, the leaf takes the
+// terminal entry for `source_base`, and the root activates.
+pub machine CathedralPageTables::install(
+    &mut self,
+    hardware: &TranslationHardware,
+    source_base: addr,
+    destination_base: addr
+)
+reaches TranslationHardware + MachineControl
+invokes hardware;
+{
+    let virtual_base: u64 = destination_base as u64;
+    let source_frame: u64 = source_base as u64;
+    let pdpt_base: u64 = self.pdpt.storage.base as u64;
+    let pd_base: u64 = self.pd.storage.base as u64;
+    let pt_base: u64 = self.pt.storage.base as u64;
+    hardware.store_entry(
+        &mut self.pml4,
+        level_index(virtual_base, 0),
+        TableEntry::next_level(pdpt_base)
+    );
+    hardware.store_entry(
+        &mut self.pdpt,
+        level_index(virtual_base, 1),
+        TableEntry::next_level(pd_base)
+    );
+    hardware.store_entry(
+        &mut self.pd,
+        level_index(virtual_base, 2),
+        TableEntry::next_level(pt_base)
+    );
+    hardware.store_entry(
+        &mut self.pt,
+        level_index(virtual_base, 3),
+        TableEntry::terminal(source_frame, true)
+    );
+    hardware.activate_root(&self.pml4);
+}
+
+// Release the leaf serving `virtual_base`: clear its slot and invalidate the
+// page's local translation. The leaf index is the same `level_index` the
+// install computed for this base, so the cleared slot is the entry the
+// install wrote.
+pub machine CathedralPageTables::remove(
+    &mut self,
+    hardware: &TranslationHardware,
+    virtual_base: addr
+)
+reaches TranslationHardware + MachineControl
+invokes hardware;
+{
+    hardware.store_entry(
+        &mut self.pt,
+        level_index(virtual_base as u64, 3),
+        TableEntry::EMPTY
+    );
+    hardware.invalidate_leaf(virtual_base);
+}
