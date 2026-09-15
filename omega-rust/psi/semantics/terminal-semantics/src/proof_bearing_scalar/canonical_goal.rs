@@ -9,9 +9,10 @@ use semantic_vocabulary::{
     Proposition, ScalarTerm, ScalarType,
 };
 
-use crate::{OperationSemanticError, OperationSemanticTag, ScalarLeafGoalShape};
+use crate::{OperationSemanticError, ScalarLeafGoalShape};
 
 use super::ProofBearingScalarLeafSchema;
+use crate::semantic_rows::OperationSemanticTag;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalScalarGoal {

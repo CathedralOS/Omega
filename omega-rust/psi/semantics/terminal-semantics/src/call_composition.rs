@@ -9,7 +9,8 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape, TerminalModule,
 };
 
-use super::{OperationSemanticError, OperationSemanticTag};
+use super::OperationSemanticError;
+use crate::semantic_rows::OperationSemanticTag;
 
 /// Resolve the inline capacity presented to a boundary's mutable byte parameter.
 /// The operand retains its owning field; this establishes neither type equality
@@ -495,11 +496,12 @@ mod tests {
         CallArgumentRule, CallCompositionSemanticRow, CallCrashRule, CallEvidenceRule,
         CallFrontierRule, CallFuelPolicy, CallOutcomeRule, CallRequirementRule, CallResultRule,
         CallTargetRule, CallTransferRule, OperationKind, OperationSemanticError,
-        OperationSemanticTag, call_composition_semantic_row,
-        exact_call_composition_semantic_row_in, validate_call_composition_semantic_rows,
+        call_composition_semantic_row, exact_call_composition_semantic_row_in,
+        validate_call_composition_semantic_rows,
     };
     use std::collections::BTreeSet;
 
+    use crate::semantic_rows::OperationSemanticTag;
     use semantic_vocabulary::{BoundaryMachineId, MachineId, ValueId};
 
     fn scalar_call() -> OperationKind {
