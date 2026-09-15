@@ -1,6 +1,10 @@
 //! Exact D29 declaration joins across inert package baselines.
-
-use super::*;
+use crate::record::PackagePolicyBaseline;
+use crate::record::PackagePolicyBoundaryApplicationDemand;
+use crate::record::PackagePolicyTypeParameterKind;
+use crate::record::PackageReviewNominalOwner;
+use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
+use semantic_vocabulary::PackageKeyIdentity;
 
 #[cfg(test)]
 mod tests;

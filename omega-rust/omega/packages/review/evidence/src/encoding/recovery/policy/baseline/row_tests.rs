@@ -1,6 +1,21 @@
 //! Complete row projection over the same typed fixture as baseline recovery.
 use super::tests::fixture;
-use super::*;
+use crate::encoding::PackagePolicyRecoveryLimits;
+use crate::record::PackagePolicyBaseline;
+use crate::record::PackagePolicyCallableRole;
+use crate::record::PackagePolicyRow;
+use crate::record::PackagePolicyRowKind;
+use crate::record::PackagePolicyRowLimits;
+use crate::record::PackagePolicyRowUsage;
+use crate::record::PackagePolicyTermination;
+use crate::record::PackageReviewBooleanExpression;
+use crate::record::PackageReviewCallableContract;
+use crate::record::PackageReviewCallableSupply;
+use crate::record::PackageReviewCheckedServiceReach;
+use crate::record::PackageReviewContractExpression;
+use crate::record::PackageReviewContractFact;
+use crate::record::PackageReviewContractKind;
+use crate::record::PackageReviewSemanticDependencyExposure;
 mod rich;
 
 #[test]

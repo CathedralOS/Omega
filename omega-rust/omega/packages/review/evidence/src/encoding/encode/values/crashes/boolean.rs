@@ -1,6 +1,14 @@
 //! Structural Boolean expressions share binary tags and named text fields.
-
-use super::*;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::crashes::Encoder;
+use crate::encoding::encode::values::crashes::encode_primitive_type;
+use crate::encoding::encode::values::crashes::encode_scalar_expression;
+use crate::encoding::encode::values::crashes::encode_structural_field;
+use crate::encoding::encode::values::crashes::encode_structural_path;
+use crate::encoding::encode::values::crashes::integer_comparison_tag;
+use crate::record::PackageReviewBooleanExpression;
+use crate::record::PackageReviewIeeeFloatComparisonKind;
+use crate::record::PackageReviewIntegerComparisonKind;
 
 pub(crate) fn encode_boolean_expression(
     encoder: &mut Encoder,

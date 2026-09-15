@@ -1,4 +1,10 @@
-use super::*;
+use crate::record::PackagePolicyBoundaryApplicationRealization;
+use crate::record::PackagePolicyBoundaryApplications;
+use crate::record::PackagePolicyBoundaryRealization;
+use crate::record::PackageReviewBoundaryApplication;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewOperatorCoordinate;
+use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
 use crate::record::{
     PackagePolicyProviderBinding, PackagePolicySelectedProviders,
     PackageReviewBoundaryApplicationArgument, PackageReviewNominalOwner,

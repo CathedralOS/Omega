@@ -1,4 +1,9 @@
-use super::*;
+use crate::record::PackageReviewContractExpression;
+use crate::record::PackageReviewContractFact;
+use crate::record::PackageReviewContractKind;
+use crate::record::PackageReviewDataProperties;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewTypeIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewPropositionBinderKind {

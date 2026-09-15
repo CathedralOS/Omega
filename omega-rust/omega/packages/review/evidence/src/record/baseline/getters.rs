@@ -1,4 +1,23 @@
-use super::*;
+use crate::record::PackagePolicyBaseline;
+use crate::record::PackagePolicyBoundaryApplications;
+use crate::record::PackagePolicyCallables;
+use crate::record::PackagePolicyConformanceShape;
+use crate::record::PackagePolicyDataShape;
+use crate::record::PackagePolicyDomainShape;
+use crate::record::PackagePolicyExternalExecutableSupply;
+use crate::record::PackagePolicyOperatorShape;
+use crate::record::PackagePolicyPublicApi;
+use crate::record::PackagePolicyRepresentation;
+use crate::record::PackagePolicySelectedProviders;
+use crate::record::PackagePolicySemanticDependency;
+use crate::record::PackagePolicyTerminalPermissions;
+use crate::record::PackagePolicyTraitShape;
+use crate::record::PackageReviewConstShape;
+use crate::record::PackageReviewDangerousAuthority;
+use crate::record::PackageReviewDangerousAuthoritySlack;
+use crate::record::PackageReviewPropositionShape;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 impl PackagePolicyBaseline {
     pub const fn package(&self) -> PackageKeyIdentity {

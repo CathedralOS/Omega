@@ -1,4 +1,14 @@
-use super::*;
+use crate::encoding::encode::encode_boolean_expression;
+use crate::encoding::encode::encode_scalar_expression;
+use crate::encoding::encode::values::crashes::Encoder;
+use crate::encoding::encode::values::crashes::integer_binary_tag;
+use crate::encoding::encode::values::crashes::integer_comparison_tag;
+use crate::record::PackageReviewArithmeticDomain;
+use crate::record::PackageReviewBooleanExpression;
+use crate::record::PackageReviewIntegerBinaryKind;
+use crate::record::PackageReviewIntegerComparisonKind;
+use crate::record::PackageReviewPrimitiveType;
+use crate::record::PackageReviewScalarExpression;
 
 fn encoded_boolean(expression: &PackageReviewBooleanExpression) -> Vec<u8> {
     let mut encoder = Encoder::bounded(1024);

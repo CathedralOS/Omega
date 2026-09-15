@@ -1,8 +1,23 @@
-use super::*;
+use super::{
+    Error, PackageReviewBooleanExpression, PackageReviewPrimitiveType,
+    PackageReviewScalarExpression,
+};
+use crate::encoding::recovery::policy::structural_expressions::Reader;
+use crate::encoding::recovery::policy::structural_expressions::boolean_expression;
+use crate::encoding::recovery::policy::structural_expressions::scalar_expression;
 use crate::encoding::{
     PackagePolicyRecoveryLimits,
     encode::{encode_boolean_expression, encode_scalar_expression, encoder::Encoder},
 };
+use crate::record::PackageReviewArithmeticDomain;
+use crate::record::PackageReviewIeeeFloatComparisonKind;
+use crate::record::PackageReviewIntegerBinaryKind;
+use crate::record::PackageReviewIntegerComparisonKind;
+use crate::record::PackageReviewIntegerLiteral;
+use crate::record::PackageReviewIntegerLiteralLanding;
+use crate::record::PackageReviewIntegerRange;
+use crate::record::PackageReviewStructuralParameterField;
+use crate::record::PackageReviewStructuralPredicatePathSegment;
 use PackageReviewBooleanExpression as Boolean;
 use PackageReviewPrimitiveType as Primitive;
 use PackageReviewScalarExpression as Scalar;

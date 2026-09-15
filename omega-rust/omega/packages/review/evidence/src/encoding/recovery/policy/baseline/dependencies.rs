@@ -1,5 +1,13 @@
 use super::super::identity::nominal;
-use super::*;
+use super::Error;
+use crate::encoding::recovery::policy::reader::Reader;
+use crate::record::PackagePolicySemanticDependency;
+use crate::record::PackagePolicySemanticDependencyConsumer;
+use crate::record::PackageReviewDangerousAuthority;
+use crate::record::PackageReviewDangerousAuthorityClass;
+use crate::record::PackageReviewDangerousAuthoritySlack;
+use crate::record::PackageReviewSemanticDependencyExposure;
+use crate::record::PackageReviewSemanticDependencyKind;
 
 pub(super) fn dangerous_authority(
     reader: &mut Reader<'_>,

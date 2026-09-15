@@ -1,7 +1,18 @@
 //! Exercise named traversal on the existing populated component fixture corpus.
+use super::values;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::callable_policy;
+use crate::encoding::encode::calling;
+use crate::encoding::encode::encoder;
+use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::encode::public_api;
+use crate::encoding::encode::representation;
+use crate::encoding::encode::selected_providers;
+use crate::encoding::encode::terminal_permissions;
+use crate::encoding::encode::values::external_policy;
+use crate::encoding::encode::values::physical_calling_policy;
 
 use super::encoder::text::Writer;
-use super::*;
 use crate::encoding::{
     PackagePolicyRecoveryLimits, recovery::decode_policy_text_scalars as binary,
 };

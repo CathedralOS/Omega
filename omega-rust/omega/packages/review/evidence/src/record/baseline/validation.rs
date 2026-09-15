@@ -1,6 +1,18 @@
 //! Cross-component associations, without compiler or acceptance reconstruction.
 
-use super::*;
+use crate::record::PackagePolicyBaseline;
+use crate::record::PackagePolicyCallable;
+use crate::record::PackagePolicyCallableRole;
+use crate::record::PackagePolicyExternalBinding;
+use crate::record::PackagePolicySemanticDependencyConsumer;
+use crate::record::PackagePolicyTypeParameterKind;
+use crate::record::PackageReviewCallableSupply;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewNominalOwner;
+use crate::record::PackageReviewRepresentationTargetProfile;
+use crate::record::PackageReviewSemanticDependencyExposure;
+use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
+use target::TargetProfile;
 
 impl PackagePolicyBaseline {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {

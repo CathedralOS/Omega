@@ -1,6 +1,6 @@
 //! Closed binding ownership and mechanism associations.
-
-use super::*;
+use crate::record::PackagePolicyProviderBinding;
+use crate::record::PackagePolicyProviderRow;
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackageReviewForeignLocator, PackageReviewNominalOwner,
 };

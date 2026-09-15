@@ -1,5 +1,7 @@
+use super::Error;
 use super::budgets::fixture_elements;
-use super::*;
+use crate::encoding::CALLING_POLICY_MAGIC;
+use crate::encoding::PackagePolicyRecoveryLimits;
 use crate::record::*;
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,

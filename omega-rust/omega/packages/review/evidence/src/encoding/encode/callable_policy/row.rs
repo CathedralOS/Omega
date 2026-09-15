@@ -1,6 +1,19 @@
 //! Complete named callable fields, sharing the enclosing policy budget.
-
-use super::*;
+use super::{encode_callable_conformance, encode_type_parameter};
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::callable_policy::behavior;
+use crate::encoding::encode::declarations::encode_conformance_bound;
+use crate::encoding::encode::declarations::encode_type_identity;
+use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::encode::values::contracts::encode_callable_contract;
+use crate::encoding::encode::values::declarations::encode_operator_coordinate;
+use crate::encoding::encode::values::effects::encode_installation_reach;
+use crate::encoding::encode::values::effects::encode_synchronous_invocation;
+use crate::encoding::encode::values::identity::encode_nominal;
+use crate::encoding::encode::values::identity::encode_supply;
+use crate::record::PackagePolicyCallable;
+use crate::record::PackagePolicyCallableRole;
+use crate::record::PackageReviewCheckedServiceReach;
 
 pub(in crate::encoding) fn encode_callable(
     encoder: &mut Encoder,

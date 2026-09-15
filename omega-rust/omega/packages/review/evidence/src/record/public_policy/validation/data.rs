@@ -1,4 +1,14 @@
-use super::*;
+use super::{Result, Scope};
+use crate::record::PackagePolicyDataShape;
+use crate::record::PackageReviewDataField;
+use crate::record::PackageReviewDataKind;
+use crate::record::PackageReviewDataMember;
+use crate::record::package::callable_policy::validation::signature::nominal;
+use crate::record::package::callable_policy::validation::signature::text;
+use crate::record::package::callable_policy::validation::signature::value_type;
+use crate::record::validation::contracts;
+use crate::record::validation::ordered;
+use crate::record::validation::signatures;
 
 pub(super) fn validate(value: &PackagePolicyDataShape) -> Result {
     let scope = Scope {

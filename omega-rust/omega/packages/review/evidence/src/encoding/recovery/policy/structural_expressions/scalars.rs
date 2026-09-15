@@ -1,7 +1,16 @@
 //! Exact scalar nodes share Boolean recursion and allocation accounting.
+use crate::encoding::recovery::policy::structural_expressions::Reader;
+use crate::encoding::recovery::policy::structural_expressions::boolean_expression;
+use crate::encoding::recovery::policy::structural_expressions::primitive_type;
+use crate::encoding::recovery::policy::structural_expressions::structural_path;
+use crate::record::PackageReviewArithmeticDomain;
+use crate::record::PackageReviewIntegerLiteral;
+use crate::record::PackageReviewIntegerLiteralLanding;
+use crate::record::PackageReviewIntegerRange;
+use crate::record::PackageReviewScalarExpression;
 
+use super::Error;
 use super::tags::{integer_binary, primitive_type_name};
-use super::*;
 
 pub(super) fn scalar_expression(
     reader: &mut Reader<'_>,

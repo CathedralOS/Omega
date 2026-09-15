@@ -1,4 +1,10 @@
-use super::*;
+use crate::record::PackageReviewCallableContract;
+use crate::record::PackageReviewContractStaticArgument;
+use crate::record::PackageReviewCrashRoute;
+use crate::record::PackageReviewDataProperties;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewSynchronousInvocation;
+use crate::record::PackageReviewTermination;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewTypeIdentity {

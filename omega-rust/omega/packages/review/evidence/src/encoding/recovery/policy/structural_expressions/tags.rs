@@ -1,7 +1,9 @@
 //! Inverses of the shared structural-expression closed vocabulary.
+use crate::encoding::recovery::policy::structural_expressions::Reader;
+use crate::record::PackageReviewIntegerBinaryKind;
+use crate::record::PackageReviewPrimitiveType;
 
-use super::*;
-
+use super::Error;
 pub(super) fn primitive_type(reader: &mut Reader<'_>) -> Result<PackageReviewPrimitiveType, Error> {
     use PackageReviewPrimitiveType as Primitive;
     Ok(match reader.byte()? {

@@ -1,4 +1,5 @@
-use super::*;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewTypeIdentity;
 
 /// Exact caller lifetime choices remain distinct from the requirement's
 /// alpha-normalized equality partition.

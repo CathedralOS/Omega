@@ -1,13 +1,17 @@
 //! Typed source signatures are retained even without a selected calling plan.
-
-use super::*;
+use crate::PackageReviewInput;
+use crate::capture::semantics::services::calling;
+use crate::capture::semantics::services::rejected;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::{
     PackagePolicyServiceSignature, PackageReviewNominalIdentity,
     PackageReviewTraitRequirementParameter,
 };
+use diagnostics::Diagnostic;
+use provider_planning::ProviderSchemaDeclaration;
 use std::borrow::Cow;
+use symbols::SymbolHandle;
 
 pub(super) fn project_declaration(
     compilation: &PackageReviewInput<'_>,

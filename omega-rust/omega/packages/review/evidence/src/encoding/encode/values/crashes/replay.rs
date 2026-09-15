@@ -1,6 +1,20 @@
 //! Existing replay-bearing crash rows retain their established binary grammar.
-
-use super::*;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::crashes::Encoder;
+use crate::encoding::encode::values::crashes::encode_boolean_expression;
+use crate::encoding::encode::values::expressions::encode_contract_expression;
+use crate::encoding::encode::values::identity::encode_nominal;
+use crate::record::PackageReviewCrash;
+use crate::record::PackageReviewCrashCall;
+use crate::record::PackageReviewCrashCause;
+use crate::record::PackageReviewCrashInterface;
+use crate::record::PackageReviewCrashOperatorSite;
+use crate::record::PackageReviewCrashPredicate;
+use crate::record::PackageReviewCrashRoute;
+use crate::record::PackageReviewCrashRouteGuard;
+use crate::record::PackageReviewCrashSite;
+use crate::record::PackageReviewPermissionClaim;
+use crate::record::PackageReviewPermissionSource;
 
 pub(crate) fn encode_crash(
     encoder: &mut Encoder,

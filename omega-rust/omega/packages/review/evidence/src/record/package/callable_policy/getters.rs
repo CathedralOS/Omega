@@ -1,4 +1,22 @@
-use super::*;
+use crate::record::PackagePolicyCallable;
+use crate::record::PackagePolicyCallableConformance;
+use crate::record::PackagePolicyCallableRole;
+use crate::record::PackagePolicyCapabilityFlow;
+use crate::record::PackagePolicyCrash;
+use crate::record::PackagePolicyMutation;
+use crate::record::PackagePolicyServiceReachDependency;
+use crate::record::PackagePolicyTermination;
+use crate::record::PackagePolicyTypeParameter;
+use crate::record::PackageReviewCallableContract;
+use crate::record::PackageReviewCallableParameter;
+use crate::record::PackageReviewCallableSupply;
+use crate::record::PackageReviewCheckedServiceReach;
+use crate::record::PackageReviewConformanceBound;
+use crate::record::PackageReviewInstallationReach;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewOperatorRealization;
+use crate::record::PackageReviewSynchronousInvocation;
+use crate::record::PackageReviewTypeIdentity;
 
 impl PackagePolicyCallable {
     pub const fn role(&self) -> PackagePolicyCallableRole {

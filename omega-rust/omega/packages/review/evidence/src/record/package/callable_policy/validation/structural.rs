@@ -1,6 +1,8 @@
 //! Public runtime requirements contain entry parameters, never private locals.
-
-use super::*;
+use crate::record::PackageReviewBooleanExpression;
+use crate::record::PackageReviewPrimitiveType;
+use crate::record::PackageReviewScalarExpression;
+use crate::record::PackageReviewStructuralPredicatePathSegment;
 
 pub(super) fn validate(
     value: &PackageReviewBooleanExpression,
@@ -143,7 +145,8 @@ fn bounded(depth: usize) -> Result<(), &'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::PackageReviewStructuralPredicatePathSegment;
+    use crate::record::package::callable_policy::validation::structural::field;
 
     #[test]
     fn fixed_index_is_numeric_while_named_segments_and_parameter_scope_remain_checked() {

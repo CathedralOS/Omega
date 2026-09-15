@@ -1,4 +1,8 @@
-use super::*;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::expressions::Encoder;
+use crate::encoding::encode::values::expressions::encode_type_identity;
+use crate::encoding::encode::values::identity::encode_nominal;
+use crate::record::PackageReviewContractStaticArgument;
 
 pub(crate) fn encode_contract_static_argument(
     encoder: &mut Encoder,
@@ -116,7 +120,7 @@ fn encode_contract_static_argument_body(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Encoder, PackageReviewContractStaticArgument, encode_contract_static_argument};
 
     fn encoded(argument: PackageReviewContractStaticArgument) -> Vec<u8> {
         let mut encoder = Encoder::bounded(16);

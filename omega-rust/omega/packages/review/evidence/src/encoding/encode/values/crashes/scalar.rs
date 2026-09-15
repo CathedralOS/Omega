@@ -1,6 +1,14 @@
 //! Structural scalar expressions preserve exact numeric vocabulary.
-
-use super::*;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::crashes::Encoder;
+use crate::encoding::encode::values::crashes::arithmetic_domain_name;
+use crate::encoding::encode::values::crashes::encode_boolean_expression;
+use crate::encoding::encode::values::crashes::encode_primitive_type;
+use crate::encoding::encode::values::crashes::encode_structural_path;
+use crate::encoding::encode::values::crashes::integer_binary_tag;
+use crate::encoding::encode::values::crashes::primitive_type_name;
+use crate::record::PackageReviewIntegerBinaryKind;
+use crate::record::PackageReviewScalarExpression;
 
 pub(crate) fn encode_scalar_expression(
     encoder: &mut Encoder,

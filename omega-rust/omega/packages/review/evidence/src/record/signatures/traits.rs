@@ -1,4 +1,13 @@
-use super::*;
+use crate::record::PackageReviewCallableContract;
+use crate::record::PackageReviewConformanceBound;
+use crate::record::PackageReviewCrashRoute;
+use crate::record::PackageReviewEvidenceInterface;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewSynchronousInvocation;
+use crate::record::PackageReviewTermination;
+use crate::record::PackageReviewTraitRequirementParameter;
+use crate::record::PackageReviewTypeIdentity;
+use crate::record::PackageReviewTypeParameter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewTraitCompositionKind {

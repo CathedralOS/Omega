@@ -1,8 +1,14 @@
-use super::*;
+use super::{
+    ArithmeticDomain, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation, Error,
+    FloatFormat,
+};
+use crate::encoding::recovery::policy::intrinsic::execution;
+use crate::encoding::recovery::policy::reader::Reader;
 use crate::encoding::{
     PackagePolicyRecoveryLimits,
     encode::{encode_compiler_intrinsic_execution, encoder::Encoder},
 };
+use crate::record::PackageReviewCompilerIntrinsicExecution;
 
 fn encoded(value: PackageReviewCompilerIntrinsicExecution) -> Vec<u8> {
     let mut encoder = Encoder::policy_bounded(64);

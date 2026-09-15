@@ -113,7 +113,8 @@ pub(crate) const fn project_contract_unary_operator(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::capture::contracts::expressions::operators::project_contract_binary_operator;
+    use crate::record::PackageReviewContractBinaryOperator;
 
     #[test]
     fn nominal_tag_observation_cannot_be_reviewed_as_value_equality() {

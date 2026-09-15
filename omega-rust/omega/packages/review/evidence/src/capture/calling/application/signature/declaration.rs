@@ -4,8 +4,15 @@
 //! namespace from each requirement's own static parameters. Checked expression
 //! handles and declarations remain unchanged; only temporary type references
 //! and scope-normalized signature copies are allocated.
-
-use super::*;
+use crate::PackageReviewInput;
+use crate::capture::calling::application::rejected;
+use crate::capture::calling::application::signature::CallingSignatureProjection;
+use crate::capture::calling::application::signature::count;
+use crate::capture::calling::application::signature::parameters;
+use crate::capture::calling::application::signature::project_with_binders;
+use crate::capture::semantics::signatures::policy::project_type_parameters;
+use crate::record::PackagePolicyTypeParameter;
+use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::TypeReferenceNode;

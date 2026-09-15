@@ -1,4 +1,22 @@
-use super::*;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::expressions::Encoder;
+use crate::encoding::encode::values::expressions::encode_contract_evidence_argument;
+use crate::encoding::encode::values::expressions::encode_contract_expression;
+use crate::encoding::encode::values::expressions::encode_contract_operator_meaning;
+use crate::encoding::encode::values::expressions::encode_contract_static_argument;
+use crate::encoding::encode::values::expressions::encode_type_identity;
+use crate::encoding::encode::values::identity::encode_nominal;
+use crate::record::PackageReviewArithmeticDomain;
+use crate::record::PackageReviewAtomicLoadOrdering;
+use crate::record::PackageReviewByteSequencePredicate;
+use crate::record::PackageReviewCastForm;
+use crate::record::PackageReviewCollectionViewOperation;
+use crate::record::PackageReviewContractBinaryOperator;
+use crate::record::PackageReviewContractCallTarget;
+use crate::record::PackageReviewContractExpression;
+use crate::record::PackageReviewContractUnaryOperator;
+use crate::record::PackageReviewFloatLiteral;
+use crate::record::PackageReviewReferenceAccess;
 
 pub(super) fn encode_contract_expression_body(
     encoder: &mut Encoder,

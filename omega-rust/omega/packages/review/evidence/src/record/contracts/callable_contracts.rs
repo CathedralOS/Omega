@@ -1,4 +1,8 @@
-use super::*;
+use crate::record::PackageReviewContractExpression;
+use crate::record::PackageReviewContractKind;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewPropositionApplication;
+use crate::record::PackageReviewPropositionParameterApplication;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractFact {

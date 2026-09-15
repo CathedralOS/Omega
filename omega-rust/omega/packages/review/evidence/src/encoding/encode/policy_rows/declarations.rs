@@ -2,7 +2,10 @@ use super::super::{
     public_api::declarations as encode,
     values::{declarations::*, identity::encode_nominal},
 };
-use super::*;
+use super::Builder;
+use crate::encoding::PackageReviewEncodingError;
+use crate::record::PackagePolicyPublicApi;
+use crate::record::PackagePolicyRowKind;
 
 pub(super) fn project(
     builder: &mut Builder,

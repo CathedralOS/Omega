@@ -265,7 +265,7 @@ pub(crate) fn project_selected_provider_families(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::capture::providers::families::validate_retained_static_parameter_count;
 
     fn coordinate(arity: usize) -> provider_planning::ProviderOperatorFamilyCoordinate {
         provider_planning::ProviderOperatorFamilyCoordinate {

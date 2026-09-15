@@ -1,5 +1,14 @@
 use super::super::{baseline, callable_policy, selected_providers, values};
-use super::*;
+use super::Builder;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::policy_rows::components;
+use crate::encoding::encode::policy_rows::declarations;
+use crate::encoding::encode::policy_rows::rejected;
+use crate::record::PackagePolicyBaseline;
+use crate::record::PackagePolicyBoundaryApplications;
+use crate::record::PackagePolicyCallables;
+use crate::record::PackagePolicyRowKind;
+use crate::record::PackageReviewCallableSupply;
 use values::identity::encode_nominal;
 
 pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageReviewEncodingError> {

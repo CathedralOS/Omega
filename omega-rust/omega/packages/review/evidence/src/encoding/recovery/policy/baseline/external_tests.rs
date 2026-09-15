@@ -1,5 +1,17 @@
 use super::tests::{fixture, recover, rejects};
-use super::*;
+use crate::record::PackagePolicyBaseline;
+use crate::record::PackagePolicyCallableRole;
+use crate::record::PackagePolicyExternalBinding;
+use crate::record::PackagePolicyExternalCallableSignature;
+use crate::record::PackagePolicyExternalExecutableSupply;
+use crate::record::PackagePolicyExternalRequirement;
+use crate::record::PackagePolicyTermination;
+use crate::record::PackagePolicyTypeParameter;
+use crate::record::PackagePolicyTypeParameterKind;
+use crate::record::PackageReviewCallableSupply;
+use crate::record::PackageReviewCheckedServiceReach;
+use crate::record::PackageReviewDataProperties;
+use crate::record::PackageReviewExternalCallableParameter;
 
 fn external() -> PackagePolicyBaseline {
     let mut value = fixture();

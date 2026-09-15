@@ -2,7 +2,15 @@ use super::super::{
     identity::{nominal, operator_coordinate, type_identity},
     intrinsic,
 };
-use super::*;
+use super::Error;
+use crate::encoding::recovery::policy::reader::Reader;
+use crate::record::PackagePolicyBoundaryApplicationDemand;
+use crate::record::PackagePolicyBoundaryApplicationRealization;
+use crate::record::PackagePolicyBoundaryApplications;
+use crate::record::PackagePolicyBoundaryRealization;
+use crate::record::PackageReviewBoundaryApplication;
+use crate::record::PackageReviewBoundaryApplicationArgument;
+use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
 
 pub(super) fn applications(
     reader: &mut Reader<'_>,

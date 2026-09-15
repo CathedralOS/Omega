@@ -1,5 +1,12 @@
-use super::*;
+use super::Error;
+use crate::encoding::PackagePolicyRecoveryLimits;
+use crate::encoding::TERMINAL_PERMISSION_POLICY_MAGIC;
+use crate::record::PackagePolicyTerminalPermission;
+use crate::record::PackagePolicyTerminalPermissions;
+use crate::record::PackagePolicyTerminalService;
 use crate::record::PackageReviewNominalOwner;
+use effects::TerminalAuthorityClass;
+use effects::TerminalAuthorityDisposition;
 
 pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyTerminalPermissions {
     let mut method = super::super::selected_providers::service_method_fixture();

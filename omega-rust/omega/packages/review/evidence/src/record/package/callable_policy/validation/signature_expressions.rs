@@ -216,7 +216,10 @@ pub(in crate::record) fn static_argument(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Scope, expression};
+    use crate::record::PackageReviewContractExpression;
+    use crate::record::PackageReviewNominalIdentity;
+    use crate::record::PackageReviewNominalOwner;
 
     #[test]
     fn membership_requires_a_scoped_subject_and_exact_classifier_owner() {
