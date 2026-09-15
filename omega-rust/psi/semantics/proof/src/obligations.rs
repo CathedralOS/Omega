@@ -12,7 +12,9 @@ use typed_trees::statement::{
     StatementNode, TableAssignment, TableCall, TableLocalData, TransitionGuardNode,
     TransitionTargetHandle, TransitionTargetNode,
 };
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofPlan<'program> {
@@ -54,6 +56,7 @@ impl<'program> ProofPlan<'program> {
     fn store_constraint_nodes(
         &mut self,
         program: &TypedTrees,
+        base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
     ) -> HandleSpan<ProofConstraint> {
         self.type_constraints.insert_many(
@@ -61,7 +64,9 @@ impl<'program> ProofPlan<'program> {
                 .type_reference_table
                 .constraints(constraints)
                 .iter()
-                .filter_map(|constraint| ProofConstraint::from_node(program, constraint)),
+                .filter_map(|constraint| {
+                    ProofConstraint::from_node(program, base_type, constraint)
+                }),
         )
     }
 }
@@ -116,7 +121,15 @@ impl Default for ProofConstraint {
 }
 
 impl ProofConstraint {
-    fn from_node(program: &TypedTrees, constraint: &TypeConstraintNode) -> Option<Self> {
+    /// `base_type` is the constrained reference's carrier handle: floating
+    /// range endpoints read their authored spelling at that declared carrier
+    /// (validation's `closed_float_range_endpoint` twin), never at the
+    /// transitional f64 window.
+    fn from_node(
+        program: &TypedTrees,
+        base_type: TypeReferenceHandle,
+        constraint: &TypeConstraintNode,
+    ) -> Option<Self> {
         match constraint {
             TypeConstraintNode::Named(name) => Some(Self::Named(name.clone())),
             // Compiler-known VALUE domains use honest domain notation at the
@@ -132,7 +145,13 @@ impl ProofConstraint {
                 minimum,
                 maximum,
                 end_inclusive,
-            } => Self::range_from_expression_handles(program, *minimum, *maximum, *end_inclusive),
+            } => Self::range_from_expression_handles(
+                program,
+                base_type,
+                *minimum,
+                *maximum,
+                *end_inclusive,
+            ),
             // Arithmetic policy is not a predicate, but the proof derivation
             // needs it to judge facts established by the operation (for
             // example, finite Saturating add/subtract/multiply stays Finite).
@@ -142,6 +161,7 @@ impl ProofConstraint {
 
     fn range_from_expression_handles(
         program: &TypedTrees,
+        base_type: TypeReferenceHandle,
         minimum: ExpressionHandle,
         maximum: ExpressionHandle,
         end_inclusive: bool,
@@ -189,8 +209,8 @@ impl ProofConstraint {
         }
 
         Some(Self::FloatRange {
-            minimum: FloatLiteral::new(float_range_bound(program, minimum)?),
-            maximum: FloatLiteral::new(float_range_bound(program, maximum)?),
+            minimum: FloatLiteral::new(float_range_bound(program, base_type, minimum)?),
+            maximum: FloatLiteral::new(float_range_bound(program, base_type, maximum)?),
             maximum_inclusive: end_inclusive,
         })
     }
@@ -738,7 +758,7 @@ fn collect_bounded_value_obligation(
             base_type,
             constraints,
         } => {
-            let constraints = proof_plan.store_constraint_nodes(program, *constraints);
+            let constraints = proof_plan.store_constraint_nodes(program, *base_type, *constraints);
             proof_plan.push_obligation(ProofObligation::BoundedValue(BoundedValueObligation {
                 owner,
                 base_type: *base_type,
@@ -781,7 +801,7 @@ fn collect_bounded_initializer_obligation(
             base_type,
             constraints,
         } => {
-            let constraints = proof_plan.store_constraint_nodes(program, *constraints);
+            let constraints = proof_plan.store_constraint_nodes(program, *base_type, *constraints);
             proof_plan.push_obligation(ProofObligation::BoundedInitializer(
                 BoundedInitializerObligation {
                     owner,
@@ -855,7 +875,7 @@ fn collect_bounded_assignment_obligation(
         .map(|(base_type, constraints)| {
             (
                 base_type,
-                proof_plan.store_constraint_nodes(program, constraints),
+                proof_plan.store_constraint_nodes(program, base_type, constraints),
             )
         })
         .unwrap_or((target_type, HandleSpan::empty()));
@@ -1149,7 +1169,7 @@ fn collect_bounded_transition_argument_obligations(
             expression_constraints(program, machine, state, argument)
         };
         let argument_constraints = proof_plan.store_constraints(argument_constraint_buffer);
-        let constraints = proof_plan.store_constraint_nodes(program, constraints);
+        let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
         let sibling_argument = sibling_argument_for(
             proof_plan.type_constraints.span(constraints).unwrap_or(&[]),
             callable_parameters(program, target_state).map(|parameter| &parameter.name),
@@ -1396,7 +1416,7 @@ fn collect_bounded_call_argument_obligations(
         let argument = *argument;
         let argument_constraints =
             proof_plan.store_constraints(expression_constraints(program, machine, state, argument));
-        let constraints = proof_plan.store_constraint_nodes(program, constraints);
+        let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
         let receiver = program.statement_table.name_path_members(call.receiver);
         let call_arguments: Vec<ExpressionHandle> = program
             .statement_table
@@ -1457,7 +1477,7 @@ fn collect_bounded_state_return_obligation(
         - 1;
     let value_constraints =
         proof_plan.store_constraints(expression_constraints(program, machine, state, value));
-    let constraints = proof_plan.store_constraint_nodes(program, constraints);
+    let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
 
     proof_plan.push_obligation(ProofObligation::BoundedStateReturn(
         BoundedStateReturnObligation {
@@ -1974,7 +1994,9 @@ fn collect_constraints(
                     .type_reference_table
                     .constraints(*constraints)
                     .iter()
-                    .filter_map(|constraint| ProofConstraint::from_node(program, constraint)),
+                    .filter_map(|constraint| {
+                        ProofConstraint::from_node(program, *base_type, constraint)
+                    }),
             );
             augment_constraints_with_named_facts(&mut derived);
             derived
@@ -2257,7 +2279,9 @@ fn integer_literal_constraints(literal: &numerics::literals::IntegerLiteral) -> 
 }
 
 fn float_literal_constraints(value: &FloatLiteral) -> ConstraintBuffer {
-    let value = value.value();
+    // The literal's riding landing is authoritative: a suffixed `0.3f32`
+    // means the widened f32 value, not the f64 read of its spelling.
+    let value = value.landed_f64();
     if !value.is_finite() {
         return ConstraintBuffer::new();
     }
@@ -2668,8 +2692,8 @@ fn float_range_from_constraints(constraints: &ConstraintBuffer) -> Option<FloatR
         };
 
         let candidate = FloatRange {
-            minimum: minimum.value(),
-            maximum: maximum.value(),
+            minimum: minimum.landed_f64(),
+            maximum: maximum.landed_f64(),
             maximum_inclusive: *maximum_inclusive,
         };
 
@@ -2856,16 +2880,38 @@ fn float_binary_range(
     }
 }
 
-fn float_range_bound(program: &TypedTrees, expression: ExpressionHandle) -> Option<f64> {
+/// The proof window for one authored floating range endpoint, read at the
+/// range's DECLARED carrier (`validation::closed_float_range_endpoint`'s
+/// twin). An f32 endpoint reads its spelling directly at binary32 and widens
+/// exactly into the f64 window -- the widened f32 grid is what every landed
+/// argument compares against -- while an f64 endpoint keeps its authored
+/// landing (`0.3f32` under `f64[...]` means the widened f32 value). An
+/// f64-landed literal cannot narrow through the f32 read, so it is not an
+/// endpoint at all. Integer endpoints convert once into the carrier, exactly
+/// as the retained interchange bits do.
+fn float_range_bound(
+    program: &TypedTrees,
+    base_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+) -> Option<f64> {
+    let carrier = program.primitive_type_reference(base_type);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Float(value) => Some(value.value()),
+        ExpressionNode::Float(value) => match carrier {
+            Some(PrimitiveType::F32) => (value.landing()
+                != Some(numerics::literals::FloatFormat::F64))
+            .then(|| f64::from(value.value_f32())),
+            _ => Some(value.landed_f64()),
+        },
         // Mixed floating ranges may have integer endpoints, but that does not
         // erase their selected landing or authorize a same-spelled constant.
         // A failed exact endpoint cannot fall back to its raw literal text.
         ExpressionNode::Integer(_) | ExpressionNode::Name(_) => {
             validation::closed_integer_range_bound(program, expression)
                 .and_then(|value| value.to_i64())
-                .map(|value| value as f64)
+                .map(|value| match carrier {
+                    Some(PrimitiveType::F32) => f64::from(value as f32),
+                    _ => value as f64,
+                })
         }
         _ => None,
     }
@@ -2897,13 +2943,18 @@ fn constrained_type_reference(
 mod range_tests {
     use super::{
         BigInt, BinaryOperator, ConstraintBuffer, ExpressionNode, FloatLiteral, FloatRange,
-        Identifier, ProofConstraint, TypeConstraintNode, TypeReferenceNode, TypedTrees,
-        constraints_prove_finite, derived_binary_constraints, float_binary_range,
+        Identifier, ProofConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+        TypedTrees, constraints_prove_finite, derived_binary_constraints, float_binary_range,
         has_named_constraint,
     };
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 
-    fn program_with_u8() -> TypedTrees {
+    /// A program carrying one builtin `Named` type reference; returns the
+    /// carrier handle constraint readers resolve their declared type through.
+    fn program_with_primitive(
+        atom: symbols::BuiltinTypeAtom,
+        name: &'static str,
+    ) -> (TypedTrees, TypeReferenceHandle) {
         let mut builder = symbols::SymbolTableBuilder::new();
         let root = builder.insert_root(
             symbols::SymbolKind::Root,
@@ -2917,20 +2968,24 @@ mod range_tests {
             symbols: builder.finish(),
             ..TypedTrees::default()
         };
-        program
+        let carrier = program
             .type_reference_table
             .insert(TypeReferenceNode::Named {
-                symbol: builtins[symbols::BuiltinTypeAtom::U8.ordinal()],
-                name: Identifier::generated("u8"),
+                symbol: builtins[atom.ordinal()],
+                name: Identifier::generated(name),
             });
-        program
+        (program, carrier)
+    }
+
+    fn program_with_u8() -> (TypedTrees, TypeReferenceHandle) {
+        program_with_primitive(symbols::BuiltinTypeAtom::U8, "u8")
     }
 
     #[test]
     fn proof_range_rejects_invalid_integer_landing_in_float_fallback() {
         for floating_peer in [false, true] {
             for invalid_minimum in [false, true] {
-                let mut program = program_with_u8();
+                let (mut program, carrier) = program_with_u8();
                 let invalid = program.expression_table.insert(ExpressionNode::Integer(
                     IntegerLiteral::from_value(256).with_landing(IntegerLanding {
                         landed_type: LandedIntegerType::U8,
@@ -2950,6 +3005,7 @@ mod range_tests {
                 assert_eq!(
                     ProofConstraint::from_node(
                         &program,
+                        carrier,
                         &TypeConstraintNode::Range {
                             minimum,
                             maximum,
@@ -2966,7 +3022,7 @@ mod range_tests {
     #[test]
     fn proof_range_preserves_valid_mixed_float_endpoints() {
         for floating_minimum in [false, true] {
-            let mut program = program_with_u8();
+            let (mut program, carrier) = program_with_u8();
             let integer = program.expression_table.insert(ExpressionNode::Integer(
                 IntegerLiteral::from_value(2).with_landing(IntegerLanding {
                     landed_type: LandedIntegerType::U8,
@@ -2987,6 +3043,7 @@ mod range_tests {
             assert_eq!(
                 ProofConstraint::from_node(
                     &program,
+                    carrier,
                     &TypeConstraintNode::Range {
                         minimum,
                         maximum,
@@ -3004,7 +3061,7 @@ mod range_tests {
 
     #[test]
     fn proof_range_keeps_exclusive_float_endpoint_verbatim() {
-        let mut program = program_with_u8();
+        let (mut program, carrier) = program_with_u8();
         let minimum = program
             .expression_table
             .insert(ExpressionNode::Float(FloatLiteral::new(0.0)));
@@ -3015,6 +3072,7 @@ mod range_tests {
         assert_eq!(
             ProofConstraint::from_node(
                 &program,
+                carrier,
                 &TypeConstraintNode::Range {
                     minimum,
                     maximum,
@@ -3025,6 +3083,114 @@ mod range_tests {
                 minimum: FloatLiteral::new(0.0),
                 maximum: FloatLiteral::new(1.5),
                 maximum_inclusive: false,
+            })
+        );
+    }
+
+    #[test]
+    fn proof_float_range_endpoints_read_at_the_declared_carrier() {
+        // The authored spelling rounds once at the declared carrier: an f32
+        // range's `0.3` endpoint is the widened f32 grid point
+        // 0.30000001192092896, not the f64 text read -- the same value every
+        // landed f32 argument delivers.
+        let (mut program, f32_carrier) =
+            program_with_primitive(symbols::BuiltinTypeAtom::F32, "f32");
+        let minimum = program
+            .expression_table
+            .insert(ExpressionNode::Float(FloatLiteral::parse("0.0").unwrap()));
+        let maximum = program
+            .expression_table
+            .insert(ExpressionNode::Float(FloatLiteral::parse("0.3").unwrap()));
+        assert_eq!(
+            ProofConstraint::from_node(
+                &program,
+                f32_carrier,
+                &TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive: true,
+                }
+            ),
+            Some(ProofConstraint::FloatRange {
+                minimum: FloatLiteral::new(0.0),
+                maximum: FloatLiteral::new(f64::from(0.3f32)),
+                maximum_inclusive: true,
+            })
+        );
+
+        // A wider authored landing cannot narrow through the f32 read, so an
+        // f64-suffixed literal is not an f32 endpoint at all.
+        let f64_maximum = program.expression_table.insert(ExpressionNode::Float(
+            FloatLiteral::parse("0.3f64").unwrap(),
+        ));
+        assert_eq!(
+            ProofConstraint::from_node(
+                &program,
+                f32_carrier,
+                &TypeConstraintNode::Range {
+                    minimum,
+                    maximum: f64_maximum,
+                    end_inclusive: true,
+                }
+            ),
+            None,
+            "an f64-landed literal is not an f32 endpoint"
+        );
+
+        // A mixed endpoint pair converts its integer endpoint once into the
+        // carrier: at f32 the bound is the f32 rendering (2^24 + 1 rounds to
+        // 16777216.0f32), not the exact integer read the f64 window keeps.
+        // (The float peer must be non-integral so the integer path declines.)
+        let integer_minimum =
+            program
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(
+                    16777217,
+                )));
+        let float_maximum = program.expression_table.insert(ExpressionNode::Float(
+            FloatLiteral::parse("16777218.5").unwrap(),
+        ));
+        assert_eq!(
+            ProofConstraint::from_node(
+                &program,
+                f32_carrier,
+                &TypeConstraintNode::Range {
+                    minimum: integer_minimum,
+                    maximum: float_maximum,
+                    end_inclusive: true,
+                }
+            ),
+            Some(ProofConstraint::FloatRange {
+                minimum: FloatLiteral::new(f64::from(16777217_i64 as f32)),
+                maximum: FloatLiteral::new(f64::from(16777218.5f32)),
+                maximum_inclusive: true,
+            })
+        );
+
+        // An f32-landed endpoint under an f64 range keeps its widened f32
+        // value (validation's `closed_float_range_endpoint` twin).
+        let (mut program, f64_carrier) =
+            program_with_primitive(symbols::BuiltinTypeAtom::F64, "f64");
+        let minimum = program
+            .expression_table
+            .insert(ExpressionNode::Float(FloatLiteral::parse("0.0").unwrap()));
+        let maximum = program.expression_table.insert(ExpressionNode::Float(
+            FloatLiteral::parse("0.3f32").unwrap(),
+        ));
+        assert_eq!(
+            ProofConstraint::from_node(
+                &program,
+                f64_carrier,
+                &TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive: true,
+                }
+            ),
+            Some(ProofConstraint::FloatRange {
+                minimum: FloatLiteral::new(0.0),
+                maximum: FloatLiteral::new(f64::from(0.3f32)),
+                maximum_inclusive: true,
             })
         );
     }
@@ -3053,7 +3219,7 @@ mod range_tests {
     #[test]
     fn proof_range_normalizes_exclusive_bounds_without_carrier_arithmetic() {
         for (minimum, maximum, expected_maximum) in [(0, 8, 7), (0, 0, -1), (-128, -128, -129)] {
-            let mut program = TypedTrees::default();
+            let (mut program, carrier) = program_with_u8();
             let minimum_handle = program
                 .expression_table
                 .insert(ExpressionNode::Integer(IntegerLiteral::from_value(minimum)));
@@ -3063,6 +3229,7 @@ mod range_tests {
             assert_eq!(
                 ProofConstraint::from_node(
                     &program,
+                    carrier,
                     &TypeConstraintNode::Range {
                         minimum: minimum_handle,
                         maximum: maximum_handle,
@@ -3079,7 +3246,7 @@ mod range_tests {
 
     #[test]
     fn proof_range_retains_full_width_unsigned_exclusive_maximum() {
-        let mut program = TypedTrees::default();
+        let (mut program, carrier) = program_with_u8();
         let minimum = program
             .expression_table
             .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
@@ -3090,6 +3257,7 @@ mod range_tests {
         assert_eq!(
             ProofConstraint::from_node(
                 &program,
+                carrier,
                 &TypeConstraintNode::Range {
                     minimum,
                     maximum,
