@@ -94,6 +94,14 @@ const KNOWN_EDGE_EXCEPTIONS: &[(&str, &str)] = &[
     ("build-time-evaluation", "typed-trees-to-checked-trees"),
 ];
 
+/// Omega frontend stages: source files to assembled syntax, assembled syntax to
+/// a checked compilation, and the checked compilation to its Terminal artifact.
+const FRONTEND_STAGES: &[&str] = &[
+    "source-files-to-assembled-syntax",
+    "assembled-syntax-to-checked-compilation",
+    "checked-compilation-to-terminal-artifact",
+];
+
 /// Classify a governed Omega or Psi crate into an architectural layer from its
 /// manifest path.
 fn layer_of(manifest_path: &str) -> Option<&'static str> {
@@ -103,6 +111,15 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
 
     if p.ends_with("/omega-rust/omega/Cargo.toml") {
         Some("product")
+    } else if FRONTEND_STAGES
+        .iter()
+        .any(|stage| m(&format!("/omega-rust/omega/pipeline/{stage}/")))
+    {
+        // The frontend stages are pipeline transforms by shape and name, but
+        // they schedule build evaluation, provider settlement and package
+        // admission, so they consume build-layer crates and rank with the
+        // compiler that drives them.
+        Some("compiler")
     } else if m("/omega-rust/psi/foundation/") {
         Some("foundation")
     } else if m("/omega-rust/omega/representations/") || m("/omega-rust/psi/representations/") {
@@ -652,7 +669,7 @@ fn compiler_crate_root_exposes_its_public_api() {
     let lib = std::fs::read_to_string(&lib_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", lib_path.display()));
     assert!(lib.contains("pub use compiler::"));
-    assert!(lib.contains("pub use pipeline::checked_entry::"));
+    assert!(lib.contains("pub use assembled_syntax_to_checked_compilation::"));
     assert!(!lib.contains("public_api"));
 }
 
@@ -789,7 +806,10 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 #[test]
 fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
     let root = workspace_root().join("omega-rust/omega/compiler/compiler/src");
-    let checked = std::fs::read_to_string(root.join("pipeline/checked_entry.rs"))
+    let checked =
+        std::fs::read_to_string(workspace_root().join(
+            "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking.rs",
+        ))
         .expect("read checked compilation entrance");
     assert!(checked.contains("pub struct CheckedCompileRequest"));
     assert!(checked.contains("pub fn compile_to_checked("));
@@ -809,8 +829,12 @@ fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
 
 #[test]
 fn checked_compilation_retains_settlement_and_source_custody() {
-    let root = workspace_root().join("omega-rust/omega/compiler/compiler/src/pipeline");
-    let entrance = std::fs::read_to_string(root.join("checked_entry.rs"))
+    let root = workspace_root()
+        .join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src");
+    let entrance =
+        std::fs::read_to_string(workspace_root().join(
+            "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking.rs",
+        ))
         .expect("read checked compilation entrance");
     let build = entrance
         .find("build_continuation::evaluate_build_and_continue(")
@@ -824,11 +848,11 @@ fn checked_compilation_retains_settlement_and_source_custody() {
         "build, checking and custody sealing must remain ordered"
     );
 
-    let execution = std::fs::read_to_string(root.join("checked_entry/execution_settlement.rs"))
+    let execution = std::fs::read_to_string(root.join("checking/execution_settlement.rs"))
         .expect("read selected execution owner");
     assert!(execution.contains("settled: SelectedExecutionSettlementSurface"));
     assert!(execution.contains("settled: selected_execution_settlement"));
-    let result = std::fs::read_to_string(root.join("checked_entry/checked_compilation.rs"))
+    let result = std::fs::read_to_string(root.join("checking/checked_compilation.rs"))
         .expect("read checked result owner");
     assert!(result.contains("execution: CheckedExecution"));
     assert!(result.contains("sources: CheckedSourceCustody"));
@@ -1395,12 +1419,14 @@ fn optimization_rollback_settlement_is_owner_complete() {
         std::fs::read_to_string(compiler.join("native.rs")).expect("read native coordinator"),
         recursive_rust_source(&compiler.join("native"))
     );
-    let owner = std::fs::read_to_string(compiler.join("optimization/rollback/mod.rs"))
+    let owner = std::fs::read_to_string(root.join(
+        "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs",
+    ))
         .expect("read optimization rollback owner");
 
     for required in [
         "struct OptimizationRollbackSettlement",
-        "pub(crate) fn settle(",
+        "pub fn settle(",
         "pub const fn effective(",
         "pub fn into_receipt(",
     ] {
@@ -2717,7 +2743,7 @@ fn retained_native_product_enters_only_terminal_realization() {
     let compact_driver = driver.split_whitespace().collect::<String>();
     assert!(
         compact_driver.contains(
-            "source?.check(target.options(),target.package_inputs(),&target.configuration.optimization_rollback,)?"
+            "source?.check(&options.root_path,options.target_name.as_deref(),options.build_dir(),target.package_inputs(),&target.configuration.optimization_rollback,)?"
         )
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
             && driver.contains("native::prepare(target, checked)")
@@ -2781,8 +2807,10 @@ fn retained_native_product_enters_only_terminal_realization() {
 fn shared_frontend_stages_stop_at_checked_psi() {
     let root = workspace_root();
     let frontend_paths = [
-        root.join("omega-rust/omega/compiler/source-files-to-assembled-syntax/src/source_assembly.rs"),
-        root.join("omega-rust/omega/compiler/compiler/src/pipeline/phase_transitions.rs"),
+        root.join("omega-rust/omega/pipeline/source-files-to-assembled-syntax/src/source_assembly.rs"),
+        root.join(
+            "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs",
+        ),
     ];
     let frontend = frontend_paths
         .iter()

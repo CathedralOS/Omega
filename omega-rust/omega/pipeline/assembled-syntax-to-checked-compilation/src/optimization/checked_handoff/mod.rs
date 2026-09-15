@@ -5,14 +5,14 @@
 //! instantiate optimizer machinery here.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::pipeline) struct CheckedOptimizationHandoff {
+pub(crate) struct CheckedOptimizationHandoff {
     selections: optimization_core::OptimizationSelections,
     selection_identity: optimization_core::OptimizationSelectionIdentity,
     report: optimization_core::OptimizationReportRequest,
 }
 
 impl CheckedOptimizationHandoff {
-    pub(in crate::pipeline) fn retain(
+    pub(crate) fn retain(
         selections: optimization_core::OptimizationSelections,
         report: optimization_core::OptimizationReportRequest,
     ) -> Self {
@@ -24,19 +24,17 @@ impl CheckedOptimizationHandoff {
         }
     }
 
-    pub(in crate::pipeline) const fn selections(
-        &self,
-    ) -> &optimization_core::OptimizationSelections {
+    pub(crate) const fn selections(&self) -> &optimization_core::OptimizationSelections {
         &self.selections
     }
 
-    pub(in crate::pipeline) const fn selection_identity(
+    pub(crate) const fn selection_identity(
         &self,
     ) -> optimization_core::OptimizationSelectionIdentity {
         self.selection_identity
     }
 
-    pub(in crate::pipeline) const fn report(&self) -> optimization_core::OptimizationReportRequest {
+    pub(crate) const fn report(&self) -> optimization_core::OptimizationReportRequest {
         self.report
     }
 }

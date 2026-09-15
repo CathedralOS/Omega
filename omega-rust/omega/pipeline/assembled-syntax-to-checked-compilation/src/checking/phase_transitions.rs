@@ -13,68 +13,68 @@ use typed_trees::TypedTrees;
 /// Checked Psi plus the exact predecessor facts that must be captured before
 /// typed ownership moves into checking. This is the output of one phase
 /// transition, not source-loading state.
-pub(super) struct CheckedProgramSurface {
-    pub(super) program: Arc<CheckedProgram>,
-    pub(super) selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
-    pub(super) selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
-    pub(super) callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
-    pub(super) accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
-    pub(super) contract_entailment_stand_downs: Vec<validation::ContractEntailmentStandDown>,
+pub(crate) struct CheckedProgramSurface {
+    pub(crate) program: Arc<CheckedProgram>,
+    pub(crate) selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
+    pub(crate) selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
+    pub(crate) callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
+    pub(crate) accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
+    pub(crate) contract_entailment_stand_downs: Vec<validation::ContractEntailmentStandDown>,
 }
 
 /// Checked semantics after selected execution has been settled in the exact
 /// compiler-owned dispatch order. This surface owns the now-closed review
 /// provenance alongside every checked-phase sidecar.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SelectedExecutionSettlementSurface {
-    pub(super) program: Arc<CheckedProgram>,
-    pub(super) dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
-    pub(super) selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
-    pub(super) selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
-    pub(super) callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
-    pub(super) accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
-    pub(super) contract_entailment_stand_downs: Vec<validation::ContractEntailmentStandDown>,
-    pub(super) selected_provider_provenance:
+pub(crate) struct SelectedExecutionSettlementSurface {
+    pub(crate) program: Arc<CheckedProgram>,
+    pub(crate) dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
+    pub(crate) selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
+    pub(crate) selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
+    pub(crate) callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
+    pub(crate) accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
+    pub(crate) contract_entailment_stand_downs: Vec<validation::ContractEntailmentStandDown>,
+    pub(crate) selected_provider_provenance:
         Vec<provider_planning::SelectedProviderReviewProvenance>,
-    pub(super) resolved_semantic_bindings: Vec<selected_dispatch::ResolvedAcceptedSemanticBinding>,
-    pub(super) component_progress: Option<effects::ComponentProgressManifest>,
-    pub(super) task_activations: task_plans::TaskActivationPlanSet,
+    pub(crate) resolved_semantic_bindings: Vec<selected_dispatch::ResolvedAcceptedSemanticBinding>,
+    pub(crate) component_progress: Option<effects::ComponentProgressManifest>,
+    pub(crate) task_activations: task_plans::TaskActivationPlanSet,
 }
 
-pub(super) struct SelectedExecutionSettlementInput<'a> {
-    pub(super) exact_component_progress_root:
+pub(crate) struct SelectedExecutionSettlementInput<'a> {
+    pub(crate) exact_component_progress_root:
         Option<provider_planning::component_progress::ExactComponentProgressRoot<'a>>,
-    pub(super) provider_selection_target: target::NativeTarget,
-    pub(super) selected_target_profile: Option<target::TargetProfile>,
-    pub(super) selected_provider_provenance:
+    pub(crate) provider_selection_target: target::NativeTarget,
+    pub(crate) selected_target_profile: Option<target::TargetProfile>,
+    pub(crate) selected_provider_provenance:
         Vec<provider_planning::SelectedProviderReviewProvenance>,
-    pub(super) opaque_representation_selections:
+    pub(crate) opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
-    pub(super) accepted_console_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
-    pub(super) accepted_process_exit_binding:
+    pub(crate) accepted_console_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
+    pub(crate) accepted_process_exit_binding:
         Option<&'a package_compilation::AcceptedSemanticBinding>,
-    pub(super) accepted_filesystem_binding:
+    pub(crate) accepted_filesystem_binding:
         Option<&'a package_compilation::AcceptedSemanticBinding>,
-    pub(super) accepted_entry_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
+    pub(crate) accepted_entry_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
 }
 
 /// Final typed settlements that must finish inside the phase transition that
 /// produces the checked program surface.
-pub(super) struct TypedToCheckedSettlementInput<'a> {
-    pub(super) native_target: Option<target::NativeTarget>,
-    pub(super) package_inputs: Option<&'a crate::pipeline::PackageCompilationInputs>,
-    pub(super) selected_build_machine: Option<symbols::SymbolHandle>,
-    pub(super) boundary_calling_plan_realizations:
+pub(crate) struct TypedToCheckedSettlementInput<'a> {
+    pub(crate) native_target: Option<target::NativeTarget>,
+    pub(crate) package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
+    pub(crate) selected_build_machine: Option<symbols::SymbolHandle>,
+    pub(crate) boundary_calling_plan_realizations:
         &'a mut [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    pub(super) opaque_representation_selections:
+    pub(crate) opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
-    pub(super) provider_plans: &'a [effects::provider_plan::ProviderPlan],
-    pub(super) selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
-    pub(super) root_grants: &'a [String],
-    pub(super) authored_root_grants: &'a [trust_model::AuthoredRootGrant],
+    pub(crate) provider_plans: &'a [effects::provider_plan::ProviderPlan],
+    pub(crate) selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
+    pub(crate) root_grants: &'a [String],
+    pub(crate) authored_root_grants: &'a [trust_model::AuthoredRootGrant],
 }
 
-pub(super) fn syntax_trees_to_symbol_resolved_trees(
+pub(crate) fn syntax_trees_to_symbol_resolved_trees(
     syntax: AssembledSyntax,
     timings: &mut CompileTimings,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
@@ -89,7 +89,7 @@ pub(super) fn syntax_trees_to_symbol_resolved_trees(
     })
 }
 
-pub(super) fn symbol_resolved_trees_to_seeded_base(
+pub(crate) fn symbol_resolved_trees_to_seeded_base(
     resolved: SymbolResolvedTrees,
     timings: &mut CompileTimings,
 ) -> Result<symbol_resolved_trees_to_typed_trees::SeededTypingBase, Vec<Diagnostic>> {
@@ -99,7 +99,7 @@ pub(super) fn symbol_resolved_trees_to_seeded_base(
     })
 }
 
-pub(super) fn resolve_seeded_syntax_extension(
+pub(crate) fn resolve_seeded_syntax_extension(
     base: SymbolResolvedTrees,
     extension: &syntax_trees::SyntaxTrees,
     sources: Arc<source::SourceMap>,
@@ -117,7 +117,7 @@ pub(super) fn resolve_seeded_syntax_extension(
     })
 }
 
-pub(super) fn type_seeded_extension(
+pub(crate) fn type_seeded_extension(
     source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
     base: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     timings: &mut CompileTimings,
@@ -133,7 +133,7 @@ pub(super) fn type_seeded_extension(
     })
 }
 
-pub(super) fn typed_trees_to_checked_trees(
+pub(crate) fn typed_trees_to_checked_trees(
     typed: TypedTrees,
     timings: &mut CompileTimings,
     settlement: TypedToCheckedSettlementInput<'_>,
@@ -174,7 +174,7 @@ pub(super) fn typed_trees_to_checked_trees(
         };
         provider_planning::approval::check_boundary_provider_approval(&program)?;
         if let Some(package_inputs) = settlement.package_inputs {
-            crate::pipeline::package::declaration_admission::validate_authored_declaration_selections(
+            crate::package::declaration_admission::validate_authored_declaration_selections(
                 &program,
                 package_inputs,
             )?;
@@ -281,7 +281,7 @@ fn selected_generic_operator_provider_specializations(
 
 /// Consume a complete checked surface and settle every selected execution
 /// rewrite before publishing the final compiler-facing surface.
-pub(super) fn settle_selected_execution(
+pub(crate) fn settle_selected_execution(
     mut checked: CheckedProgramSurface,
     mut settlement: SelectedExecutionSettlementInput<'_>,
 ) -> Result<SelectedExecutionSettlementSurface, Vec<Diagnostic>> {
@@ -366,7 +366,7 @@ pub(super) fn settle_selected_execution(
 /// Preliminary package-selection validation needs ordinary checked Psi but no
 /// target/provider settlement. Keep that intentionally incomplete observation
 /// separate from [`CheckedProgramSurface`], which is final-path complete.
-pub(super) fn typed_trees_to_preliminary_checked_trees(
+pub(crate) fn typed_trees_to_preliminary_checked_trees(
     typed: TypedTrees,
     timings: &mut CompileTimings,
 ) -> Result<Arc<CheckedProgram>, Vec<Diagnostic>> {

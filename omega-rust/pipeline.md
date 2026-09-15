@@ -35,6 +35,21 @@ setup are not additional public program stages.
 | Resolved program → machine bytes | [machine-emission](omega/backend/machine-emission/README.md) |
 | Machine bytes → object/image evidence | [image-emission](omega/backend/images/image-emission/src/lib.rs) |
 
+## Omega frontend stages
+
+Omega drives the Psi source stages above through two transforms of its own,
+because build evaluation runs between them: a build machine can generate
+source after the base was resolved, so checking re-enters resolution and
+typing against the retained base.
+
+| Input → output | Owner |
+| --- | --- |
+| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/pipeline/source-files-to-assembled-syntax/src/source_assembly.rs) |
+| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/pipeline/assembled-syntax-to-checked-compilation/src/checking.rs) |
+
+Both consume build-layer crates, so the layering test ranks them with the
+compiler that schedules them while they keep the pipeline's shape and naming.
+
 [Terminal production](psi/compiler/terminal-production/README.md) sequences its
 Psi stages; [native realization](omega/compiler/native-realization/README.md)
 sequences the separately admitted native continuation. Selected passes execute

@@ -1,7 +1,7 @@
-use crate::pipeline::PackageCompilationInputs;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
+use package_compilation::PackageCompilationInputs;
 use source::SourceOrigin;
 use symbols::SymbolKind;
 
@@ -12,19 +12,19 @@ use symbols::SymbolKind;
 /// activation appends any own generated source. Construction stays private so
 /// build orchestration cannot pair an authority verdict with a different
 /// source closure.
-pub(in crate::pipeline) struct AuthoredDeclarationAuthorityVerdict {
+pub(crate) struct AuthoredDeclarationAuthorityVerdict {
     base_source_consumption_commitment: package_compilation::PackageSourceConsumptionCommitment,
 }
 
 impl AuthoredDeclarationAuthorityVerdict {
-    pub(in crate::pipeline) const fn base_source_consumption_commitment(
+    pub(crate) const fn base_source_consumption_commitment(
         &self,
     ) -> package_compilation::PackageSourceConsumptionCommitment {
         self.base_source_consumption_commitment
     }
 }
 
-pub(in crate::pipeline) fn validate_authored_declaration_selections_before_build(
+pub(crate) fn validate_authored_declaration_selections_before_build(
     typed: &typed_trees::TypedTrees,
     packages: &PackageCompilationInputs,
     generated_source_custody: &[(source::SourceId, build_output::PackageGeneratedSource)],
@@ -34,7 +34,7 @@ pub(in crate::pipeline) fn validate_authored_declaration_selections_before_build
     // authority. Check the frozen ordinary source graph first; the ordinary
     // final checked pass repeats this gate after any explicit generated-source
     // handoff.
-    let checked = crate::pipeline::phase_transitions::typed_trees_to_preliminary_checked_trees(
+    let checked = crate::checking::phase_transitions::typed_trees_to_preliminary_checked_trees(
         typed.clone(),
         timings,
     )?;
@@ -49,7 +49,7 @@ pub(in crate::pipeline) fn validate_authored_declaration_selections_before_build
     })
 }
 
-pub(in crate::pipeline) fn validate_authored_declaration_selections(
+pub(crate) fn validate_authored_declaration_selections(
     program: &CheckedTrees,
     packages: &PackageCompilationInputs,
 ) -> Result<(), Vec<Diagnostic>> {

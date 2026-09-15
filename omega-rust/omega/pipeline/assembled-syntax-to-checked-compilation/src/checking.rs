@@ -2,14 +2,16 @@
 
 mod build_continuation;
 mod checked_compilation;
+pub(crate) mod compile_thread;
 mod const_evaluation;
 mod execution_settlement;
+pub(crate) mod phase_transitions;
 
 pub use checked_compilation::CheckedCompilation;
 
-use crate::pipeline::PackageCompilationInputs;
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
+use package_compilation::PackageCompilationInputs;
 use source_files_to_assembled_syntax::ImmutableSourceParseCheckpoint;
 use std::path::Path;
 
@@ -31,7 +33,7 @@ pub struct CheckedCompileRequest<'a> {
     pub evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
     /// Compiler-owned replay whose authored inputs and complete event stream must match.
     /// Replaying this record grants no host filesystem authority.
-    pub replay_record: Option<super::ReviewOnlyBuildFilesystemReplayRecord>,
+    pub replay_record: Option<build_evaluation::ReviewOnlyBuildFilesystemReplayRecord>,
     /// When present, the build occurrence executes against a captured
     /// immutable source snapshot and must complete each required output as a
     /// sealed regular file before its result may publish. Mutually exclusive
@@ -113,7 +115,7 @@ struct CheckedChildExecution<'a> {
     build_dir: Option<&'a Path>,
     filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
     evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
-    replay_record: Option<&'a super::ReviewOnlyBuildFilesystemReplayRecord>,
+    replay_record: Option<&'a build_evaluation::ReviewOnlyBuildFilesystemReplayRecord>,
     build_snapshot: Option<&'a build_evaluation::BuildSnapshotRequest>,
     optimization_rollback: crate::OptimizationRollback,
 }
@@ -171,7 +173,7 @@ impl PreparedCheckedSource {
         })
     }
 
-    pub(crate) fn prepare(
+    pub fn prepare(
         root_path: &Path,
         package_sources: Option<
             std::sync::Arc<package_compilation::PackageCompilationSourceInputs>,
@@ -201,24 +203,26 @@ impl PreparedCheckedSource {
         })
     }
 
-    pub(crate) fn check(
+    /// Check the prepared source for one target. `root_path` must be the
+    /// root the checkpoint was prepared from; `build_dir` receives build
+    /// evaluation output.
+    pub fn check(
         self,
-        options: &super::CompileOptions,
+        root_path: &std::path::Path,
+        target_name: Option<&str>,
+        build_dir: std::path::PathBuf,
         package_inputs: Option<&PackageCompilationInputs>,
         optimization_rollback: &crate::OptimizationRollback,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        if options.root_path != self.root_path {
+        if root_path != self.root_path {
             return Err(vec![Diagnostic::error(
                 "checked child compilation root does not match its prepared source checkpoint",
             )]);
         }
-        let selected_target_profile = options
-            .target_name
-            .as_deref()
+        let selected_target_profile = target_name
             .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
             .transpose()
             .map_err(|diagnostic| vec![diagnostic])?;
-        let build_dir = options.build_dir();
         self.compile_child_with_replay(CheckedChildExecution {
             selected_target_profile,
             package_inputs,
@@ -271,7 +275,7 @@ fn compile_checked_request(
     }
     let retain_source = source_output.is_some();
     let (checked, retained_source) =
-        crate::compiler::execution::run_on_compile_thread(move || {
+        crate::checking::compile_thread::run_on_compile_thread(move || {
             // Validate target selection before loading source, including fresh requests.
             request
                 .target_name

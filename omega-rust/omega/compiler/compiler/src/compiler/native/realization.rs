@@ -15,7 +15,7 @@ impl PreparedTerminalNativeArtifact {
 }
 
 pub(super) fn validate_terminal_authority_permissions(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     terminal_authority_permission_policy: &native_realization::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     native_realization::validate_package_terminal_authority_permissions(
@@ -27,7 +27,7 @@ pub(super) fn validate_terminal_authority_permissions(
 }
 
 pub(super) fn prepare_terminal_artifact(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     admission: &super::admission::NativeCompilationAdmission,
     optimization_selections: &OptimizationSelections,
 ) -> Result<PreparedTerminalNativeArtifact, Vec<Diagnostic>> {
@@ -88,7 +88,7 @@ pub(super) fn prepare_terminal_artifact(
 }
 
 pub(super) fn realize(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
     admission: &super::admission::NativeCompilationAdmission,
     profile: &proof_admission::AdmissionProfile,
     terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,

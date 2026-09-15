@@ -6,7 +6,7 @@ pub use request::OptimizationRollbackInputError;
 
 use optimization_core::OptimizationSelections;
 
-use crate::OptimizationRollbackReceipt;
+use compilation_report::OptimizationRollbackReceipt;
 
 /// A release-tooling overlay that can only subtract exact rules selected by
 /// `build.omg`. It cannot add, alias, or reorder an optimization.
@@ -20,7 +20,7 @@ pub struct OptimizationRollback {
 /// The effective selection and optional report receipt are constructed
 /// together so callers cannot reimplement the empty-request identity case.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OptimizationRollbackSettlement {
+pub struct OptimizationRollbackSettlement {
     effective: OptimizationSelections,
     receipt: Option<OptimizationRollbackReceipt>,
 }
@@ -52,7 +52,7 @@ impl OptimizationRollback {
         })
     }
 
-    pub(crate) fn settle(
+    pub fn settle(
         &self,
         build_selected: &OptimizationSelections,
     ) -> OptimizationRollbackSettlement {

@@ -12,7 +12,7 @@ use diagnostics::Diagnostic;
 
 pub(super) fn prepare(
     request: ValidatedTargetCompilation,
-    checked: crate::pipeline::CheckedCompilation,
+    checked: crate::CheckedCompilation,
 ) -> Result<PreparedNativeCompilation, Vec<Diagnostic>> {
     admission::reject_unconsumed_callbacks(&checked)?;
     let production_subject = crate::pipeline::reporting::project_production_subject(&checked)?;

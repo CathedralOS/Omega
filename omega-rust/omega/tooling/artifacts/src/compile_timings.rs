@@ -146,7 +146,7 @@ impl CompileTimings {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{AllocationDelta, CompileTimings};
     use crate::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 
     #[test]

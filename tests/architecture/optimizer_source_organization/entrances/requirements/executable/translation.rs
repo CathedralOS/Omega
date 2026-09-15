@@ -51,7 +51,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/mod.rs",
-        coordination_marker: "pub fn lower_to_target_operations_with_provider_executions_and_installation",
+        coordination_marker: "pub fn lower_to_target_operations(",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/whole_plan.rs",

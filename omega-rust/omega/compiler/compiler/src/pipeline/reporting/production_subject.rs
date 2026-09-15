@@ -3,7 +3,7 @@
 use diagnostics::Diagnostic;
 
 pub(crate) fn project_production_subject(
-    checked: &crate::pipeline::CheckedCompilation,
+    checked: &crate::CheckedCompilation,
 ) -> Result<Option<compilation_report::ProductionCompilationSubject>, Vec<Diagnostic>> {
     let Some(package) = checked.package_compilation_subject() else {
         return Ok(None);

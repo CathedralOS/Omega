@@ -2,10 +2,10 @@
 
 use super::build_continuation::BuildSourceCustody;
 use super::execution_settlement::CheckedExecution;
-use crate::pipeline::PackageCompilationInputs;
 use artifacts::compile_timings::CompileTimings;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
+use package_compilation::PackageCompilationInputs;
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -35,7 +35,8 @@ pub struct CheckedCompilation {
 struct CheckedSourceCustody {
     source_file_count: usize,
     package_subject: Option<package_compilation::PackageCompilationSubject>,
-    base_source_consumption_commitment: Option<crate::pipeline::PackageSourceConsumptionCommitment>,
+    base_source_consumption_commitment:
+        Option<package_compilation::PackageSourceConsumptionCommitment>,
     exact_toolchain_sources: Vec<(source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     own_generated_sources: Vec<build_output::PackageGeneratedSource>,
@@ -109,7 +110,7 @@ impl CheckedCompilation {
     }
 
     /// Canonical boundary calls already live in this checked program.
-    pub(crate) fn terminal_production_trees(&self) -> &CheckedTrees {
+    pub fn terminal_production_trees(&self) -> &CheckedTrees {
         &self.execution.settled.program
     }
 
@@ -183,7 +184,9 @@ impl CheckedCompilation {
 
     /// Exact source-path-free dependency closure consumed by package-aware
     /// compilation. Standalone compilation has no package closure.
-    pub const fn dependency_closure(&self) -> Option<&crate::pipeline::PackageDependencyClosure> {
+    pub const fn dependency_closure(
+        &self,
+    ) -> Option<&package_compilation::PackageDependencyClosure> {
         match &self.sources.package_subject {
             Some(subject) => Some(subject.dependency_closure()),
             None => None,
@@ -195,7 +198,7 @@ impl CheckedCompilation {
     /// custody commitment.
     pub const fn source_consumption_commitment(
         &self,
-    ) -> Option<crate::pipeline::PackageSourceConsumptionCommitment> {
+    ) -> Option<package_compilation::PackageSourceConsumptionCommitment> {
         match &self.sources.package_subject {
             Some(subject) => Some(subject.source_consumption_commitment()),
             None => None,
@@ -208,7 +211,7 @@ impl CheckedCompilation {
     /// already part of this base.
     pub const fn base_source_consumption_commitment(
         &self,
-    ) -> Option<crate::pipeline::PackageSourceConsumptionCommitment> {
+    ) -> Option<package_compilation::PackageSourceConsumptionCommitment> {
         self.sources.base_source_consumption_commitment
     }
 
@@ -331,7 +334,7 @@ impl CheckedCompilation {
     /// The bundle is not admission and carries no filesystem authority.
     pub fn package_generated_source_bundle(
         &self,
-    ) -> Result<crate::pipeline::PackageGeneratedSourceBundle, &'static str> {
+    ) -> Result<package_compilation::PackageGeneratedSourceBundle, &'static str> {
         let package = self
             .package_identity()
             .ok_or("generated-source bundles require package-aware compilation")?;
@@ -346,13 +349,15 @@ impl CheckedCompilation {
         let source_consumption_commitment = self
             .source_consumption_commitment()
             .ok_or("generated-source bundles require source-consumption custody")?;
-        Ok(crate::pipeline::PackageGeneratedSourceBundle::from_checked(
-            package,
-            target,
-            dependency_closure,
-            source_consumption_commitment,
-            self.sources.own_generated_sources.clone(),
-        ))
+        Ok(
+            package_compilation::PackageGeneratedSourceBundle::from_checked(
+                package,
+                target,
+                dependency_closure,
+                source_consumption_commitment,
+                self.sources.own_generated_sources.clone(),
+            ),
+        )
     }
 
     /// Exact native target selected for this checked compilation. Semantic-only
@@ -564,7 +569,7 @@ impl CheckedCompilation {
         &self.execution.settled.contract_entailment_stand_downs
     }
 
-    pub(in crate::pipeline) const fn timings(&self) -> &CompileTimings {
+    pub const fn timings(&self) -> &CompileTimings {
         &self.timings
     }
 

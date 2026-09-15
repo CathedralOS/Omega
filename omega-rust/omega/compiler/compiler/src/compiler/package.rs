@@ -11,7 +11,7 @@ pub fn retained_terminal_report_from_checked_package(
     checked: CheckedCompilation,
     profile: proof_admission::AdmissionProfile,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    super::execution::run_on_compile_thread(move || {
+    assembled_syntax_to_checked_compilation::run_on_compile_thread(move || {
         checked.verify_current_source_consumption()?;
         if crate::pipeline::reporting::project_production_subject(&checked)?.is_none() {
             return Err(vec![Diagnostic::error(

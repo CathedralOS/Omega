@@ -263,7 +263,9 @@ fn toolchain_contract_root_for<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{PackageKeyIdentity, SourceOrigin, SourceStorage};
+    use std::path::Path;
+    use std::path::PathBuf;
 
     #[test]
     fn standalone_bundle_keeps_deepest_legacy_toolchain_roots() {
