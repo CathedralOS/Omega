@@ -1,9 +1,9 @@
 //! Fixed register calls with independently allocated integer and IEEE input banks.
 
-use super::{
+use super::{aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys};
+use register_model::{
     RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
-    aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys,
 };
 /// AAPCS64 rows ordered by GPR count (0–8), then IEEE register count (1–8).
 pub fn aarch64_aapcs64_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
