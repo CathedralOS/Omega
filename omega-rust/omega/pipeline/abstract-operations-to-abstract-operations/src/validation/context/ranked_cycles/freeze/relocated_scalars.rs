@@ -145,7 +145,12 @@ pub(super) fn validate(
         // An admitted place observation carries no operand rewrites but may
         // rebind its storage root: when the expected root is an invariant
         // member structural parameter, the root the seed resolves it to is
-        // re-derived here rather than trusted from the transformed unit.
+        // re-derived here rather than trusted from the transformed unit. A
+        // byte read needs both halves at once — the scalar substitution for
+        // its `index`/`length` operands and the root its storage source
+        // resolves to — plus the `length` coupling that keeps the moved read
+        // paired with a `ByteSequenceLength` measuring the same root, so a
+        // forged source, operand, or obligation spelling rejects.
         let (substitution, root) =
             if crate::validation::admissible_scalar_leaf_relocation(relocation.expected) {
                 (BTreeMap::new(), None)
@@ -162,6 +167,25 @@ pub(super) fn validate(
                     relocation.expected,
                 ) {
                     Some(root) => (BTreeMap::new(), Some(root)),
+                    None => return Err(mismatch(machine, relocation.expected_block)),
+                }
+            } else if crate::validation::admissible_invariant_byte_read(relocation.expected)
+                .is_some()
+            {
+                // Both the root half and the scalar-operand half re-derive
+                // from the seed: the run-internal `length` producer must
+                // already appear among this component's relocated results,
+                // and its own observation root must resolve to the read's
+                // rebound root.
+                match crate::validation::invariant_byte_read_admission(
+                    expected,
+                    component,
+                    relocation.expected,
+                    relocated_results
+                        .get(&component.id)
+                        .unwrap_or(&no_relocated_results),
+                ) {
+                    Some((root, substitution)) => (substitution, Some(root)),
                     None => return Err(mismatch(machine, relocation.expected_block)),
                 }
             } else {
@@ -268,9 +292,11 @@ fn same_relocated_node(
     if let Some(root) = root {
         // Admission proved the expected root is either already `root` or the
         // member structural parameter that resolves to it, so rebinding from
-        // the expected source cannot admit a different place.
+        // the expected source cannot admit a different place. Both observation
+        // gates name the root the same way, so the expected source is read
+        // off whichever one the node's shape admits through.
         let rebound =
-            crate::validation::admissible_invariant_place_read(expected).is_some_and(|source| {
+            crate::validation::invariant_observation_source(expected).is_some_and(|source| {
                 crate::validation::substitute_invariant_place_root(&mut operation, source, root)
             });
         if !rebound {

@@ -83,11 +83,12 @@ pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -
 /// established storage root. Every admitted variant is a verifier-approved
 /// read that defines exactly one result, carries no scalar uses, successors,
 /// or ownership events, and keeps its own operation identity as the first
-/// provenance row. `ByteSequenceRead` stays outside the family this wave —
-/// its scalar index/length operands and its bounds obligation add a second
-/// evidence dimension the bounded gate does not yet reconstruct. Invariance
-/// of the observed root and the root's preheader visibility are decided
-/// separately by [`invariant_place_observation_admission`].
+/// provenance row. `ByteSequenceRead` is not a leaf here — its scalar
+/// index/length operands and its bounds obligation add a second evidence
+/// dimension — so it admits through [`admissible_invariant_byte_read`] and
+/// [`invariant_byte_read_admission`] instead. Invariance of the observed root
+/// and the root's preheader visibility are decided separately by
+/// [`invariant_place_observation_admission`].
 pub(crate) fn admissible_invariant_place_read(node: &OptimizationNode) -> Option<PlaceId> {
     let (psi_operation, source) = match &node.operation {
         O::PrimitiveScalarRead {
@@ -128,6 +129,49 @@ pub(crate) fn admissible_invariant_place_read(node: &OptimizationNode) -> Option
         && node.successors.is_empty()
         && node.ownership.is_empty())
     .then_some(source)
+}
+
+/// A `ByteSequenceRead` is the non-scalar family admitted after place
+/// observations: still one verifier-approved observation of an established
+/// storage root, but it additionally reads two scalar operands — the dynamic
+/// `index` and the `length` a `ByteSequenceLength` on the same source defined —
+/// and carries the bounds obligation the index proof produced. The node must
+/// keep its own operation identity as the first provenance row, define exactly
+/// one result, use exactly its `index` and `length` operands in operand order,
+/// and carry no successors or ownership events. Root invariance and preheader
+/// visibility are decided by the shared [`invariant_observation_root`]
+/// resolution, operand invariance by [`invariant_byte_read_admission`]'s
+/// substitution half.
+pub(crate) fn admissible_invariant_byte_read(
+    node: &OptimizationNode,
+) -> Option<(PlaceId, ValueId, ValueId)> {
+    let O::ByteSequenceRead {
+        psi_operation,
+        source,
+        index,
+        length,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.len() == 1
+        && node.uses.len() == 2
+        && node.uses[0].value == *index
+        && node.uses[1].value == *length
+        && node.successors.is_empty()
+        && node.ownership.is_empty())
+    .then_some((*source, *index, *length))
+}
+
+/// The storage root an admitted place observation or byte read names —
+/// whichever observation gate the node's operation shape admits through.
+/// `same_relocated_node` needs the expected root to replay the member
+/// parameter's rebind without trusting the transformed unit's spelling.
+pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<PlaceId> {
+    admissible_invariant_place_read(node)
+        .or_else(|| admissible_invariant_byte_read(node).map(|(source, _, _)| source))
 }
 
 /// Whether `component`'s member blocks perform no place mutation or custody
@@ -345,6 +389,24 @@ pub(crate) fn invariant_place_observation_admission(
     node: &OptimizationNode,
 ) -> Option<PlaceId> {
     let source = admissible_invariant_place_read(node)?;
+    invariant_observation_root(function, component, source)
+}
+
+/// The root an admitted observation rebinds to when it relocates: `source`
+/// itself when it is already visible at the unique-entry preheader insertion
+/// point, so a byte-exact move and a member-parameter rebind share one
+/// admission. The whole-component place-custody gate
+/// ([`component_preserves_place_observations`]) and the root's preheader
+/// visibility ([`place_observation_root_visible`]) — direct or through the
+/// member structural parameter's agreed representative
+/// ([`invariant_member_place_parameters`]) — are enforced here so both the
+/// proposal and the relocation freeze replay derive the same root from the
+/// seed rather than trusting a plan.
+pub(crate) fn invariant_observation_root(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    source: PlaceId,
+) -> Option<PlaceId> {
     let [entry] = component.entries.as_slice() else {
         return None;
     };
@@ -364,6 +426,67 @@ pub(crate) fn invariant_place_observation_admission(
     let representatives = invariant_member_place_parameters(function, component);
     let representative = representatives.get(&source)?;
     place_observation_root_visible(function, preheader, *representative).then_some(*representative)
+}
+
+/// The complete `ByteSequenceRead` admission shared by the proposal and the
+/// relocation freeze replay: `node` must carry the source-owned byte-read
+/// shape ([`admissible_invariant_byte_read`]), its storage root must resolve
+/// to a preheader-visible root through the shared observation-root admission
+/// ([`invariant_observation_root`]), and each scalar operand must satisfy the
+/// same use-site invariance rule an admitted scalar computation obeys —
+/// defined outside the component, an invariant member parameter rebound to
+/// its agreed representative, or the preserved result of a node earlier in
+/// the same relocation run.
+///
+/// The `length` operand carries one additional coupling the generic rule
+/// cannot express: byte-view validation requires it to be defined by a
+/// `ByteSequenceLength` measuring the very root the read observes. A
+/// member-internal producer qualifies only when it relocates in the same run
+/// and its own root resolves to the read's rebound root; a producer outside
+/// the component qualifies only when it already measures that root. Anything
+/// else — a member parameter, a function parameter, or a length observation
+/// of a different root — would re-express the read against a length the
+/// transformed unit could not validate, so the admission refuses.
+///
+/// Returns the root the relocated read rebinds to plus the operand
+/// substitution its member-parameter uses need.
+pub(crate) fn invariant_byte_read_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+) -> Option<(PlaceId, BTreeMap<ValueId, ValueId>)> {
+    let (source, _, length) = admissible_invariant_byte_read(node)?;
+    let root = invariant_observation_root(function, component, source)?;
+    let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
+    let rebound_length = substitution.get(&length).copied().unwrap_or(length);
+    let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
+    let producer_matches = match value_definition_sites(function).get(&rebound_length) {
+        Some(ValueDefinitionSite::Node { block, node }) => {
+            let producing = function
+                .blocks
+                .iter()
+                .find(|candidate| candidate.id == *block)
+                .and_then(|block| {
+                    usize::try_from(*node)
+                        .ok()
+                        .and_then(|node| block.nodes.get(node))
+                })?;
+            match &producing.operation {
+                O::ByteSequenceLength {
+                    source: measured, ..
+                } if members.contains(block) => {
+                    invariant_observation_root(function, component, *measured) == Some(root)
+                }
+                O::ByteSequenceLength {
+                    source: measured, ..
+                } => *measured == root,
+                _ => false,
+            }
+        }
+        _ => false,
+    };
+    producer_matches.then_some((root, substitution))
 }
 
 /// Structural parameters of `component`'s member blocks whose root is
@@ -790,6 +913,24 @@ pub(crate) fn invariant_scalar_operand_substitution(
     if !admissible_invariant_scalar_computation(node) {
         return None;
     }
+    member_scalar_operand_substitution(function, component, node, relocating)
+}
+
+/// The use-site invariance rule every scalar-operand relocation shares: a use
+/// defined outside the member roster needs no rewrite; a use of an invariant
+/// member parameter is rebound to the representative every reaching edge
+/// agrees on; a use of a member-internal node result stays bound only when
+/// that producer relocates in the same run (`relocating`); every other
+/// member-internal definition refuses. The operation-shape gate stays with
+/// the callers — [`invariant_scalar_operand_substitution`] admits the pure
+/// computation whitelist and [`invariant_byte_read_admission`] admits the
+/// byte-read shape — while this walk is deliberately operation-agnostic.
+fn member_scalar_operand_substitution(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+) -> Option<BTreeMap<ValueId, ValueId>> {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
     let sites = value_definition_sites(function);
     let representatives = invariant_member_parameters(function, component);
@@ -853,6 +994,15 @@ pub(crate) fn substitute_invariant_scalar_operands(
             substitute(value, substitution);
             substitute(count, substitution);
         }
+        // A relocated byte read rebinds its `index` and `length` through the
+        // same invariant-parameter substitution a pure computation uses. Its
+        // `source` root and `obligation` are not scalar operand positions —
+        // the root moves through `substitute_invariant_place_root` and the
+        // obligation stays byte-exact.
+        O::ByteSequenceRead { index, length, .. } => {
+            substitute(index, substitution);
+            substitute(length, substitution);
+        }
         O::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,
@@ -867,9 +1017,10 @@ pub(crate) fn substitute_invariant_scalar_operands(
     }
 }
 
-/// Rewrite the observed storage root of an admitted place observation from an
-/// invariant member parameter to its agreed representative. Only the variants
-/// [`admissible_invariant_place_read`] admits carry a `source` root position;
+/// Rewrite the observed storage root of an admitted place observation or byte
+/// read from an invariant member parameter to its agreed representative. Only
+/// the variants [`admissible_invariant_place_read`] and
+/// [`admissible_invariant_byte_read`] admit carry a `source` root position;
 /// the rewrite fires only when the operation's current root is `parameter`,
 /// so a drifted plan cannot rebind a different place. Returns whether the
 /// root was rebound.
@@ -881,6 +1032,7 @@ pub(crate) fn substitute_invariant_place_root(
     let source = match operation {
         O::PrimitiveScalarRead { source, .. }
         | O::StructuralCaseMembership { source, .. }
+        | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::BooleanStructuralField { source, .. }

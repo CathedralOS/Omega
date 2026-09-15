@@ -1811,6 +1811,738 @@ fn forged_view_root_rewrite_is_rejected_by_the_freeze_fence() {
     ));
 }
 
+/// A byte read whose operands exercise every substitution half at once:
+/// `view[i]` reads through the member `view` structural parameter that
+/// resolves transitively to the machine's `entries` root, through the member
+/// `i` scalar parameter that resolves transitively to the `index` machine
+/// parameter, and its `length` operand is the member-internal
+/// `ByteSequenceLength` (`view.len`) that must relocate in the same run —
+/// its own root rebinds to `entries` so the moved read still validates
+/// byte-exact against its preserved bounds obligation. The read lives in a
+/// member block that dominates the component's only exit, so the
+/// non-speculative gate admits it.
+const MEMBER_BYTE_READ_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, entries: &[u8], index: u64, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, entries, index, remaining) }
+        state step(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5]) {
+            transition i < view.len && view[i] == 0 {
+                true -> tail(s, view, i, pending)
+                _ -> hold(s, view, i, pending)
+            }
+        }
+        state tail(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> step(s, view, i, pending - 1)
+                _ -> finish()
+            }
+        }
+        state hold(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5]) {
+            transition { _ -> step(s, view, i, pending) }
+        }
+        state finish() {}
+    }
+"#;
+
+/// Same byte-read shape, but the back edge binds `i` to a fresh
+/// member-internal constant, so the member `i` parameter stays loop-carried:
+/// the read's `index` operand has no invariant representative and the read
+/// stays inside even though its root still resolves to `entries`.
+const CARRIED_INDEX_BYTE_READ_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, entries: &[u8], index: u64, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, entries, index, remaining) }
+        state step(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5]) {
+            transition i < view.len && view[i] == 0 {
+                true -> tail(s, view, i, pending)
+                _ -> hold(s, view, i, pending)
+            }
+        }
+        state tail(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> step(s, view, 0, pending - 1)
+                _ -> finish()
+            }
+        }
+        state hold(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5]) {
+            transition { _ -> step(s, view, i, pending) }
+        }
+        state finish() {}
+    }
+"#;
+
+/// Same byte-read shape, but `tail`'s back edge binds `view` to a different
+/// root than the entry edge: `entries` on entry and `fallback` on the back
+/// edge disagree, so the member `view` parameter resolves to no single
+/// representative and stays loop-carried — the read stays inside even though
+/// the component's place-custody preservation is intact.
+const CARRIED_VIEW_BYTE_READ_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, entries: &[u8], fallback: &[u8], index: u64, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, entries, index, remaining, fallback) }
+        state step(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5], spare: &[u8]) {
+            transition i < view.len && view[i] == 0 {
+                true -> tail(s, view, i, pending, spare)
+                _ -> hold(s, view, i, pending, spare)
+            }
+        }
+        state tail(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5], spare: &[u8]) {
+            transition pending > 0 {
+                true -> step(s, spare, i, pending - 1, spare)
+                _ -> finish()
+            }
+        }
+        state hold(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5], spare: &[u8]) {
+            transition { _ -> step(s, view, i, pending, spare) }
+        }
+        state finish() {}
+    }
+"#;
+
+/// The `ByteSequenceRead` observations inside a component's member blocks,
+/// as `(member block, node)` pairs in member order.
+fn member_byte_reads<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> Vec<(
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+)> {
+    component
+        .members
+        .iter()
+        .map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+        })
+        .flat_map(|block| {
+            block
+                .nodes
+                .iter()
+                .filter(|node| matches!(node.operation, AbstractOperation::ByteSequenceRead { .. }))
+                .map(move |node| (block, node))
+        })
+        .collect()
+}
+
+/// The operation identity of a source-owned node.
+fn operation_of(node: &optimization_unit::OptimizationNode) -> semantic_vocabulary::OperationId {
+    match node.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("the node carries its operation identity"),
+    }
+}
+
+#[test]
+fn invariant_byte_read_relocates_rebinding_its_root_and_index() {
+    let session = lowered_session(MEMBER_BYTE_READ_SOURCE, "member byte read loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let [entries_parameter] = function.structural_parameters.as_slice() else {
+        panic!("the machine carries one structural parameter")
+    };
+    let reads = member_byte_reads(function, component);
+    let [(read_block, read)] = reads.as_slice() else {
+        panic!("one member byte read")
+    };
+    let member = read_block.id;
+    let (read_source, read_index, read_length, read_obligation) = match &read.operation {
+        AbstractOperation::ByteSequenceRead {
+            source,
+            index,
+            length,
+            obligation,
+            ..
+        } => (*source, *index, *length, *obligation),
+        _ => unreachable!("member_byte_reads only yields byte reads"),
+    };
+    let read_result = match read.definitions.as_slice() {
+        [definition] => definition.value,
+        _ => panic!("one observed result"),
+    };
+    assert_eq!(
+        crate::validation::admissible_invariant_byte_read(read),
+        Some((read_source, read_index, read_length)),
+        "the byte read carries the source-owned admission shape"
+    );
+    assert!(
+        crate::validation::guaranteed_executed_member_blocks(component).contains(&member),
+        "the read's member block dominates every exit"
+    );
+    assert!(
+        crate::validation::component_preserves_place_observations(function, component),
+        "no member mutates or moves custody of any place"
+    );
+    let entries_place = entries_parameter.place;
+    assert_eq!(
+        crate::validation::invariant_member_place_parameters(function, component).get(&read_source),
+        Some(&entries_place),
+        "the read's member view parameter resolves to `entries`"
+    );
+    let index_anchor = crate::validation::invariant_member_parameters(function, component)
+        .get(&read_index)
+        .copied()
+        .expect("the read's member index parameter resolves to its preheader anchor");
+    // The length operand is the member-internal `ByteSequenceLength` result:
+    // the shared admission couples the read to that producer — it must
+    // relocate in the same run and measure the read's rebound root.
+    let length_reads = member_length_reads(function, component);
+    let [(length_block, length_read)] = length_reads.as_slice() else {
+        panic!("one member length observation feeds the read")
+    };
+    assert_eq!(
+        match length_read.definitions.as_slice() {
+            [definition] => definition.value,
+            _ => panic!("one length result"),
+        },
+        read_length,
+        "the read's length operand is the member length observation's result"
+    );
+    let relocating = std::collections::BTreeSet::from([read_length]);
+    assert_eq!(
+        crate::validation::invariant_byte_read_admission(function, component, read, &relocating),
+        Some((
+            entries_place,
+            std::collections::BTreeMap::from([(read_index, index_anchor)])
+        )),
+        "the shared admission rebinds the root and substitutes the index"
+    );
+    let read_operation = operation_of(read);
+    let length_operation = operation_of(length_read);
+    let member_structural_parameters = read_block.structural_parameters.clone();
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == read_operation)
+        .expect("the byte read is a planned relocation");
+    assert_eq!(
+        relocation.node().root_rewrite(),
+        Some((read_source, entries_place)),
+        "the relocation rebinds the member view parameter to `entries`"
+    );
+    assert_eq!(
+        relocation.node().operand_rewrites(),
+        &[(read_index, index_anchor)],
+        "the relocation substitutes the member index parameter"
+    );
+    assert_eq!(relocation.node().result(), read_result);
+    assert_eq!(relocation.node().location().block, member);
+    assert_eq!(relocation.destination().block, preheader);
+    let length_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == length_operation)
+        .expect("the length producer relocates in the same run");
+    assert_eq!(
+        length_relocation.node().root_rewrite(),
+        Some((read_source, entries_place)),
+        "the length observation rebinds the same root"
+    );
+    assert!(
+        length_relocation.node().operand_rewrites().is_empty(),
+        "the length observation carries no scalar operands"
+    );
+    assert!(
+        length_relocation.destination().node < relocation.destination().node,
+        "the run keeps the length producer ahead of the read it defines"
+    );
+    let view_place = read_source;
+    let length_member = length_block.id;
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let output_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let destination = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::ByteSequenceRead {
+            source,
+            index,
+            length,
+            obligation,
+            result,
+            ..
+        } => {
+            assert_eq!(
+                *source, entries_place,
+                "the relocated read observes the representative root"
+            );
+            assert_eq!(*index, index_anchor, "the relocated index is the anchor");
+            assert_eq!(
+                *length, read_length,
+                "the length operand keeps its relocated producer's result"
+            );
+            assert_eq!(
+                *obligation, read_obligation,
+                "the bounds obligation stays byte-exact"
+            );
+            assert_eq!(result.value, read_result);
+        }
+        operation => panic!("relocated read keeps its operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    for (moved_member, kind) in [(member, "read"), (length_member, "length")] {
+        assert!(
+            output_function
+                .blocks
+                .iter()
+                .find(|block| block.id == moved_member)
+                .expect("member block exists")
+                .nodes
+                .iter()
+                .all(|node| {
+                    !matches!(
+                        node.operation,
+                        AbstractOperation::ByteSequenceRead { .. }
+                            if kind == "read"
+                    ) && !matches!(
+                        node.operation,
+                        AbstractOperation::ByteSequenceLength { .. }
+                            if kind == "length"
+                    )
+                }),
+            "the {kind} exists once, at the destination"
+        );
+    }
+    // Place custody survives the transform: both roots stay declared and the
+    // member's view parameter roster is unchanged.
+    assert!(output_function.declared_places.contains(&view_place));
+    assert!(output_function.declared_places.contains(&entries_place));
+    assert_eq!(
+        output_function
+            .blocks
+            .iter()
+            .find(|block| block.id == member)
+            .expect("member block exists")
+            .structural_parameters,
+        member_structural_parameters,
+    );
+
+    let [record] = applied.ledger().records() else {
+        panic!("one atomic relocation has one ledger record")
+    };
+    let row = record
+        .provenance
+        .iter()
+        .find(|row| row.input == PsiRealizationSite::Node(relocation.node().location()))
+        .expect("the relocated read has exact ledger custody");
+    assert_eq!(
+        row.disposition,
+        ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(relocation.destination()))
+    );
+    assert_eq!(&row.sources, relocation.node().provenance());
+    assert_eq!(&row.fuel, relocation.node().fuel());
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn carried_index_keeps_the_byte_read_inside() {
+    let session = lowered_session(CARRIED_INDEX_BYTE_READ_SOURCE, "carried index read loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let reads = member_byte_reads(function, component);
+    let [(_, read)] = reads.as_slice() else {
+        panic!("one member byte read")
+    };
+    let (read_source, read_index, read_length) = match &read.operation {
+        AbstractOperation::ByteSequenceRead {
+            source,
+            index,
+            length,
+            ..
+        } => (*source, *index, *length),
+        _ => unreachable!("member_byte_reads only yields byte reads"),
+    };
+    assert!(
+        !crate::validation::invariant_member_parameters(function, component)
+            .contains_key(&read_index),
+        "the back edge binds a member-produced constant, so `i` stays loop-carried"
+    );
+    // The root half still resolves — only the carried index operand refuses.
+    assert!(
+        crate::validation::invariant_member_place_parameters(function, component)
+            .contains_key(&read_source),
+        "the member view parameter still resolves to `entries`"
+    );
+    let relocating = std::collections::BTreeSet::from([read_length]);
+    assert!(
+        crate::validation::invariant_byte_read_admission(function, component, read, &relocating)
+            .is_none(),
+        "the shared admission refuses the carried index operand"
+    );
+    let read_operation = operation_of(read);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != read_operation),
+        "the carried-index read is not a planned relocation"
+    );
+}
+
+#[test]
+fn carried_view_keeps_the_byte_read_inside() {
+    let session = lowered_session(CARRIED_VIEW_BYTE_READ_SOURCE, "carried view read loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    assert!(
+        crate::validation::component_preserves_place_observations(function, component),
+        "no member produces or mutates a place — the refusal is the root's alone"
+    );
+    let reads = member_byte_reads(function, component);
+    let [(_, read)] = reads.as_slice() else {
+        panic!("one member byte read")
+    };
+    let (read_source, _, read_length) = match &read.operation {
+        AbstractOperation::ByteSequenceRead {
+            source,
+            index,
+            length,
+            ..
+        } => (*source, *index, *length),
+        _ => unreachable!("member_byte_reads only yields byte reads"),
+    };
+    assert!(
+        !crate::validation::invariant_member_place_parameters(function, component)
+            .contains_key(&read_source),
+        "a member-produced back-edge binding keeps the member view parameter loop-carried"
+    );
+    let relocating = std::collections::BTreeSet::from([read_length]);
+    assert!(
+        crate::validation::invariant_byte_read_admission(function, component, read, &relocating)
+            .is_none(),
+        "the shared admission refuses the carried view root"
+    );
+    let read_operation = operation_of(read);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != read_operation),
+        "the carried-view read is not a planned relocation"
+    );
+}
+
+#[test]
+fn moved_byte_read_without_its_length_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(MEMBER_BYTE_READ_SOURCE, "member byte read loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (read_block, read) = member_byte_reads(function, component)[0];
+    let member = read_block.id;
+    let read_operation = operation_of(read);
+    let (input, mut unit) = session.into_parts();
+    // Hand-move the read while its `ByteSequenceLength` producer stays inside:
+    // the read's `length` operand names a member-internal result no run
+    // relocates, so the seed-derived admission refuses before any root or
+    // operand comparison — the coupling is replayed, not trusted.
+    let moved = take_operation(&mut unit, read_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn forged_byte_read_root_rewrite_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(MEMBER_BYTE_READ_SOURCE, "member byte read loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, read) = member_byte_reads(function, component)[0];
+    let read_operation = operation_of(read);
+    let candidate = propose_loop_invariant_scalar_motion(&session, 1)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == read_operation)
+        .expect("the byte read carries a root rewrite");
+    let member = relocation.node().location().block;
+    let (parameter, _) = relocation
+        .node()
+        .root_rewrite()
+        .expect("root rewrite exists");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the rebound root back to the member view parameter must fail the
+    // seed-derived resolution, not just dominance bookkeeping.
+    let forged = find_operation_mut(&mut unit, read_operation);
+    if let AbstractOperation::ByteSequenceRead { source, .. } = &mut forged.operation {
+        *source = parameter;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn forged_byte_read_index_rewrite_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(MEMBER_BYTE_READ_SOURCE, "member byte read loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, read) = member_byte_reads(function, component)[0];
+    let read_operation = operation_of(read);
+    let candidate = propose_loop_invariant_scalar_motion(&session, 1)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == read_operation)
+        .expect("the byte read carries an operand rewrite");
+    let member = relocation.node().location().block;
+    let (parameter, _) = relocation
+        .node()
+        .operand_rewrites()
+        .first()
+        .copied()
+        .expect("the index substitution exists");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the rebound index back to the member scalar parameter must fail
+    // the seed-derived substitution, not just dominance bookkeeping.
+    let forged = find_operation_mut(&mut unit, read_operation);
+    if let AbstractOperation::ByteSequenceRead { index, .. } = &mut forged.operation {
+        *index = parameter;
+    }
+    forged.uses[0].value = parameter;
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn forged_byte_read_length_and_obligation_are_rejected_by_the_freeze_fence() {
+    let session = lowered_session(MEMBER_BYTE_READ_SOURCE, "member byte read loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, read) = member_byte_reads(function, component)[0];
+    let read_operation = operation_of(read);
+    let (read_index, read_obligation) = match &read.operation {
+        AbstractOperation::ByteSequenceRead {
+            index, obligation, ..
+        } => (*index, *obligation),
+        _ => unreachable!("member_byte_reads only yields byte reads"),
+    };
+    // A second live obligation the forgery can claim — the member's
+    // `pending - 1` descent carries its own exact-subtraction obligation.
+    let other_obligation = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            AbstractOperation::ExactIntegerSubtract { obligation, .. } => Some(*obligation),
+            _ => None,
+        })
+        .find(|obligation| *obligation != read_obligation)
+        .expect("the member carries a second obligation to forge");
+    let candidate = propose_loop_invariant_scalar_motion(&session, 1)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == read_operation)
+        .expect("the byte read is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+
+    // Forging the `length` operand to another scalar — the rebound index —
+    // breaks the coupling the seed replays: the moved read must still name
+    // the `ByteSequenceLength` result that measures its rebound root.
+    let (input, mut unit) = applied.into_session().into_parts();
+    let forged = find_operation_mut(&mut unit, read_operation);
+    if let AbstractOperation::ByteSequenceRead { length, .. } = &mut forged.operation {
+        *length = read_index;
+    }
+    forged.uses[1].value = read_index;
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+
+    // Rebuild the applied unit and forge the obligation instead: the
+    // obligation is not a substitutable position, so the replayed operation
+    // comparison rejects any other obligation identity.
+    let session = lowered_session(MEMBER_BYTE_READ_SOURCE, "member byte read loop");
+    let candidate = propose_loop_invariant_scalar_motion(&session, 1)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    let forged = find_operation_mut(&mut unit, read_operation);
+    if let AbstractOperation::ByteSequenceRead { obligation, .. } = &mut forged.operation {
+        *obligation = other_obligation;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
 fn lowered_session(source: &str, label: &str) -> VerifiedPsiOptimizationSession {
     lowered_session_entry(source, label, "Root::scan")
 }

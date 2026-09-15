@@ -3,7 +3,7 @@
 use super::{
     LoopInvariantScalarMotionCandidate, LoopInvariantScalarMotionError, LoopInvariantScalarNode,
     LoopInvariantScalarRelocation, NodeLocation, OperationId, PsiProvenance, ValueDefinitionSite,
-    VerifiedPsiOptimizationSession, apply, candidate_identity,
+    ValueId, VerifiedPsiOptimizationSession, apply, candidate_identity,
 };
 pub(super) fn all(
     session: &VerifiedPsiOptimizationSession,
@@ -152,6 +152,30 @@ pub(super) fn component_plan(
     let mut nodes = Vec::new();
     let mut relocating = std::collections::BTreeSet::new();
     let mut admitted = std::collections::BTreeSet::new();
+    // Every rebound operand must already be visible where the relocated run
+    // lands: a function parameter, a preheader block parameter, or a preheader
+    // node defined ahead of the run. Representatives defined by other
+    // dominating blocks would need a dominance query this family does not run,
+    // so they stay inside the loop.
+    let representable = |substitution: &std::collections::BTreeMap<ValueId, ValueId>| {
+        substitution
+            .values()
+            .all(|representative| match sites.get(representative) {
+                Some(ValueDefinitionSite::FunctionParameter(_)) => true,
+                Some(ValueDefinitionSite::BlockParameter { block, .. })
+                    if *block == entry.source =>
+                {
+                    true
+                }
+                Some(ValueDefinitionSite::Node {
+                    block,
+                    node: defined,
+                }) if *block == entry.source => {
+                    usize::try_from(*defined).is_ok_and(|defined| defined < insertion)
+                }
+                _ => false,
+            })
+    };
     loop {
         let mut progressed = false;
         for member in &component.members {
@@ -194,6 +218,36 @@ pub(super) fn component_plan(
                     };
                     root_rewrite = (root != source).then_some((source, root));
                     Vec::new()
+                } else if let Some((source, _, _)) =
+                    crate::validation::admissible_invariant_byte_read(node)
+                {
+                    // A byte read keeps the same non-speculative gate as a
+                    // place observation — the read performs work a bypassed
+                    // traversal would not — then needs both evidence halves at
+                    // once: its storage root resolves through the shared
+                    // observation-root admission while its `index` and
+                    // `length` operands obey the scalar substitution rule, and
+                    // `length` must stay paired with a `ByteSequenceLength`
+                    // measuring the rebound root so the moved operation still
+                    // validates against its obligation.
+                    if !(guaranteed_entry && guaranteed.contains(member)) {
+                        continue;
+                    }
+                    let Some((root, substitution)) =
+                        crate::validation::invariant_byte_read_admission(
+                            function,
+                            component,
+                            node,
+                            &relocating,
+                        )
+                    else {
+                        continue;
+                    };
+                    if !representable(&substitution) {
+                        continue;
+                    }
+                    root_rewrite = (root != source).then_some((source, root));
+                    substitution.into_iter().collect()
                 } else {
                     if !(guaranteed_entry && guaranteed.contains(member)) {
                         continue;
@@ -208,31 +262,7 @@ pub(super) fn component_plan(
                     else {
                         continue;
                     };
-                    // Every rebound operand must already be visible where
-                    // the relocated run lands: a function parameter, a
-                    // preheader block parameter, or a preheader node
-                    // defined ahead of the run. Representatives defined by
-                    // other dominating blocks would need a dominance query
-                    // this family does not run, so they stay inside the
-                    // loop.
-                    let representable = substitution.values().all(|representative| {
-                        match sites.get(representative) {
-                            Some(ValueDefinitionSite::FunctionParameter(_)) => true,
-                            Some(ValueDefinitionSite::BlockParameter { block, .. })
-                                if *block == entry.source =>
-                            {
-                                true
-                            }
-                            Some(ValueDefinitionSite::Node {
-                                block,
-                                node: defined,
-                            }) if *block == entry.source => {
-                                usize::try_from(*defined).is_ok_and(|defined| defined < insertion)
-                            }
-                            _ => false,
-                        }
-                    });
-                    if !representable {
+                    if !representable(&substitution) {
                         continue;
                     }
                     substitution.into_iter().collect()

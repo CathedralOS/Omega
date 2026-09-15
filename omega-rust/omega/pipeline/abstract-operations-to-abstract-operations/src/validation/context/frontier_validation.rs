@@ -2,7 +2,7 @@
 
 use super::super::{
     BTreeMap, O, OptimizationFact, PsiOptimizationFunction, PsiProvenance,
-    invariant_member_place_parameters,
+    invariant_member_parameters, invariant_member_place_parameters,
 };
 use super::{OptimizationUnitValidationError, PsiOptimizationUnit};
 pub(super) fn validate_surviving_frontiers(
@@ -95,13 +95,24 @@ fn validate_surviving_byte_operations(
     // Member structural parameters whose reaching edges agree on one
     // representative root — reconstructed here from the transformed unit's own
     // structural bindings. A surviving byte observation may re-spell its root
-    // as that representative; every other place stays byte-exact.
+    // as that representative; every other place stays byte-exact. The scalar
+    // analog covers a relocated byte read's `index`/`length` operands: each
+    // may re-spell an invariant member scalar parameter as its agreed
+    // representative, and the obligation stays byte-exact.
     let representatives: BTreeMap<semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId> =
         components
             .iter()
             .filter(|component| component.id.machine == function.machine)
             .flat_map(|component| invariant_member_place_parameters(function, component))
             .collect();
+    let scalar_representatives: BTreeMap<
+        semantic_vocabulary::ValueId,
+        semantic_vocabulary::ValueId,
+    > = components
+        .iter()
+        .filter(|component| component.id.machine == function.machine)
+        .flat_map(|component| invariant_member_parameters(function, component))
+        .collect();
     for operation in function
         .blocks
         .iter()
@@ -275,7 +286,12 @@ fn validate_surviving_byte_operations(
                 _ => return false,
             };
             original.result == result
-                && byte_operation_kind_matches(&original.kind, &kind, &representatives)
+                && byte_operation_kind_matches(
+                    &original.kind,
+                    &kind,
+                    &representatives,
+                    &scalar_representatives,
+                )
         });
         if !matches {
             return Err(if let Some(obligation) = obligation {
@@ -294,24 +310,33 @@ fn validate_surviving_byte_operations(
     Ok(())
 }
 
-/// Whether `actual` is `expected` modulo an observation root rebound to its
-/// member structural parameter's invariant representative. Only the two
-/// byte-observation kinds admitted for root rebinds tolerate the substitution
-/// — `ByteSequenceLength`'s whole root and
+/// Whether `actual` is `expected` modulo the substitutions an admitted
+/// relocation may perform: an observation root rebound to its member
+/// structural parameter's invariant representative, and — for
+/// `ByteSequenceRead` alone — `index`/`length` operands re-spelled as the
+/// representatives their invariant member scalar parameters resolve to. Only
+/// the three byte-observation kinds admitted for root rebinds tolerate the
+/// place substitution — `ByteSequenceLength`'s whole root,
 /// `StructuralByteSequenceFieldLength`'s root with its projection path and
-/// field still byte-exact — and only when the expected root resolves to the
-/// actual one. Every other kind, place, and payload stays byte-exact.
+/// field still byte-exact, and `ByteSequenceRead`'s root with its obligation
+/// still byte-exact — and only when the expected root resolves to the actual
+/// one. Every other kind, place, scalar, and payload stays byte-exact.
 fn byte_operation_kind_matches(
     expected: &terminal_psi::OperationKind,
     actual: &terminal_psi::OperationKind,
     representatives: &BTreeMap<semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId>,
+    scalar_representatives: &BTreeMap<semantic_vocabulary::ValueId, semantic_vocabulary::ValueId>,
 ) -> bool {
     if expected == actual {
         return true;
     }
     let root_matches = |expected: semantic_vocabulary::PlaceId,
                         actual: semantic_vocabulary::PlaceId| {
-        representatives.get(&expected) == Some(&actual)
+        expected == actual || representatives.get(&expected) == Some(&actual)
+    };
+    let operand_matches = |expected: semantic_vocabulary::ValueId,
+                           actual: semantic_vocabulary::ValueId| {
+        expected == actual || scalar_representatives.get(&expected) == Some(&actual)
     };
     match (expected, actual) {
         (
@@ -333,6 +358,25 @@ fn byte_operation_kind_matches(
             expected_path == actual_path
                 && expected_field == actual_field
                 && root_matches(*expected_source, *actual_source)
+        }
+        (
+            terminal_psi::OperationKind::ByteSequenceRead {
+                source: expected_source,
+                index: expected_index,
+                length: expected_length,
+                obligation: expected_obligation,
+            },
+            terminal_psi::OperationKind::ByteSequenceRead {
+                source: actual_source,
+                index: actual_index,
+                length: actual_length,
+                obligation: actual_obligation,
+            },
+        ) => {
+            expected_obligation == actual_obligation
+                && root_matches(*expected_source, *actual_source)
+                && operand_matches(*expected_index, *actual_index)
+                && operand_matches(*expected_length, *actual_length)
         }
         _ => false,
     }
