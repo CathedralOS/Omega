@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+mod call_effects;
 mod register_calls;
 
 use isa_aarch64::{
