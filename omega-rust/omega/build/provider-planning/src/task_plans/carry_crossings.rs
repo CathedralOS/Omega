@@ -1,0 +1,304 @@
+//! Activation carry crossings and their validation.
+
+use checked_trees::CheckedTrees;
+use diagnostics::Diagnostic;
+
+pub(crate) struct ActivationCarryCrossings<'program> {
+    pub(crate) root: Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
+    pub(crate) subtree: Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
+}
+
+pub(crate) fn exact_activation_wide_carry<'program>(
+    program: &'program CheckedTrees,
+    machine: symbols::SymbolHandle,
+    machine_name: &str,
+) -> Result<&'program checked_trees::MachineActivationCarryFact, Vec<Diagnostic>> {
+    let mut matches = program
+        .facts
+        .carry
+        .activation_wide_carry
+        .iter()
+        .filter(|fact| fact.machine == machine);
+    let fact = matches.next().ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has no exact activation-wide CPU/thread carry envelope"
+        ))]
+    })?;
+    if matches.next().is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has duplicate exact activation-wide CPU/thread carry envelopes"
+        ))]);
+    }
+    if !fact.analysis_complete {
+        return Err(vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has incomplete activation-wide CPU/thread carry analysis"
+        ))]);
+    }
+    Ok(fact)
+}
+
+pub(crate) fn activation_carry_crossings(
+    program: &CheckedTrees,
+    root: symbols::SymbolHandle,
+) -> Result<ActivationCarryCrossings<'_>, Vec<Diagnostic>> {
+    let subtree_machines = exact_activation_carry_subtree(program, root)?;
+    let subtree = program
+        .facts
+        .carry
+        .suspension_crossings
+        .iter()
+        .filter(|crossing| subtree_machines.contains(&crossing.machine))
+        .collect::<Vec<_>>();
+    let mut coordinates = Vec::new();
+    for crossing in &subtree {
+        validate_activation_carry_crossing(program, crossing)?;
+        let coordinate = (
+            crossing.machine,
+            crossing.state,
+            crossing.statement_index,
+            crossing.call_ordinal,
+        );
+        if coordinates.contains(&coordinate) {
+            return Err(vec![Diagnostic::error(
+                "task activation carry crossings must retain one row per exact call coordinate",
+            )]);
+        }
+        coordinates.push(coordinate);
+    }
+    let root = subtree
+        .iter()
+        .copied()
+        .filter(|crossing| crossing.machine == root)
+        .collect();
+    Ok(ActivationCarryCrossings { root, subtree })
+}
+
+pub(crate) fn exact_activation_carry_subtree(
+    program: &CheckedTrees,
+    root: symbols::SymbolHandle,
+) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
+    let mut machines = vec![root];
+    let mut cursor = 0;
+    while cursor < machines.len() {
+        let machine_symbol = machines[cursor];
+        cursor += 1;
+
+        let mut typed_machines = program
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == machine_symbol);
+        typed_machines.next().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task activation carry topology must name an exact typed machine",
+            )]
+        })?;
+        if typed_machines.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "task activation carry topology machine must resolve uniquely",
+            )]);
+        }
+
+        let mut topologies = program
+            .facts
+            .carry
+            .machine_topologies
+            .iter()
+            .filter(|(_, topology)| topology.machine == machine_symbol);
+        let topology = topologies
+            .next()
+            .map(|(_, topology)| topology)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "task activation carry topology must retain one exact row per reached machine",
+                )]
+            })?;
+        if topologies.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "task activation carry topology must retain exactly one row per reached machine",
+            )]);
+        }
+        let fields = program
+            .facts
+            .carry
+            .contained_fields
+            .span(topology.fields)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "task activation carry topology must retain an exact valid field span",
+                )]
+            })?;
+        let mut field_symbols = Vec::new();
+        for field in fields {
+            if !field.field.is_valid() || !field.data.is_valid() || !field.type_reference.is_valid()
+            {
+                return Err(vec![Diagnostic::error(
+                    "task activation carry topology fields must retain nonempty exact coordinates",
+                )]);
+            }
+            if field_symbols.contains(&field.field) {
+                return Err(vec![Diagnostic::error(
+                    "task activation carry topology fields must be unique within their machine",
+                )]);
+            }
+            field_symbols.push(field.field);
+            let targets = program
+                .facts
+                .carry
+                .contained_targets
+                .span(field.targets)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "task activation carry topology field must retain an exact valid target span",
+                    )]
+                })?;
+            if targets.is_empty() {
+                return Err(vec![Diagnostic::error(
+                    "task activation carry topology field must retain at least one exact target",
+                )]);
+            }
+            let mut field_targets = Vec::new();
+            for target in targets {
+                if field_targets.contains(&target.machine) {
+                    return Err(vec![Diagnostic::error(
+                        "task activation carry topology field targets must be unique",
+                    )]);
+                }
+                field_targets.push(target.machine);
+                let mut typed_targets = program
+                    .machines()
+                    .iter()
+                    .filter(|machine| machine.symbol == target.machine);
+                typed_targets.next().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "task activation carry topology target must name an exact typed machine",
+                    )]
+                })?;
+                if typed_targets.next().is_some() {
+                    return Err(vec![Diagnostic::error(
+                        "task activation carry topology target must resolve uniquely",
+                    )]);
+                }
+                if !machines.contains(&target.machine) {
+                    machines.push(target.machine);
+                }
+            }
+        }
+    }
+    Ok(machines)
+}
+
+pub(crate) fn validate_activation_carry_crossing(
+    program: &CheckedTrees,
+    crossing: &checked_trees::SuspensionCrossingCarryFact,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == crossing.machine);
+    let machine = machines.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing must name an exact typed machine",
+        )]
+    })?;
+    if machines.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing machine must resolve uniquely",
+        )]);
+    }
+    let mut states = program
+        .machine_states(machine)
+        .iter()
+        .filter(|state| state.symbol == crossing.state);
+    let state = states.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing state must belong to its exact typed machine",
+        )]
+    })?;
+    if states.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing state must resolve uniquely within its machine",
+        )]);
+    }
+    if program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(crossing.statement_index)
+        .is_none()
+    {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing statement must belong to its exact typed state",
+        )]);
+    }
+
+    let mut flow_states = program
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter(|(_, flow)| {
+            flow.machine_symbol == crossing.machine && flow.state_symbol == crossing.state
+        });
+    let flow_state = flow_states.next().map(|(_, flow)| flow).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing must name one exact checked flow state",
+        )]
+    })?;
+    if flow_states.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing must name exactly one checked flow state",
+        )]);
+    }
+    let calls = program
+        .facts
+        .flow
+        .control
+        .calls
+        .span(flow_state.calls)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task activation carry crossing flow state must retain an exact valid call span",
+            )]
+        })?;
+    let mut calls = calls.iter().filter(|call| {
+        call.statement_index == crossing.statement_index
+            && call.call_ordinal == crossing.call_ordinal
+    });
+    let call = calls.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing must name one exact checked flow call",
+        )]
+    })?;
+    if calls.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing must name exactly one checked flow call",
+        )]);
+    }
+    if call.target_symbol != crossing.target {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing must retain its exact checked call target",
+        )]);
+    }
+    let mut targets = program.machines().iter().flat_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .filter(|state| state.symbol == crossing.target)
+    });
+    targets.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "task activation carry crossing target must name an exact typed state",
+        )]
+    })?;
+    if targets.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing target must resolve to exactly one typed state",
+        )]);
+    }
+    if !call.suspension.direct_may_suspend && !call.suspension.transitive_may_suspend {
+        return Err(vec![Diagnostic::error(
+            "task activation carry crossing must retain a may-suspend checked call",
+        )]);
+    }
+    Ok(())
+}
