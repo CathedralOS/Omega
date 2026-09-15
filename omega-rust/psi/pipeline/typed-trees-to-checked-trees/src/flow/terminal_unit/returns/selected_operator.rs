@@ -4,13 +4,10 @@ use super::{
     BTreeSet, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarReturnMachinePlan,
     CheckedUnitStructuralParameterPlan, ExpressionNode, Multiplicity, StatementNode, TypedTrees,
 };
-use crate::flow::terminal_unit::ShapeCollector;
-use crate::flow::terminal_unit::is_reference;
-use crate::flow::terminal_unit::machine_binders;
-use crate::flow::terminal_unit::machine_has_content_evidence;
-use crate::flow::terminal_unit::parameter_qualifications;
-use crate::flow::terminal_unit::service_reach_is_empty;
-use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::cleanup::{machine_has_content_evidence, service_reach_is_empty};
+use crate::flow::terminal_unit::{
+    ShapeCollector, is_reference, machine_binders, parameter_qualifications, state_flow,
+};
 
 pub(super) fn build_selected_operator_structural_scalar_return_machine(
     program: &TypedTrees,

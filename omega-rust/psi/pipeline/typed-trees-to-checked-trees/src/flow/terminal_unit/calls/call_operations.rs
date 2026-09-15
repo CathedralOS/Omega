@@ -11,12 +11,12 @@ use crate::flow::terminal_unit::calls::boundary_admission::{
     fixed_byte_array_mutable_view_is_admitted, is_registered_boundary_scalar_target,
     provider_attachment_receiver_matches,
 };
-use crate::flow::terminal_unit::calls::result_arguments;
-use crate::flow::terminal_unit::calls::service_forward;
 use crate::flow::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, exact_integer_at, exact_structural_argument_access,
     structural_call_arguments,
 };
+use crate::flow::terminal_unit::calls::{result_arguments, service_forward};
+use crate::flow::terminal_unit::cleanup::service_reach_is_empty;
 use crate::flow::terminal_unit::{
     BuiltinFunction, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
@@ -25,7 +25,7 @@ use crate::flow::terminal_unit::{
     CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionEventKind,
     PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees, base_type_identity,
     byte_sequence_type_identity, is_reference, is_unit, machine_binders, parameter_root_symbol,
-    scalar_targets, service_reach_is_empty, signature_contracts_are_exact_parameter_qualifications,
+    scalar_targets, signature_contracts_are_exact_parameter_qualifications,
     structural_access_for_type_reference,
 };
 use crate::flow::{ScalarCalleePlans, byte_sequence_carrier};

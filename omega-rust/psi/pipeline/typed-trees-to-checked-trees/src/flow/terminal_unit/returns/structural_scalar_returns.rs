@@ -1,5 +1,11 @@
 //! Structural and trait-operator scalar return machines.
 
+use crate::flow::terminal_unit::cleanup::{
+    checked_requires_expressions, machine_has_content_evidence,
+    nominal_cleanup_boolean_requirements, nominal_cleanup_missing_requirement,
+    nominal_scalar_caller_requirements, scalar_nominal_cleanup_missing_requirement_diagnostic,
+    service_reach_is_empty, service_reach_plan_is_empty,
+};
 use crate::flow::terminal_unit::primitive_effects;
 use crate::flow::terminal_unit::returns::scalar_return_expressions::{
     checked_boolean_contains_short_circuit, checked_boolean_local_reference_count,
@@ -16,13 +22,9 @@ use crate::flow::terminal_unit::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, Diagnostic, ExpressionNode,
     MachineSupplyMode, Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
     PrimitiveType, ShapeCollector, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
-    checked_requires_expressions, checked_shared_boolean_convergence,
-    free_structural_scalar_signature, is_reference, machine_binders, machine_has_content_evidence,
-    nominal_cleanup_boolean_requirements, nominal_cleanup_missing_requirement,
-    nominal_scalar_caller_requirements, parameter_qualifications,
-    projected_parameter_qualifications, scalar_nominal_cleanup_missing_requirement_diagnostic,
-    service_reach_is_empty, service_reach_plan_is_empty, shared_convergence, state_flow,
-    structural_scalar_signature, type_graph_requires_nominal_drop,
+    checked_shared_boolean_convergence, free_structural_scalar_signature, is_reference,
+    machine_binders, parameter_qualifications, projected_parameter_qualifications,
+    shared_convergence, state_flow, structural_scalar_signature, type_graph_requires_nominal_drop,
 };
 
 pub(crate) fn build_trait_operator_scalar_return_machine(

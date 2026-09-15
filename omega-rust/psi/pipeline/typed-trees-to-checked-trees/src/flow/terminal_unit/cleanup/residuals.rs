@@ -4,7 +4,7 @@ use super::{
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
 };
-use crate::flow::terminal_unit::cleanup::is_partial_affine_field_type;
+use crate::flow::terminal_unit::cleanup::partial_affine_cleanup::is_partial_affine_field_type;
 
 fn validate_type(
     types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,

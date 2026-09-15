@@ -1,13 +1,13 @@
 //! Boundary scalar return machines and their supported contracts.
 
+use crate::flow::terminal_unit::cleanup::machine_has_content_evidence;
 use crate::flow::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralParameterPlan, ExpectedCallValueResult, ExpressionNode, PrimitiveType,
     ProofFact, ShapeCollector, SignatureContractKind, StatementNode, TypedTrees,
     build_call_operation, checked_structural_signature_contract_supported, entry_claims,
-    machine_binders, machine_has_content_evidence, outer_calls, state_flow,
-    structural_scalar_signature, structural_signature,
+    machine_binders, outer_calls, state_flow, structural_scalar_signature, structural_signature,
 };
 
 fn boundary_scalar_contracts_supported(
