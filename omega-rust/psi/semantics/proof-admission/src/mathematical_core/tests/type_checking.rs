@@ -306,7 +306,7 @@ fn checking_the_polymorphic_identity_retains_bounded_storage() {
 
     // Retained-storage receipt: the whole construction and every check above
     // live in a small bounded arena.
-    assert_eq!(arena.len(), 51);
+    assert_eq!(arena.len(), 41);
 }
 
 #[test]

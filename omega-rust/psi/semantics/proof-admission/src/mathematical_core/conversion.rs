@@ -297,8 +297,29 @@ pub fn convertible(
         return Ok(true);
     }
 
+    // Reflexivity: a well-typed term converts to itself, and under de
+    // Bruijn indices structural equality is alpha-equality, so the
+    // typed traversal below can only answer `Ok(true)` for this pair.
+    // Skipping it is what keeps shared subterms shared instead of
+    // re-deciding each occurrence — a term like `IndexedAt i t`
+    // appearing on both sides of a comparison does not re-unfold and
+    // re-check its encoding. The probe stays behind the strict-sort
+    // check so a malformed shared type still reports its own error
+    // first.
+    if arena.structurally_equal(left, right) {
+        return Ok(true);
+    }
+
     let left = weak_head_normalize(arena, context.signature(), left, budget)?;
     let right = weak_head_normalize(arena, context.signature(), right, budget)?;
+
+    // Weak-head normalization can identify different syntax — a
+    // projection of a literal pair, a selected `caseTwo` branch, an
+    // unfolded definition — so the reflexivity probe runs once more on
+    // the normalized heads before the typed structural recursion.
+    if arena.structurally_equal(left, right) {
+        return Ok(true);
+    }
 
     match (arena.get(left), arena.get(right)) {
         (Term::Sort(left_sort), Term::Sort(right_sort)) => {
