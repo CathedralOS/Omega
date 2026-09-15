@@ -1,20 +1,22 @@
 use super::{
-    ArtifactId, EntryStack, EntryStubId, EstablishedInterruptTable, Extent, ExternalRootId,
+    ArtifactId, EntryStack, EstablishedInterruptTable, Extent,
     INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES, InstalledCodeId, InstalledExternalRoot,
     InstalledRootLedger, InterruptTableDescriptorOperand, InterruptTableEstablishedMember,
     InterruptTableEstablishmentId, InterruptTableGateDescriptor, InterruptTableLedger,
     InterruptTableMemberPlan, InterruptTableObligation, InterruptTableProfile,
-    InterruptTableProfileId, InterruptTablePublication, InterruptTablePublicationAuthority,
+    InterruptTablePublication, InterruptTablePublicationAuthority,
     InterruptTablePublicationAuthorityId, InterruptTablePublicationId,
     InterruptTablePublicationOutcome, InterruptTablePublicationReceipt,
-    InterruptTablePublicationReceiptId, InterruptTablePublicationScope, MachineRegister,
-    RootSlotId, X86_64_GATE_DESCRIPTOR_BYTES,
+    InterruptTablePublicationReceiptId, InterruptTablePublicationScope,
+    X86_64_GATE_DESCRIPTOR_BYTES,
 };
+use crate::{ExternalRootId, InterruptTableProfileId, RootSlotId};
 use crate::{
     InterruptAcknowledgementReceipt, InterruptAcknowledgementReceiptId, RootAdmission,
     RootAdmissionId, RootRemovalReceipt, RootRemovalReceiptId, RootSlotAuthority, RootSlotOwnerId,
     validate_external_root,
 };
+use calling_conventions::MachineRegister;
 use calling_conventions::{X86_64GateKind, X86_64InstalledInterruptStack};
 use executable_installation::{ArtifactEntry, DestinationPreparationReceipt, InstalledCode};
 use extents::{
@@ -22,6 +24,7 @@ use extents::{
     TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
     map_owned,
 };
+use layout_plans::EntryStubId;
 use layout_plans::{
     ArtifactInstallationScopeId, MachineRegimeId, PlacementAddressRange, PlacementConstraints,
     PlacementPhase, PlacementSite,
