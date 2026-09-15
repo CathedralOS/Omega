@@ -1,4 +1,7 @@
 use super::*;
+use arena::HandleSpan;
+use checked_trees::{BorrowCallFact, FlowBoundaryEdgeFact};
+use symbols::SymbolHandle;
 
 pub(super) fn append_call_boundary_edges(
     program: &typed_trees::TypedTrees,

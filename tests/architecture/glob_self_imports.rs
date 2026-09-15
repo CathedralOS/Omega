@@ -146,7 +146,7 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
         37,
     ),
     ("omega-rust/psi/pipeline/tokens-to-syntax-trees", 4),
-    ("omega-rust/psi/pipeline/typed-trees-to-checked-trees", 469),
+    ("omega-rust/psi/pipeline/typed-trees-to-checked-trees", 451),
     ("omega-rust/psi/representations/checked-trees", 16),
     ("omega-rust/psi/representations/facts", 3),
     ("omega-rust/psi/representations/flow-effects", 1),

@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
+use facts::{FactPlace, FactPlan};
 
 fn parse(source: &str) -> typed_trees::TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)

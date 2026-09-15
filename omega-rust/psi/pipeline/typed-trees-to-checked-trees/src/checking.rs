@@ -276,23 +276,6 @@ pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
     check_program(program, CheckingMode::CrashFactInspection, &[], &[])
 }
 
-#[cfg(test)]
-mod tests {
-    use super::CheckingMode;
-
-    #[test]
-    fn checking_modes_preserve_package_settlement_permissions() {
-        for mode in [CheckingMode::Complete, CheckingMode::CrashFactInspection] {
-            assert!(!mode.allows_pending_opaque_copy());
-            assert!(!mode.allows_unresolved_toolchain_selections());
-        }
-        assert!(CheckingMode::PreliminaryPackage.allows_pending_opaque_copy());
-        assert!(CheckingMode::PreliminaryPackage.allows_unresolved_toolchain_selections());
-        assert!(!CheckingMode::SettledPackage.allows_pending_opaque_copy());
-        assert!(CheckingMode::SettledPackage.allows_unresolved_toolchain_selections());
-    }
-}
-
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing
 /// indexed-domain semantic ID. Orchestration calls this before typed
 /// snapshots and trust receipts; checked lowering calls it before capturing
@@ -331,4 +314,21 @@ pub(crate) fn specialize_static_machine_calls_with_nominal_uses(
     ::validation::validate_static_machine_call_contracts(program, &operational)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(nominal_uses)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CheckingMode;
+
+    #[test]
+    fn checking_modes_preserve_package_settlement_permissions() {
+        for mode in [CheckingMode::Complete, CheckingMode::CrashFactInspection] {
+            assert!(!mode.allows_pending_opaque_copy());
+            assert!(!mode.allows_unresolved_toolchain_selections());
+        }
+        assert!(CheckingMode::PreliminaryPackage.allows_pending_opaque_copy());
+        assert!(CheckingMode::PreliminaryPackage.allows_unresolved_toolchain_selections());
+        assert!(!CheckingMode::SettledPackage.allows_pending_opaque_copy());
+        assert!(CheckingMode::SettledPackage.allows_unresolved_toolchain_selections());
+    }
 }

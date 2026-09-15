@@ -1,4 +1,7 @@
 use super::*;
+use checked_trees::BorrowCallFact;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 
 pub(crate) use crate::semantic_calls::call_target_parameters;
 

@@ -1,4 +1,5 @@
-use super::*;
+use checked_trees::{ProofFactKind, ProofObligationFact, ProofObligationOwner};
+use symbols::SymbolHandle;
 
 pub(crate) fn lower_proof_obligation(
     obligation: &proof::obligations::ProofObligation,

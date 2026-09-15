@@ -1,4 +1,6 @@
 use super::*;
+use arena::HandleSpan;
+use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FlowOwnershipEventSource {

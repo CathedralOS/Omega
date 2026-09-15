@@ -3,6 +3,13 @@
 //! alone do not establish the contents of a newly constructed field.
 
 use super::*;
+use arena::HandleSpan;
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_constructed_field_values(

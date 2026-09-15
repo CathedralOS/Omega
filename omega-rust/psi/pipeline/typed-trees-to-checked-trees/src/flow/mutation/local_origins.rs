@@ -5,6 +5,9 @@
 //! coordinates from its captured structural origins.
 
 use super::*;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
+use symbols::SymbolHandle;
 mod coordinates;
 use coordinates::origin_place;
 

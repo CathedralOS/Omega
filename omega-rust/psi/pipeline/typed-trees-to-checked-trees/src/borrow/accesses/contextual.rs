@@ -1,8 +1,10 @@
-use crate::context::*;
 use crate::flow::{
     effective_member_symbol, resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 use crate::lookup::first_valid_name_path_symbol;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
+use symbols::SymbolHandle;
 
 pub(super) fn contextual_effective_member_symbol(
     program: &typed_trees::TypedTrees,

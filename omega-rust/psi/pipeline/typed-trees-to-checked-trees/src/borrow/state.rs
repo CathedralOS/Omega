@@ -1,5 +1,7 @@
-use crate::context::*;
 use checked_trees::BorrowLoanFact;
+use checked_trees::{
+    BorrowArgumentAccessFact, BorrowCallFact, BorrowWritableRootFact, StateBorrowFact,
+};
 
 use super::calls::collect_statement_borrow_calls;
 use super::last_uses::update_state_loan_last_uses;

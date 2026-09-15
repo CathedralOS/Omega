@@ -1,4 +1,6 @@
-use super::*;
+use arena::Handle;
+use checked_trees::{BorrowFacts, ContractCallFact, ProofFacts, StateBorrowFact};
+use symbols::SymbolHandle;
 
 pub(crate) fn borrow_state_fact(
     borrow: &BorrowFacts,

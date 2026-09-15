@@ -9,6 +9,14 @@
 //! remain tied to the existing live contexts, never a second operand evaluation.
 
 use super::*;
+use arena::HandleSpan;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
+use checked_trees::{
+    BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintRef,
+    FlowInvalidationSource, FlowSemanticContextRef, ProofFacts,
+};
+use facts::{FactPlan, ProgramPoint};
 use typed_trees::expression::{BinaryOperator, UnaryOperator};
 use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
 

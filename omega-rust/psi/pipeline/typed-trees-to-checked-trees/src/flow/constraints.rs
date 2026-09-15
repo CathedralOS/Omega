@@ -1,4 +1,8 @@
 use super::*;
+use arena::Handle;
+use checked_trees::{
+    BorrowArgumentAccessFact, BorrowWritableRootFact, FlowConstraintKind, FlowConstraintRef,
+};
 
 pub(super) fn append_contiguous_borrow_root_constraints(
     constraint_refs: &mut arena::Arena<FlowConstraintRef>,

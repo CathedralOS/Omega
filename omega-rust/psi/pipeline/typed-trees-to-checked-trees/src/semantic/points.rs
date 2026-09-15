@@ -1,4 +1,8 @@
-use super::*;
+use checked_trees::{
+    ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofObligationFact,
+    ProofObligationOwner,
+};
+use facts::{FactOrigin, ProgramPoint};
 
 pub(super) fn proof_obligation_point(obligation: &ProofObligationFact) -> ProgramPoint {
     match obligation.owner {
@@ -137,6 +141,9 @@ pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arena::Handle;
+    use checked_trees::expression::ExpressionHandle;
+    use symbols::SymbolHandle;
 
     #[test]
     fn operator_contract_origin_keeps_contract_kind_and_operator_symbol() {

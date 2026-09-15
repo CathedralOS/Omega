@@ -4,6 +4,14 @@
 //! incoming joins can only remove claims, and root entry is never narrowed.
 
 use super::*;
+use arena::HandleSpan;
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::name::Identifier;
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
+use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 

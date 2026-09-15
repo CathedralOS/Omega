@@ -1,5 +1,6 @@
 use super::contextual::{contextual_effective_member_symbol, contextual_name_root_symbol};
-use crate::context::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 
 pub(crate) use checked_trees::CapturedPlace as BorrowAccessPlace;
 

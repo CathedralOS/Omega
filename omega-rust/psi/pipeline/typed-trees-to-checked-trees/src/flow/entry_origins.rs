@@ -1,6 +1,12 @@
 //! Exact reference and immutable scalar origins across named-state arguments.
 
 use super::*;
+use arena::HandleSpan;
+use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
+use facts::{FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
+use symbols::SymbolHandle;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 fn reference_type(

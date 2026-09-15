@@ -1,4 +1,11 @@
 use super::*;
+use arena::HandleSpan;
+use checked_trees::{
+    BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
+    FlowExitFact, FlowSemanticContextRef, ProofFacts,
+};
+use facts::{FactPlan, ProgramPoint};
+use symbols::SymbolHandle;
 
 mod guards;
 pub(super) use guards::{append_match_pattern_context, append_predicate_context};

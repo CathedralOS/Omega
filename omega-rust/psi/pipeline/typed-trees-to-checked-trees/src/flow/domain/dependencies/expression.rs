@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 mod relative;
 
 pub(crate) use relative::relative_place_segments_from_expression;

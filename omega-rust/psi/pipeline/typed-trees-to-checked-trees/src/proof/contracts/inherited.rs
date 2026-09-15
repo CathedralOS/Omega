@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
+use symbols::SymbolHandle;
 
 pub(crate) fn estimated_contract_fact_capacity(program: &typed_trees::TypedTrees) -> usize {
     program

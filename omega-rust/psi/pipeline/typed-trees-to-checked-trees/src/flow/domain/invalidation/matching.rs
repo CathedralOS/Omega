@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::DomainFacts;
+use facts::{Fact, FactPayload, FactPlan};
 
 pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
     program: &typed_trees::TypedTrees,

@@ -1,7 +1,10 @@
-use super::*;
 use crate::flow::{
     canonical_place_from_expression_in_state, expression_type_symbol, symbol_type_symbol,
 };
+use arena::HandleSpan;
+use checked_trees::expression::{ExpressionHandle, NamePath};
+use facts::FactPlan;
+use symbols::SymbolHandle;
 
 pub(crate) fn canonical_place_to_fact_place_in_state(
     program: &typed_trees::TypedTrees,

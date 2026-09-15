@@ -1,4 +1,5 @@
-use super::*;
+use checked_trees::statement::StatementNode;
+use checked_trees::{BorrowRootKind, BorrowWritableRootFact};
 
 pub(super) fn append_state_writable_roots(
     program: &typed_trees::TypedTrees,

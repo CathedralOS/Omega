@@ -1,5 +1,9 @@
-use crate::context::*;
+use arena::{Handle, HandleSpan};
 use checked_trees::CheckedEvidenceTerm;
+use checked_trees::{
+    BorrowFacts, CheckedOperatorFacts, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
+};
+use symbols::SymbolHandle;
 mod contract_entailment;
 mod contracts;
 mod float_meaning;

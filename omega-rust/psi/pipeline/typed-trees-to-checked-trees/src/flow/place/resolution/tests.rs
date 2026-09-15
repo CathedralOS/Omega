@@ -1,5 +1,8 @@
 //! Case qualification selects declaration identity, not the first matching spelling.
 use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::name::Identifier;
+use symbols::SymbolHandle;
 use typed_trees::expression::TableMemberExpression;
 
 fn fixture() -> (typed_trees::TypedTrees, TableMemberExpression) {

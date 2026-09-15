@@ -2,6 +2,7 @@ use super::*;
 use crate::lookup::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
 };
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn find_call_site_in_expression<'program>(
     traversal: &mut CallSiteTraversal<'program, '_>,

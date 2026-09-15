@@ -1,3 +1,7 @@
+use checked_trees::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
+use facts::{FactPayload, FactPlace, FactPlan};
+use std::collections::BTreeSet;
+use symbols::SymbolHandle;
 mod expression;
 
 use super::*;

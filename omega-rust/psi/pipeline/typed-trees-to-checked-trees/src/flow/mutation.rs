@@ -1,5 +1,9 @@
 use super::*;
 use crate::lookup::expression_root_symbol;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
+use checked_trees::{BorrowCallFact, BorrowFacts};
+use symbols::SymbolHandle;
 mod local_origins;
 mod operand_coordinates;
 mod receiver;

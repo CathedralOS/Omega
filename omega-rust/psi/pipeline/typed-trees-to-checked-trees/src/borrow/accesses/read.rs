@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::BorrowAccessKind;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn collect_read_accesses(
     collection: &mut BorrowAccessCollection<'_>,

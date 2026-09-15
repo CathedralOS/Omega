@@ -13,7 +13,6 @@ mod checking;
 mod checks;
 mod conformance_application_lifetimes;
 mod conformance_applications;
-mod context;
 mod contract_occurrences;
 mod execution_plans;
 mod facts;

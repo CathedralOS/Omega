@@ -1,9 +1,10 @@
-use crate::context::*;
 use crate::semantic::contract_fact_place;
 pub(crate) use crate::{
     CallSite, call_site_argument_expressions, call_target_parameters, find_call_site,
     find_state_in_machine,
 };
+use checked_trees::{ContractCallFact, ContractProofFact};
+use facts::{FactPlace, FactPlan};
 mod expression;
 mod place_builders;
 mod receiver;

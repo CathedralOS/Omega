@@ -1,4 +1,9 @@
 use super::*;
+use checked_trees::{
+    BorrowFacts, DomainFacts, FlowBorrowWeakeningReason, FlowConstraintKind, FlowStateFact,
+    ProofFacts,
+};
+use facts::{FactPlan, ProgramPoint};
 
 pub(super) fn build_state_flow_fact(
     program: &typed_trees::TypedTrees,

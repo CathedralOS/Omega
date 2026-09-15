@@ -1,5 +1,6 @@
 use super::place_types::expression_type_reference_in_state;
-use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 
 pub(in crate::flow::ownership) fn expression_requires_ownership(
     program: &typed_trees::TypedTrees,

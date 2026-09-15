@@ -1,4 +1,6 @@
-use super::*;
+use crate::labels::symbol_name;
+use checked_trees::ContractCallFact;
+use facts::FactPlan;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ContractPlaceSubstitution {

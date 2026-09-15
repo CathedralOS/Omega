@@ -1,4 +1,10 @@
 use super::*;
+use checked_trees::{
+    BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,
+    FlowFacts, FlowInvalidationFacts, FlowOwnershipFacts, ProofFacts,
+};
+use facts::FactPlan;
+use symbols::SymbolHandle;
 
 pub(super) struct FlowBuildContext<'plans> {
     pub(super) scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,

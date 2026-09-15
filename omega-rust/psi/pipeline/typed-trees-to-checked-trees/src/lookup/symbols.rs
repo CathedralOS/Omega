@@ -1,4 +1,5 @@
-use super::*;
+use ::symbols::SymbolHandle;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(crate) fn machine_state_count(program: &typed_trees::TypedTrees) -> usize {
     program

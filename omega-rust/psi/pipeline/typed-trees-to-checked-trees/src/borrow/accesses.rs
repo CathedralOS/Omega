@@ -1,10 +1,11 @@
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
+use symbols::SymbolHandle;
 mod collection;
 mod contextual;
 mod place;
 mod read;
 mod records;
-
-use super::*;
 
 use collection::BorrowAccessCollection;
 pub(crate) use place::{BorrowAccessPlace, borrow_access_place};

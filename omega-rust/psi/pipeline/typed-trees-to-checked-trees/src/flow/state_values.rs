@@ -1,7 +1,14 @@
 //! Explicit state inputs derived from live edge contexts, not declarations.
 
 use super::*;
+use arena::HandleSpan;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::{BorrowCallFact, FlowSemanticContextRef};
 use facts::ScalarValue;
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
+use symbols::SymbolHandle;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 mod arguments;

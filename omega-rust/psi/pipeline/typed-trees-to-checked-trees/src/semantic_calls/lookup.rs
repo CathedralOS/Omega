@@ -1,4 +1,6 @@
 use super::*;
+use checked_trees::expression::ExpressionHandle;
+use symbols::SymbolHandle;
 
 pub(crate) fn call_site_argument_expressions<'program>(
     program: &'program typed_trees::TypedTrees,

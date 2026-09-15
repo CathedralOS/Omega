@@ -1,4 +1,6 @@
-use crate::context::*;
+use arena::Handle;
+use checked_trees::name::Identifier;
+use symbols::SymbolHandle;
 
 use super::accesses::BorrowAccessPlace;
 

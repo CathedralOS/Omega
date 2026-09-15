@@ -1,5 +1,7 @@
-use super::*;
 use crate::lookup::{statement_call_receiver_members, statement_call_receiver_path};
+use checked_trees::ContractCallFact;
+use facts::FactPlan;
+use symbols::SymbolHandle;
 
 pub(crate) fn receiver_place_for_call(
     program: &typed_trees::TypedTrees,

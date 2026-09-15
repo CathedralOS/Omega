@@ -1,4 +1,10 @@
 use super::*;
+use checked_trees::statement::StatementNode;
+use checked_trees::{
+    BorrowFacts, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowConstraintKind,
+    FlowConstraintRef, FlowInvalidationSource,
+};
+use symbols::SymbolHandle;
 
 pub(super) fn filter_expired_borrow_loans(
     borrow_weakenings: &mut arena::Arena<FlowBorrowWeakeningFact>,

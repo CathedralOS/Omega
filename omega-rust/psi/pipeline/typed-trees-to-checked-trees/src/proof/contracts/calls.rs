@@ -1,5 +1,11 @@
-use super::*;
 use crate::lookup::machine_state_count;
+use arena::HandleSpan;
+use checked_trees::statement::StatementNode;
+use checked_trees::{
+    BorrowFacts, ContractCallFact, ContractExitFact, ContractProofFact, ContractProofFactKind,
+    ContractProofFactOwner, ContractProofFactRef,
+};
+use symbols::SymbolHandle;
 
 #[cfg(test)]
 mod tests;

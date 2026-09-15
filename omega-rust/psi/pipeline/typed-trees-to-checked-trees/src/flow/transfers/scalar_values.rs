@@ -1,8 +1,14 @@
 //! Capture a selected initializer or assignment while its operand facts are live.
 
 use super::*;
+use arena::HandleSpan;
 use checked_trees::CheckedScalarExpressionRole;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
+use checked_trees::{BorrowFacts, FlowSemanticContextRef};
+use facts::FactPlan;
 use facts::ScalarValue;
+use symbols::SymbolHandle;
 
 mod calls;
 mod captured;

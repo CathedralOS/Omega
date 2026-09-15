@@ -1,5 +1,7 @@
 use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
 use super::*;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use symbols::SymbolHandle;
 pub(super) mod observations;
 
 pub(super) fn append_move_events_for_expression(

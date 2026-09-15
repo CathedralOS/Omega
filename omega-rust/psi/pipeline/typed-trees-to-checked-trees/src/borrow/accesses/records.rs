@@ -1,4 +1,5 @@
 use super::*;
+use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 
 pub(super) fn append_argument_access(
     access_segments: &mut arena::Arena<facts::PlaceSegment>,

@@ -1,4 +1,6 @@
-use super::*;
+use arena::Handle;
+use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
+use facts::{FactPlan, ProgramPoint};
 
 #[cfg(test)]
 mod tests;

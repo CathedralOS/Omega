@@ -4,7 +4,6 @@ mod contextual;
 mod literal_projection;
 mod resolution;
 
-use super::*;
 pub(crate) use canonicalization::{
     canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_from_semantic_place, canonical_place_from_symbol, index_place_segment,

@@ -1,4 +1,10 @@
 use super::*;
+use arena::HandleSpan;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
+use checked_trees::{BorrowFacts, FlowSemanticContextRef};
+use facts::FactPlan;
+use symbols::SymbolHandle;
 
 // Evaluate selected scalar locals and local stores followed by one return.
 // Intervening Unit calls preserve these normal-return facts only when their

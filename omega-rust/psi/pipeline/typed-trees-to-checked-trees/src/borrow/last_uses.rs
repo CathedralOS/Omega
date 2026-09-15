@@ -1,4 +1,6 @@
-use crate::context::*;
+use checked_trees::statement::StatementNode;
+use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
+use symbols::SymbolHandle;
 
 use super::tracker::StateLoanTracker;
 use usage::{
