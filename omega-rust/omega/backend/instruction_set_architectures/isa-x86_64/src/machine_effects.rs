@@ -143,25 +143,38 @@ pub fn validate_x86_64_machine_effect_catalog(
 /// supported (architecture, object-format) pair: Linux System-V under ELF
 /// and Microsoft x64 under COFF. Windows and UEFI share the COFF row because
 /// their `NativeTarget` contracts are indistinguishable at this layer. An
-/// undeclared format fails closed rather than silently inheriting one
-/// family's rows; adding a supported x86-64 format extends this matrix
-/// deliberately.
+/// undeclared pair — including every non-x86-64 architecture — fails closed
+/// rather than silently inheriting one family's rows; adding a supported
+/// x86-64 format extends this matrix deliberately.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum X86_64SelectedAbi {
+pub(crate) enum X86_64SelectedAbi {
     SystemV,
     Microsoft,
+}
+
+/// Resolve the declared pair to its ABI family. Every selected-form encoding
+/// that needs the call/return roster — the machine-effect catalog and the
+/// scalar-call template validator alike — consults this matrix rather than
+/// re-reading the target, so an undeclared pair fails closed once, here.
+pub(crate) fn x86_64_selected_abi(
+    target: NativeTarget,
+) -> Result<X86_64SelectedAbi, X86_64MachineEffectCatalogValidationError> {
+    match (target.architecture, target.object_format) {
+        (Architecture::X86_64, ObjectFormat::Elf) => Ok(X86_64SelectedAbi::SystemV),
+        (Architecture::X86_64, ObjectFormat::Coff) => Ok(X86_64SelectedAbi::Microsoft),
+        (Architecture::X86_64, ObjectFormat::MachO)
+        | (Architecture::Aarch64, ObjectFormat::Elf)
+        | (Architecture::Aarch64, ObjectFormat::MachO)
+        | (Architecture::Aarch64, ObjectFormat::Coff) => {
+            Err(X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi)
+        }
+    }
 }
 
 fn selected_keys(
     target: NativeTarget,
 ) -> Result<SelectedConstraintKeys, X86_64MachineEffectCatalogValidationError> {
-    let abi = match target.object_format {
-        ObjectFormat::Elf => X86_64SelectedAbi::SystemV,
-        ObjectFormat::Coff => X86_64SelectedAbi::Microsoft,
-        ObjectFormat::MachO => {
-            return Err(X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi);
-        }
-    };
+    let abi = x86_64_selected_abi(target)?;
     let microsoft = abi == X86_64SelectedAbi::Microsoft;
     let return_i64 = match abi {
         X86_64SelectedAbi::SystemV => X86_64_SYSTEM_V_RETURN,

@@ -9,6 +9,7 @@ use selected_instructions::{
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
+use crate::machine_effects::{Aarch64SelectedAbi, aarch64_selected_abi};
 use crate::{
     aarch64_aapcs64_register_call_keys, aarch64_physical_register_model,
     aarch64_register_constraint_catalog,
@@ -139,9 +140,13 @@ pub fn validate_aarch64_selected_scalar_call_template(
     bytes: &[u8],
     fixup: Aarch64ScalarCallFixup,
 ) -> Result<ValidatedAarch64SelectedScalarCallTemplate, Aarch64ScalarCallTemplateError> {
-    if target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64() {
-        return Err(Aarch64ScalarCallTemplateError::UnsupportedTarget);
-    }
+    // The scalar-call encoding matrix is the declared (architecture,
+    // object-format) pair matrix in `machine_effects`: (Aarch64, Elf) selects
+    // AAPCS64 rosters and (Aarch64, Mach-O) selects the Darwin variant.
+    // Undeclared pairs — (Aarch64, Coff) and every other architecture — fail
+    // closed here rather than falling through an else arm into one family.
+    let abi = aarch64_selected_abi(target)
+        .map_err(|_| Aarch64ScalarCallTemplateError::UnsupportedTarget)?;
     if physical.model() != &aarch64_physical_register_model() {
         return Err(Aarch64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
@@ -176,28 +181,26 @@ pub fn validate_aarch64_selected_scalar_call_template(
                 .any(|view| view.id == *id && view.name.starts_with("d"))
         });
     let (expected_operand_views, expected) = if unit || aggregate || floating_scalar {
+        let darwin = abi == Aarch64SelectedAbi::Darwin;
         let keys = if aggregate {
-            crate::aarch64_register_aggregate_call_keys(target == NativeTarget::macos_arm64())
+            crate::aarch64_register_aggregate_call_keys(darwin)
                 .into_iter()
-                .chain(crate::aarch64_mixed_aggregate_call_keys(
-                    target == NativeTarget::macos_arm64(),
-                ))
-                .chain(crate::aarch64_indirect_aggregate_call_keys(
-                    target == NativeTarget::macos_arm64(),
-                ))
+                .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
+                .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
                 .collect::<Vec<_>>()
         } else if floating_scalar {
-            crate::aarch64_float_scalar_call_keys(target == NativeTarget::macos_arm64())
-        } else if target == NativeTarget::linux_arm64() {
-            crate::aarch64_aapcs64_register_unit_call_keys()
-                .into_iter()
-                .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
-                .collect::<Vec<_>>()
+            crate::aarch64_float_scalar_call_keys(darwin)
         } else {
-            crate::aarch64_darwin_register_unit_call_keys()
-                .into_iter()
-                .chain(crate::aarch64_darwin_mixed_unit_call_keys())
-                .collect::<Vec<_>>()
+            match abi {
+                Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
+                    .collect::<Vec<_>>(),
+                Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::aarch64_darwin_mixed_unit_call_keys())
+                    .collect::<Vec<_>>(),
+            }
         };
         let catalog = aarch64_register_constraint_catalog(physical);
         let row = catalog
@@ -213,7 +216,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
                         .all(|(operand, view)| operand.fixed_view == Some(*view))
             })
             .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
-        let mut expected = expected_effects(target, physical, 0);
+        let mut expected = expected_effects(abi, physical, 0);
         expected.external_operand_reads = row
             .operands
             .iter()
@@ -242,7 +245,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
         }
         (
             expected_operand_views,
-            expected_effects(target, physical, arity),
+            expected_effects(abi, physical, arity),
         )
     };
     if effects != &expected {
@@ -298,7 +301,7 @@ fn expected_operand_views(
 }
 
 fn expected_effects(
-    target: NativeTarget,
+    abi: Aarch64SelectedAbi,
     physical: &ValidatedPhysicalRegisterModel,
     arity: usize,
 ) -> MachineEncodedEffects {
@@ -308,10 +311,9 @@ fn expected_effects(
         .iter()
         .find(|row| {
             row.key
-                == if target == NativeTarget::linux_arm64() {
-                    aarch64_aapcs64_register_call_keys()[arity]
-                } else {
-                    crate::aarch64_darwin_register_call_keys()[arity]
+                == match abi {
+                    Aarch64SelectedAbi::Aapcs64 => aarch64_aapcs64_register_call_keys()[arity],
+                    Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_call_keys()[arity],
                 }
         })
         .expect("canonical AArch64 catalog contains scalar-call constraint");
@@ -338,12 +340,12 @@ mod unit_calls;
 #[cfg(test)]
 mod tests {
     use super::{
-        Aarch64ScalarCallFixup, Aarch64ScalarCallTemplateError, MachineAlternativeFamily,
-        MachineAlternativeKey, MachineEncodedEffects, MachineId, NativeTarget, RegisterViewId,
-        SelectedInstructionKind, ValidatedPhysicalRegisterModel,
-        aarch64_aapcs64_register_call_keys, aarch64_physical_register_model, canonical_fixup,
-        encode_aarch64_selected_scalar_call_template, expected_effects, expected_operand_views,
-        validate_aarch64_selected_scalar_call_template,
+        Aarch64ScalarCallFixup, Aarch64ScalarCallTemplateError, Aarch64SelectedAbi,
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, MachineId,
+        NativeTarget, RegisterViewId, SelectedInstructionKind, ValidatedPhysicalRegisterModel,
+        aarch64_aapcs64_register_call_keys, aarch64_physical_register_model, aarch64_selected_abi,
+        canonical_fixup, encode_aarch64_selected_scalar_call_template, expected_effects,
+        expected_operand_views, validate_aarch64_selected_scalar_call_template,
     };
     use register_model::validate_physical_register_model;
 
@@ -363,7 +365,7 @@ mod tests {
             variant: 0,
         };
         let operands = expected_operand_views(&physical, 2);
-        let effects = expected_effects(NativeTarget::linux_arm64(), &physical, 2);
+        let effects = expected_effects(Aarch64SelectedAbi::Aapcs64, &physical, 2);
         (physical, kind, alternative, operands, effects)
     }
 
@@ -386,7 +388,7 @@ mod tests {
                     .collect::<Vec<_>>(),
                 operands
             );
-            let effects = expected_effects(NativeTarget::linux_arm64(), &physical, arity);
+            let effects = expected_effects(Aarch64SelectedAbi::Aapcs64, &physical, arity);
             assert_eq!(
                 effects.external_operand_reads,
                 (0..arity as u16).collect::<Vec<_>>()
@@ -437,10 +439,37 @@ mod tests {
                 kind,
                 alternative,
                 &oversized,
-                &expected_effects(NativeTarget::linux_arm64(), &physical, 0),
+                &expected_effects(Aarch64SelectedAbi::Aapcs64, &physical, 0),
             ),
             Err(Aarch64ScalarCallTemplateError::OperandViewMismatch)
         );
+    }
+
+    #[test]
+    fn scalar_call_abi_matrix_resolves_declared_pairs_and_fails_closed() {
+        assert_eq!(
+            aarch64_selected_abi(NativeTarget::linux_arm64()),
+            Ok(Aarch64SelectedAbi::Aapcs64)
+        );
+        assert_eq!(
+            aarch64_selected_abi(NativeTarget::macos_arm64()),
+            Ok(Aarch64SelectedAbi::Darwin)
+        );
+        for undeclared in [
+            NativeTarget {
+                object_format: target::ObjectFormat::Coff,
+                ..NativeTarget::linux_arm64()
+            },
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+        ] {
+            assert_eq!(
+                aarch64_selected_abi(undeclared),
+                Err(
+                    crate::machine_effects::Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi,
+                )
+            );
+        }
     }
 
     #[test]
@@ -473,6 +502,26 @@ mod tests {
         assert_eq!(
             validate_aarch64_selected_scalar_call_template(
                 NativeTarget::linux_x64(),
+                &physical,
+                kind,
+                alternative,
+                &operands,
+                &effects,
+                &0x9400_0000_u32.to_le_bytes(),
+                fixup,
+            ),
+            Err(Aarch64ScalarCallTemplateError::UnsupportedTarget)
+        );
+        // Undeclared (architecture, object-format) pairs fail closed through
+        // the same matrix: an AArch64 COFF target does not inherit either
+        // declared row.
+        let undeclared_coff = NativeTarget {
+            object_format: target::ObjectFormat::Coff,
+            ..NativeTarget::linux_arm64()
+        };
+        assert_eq!(
+            validate_aarch64_selected_scalar_call_template(
+                undeclared_coff,
                 &physical,
                 kind,
                 alternative,

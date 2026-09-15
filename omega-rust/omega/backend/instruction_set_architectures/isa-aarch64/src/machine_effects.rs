@@ -126,25 +126,39 @@ pub fn validate_aarch64_machine_effect_catalog(
 
 /// The AArch64 encoding matrix declares one call/return ABI family per
 /// supported (architecture, object-format) pair: AAPCS64 under ELF and the
-/// Darwin AAPCS64 variant under Mach-O. An undeclared format fails closed
-/// rather than silently inheriting one family's rows; adding a supported
-/// AArch64 format extends this matrix deliberately.
+/// Darwin AAPCS64 variant under Mach-O. An undeclared pair — including every
+/// non-AArch64 architecture — fails closed rather than silently inheriting
+/// one family's rows; adding a supported AArch64 format extends this matrix
+/// deliberately.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Aarch64SelectedAbi {
+pub(crate) enum Aarch64SelectedAbi {
     Aapcs64,
     Darwin,
+}
+
+/// Resolve the declared pair to its ABI family. Every selected-form encoding
+/// that needs the call/return roster — the machine-effect catalog and the
+/// scalar-call template validator alike — consults this matrix rather than
+/// re-reading the target, so an undeclared pair fails closed once, here.
+pub(crate) fn aarch64_selected_abi(
+    target: NativeTarget,
+) -> Result<Aarch64SelectedAbi, Aarch64MachineEffectCatalogValidationError> {
+    match (target.architecture, target.object_format) {
+        (Architecture::Aarch64, ObjectFormat::Elf) => Ok(Aarch64SelectedAbi::Aapcs64),
+        (Architecture::Aarch64, ObjectFormat::MachO) => Ok(Aarch64SelectedAbi::Darwin),
+        (Architecture::Aarch64, ObjectFormat::Coff)
+        | (Architecture::X86_64, ObjectFormat::Elf)
+        | (Architecture::X86_64, ObjectFormat::MachO)
+        | (Architecture::X86_64, ObjectFormat::Coff) => {
+            Err(Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi)
+        }
+    }
 }
 
 fn selected_keys(
     target: NativeTarget,
 ) -> Result<SelectedConstraintKeys, Aarch64MachineEffectCatalogValidationError> {
-    let abi = match target.object_format {
-        ObjectFormat::Elf => Aarch64SelectedAbi::Aapcs64,
-        ObjectFormat::MachO => Aarch64SelectedAbi::Darwin,
-        ObjectFormat::Coff => {
-            return Err(Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi);
-        }
-    };
+    let abi = aarch64_selected_abi(target)?;
     let darwin = abi == Aarch64SelectedAbi::Darwin;
     let return_i64 = match abi {
         Aarch64SelectedAbi::Aapcs64 => AARCH64_AAPCS64_RETURN,

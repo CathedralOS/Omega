@@ -1,8 +1,9 @@
 use super::{
     Aarch64ScalarCallTemplateError, MachineAlternativeFamily, MachineAlternativeKey, MachineId,
     NativeTarget, SelectedInstructionKind, aarch64_physical_register_model,
-    aarch64_register_constraint_catalog, encode_aarch64_selected_scalar_call_template,
-    expected_effects, validate_aarch64_selected_scalar_call_template,
+    aarch64_register_constraint_catalog, aarch64_selected_abi,
+    encode_aarch64_selected_scalar_call_template, expected_effects,
+    validate_aarch64_selected_scalar_call_template,
 };
 use register_model::validate_physical_register_model;
 
@@ -85,7 +86,8 @@ fn target_register_arities_encode_and_reject_opposite_abi_effects() {
             };
             let mut changed = effects.clone();
             changed.implicit_unit_clobbers =
-                expected_effects(opposite, &physical, 0).implicit_unit_clobbers;
+                expected_effects(aarch64_selected_abi(opposite).unwrap(), &physical, 0)
+                    .implicit_unit_clobbers;
             assert_eq!(
                 validate_aarch64_selected_scalar_call_template(
                     target,
