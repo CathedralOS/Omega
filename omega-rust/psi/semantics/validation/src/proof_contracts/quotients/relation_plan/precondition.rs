@@ -134,7 +134,11 @@ fn derive_public_precondition_partition_from_positions(
         .collect::<Vec<_>>();
     for parameter in public_parameters {
         if !public_positions.contains(&Some(parameter.symbol))
-            && super::super::quotient_for_type(program, parameter.type_reference).is_some()
+            && crate::proof_contracts::quotients::legacy_candidates::quotient_for_type(
+                program,
+                parameter.type_reference,
+            )
+            .is_some()
         {
             varying_parameters.push(parameter.symbol);
         }

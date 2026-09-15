@@ -1076,7 +1076,12 @@ fn quotient_carrier_matches_type(
     let Some(metadata) = quotient.quotient.as_ref() else {
         return false;
     };
-    let Some(carrier_symbol) = super::super::base_data_symbol(program, metadata.carrier) else {
+    let Some(carrier_symbol) =
+        crate::proof_contracts::quotients::equivalence_selection::base_data_symbol(
+            program,
+            metadata.carrier,
+        )
+    else {
         return false;
     };
     let Some(carrier) = program

@@ -125,7 +125,7 @@ pub(super) fn verify_selected_theorem_schema(
         let left = &theorem_parameters[premise.left_parameter];
         let right = &theorem_parameters[premise.right_parameter];
         let Some(found) = requires.iter().position(|actual| {
-            super::super::fact_is_exact_relation_pair(
+            crate::proof_contracts::quotients::equivalence_selection::fact_is_exact_relation_pair(
                 program,
                 actual.fact,
                 relation,
