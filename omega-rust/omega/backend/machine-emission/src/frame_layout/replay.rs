@@ -4,7 +4,7 @@ use selected_instructions::MachineAlternativeFamily;
 use target::Architecture;
 
 use crate::frame_layout::{
-    FrameAbiPreservationConvention, ReturnAddressFrameCustody,
+    FrameAbiPreservationConvention, FrameUnwindRestore, ReturnAddressFrameCustody,
     StagedOptimizedPostAllocationMachinePlan, TargetFrameLayoutError as Error,
     TargetFrameLayoutPlan, TargetFrameLayoutPolicy, ValidatedAllocatedCalleeSavedRequirements,
     ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetRegisterEnvironment,
@@ -347,6 +347,43 @@ pub(super) fn validate_layout(
                 }
             }
             _ => return Err(Error::UnsupportedTarget),
+        }
+        // The unwind roster is recovered from the pieces already bound to
+        // the inputs, never by trusting the candidate's own record: a saved
+        // link register — whose custody and coordinates were just checked
+        // canonically above — heads the roster, then every preservation
+        // slot in reverse save order, so the roster is strictly descending
+        // frame offsets. The release is exactly the committed extent and
+        // the restated custody is the checked `return_address`. Exact
+        // equality leaves the producer's roster non-authoritative.
+        let mut restores = Vec::with_capacity(row.callee_save_slots.len() + 1);
+        if let ReturnAddressFrameCustody::SavedLinkRegister {
+            view,
+            frame_offset_bytes,
+            size_bytes,
+        } = row.return_address
+        {
+            restores.push(FrameUnwindRestore {
+                view,
+                frame_offset_bytes,
+                size_bytes: u64::from(size_bytes),
+            });
+        }
+        restores.extend(
+            row.callee_save_slots
+                .iter()
+                .rev()
+                .map(|slot| FrameUnwindRestore {
+                    view: slot.storage_view,
+                    frame_offset_bytes: slot.frame_offset_bytes,
+                    size_bytes: slot.size_bytes,
+                }),
+        );
+        if row.unwind.restores != restores
+            || row.unwind.released_bytes != committed
+            || row.unwind.return_address != row.return_address
+        {
+            return Err(Error::NonCanonicalLayout);
         }
     }
     Ok(())

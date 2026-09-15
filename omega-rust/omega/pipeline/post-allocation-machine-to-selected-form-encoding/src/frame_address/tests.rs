@@ -57,6 +57,13 @@ fn fixture() -> (
                 interval_bytes: 4_096,
                 touches: 0,
             },
+            unwind: machine_code::FrameUnwindPlan {
+                restores: Vec::new(),
+                released_bytes: 16,
+                return_address: machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+                    post_prologue_offset_bytes: 16, size_bytes: 8,
+                },
+            },
         }],
     };
     let instruction = PostAllocationMachineInstruction {

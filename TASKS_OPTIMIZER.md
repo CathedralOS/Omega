@@ -547,11 +547,27 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   reordered, or misattributed loan fails closed, and the artifact still
   reaches ordinary callable publication on all four targets
   (`stable_address_loans::loaned_local_addresses_replay_through_ordinary_callable_entry`).
+  Unwind information is landed: the validated layout records each
+  frame's exact unwind roster — the ordered view restorations the
+  epilogue performs, with a saved link register first and every
+  preservation slot in reverse save order so the roster is strictly
+  descending frame offset — plus the committed extent the unwind
+  releases and the return-address custody the continuation is
+  recovered through, so the record alone is a complete unwind
+  description. Frame identity moves to v10 and binds the roster;
+  replay recovers the same roster from the validated preservation
+  storage and custody rather than the producer's claims, and the
+  frame protocol's emitted epilogue performs exactly the recorded
+  sequence byte for byte on all four targets. An omitted, invented,
+  reordered, or misattributed restore — or a wrong release or custody
+  restatement — fails closed, epilogue bytes that do not encode the
+  validated roster reject, and the artifact still reaches ordinary
+  callable publication on all four targets
+  (`unwind_roster::unwind_restore_roster_replays_through_ordinary_callable_entry`).
   Acceptance: every admitted frame policy
   replays its exact physical accesses through callable publication;
   requirements artifacts remain non-authoritative until that replay
-  succeeds. Remaining: unwind information
-  and dynamic-allocation constraints; general
+  succeeds. Remaining: dynamic-allocation constraints; general
   calls still need target-owned frame, callee-save, link-register, and
   call-site alignment plans beyond the landed callee-save frames.
 
