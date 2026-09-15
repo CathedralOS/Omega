@@ -8,7 +8,7 @@ use crate::rewrites::dead_store::{
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
+    LocalStorageSlotId, PackedByteWidth, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedInstructionId,
     SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
     SelectedStructuralBinding, SelectedStructuralCaseEdge, SelectedStructuralTransport,
@@ -676,5 +676,97 @@ fn elimination_is_deterministic_and_terminal() {
     assert_eq!(
         eliminate_selected_dead_store(&first, 0, KILLER, &environment, budget()).unwrap_err(),
         DeadStoreEliminationError::UnsupportedPair
+    );
+}
+
+/// Coverage killers apply across a crossed edge the same way they do inside
+/// one block: the dead store may be any exact width and the covering store at
+/// the successor's head may be a wider `Store` or a covering `StorePacked`.
+#[test]
+fn cross_block_covering_killers_beyond_the_exact_pair_eliminate() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A four-byte dead store crossed into the successor's eight-byte covering
+    // store.
+    let subword = mutated_chained(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 4,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses[0].byte_count = 4;
+    });
+    let result = eliminate(&subword, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![KILLER]
+    );
+    // A packed covering store at the successor's head kills a shifted dead
+    // range: six bytes at offset 2 contain the dead four at offset 4.
+    let packed = mutated_chained(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let packed = environment
+            .constraint(environment.selected_keys().store_packed.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 4,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 4,
+            ..access(STORE, 1, place(), 4, SelectedMemoryAccessRole::WritePlace)
+        };
+        function.blocks[1].instructions[0] = instruction(
+            KILLER,
+            SelectedInstructionKind::StorePacked {
+                byte_offset: 2,
+                width: PackedByteWidth::Six,
+            },
+            packed,
+            &[POINTER, SCRATCH, SCRATCH],
+        );
+        function.memory_accesses[1] = SelectedMemoryAccess {
+            byte_count: 6,
+            ..access(KILLER, 2, place(), 2, SelectedMemoryAccessRole::WritePlace)
+        };
+    });
+    eliminate(&packed, &environment).unwrap();
+    // A packed store too narrow to cover still rejects across the edge.
+    let short = mutated_chained(target, |function, environment| {
+        let packed = environment
+            .constraint(environment.selected_keys().store_packed.unwrap())
+            .unwrap();
+        function.blocks[1].instructions[0] = instruction(
+            KILLER,
+            SelectedInstructionKind::StorePacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Seven,
+            },
+            packed,
+            &[POINTER, SCRATCH, SCRATCH],
+        );
+        function.memory_accesses[1].byte_count = 7;
+    });
+    assert_eq!(
+        eliminate(&short, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
     );
 }

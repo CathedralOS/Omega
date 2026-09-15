@@ -1,12 +1,12 @@
 //! Borrow-aware dead-store elimination on the selected CFG.
 //!
-//! A `Store { byte_offset, byte_size: 8 }` writes all sixty-four bits of its
-//! value operand through the referent pointer. A later `Store` at the same
-//! byte offset in the same block replaces exactly those bytes. When no
-//! intervening instruction can observe or partially overwrite the first
-//! store's bytes, the earlier store is dead: every observer of the place sees
-//! the second store's value, so the first instruction and its roster row can
-//! be removed without changing any reachable memory state.
+//! A `Store { byte_offset, byte_size }` writes the low exact-width bits of
+//! its value operand through the referent pointer. A later place store whose
+//! byte range covers the first store's range entirely replaces those bytes.
+//! When no intervening instruction can observe or partially overwrite the
+//! first store's bytes, the earlier store is dead: every observer of the
+//! place sees the covering store's value, so the first instruction and its
+//! roster row can be removed without changing any reachable memory state.
 //!
 //! The alias decision is borrow-aware: it comes from the validated
 //! `memory_accesses` roster, not from pointer-register equality. Each access
@@ -20,8 +20,10 @@
 //! a partial or dynamic-extent write leaves them observable, and a
 //! place-backed local slot or materialized local address can reach the same
 //! storage by another route. The covering store must be the first access on
-//! the dead place after the removed store, and it must carry the identical
-//! exact `WritePlace` row.
+//! the dead place after the removed store: a `Store` or `StorePacked`
+//! carrying exactly one `WritePlace` row on the dead place whose encoded
+//! byte range contains the dead range entirely — the row need only cover,
+//! not equal, the removed write.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,
 //! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they
