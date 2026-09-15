@@ -1,8 +1,6 @@
 //! The concrete Console provider owns its writer and native byte leaves.
-use super::{
-    checked_adapter_identity, compile_reviewed_repository_fixture, fixture_roster, interpret,
-    pass_canary,
-};
+use super::{checked_adapter_identity, fixture_roster};
+use crate::{compile_reviewed_repository_fixture, interpret, pass_canary};
 use compiler::CheckedCompileRequest;
 
 #[test]

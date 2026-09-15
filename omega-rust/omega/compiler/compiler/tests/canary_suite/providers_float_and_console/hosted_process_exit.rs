@@ -3,11 +3,12 @@
 //! simulated-domain halt with ordered output before the terminal event, and
 //! the retained native image's physical exit on each hosted target.
 
-use super::{
-    CheckedCompileRequest, compile_reviewed_repository_fixture,
-    compile_rooted_backend_canary_without_output_for_target, fixture_roster, hosted_exit,
+use super::{fixture_roster, hosted_exit};
+use crate::{
+    compile_reviewed_repository_fixture, compile_rooted_backend_canary_without_output_for_target,
     interpret, pass_canary,
 };
+use compiler::CheckedCompileRequest;
 #[test]
 fn process_exit_canary_interprets_with_exact_status_and_ordered_output() {
     let canary = pass_canary(fixture_roster::RUNTIME_PROCESS_EXIT_I32_STATUS_ORDERED);

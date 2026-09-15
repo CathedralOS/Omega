@@ -1788,7 +1788,7 @@ fn discovered_exact_native_coverage_is_consistent() {
     assert!(
         positive
             .source_path
-            .ends_with("canary_suite/arithmetic_and_data.rs")
+            .ends_with("canary_suite/arithmetic_and_data/enum_and_comparison_canaries.rs")
     );
     assert_eq!(
         coverage.rooted_owner_count("ownership/linear_transfer_and_consume"),

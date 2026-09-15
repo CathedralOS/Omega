@@ -1,5 +1,5 @@
 use super::super::ExactNativeCanaryCoverageIndex;
-use super::{load, pass_canaries};
+use super::{imports_parent_roster, load, pass_canaries};
 use std::path::Path;
 
 const REPOSITORY_MACRO: &str = r#"
@@ -310,4 +310,24 @@ fn named_paths_preserve_exact_target_and_entry_guards() {
             .unique_rooted_target_owner("demo/example", "linux_x86_64")
             .is_some()
     );
+}
+
+#[test]
+fn only_a_verbatim_parent_roster_import_reaches_the_declaring_module_roster() {
+    assert!(imports_parent_roster("use super::fixture_roster;\n"));
+    assert!(imports_parent_roster(
+        "use super::{\n    checked_adapter_identity, fixture_roster, hosted_exit,\n};\n"
+    ));
+    assert!(!imports_parent_roster("use crate::fixture_roster;\n"));
+    assert!(!imports_parent_roster("use super::fixture_roster::*;\n"));
+    assert!(!imports_parent_roster(
+        "use super::{fixture_roster_helpers};\n"
+    ));
+    assert!(!imports_parent_roster("// use super::fixture_roster;\n"));
+    assert!(!imports_parent_roster(
+        "const IMPORT: &str = \"use super::fixture_roster;\";\n"
+    ));
+    assert!(!imports_parent_roster(
+        "fn nested() {\n    use super::fixture_roster;\n}\n"
+    ));
 }

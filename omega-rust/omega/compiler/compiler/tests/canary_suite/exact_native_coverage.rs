@@ -36,36 +36,42 @@ pub(super) struct ExactNativeCanaryCoverageIndex {
     qualifying_target_compile_count: usize,
 }
 
+/// Collect every `.rs` module under the canary suite directory, descending
+/// into the topic directories that sit beside their declaring module.
+fn collect_canary_modules(directory: &Path, source_paths: &mut Vec<PathBuf>) -> Result<(), String> {
+    let entries = fs::read_dir(directory).map_err(|error| {
+        format!(
+            "cannot enumerate canary test modules at {}: {error}",
+            directory.display()
+        )
+    })?;
+    for entry in entries {
+        let path = entry
+            .map_err(|error| format!("cannot inspect canary test module: {error}"))?
+            .path();
+        if path.is_dir() {
+            collect_canary_modules(&path, source_paths)?;
+        } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+            source_paths.push(path);
+        }
+    }
+    Ok(())
+}
+
 impl ExactNativeCanaryCoverageIndex {
     /// Read every canary-suite source module exactly once and index only
     /// dedicated enabled native tests with an exact exit-status assertion.
     pub(super) fn discover() -> Result<Self, String> {
         let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
         let mut source_paths = vec![manifest.join("tests/canary_suite.rs")];
-        let module_directory = manifest.join("tests/canary_suite");
-        let entries = fs::read_dir(&module_directory).map_err(|error| {
-            format!(
-                "cannot enumerate canary test modules at {}: {error}",
-                module_directory.display()
-            )
-        })?;
-        for entry in entries {
-            let path = entry
-                .map_err(|error| format!("cannot inspect canary test module: {error}"))?
-                .path();
-            if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
-                source_paths.push(path);
-            }
-        }
+        collect_canary_modules(&manifest.join("tests/canary_suite"), &mut source_paths)?;
         source_paths.sort();
 
-        let mut index = Self::empty();
+        let mut modules = Vec::new();
         for path in source_paths {
             let source = fs::read_to_string(&path).map_err(|error| {
                 format!("cannot read canary test module {}: {error}", path.display())
             })?;
-            index.source_file_count += 1;
-            index.source_byte_count += source.len();
             let constants = fixture_constants::load(&source, |relative| {
                 let leaf = path
                     .parent()
@@ -75,7 +81,29 @@ impl ExactNativeCanaryCoverageIndex {
                     format!("cannot read fixture roster {}: {error}", leaf.display())
                 })
             })?;
-            index.index_source(&path, &source, &constants);
+            modules.push((path, source, constants));
+        }
+        let declared_rosters = modules
+            .iter()
+            .filter(|(_, _, constants)| !constants.is_empty())
+            .map(|(path, _, constants)| (path.clone(), constants))
+            .collect::<BTreeMap<_, _>>();
+
+        let mut index = Self::empty();
+        for (path, source, constants) in &modules {
+            index.source_file_count += 1;
+            index.source_byte_count += source.len();
+            // A topic module beside its declaring module reaches that
+            // module's roster through `use super::fixture_roster`.
+            let inherited = (constants.is_empty()
+                && fixture_constants::imports_parent_roster(source))
+            .then(|| {
+                path.parent()
+                    .expect("source module has a parent")
+                    .with_extension("rs")
+            })
+            .and_then(|declaring_module| declared_rosters.get(&declaring_module).copied());
+            index.index_source(path, source, inherited.unwrap_or(constants));
         }
         Ok(index)
     }
