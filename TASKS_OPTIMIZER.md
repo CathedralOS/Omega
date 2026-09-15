@@ -230,7 +230,23 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   rejected at encoding through the canonical offset joins or the settlement
   realization; a dropped unbound row is rejected by replay while a dropped
   consumed row, a duplicated `(machine, operation)` pair, and a reordered
-  roster are rejected at encoding.
+  roster are rejected at encoding. Landed: installation header and manifest
+  axes (`installation_header_rejects_every_one_field_substitution`) — the
+  program fingerprint, architecture, whole-target, and bound image
+  fingerprint substitutions, the image-section layout addresses, the retained
+  compiler text-validation receipt, and its report-only derivation
+  fingerprint are independently representable and rejected by replay, as is
+  every derivation-digest input once the receipt identity is honestly
+  recomputed; the profile decision and the committed component-progress
+  manifest and acceptance identities sit outside the image join and break
+  the published record identity a deployment journal replays; a retained
+  subsystem, unsupported target facts, non-canonical section projections,
+  and receipt fields without a consistent derivation digest are rejected at
+  encoding as non-canonical, while the COFF subsystem value is rejected by
+  replay and its absence or a non-COFF target at encoding; the magic,
+  format, and vocabulary markers, unknown enum tags, the reserved field,
+  zero profile and progress identities, and presence-flag lies reject at
+  the wire.
 
 ## Psi optimization and loops
 
