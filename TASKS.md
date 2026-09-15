@@ -631,11 +631,18 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   call closure per entry and reports prohibited sites (crash terminators,
   boundary fixed service reach and declared crash routes, port writes) separately
   from evidence gaps (dynamic calls, unknown entries/callees/boundaries), never
-  consulting in-module public ceilings. Unit coverage:
-  `cargo nextest run -p build-evaluation behavior_exclusions`. Next: the
-  `Build` authoring surface for exclusions with retained declaration spans, then
-  the product-admission join over the selected entry roster and provider
-  candidates, then the compiled-corpus acceptance with optimizations on and off.
+  consulting in-module public ceilings. Boundary calls now join the selected
+  provider-plan facts: a `CheckedAdapter` binding walks the retained candidate
+  body whose `candidate_identity` it names, while external bindings, unmatched
+  adapters, and unconstrained slots retain the declared contract (unconstrained
+  slots additionally walk every retained candidate). Bounded dynamic dispatches
+  rejoin the dispatch catalog's exact realization; parameter dispatches remain
+  gaps. The product-admission join lives in
+  `checked-compilation-to-terminal-artifact::terminal_artifact::behavior_exclusions`,
+  which re-lowers each selected entry unoptimized before the artifact is
+  admitted and checks callback thunk bodies at their own production site. Unit
+  coverage: `cargo nextest run -p build-evaluation behavior_exclusions`. Next:
+  the compiled-corpus acceptance with optimizations on and off.
 
 - **BUILD-EXCLUSION-REALIZATION.** Extend the existing receiving-policy and native
   admission route in `omega-rust/omega/build/`, `omega-rust/omega/semantics/` and

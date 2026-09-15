@@ -20,22 +20,39 @@
 //!
 //! The report distinguishes a witnessed prohibited site from an evidence gap:
 //! both fail admission, but a conservative possible path is not labeled a
-//! runtime execution. Dynamic calls carry no per-target coverage in this
-//! slice and are reported as gaps. `establish_behavior_exclusions` consumes
-//! an already-selected entry roster.
+//! runtime execution. `establish_behavior_exclusions` consumes an
+//! already-selected entry roster and the selected provider-plan facts that
+//! decide which retained provider-candidate bodies a boundary call can
+//! realize.
+//!
+//! A boundary call's own fixed service reach always counts: the requirement
+//! invocation contributes it no matter which provider the installation picks.
+//! Its declared crash routes count only while realization coverage is
+//! incomplete — a retained candidate the selected plan names by exact
+//! `CheckedAdapter` identity supplies a verified body, which is stronger
+//! evidence than the published ceiling it refined. An unconstrained slot
+//! admits every retained candidate plus the contract any external provider
+//! could only conform to. Bounded dynamic dispatches rejoin the module's
+//! dispatch catalog and cover their exact realization; calls through an
+//! existential descriptor parameter have no retained target and remain gaps.
 //!
 //! The build authoring surface is `builder.exclude_crash(CrashCause::X)`, a
 //! toolchain Build machine harvested statically from the root build entry's
 //! checked call scope (see `declarations::harvest_behavior_exclusions`).
 //! Authored selections retain their exact declaration symbol, selecting
 //! machine, and source span so the product-admission join can reproduce and
-//! audit the canonical union independently. There is no service-exclusion
-//! authoring surface or admission join yet.
+//! audit the canonical union independently. The product-admission join
+//! itself lives in `checked-compilation-to-terminal-artifact`, which replays
+//! the unoptimized lowering before the artifact is admitted. There is no
+//! service-exclusion authoring surface yet.
 
 use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, OperationId, ServiceId};
 use std::collections::VecDeque;
 use symbols::SymbolHandle;
-use terminal_psi::{CrashCause, OperationKind, TerminalMachine, TerminalModule, Terminator};
+use terminal_psi::{
+    CrashCause, OperationKind, ProviderCandidateConformance, TerminalMachine, TerminalModule,
+    Terminator,
+};
 
 /// One exact exclusion selected by the build root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -219,11 +236,13 @@ impl BehaviorExclusionReport {
 }
 
 /// Reconstruct a conservative account of possible behavior for the exact
-/// entry roster's static call closure in `module`.
+/// entry roster's static call closure in `module`, under the provider
+/// realization `selected_provider_plans` admits for each reached boundary.
 pub fn establish_behavior_exclusions(
     module: &TerminalModule,
     entries: &[MachineId],
     exclusions: &BehaviorExclusions,
+    selected_provider_plans: &effects::SelectedProviderPlanFacts,
 ) -> BehaviorExclusionReport {
     let mut report = BehaviorExclusionReport::default();
     if exclusions.is_empty() {
@@ -252,6 +271,7 @@ pub fn establish_behavior_exclusions(
                 entry,
                 machine,
                 exclusions,
+                selected_provider_plans,
                 &mut report,
                 &mut pending,
             );
@@ -260,11 +280,108 @@ pub fn establish_behavior_exclusions(
     report
 }
 
+/// Which realization evidence covers one reached boundary: retained
+/// candidate bodies to walk, and whether the declared contract must still
+/// bound realizations the retained catalog cannot name.
+fn boundary_realization_coverage(
+    candidates: &[&ProviderCandidateConformance],
+    selected_provider_plans: &effects::SelectedProviderPlanFacts,
+) -> (Vec<MachineId>, bool) {
+    let mut bodies = Vec::new();
+    let mut needs_contract = candidates.is_empty();
+    let requirement_identities = {
+        let mut identities: Vec<&str> = candidates
+            .iter()
+            .map(|candidate| candidate.requirement_identity.as_str())
+            .collect();
+        identities.sort_unstable();
+        identities.dedup();
+        identities
+    };
+    for requirement_identity in requirement_identities {
+        let mut constrained = false;
+        for plan in selected_provider_plans.plans() {
+            for row in &plan.rows {
+                if row.requirement_identity != requirement_identity {
+                    continue;
+                }
+                constrained = true;
+                match &row.binding {
+                    effects::provider_plan::ProviderBinding::CheckedAdapter {
+                        machine_identity,
+                        ..
+                    } => {
+                        let mut matched = false;
+                        for candidate in candidates.iter().filter(|candidate| {
+                            candidate.requirement_identity == requirement_identity
+                                && candidate.candidate_identity == *machine_identity
+                        }) {
+                            matched = true;
+                            bodies.push(candidate.candidate);
+                        }
+                        if !matched {
+                            // The selected adapter body is absent from the
+                            // retained catalog; the contract is the only
+                            // remaining bound on its possible behavior.
+                            needs_contract = true;
+                        }
+                    }
+                    _ => needs_contract = true,
+                }
+            }
+        }
+        if !constrained {
+            // Nothing settles this requirement; the installation may still
+            // admit any retained candidate or an external realization, so the
+            // declared contract stays in force alongside every body.
+            needs_contract = true;
+            for candidate in candidates
+                .iter()
+                .filter(|candidate| candidate.requirement_identity == requirement_identity)
+            {
+                bodies.push(candidate.candidate);
+            }
+        }
+    }
+    (bodies, needs_contract)
+}
+
+/// The exact machine one bounded dynamic dispatch realizes, when the module's
+/// dispatch custody pins it. Descriptor-parameter dispatches deliberately
+/// carry no realization: their target arrives with the caller's table.
+fn dynamic_dispatch_realization(
+    module: &TerminalModule,
+    owner: MachineId,
+    operation: OperationId,
+) -> Option<MachineId> {
+    let dispatch = &module.dynamic_dispatch;
+    dispatch
+        .direct_dispatches
+        .iter()
+        .find(|row| row.owner == owner && row.operation == operation)
+        .map(|row| row.realization)
+        .or_else(|| {
+            dispatch
+                .indirect_dispatches
+                .iter()
+                .find(|row| row.owner == owner && row.operation == operation)
+                .map(|row| row.realization)
+        })
+        .or_else(|| {
+            dispatch
+                .stored_dispatches
+                .iter()
+                .find(|row| row.owner == owner && row.operation == operation)
+                .map(|row| row.realization)
+        })
+}
+
 fn inspect_machine<'module>(
     module: &'module TerminalModule,
     entry: MachineId,
     machine: &'module TerminalMachine,
     exclusions: &BehaviorExclusions,
+    selected_provider_plans: &effects::SelectedProviderPlanFacts,
     report: &mut BehaviorExclusionReport,
     pending: &mut VecDeque<&'module TerminalMachine>,
 ) {
@@ -317,14 +434,39 @@ fn inspect_machine<'module>(
                             });
                         }
                     }
-                    for bucket in &declaration.crash_routes {
-                        if exclusions.excludes_crash_cause(bucket.cause) {
-                            report.prohibited.push(ProhibitedBehavior {
-                                exclusion: BehaviorExclusion::CrashCause(bucket.cause),
+                    let candidates: Vec<&ProviderCandidateConformance> = module
+                        .provider_candidates
+                        .iter()
+                        .filter(|candidate| candidate.boundary == *boundary)
+                        .collect();
+                    let (realizations, needs_contract) =
+                        boundary_realization_coverage(&candidates, selected_provider_plans);
+                    if needs_contract {
+                        for bucket in &declaration.crash_routes {
+                            if exclusions.excludes_crash_cause(bucket.cause) {
+                                report.prohibited.push(ProhibitedBehavior {
+                                    exclusion: BehaviorExclusion::CrashCause(bucket.cause),
+                                    entry,
+                                    machine: machine.id,
+                                    site: site.clone(),
+                                });
+                            }
+                        }
+                    }
+                    for realization in realizations {
+                        match module
+                            .machines
+                            .iter()
+                            .find(|target| target.id == realization)
+                        {
+                            Some(target) => pending.push_back(target),
+                            None => report.gaps.push(EvidenceGap {
                                 entry,
                                 machine: machine.id,
-                                site: site.clone(),
-                            });
+                                block: Some(block.id),
+                                operation: Some(operation.id),
+                                kind: EvidenceGapKind::UnknownCallee(realization),
+                            }),
                         }
                     }
                 }
@@ -345,13 +487,31 @@ fn inspect_machine<'module>(
                 | OperationKind::CallDynamicParameterScalar { .. }
                 | OperationKind::CallDynamicUnit { .. }
                 | OperationKind::CallDynamicParameterUnit { .. } => {
-                    report.gaps.push(EvidenceGap {
-                        entry,
-                        machine: machine.id,
-                        block: Some(block.id),
-                        operation: Some(operation.id),
-                        kind: EvidenceGapKind::DynamicCall,
-                    });
+                    match dynamic_dispatch_realization(module, machine.id, operation.id) {
+                        Some(realization) => {
+                            match module
+                                .machines
+                                .iter()
+                                .find(|target| target.id == realization)
+                            {
+                                Some(target) => pending.push_back(target),
+                                None => report.gaps.push(EvidenceGap {
+                                    entry,
+                                    machine: machine.id,
+                                    block: Some(block.id),
+                                    operation: Some(operation.id),
+                                    kind: EvidenceGapKind::UnknownCallee(realization),
+                                }),
+                            }
+                        }
+                        None => report.gaps.push(EvidenceGap {
+                            entry,
+                            machine: machine.id,
+                            block: Some(block.id),
+                            operation: Some(operation.id),
+                            kind: EvidenceGapKind::DynamicCall,
+                        }),
+                    }
                 }
                 _ => {}
             }
