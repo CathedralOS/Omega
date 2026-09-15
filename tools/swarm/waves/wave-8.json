@@ -318,6 +318,19 @@
       ],
       "suggested_first_slice": "Backfill for the landed terminal-authority-review slot. The prior session's named dependency IS this item's next slice: connect ProgramLocalRootInstallationLedger aggregate capacity to actual installed backing — receiver partitions, activation loans, and completion for the same occurrence/epoch, so reconstructed capacity can discharge requirements. external-roots was just released by the landed sibling — claim it as listed. native-realization/src/native_realization.rs is the item's other owner but its terminal_authority* files are sibling-owned; keep to the two claimed paths or report blocked. macOS contract (source/library/std/targets/macos_arm64) is not exercisable on this host — report it.",
       "backfill_for": "terminal-authority-review"
+    },
+    {
+      "name": "sample-corpus",
+      "board": "TASKS.md",
+      "item": "SAMPLE-CORPUS",
+      "host": "linux",
+      "owning_paths": [
+        "samples/cli/basics/cli_mvp",
+        "samples/cli/basics/print_squares",
+        "omega-rust/omega/compiler/compiler/tests/samples_compile.rs"
+      ],
+      "suggested_first_slice": "Backfill for the landed target-matrices slot. Close cli_mvp and print_squares through checked semantics AND native execution — the item names the focused probe: OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp (then print_squares) cargo nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'. Fix what the probe exposes inside owned paths; if the defect lives elsewhere (compiler, runtime crates), report blocked rather than claiming it.",
+      "backfill_for": "target-matrices"
     }
   ]
 }
