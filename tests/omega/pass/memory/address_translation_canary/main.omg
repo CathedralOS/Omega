@@ -24,22 +24,72 @@
 // mapping ends the loan instead of returning source custody: the lender's
 // source qualification resumes, and teardown still owes the same shootdown.
 //
+// The obligation surface is source-spelled: `TranslationInstallObligations`
+// and `TranslationReleaseObligations` are authored contract data, not just
+// conservation-model internals. The caller authors the fact identities it
+// requires, `map`/`map_borrowed` consume the sets into the carrier, and the
+// carrier keeps them readable for its whole life -- the same surface the
+// conservation model exposes as `install_obligations()`/
+// `release_obligations()` on its grant, pending, installed, and teardown
+// carriers. The sets are inert: holding or copying one grants no
+// authority, and only the provider's activation and release receipt
+// crossings discharge them. One carrier type keeps both sets across
+// requalification where the model stages them per carrier; dropping a
+// field at `activate` is not a spelling one type admits.
+//
 // Nothing here grants access to the mapped range: placed access
 // (wiki/spec/resources/placed_access.md -- `Vacant`/`Resident` place/take/read
-// operations) is still undeclared, so this contract pins custody, state, and
-// ordering, not content. The conservation model exposes
-// `TranslationInstallObligations`/`TranslationReleaseObligations` to
-// providers at the grant, pending, installed, and teardown carriers in
-// psi/foundation/extents; a source-spelled obligation surface remains a
-// later slice. This slice models owned fixed placement and shared borrowed
-// source custody with the shootdown as the one residual debt.
+// operations) is still undeclared, so this contract pins custody, state,
+// ordering, and obligation visibility, not content. This slice models
+// owned fixed placement and shared borrowed source custody with the
+// shootdown as the one residual debt; the Cathedral package carrying real
+// page-table installation remains a later slice.
 use omega::language::core::assembly;
 use omega::language::core::extent;
 
-// Provider-owned identity of one pending or installed mapping over the exact
-// consumed extents. Opaque to source: reconstructing or requalifying it
-// outside the establishing routes below is not a spelling source can make.
-boundary data Mapping [linear];
+// One translation-activation fact an install receipt must establish,
+// spelled as authored contract data. The identity is inert: naming a fact
+// grants no authority, and nonzero normalization belongs to the provider's
+// admission, not to source.
+data TranslationActivationFact {
+    identity: u64;
+}
+
+// One target-completion fact a release receipt must establish before the
+// torn-down mapping's authority becomes reusable.
+data TranslationCompletionFact {
+    identity: u64;
+}
+
+// The exact install obligations a mapping binds, spelled as the authored
+// fact identities the provider's activation receipt must cover. This
+// contract fixes the set at two facts; a provider package's own contract
+// declares the arity its receipts actually require.
+data TranslationInstallObligations {
+    facts: [TranslationActivationFact; 2];
+}
+
+// The exact release obligations a mapping binds, spelled as the authored
+// fact identities the provider's release receipt must cover.
+data TranslationReleaseObligations {
+    facts: [TranslationCompletionFact; 2];
+}
+
+// Provider-owned identity of one pending or installed mapping over the
+// exact consumed extents. Opaque to source: reconstructing or
+// requalifying it outside the establishing routes below is not a spelling
+// source can make.
+boundary data MappingToken [linear];
+
+// The owned-route carrier: an unforgeable provider identity beside the
+// authored obligation sets the mapping binds. A consumer holding only the
+// carrier still discovers the exact fact sets its activation or release
+// receipt must establish.
+data Mapping [linear] {
+    token: MappingToken;
+    install: TranslationInstallObligations;
+    release: TranslationReleaseObligations;
+}
 
 domain Mapping::Pending
 established by TranslationAuthority::map;
@@ -48,17 +98,20 @@ domain Mapping::Installed
 established by TranslationAuthority::activate;
 
 // Provider-owned identity of one borrowed-source mapping. Kept opaque for
-// the same reason as `Mapping`; the carrier below pairs it with the visible
-// loan it holds, so source can never spell this token alone.
+// the same reason as `MappingToken`; the carrier below pairs it with the
+// visible loan it holds, so source can never spell this token alone.
 boundary data BorrowedMappingToken [linear];
 
-// The borrowed-source carrier: an unforgeable provider identity plus the
-// visible shared loan of the lender's source. While this value lives the
+// The borrowed-source carrier: an unforgeable provider identity, the
+// visible shared loan of the lender's source, and the same authored
+// obligation surface the owned route carries. While this value lives the
 // loan stays active, which is what makes the lender's owned source
 // unavailable until teardown releases the carrier.
 data BorrowedMapping [linear] {
     token: BorrowedMappingToken;
     held_source: &Extent in Granted;
+    install: TranslationInstallObligations;
+    release: TranslationReleaseObligations;
 }
 
 domain BorrowedMapping::Pending
@@ -97,31 +150,43 @@ data Reclaimed {
 }
 
 boundary trait TranslationAuthority {
-    // Structural validation only: the pending carrier holds both ranges'
-    // custody and grants no mapped access.
-    machine map(source: Extent in Granted, destination: Extent in Granted)
-        -> Mapping
+    // Structural validation only: consumes the caller-authored obligation
+    // sets into the pending carrier, where a consumer reads the exact fact
+    // sets the provider's receipts must establish. The carrier holds both
+    // ranges' custody and grants no mapped access.
+    machine map(
+        source: Extent in Granted,
+        destination: Extent in Granted,
+        install: TranslationInstallObligations,
+        release: TranslationReleaseObligations
+    ) -> Mapping
     requires
         source.length == destination.length
     ensures
         result in Mapping::Pending;
 
     // The provider receipt crossing: installed translations exist for the
-    // exact pending mapping.
+    // exact pending mapping, and the carrier's authored install set is
+    // what the receipt behind this edge must establish.
     machine activate(pending: Mapping in Pending) -> Mapping
     ensures
         result in Mapping::Installed;
 
     // Stale translations are released by the provider before this returns;
-    // the cross-core shootdown debt remains the caller's to discharge.
+    // the carrier's authored release set is what that receipt must
+    // establish, and the cross-core shootdown debt remains the caller's
+    // to discharge.
     machine unmap(active: Mapping in Installed) -> Unmapped;
 
     // Structural validation over a shared source loan: the pending carrier
-    // holds the loan and the destination's custody and grants no mapped
-    // access. The lender's owned source stays borrowed until release.
+    // holds the loan, the destination's custody, and the caller-authored
+    // obligation sets, and grants no mapped access. The lender's owned
+    // source stays borrowed until release.
     machine map_borrowed(
         source: &Extent in Granted,
-        destination: Extent in Granted
+        destination: Extent in Granted,
+        install: TranslationInstallObligations,
+        release: TranslationReleaseObligations
     ) -> BorrowedMapping
     requires
         source.length == destination.length
@@ -146,6 +211,16 @@ reaches MachineControl
 requires
     self in Shootdown::Owed;
 
+// The carrier-field reads the drivers exercise: a consumer holding only a
+// pending or installed carrier still discovers the exact obligation sets
+// its receipts must establish, matching `install_obligations()`/
+// `release_obligations()` on the conservation model's carriers.
+machine observe_install(obligations: &TranslationInstallObligations) {
+}
+
+machine observe_release(obligations: &TranslationReleaseObligations) {
+}
+
 // The Cathedral-shaped driver: install one owned mapping, then tear it down
 // and discharge its TLB debt, recovering both ranges' authority.
 machine install_and_teardown(
@@ -157,8 +232,23 @@ requires
     source.length == destination.length
 reaches TranslationAuthority + MachineControl
 {
-    let pending: Mapping in Pending = authority.map(source, destination);
+    let install: TranslationInstallObligations = TranslationInstallObligations {
+        facts: [
+            TranslationActivationFact { identity: 1 },
+            TranslationActivationFact { identity: 7 }
+        ],
+    };
+    let release: TranslationReleaseObligations = TranslationReleaseObligations {
+        facts: [
+            TranslationCompletionFact { identity: 2 },
+            TranslationCompletionFact { identity: 9 }
+        ],
+    };
+    let pending: Mapping in Pending =
+        authority.map(source, destination, install, release);
+    observe_install(&pending.install);
     let installed: Mapping in Installed = authority.activate(pending);
+    observe_release(&installed.release);
     let unmapped: Unmapped = authority.unmap(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     owed.discharge();
@@ -180,10 +270,24 @@ requires
     source.length == destination.length
 reaches TranslationAuthority + MachineControl
 {
+    let install: TranslationInstallObligations = TranslationInstallObligations {
+        facts: [
+            TranslationActivationFact { identity: 3 },
+            TranslationActivationFact { identity: 4 }
+        ],
+    };
+    let release: TranslationReleaseObligations = TranslationReleaseObligations {
+        facts: [
+            TranslationCompletionFact { identity: 5 },
+            TranslationCompletionFact { identity: 6 }
+        ],
+    };
     let pending: BorrowedMapping in Pending =
-        authority.map_borrowed(&source, destination);
+        authority.map_borrowed(&source, destination, install, release);
+    observe_install(&pending.install);
     let installed: BorrowedMapping in Installed =
         authority.activate_borrowed(pending);
+    observe_release(&installed.release);
     let unmapped: UnmappedBorrowed = authority.unmap_borrowed(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     owed.discharge();

@@ -8,11 +8,29 @@
 // `ExtentLoan<'source>` rather than taking ownership.
 use omega::language::core::extent;
 
+data TranslationActivationFact {
+    identity: u64;
+}
+
+data TranslationCompletionFact {
+    identity: u64;
+}
+
+data TranslationInstallObligations {
+    facts: [TranslationActivationFact; 2];
+}
+
+data TranslationReleaseObligations {
+    facts: [TranslationCompletionFact; 2];
+}
+
 boundary data BorrowedMappingToken [linear];
 
 data BorrowedMapping [linear] {
     token: BorrowedMappingToken;
     held_source: &Extent in Granted;
+    install: TranslationInstallObligations;
+    release: TranslationReleaseObligations;
 }
 
 domain BorrowedMapping::Pending
@@ -29,7 +47,9 @@ data UnmappedBorrowed {
 boundary trait TranslationAuthority {
     machine map_borrowed(
         source: &Extent in Granted,
-        destination: Extent in Granted
+        destination: Extent in Granted,
+        install: TranslationInstallObligations,
+        release: TranslationReleaseObligations
     ) -> BorrowedMapping
     requires
         source.length == destination.length
@@ -58,8 +78,20 @@ requires
     source.length == destination.length
 reaches TranslationAuthority
 {
+    let install: TranslationInstallObligations = TranslationInstallObligations {
+        facts: [
+            TranslationActivationFact { identity: 1 },
+            TranslationActivationFact { identity: 2 }
+        ],
+    };
+    let release: TranslationReleaseObligations = TranslationReleaseObligations {
+        facts: [
+            TranslationCompletionFact { identity: 3 },
+            TranslationCompletionFact { identity: 4 }
+        ],
+    };
     let pending: BorrowedMapping in Pending =
-        authority.map_borrowed(&source, destination);
+        authority.map_borrowed(&source, destination, install, release);
     // The loan inside `pending` still pins the source: reclaiming it here,
     // before the mapping's activation and release, is a borrow conflict.
     let early: u64 = measure(source);

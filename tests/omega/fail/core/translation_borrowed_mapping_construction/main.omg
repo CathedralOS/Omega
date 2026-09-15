@@ -3,13 +3,33 @@
 // public constructor, so source cannot assemble a `BorrowedMapping` and
 // requalify it `Installed` -- only the provider's establishing routes mint
 // the token (wiki/spec/resources/extents.md "Mapping and reclamation").
+// The authored obligation sets beside it are ordinary data and change
+// nothing about that gate.
 use omega::language::core::extent;
+
+data TranslationActivationFact {
+    identity: u64;
+}
+
+data TranslationCompletionFact {
+    identity: u64;
+}
+
+data TranslationInstallObligations {
+    facts: [TranslationActivationFact; 2];
+}
+
+data TranslationReleaseObligations {
+    facts: [TranslationCompletionFact; 2];
+}
 
 boundary data BorrowedMappingToken [linear];
 
 data BorrowedMapping [linear] {
     token: BorrowedMappingToken;
     held_source: &Extent in Granted;
+    install: TranslationInstallObligations;
+    release: TranslationReleaseObligations;
 }
 
 domain BorrowedMapping::Pending
@@ -26,7 +46,9 @@ data UnmappedBorrowed {
 boundary trait TranslationAuthority {
     machine map_borrowed(
         source: &Extent in Granted,
-        destination: Extent in Granted
+        destination: Extent in Granted,
+        install: TranslationInstallObligations,
+        release: TranslationReleaseObligations
     ) -> BorrowedMapping
     requires
         source.length == destination.length
@@ -56,6 +78,18 @@ reaches TranslationAuthority
             identity: 7,
         },
         held_source: &source,
+        install: TranslationInstallObligations {
+            facts: [
+                TranslationActivationFact { identity: 1 },
+                TranslationActivationFact { identity: 2 }
+            ],
+        },
+        release: TranslationReleaseObligations {
+            facts: [
+                TranslationCompletionFact { identity: 3 },
+                TranslationCompletionFact { identity: 4 }
+            ],
+        },
     };
     let installed: BorrowedMapping in Installed = forged;
     authority.unmap_borrowed(installed)
