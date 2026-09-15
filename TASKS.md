@@ -578,10 +578,17 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   the single sanctioned inspection; wrong-package queries, authored
   `BuildProduct` lookalikes, authored `ProductTypeSchema` forgeries,
   non-data names, ambiguity, and use as a `roots.bind` operand all reject in
-  `compiler/tests/build_target_activation.rs`. Remaining: provider
-  description kind and the computed-receiver implementation fence once
-  ordinary call-result authority and effect/loan traversal can carry that
-  use.
+  `compiler/tests/build_target_activation.rs`. `BuildProduct::provider(path)`
+  now issues an opaque non-callable `ProductProviderRef` description of the
+  exact authored provider declaration (a nominal data type owning at least
+  one `satisfies` machine) under the same lexical-package rule, with
+  `provider.path()` as the single sanctioned inspection; wrong-package
+  queries, authored `BuildProduct` lookalikes, authored `ProductProviderRef`
+  forgeries, non-provider names, ambiguity, `roots.bind` operand confusion,
+  and static `select_provider` substitution all reject in
+  `compiler/tests/build_target_activation.rs`. Remaining: the
+  computed-receiver implementation fence once ordinary call-result
+  authority and effect/loan traversal can carry that use.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** In build evaluation, its host custody adapters and
   compiler publication, implement coherent captured inventories, narrowed inputs,
