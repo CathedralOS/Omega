@@ -316,6 +316,14 @@ Copy their visible orchestration principle, not their filenames or line counts.
 Representation and utility crates may start with their principal data structure
 and cohesive operations; do not invent an execution pipeline where none exists.
 
+Make the crate's distinct domains visible beside its coordinator. A directory
+that merely repeats the coordinator's name and contains essentially the entire
+crate hides those domains rather than organizing them. The file tree represents
+responsibility, not the call stack: shared grammar or policy belongs to a shared
+owner, not beneath the first consumer that needed it. Moving directories upward
+alone is insufficient; update the actual ownership and dependency direction.
+This is not a blanket ban on same-named files and folders or a prescribed layout.
+
 Apply the same structure recursively within each meaningful subordinate flow.
 A child owning a multi-step operation must expose its own sequencing and decisions,
 then delegate narrower mechanisms beneath that owner. One good crate root with
