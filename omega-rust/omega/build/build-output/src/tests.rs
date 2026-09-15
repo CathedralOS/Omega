@@ -2,9 +2,9 @@
 //! output trees.
 
 use crate::portable_paths::validate_portable_component;
-use crate::staged_output_tree::RetainedStagedOutputEntryKind;
 #[cfg(unix)]
 use crate::replayed_files;
+use crate::staged_output_tree::RetainedStagedOutputEntryKind;
 use crate::{capture, empty, replayed_ordinary_files, select_included_sources};
 use checked_interpreter::FilesystemSponsor;
 use sha2::Digest;

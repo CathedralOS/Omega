@@ -564,14 +564,13 @@ fn snapshot_source_lookups_are_narrowed_to_captured_membership() {
 "#,
     );
 
-    let checked = run_build(&project, "negative-lookup", "linux_x86_64", &[]).unwrap_or_else(
-        |diagnostics| {
+    let checked =
+        run_build(&project, "negative-lookup", "linux_x86_64", &[]).unwrap_or_else(|diagnostics| {
             panic!(
                 "a snapshot build observing a denied negative lookup must publish: {}",
                 diagnostic_messages(&diagnostics)
             )
-        },
-    );
+        });
     let observation = checked
         .build_observation_summary()
         .expect("negative-lookup execution retains a build observation");
