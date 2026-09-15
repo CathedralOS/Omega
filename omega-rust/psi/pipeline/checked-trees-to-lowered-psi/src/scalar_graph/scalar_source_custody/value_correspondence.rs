@@ -636,12 +636,33 @@ impl Context<'_> {
                 node,
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
             ),
+            // A retained tag observation replays its authored membership:
+            // the exact case reference and subject projection must rejoin this
+            // parameter's authored namespace position, path, and case identity.
+            Boolean::StructuralCaseMembership { subject, case } => {
+                let Ok((_, state)) = crate::scalar_graph::scalar_source_custody::authored_state(
+                    self.checked,
+                    self.state,
+                ) else {
+                    return false;
+                };
+                let Ok(Some((symbol, path, authored_case))) =
+                    super::storage_reads::case_membership::authored(self.checked, state, source)
+                else {
+                    return false;
+                };
+                self.checked
+                    .state_parameters(state)
+                    .get(subject.parameter_position as usize)
+                    .is_some_and(|parameter| parameter.symbol == symbol)
+                    && subject.path == path
+                    && *case == authored_case
+            }
             // These belong to structural predicate plans, not the scalar
             // expression producer used by array operands.
             Boolean::IeeeFloatComparison { .. }
             | Boolean::ByteSequenceEqual { .. }
-            | Boolean::PayloadlessSumEqual { .. }
-            | Boolean::StructuralCaseMembership { .. } => false,
+            | Boolean::PayloadlessSumEqual { .. } => false,
         }
     }
 

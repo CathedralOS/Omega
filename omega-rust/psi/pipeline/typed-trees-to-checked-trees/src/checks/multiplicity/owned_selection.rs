@@ -584,11 +584,15 @@ fn collect_leaves(
             }) {
                 return Err(unsupported());
             }
+            let tag_operands = case_tag_operands(program, machine, state, &operands);
             if operands.iter().any(|operand| {
                 matches!(
                     program.expression_table.expression(*operand),
                     ExpressionNode::Name(_)
-                ) && validation::expression_result_type_reference(program, machine, state, *operand)
+                ) && !tag_operands.contains(operand)
+                    && validation::expression_result_type_reference(
+                        program, machine, state, *operand,
+                    )
                     .is_none_or(|reference| {
                         program.type_multiplicity(reference) != Multiplicity::Unrestricted
                     })
@@ -672,20 +676,56 @@ fn fresh_leaf(
     }) {
         return Err(unsupported());
     }
+    let tag_operands = case_tag_operands(program, machine, state, &operands);
     if operands.iter().any(|operand| {
         matches!(
             program.expression_table.expression(*operand),
             ExpressionNode::Name(_)
-        ) && validation::expression_result_type_reference(program, machine, state, *operand)
-            .is_none_or(|reference| {
-                program.type_multiplicity(reference) != Multiplicity::Unrestricted
-            })
+        ) && !tag_operands.contains(operand)
+            && validation::expression_result_type_reference(program, machine, state, *operand)
+                .is_none_or(|reference| {
+                    program.type_multiplicity(reference) != Multiplicity::Unrestricted
+                })
     }) {
         return Err(Diagnostic::error(
             "owned match fresh fields require unrestricted operands without hidden ownership transfers",
         ));
     }
     Ok(())
+}
+
+/// An exact case-membership comparison observes the subject's tag: authored
+/// `subject in Type::Case` lowers to an equality whose right operand is a
+/// symbol-stamped case reference with no result type and whose left operand is
+/// read, not transferred. Both operands are exempt from the
+/// unrestricted-operand rule; calls, borrows and atomic subjects still reject
+/// separately, and operands of genuine authored equality are unchanged.
+fn case_tag_operands(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    operands: &[ExpressionHandle],
+) -> Vec<ExpressionHandle> {
+    operands
+        .iter()
+        .copied()
+        .flat_map(
+            |operand| match program.expression_table.expression(operand) {
+                ExpressionNode::Binary(binary)
+                    if validation::has_exact_case_membership_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        operand,
+                        binary,
+                    ) =>
+                {
+                    vec![binary.left, binary.right]
+                }
+                _ => Vec::new(),
+            },
+        )
+        .collect()
 }
 
 fn names_symbol(

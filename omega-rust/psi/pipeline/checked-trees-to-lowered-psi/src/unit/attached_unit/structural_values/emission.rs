@@ -419,14 +419,16 @@ fn prepare_owners(
             });
         }
     }
-    // Deterministic roster order: locals keep their ascending statement order
-    // and parameter slots follow them in authored position order. The join
-    // binds these slots positionally against the receipt's source complement.
+    // Deterministic establishment order: parameters were established at state
+    // entry, so their slots precede locals kept in ascending statement order.
+    // The join binds these slots positionally against the receipt's source
+    // complement, and the return splice's reverse-establishment roster then
+    // matches the verifier's reverse parameter disposal exactly.
     owners.sort_by_key(|owner| {
         let is_parameter = source_parameters
             .iter()
             .any(|parameter| parameter.symbol == owner.symbol);
-        (is_parameter, owner.statement)
+        (!is_parameter, owner.statement)
     });
     for source in statements.iter().take(statement as usize) {
         if let checked_trees::statement::StatementNode::LocalData(local) = source
