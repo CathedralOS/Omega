@@ -1,7 +1,13 @@
 //! Global-value-numbering projection custody.
 
-use super::*;
-
+use super::{
+    AbstractOperation, BTreeSet, BlockId, NativeTarget, OperationId, Optimization,
+    OptimizationSelections, ValueId, compatible_policy_local_cse_verified,
+    compatible_policy_phi_translated_gvn_verified, dominator_gvn_verified, local_cse_verified,
+    lower_optimized_to_target_operations, phi_translated_gvn_verified,
+    proof_certified_local_cse_verified, proof_certified_phi_translated_gvn_verified, run,
+};
+use crate::publish_optimization_run;
 #[test]
 fn global_value_numbering_projects_local_cse_and_return_substitution() {
     let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();

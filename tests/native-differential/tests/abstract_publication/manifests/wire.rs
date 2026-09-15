@@ -1,4 +1,4 @@
-use super::super::*;
+use super::super::{PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestDecodeError};
 use super::fixture::optimized;
 use super::wire_offsets::locate;
 

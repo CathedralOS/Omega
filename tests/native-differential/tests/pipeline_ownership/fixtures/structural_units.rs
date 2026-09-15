@@ -1,7 +1,15 @@
 //! Structural Unit artifact and staging fixtures.
 
-use crate::tests::*;
-
+use crate::tests::{
+    BindingRelevance, Block, BlockId, ContractId, DomainSemanticId, EdgeId, IntegerSign,
+    IntegerType, MachineContract, MachineId, Operation, OperationId, OperationKind,
+    OperationResult, PlaceId, ProofBundle, ScalarType, StructuralAccess,
+    StructuralDomainDeclaration, StructuralDomainId, StructuralFieldDeclaration, StructuralFieldId,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    VocabularyMarker, reseal_proof,
+};
 pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(3_501).unwrap();
     let entry = BlockId::new(3_502).unwrap();

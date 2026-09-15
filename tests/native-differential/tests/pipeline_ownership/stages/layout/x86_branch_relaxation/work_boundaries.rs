@@ -1,7 +1,8 @@
 //! Exact work-accounting success and first-over-boundary refusal.
 
-use crate::tests::*;
-
+use crate::tests::{
+    OptimizationWorkBudget, OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis,
+};
 #[test]
 fn exact_usage_and_every_one_below_budget_are_typed() {
     let exact =

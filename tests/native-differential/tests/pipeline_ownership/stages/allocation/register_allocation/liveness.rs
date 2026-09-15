@@ -1,4 +1,9 @@
-use crate::tests::*;
+use crate::tests::{
+    BlockId, EdgeId, LivenessError, MachineId, NativeTarget, OptimizedLivenessCustodyError,
+    RegisterOperandAccess, RegisterUnitId, VirtualRegisterId, analyze_liveness, liveness_identity,
+    named_units, stage_optimized_liveness, staged_conditional, staged_forwarded_conditional,
+    validate_liveness, validate_optimized_liveness_custody,
+};
 #[test]
 fn selected_liveness_is_exact_on_both_architectures() {
     for (target, before_compare, after_compare, after_branch) in [

@@ -1,5 +1,9 @@
 //! Source observation and source-free consumers retain real source-produced constructors.
-use super::*;
+use super::{
+    AdmissionProfile, CanonicalTerminalArtifact, NativeTarget, OptimizationSelections,
+    compiler_baseline_request_v1, native_function, optimize_artifact_sections, produce,
+    produce_source, publish,
+};
 use semantic_vocabulary::{
     OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralPlaceKind, ValueId,
 };

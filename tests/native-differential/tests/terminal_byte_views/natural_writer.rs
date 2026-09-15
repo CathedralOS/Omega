@@ -1,5 +1,5 @@
 //! Source-authored natural slice ranking reaches the ordinary native pipeline.
-use super::*;
+use super::{AdmissionProfile, NativeTarget, OperationKind, calls, native_function};
 #[path = "natural_writer/optimization.rs"]
 mod optimization;
 use abstract_operations_to_target_operations::{

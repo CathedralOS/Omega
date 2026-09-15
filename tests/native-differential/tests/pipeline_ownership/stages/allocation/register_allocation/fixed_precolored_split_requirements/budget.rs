@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::{X64_EXACT_USAGE, analyze, exact_budget, source};
+use crate::tests::{NativeTarget, OptimizationWorkBudget};
 
 #[test]
 fn exact_budget_succeeds_and_every_first_under_axis_fails() {

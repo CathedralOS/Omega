@@ -1,7 +1,19 @@
 //! Frame expansion must preserve a source-admitted short branch and both call arms.
 
-use super::*;
+use super::super::super::super::super::super::{
+    StagedFunctionFragmentFrameApplication, validate_function_fragment_frame_application,
+};
 
+use super::{
+    AdmissionProfile, IntegerValue, NativeTarget, Operation, OperationId, OperationKind,
+    OperationResult, Optimization, OptimizationSelections, Terminator, ValueDeclaration, ValueId,
+    compiler_baseline_request_v1, optimize_artifact_sections, reseal_proof,
+    stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
+    stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    validate_fixed_frame_function_relative_realization,
+    validate_optimized_relocation_free_object_container,
+};
 fn padded_returning_call_artifact(equal: bool, padding: u32) -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = super::control_flow::branch_call_artifact(equal);
     let mut module = terminal_codec::decode_module(&semantic).unwrap();

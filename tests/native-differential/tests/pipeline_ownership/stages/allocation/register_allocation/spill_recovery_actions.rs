@@ -1,6 +1,7 @@
 //! Target-neutral logical second-spill actions after epoch-one victim choice.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, selected_lowering_budget,
+};
 use optimization_core::OptimizationWorkUsage;
 use selected_instructions::{SelectedInstructionId, VirtualRegisterId};
 

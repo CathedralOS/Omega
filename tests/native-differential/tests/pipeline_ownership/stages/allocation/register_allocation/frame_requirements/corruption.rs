@@ -1,6 +1,9 @@
-use crate::tests::*;
-
 use super::fixture::{exact_budget, spill_source, stage};
+use crate::tests::{
+    FrameAbiPreservationConvention, NativeTarget, NonAuthoritativeSpillFrameRequirementPlan,
+    SpillFrameRequirementError, baseline_target_register_environment,
+    validate_non_authoritative_spill_frame_requirements,
+};
 
 #[test]
 fn replay_rejects_roots_usage_and_every_retained_requirement_field() {

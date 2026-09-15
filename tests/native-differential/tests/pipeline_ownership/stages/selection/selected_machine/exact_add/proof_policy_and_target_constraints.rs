@@ -1,7 +1,10 @@
 //! Direct exact-add proof custody, selected policy, target constraints, and corruption rejection.
 
-use crate::tests::*;
-
+use crate::tests::{
+    NativeTarget, ObligationId, OperationId, RegisterOperandAccess, SelectedInstructionError,
+    SelectedInstructionKind, selected_instruction_plan_identity, staged_exact_add_conditional,
+    validate_raw_selection,
+};
 #[test]
 fn exact_add_selection_retains_proof_policy_and_target_constraints() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

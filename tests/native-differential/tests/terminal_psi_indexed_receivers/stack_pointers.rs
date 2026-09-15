@@ -1,4 +1,4 @@
-use super::*;
+use super::{NativeTarget, artifact, native_function, native_text, optimize};
 #[path = "stack_pointers/publication.rs"]
 mod publication;
 

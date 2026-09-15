@@ -1,6 +1,8 @@
-use crate::tests::*;
-
 use super::fixture::staged_object_artifact;
+use crate::tests::{
+    NativeTarget, ValueId, stage_validated_optimized_ordinary_callable_entry,
+    validate_optimized_object_artifact, validate_optimized_ordinary_callable_entry,
+};
 
 #[test]
 fn runtime_u64_parameter_less_than_reaches_exact_object_and_callable_on_both_isas() {

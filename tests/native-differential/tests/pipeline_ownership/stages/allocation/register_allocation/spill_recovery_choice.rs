@@ -1,6 +1,8 @@
 //! Deterministic epoch-one second-victim evidence.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, VirtualRegisterId,
+    selected_lowering_budget,
+};
 use optimization_core::OptimizationWorkUsage;
 
 use super::{

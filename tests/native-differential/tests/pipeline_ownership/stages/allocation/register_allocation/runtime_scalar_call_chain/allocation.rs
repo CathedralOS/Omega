@@ -1,6 +1,5 @@
+use crate::tests::{ArchitecturalUnitActionKind, NativeTarget, VirtualRegisterId};
 use std::collections::BTreeSet;
-
-use crate::tests::*;
 
 use super::fixture::{caller_machine, staged_homes, staged_legality};
 

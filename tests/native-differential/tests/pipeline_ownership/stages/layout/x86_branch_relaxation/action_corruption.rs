@@ -1,7 +1,9 @@
 //! Public-validator rejection of an independently reauthenticated action mutation.
 
-use crate::tests::*;
-
+use crate::tests::{
+    FunctionRelativeOptimizationRealizationError, OptimizedX86BranchRelaxationError,
+    ResolvedLayoutOptimizationError, validate_fixed_frame_function_relative_realization,
+};
 #[test]
 fn authenticated_action_corruption_rejects_at_the_public_realization_boundary() {
     let mut realization = super::fixture::direct_realization();

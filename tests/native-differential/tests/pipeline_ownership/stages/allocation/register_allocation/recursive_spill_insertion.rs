@@ -1,6 +1,7 @@
 //! Complete epoch-zero/two schedule after recursive logical insertion and recoloring.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, selected_lowering_budget,
+};
 use optimization_core::OptimizationWorkUsage;
 
 use super::generalized_reload_value_homes::Sources;

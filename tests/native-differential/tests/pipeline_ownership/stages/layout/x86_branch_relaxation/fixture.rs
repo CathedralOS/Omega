@@ -1,7 +1,19 @@
 //! Canonical direct rel32-to-rel8 fixtures shared by the rule's test leaves.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, ExplicitOptimizationRequest, NativeTarget, Optimization,
+    OptimizationSelections, OptimizationWorkBudget, OptimizedTargetLoweringRequest,
+    OptimizedX86BranchRelaxationError, StagedFixedFrameFunctionRelativeRealization,
+    StagedOptimizedRegisterHomes, StagedOptimizedX86BranchRelaxation,
+    conditional_exact_binary_artifact, disconnected_conditional_artifact,
+    lower_optimized_to_target_operations, optimize_artifact_sections, selected_lowering_budget,
+    stage_optimized_allocation_legality, stage_optimized_instruction_selection,
+    stage_optimized_layout_independent_selected_form_encoding, stage_optimized_live_ranges,
+    stage_optimized_liveness, stage_optimized_post_allocation_machine_plan,
+    stage_optimized_register_homes, stage_optimized_resolved_selected_form_layout,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    stage_optimized_x86_branch_relaxation,
+};
 pub(super) fn stage_with_budget(
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {

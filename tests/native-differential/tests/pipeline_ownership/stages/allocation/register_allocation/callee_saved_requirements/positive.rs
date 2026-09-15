@@ -1,7 +1,11 @@
-use crate::tests::*;
-
 use super::fixture::{
     call_homes, ordinary_homes, preserving_call_homes, stage, structural_call_homes, wide_budget,
+};
+use crate::tests::{
+    BTreeSet, CalleeSavedModificationWitness, FrameAbiPreservationConvention, NativeTarget,
+    ValidatedAllocatedCalleeSavedRequirements, ValidatedTargetRegisterEnvironment,
+    VirtualRegisterId, allocated_callee_saved_requirement_identity, selected_abi_preservation,
+    validate_allocated_callee_saved_requirements,
 };
 
 #[test]

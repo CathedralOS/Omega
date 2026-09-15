@@ -1,7 +1,6 @@
 //! Optimizer module role: test leaf. Exact countdown constant-placement custody.
 
-use super::*;
-
+use super::{OptimizationUnitValidationError, VerifiedPsiOptimizationSession, countdown_unit};
 use abstract_operations_to_abstract_operations::validation::validate_transformed_psi_optimization_unit;
 use abstract_operations_to_abstract_operations::{
     CountdownInvariantConstantPlacementAnalysisError,

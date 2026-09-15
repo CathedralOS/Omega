@@ -1,7 +1,11 @@
 //! Scalar projection fixtures.
 
-use super::*;
-
+use super::{
+    Block, BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, Operation,
+    OperationId, OperationKind, OperationResult, ProofBundle, ScalarType, TerminalMachineResult,
+    Terminator, ValueDeclaration, ValueId, VerifiedPsiOptimizationUnit, module_with_blocks,
+    verified,
+};
 pub(super) fn dead_scalar_literals_verified() -> VerifiedPsiOptimizationUnit {
     let machine = MachineId::new(1_081).unwrap();
     let block = BlockId::new(1_082).unwrap();

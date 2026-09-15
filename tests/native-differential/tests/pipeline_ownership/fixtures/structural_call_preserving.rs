@@ -2,8 +2,19 @@
 //! every call, with the caller parameter live across the first call and the
 //! first call's result live across the second call.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, BindingRelevance, Block, BlockId, ContractId, EdgeId, IntegerSign,
+    IntegerType, IntegerValue, MachineContract, MachineId, NativeTarget, Operation, OperationId,
+    OperationKind, OperationResult, Optimization, OptimizationSelections,
+    OptimizedTargetLoweringRequest, PlaceId, ProofBundle, ScalarType,
+    StagedOptimizedSelectedInstructions, StructuralAccess, StructuralFieldDeclaration,
+    StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+    ValueId, conditional_immediate_module, conditional_u64_integer_equal_parameters_machine,
+    lower_optimized_to_target_operations, optimize_artifact_sections, request,
+    stage_optimized_instruction_selection,
+};
 pub(crate) const STRUCTURAL_CALL_PRESERVING_CALLER: u64 = 22_200;
 pub(crate) const STRUCTURAL_CALL_PRESERVING_ENTRY: u64 = 22_201;
 pub(crate) const STRUCTURAL_CALL_PRESERVING_PARAMETER: u64 = 22_202;

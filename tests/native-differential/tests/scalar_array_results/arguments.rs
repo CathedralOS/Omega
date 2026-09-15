@@ -1,5 +1,5 @@
 //! The complete module customer must transport owned payloads, not just construct them.
-use super::*;
+use super::{NativeTarget, native_function, publish, publish_target, target_artifact};
 use compiler::CheckedCompileRequest;
 
 #[test]

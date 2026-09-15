@@ -1,5 +1,19 @@
 use crate::FunctionFragmentReplayInputs;
-use crate::tests::*;
+use crate::tests::{
+    AllocationReplayError, FunctionFragmentEmissionManifest,
+    FunctionFragmentEmissionManifestDecodeError, FunctionFragmentTextSectionManifest,
+    FunctionFragmentTextSectionManifestDecodeError, FunctionRelativeOptimizationRealizationError,
+    StagedOptimizedRegisterHomes, WholeFunctionReturnValueEvidence, selected_lowering_budget,
+    stage_fixed_frame_function_relative_realization, stage_function_fragment_frame_application,
+    stage_optimized_fixed_frame_text_section, stage_optimized_function_fragment_emission,
+    stage_optimized_relocation_free_object_container,
+    validate_fixed_frame_function_relative_realization,
+    validate_function_fragment_frame_application, validate_optimized_fixed_frame_text_section,
+    validate_optimized_function_fragment_emission,
+    validate_optimized_relocation_free_object_container,
+};
+use selected_instructions_to_register_homes::AllocationSource;
+use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegisterHomes) {
     let current = homes.replay_allocation().unwrap();

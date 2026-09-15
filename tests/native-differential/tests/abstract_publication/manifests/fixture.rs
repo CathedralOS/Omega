@@ -1,5 +1,9 @@
-use super::super::*;
-
+use super::super::{
+    Optimization, OptimizationSelections, PrePhysicalOptimizationManifest,
+    PrePhysicalOptimizationManifestError, exact_add_verified, run,
+    validate_pre_physical_optimization_manifest, work_usage,
+};
+use crate::{ValidatedOptimizedAbstractPlan, publish_optimization_run};
 pub(super) fn optimized() -> ValidatedOptimizedAbstractPlan {
     let selections =
         OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();

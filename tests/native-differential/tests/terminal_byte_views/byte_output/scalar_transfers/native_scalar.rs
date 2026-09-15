@@ -1,6 +1,11 @@
 //! Provider-free ordered edge values remain observable on macOS as well as Linux.
-use super::*;
 
+use super::super::super::native_function;
+use super::super::{calls, fixtures};
+use super::{
+    BlockId, EdgeId, IntegerSign, IntegerType, NativeTarget, ProofBundle, ScalarType,
+    TerminalModule, Terminator, ValueDeclaration, ValueId,
+};
 fn ordered_scalar_module() -> TerminalModule {
     let mut module = fixtures::byte_view_length_module();
     module.structural_types.clear();

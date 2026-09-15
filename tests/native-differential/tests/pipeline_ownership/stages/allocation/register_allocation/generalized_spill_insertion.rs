@@ -4,7 +4,9 @@ use super::{
     reload_value_homes::ReloadSources, spill_recovery_actions::plan as plan_recovery,
     spill_recovery_worklist::pressure_sources,
 };
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, selected_lowering_budget,
+};
 use optimization_core::OptimizationWorkUsage;
 
 fn schedule(

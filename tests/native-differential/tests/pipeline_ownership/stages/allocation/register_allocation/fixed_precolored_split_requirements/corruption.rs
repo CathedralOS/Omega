@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::{analyze, generous_budget, source, validate};
+use crate::tests::{LiveRangePoint, MachineId, NativeTarget, VirtualRegisterId};
 
 #[test]
 fn independent_replay_rejects_segment_and_opening_corruption() {

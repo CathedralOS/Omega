@@ -1,6 +1,12 @@
 //! Independent rejection for ordered-condition and selected-successor corruption.
-
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, LegalizationError, NativeTarget, OperationKind, Optimization,
+    OptimizationSelections, OptimizedTargetLoweringRequest, ProofBundle, SelectedInstructionError,
+    SelectedInstructionKind, SelectedTerminator, conditional_immediate_module,
+    conditional_u64_integer_less_than_parameters_machine, lower_optimized_to_target_operations,
+    optimize_artifact_sections, request, stage_optimized_instruction_selection,
+    validate_legalized_operations, validate_raw_selection,
+};
 use legalized_operations::{LegalizedScalarComparison, LegalizedScalarInstructionKind};
 
 use super::fixture::staged_integer_less_than_conditional;

@@ -1,6 +1,8 @@
 //! Final target-neutral physical homes for every recursive reload segment.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, selected_lowering_budget,
+    staged_active_resident_original_victim_chain_two_view_legality,
+};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use selected_instructions::VirtualRegisterId;
 

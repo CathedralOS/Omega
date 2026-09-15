@@ -1,8 +1,13 @@
 //! Current artifacts survive producer history; replay still binds every input.
 
+use crate::tests::{
+    AdmissionProfile, FunctionFragmentEmissionError, NativeTarget, Optimization,
+    OptimizationSelections, StagedOptimizedFunctionFragmentEmissionSource,
+    conditional_exact_binary_artifact, optimize_artifact_sections, selected_lowering_budget,
+    stage_optimized_function_fragment_emission,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+};
 use std::sync::Arc;
-
-use crate::tests::*;
 
 pub(super) fn source(
     target: NativeTarget,

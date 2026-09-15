@@ -1,7 +1,14 @@
 //! Ordinary scalar-returning call chain with a parameter and earlier results live across later calls.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
+    MachineContract, MachineId, NativeTarget, Operation, OperationId, OperationKind,
+    OperationResult, Optimization, OptimizationSelections, OptimizedTargetLoweringRequest,
+    ProofBundle, ScalarType, StagedOptimizedSelectedInstructions, TerminalMachine,
+    TerminalMachineResult, Terminator, ValueDeclaration, ValueId, conditional_immediate_module,
+    conditional_u64_integer_equal_parameters_machine, lower_optimized_to_target_operations,
+    optimize_artifact_sections, request, stage_optimized_instruction_selection,
+};
 pub(crate) const SCALAR_CALL_PRESERVING_CALLER: u64 = 21_200;
 pub(crate) const SCALAR_CALL_PRESERVING_ENTRY: u64 = 21_201;
 pub(crate) const SCALAR_CALL_PRESERVING_PARAMETER: u64 = 21_202;

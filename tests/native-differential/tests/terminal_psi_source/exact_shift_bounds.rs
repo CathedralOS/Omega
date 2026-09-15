@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    AbstractOperation, AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget,
+    OperationKind, ScalarType, TargetLoweringRequest, TerminalExecutionResult,
+    TerminalFuelSchedule, TerminalScalarValue, compile_to_checked, decode_module,
+    decode_proof_bundle, encode_module, encode_proof_section, interpret_terminal_artifact_measured,
+    lower_artifact, lower_machine, lower_to_target_operations, source_canary, verify_module,
+};
 use abstract_operations_to_abstract_operations::{
     AnalysisProduct, compute_analysis, run_psi_pipeline,
 };

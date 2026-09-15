@@ -1,4 +1,8 @@
-use crate::tests::*;
+use crate::tests::{
+    NativeTarget, NonAuthoritativeSpillFrameRequirementPolicy, SpillFrameRequirementError,
+    ValidatedNonAuthoritativeSpillFrameRequirements, ValidatedTargetRegisterEnvironment,
+    selected_lowering_budget, stage_non_authoritative_spill_frame_requirements,
+};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use super::super::{

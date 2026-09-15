@@ -1,7 +1,12 @@
 //! Control-flow projection custody.
 
-use super::*;
-
+use super::{
+    AbstractOperation, BlockId, EdgeId, MachineId, NativeTarget, Optimization,
+    OptimizationSelections, OptimizationUnitValidationError, adjacent_terminal_jump_verified,
+    lower_optimized_to_target_operations, non_adjacent_block_merge_verified, run,
+    shared_terminal_jump_verified, unreachable_private_machine_verified,
+};
+use crate::publish_optimization_run;
 #[test]
 fn private_machine_pruning_projects_exact_roster_and_ledger_custody() {
     let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();

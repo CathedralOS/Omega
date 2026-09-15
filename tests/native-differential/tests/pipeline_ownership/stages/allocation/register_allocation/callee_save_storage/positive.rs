@@ -1,6 +1,9 @@
-use crate::tests::*;
-
 use super::fixture::{call_requirements, ordinary_requirements, stage, wide_budget};
+use crate::tests::{
+    CalleeSavedModificationWitness, NativeTarget, NonAuthoritativeCalleeSaveSlotId,
+    NonAuthoritativeCalleeSaveStoragePolicy, VirtualRegisterId,
+    non_authoritative_callee_save_storage_identity, validate_non_authoritative_callee_save_storage,
+};
 
 #[test]
 fn preserved_register_units_form_exact_target_storage_slots_and_replay() {

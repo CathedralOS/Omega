@@ -1,5 +1,8 @@
-use crate::tests::*;
-
+use crate::tests::{
+    NativeTarget, OptimizationWorkBudget, OptimizationWorkUsage, StagedOptimizedAllocationLegality,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    staged_forwarded_conditional,
+};
 pub(super) const X64_EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
     rule_evaluations: 7,
     candidates: 19,

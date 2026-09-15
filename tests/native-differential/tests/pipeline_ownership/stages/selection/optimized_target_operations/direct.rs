@@ -1,6 +1,13 @@
 //! Optimized scalar production retains graph values and exact entry placements.
-use super::*;
 
+use super::super::super::super::{
+    AdmissionProfile, IntegerSign, IntegerType, Optimization, OptimizationSelections,
+    OptimizedTargetLoweringRequest, boolean_parameter_return_artifact,
+    integer_parameter_return_artifact, lower_optimized_to_target_operations,
+    optimize_artifact_sections, request,
+};
+
+use super::{ScalarParameterLocation, parameter_location_cases};
 #[test]
 fn optimized_scalar_parameters_use_only_the_common_graph() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();

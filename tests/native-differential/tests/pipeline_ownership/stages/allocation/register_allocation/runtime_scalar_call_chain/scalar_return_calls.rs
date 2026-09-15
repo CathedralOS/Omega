@@ -1,7 +1,18 @@
 //! Scalar call results cross two ordinary machine boundaries and the final return.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, CertificateEnvelope, EdgeId, EvidenceIdentity, EvidenceRoute, IntegerValue,
+    NativeTarget, ObligationEvidence, ObligationId, Operation, OperationId, OperationKind,
+    OperationResult, Optimization, OptimizationSelections, ProofBundle, ProofSystemMarker,
+    Terminator, ValueDeclaration, ValueId, compiler_baseline_request_v1,
+    conditional_immediate_module, conditional_u64_integer_equal_parameters_machine,
+    optimize_artifact_sections, reconstruct_operation_obligations, reseal_proof,
+    stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
+    stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    validate_fixed_frame_function_relative_realization,
+    validate_optimized_relocation_free_object_container,
+};
 mod boolean_calls;
 mod control_flow;
 mod framed_rel8;

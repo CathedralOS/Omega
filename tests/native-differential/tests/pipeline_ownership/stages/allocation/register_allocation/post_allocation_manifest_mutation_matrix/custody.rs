@@ -1,8 +1,11 @@
+use crate::tests::{
+    NativeTarget, PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,
+    validate_post_allocation_optimization_manifest,
+};
 use optimization_core::PrePhysicalOptimizationManifestIdentity;
 use selected_instructions_to_register_homes::FixedViewCopyIdentity;
 
 use super::fixture::{staged, validate};
-use crate::tests::*;
 
 #[test]
 fn every_authoritative_reconstruction_input_is_independently_bound() {

@@ -1,7 +1,13 @@
 //! Shared projection fixtures.
 
-use super::*;
-
+use super::{
+    AdmissionProfile, Block, BlockId, CertificateEnvelope, ContractId, EdgeId, EvidenceIdentity,
+    EvidenceRoute, MachineContract, MachineId, NativeTarget, ObligationEvidence,
+    OptimizationSelections, OptimizationWorkBudget, PrimitiveJudgment, ProofBundle,
+    ProofSystemMarker, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    VerifiedPsiOptimizationUnit, VocabularyMarker, built_in_psi_registry, run_psi_pipeline,
+};
+use crate::{OptimizationRun, ValidatedOptimizedAbstractPlan};
 /// Test-only composition probe. Production target custody belongs to
 /// `native-realization`; these projection tests merely confirm
 /// that the emitted abstract plan remains accepted by the next stage.

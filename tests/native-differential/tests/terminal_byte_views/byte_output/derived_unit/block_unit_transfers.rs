@@ -1,6 +1,11 @@
 //! A checked suffix arrives by value before a real effectful Unit call.
-use super::*;
 
+use super::super::super::{StructuralPlaceDeclaration, StructuralPlaceKind};
+
+use super::{
+    BlockId, EdgeId, MachineId, NativeTarget, OperationId, OperationKind, PlaceId, TerminalModule,
+    Terminator, derived_unit_output_module, stage_derived_unit_output,
+};
 fn block_unit_module() -> TerminalModule {
     let mut module = derived_unit_output_module();
     let caller = &mut module.machines[1];

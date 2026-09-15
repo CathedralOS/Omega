@@ -1,9 +1,10 @@
 //! Canonical callable-record envelope and closed wire-axis mutations.
 
-use crate::tests::*;
-
 use super::fixture::staged_callable;
 use super::wire_offsets::record_wire_offsets;
+use crate::tests::{
+    OptimizedOrdinaryCallableEntryDecodeError, OptimizedOrdinaryCallableEntryRecord,
+};
 
 fn assert_decode_error(
     baseline: &[u8],

@@ -1,6 +1,20 @@
 //! The ordinary layout stage preserves rematerialized instructions and rejects corruption.
-use crate::tests::*;
+use selected_instructions_to_register_homes::AllocationSource;
 
+use crate::tests::{
+    FunctionRelativeOptimizationRealizationError, NativeTarget,
+    OptimizedResolvedSelectedFormLayoutError, OptimizedSelectedFormEncodingError,
+    ResolvedLayoutOptimizationError, SelectedFunctionLayoutPolicy,
+    corrupt_fixed_frame_realization_custody_for_test,
+    corrupt_fixed_frame_realization_encoding_for_test,
+    corrupt_fixed_frame_realization_layout_for_test,
+    stage_optimized_layout_independent_selected_form_encoding,
+    stage_optimized_resolved_selected_form_layout,
+    staged_active_resident_allocation_recovery_realization,
+    staged_active_resident_rematerialization_and_machine,
+    validate_fixed_frame_function_relative_realization,
+    validate_optimized_resolved_selected_form_layout,
+};
 #[test]
 fn active_resident_rematerialization_reaches_resolved_layout_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

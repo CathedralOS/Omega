@@ -1,7 +1,13 @@
 //! Windows register-call execution and independently replayed shadow-area geometry.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, EdgeId, IntegerValue, NativeTarget, Operation, OperationId, OperationKind,
+    OperationResult, OptimizationSelections, SCALAR_CALL_UNIT_FIRST_RESULT, SCALAR_CALL_UNIT_LEFT,
+    SCALAR_CALL_UNIT_RIGHT, SCALAR_CALL_UNIT_SECOND_RESULT,
+    StagedOptimizedVerifiedPhysicalPipeline, Terminator, ValueDeclaration, ValueId,
+    compiler_baseline_request_v1, optimize_artifact_sections, scalar_call_unit_artifact_with,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+};
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 mod execution;
 mod frame_replay;

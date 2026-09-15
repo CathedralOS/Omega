@@ -1,4 +1,13 @@
-use super::*;
+use super::{
+    AbstractOperation, AdmissionProfile, CrashCause, DebugSubject, IntegerSign, IntegerType,
+    IntegerValue, LoweringError, MachineId, NativeTarget, OperationKind, ScalarType,
+    TargetLoweringRequest, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
+    TerminalScalarValue, Terminator, compile_to_checked, decode_debug_map, decode_module,
+    decode_proof_bundle, derive_fixed_entry_fuel, encode_debug_map, encode_module,
+    encode_proof_section, fixture_roster, interpret_verified_artifact, lower_machine,
+    lower_to_target_operations, lower_verified_artifact, source_canary, start_verified_artifact,
+    terminal_source_canary, verify_module,
+};
 use compiler::CheckedCompileRequest;
 
 #[test]

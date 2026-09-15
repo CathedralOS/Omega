@@ -1,5 +1,7 @@
 //! Array backing and descriptor contents are independently replayed.
-use super::*;
+use super::super::super::{OperationId, byte_view_target};
+
+use super::{NativeTarget, array_writer, publish_lowered};
 use selected_instructions::SelectedInstructionKind;
 use target_operations_to_selected_instructions::{
     legalize_target_operations, selection_constraints, stage_optimized_instruction_selection,

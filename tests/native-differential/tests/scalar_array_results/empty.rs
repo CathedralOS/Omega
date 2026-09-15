@@ -1,6 +1,6 @@
 //! Empty arrays retain typed call custody without physical payload storage.
-use super::*;
 
+use super::{NativeTarget, native_function, publish};
 #[test]
 fn empty_arrays_return_without_a_physical_payload() {
     for (shape, value) in [

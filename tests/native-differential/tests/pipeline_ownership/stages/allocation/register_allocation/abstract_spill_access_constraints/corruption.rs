@@ -1,9 +1,8 @@
-use crate::tests::*;
-
 use super::{
     super::recursive_reload_value_homes::{Bundle, original_bundle, reload_bundle},
     fixture::{build, constrain, exact_budget, validate},
 };
+use crate::tests::NativeTarget;
 
 #[test]
 fn replay_rejects_every_root_placement_dependency_and_usage_corruption() {

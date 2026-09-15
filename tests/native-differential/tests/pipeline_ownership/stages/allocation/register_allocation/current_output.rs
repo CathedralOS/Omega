@@ -1,4 +1,20 @@
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPolicy,
+    AllocationEvidence, AllocationReplayError, ExplicitOptimizationRequest, NativeTarget,
+    Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizedTargetLoweringRequest,
+    PressureRematerializationPolicy, RecoveryClassificationPolicy, SpillChoicePolicy,
+    StagedOptimizedRegisterHomes, budget, conditional_forwarded_parameter_artifact,
+    lower_optimized_to_target_operations, optimize_artifact_sections, selected_lowering_budget,
+    stage_allocated_callee_saved_requirements, stage_optimized_active_resident_rematerialization,
+    stage_optimized_allocation_legality, stage_optimized_instruction_selection,
+    stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
+    stage_register_allocation, staged_active_resident_exact_add_chain_with_selections,
+    staged_active_resident_two_view_legality, staged_conditional, staged_exact_add_conditional,
+    staged_exact_add_conditional_with_selections, validate_allocated_callee_saved_requirements,
+    validate_optimized_post_allocation_machine_plan_custody,
+};
+use selected_instructions_to_register_homes::AllocationSource;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 fn callee_saved_budget() -> OptimizationWorkBudget {

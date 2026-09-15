@@ -1,7 +1,16 @@
 //! Common budgets and baseline selected-artifact fixtures.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, Block, BlockId, CertificateEnvelope, ContractId, EdgeId, EvidenceIdentity,
+    EvidenceRoute, IntegerSign, IntegerType, IntegerValue, MachineContract, MachineId,
+    NativeTarget, ObligationEvidence, ObligationId, Operation, OperationId, OperationKind,
+    OperationResult, Optimization, OptimizationSelections, OptimizationWorkBudget,
+    OptimizedTargetLoweringRequest, ProofBundle, ProofNode, ProofRule, ProofSystemMarker,
+    ScalarType, StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
+    lower_optimized_to_target_operations, optimize_artifact_sections,
+    reconstruct_operation_obligations, request, stage_optimized_instruction_selection,
+};
 pub(crate) fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(128, 128, 128, 128, 16).unwrap()
 }

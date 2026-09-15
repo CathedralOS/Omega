@@ -1,6 +1,8 @@
 //! Bounded recursive spill-recovery custody at the exact reload-pressure boundary.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, selected_lowering_budget,
+    staged_active_resident_bridge_chain_two_view_legality,
+};
 use optimization_core::OptimizationWorkUsage;
 use selected_instructions::SelectedBlockId;
 

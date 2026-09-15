@@ -1,5 +1,9 @@
-use super::super::*;
+use super::super::{
+    OptimizationWorkBudget, PrePhysicalOptimizationManifest,
+    PrePhysicalOptimizationManifestDecodeError, PrePhysicalOptimizationManifestError,
+};
 use super::fixture::{donor, optimized, validate};
+use crate::ValidatedOptimizedAbstractPlan;
 
 type Mutation = fn(&mut PrePhysicalOptimizationManifest, &ValidatedOptimizedAbstractPlan);
 

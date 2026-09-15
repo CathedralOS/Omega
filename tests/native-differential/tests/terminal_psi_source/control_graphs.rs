@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget, OperationKind,
+    TargetLoweringRequest, TerminalExecutionResult, TerminalScalarValue, Terminator,
+    compile_to_checked, decode_module, decode_proof_bundle, derive_fixed_entry_fuel, encode_module,
+    encode_proof_section, interpret_verified_artifact, lower_machine, lower_to_target_operations,
+    lower_verified_artifact, source_canary, verify_module,
+};
 use compiler::CheckedCompileRequest;
 
 #[test]

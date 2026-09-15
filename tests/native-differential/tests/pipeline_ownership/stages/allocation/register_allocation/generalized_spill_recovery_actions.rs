@@ -1,6 +1,7 @@
 //! Exact epoch-two logical recovery actions for a compiler-private reload victim.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, selected_lowering_budget,
+};
 use optimization_core::OptimizationWorkUsage;
 
 use super::generalized_reload_value_homes::Sources;

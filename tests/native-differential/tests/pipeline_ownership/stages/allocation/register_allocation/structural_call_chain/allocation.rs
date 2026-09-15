@@ -1,6 +1,8 @@
+use crate::tests::{
+    ArchitecturalUnitActionKind, LiveRangePoint, NativeTarget, RegisterOperandAccess,
+    RegisterUnitId, SelectedInstructionKind, StagedOptimizedSelectedInstructions,
+};
 use std::collections::{BTreeMap, BTreeSet};
-
-use crate::tests::*;
 
 use super::fixture::{caller_machine, staged_homes, staged_legality};
 

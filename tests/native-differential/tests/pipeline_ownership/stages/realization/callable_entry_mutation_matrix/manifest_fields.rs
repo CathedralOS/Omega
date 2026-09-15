@@ -1,6 +1,8 @@
 //! Reauthenticated ordinary-callable manifest field mutations.
-
-use crate::tests::*;
+use crate::tests::{
+    MachineId, OptimizedOrdinaryCallableEntryError, OptimizedOrdinaryCallableEntryManifest,
+    WholeFunctionExitContractIdentity, validate_optimized_ordinary_callable_entry,
+};
 use object_file::ObjectLocalSymbolId;
 use optimization_core::{
     OptimizationSelectionIdentity, OptimizedObjectArtifactIdentity,

@@ -1,7 +1,11 @@
-use crate::tests::*;
-
 use super::fixture::{
     call_homes, preserving_call_homes, stage, structural_call_homes, wide_budget,
+};
+use crate::tests::{
+    AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPlan,
+    CalleeSavedModificationWitness, FrameAbiPreservationConvention, MachineId, NativeTarget,
+    SelectedInstructionId, StagedOptimizedRegisterHomes,
+    validate_allocated_callee_saved_requirements,
 };
 
 fn rejects_dropped_or_substituted_witnessed_unit(source: &StagedOptimizedRegisterHomes) {

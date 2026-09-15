@@ -38,7 +38,6 @@ use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 
 use super::work_usage;
-use super::*;
 
 mod fixtures_boundary_qualifications;
 mod fixtures_common;

@@ -1,6 +1,9 @@
 //! Explicit qualification erasure preserves the selected call result's payload.
-use super::*;
 
+use super::{
+    AdmissionProfile, NativeTarget, ReplayExpectation, native_function, produce,
+    publish_target_with_replay_expectation, target_artifact,
+};
 #[test]
 fn native_boolean_equality_predicates_preserve_runtime_and_literal_truth_tables() {
     for pattern in ["right", "true", "false"] {

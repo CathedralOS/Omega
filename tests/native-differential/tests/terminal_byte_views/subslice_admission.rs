@@ -1,5 +1,7 @@
 //! Receiving validation binds each derived descriptor to its checked producer.
-use super::*;
+use super::{
+    NativeTarget, ObligationId, OperationId, PlaceId, ValueId, byte_view_target, subslice,
+};
 use legalized_operations::LegalizedScalarInstructionKind;
 use target_operations::{
     TargetByteView, TargetControlGraph, TargetIntegerExpression, TargetScalarExpression,

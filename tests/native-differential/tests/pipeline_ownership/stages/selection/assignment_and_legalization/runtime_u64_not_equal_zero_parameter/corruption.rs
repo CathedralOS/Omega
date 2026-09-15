@@ -1,6 +1,8 @@
-use crate::tests::*;
-
 use super::fixture::staged_not_equal_zero_parameter;
+use crate::tests::{
+    NativeTarget, SelectedInstructionError, SelectedInstructionKind, SelectedTerminator,
+    VirtualRegisterOrigin, validate_raw_selection,
+};
 
 #[test]
 fn not_equal_zero_selected_compare_branch_and_successor_corruption_fail_closed() {

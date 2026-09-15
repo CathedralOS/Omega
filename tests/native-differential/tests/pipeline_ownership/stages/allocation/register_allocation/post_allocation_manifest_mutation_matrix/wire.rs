@@ -1,10 +1,12 @@
+use crate::tests::{
+    NativeTarget, PostAllocationOptimizationManifest, PostAllocationSelectedTransformation,
+};
 use selected_instructions_to_register_homes::{
     FixedViewCopyIdentity, PostAllocationOptimizationManifestDecodeError,
 };
 
 use super::fixture::staged;
 use super::wire_offsets::locate;
-use crate::tests::*;
 
 #[test]
 fn every_closed_wire_tag_and_envelope_fails_with_its_exact_error() {

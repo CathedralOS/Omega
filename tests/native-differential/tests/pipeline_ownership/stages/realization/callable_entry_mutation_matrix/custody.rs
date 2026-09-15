@@ -1,8 +1,10 @@
 //! Independent ordinary-callable custody-root mutations.
 
-use crate::tests::*;
-
 use super::fixture::staged_callable;
+use crate::tests::{
+    OptimizedOrdinaryCallableEntryError, StagedValidatedOptimizedOrdinaryCallableEntry,
+    validate_optimized_ordinary_callable_entry,
+};
 
 #[test]
 fn every_ordinary_callable_receipt_root_rejects_independently() {

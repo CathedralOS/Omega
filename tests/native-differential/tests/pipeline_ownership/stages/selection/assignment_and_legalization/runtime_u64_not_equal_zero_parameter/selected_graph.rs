@@ -1,6 +1,9 @@
-use crate::tests::*;
-
 use super::fixture::staged_not_equal_zero_parameter;
+use crate::tests::{
+    EdgeId, NativeTarget, OperationId, SelectedInstructionKind, SelectedTerminator, ValueId,
+    VirtualRegisterOrigin, assert_ordinary_graph_custody, validate_legalized_operations,
+    validate_raw_selection,
+};
 
 #[test]
 fn u64_parameter_not_equal_zero_selects_exact_compare_zero_graph_on_both_isas() {

@@ -1,5 +1,9 @@
-use crate::tests::*;
-
+use crate::tests::{
+    MachineId, NativeTarget, SCALAR_CALL_UNIT_CALLER, StagedOptimizedAllocationLegality,
+    StagedOptimizedLiveness, StagedOptimizedRegisterHomes, StagedOptimizedSelectedInstructions,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_register_homes, staged_scalar_call_unit,
+};
 pub(super) fn caller_machine() -> MachineId {
     MachineId::new(SCALAR_CALL_UNIT_CALLER).unwrap()
 }

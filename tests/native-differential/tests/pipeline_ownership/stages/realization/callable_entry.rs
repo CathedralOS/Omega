@@ -1,5 +1,24 @@
 use crate::FunctionFragmentReplayInputs;
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, AllocationEvidence, ExplicitOptimizationRequest, NativeTarget, Optimization,
+    OptimizationReportRequest, OptimizationSelections, OptimizedObjectArtifactManifest,
+    OptimizedObjectArtifactRecord, OptimizedOrdinaryCallableEntryDecodeError,
+    OptimizedOrdinaryCallableEntryDisposition, OptimizedOrdinaryCallableEntryError,
+    OptimizedOrdinaryCallableEntryManifest, OptimizedOrdinaryCallableEntryManifestDecodeError,
+    OptimizedOrdinaryCallableEntryRecord, PostAllocationSelectedTransformation,
+    StagedValidatedOptimizedObjectArtifact, ValueId, WholeFunctionExitPolicy, canonical_artifact,
+    conditional_active_resident_exact_add_chain_artifact, conditional_exact_binary_artifact,
+    optimization_pipeline_report_from_object_artifact,
+    optimization_pipeline_report_from_ordinary_callable_entry, optimize_artifact_sections,
+    selected_lowering_budget, stage_function_fragment_frame_application,
+    stage_optimized_fixed_frame_text_section, stage_optimized_function_fragment_emission,
+    stage_optimized_relocation_free_object_container,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    stage_validated_optimized_object_artifact, stage_validated_optimized_ordinary_callable_entry,
+    validate_optimized_fixed_frame_text_section, validate_optimized_function_fragment_emission,
+    validate_optimized_object_artifact, validate_optimized_ordinary_callable_entry,
+    validate_optimized_relocation_free_object_container,
+};
 
 pub(super) fn staged_callable_object_artifact(
     target: NativeTarget,

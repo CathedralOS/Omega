@@ -1,6 +1,12 @@
 //! Ordinary narrow exact arithmetic and explicit widening through physical custody.
-use crate::tests::*;
 
+use crate::tests::{
+    MachineBarrier, NativeTarget, SelectedInstructionKind, analyze_machine_effects,
+    assert_ordinary_graph_custody, stage_optimized_allocation_legality,
+    stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
+    staged_widened_u8_exact_subtract_conditional, validate_raw_post_allocation,
+};
 #[test]
 fn widened_exact_arithmetic_reaches_verified_register_and_machine_pipeline() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

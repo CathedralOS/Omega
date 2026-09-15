@@ -1,5 +1,8 @@
 //! Dispatch must retain the exact owner of an operation result or state parameter.
-use super::*;
+use super::{
+    AdmissionProfile, NativeTarget, OptimizationSelections, compiler_baseline_request_v1,
+    optimize_artifact_sections, produce_source,
+};
 use legalized_operations::{LegalizedScalarTerminator, LegalizedStructuralCaseSource};
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
 

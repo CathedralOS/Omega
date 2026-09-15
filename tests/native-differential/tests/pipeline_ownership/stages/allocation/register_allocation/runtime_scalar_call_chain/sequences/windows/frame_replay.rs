@@ -1,7 +1,10 @@
 //! Genuine selected-program frame plans must retain the exact Microsoft call area.
 
 use super::physical;
-use crate::tests::*;
+use crate::tests::{
+    FunctionTargetFrameLayout, OptimizationSelections, ReturnAddressFrameCustody,
+    SCALAR_CALL_UNIT_CALLER, validate_target_frame_layout,
+};
 
 #[test]
 fn windows_frame_replay_rejects_missing_or_overlapping_shadow_storage() {

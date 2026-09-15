@@ -1,6 +1,7 @@
 //! Rehashed fragment changes must fail projection checks without producer history.
-
-use crate::tests::*;
+use crate::tests::{
+    NativeTarget, Optimization, OptimizationSelections, stage_optimized_function_fragment_emission,
+};
 use machine_code::{FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan};
 use machine_emission::{
     ResolvedFragmentEmissionError, emit_resolved_function_fragments,

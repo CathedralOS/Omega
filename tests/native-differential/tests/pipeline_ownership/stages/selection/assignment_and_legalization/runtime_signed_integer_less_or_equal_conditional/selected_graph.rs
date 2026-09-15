@@ -1,8 +1,11 @@
 //! Exact selected graph and signed inclusive-order semantics.
 
-use crate::tests::*;
-
 use super::fixture::staged_signed_integer_less_or_equal_conditional;
+use crate::tests::{
+    EdgeId, IntegerSign, IntegerType, NativeTarget, OperationId, PsiProvenance, ScalarType,
+    SelectedInstructionKind, SelectedTerminator, ValueId, VirtualRegisterId,
+    validate_legalized_operations, validate_raw_selection,
+};
 
 #[test]
 fn runtime_i64_parameter_less_or_equal_selects_reversed_signed_compare_on_both_isas() {

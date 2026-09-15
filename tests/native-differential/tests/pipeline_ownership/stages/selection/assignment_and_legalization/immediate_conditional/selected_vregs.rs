@@ -1,7 +1,9 @@
 //! Typed virtual-register selection and retained custody on both architectures.
 
-use crate::tests::*;
-
+use crate::tests::{
+    NativeTarget, SelectedInstructionKind, SelectedTerminator, selected_instruction_plan_identity,
+    staged_conditional,
+};
 #[test]
 fn verified_three_block_conditional_selects_typed_vregs_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

@@ -1,6 +1,15 @@
 //! Uncanned exact scalar DAGs use the ordinary shared physical pipeline.
-
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget, ObligationId,
+    Operation, OperationId, OperationKind, OperationResult, Optimization, OptimizationSelections,
+    OptimizedTargetLoweringRequest, ScalarType, Terminator, ValueDeclaration, ValueId,
+    compiler_baseline_request_v1, conditional_active_resident_exact_add_chain_artifact,
+    legalize_target_operations, lower_optimized_to_target_operations, operation_proof_bundle,
+    optimize_artifact_sections, stage_function_fragment_frame_application,
+    stage_optimized_fixed_frame_text_section, stage_optimized_function_fragment_emission,
+    stage_optimized_relocation_free_object_container, stage_optimized_verified_physical_pipeline,
+    validate_legalized_operations,
+};
 use legalized_operations::LegalizedScalarInstructionKind;
 
 #[test]

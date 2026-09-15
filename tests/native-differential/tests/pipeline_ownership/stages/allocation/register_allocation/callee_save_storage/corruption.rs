@@ -1,6 +1,11 @@
-use crate::tests::*;
-
 use super::fixture::{call_requirements, stage, wide_budget};
+use crate::tests::{
+    AllocatedCalleeSavedRequirementIdentity, CalleeSavedModificationWitness,
+    FrameAbiPreservationConvention, MachineId, NativeTarget, NonAuthoritativeCalleeSaveSlotId,
+    NonAuthoritativeCalleeSaveStorageError, NonAuthoritativeCalleeSaveStoragePlan, RegisterUnitId,
+    RegisterViewId, SelectedInstructionId, ValidatedAllocatedCalleeSavedRequirements,
+    ValidatedTargetRegisterEnvironment, validate_non_authoritative_callee_save_storage,
+};
 
 fn rejects_noncanonical(
     requirements: &ValidatedAllocatedCalleeSavedRequirements,

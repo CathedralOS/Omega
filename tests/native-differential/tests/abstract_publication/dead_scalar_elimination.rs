@@ -1,7 +1,10 @@
 //! Dead-scalar projection custody.
 
-use super::*;
-
+use super::{
+    AbstractOperation, Optimization, OptimizationSelections, dead_scalar_literals_verified,
+    dead_wrapping_add_verified, run,
+};
+use crate::publish_optimization_run;
 #[test]
 fn dead_scalar_literal_elimination_replays_transitive_fuel_to_the_terminal() {
     let selections =

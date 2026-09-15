@@ -1,5 +1,9 @@
 //! Canonical guarded byte-view operations and their reconstructed bounds proofs.
-use super::super::*;
+use super::super::{
+    AdmissionProfile, ObligationId, OperationId, OperationKind, PlaceId, ProofBundle,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalModule, ValueId,
+    byte_view_read_module,
+};
 use proof_admission::{
     CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };

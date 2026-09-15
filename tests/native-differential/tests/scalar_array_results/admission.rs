@@ -1,6 +1,6 @@
 //! Missing physical transports reject without replacing values with empty identities.
-use super::*;
 
+use super::{NativeTarget, target_plan};
 #[test]
 fn indirect_result_fragments_remain_explicit_limits() {
     for (shape, value) in [

@@ -1,5 +1,6 @@
-use super::*;
+use super::super::super::super::{MachineRegister, NativeTarget};
 
+use super::ScalarParameterLocation;
 pub(super) fn parameter_location_cases() -> [(
     NativeTarget,
     ScalarParameterLocation,

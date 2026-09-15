@@ -1,7 +1,6 @@
 //! Runs unchanged validated code, then an explicitly non-artifact ABI stress copy.
 
 use super::physical;
-use crate::tests::*;
 
 use super::super::super::native_execution as memory;
 mod stress;

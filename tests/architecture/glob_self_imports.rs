@@ -20,10 +20,7 @@ use std::path::{Path, PathBuf};
 
 /// Exact no-growth ratchets: (crate directory, files carrying a glob
 /// self-import anywhere under it: `src/`, `tests/`, `examples/`, `benches/`).
-const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
-    ("omega-rust/omega/compiler/compiler", 55),
-    ("tests/native-differential", 100),
-];
+const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

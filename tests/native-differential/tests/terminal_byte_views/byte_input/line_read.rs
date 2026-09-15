@@ -1,6 +1,6 @@
 //! Bounded line completion composes the byte leaf with ordinary scalar-sum returns.
-use super::*;
 
+use super::{NativeTarget, lower_reader, native_function, publish_reader};
 #[test]
 fn concrete_byte_leaf_line_reader_preserves_source_custody_and_native_outcomes() {
     let source = format!(

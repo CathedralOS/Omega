@@ -1,6 +1,10 @@
 //! Boolean entry values survive ordinary calls before selecting an arm.
-use super::*;
 
+use super::super::super::super::super::super::ScalarType;
+use super::{
+    Operation, OperationId, OperationKind, OperationResult, Terminator, ValueDeclaration, ValueId,
+    control_flow, publish_scalar_artifacts_with_arguments, reseal_proof,
+};
 #[test]
 fn boolean_entry_survives_calls_and_controls_ordinary_graph_publication() {
     for inverted in [false, true] {

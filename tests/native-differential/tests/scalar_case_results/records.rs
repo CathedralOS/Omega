@@ -1,7 +1,6 @@
 //! Record construction uses runtime operands and the ordinary aggregate return.
 
-use super::*;
-
+use super::{NativeTarget, native_function, produce_source, publish};
 pub(super) const PROJECTED_RECORD_GETTER: &str = "
     data Inner { left: u64; right: u64; }
     data Outer { leading: u64; inner: Inner; other: Inner; }

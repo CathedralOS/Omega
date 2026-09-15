@@ -1,7 +1,16 @@
 //! X86 rel8 byte placement, manifest replay, and corruption rejection.
 
 use crate::FunctionFragmentReplayInputs;
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, ExplicitOptimizationRequest, FunctionFragmentTextSectionManifest,
+    FunctionFragmentTextSectionManifestDecodeError, NativeTarget, Optimization,
+    OptimizationSelections, RelocationFreeTextSectionPlacementError,
+    conditional_exact_binary_artifact, optimize_artifact_sections, selected_lowering_budget,
+    stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
+    stage_optimized_function_fragment_emission,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    validate_optimized_fixed_frame_text_section,
+};
 
 #[test]
 fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {

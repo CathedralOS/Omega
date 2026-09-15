@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::{assign, generous_budget, source, validate};
+use crate::tests::{MachineId, NativeTarget, VirtualRegisterId};
 
 #[test]
 fn independent_replay_rejects_assignment_and_root_corruption() {

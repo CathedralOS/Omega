@@ -1,5 +1,9 @@
 //! Two generated Unit calls retain observable byte output and caller continuation.
-use super::*;
+use super::{
+    EdgeId, IntegerSign, IntegerType, NativeTarget, Operation, OperationId, OperationKind,
+    OperationResult, ScalarType, TerminalModule, Terminator, ValueDeclaration, ValueId,
+    stage_byte_output_module, widening,
+};
 use semantic_vocabulary::{BlockId, ContractId, MachineId};
 
 pub(super) fn unit_byte_output_calls_module() -> TerminalModule {

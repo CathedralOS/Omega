@@ -1,7 +1,11 @@
 //! Abstract spill-area store/reload scheduling before reload-home and frame assignment.
 
-use crate::tests::*;
-
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, SelectedInstructionId, SpillChoicePolicy,
+    StagedOptimizedAllocationLegality, choose_spill_victims, selected_lowering_budget,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    staged_active_resident_two_view_legality, staged_exact_add_conditional,
+};
 #[test]
 fn exact_schedule_is_deterministic_on_both_architectures() {
     let mut frame_neutral_shape = None;

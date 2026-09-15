@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::{analyze, exact_budget, source, validate};
+use crate::tests::NativeTarget;
 
 #[test]
 fn roots_rows_usage_and_cross_target_custody_fail_closed() {

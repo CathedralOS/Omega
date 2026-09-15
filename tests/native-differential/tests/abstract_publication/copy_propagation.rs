@@ -1,7 +1,11 @@
 //! Copy-propagation projection custody.
 
-use super::*;
-
+use super::{
+    AbstractOperation, MachineId, NativeTarget, Optimization, OptimizationSelections, ValueId,
+    call_result_block_parameter_verified, lower_optimized_to_target_operations,
+    redundant_block_parameter_verified, run,
+};
+use crate::publish_optimization_run;
 #[test]
 fn copy_propagation_projects_shortened_blocks_and_rewritten_edges() {
     let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();

@@ -1,4 +1,4 @@
-use crate::tests::*;
+use crate::tests::{AllocatedCalleeSavedRequirementError, NativeTarget};
 use optimization_core::OptimizationWorkBudget;
 
 use super::fixture::{call_homes, exact_budget, stage, wide_budget};

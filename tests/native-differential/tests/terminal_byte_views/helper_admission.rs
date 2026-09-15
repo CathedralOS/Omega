@@ -1,5 +1,5 @@
 //! Standalone receiving entrances reject coherently substituted borrowed arguments.
-use super::*;
+use super::{NativeTarget, PlaceId, ProofBundle, byte_view_target, fixtures};
 use calling_conventions::ValueShape;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstructionKind};
 use target_operations_to_selected_instructions::{

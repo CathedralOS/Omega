@@ -1,7 +1,17 @@
 //! Shared structural calls retain ABI and provider origins through publication.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, AdmittedBoundaryExecution, AdmittedBoundarySettlement, MachineRegister,
+    NativeTarget, Operation, OperationId, OperationKind, OperationResult, Optimization,
+    OptimizationSelections, OptimizedTargetLoweringRequest, PlaceId,
+    StagedOptimizedRelocationFreeObjectContainer, StructuralAccess, StructuralMultiplicity,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, compiler_baseline_request_v1,
+    lower_optimized_to_target_operations, optimize_artifact_sections, reseal_proof,
+    stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
+    stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
+    stage_optimized_verified_physical_pipeline, structural_extent_call_unit_artifact,
+    structural_extent_unit_leaf_artifact,
+};
 #[test]
 fn structural_call_publication_preserves_owned_indirect_arguments() {
     for selections in [

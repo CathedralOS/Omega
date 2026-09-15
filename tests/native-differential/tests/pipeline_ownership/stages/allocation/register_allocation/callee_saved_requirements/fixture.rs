@@ -1,5 +1,11 @@
-use crate::tests::*;
-
+use crate::tests::{
+    AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPolicy, NativeTarget,
+    StagedOptimizedRegisterHomes, ValidatedAllocatedCalleeSavedRequirements,
+    stage_allocated_callee_saved_requirements, stage_optimized_allocation_legality,
+    stage_optimized_live_ranges, stage_optimized_liveness, stage_optimized_register_homes,
+    staged_conditional, staged_scalar_call_preserving, staged_scalar_call_unit,
+    staged_structural_call_preserving,
+};
 pub(super) fn call_homes(target: NativeTarget) -> StagedOptimizedRegisterHomes {
     stage_optimized_register_homes(
         stage_optimized_allocation_legality(

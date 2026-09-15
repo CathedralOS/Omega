@@ -1,7 +1,9 @@
 //! Machine-effect reconstruction for subtraction instructions and control barriers.
 
-use crate::tests::*;
-
+use crate::tests::{
+    NativeTarget, SelectedInstructionKind, analyze_machine_effects,
+    staged_exact_subtract_conditional, staged_forwarded_conditional, validate_machine_effects,
+};
 #[test]
 fn machine_effect_replay_rejects_a_different_program_or_environment() {
     let selected = staged_exact_subtract_conditional(NativeTarget::linux_x64());

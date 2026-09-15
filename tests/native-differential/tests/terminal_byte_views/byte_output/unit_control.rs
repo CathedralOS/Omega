@@ -1,5 +1,13 @@
 //! Conditional Unit effects converge before the caller's final output.
-use super::*;
+use super::super::{
+    OptimizationSelections, compiler_baseline_request_v1, optimize_artifact_sections,
+};
+use super::{
+    AdmissionProfile, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
+    CompilerBuiltinExecution, EdgeId, HostedWriteByteI32Realization, NativeTarget, Operation,
+    OperationId, OperationKind, OperationResult, ProofBundle, ScalarType, TerminalModule,
+    Terminator, ValueDeclaration, ValueId, stage_byte_output_module, unit_calls,
+};
 use semantic_vocabulary::BlockId;
 use terminal_psi::SuccessorEdge;
 

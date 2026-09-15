@@ -1,7 +1,20 @@
 //! Straight-line calls use the common physical graph, not a fixture topology.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, EdgeId, IntegerValue, NativeTarget, OperationId, OperationKind,
+    OperationResult, Optimization, OptimizationSelections, OptimizedTargetLoweringRequest,
+    SCALAR_CALL_UNIT_FIRST_RESULT, SCALAR_CALL_UNIT_LEFT, SCALAR_CALL_UNIT_RIGHT,
+    SCALAR_CALL_UNIT_SECOND_RESULT, SCALAR_CALL_UNIT_THIRD_RESULT, Terminator, ValueId,
+    canonical_artifact, compiler_baseline_request_v1,
+    conditional_u64_integer_equal_parameters_machine, lower_optimized_to_target_operations,
+    optimize_artifact_sections, request, scalar_call_unit_artifact_with,
+    stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
+    stage_optimized_function_fragment_emission, stage_optimized_instruction_selection,
+    stage_optimized_relocation_free_object_container,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    stage_validated_optimized_object_artifact, validate_optimized_object_artifact,
+    validate_optimized_relocation_free_object_container,
+};
 mod executable;
 mod frames;
 mod register_arity;

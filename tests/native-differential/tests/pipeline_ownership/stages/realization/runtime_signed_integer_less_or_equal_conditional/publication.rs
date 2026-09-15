@@ -1,8 +1,11 @@
 //! Exact signed-inclusive machine bytes, object custody, and callable publication.
 
-use crate::tests::*;
-
 use super::fixture::staged_object_artifact;
+use crate::tests::{
+    IntegerSign, IntegerType, NativeTarget, OptimizedOrdinaryCallableEntryRecord, ScalarType,
+    ValueId, stage_validated_optimized_ordinary_callable_entry, validate_optimized_object_artifact,
+    validate_optimized_ordinary_callable_entry,
+};
 
 #[test]
 fn runtime_i64_parameter_less_or_equal_reaches_signed_object_and_callable_on_both_isas() {
