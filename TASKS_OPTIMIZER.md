@@ -284,6 +284,27 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   rejected at encoding or decoding as non-canonical, as are the magic,
   version, phase, state, and presence tags, count ceilings, non-UTF-8
   text, trailing bytes, truncation, and on-disk tampering at decode.
+  Landed: relocation-free object-container plans, containers, manifests,
+  and custody receipts (`compiler/tests/object_container_custody.rs`,
+  `relocation_free_object_container_custody_rejects_every_one_field_substitution`)
+  — every manifest field (the source text-section manifest and text-section
+  identities, program fingerprint, fuel schedule, selections, selected
+  plan, all four target axes, semantic entry and its symbol, the object
+  and object-container identities, and all seven statistics) and every
+  object-plan field (the source text-section identity, program
+  fingerprint, fuel schedule, selections, selected plan, the whole target
+  and all four target axes, text-section name, alignment, byte count, and
+  bytes, each symbol-row field, dropped and duplicated rows, semantic
+  entry and its symbol, and the relocation-record count) is independently
+  representable under an honestly recomputed containing identity and
+  rejected by independent replay across all four declared targets; each
+  of the five custody-receipt fields and the container's object identity,
+  container identity, and honestly re-identified truncated bytes are
+  rejected by replay or decoding; foreign or stale containing identities,
+  the closed stage, vocabulary, symbol-policy, requirement, and
+  unavailable markers, unknown architecture and object-format tags, zero
+  fuel-schedule, machine, and symbol identities, and trailing or
+  truncated envelopes are rejected at canonical decoding.
 
 ## Psi optimization and loops
 
