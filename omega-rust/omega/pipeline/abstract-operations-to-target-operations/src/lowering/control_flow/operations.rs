@@ -374,7 +374,7 @@ pub(super) fn lower_operation(
                         BoundaryRealization::HostedWriteByteI32(_)
                             | BoundaryRealization::HostedExitProcessI32(_)
                             | BoundaryRealization::HostedReadByte(_)
-                    )
+                    ) | target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
                 )
             }) =>
         {
