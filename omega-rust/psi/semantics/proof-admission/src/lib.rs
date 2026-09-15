@@ -73,9 +73,9 @@ pub use mathematical_core::{
     QUOTIENT_LIFT, QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT, QUOTIENT_SET, QUOTIENT_SOUND,
     QUOTIENT_TRANSPORT, QUOTIENT_TRANSPORT_CONST, QuotientFamily, Signature, Sort, Term, TermArena,
     TermHandle, assumption_closure, certificate_assumption_closure, check_signature, check_type,
-    convertible, indexed_scheme, infer_sort, infer_type, instantiate_levels,
-    judgment_assumption_closure, quotient_scheme, shift, substitute,
-    verify_mathematical_certificate, weak_head_normalize,
+    convertible, identity_substitution, indexed_correctness, indexed_scheme, infer_sort,
+    infer_type, instantiate_levels, judgment_assumption_closure, quotient_scheme, shift,
+    substitute, verify_mathematical_certificate, weak_head_normalize,
 };
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,
