@@ -7,6 +7,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn prove<'program>(
     program: &'program TypedTrees,
@@ -218,7 +219,7 @@ fn argument_mapping(
     }
     let mut parameters = Vec::with_capacity(arguments.len());
     let mut subjects = Vec::new();
-    for argument in arguments {
+    for (position, argument) in arguments.iter().enumerate() {
         subjects.clear();
         argument_subjects(program, machine, source, *argument, &mut subjects, 0)?;
         let mut selected_entry = None;
@@ -238,12 +239,113 @@ fn argument_mapping(
                 selected_entry = Some(entry_symbol);
             }
         }
+        if let Some(owner) = fresh_record_carrier(program, machine, target, position, rank_subject)
+        {
+            let discovered_record = selected_entry
+                .is_some_and(|entry| entry_is_record_of(program, machine, entry, owner));
+            if !discovered_record && !parameters.contains(&rank_subject) {
+                // A fresh record literal carries no subject dependency, but
+                // its destination slot is still the record the selected view
+                // reads. A discovered scalar role can never serve this slot —
+                // the mapping validator rejects it — while a discovered record
+                // lineage stays authoritative. The claim only locates the
+                // record; the edge judgment extracts the literal's fields and
+                // proves membership, pinning and descent independently.
+                selected_entry = Some(rank_subject);
+            }
+        }
         // Auxiliary-only arithmetic over several inputs names no single role.
         // Choosing an operand would let its entry constraints reach a value
         // they never described; an absent role keeps the slot premise-free.
         parameters.push(selected_entry.unwrap_or_default());
     }
     Some(parameters)
+}
+
+/// A dependency-free record actual can still carry the ranked role: when the
+/// destination has exactly one formal of the rank subject's own record type,
+/// that slot is the only candidate the field view can read. The role claims
+/// nothing about value ancestry — the arrival's field values are substituted
+/// and proved independently. Multiple owner-typed formals keep the slot
+/// role-less rather than guessing between records. Returns the shared record
+/// owner symbol when this position is the unique carrier.
+fn fresh_record_carrier(
+    program: &TypedTrees,
+    machine: &Machine,
+    target: &State,
+    position: usize,
+    rank_subject: SymbolHandle,
+) -> Option<SymbolHandle> {
+    if !rank_subject.is_valid() {
+        return None;
+    }
+    let root = program.machine_states(machine).first()?;
+    let subject = program
+        .state_parameters(root)
+        .iter()
+        .find(|parameter| !parameter.is_self && parameter.symbol == rank_subject)?;
+    let TypeReferenceNode::Named { symbol: owner, .. } = program
+        .type_reference_table
+        .type_reference(subject.type_reference)
+    else {
+        return None;
+    };
+    // Builtin named carriers are not records the view can project.
+    if !program
+        .data_definitions()
+        .iter()
+        .any(|data| data.symbol == *owner)
+    {
+        return None;
+    }
+    let target_parameters = program
+        .state_parameters(target)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let mut carriers = target_parameters.iter().filter(|parameter| {
+        matches!(
+            program
+                .type_reference_table
+                .type_reference(parameter.type_reference),
+            TypeReferenceNode::Named { symbol, .. } if *symbol == *owner
+        )
+    });
+    let formal = carriers.next()?;
+    if carriers.next().is_none()
+        && target_parameters
+            .get(position)
+            .is_some_and(|parameter| parameter.symbol == formal.symbol)
+    {
+        Some(*owner)
+    } else {
+        None
+    }
+}
+
+/// Whether the discovered entry symbol is a root parameter of this exact
+/// record type — a genuine record lineage that outranks the fresh-literal
+/// claim. Scalar or role-less selections cannot serve a record slot and do
+/// not block the claim.
+fn entry_is_record_of(
+    program: &TypedTrees,
+    machine: &Machine,
+    entry: SymbolHandle,
+    owner: SymbolHandle,
+) -> bool {
+    let Some(root) = program.machine_states(machine).first() else {
+        return false;
+    };
+    program.state_parameters(root).iter().any(|parameter| {
+        !parameter.is_self
+            && parameter.symbol == entry
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Named { symbol, .. } if *symbol == owner
+            )
+    })
 }
 
 /// Discover a dependency, not a value equality or an arithmetic theorem. The

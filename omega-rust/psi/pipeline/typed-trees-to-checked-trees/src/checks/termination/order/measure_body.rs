@@ -4,11 +4,16 @@ use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 use typed_trees::name::Identifier;
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 pub(super) enum MeasureBodyShape {
     ParameterForward {
         carrier: BuiltinTypeAtom,
+        /// Every `Range` constraint declared on the measure's parameter and
+        /// result types. They are the view's domain contract and rank claim:
+        /// the caller must prove the subject's enforced bounds fit inside
+        /// each one before the forward can be selected.
+        constraints: Vec<(ExpressionHandle, ExpressionHandle, bool)>,
     },
     FieldProjection {
         field: Identifier,
@@ -37,13 +42,19 @@ pub(super) fn measure_body_shape(
     }
     if is_parameter(program, *body, parameter.symbol) {
         // Identity does not widen a value or discharge a qualification on the
-        // measure's input/result. Both must be the same bare unsigned carrier.
-        // Subject refinements are checked independently when applying the view.
-        let carrier = unsigned_carrier(program, parameter.type_reference)?;
-        if unsigned_carrier(program, measure.return_type)? != carrier {
+        // measure's input/result. Both must share one unsigned carrier, and
+        // only range refinements can be discharged against the subject's
+        // enforced bounds when the view is applied.
+        let (carrier, mut constraints) = unsigned_carrier(program, parameter.type_reference)?;
+        let (result, result_constraints) = unsigned_carrier(program, measure.return_type)?;
+        if result != carrier {
             return None;
         }
-        return Some(MeasureBodyShape::ParameterForward { carrier });
+        constraints.extend(result_constraints);
+        return Some(MeasureBodyShape::ParameterForward {
+            carrier,
+            constraints,
+        });
     }
     let ExpressionNode::Member(member) = program.expression_table.expression(*body) else {
         return None;
@@ -99,10 +110,37 @@ pub(super) fn measure_body_shape(
     })
 }
 
+/// Unwrap only `Range` refinement shells so the carrier stays exact: other
+/// constraint kinds change what the view may assume and cannot be discharged
+/// here. Returns the carrier and the collected `(minimum, maximum,
+/// end_inclusive)` constraints for the caller to prove against the subject.
 fn unsigned_carrier(
     program: &TypedTrees,
     reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<BuiltinTypeAtom> {
+) -> Option<(
+    BuiltinTypeAtom,
+    Vec<(ExpressionHandle, ExpressionHandle, bool)>,
+)> {
+    let mut constraints = Vec::new();
+    let mut reference = reference;
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints: declared,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        for constraint in program.type_reference_table.constraints(*declared) {
+            let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
+                return None;
+            };
+            constraints.push((*minimum, *maximum, *end_inclusive));
+        }
+        reference = *base_type;
+    }
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(reference)
     else {
@@ -113,7 +151,7 @@ fn unsigned_carrier(
         carrier,
         BuiltinTypeAtom::U8 | BuiltinTypeAtom::U16 | BuiltinTypeAtom::U32 | BuiltinTypeAtom::U64
     )
-    .then_some(carrier)
+    .then_some((carrier, constraints))
 }
 
 fn is_parameter(program: &TypedTrees, expression: ExpressionHandle, binder: SymbolHandle) -> bool {
