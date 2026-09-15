@@ -352,6 +352,11 @@ impl InstallationRecord {
         &mut self.semantic_code_attribution
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn port_effects_mut_for_test(&mut self) -> &mut Vec<ObjectPortEffect> {
+        &mut self.port_effects
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
