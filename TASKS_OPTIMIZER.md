@@ -747,7 +747,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   exercise both sides of the 4095/4096 boundary; and each fixed-point leg feeds
   the published `ValidatedLiteralFold` back through the real liveness, range,
   legality, victim-selection, and classification analyses as the legal second
-  input. Remaining: the same matrix for the other phases' exact rules.
+  input. `CheckedTreeProductPruning` is now fully covered in
+  `typed-trees-to-checked-trees` and the `assembled-syntax-to-checked-compilation`
+  phase entrance (20 focused tests pass on macOS arm64): enabled pruning,
+  disabled/unselected identity, wrong-phase rejection, duplicate/unknown/absent
+  roots, empty-root interface-surface retention, boundary retention, transitive
+  and duplicate dependency retention, determinism, root-order canonicalization,
+  exact root-set identity binding, roster and root corruption rejected by
+  independent product validation, and a fixed-point leg that feeds the
+  published pruned product back through the same plan as a legal second input
+  and observes an empty pruned roster; the phase has no budget axis.
+  Remaining: the same matrix for the other phases' exact rules.
 
 - **TARGET-MATRICES.** Complete supported target/OS allocator, encoding,
   unwind, object, and callable matrices. Existing selected-lowering and
