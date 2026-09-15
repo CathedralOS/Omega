@@ -1,11 +1,13 @@
 //! Exact ordered native-handle failure and last-error replay shapes.
 
+use super::BuildFilesystemReplayRecordError;
 use super::handle_failures::{
     unknown_native_handle_close_failure_shape_is_exact,
     unknown_native_handle_final_path_failure_shape_is_exact,
 };
 use super::native_mutation_failures::unknown_native_handle_mutation_failure_shape_is_exact;
-use super::{AttemptShape, BuildFilesystemReplayRecordError, ShapeResult};
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeResult;
 
 const GET_LAST_ERROR_OPERATION_TAG: u16 = 35;
 const REAL_SCOPED_PROVIDER_TAG: u8 = 2;

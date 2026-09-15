@@ -1,9 +1,11 @@
 //! Exact failed native-handle mutations retained by build replay records.
 
 use super::{
-    AttemptShape, BuildFilesystemReplayRecordError, ShapeScalar,
+    BuildFilesystemReplayRecordError,
     handle_failures::unknown_handle_failure_core_except_bytes_with_outcome_is_exact,
 };
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeScalar;
 
 const NATIVE_HANDLE_KIND_TAG: u8 = 1;
 const INVALID_HANDLE_RESULT: i64 = 0;

@@ -1,8 +1,14 @@
-use super::{
-    AttemptShape, ShapeAuthorizedPath, ShapeMetadata, ShapeMutableBytes, ShapeResult,
-    ShapeReturnedPath, ShapeRootedPath, ShapeScalar, rehydrate_source_read_link_shape,
-    validate_first_rung, validate_source_read_link_shape,
-};
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeAuthorizedPath;
+use crate::replay_record::attempt_codec::ShapeMetadata;
+use crate::replay_record::attempt_codec::ShapeMutableBytes;
+use crate::replay_record::attempt_codec::ShapeResult;
+use crate::replay_record::attempt_codec::ShapeReturnedPath;
+use crate::replay_record::attempt_codec::ShapeRootedPath;
+use crate::replay_record::attempt_codec::ShapeScalar;
+use crate::replay_record::read_links::rehydrate_source_read_link_shape;
+use crate::replay_record::read_links::validate_source_read_link_shape;
+use crate::replay_record::shape_validation::validate_first_rung;
 static PRE_STATE: [u8; 8] = *b"........";
 static POST_STATE: [u8; 8] = *b"target..";
 static WRONG_PRE_STATE: [u8; 8] = *b"changed!";

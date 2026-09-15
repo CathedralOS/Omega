@@ -1,9 +1,12 @@
 //! Exact replay-record shape for `read_dir` on an unknown descriptor.
 
 use super::{
-    AttemptShape, BuildFilesystemReplayRecordError, ShapeMutableI64, ShapeScalar,
+    BuildFilesystemReplayRecordError,
     handle_failures::unknown_descriptor_failure_fixed_shape_is_exact,
 };
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeMutableI64;
+use crate::replay_record::attempt_codec::ShapeScalar;
 
 const READ_DIR_OPERATION_TAG: u16 = 23;
 

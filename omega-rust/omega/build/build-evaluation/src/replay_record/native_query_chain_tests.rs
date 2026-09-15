@@ -3,13 +3,19 @@
 //! `close_handle`, tags `28;(31|35)+;29`) through canonical record encoding,
 //! recovery, and typed rehydration.
 use super::{
-    BuildFilesystemGrantAccess, BuildFilesystemOperationAttempt, BuildFilesystemOperationResult,
-    BuildFilesystemProvider, BuildFilesystemReplayDisposition, BuildFilesystemReplayRecordLimits,
-    BuildFilesystemReplayVerdict, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationSummary, capture_verified_build_filesystem_replay_record,
+    BuildFilesystemReplayRecordLimits, capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
     rehydrate_review_only_build_filesystem_replay_record,
 };
+use crate::BuildFilesystemGrantAccess;
+use crate::BuildFilesystemOperationAttempt;
+use crate::BuildFilesystemOperationResult;
+use crate::BuildFilesystemProvider;
+use crate::BuildFilesystemReplayDisposition;
+use crate::BuildFilesystemReplayVerdict;
+use crate::BuildFilesystemRoot;
+use crate::BuildFilesystemScalarOperandValue;
+use crate::BuildObservationSummary;
 use crate::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemAuthorizedPath,
     BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,

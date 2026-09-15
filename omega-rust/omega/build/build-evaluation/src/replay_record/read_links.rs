@@ -1,6 +1,8 @@
-use super::{
-    AttemptShape, BuildFilesystemReplayRecordError, ShapeResult, ShapeReturnedPath, clone_bytes,
-};
+use super::BuildFilesystemReplayRecordError;
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeResult;
+use crate::replay_record::attempt_codec::ShapeReturnedPath;
+use crate::replay_record::record::clone_bytes;
 
 const READ_LINK_OPERATION_TAG: u16 = 21;
 const READ_LINK_PAYLOAD_KIND: u8 = 0;
@@ -10,7 +12,8 @@ const LIMIT_REACHED: u8 = 1;
 pub(super) fn validate_source_read_link_shape(
     attempt: &AttemptShape<'_>,
 ) -> Result<(), BuildFilesystemReplayRecordError> {
-    let [(count_ordinal, super::ShapeScalar::U64(requested_count))] = attempt.scalars.as_slice()
+    let [(count_ordinal, crate::replay_record::attempt_codec::ShapeScalar::U64(requested_count))] =
+        attempt.scalars.as_slice()
     else {
         return Err(read_link_shape_error());
     };
@@ -75,7 +78,9 @@ pub(super) fn rehydrate_source_read_link_shape(
     checked_interpreter::FilesystemSourceReadLinkReplayRecord,
     BuildFilesystemReplayRecordError,
 > {
-    let [(_, super::ShapeScalar::U64(requested_count))] = attempt.scalars.as_slice() else {
+    let [(_, crate::replay_record::attempt_codec::ShapeScalar::U64(requested_count))] =
+        attempt.scalars.as_slice()
+    else {
         unreachable!("validated Source read_link has one count")
     };
     let [rooted] = attempt.rooted_paths.as_slice() else {

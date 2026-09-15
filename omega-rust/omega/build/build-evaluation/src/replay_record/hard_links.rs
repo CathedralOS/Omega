@@ -1,7 +1,9 @@
-use super::{
-    AttemptShape, BuildFilesystemReplayRecordError, ShapeResult, ShapeRootedPath, ShapeScalar,
-    clone_bytes,
-};
+use super::BuildFilesystemReplayRecordError;
+use crate::replay_record::attempt_codec::AttemptShape;
+use crate::replay_record::attempt_codec::ShapeResult;
+use crate::replay_record::attempt_codec::ShapeRootedPath;
+use crate::replay_record::attempt_codec::ShapeScalar;
+use crate::replay_record::record::clone_bytes;
 
 const PORTABLE_HARD_LINK_OPERATION_TAG: u16 = 19;
 const WINDOWS_HARD_LINK_OPERATION_TAG: u16 = 27;
@@ -126,7 +128,7 @@ fn valid_output_path(path: &[u8]) -> bool {
 }
 
 fn authorization_matches(
-    authorized: &super::ShapeAuthorizedPath<'_>,
+    authorized: &crate::replay_record::attempt_codec::ShapeAuthorizedPath<'_>,
     rooted: &ShapeRootedPath<'_>,
 ) -> bool {
     authorized.access == 1 && authorized.root == rooted.root && authorized.bytes == rooted.bytes
