@@ -306,7 +306,7 @@ fn binding_boolean(position: usize, resolve_binding: &mut impl ScalarValueSource
     }
 }
 
-fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
+pub(crate) fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
     let (sign, bits) = match primitive {
         PrimitiveType::I8 => (IntegerSign::Signed, 8),
         PrimitiveType::I16 => (IntegerSign::Signed, 16),
@@ -325,7 +325,10 @@ fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
 
 /// Fixed-width integer casts retain the low target bits and interpret those
 /// bits with the target signedness. The caller has admitted the source value.
-fn wrapping_cast_value(target: PrimitiveType, value: IntegerValue) -> Option<IntegerValue> {
+pub(crate) fn wrapping_cast_value(
+    target: PrimitiveType,
+    value: IntegerValue,
+) -> Option<IntegerValue> {
     let bits = match value {
         IntegerValue::Signed(value) => value as u128,
         IntegerValue::Unsigned(value) => value,
@@ -343,7 +346,7 @@ fn wrapping_cast_value(target: PrimitiveType, value: IntegerValue) -> Option<Int
     })
 }
 
-fn admitted_integer(scalar_type: IntegerType, value: &BigInt) -> Option<IntegerValue> {
+pub(crate) fn admitted_integer(scalar_type: IntegerType, value: &BigInt) -> Option<IntegerValue> {
     let value = match scalar_type.sign() {
         IntegerSign::Signed => IntegerValue::Signed(i128::from(value.to_i64()?)),
         IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(value.to_u64()?)),
@@ -351,7 +354,7 @@ fn admitted_integer(scalar_type: IntegerType, value: &BigInt) -> Option<IntegerV
     scalar_type.admits(value).then_some(value)
 }
 
-fn integer_magnitude(value: IntegerValue) -> BigInt {
+pub(crate) fn integer_magnitude(value: IntegerValue) -> BigInt {
     match value {
         IntegerValue::Signed(value) => BigInt::from_i128(value),
         IntegerValue::Unsigned(value) => BigInt::from_u128(value),

@@ -12,8 +12,10 @@ use symbols::SymbolHandle;
 
 mod calls;
 mod captured;
+mod conversions;
 use calls::capture_call;
 use captured::{CapturedValue, LiveValues};
+use conversions::selected_call;
 
 #[cfg(test)]
 mod call_tests;
@@ -36,7 +38,7 @@ pub(super) fn capture_statement(
     if !program.expression_table.expression_is_valid(source) {
         return None;
     }
-    if let Some(call) = selected_call(program, source) {
+    if let Some(selected) = selected_call(program, context.exact_integer_casts, source) {
         return capture_call(
             program,
             borrow,
@@ -44,9 +46,10 @@ pub(super) fn capture_statement(
             context,
             state,
             statement_index,
-            call,
+            selected.call,
             active,
-        );
+        )
+        .and_then(|value| selected.convert(value));
     }
     let (expression, symbols) = selected_statement(
         program,
@@ -93,7 +96,7 @@ pub(super) fn capture_bounds(
         StatementNode::Assignment(assignment) => assignment.value,
         _ => return None,
     };
-    if let Some(call) = selected_call(program, source) {
+    if let Some(selected) = selected_call(program, context.exact_integer_casts, source) {
         return capture_call(
             program,
             borrow,
@@ -101,9 +104,10 @@ pub(super) fn capture_bounds(
             context,
             state,
             statement_index,
-            call,
+            selected.call,
             active,
-        );
+        )
+        .and_then(|value| selected.convert(value));
     }
     let (expression, symbols) = selected_statement(
         program,
@@ -130,20 +134,6 @@ pub(super) fn capture_bounds(
             state,
         },
     )
-}
-
-fn selected_call(
-    program: &typed_trees::TypedTrees,
-    source: ExpressionHandle,
-) -> Option<&typed_trees::expression::TableCallExpression> {
-    if let ExpressionNode::Call(call) = program.expression_table.expression(source) {
-        return Some(call);
-    }
-    let source = crate::values::scalar_qualified_call_expression(program, source)?;
-    let ExpressionNode::Call(call) = program.expression_table.expression(source) else {
-        return None;
-    };
-    Some(call)
 }
 
 fn selected_statement<'plans>(
