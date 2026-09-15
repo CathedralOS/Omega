@@ -8,8 +8,9 @@
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, State, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    enforced_declared_range, primitive_range,
+    enforced_declared_range,
 };
+use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::OperatorSpelling;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;

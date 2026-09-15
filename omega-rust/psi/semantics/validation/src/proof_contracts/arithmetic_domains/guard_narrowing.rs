@@ -7,13 +7,17 @@
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, ProofFact, SignatureContractKind, State, TypedTrees, ValueEnv,
-    declared_place_type_raw, float_bound_from, float_literal_value,
-    float_range_constraint_interval, known_u64_value, literal_i64, literal_u64, ordered_values,
-    place_path, primitive_range, range_constraint_interval,
+    declared_place_type_raw, literal_i64, ordered_values, place_path, range_constraint_interval,
 };
 use std::collections::BTreeMap;
 
 mod arrivals;
+use crate::proof_contracts::arithmetic_domains::float_arithmetic::{
+    float_bound_from, float_literal_value, float_range_constraint_interval,
+};
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    known_u64_value, literal_u64, primitive_range,
+};
 use crate::proof_contracts::bound_expression_meaning as meaning;
 mod case_facts;
 mod parameter_bounds;

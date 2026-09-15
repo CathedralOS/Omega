@@ -3,9 +3,9 @@
 //! This module owns the mutable abstract environment and its merge/invalidation
 //! rules. Expression analysis and guard recognition remain in the parent.
 
-use super::{
-    ExpressionHandle, Interval, Machine, State, TypedTrees, canonical_path_pair, ordered_values,
-    place_path, place_paths_overlap,
+use super::{ExpressionHandle, Interval, Machine, State, TypedTrees, ordered_values, place_path};
+use crate::proof_contracts::arithmetic_domains::place_paths::{
+    canonical_path_pair, place_paths_overlap,
 };
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -4,8 +4,8 @@ use super::dependent_relations::{
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, State, TypedTrees, declared_place_type_raw, guard_narrowing, literal_i64,
-    primitive_range,
 };
+use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 
 /// R3's ONE closed bounded-product rule: `a * self.Fb + c` where
 /// `a <= self.Fa - 1` (a STRICT dependent atom), `c <= self.Fb - 1` (strict,

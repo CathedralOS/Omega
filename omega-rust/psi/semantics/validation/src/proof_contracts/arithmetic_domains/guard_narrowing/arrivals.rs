@@ -2,7 +2,7 @@
 //! argument telescope. Each round starts from an overapproximation, including
 //! every backedge; stopping before convergence only loses precision.
 use super::super::{
-    TypeReferenceHandle, TypeReferenceNode, analyze, enforced_declared_range,
+    TypeReferenceHandle, TypeReferenceNode, enforced_declared_range,
     record_unsigned_literal_assignment,
 };
 use super::{
@@ -11,6 +11,7 @@ use super::{
     incoming_guard_env, literal_i64, narrow_env_by_condition, ordered_values, place_path,
 };
 use crate::CallFrameResolver;
+use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 

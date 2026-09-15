@@ -1,6 +1,7 @@
-use super::{
-    Interval, float_interval_fits_integer, integer_interval_fits_primitive,
-    u64_exact_shift_left_fits,
+use super::Interval;
+use crate::proof_contracts::arithmetic_domains::float_arithmetic::float_interval_fits_integer;
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    integer_interval_fits_primitive, u64_exact_shift_left_fits,
 };
 use typed_trees::types::PrimitiveType;
 

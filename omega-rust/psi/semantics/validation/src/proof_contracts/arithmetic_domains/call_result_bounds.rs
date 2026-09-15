@@ -2,7 +2,10 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine, ProofFact,
     SignatureContractKind, State, TypeReferenceHandle, TypedTrees, ValueEnv, guard_narrowing,
-    literal_interval, primitive_range, range_constraint_interval,
+    range_constraint_interval,
+};
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    literal_interval, primitive_range,
 };
 use language_core::OperatorSpelling;
 

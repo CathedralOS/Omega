@@ -20,7 +20,8 @@ use super::total_specification::{
     AbstractSpecificationBindings, abstract_specification_interval,
     abstract_specification_place_type,
 };
-use super::{Interval, ValueEnv, analyze};
+use super::{Interval, ValueEnv};
+use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 
 fn signed_minimum(primitive: PrimitiveType) -> Option<i64> {
     match primitive {
