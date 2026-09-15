@@ -1,10 +1,10 @@
 //! Direct arithmetic endpoints retain their original conjunction citations.
 use super::{
-    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
-    ScalarType, ValueId, prove_canonical_integer_proposition, value,
+    IntegerType, IntegerValue, PropositionContext, ScalarTerm, ScalarType, ValueId, value,
 };
+use crate::proofs::nonzero_divisor_certificate::prove_canonical_integer_proposition;
 use proof_admission::check_certificate;
-use semantic_vocabulary::IntegerMathTerm;
+use semantic_vocabulary::{IntegerMathTerm, IntegerSign, Proposition};
 
 fn fixture() -> (
     PropositionContext,

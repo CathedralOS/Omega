@@ -1,7 +1,7 @@
-use super::{
-    IntegerSign, IntegerType, IntegerValue, ProofRule, Proposition, ScalarTerm, accept_certificate,
-    prove_canonical_integer_proposition, two_value_context, value,
-};
+use super::{IntegerType, IntegerValue, ScalarTerm, two_value_context, value};
+use crate::proofs::nonzero_divisor_certificate::prove_canonical_integer_proposition;
+use proof_admission::{ProofRule, accept_certificate};
+use semantic_vocabulary::{IntegerSign, Proposition};
 #[test]
 fn guarded_tail_bounds_replay_the_index_literal_and_selected_length_bound() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();

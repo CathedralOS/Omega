@@ -1,12 +1,11 @@
 //! A guarded field read and a fresh read share only their live cited equality.
-use super::{
-    IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
-    integer, prove_canonical_integer_proposition, value,
-};
+use super::{IntegerType, PropositionContext, ScalarTerm, ScalarType, ValueId, integer, value};
+use crate::proofs::nonzero_divisor_certificate::prove_canonical_integer_proposition;
 use proof_admission::check_certificate;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralFieldId, StructuralPlaceKind,
 };
+use semantic_vocabulary::{IntegerSign, Proposition};
 
 fn field(integer_type: IntegerType, root: u64, member: u64) -> ScalarTerm {
     ScalarTerm::integer_field_path(
