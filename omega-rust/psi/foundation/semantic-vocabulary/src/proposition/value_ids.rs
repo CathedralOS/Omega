@@ -1,6 +1,7 @@
 //! Shared, stack-safe traversal of proposition value identities.
 
-use super::{IntegerMathTerm, Proposition, ScalarTerm, ValueId};
+use super::{IntegerMathTerm, Proposition, ScalarTerm};
+use crate::ValueId;
 
 enum Pending<'a> {
     Proposition(&'a Proposition),
