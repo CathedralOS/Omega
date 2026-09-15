@@ -38,8 +38,12 @@ With the lock accepted, the macOS command proceeds past review and currently
 stops in Terminal production: `Main::main` is an attached Unit closure whose
 cyclic state machine is missing a checked transitive machine plan
 (`InvalidUnitMachinePlan`), the same compiler gap tracked under
-GENERAL-CYCLIC-EXECUTION. Build evaluation and the checked compilation retain
-authored GUI intent; retaining it through native realization, supplying signing
-identity, and publishing a whole validated `.app` remain unfinished. This
-sample does not yet establish Finder launch behavior. See the
+GENERAL-CYCLIC-EXECUTION. The publication machinery downstream of that stop is
+implemented: the authored `builder.identifier` supplies the CodeDirectory
+signing identity and `CFBundleIdentifier`, and publication installs one whole
+validated `window-app.app` (`Contents/Info.plist` and
+`Contents/MacOS/window-app`) reported through the checked package-root and
+inner-executable accessors — exercised today through the test-owned routes,
+not this command. This sample does not yet establish Finder launch behavior.
+See the
 [publication contract](../../../wiki/spec/build/macos_application.md).
