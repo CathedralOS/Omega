@@ -12,9 +12,9 @@ fn constructor_paths_keep_authored_field_evaluation_order_and_full_span() {
         let source_id = source::SourceId::default();
         let tokens = Lexer::new(&source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source_id);
-        let (expression, rest) = crate::expressions::parse_expression_handle(
+        let (expression, rest) = crate::expressions::parse_expression::parse_expression_handle(
             &mut trees,
-            crate::input::Input::new(source_id, &tokens),
+            crate::input::token_cursor::Input::new(source_id, &tokens),
         )
         .expect("qualified constructor");
         assert!(rest.tokens.is_empty());

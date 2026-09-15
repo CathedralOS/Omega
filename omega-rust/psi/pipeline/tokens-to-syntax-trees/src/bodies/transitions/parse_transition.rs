@@ -1,5 +1,5 @@
 use crate::diagnostics::parse_error::ParseError;
-use crate::input::{Input, ParseResult, is_identifier_token_for_parser};
+use crate::input::token_cursor::{Input, ParseResult, is_identifier_token_for_parser};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -9,12 +9,8 @@ use syntax_trees::statement::{
 };
 use tokens::{KeywordKind, PunctuationKind};
 
-mod guards;
-mod targets;
-
-use guards::{parse_transition_expression_list, parse_transition_guard_node};
-pub(crate) use targets::parse_transition_block_target_handle;
-use targets::parse_transition_block_target_with_bindings;
+use super::guards::{parse_transition_expression_list, parse_transition_guard_node};
+use super::targets::parse_target::parse_transition_block_target_with_bindings;
 
 pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -450,7 +446,7 @@ fn parse_expression_list_until_punctuation<'tokens, 'source>(
 #[cfg(test)]
 mod tests {
     use super::transition_contains_destructure_pattern;
-    use crate::input::Input;
+    use crate::input::token_cursor::Input;
     use source::SourceId;
     use source_files_to_tokens::Lexer;
 

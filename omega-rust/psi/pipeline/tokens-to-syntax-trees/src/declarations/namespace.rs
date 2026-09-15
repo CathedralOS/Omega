@@ -1,4 +1,4 @@
-use crate::input::{Input, ParseResult};
+use crate::input::token_cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ModuleDeclaration, PackageDeclaration};
 use tokens::PunctuationKind;

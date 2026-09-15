@@ -6,8 +6,9 @@ use crate::bodies::transitions::targets::copy::{
     copy_expression_identifier_path_to_statement_table,
 };
 use crate::diagnostics::parse_error::ParseError;
-use crate::expressions::{parse_argument_list_after_open_paren_handle, parse_expression_handle};
-use crate::input::{Input, ParseResult, parse_path_handle_span};
+use crate::expressions::parse_expression::parse_expression_handle;
+use crate::expressions::parse_postfix::parse_argument_list_after_open_paren_handle;
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -15,8 +16,6 @@ use syntax_trees::expression::{
 };
 use syntax_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 use tokens::{KeywordKind, PunctuationKind};
-
-mod copy;
 
 pub(crate) fn parse_transition_block_target_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -29,7 +28,10 @@ pub(crate) fn parse_transition_block_target_handle<'tokens, 'source>(
 /// binding into the target expression first: `Command::Say { text } ->
 /// done(text)` passes `subject.text`, while tuple arms can project fields from
 /// several subjects into the same target call.
-pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
+pub(in crate::bodies::transitions) fn parse_transition_block_target_with_bindings<
+    'tokens,
+    'source,
+>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     bindings: &[DestructureBindings],

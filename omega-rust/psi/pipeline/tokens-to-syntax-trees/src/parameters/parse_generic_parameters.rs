@@ -1,5 +1,5 @@
-use crate::input::{Input, ParseResult};
-use crate::type_syntax::parse_type_reference_handle;
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::type_syntax::parse_type::parse_type_reference_handle;
 use crate::type_syntax::properties::parse_property_brackets;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
@@ -8,9 +8,6 @@ use syntax_trees::item::{
     DataProperties, MachineParameterContract, TypeParameter, TypeParameterKind,
 };
 use tokens::PunctuationKind;
-
-#[cfg(test)]
-mod tests;
 
 #[derive(Default)]
 pub(crate) struct ParsedGenericParameters {
@@ -174,7 +171,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             let rest = rest.take_contextual("satisfies")?;
             let (carrier, rest) = rest.take_identifier()?;
             let (arguments, rest) =
-                crate::contracts::conformance::parse_optional_satisfies_type_arguments(
+                crate::contracts::conformance::parse_conformance::parse_optional_satisfies_type_arguments(
                     syntax_trees,
                     rest,
                 )?;

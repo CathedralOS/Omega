@@ -1,5 +1,5 @@
 use crate::contracts::facts::parse_proof_facts_until;
-use crate::input::Input;
+use crate::input::token_cursor::Input;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;

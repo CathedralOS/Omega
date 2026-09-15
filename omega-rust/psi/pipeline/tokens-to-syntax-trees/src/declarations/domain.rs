@@ -1,6 +1,6 @@
 use crate::contracts::facts::parse_proof_facts_until;
-use crate::input::{Input, ParseResult, parse_path_handle_span};
-use crate::parameters::generics::GenericParameterSyntax;
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -12,11 +12,12 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DomainDefinition> {
-    let (generic_parameters, input) = crate::parameters::generics::parse_generic_parameters(
-        syntax_trees,
-        input,
-        GenericParameterSyntax::TypeAndConst,
-    )?;
+    let (generic_parameters, input) =
+        crate::parameters::parse_generic_parameters::parse_generic_parameters(
+            syntax_trees,
+            input,
+            GenericParameterSyntax::TypeAndConst,
+        )?;
     if !generic_parameters.lifetime_parameters.is_empty() {
         return Err(input.error_here(
             "domain families take a carrier type and proof-static const parameters, not lifetime parameters",
@@ -28,7 +29,8 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     // every other target stays the bare-identifier path, so existing named-target
     // declarations are completely unchanged (zero fallout).
     let (target_type, target_label, input) = if input.at_punctuation(PunctuationKind::LeftBracket) {
-        let (handle, input) = crate::type_syntax::parse_type_reference_handle(syntax_trees, input)?;
+        let (handle, input) =
+            crate::type_syntax::parse_type::parse_type_reference_handle(syntax_trees, input)?;
         let label = type_reference_target_label(syntax_trees, handle);
         (handle, label, input)
     } else {
@@ -41,7 +43,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
     let (domain_name, input) = input.take_identifier()?;
     let (index_arguments, input) =
-        crate::type_syntax::parse_domain_argument_handles(syntax_trees, input)?;
+        crate::type_syntax::parse_type::parse_domain_argument_handles(syntax_trees, input)?;
     let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
     let name = if generic_parameters.type_parameters.is_empty() {
         // The combined semantic path is synthesized, but the declaration is still authored at

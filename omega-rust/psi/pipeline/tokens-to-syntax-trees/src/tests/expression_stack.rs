@@ -15,9 +15,9 @@ fn nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack() {
         .tokenize()
         .expect("tokenize nested values");
     let mut parsed = syntax_trees::SyntaxTrees::new(source::SourceId::default());
-    let (_, rest) = crate::expressions::parse_expression_handle(
+    let (_, rest) = crate::expressions::parse_expression::parse_expression_handle(
         &mut parsed,
-        crate::input::Input::new(source::SourceId::default(), &tokens),
+        crate::input::token_cursor::Input::new(source::SourceId::default(), &tokens),
     )
     .expect("parse nested values on the default stack");
     assert!(rest.tokens.is_empty());
@@ -50,9 +50,9 @@ fn parse_expression(source: &str) -> (SyntaxTrees, ExpressionHandle) {
     let source_id = source::SourceId::default();
     let tokens = Lexer::new(source).tokenize().expect("tokenize expression");
     let mut parsed = SyntaxTrees::new(source_id);
-    let (expression, rest) = crate::expressions::parse_expression_handle(
+    let (expression, rest) = crate::expressions::parse_expression::parse_expression_handle(
         &mut parsed,
-        crate::input::Input::new(source_id, &tokens),
+        crate::input::token_cursor::Input::new(source_id, &tokens),
     )
     .expect("parse expression");
     assert!(

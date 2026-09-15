@@ -1,9 +1,5 @@
-pub(crate) mod binding_properties;
-pub(crate) mod contracts;
-pub(crate) mod generics;
-
-use crate::input::{Input, ParseResult};
-use crate::type_syntax::parse_type_reference_handle_allowing_borrow;
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -11,7 +7,7 @@ use syntax_trees::item::{StateParameterHandle, StateSignature};
 use syntax_trees::types::TypeReferenceHandle;
 use tokens::{KeywordKind, PunctuationKind};
 
-pub(super) fn parse_optional_parameters<'tokens, 'source>(
+pub(crate) fn parse_optional_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StateParameterHandle>> {
@@ -53,7 +49,7 @@ pub(super) fn parse_optional_parameters<'tokens, 'source>(
     Ok((parameters, input))
 }
 
-pub(super) fn parse_optional_return_type<'tokens, 'source>(
+pub(crate) fn parse_optional_return_type<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
@@ -65,7 +61,7 @@ pub(super) fn parse_optional_return_type<'tokens, 'source>(
     parse_type_reference_handle_allowing_borrow(syntax_trees, input)
 }
 
-pub(super) fn parse_parameter<'tokens, 'source>(
+pub(crate) fn parse_parameter<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StateParameterHandle> {
@@ -219,7 +215,7 @@ fn parse_parameter_type_reference<'tokens, 'source>(
     );
     Ok((type_reference, borrowed_mutable, input))
 }
-pub(super) fn parse_callable_signature<'tokens, 'source>(
+pub(crate) fn parse_callable_signature<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StateSignature> {

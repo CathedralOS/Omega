@@ -1,8 +1,8 @@
 pub use crate::diagnostics::parse_error;
 
 use crate::ParseError;
-use crate::declarations;
-use crate::input::Input;
+use crate::declarations::parse_declaration::parse_item;
+use crate::input::token_cursor::Input;
 use source::SourceId;
 use syntax_trees::{SyntaxTrees, item::ItemHandle};
 use tokens::Token;
@@ -17,7 +17,7 @@ pub fn parse(
     let mut input = Input::new(source_id, tokens);
     let mut root_items = Vec::new();
     while !input.tokens.is_empty() {
-        let (item, rest) = declarations::parse_item(syntax_trees, input)?;
+        let (item, rest) = parse_item(syntax_trees, input)?;
         root_items.push(syntax_trees.push_root_item(item));
         input = rest;
     }
@@ -25,9 +25,19 @@ pub fn parse(
     Ok(root_items)
 }
 
-pub use crate::{parse_syntax_trees, parse_syntax_trees_with_id};
 pub use parse as parse_syntax_trees_into_with_id;
 
-#[cfg(test)]
-#[path = "tests/mod.rs"]
-mod tests;
+/// Creates a syntax arena for an anonymous source and parses its tokens.
+pub fn parse_syntax_trees(tokens: &[Token<'_>]) -> Result<SyntaxTrees, ParseError> {
+    parse_syntax_trees_with_id(SourceId::default(), tokens)
+}
+
+/// Creates a syntax arena for one identified source and parses its tokens.
+pub fn parse_syntax_trees_with_id(
+    source_id: SourceId,
+    tokens: &[Token<'_>],
+) -> Result<SyntaxTrees, ParseError> {
+    let mut syntax_trees = SyntaxTrees::new(source_id);
+    parse(&mut syntax_trees, source_id, tokens)?;
+    Ok(syntax_trees)
+}

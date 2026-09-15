@@ -8,19 +8,13 @@
 //! proof-output bindings and `statement_tables.rs` copies expression
 //! handles and identifier paths into the statement table.
 
-mod atomic_lets;
-mod destructure_and_proof_output;
-mod discard_and_local_data;
-mod inline_assembly;
-mod statement_tables;
-
-use atomic_lets::{
+use super::atomic_lets::{
     try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_let, try_parse_atomic_swap_let,
 };
-use destructure_and_proof_output::{
+use super::destructure_and_proof_output::{
     reject_retired_proof_output_binding, try_parse_destructure_let, try_parse_proof_output_binding,
 };
-pub(crate) use inline_assembly::parse_asm_block_statement_handles;
+use super::inline_assembly::parse_asm_block_statement_handles;
 
 use crate::bodies::statements::atomic_lets::try_desugar_atomic_store;
 use crate::bodies::statements::discard_and_local_data::{
@@ -30,9 +24,9 @@ use crate::bodies::statements::discard_and_local_data::{
 use crate::bodies::statements::statement_tables::{
     expression_handle_to_statement_call, root_binding_declaration,
 };
-use crate::bodies::transitions::parse_transition_block_handles;
-use crate::expressions::parse_expression_handle;
-use crate::input::{Input, ParseResult};
+use crate::bodies::transitions::parse_transition::parse_transition_block_handles;
+use crate::expressions::parse_expression::parse_expression_handle;
+use crate::input::token_cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
@@ -42,7 +36,7 @@ use syntax_trees::statement::{
 };
 use tokens::{KeywordKind, PunctuationKind};
 
-pub(super) fn parse_statement_handles<'tokens, 'source>(
+pub(crate) fn parse_statement_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {

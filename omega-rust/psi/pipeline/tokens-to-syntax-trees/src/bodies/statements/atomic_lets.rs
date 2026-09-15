@@ -1,9 +1,10 @@
 //! Atomic `let` forms: compare-exchange, fetch, swap and desugared stores.
 
 use crate::bodies::statements::statement_tables::copy_expression_as_place;
-use crate::expressions::{memory_ordering_from_expression, parse_expression_handle};
-use crate::input::Input;
-use crate::type_syntax::parse_type_reference_handle_allowing_borrow;
+use crate::expressions::parse_expression::parse_expression_handle;
+use crate::expressions::parse_postfix::memory_ordering_from_expression;
+use crate::input::token_cursor::Input;
+use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
 use arena::HandleSpan;
 use numerics::literals::IntegerLiteral;
 use syntax_trees::SyntaxTrees;

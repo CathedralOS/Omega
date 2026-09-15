@@ -1,6 +1,6 @@
 use crate::diagnostics::parse_error::ParseError;
-use crate::expressions::parse_expression_handle_without_struct_literals;
-use crate::input::{Input, ParseResult, parse_path_handle_span};
+use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals;
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{

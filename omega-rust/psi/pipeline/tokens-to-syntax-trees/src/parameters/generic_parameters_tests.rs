@@ -1,6 +1,8 @@
-use super::{GenericParameterSyntax, ParsedGenericParameters, parse_generic_parameters};
+use super::parse_generic_parameters::{
+    GenericParameterSyntax, ParsedGenericParameters, parse_generic_parameters,
+};
 use crate::ParseError;
-use crate::input::Input;
+use crate::input::token_cursor::Input;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;

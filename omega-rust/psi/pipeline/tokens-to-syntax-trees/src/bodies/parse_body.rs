@@ -1,22 +1,14 @@
-pub(crate) mod sequence;
-pub(crate) mod statements;
-pub(crate) mod states;
-mod tail_calls;
-pub(crate) mod trait_default;
-pub(crate) mod transitions;
-
+use super::sequence::{BodyKind, parse_statements};
 use crate::bodies::states::parse_state;
-use crate::input::{Input, ParseResult};
+use crate::input::token_cursor::{Input, ParseResult};
 use arena::{Handle, HandleSpan};
-use sequence::{BodyKind, parse_statements};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{State, StateHandle, StateParameterHandle};
 use syntax_trees::types::TypeReferenceHandle;
-pub(crate) use tail_calls::rewrite_terminal_tail_self_calls;
 use tokens::{KeywordKind, PunctuationKind};
 
-pub(super) fn parse_body<'tokens, 'source>(
+pub(crate) fn parse_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
     entry_name: Option<Identifier>,
@@ -116,7 +108,7 @@ fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
         && !starts_retired_invariant_member(input)
 }
 
-fn starts_machine_member(input: Input<'_, '_>) -> bool {
+pub(super) fn starts_machine_member(input: Input<'_, '_>) -> bool {
     input.at_punctuation(PunctuationKind::RightBrace)
         || input.at_keyword(KeywordKind::Pub)
         || input.at_contextual("entry")
@@ -133,7 +125,7 @@ fn starts_retired_invariant_member(input: Input<'_, '_>) -> bool {
     if !after_keyword
         .tokens
         .first()
-        .is_some_and(crate::input::is_identifier_token_for_parser)
+        .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
     {
         return false;
     }
@@ -153,7 +145,7 @@ fn starts_state_member(input: Input<'_, '_>) -> bool {
     Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default())
         .tokens
         .first()
-        .is_some_and(crate::input::is_identifier_token_for_parser)
+        .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
 }
 
 fn parse_implicit_entry_state<'tokens, 'source>(

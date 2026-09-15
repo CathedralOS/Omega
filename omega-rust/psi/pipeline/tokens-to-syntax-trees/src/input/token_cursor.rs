@@ -1,5 +1,5 @@
-use crate::diagnostics;
 use crate::diagnostics::parse_error::ParseError;
+use crate::diagnostics::render_diagnostic as diagnostics;
 use crate::input::delimited::find_top_level_punctuation;
 use crate::input::literals::{parse_integer_literal, validate_float_literal};
 use arena::{Handle, HandleSpan};
@@ -8,11 +8,7 @@ use source::{SourceId, SourceSpan, SourceText, Span};
 use syntax_trees::identifier::Identifier;
 use tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenText};
 
-mod delimited;
-mod literals;
-pub(crate) mod paths;
-
-pub(super) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
+pub(crate) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
 
 /// The most levels of `(`/`[` nesting the recursive-descent parser walks into
 /// before it rejects the input as too deeply nested. The parser recurses once
@@ -23,12 +19,12 @@ pub(super) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'so
 /// real program reaches, yet far below the depth that would exhaust the large
 /// stack the pipeline runs on (see `compile`), so the guard -- not a crash --
 /// is always what fires first.
-pub(super) const MAX_NESTING_DEPTH: u16 = 1024;
+pub(crate) const MAX_NESTING_DEPTH: u16 = 1024;
 
 #[derive(Clone, Copy)]
-pub(super) struct Input<'tokens, 'source> {
-    pub(super) source_id: SourceId,
-    pub(super) tokens: &'tokens [Token<'source>],
+pub(crate) struct Input<'tokens, 'source> {
+    pub(crate) source_id: SourceId,
+    pub(crate) tokens: &'tokens [Token<'source>],
     /// Current `(`/`[` nesting depth, carried by value through the parse so the
     /// choke points can bound it. Reconstructions that merely ADVANCE the token
     /// cursor (`advanced`) preserve it; a fresh `new` (top-level item / guard
@@ -41,7 +37,7 @@ pub(super) struct Input<'tokens, 'source> {
 }
 
 impl<'tokens, 'source> Input<'tokens, 'source> {
-    pub(super) fn new(source_id: SourceId, tokens: &'tokens [Token<'source>]) -> Self {
+    pub(crate) fn new(source_id: SourceId, tokens: &'tokens [Token<'source>]) -> Self {
         Self {
             source_id,
             tokens: skip_non_semantic_tokens(tokens),
@@ -62,7 +58,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(super) fn depth(&self) -> u16 {
+    pub(crate) fn depth(&self) -> u16 {
         self.depth
     }
 
@@ -70,7 +66,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// [`MAX_NESTING_DEPTH`] before it can overflow the parser's stack. Called at
     /// the recursion choke points; pair with [`Self::with_depth`] to restore the
     /// outer depth on exit so sibling expressions do not accumulate.
-    pub(super) fn deepen(self) -> Result<Self, ParseError> {
+    pub(crate) fn deepen(self) -> Result<Self, ParseError> {
         if self.depth >= MAX_NESTING_DEPTH {
             return Err(self.error_here(format!(
                 "expression or type nesting is too deep (exceeds the maximum of {MAX_NESTING_DEPTH} levels)"
@@ -82,15 +78,15 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         })
     }
 
-    pub(super) fn with_depth(self, depth: u16) -> Self {
+    pub(crate) fn with_depth(self, depth: u16) -> Self {
         Self { depth, ..self }
     }
 
-    pub(super) fn source_span(&self, token: &Token<'_>) -> SourceSpan {
+    pub(crate) fn source_span(&self, token: &Token<'_>) -> SourceSpan {
         SourceSpan::new(self.source_id, token.span)
     }
 
-    pub(super) fn current_source_span(&self) -> SourceSpan {
+    pub(crate) fn current_source_span(&self) -> SourceSpan {
         self.tokens
             .first()
             .map(|token| self.source_span(token))
@@ -100,7 +96,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// Exact semantic-token extent consumed between this cursor and `rest`.
     /// Leading/trailing trivia is excluded even though cursor advancement may
     /// have skipped it.
-    pub(super) fn source_span_until(self, rest: Self) -> SourceSpan {
+    pub(crate) fn source_span_until(self, rest: Self) -> SourceSpan {
         debug_assert_eq!(self.source_id, rest.source_id);
         let consumed_count = self
             .tokens
@@ -120,7 +116,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         SourceSpan::new(self.source_id, Span::new(first.span.start, last.span.end))
     }
 
-    pub(super) fn error_here(&self, message: impl Into<String>) -> ParseError {
+    pub(crate) fn error_here(&self, message: impl Into<String>) -> ParseError {
         let source_span = self
             .tokens
             .first()
@@ -129,7 +125,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         ParseError::at_source_span(message, source_span)
     }
 
-    pub(super) fn expect_token(self) -> Result<(&'tokens Token<'source>, Self), ParseError> {
+    pub(crate) fn expect_token(self) -> Result<(&'tokens Token<'source>, Self), ParseError> {
         if self.pending_greater {
             return Err(self.error_here("expected `>` before the next token"));
         }
@@ -139,7 +135,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(super) fn take_keyword(
+    pub(crate) fn take_keyword(
         self,
         keyword: KeywordKind,
         label: &str,
@@ -152,7 +148,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(super) fn take_punctuation(
+    pub(crate) fn take_punctuation(
         self,
         punctuation: PunctuationKind,
         label: &str,
@@ -191,7 +187,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// does not count. Used to disambiguate a transition guard SUBJECT starting
     /// with `(`: a top-level comma means a tuple of subjects, no comma means a
     /// parenthesized expression to route through the general expression parser.
-    pub(super) fn leading_paren_group_has_top_level_comma(&self) -> bool {
+    pub(crate) fn leading_paren_group_has_top_level_comma(&self) -> bool {
         let mut paren = 0usize;
         let mut bracket = 0usize;
         let mut brace = 0usize;
@@ -217,7 +213,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         false
     }
 
-    pub(super) fn take_contextual(self, name: &str) -> Result<Self, ParseError> {
+    pub(crate) fn take_contextual(self, name: &str) -> Result<Self, ParseError> {
         let (token, rest) = self.expect_token()?;
         if matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
             && token.lexeme.as_str() == name
@@ -228,7 +224,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(super) fn take_identifier(self) -> Result<(Identifier, Self), ParseError> {
+    pub(crate) fn take_identifier(self) -> Result<(Identifier, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if is_identifier_token_for_parser(token) {
             Ok((self.identifier_from_token(token), rest))
@@ -239,7 +235,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     /// An integer literal as its ANONYMOUS payload (D14) -- the expression
     /// path, where the literal's type comes from a later use.
-    pub(super) fn take_integer_literal(self) -> Result<(IntegerLiteral, Self), ParseError> {
+    pub(crate) fn take_integer_literal(self) -> Result<(IntegerLiteral, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.integer_literal_kind() {
             let literal = parse_integer_literal(token.lexeme.as_str(), kind)
@@ -255,7 +251,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// These keep an explicit i64 ceiling with a loud
     /// error -- they are not value-binding uses, so D14's fit-at-use does not
     /// apply.
-    pub(super) fn take_integer(self) -> Result<(i64, Self), ParseError> {
+    pub(crate) fn take_integer(self) -> Result<(i64, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.integer_literal_kind() {
             let literal = parse_integer_literal(token.lexeme.as_str(), kind)
@@ -275,7 +271,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// A nonnegative structural identity carried through the complete `u64`
     /// range. Unlike signed structural integers, stable schema identities are
     /// opaque unsigned keys rather than arithmetic values.
-    pub(super) fn take_identity(self) -> Result<(u64, Self), ParseError> {
+    pub(crate) fn take_identity(self) -> Result<(u64, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.integer_literal_kind() {
             let literal = parse_integer_literal(token.lexeme.as_str(), kind)
@@ -292,7 +288,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(super) fn take_string(self) -> Result<(String, Self), ParseError> {
+    pub(crate) fn take_string(self) -> Result<(String, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if token.is_string_literal() {
             let bytes = token.lexeme.as_bytes();
@@ -308,7 +304,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(super) fn take_string_bytes(self) -> Result<(std::sync::Arc<[u8]>, Self), ParseError> {
+    pub(crate) fn take_string_bytes(self) -> Result<(std::sync::Arc<[u8]>, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if token.is_string_literal() {
             Ok((std::sync::Arc::from(token.lexeme.as_bytes()), rest))
@@ -317,7 +313,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(super) fn take_float_text(self) -> Result<(SourceText, Self), ParseError> {
+    pub(crate) fn take_float_text(self) -> Result<(SourceText, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.float_literal_kind() {
             validate_float_literal(token.lexeme.as_str(), kind)
@@ -328,15 +324,15 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(super) fn expected_one_of_here(self, expected: &[&str]) -> ParseError {
+    pub(crate) fn expected_one_of_here(self, expected: &[&str]) -> ParseError {
         diagnostics::expected_one_of_here(self, expected)
     }
 
-    pub(super) fn at_keyword(&self, keyword: KeywordKind) -> bool {
+    pub(crate) fn at_keyword(&self, keyword: KeywordKind) -> bool {
         self.tokens.first().and_then(Token::keyword) == Some(keyword)
     }
 
-    pub(super) fn at_punctuation(&self, punctuation: PunctuationKind) -> bool {
+    pub(crate) fn at_punctuation(&self, punctuation: PunctuationKind) -> bool {
         if self.pending_greater {
             return punctuation == PunctuationKind::Greater;
         }
@@ -346,7 +342,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
                 && actual == Some(PunctuationKind::GreaterGreater))
     }
 
-    pub(super) fn at_contextual(&self, name: &str) -> bool {
+    pub(crate) fn at_contextual(&self, name: &str) -> bool {
         self.tokens.first().is_some_and(|token| {
             matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
                 && token.lexeme.as_str() == name
@@ -361,7 +357,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// followed (past trivia) by a string literal -- the prefixed-string shape
     /// (`utf16"..."`). A bare identifier followed by a string literal is never
     /// otherwise valid, so the peek cannot shadow user code. Consumes nothing.
-    pub(super) fn at_contextual_then_string(&self, name: &str) -> bool {
+    pub(crate) fn at_contextual_then_string(&self, name: &str) -> bool {
         let Some((first, rest)) = self.tokens.split_first() else {
             return false;
         };
@@ -373,7 +369,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             .is_some_and(|token| token.kind == TokenKind::StringLiteral)
     }
 
-    pub(super) fn at_identifier_then_contextual(&self, name: &str) -> bool {
+    pub(crate) fn at_identifier_then_contextual(&self, name: &str) -> bool {
         // `self.tokens[0]` is semantic (leading trivia was skipped in `new`), but
         // trivia between it and the next token is retained, so skip past it before
         // peeking the SECOND semantic token.
@@ -389,7 +385,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         })
     }
 
-    pub(super) fn at_name_like(&self) -> bool {
+    pub(crate) fn at_name_like(&self) -> bool {
         self.tokens
             .first()
             .is_some_and(is_identifier_token_for_parser)
@@ -397,13 +393,13 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     /// Whether the next token is an integer literal (the identity-number
     /// payload of a stable member identity, `#N name: Type;`.
-    pub(super) fn at_integer(&self) -> bool {
+    pub(crate) fn at_integer(&self) -> bool {
         self.tokens
             .first()
             .is_some_and(|token| token.integer_literal_kind().is_some())
     }
 
-    pub(super) fn has_newline_before(self, later: Self) -> bool {
+    pub(crate) fn has_newline_before(self, later: Self) -> bool {
         let skipped_count = self.tokens.len().saturating_sub(later.tokens.len());
         let mut index = skipped_count;
         while index > 0 {
@@ -440,7 +436,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(super) fn split_at_top_level_punctuation(
+    pub(crate) fn split_at_top_level_punctuation(
         self,
         delimiter: PunctuationKind,
         message: &str,
@@ -452,7 +448,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 }
 
-pub(super) fn is_identifier_token_for_parser(token: &Token<'_>) -> bool {
+pub(crate) fn is_identifier_token_for_parser(token: &Token<'_>) -> bool {
     match token.kind {
         TokenKind::Identifier => true,
         TokenKind::Keyword(keyword) => !keyword.is_strict_identifier_keyword(),
@@ -470,7 +466,7 @@ fn skip_non_semantic_tokens<'tokens, 'source>(
     &tokens[index..]
 }
 
-pub(super) fn parse_path_handle_span<'tokens, 'source>(
+pub(crate) fn parse_path_handle_span<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     mut append_member: impl FnMut(Identifier) -> Handle<Identifier>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<Identifier>> {

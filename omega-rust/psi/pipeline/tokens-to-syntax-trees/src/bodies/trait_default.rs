@@ -1,5 +1,6 @@
-use crate::bodies::statements::{parse_asm_block_statement_handles, parse_statement_handle};
-use crate::input::Input;
+use crate::bodies::statements::inline_assembly::parse_asm_block_statement_handles;
+use crate::bodies::statements::parse_statement::parse_statement_handle;
+use crate::input::token_cursor::Input;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use tokens::PunctuationKind;

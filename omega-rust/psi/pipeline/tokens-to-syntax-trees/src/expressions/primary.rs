@@ -1,10 +1,10 @@
 use crate::expressions::context::ExpressionContext;
-use crate::expressions::{
+use crate::expressions::parse_expression::{
     parse_expression_handle, parse_expression_handle_in,
     parse_expression_handle_without_struct_literals,
 };
-use crate::input::{Input, ParseResult, parse_path_handle_span};
-use crate::type_syntax::parse_type_reference_handle;
+use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::type_syntax::parse_type::parse_type_reference_handle;
 use numerics::literals::IntegerLiteral;
 use source::{SourceSpan, Span};
 use syntax_trees::SyntaxTrees;

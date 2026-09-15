@@ -1,7 +1,5 @@
-mod external_binding;
-
-use crate::input::{Input, ParseResult};
-use crate::type_syntax::parse_type_reference_handle;
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{GenericConformanceBound, SatisfiesClause};
@@ -21,7 +19,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
 
     loop {
         let ((trait_name, lifetime_arguments, arguments), mut rest) =
-            crate::contracts::conformance::parse_conformance_trait_application(
+            crate::contracts::conformance::parse_conformance::parse_conformance_trait_application(
                 syntax_trees,
                 input,
             )?;
@@ -62,12 +60,16 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
                 .take_identifier()
                 .is_ok_and(|(root, _)| root.as_str() == "Binding");
             if is_bootstrap_binding {
-                let (binding, next) = external_binding::parse_external_provider_binding(next)?;
+                let (binding, next) =
+                    super::external_binding::parse_external_provider_binding(next)?;
                 via = Some(binding);
                 rest = next;
             } else {
                 let (expression, next) =
-                    crate::expressions::parse_expression_handle(syntax_trees, next)?;
+                    crate::expressions::parse_expression::parse_expression_handle(
+                        syntax_trees,
+                        next,
+                    )?;
                 via_expression = expression;
                 rest = next;
             }
@@ -150,7 +152,7 @@ pub(crate) fn parse_satisfies_type_argument<'tokens, 'source>(
     if input
         .tokens
         .first()
-        .is_some_and(crate::input::is_identifier_token_for_parser)
+        .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
     {
         let (first, mut rest) = input.take_identifier()?;
         if rest.at_punctuation(PunctuationKind::ColonColon) {
@@ -203,7 +205,7 @@ pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
             } else {
                 saw_non_lifetime = true;
                 let (argument, next) =
-                    crate::contracts::conformance::parse_satisfies_type_argument(
+                    crate::contracts::conformance::parse_conformance::parse_satisfies_type_argument(
                         syntax_trees,
                         rest,
                     )?;
@@ -243,7 +245,7 @@ pub(crate) fn parse_generic_conformance_bounds<'tokens, 'source>(
             let (name, next) = rest.take_identifier()?;
             rest = next;
             let application = if let Some((application, next)) =
-                crate::expressions::try_parse_static_symbol_application(rest)?
+                crate::expressions::parse_postfix::try_parse_static_symbol_application(rest)?
             {
                 rest = next;
                 Some(application)

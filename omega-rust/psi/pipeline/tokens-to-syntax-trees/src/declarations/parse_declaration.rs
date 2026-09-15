@@ -1,35 +1,21 @@
-pub(crate) mod data;
-mod machines;
+use super::namespace::{parse_module_declaration, parse_package_declaration};
 
-mod capability;
-mod conformance;
-mod const_item;
-mod domain;
-mod measure;
-mod namespace;
-pub(super) mod operator;
-mod proposition;
-pub(super) mod trait_definition;
-mod use_item;
-
-use namespace::{parse_module_declaration, parse_package_declaration};
-
+use super::capability::parse_capability_definition;
+use super::const_item::parse_const_definition;
+use super::domain::parse_domain_definition;
+use super::measure::parse_measure_definition;
+use super::operator::parse_operator_definition;
+use super::proposition::parse_proposition_definition;
+use super::trait_definition::parse_trait_definition;
+use super::use_item::parse_use_item;
 use crate::declarations::data::{parse_boundary_data_definition, parse_data_definition};
 use crate::declarations::machines::parse_machine;
-use crate::input::{Input, ParseResult};
-use capability::parse_capability_definition;
-use const_item::parse_const_definition;
-use domain::parse_domain_definition;
-use measure::parse_measure_definition;
-use operator::parse_operator_definition;
-use proposition::parse_proposition_definition;
+use crate::input::token_cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 use tokens::{KeywordKind, PunctuationKind};
-use trait_definition::parse_trait_definition;
-use use_item::parse_use_item;
 
-pub(super) fn parse_item<'tokens, 'source>(
+pub(crate) fn parse_item<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Item> {
@@ -372,7 +358,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         && (rest.at_punctuation(PunctuationKind::Colon)
             || rest.at_punctuation(PunctuationKind::Less))
     {
-        return conformance::parse_conformance(syntax_trees, alias, rest);
+        return super::conformance::parse_conformance(syntax_trees, alias, rest);
     }
 
     // Retired subjectless order. Keeping this branch gives a directed

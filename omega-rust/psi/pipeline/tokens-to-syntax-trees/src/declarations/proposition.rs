@@ -1,9 +1,9 @@
-use crate::expressions::parse_expression_handle_without_struct_literals;
-use crate::input::{Input, ParseResult};
-use crate::parameters::generics::GenericParameterSyntax;
-use crate::parameters::generics::parse_generic_parameters;
-use crate::parameters::parse_optional_parameters;
-use crate::type_syntax::parse_type_reference_handle;
+use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals;
+use crate::input::token_cursor::{Input, ParseResult};
+use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
+use crate::parameters::parse_generic_parameters::parse_generic_parameters;
+use crate::parameters::parse_parameters::parse_optional_parameters;
+use crate::type_syntax::parse_type::parse_type_reference_handle;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{PropositionBody, PropositionDefinition};
 use tokens::PunctuationKind;
