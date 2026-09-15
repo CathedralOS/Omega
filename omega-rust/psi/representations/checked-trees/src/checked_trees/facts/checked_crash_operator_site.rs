@@ -2,7 +2,8 @@ use arena::Handle;
 use symbols::SymbolHandle;
 
 use crate::{
-    CheckedOperatorUseFact, CheckedValueOrigin, CrashRouteBucket, FlowOperatorInvocationFact,
+    CheckedNamedOperatorUseFact, CheckedOperatorUseFact, CheckedValueOrigin, CrashRouteBucket,
+    FlowOperatorInvocationFact,
 };
 
 /// One selected operator's crash obligations at its exact captured invocation.
@@ -17,6 +18,11 @@ use crate::{
 pub struct CheckedCrashOperatorSite {
     pub operator_use: Handle<CheckedOperatorUseFact>,
     pub invocation: Handle<FlowOperatorInvocationFact>,
+    /// A named `Namespace::requirement(...)` call has its own selected-use row
+    /// and no flow operator-invocation capture: `named_use` is valid while
+    /// `operator_use`/`invocation` stay invalid. Exactly one identity form is
+    /// valid on a site; spelled uses never set `named_use`.
+    pub named_use: Handle<CheckedNamedOperatorUseFact>,
     pub selected_operator: SymbolHandle,
     pub published: Vec<CrashRouteBucket>,
     pub surviving: Vec<CrashRouteBucket>,
@@ -27,7 +33,11 @@ impl CheckedCrashOperatorSite {
         // `facts/operator_crashes.rs` admits only `StateStatement` origins into
         // `checked_operators`, so the caller state and statement ordinal are
         // always recoverable from the retained use handle.
-        let origin = facts.operators.uses.get(self.operator_use).origin;
+        let origin = if self.named_use.is_valid() {
+            facts.operators.named_uses.get(self.named_use).origin
+        } else {
+            facts.operators.uses.get(self.operator_use).origin
+        };
         let (_machine_symbol, state_symbol, statement_index) = match origin {
             CheckedValueOrigin::StateStatement {
                 machine_symbol,

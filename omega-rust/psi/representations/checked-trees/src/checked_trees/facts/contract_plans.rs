@@ -1034,19 +1034,28 @@ impl CrashPlan {
         mut self,
         mut operators: Vec<super::CheckedCrashOperatorSite>,
     ) -> Option<Self> {
-        operators.sort_by_key(|site| {
-            (
-                site.operator_use.arena_index(),
-                site.operator_use.generation(),
-            )
-        });
+        // Exactly one identity form is valid on a site: a spelled use carries
+        // its `operator_use`/`invocation` pair, a named call its `named_use`.
+        let identity = |site: &super::CheckedCrashOperatorSite| {
+            if site.named_use.is_valid() {
+                (1, site.named_use.arena_index(), site.named_use.generation())
+            } else {
+                (
+                    0,
+                    site.operator_use.arena_index(),
+                    site.operator_use.generation(),
+                )
+            }
+        };
+        operators.sort_by_key(identity);
         if operators.iter().any(|site| {
-            !site.operator_use.is_valid()
-                || !site.invocation.is_valid()
-                || !site.selected_operator.is_valid()
+            !site.selected_operator.is_valid()
+                || site.operator_use.is_valid() == site.named_use.is_valid()
+                || (site.named_use.is_valid() && site.invocation.is_valid())
+                || (!site.named_use.is_valid() && !site.invocation.is_valid())
         }) || operators
             .windows(2)
-            .any(|sites| sites[0].operator_use == sites[1].operator_use)
+            .any(|sites| identity(&sites[0]) == identity(&sites[1]))
         {
             return None;
         }
