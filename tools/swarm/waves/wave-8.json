@@ -1,0 +1,157 @@
+{
+  "wave": "w8",
+  "max_acu_limit": 10,
+  "devin_mode": null,
+  "bypass_approval": true,
+  "resumable": true,
+  "tags": ["omega-swarm", "w8"],
+  "owner_label_prefix": "Jarod / swarm-w8",
+  "note": "Wave 8: eight concurrent linux cloud sessions spawned via builtin session creation (no DEVIN_API_KEY); devin_mode null so children inherit the org default (SWE-2 Max). structured_output_schema is attached at spawn this wave (fixes G3 from the program retrospect). owning_paths were seam-verified and routed around live claims: SPILL-REALIZATION holds machine-emission/frame_layout, machine-code, isa-*, register-homes/assignment until ~06:23Z; TERMINATION-RANKING-CHECKS holds checks/termination/ranking + validation/lib.rs until ~04:37Z; NOMINAL-FIELD-FLOW holds typed-trees flow/ + checks/contracts until ~06:15Z; RUNTIME-VALUE-GENERICS holds tests/omega/{pass,fail}/generics until ~06:15Z; BUILD-DEPENDENCY-PURPOSES holds omega/packages until ~04:25Z. exact-selection-families (armed automation, fires 08:30Z) claims rewrites/selected_lowering — declarative-peepholes holds it meanwhile and will have released well before.",
+  "exclusions": [
+    "EXACT-SELECTION-FAMILIES",
+    "TRANSLATION-VALIDATION",
+    "GENERAL-LICM",
+    "BOOTSTRAP-RUNTIME-SOURCE",
+    "SPILL-REALIZATION",
+    "MODULE-NAMESPACE-RESOLUTION",
+    "BUILD-DEPENDENCY-PURPOSES",
+    "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
+    "EXTERNAL-ENTRY-STACK-EPOCHS",
+    "TERMINATION-RANKING-CHECKS",
+    "OMEGA-D",
+    "SUBJECT-QUALIFIED-ARTIFACT-PROOFS",
+    "PER-RULE-COVERAGE",
+    "PROOF-KERNEL-CORE",
+    "CUSTODY-MUTATION-COVERAGE",
+    "ADDRESS-TRANSLATION-CANARY",
+    "RUNTIME-VALUE-GENERICS",
+    "NOMINAL-FIELD-FLOW",
+    "STRUCTURAL-BORROW-IDENTITY",
+    "GAMMA-DERIVATION-CHECKER",
+    "MATCH-SELECTIVE-LOWERING",
+    "SQUALR-HEADLESS",
+    "MACOS-APPLICATION-PUBLICATION",
+    "PSIIR",
+    "PROOF-CONTRACT-MIGRATION",
+    "PROOF-RELEVANCE-MIGRATION",
+    "NORMALIZED-ABI-LOWERING",
+    "PCC-CANONICAL-SEMANTIC-LEDGER",
+    "DELTA-COMPILER",
+    "UEFI-OS-HANDOFF",
+    "ALPHA-WINDOWS-CONFORMANCE",
+    "GENERATED-DIFFERENTIALS",
+    "UEFI-PHYSICAL-SEMANTIC-ENTRY",
+    "AP-BRINGUP",
+    "GENERAL-CYCLIC-EXECUTION",
+    "BOUNDED-INSTALLATION-REACH-ROWS",
+    "CRASH-CONTRACT",
+    "CRASH-GUARD-COST",
+    "PLAN-LAID-VIEWS",
+    "SYMBOLIC-MATERIALIZATION",
+    "TOPOLOGY-PLAN-VERIFICATION"
+  ],
+  "sessions": [
+    {
+      "name": "declarative-peepholes",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "DECLARATIVE-PEEPHOLES",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds"
+      ],
+      "suggested_first_slice": "Extend the landed pair descriptors (selected_lowering/literal_fold/pair_rule.rs) to one further role — a memory-, trap-, stack-, or control-flow-carrying form is the named gap. Keep the independent validator; do not add a new rewrites/mod.rs module (owned by exact-machine-simplifications this wave)."
+    },
+    {
+      "name": "exact-machine-simplifications",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "EXACT-MACHINE-SIMPLIFICATIONS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/copy_removal",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/address_folding",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/mod.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_compare",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_compare.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/redundant_extension",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/redundant_extension.rs"
+      ],
+      "suggested_first_slice": "One new independently-verifiable family: copy removal or address folding (new dirs are yours), or left-operand literal folding inside literal_compare. You own rewrites/mod.rs this wave for family registration."
+    },
+    {
+      "name": "alias-aware-memory",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "ALIAS-AWARE-MEMORY",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/load_forwarding.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/dead_store",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/dead_store.rs"
+      ],
+      "suggested_first_slice": "Cross-block coverage or killers beyond the exact Store/WritePlace pair, inside the existing load_forwarding/dead_store families. rewrites/mod.rs is owned by exact-machine-simplifications this wave — if the slice needs a new top-level module, report blocked."
+    },
+    {
+      "name": "general-call-clobbers",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "GENERAL-CALL-CLOBBERS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites"
+      ],
+      "suggested_first_slice": "Reload intervals that survive an intervening call, or structural-argument calls — the board names rewrites/runtime_spill.rs as the excluding seam. register-homes/src/assignment is claimed by SPILL-REALIZATION until ~06:23Z; keep writes in your owned paths."
+    },
+    {
+      "name": "frame-layout",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "FRAME-LAYOUT",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase",
+        "omega-rust/omega/backend/layout"
+      ],
+      "suggested_first_slice": "One of red-zone policy, unwind information, stable-address loans, or dynamic-allocation constraints. machine-emission/frame_layout, representations/machine-code, and isa-* are claimed by SPILL-REALIZATION until ~06:23Z — prefer a layout-planning slice in owned paths; if nothing bounds there, report blocked."
+    },
+    {
+      "name": "tpr6",
+      "board": "TASKS.md",
+      "item": "TPR6",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/progress",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/progress.rs",
+        "omega-rust/psi/semantics/validation/src/calls/expression_scanning"
+      ],
+      "suggested_first_slice": "One bounded slice: per-field arrivals through an opaque-reference, recursive-proof, or unresolved-generic leaf with exact provenance (progress/{origins,lineage}.rs), or realizing one projected nested value-call operand via validation/src/calls/expression_scanning/result_realization.rs. checks/termination/ranking, validation/src/lib.rs, and flow/ are claimed until ~04:37-06:15Z — steer to owned paths."
+    },
+    {
+      "name": "case-constraints",
+      "board": "TASKS.md",
+      "item": "CASE-CONSTRAINTS",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/data.rs",
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/state.rs",
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/preparation",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values/scalar/computations/cases.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values/scalar/case_membership.rs",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/scalar_graph/scalar_computations/cases"
+      ],
+      "suggested_first_slice": "One open line: generic `T == i32` establishment, or match-contributed case facts, or coverage through established contradictions. flow/ and checks/contracts are claimed by NOMINAL-FIELD-FLOW until ~06:15Z — prefer the generic-establishment slice; report blocked if it cannot be bounded without claimed dirs."
+    },
+    {
+      "name": "callback-private-materialization",
+      "board": "TASKS.md",
+      "item": "CALLBACK-PRIVATE-MATERIALIZATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/build/provider-planning",
+        "omega-rust/psi/compiler/terminal-production"
+      ],
+      "suggested_first_slice": "Plan-side slice: target-owned private callback slots through exact conformances and validated layout paths — callback_layout_catalog under provider-planning is the seam. backend/runtime/component-publication is claimed by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z; keep to planning/terminal-production writes or report blocked."
+    }
+  ]
+}
