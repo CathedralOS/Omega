@@ -146,14 +146,24 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   witnessed operation joins. These are engineering dependencies, not owner
   questions. Keep build-only packages explicitly unported.
 
-- **MACOS-APPLICATION-PUBLICATION.** Implement the
+- **MACOS-APPLICATION-PUBLICATION.** The
   [settled publication contract](wiki/spec/build/macos_application.md)
-  in build evaluation/realization inputs, Mach-O signing, command publication,
-  and compilation reports. Preserve flat/report validation and flat v1 digests.
-  Specify the identifier field in ordinary build vocabulary,
-  carry `CheckedCompilation::application_intent()` through native realization
-  separately from PE integers, and bind native signing identity before emission. Publish one whole validated `.app` with
-  distinct checked package-root and inner-executable accessors.
+  implementation is landed; the item stays open for host- and
+  dependency-gated acceptance.
+
+  Landed: `builder.identifier` is ordinary Build vocabulary validated in
+  `build-evaluation/src/configuration.rs` (`ApplicationIdentifier`);
+  `application_intent` travels separately from the PE subsystem word
+  through the checked compilation and the retained native proposal, which
+  also retains the authored `builder.application` name and identifier.
+  Signed macOS GUI image emission requires the identifier on both the
+  direct and retained routes; `compilation-report/src/package.rs` stages,
+  validates, and installs one whole `<name>.app`; reports expose
+  `checked_native_package_path()` separately from
+  `checked_native_executable_path()`; the package receipt cross-binds the
+  flat executable's v1 container digest; the CLI reports the package root
+  and the GUI canaries consume the checked accessors. The four GUI
+  `build.omg`s carry authored identifiers.
 
   Acceptance: the specification's stage-requiredness, deterministic bytes, cross-invocation,
   tampering, partial-output, and flat-regression controls pass; GUI samples carry
@@ -162,28 +172,26 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   inclusion/lookup for `image_viewer` remains outside v1; do not claim Finder
   runtime coverage for it or silently change its working directory.
 
-  The macOS ARM64 `window_app` [outer command](samples/gui/window_app/README.md)
-  passes ordinary package review on macOS ARM64: `Main::main` declares
-  `reaches Clock + Console + Gui + Input` (the other three GUI samples declare
-  their exact sets likewise), and the README documents the
-  `omega update --project ... --target macos_arm64` → accept pending rows →
-  `--resume` flow that publishes a checkout-local `omega.lock` (gitignored;
-  relocated checkouts re-review). The command then exits 1 at accepted-package
-  realization: `InvalidUnitMachinePlan` for `Main::main` — an attached Unit
-  closure missing a checked transitive machine plan for its cyclic state
-  machine, the same gap tracked under **GENERAL-CYCLIC-EXECUTION** (shared
-  with `print_squares` and the Squalr entry). The test-owned
-  `gui_samples_compile_from_authored_program_entry_bindings` route passes
-  all four GUI samples on both GUI targets once assignment guards narrow
-  nested binary operands (the `(col - 28) % 8` / `(row - 18) % 9`
-  bounded-target obligations needed `col`/`row` narrowed inside the
-  operand, not only at the operand's own spelling).
-  `sample_window_demo_runs_natively_exits_0` currently fails in test staging
-  (`omega_language_std/console.omg` missing from the staged temp package)
-  before sample compilation; unrelated to the reach declarations.
-  The checked intent owner is
-  `build-evaluation/src/lib.rs`, carried by `compiler/src/pipeline/checked_entry.rs`.
-  The retained native proposal still carries only the PE word.
+  Verified on macOS x86_64 at cf5dcf81e1 (aarch64 execution unavailable on
+  this Intel host): `mbx nextest run -p compilation-report` 12/12,
+  `mbx nextest run -p build-evaluation -p image-macho -p object-file`
+  181/181, `mbx nextest run -p compiler --test pcc_publication` 14/14, and
+  `mbx nextest run -p compiler --test build_target_activation -E
+  'test(/activation_identifiers_and_publication/)'` 15/15. The suite's two
+  remaining failures are the documented x86 FMA provider-transport
+  baseline (`wiki/drafts/known_baseline_failures.md`).
+
+  Still open: the procedural GUI cohort (`window_app`, `window_demo`,
+  `windowed_calculator`) end-to-end on macOS aarch64 —
+  `native_filesystem_canaries` execs the produced aarch64 Mach-O and needs
+  an aarch64 host; `sample_window_demo_runs_natively_exits_0` currently
+  fails in test staging (`omega_language_std/console.omg` missing from the
+  staged temp package) before sample compilation; and the `window_app`
+  [outer command](samples/gui/window_app/README.md) passes ordinary package
+  review but still stops at `InvalidUnitMachinePlan` for `Main::main`
+  (**GENERAL-CYCLIC-EXECUTION**), upstream of publication. The requested
+  native `.proof` sidecar inside the package waits on native PCC
+  (**PCC-PRODUCT-PUBLICATION**; `pcc.native` publication is `Incomplete`).
 
 - **SAMPLE-CORPUS.** Close the unchanged maintained programs through checked
   semantics and native execution. Start with the documented
