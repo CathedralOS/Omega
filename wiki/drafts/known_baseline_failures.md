@@ -36,15 +36,6 @@ fail in FMA demand and service-reach fixtures (`admitted_x86_fma_demand…`,
 `terminal_product_retains_exact_fma…`). Fixtures lack service-reach
 declarations; x86 FMA provider transport is unimplemented on this host.
 
-## compiler optimizer opt-in
-
-`mbx nextest run -p compiler --test optimizer_opt_in` — 27/29 pass;
-`x86_rel8_relaxation_selection_round_trips_but_remains_default_off` and
-`shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off`
-fail on stale "remains default-off" expectations from `3148b85798` — the
-rel8 layout relaxation and fixed-view-copy allocation recovery now execute
-through publication.
-
 ## native-realization
 
 `mbx nextest run -p native-realization --lib` — 79/83 pass;
