@@ -544,7 +544,8 @@ fn checked_operator_provider_reports_retain_strong_plan_authority() {
     let planning_path =
         root.join("omega-rust/omega/build/provider-planning/src/provider_planning.rs");
     let planning = fs::read_to_string(&planning_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", planning_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", planning_path.display()))
+        + &module_tree_source(&planning_path.with_extension(""));
     assert!(
         planning.contains("*plan.identity_digest().as_bytes()")
             && planning.contains("operator_use.provider_plan_commitment = commitment"),
