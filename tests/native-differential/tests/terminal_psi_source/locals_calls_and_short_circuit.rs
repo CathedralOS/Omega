@@ -57,7 +57,7 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
         .expect("terminal-Psi scalar-local source canary should compile");
     let lowered = lower_machine(&checked, "terminal_scalar_locals")
         .expect("immutable scalar locals should lower from checked plans");
-    let mut without_typed_frontend = checked.clone();
+    let mut without_typed_frontend = checked.clone().into_program();
     without_typed_frontend.typed = Default::default();
     assert_eq!(
         lower_machine(&without_typed_frontend, "terminal_scalar_locals")
