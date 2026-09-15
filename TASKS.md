@@ -391,8 +391,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   range-constrained parameter and result types: carrier classification
   unwraps range-only `Constrained` shells and the forward is selected only
   when the subject's enforced bounds fit inside every declared range, so an
-  unsatisfiable or non-range refinement still fails. Still open on this item:
-  diverging rank-input copies, call components with internal state arrivals,
+  unsatisfiable or non-range refinement still fails. Slice landed at
+  982dcfaf80 on Linux x86-64: runtime call components admit members whose
+  machines carry multiple states — each member's discovered entry telescope
+  is transported to the call site so authored subjects and endpoints
+  normalize to the atom the site actually holds. Internal arrivals and
+  self transitions stay with the member's own witness, requires clauses
+  remain entry-site evidence, write-frame protection covers the site's
+  non-self formals, mixed-range endpoint conservation still only covers
+  entry call sites, and a duplicated entry role stays unbound rather than
+  guessing between copies. Still open on this item:
+  diverging rank-input copies,
   exact slice-length/bounded-distance/custom-view arrival mappings, preserved
   premises, live write-frame evidence for mutable inputs, borrowed and nested
   custom-view projections, STATE-LOCAL-VALUE-FRONTIER retirement of generated
