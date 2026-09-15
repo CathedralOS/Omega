@@ -1,5 +1,17 @@
-use super::*;
-
+use super::super::{
+    claim_outcome_manifest_json, validate_content_conservation_plan,
+    validate_content_partition_lineage, validated_content_projection_plans,
+};
+use super::{
+    CheckedTrees, ContentAlgebraIdentity, ContentConservationEquation,
+    ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
+    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, ContentPlaceRoot,
+    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionPlan,
+    ContentScalarExpression, ContentStructuralPlace, DomainDefinition, Identifier, Machine,
+    SemanticDomainId, State, StateSignature, SymbolHandle, TraitDefinition, TypeReferenceNode,
+    conservation_report_fingerprint, content_partition_input_validation_fixture,
+    projection_report_fingerprint,
+};
 fn lineage_child_plan(parent: &ContentConservationPlan) -> ContentConservationPlan {
     fn drift_first_subject(term: &ContentConservationTerm) -> ContentConservationTerm {
         match term {

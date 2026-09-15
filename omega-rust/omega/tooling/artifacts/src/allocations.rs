@@ -146,7 +146,8 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for CountingAllocator<A> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{AllocationDelta, AllocationSnapshot, CountingAllocator, Layout, snapshot};
+    use std::alloc::GlobalAlloc;
 
     #[test]
     fn phase_deltas_preserve_deallocation_and_reversed_snapshot_behavior() {

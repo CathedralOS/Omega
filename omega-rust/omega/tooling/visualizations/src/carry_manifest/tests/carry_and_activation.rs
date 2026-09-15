@@ -1,5 +1,9 @@
-use super::*;
-
+use super::super::carry_manifest_json;
+use super::{
+    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, CheckedTrees,
+    ClaimCarryPolicyFact, DataCarryFact, Identifier, Machine, MachineActivationCarryFact, State,
+    SuspensionCrossingCarryFact, SymbolHandle, task_activation_manifest_json,
+};
 #[test]
 fn carry_manifest_keeps_authored_and_effective_policies_separate() {
     let symbol = SymbolHandle::from_arena_index(7);

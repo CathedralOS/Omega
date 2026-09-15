@@ -471,7 +471,11 @@ fn push_json_string(output: &mut String, value: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExecutionScope, OpaqueInProcessBinding, ProviderIdentity, SelectedProviderPlanFacts,
+        executable_tcb_manifest_json, executable_tcb_manifest_set_json,
+        executable_tcb_manifest_value_json,
+    };
     use effects::provider_plan::{
         EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
         EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
