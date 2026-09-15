@@ -1614,5 +1614,4 @@ impl InterruptTablePublication {
 }
 
 #[cfg(test)]
-#[path = "interrupt_table_tests.rs"]
 mod tests;

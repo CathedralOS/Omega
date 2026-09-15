@@ -12,12 +12,12 @@ use executable_installation::{ArtifactId, InstalledCode, InstalledCodeContext, I
 use installation_evidence::{ObjectEvidence, StackDemandEvidence};
 use layout_plans::EntryStubId;
 
-use super::{
+use crate::identities::Fnv1a;
+use crate::root_entry::root_admission::bind_terminal_function;
+use crate::{
     BoundEpochStackComposition, ExternalRootDiagnostic, ExternalRootId, NestingRelationId,
     RootProviderId, StackValidationReceiptId,
 };
-use crate::identities::Fnv1a;
-use crate::root_admission::bind_terminal_function;
 
 /// A terminal-Psi stack closure bound to the exact installed bytes and entry
 /// stub selected for one external root.
@@ -307,13 +307,13 @@ pub struct ComposedStackDemand {
     relation: NestingRelationId,
     stack: EntryStack,
     local_wcsu_bytes: u64,
-    pub(super) composed_wcsu_bytes: u64,
+    pub(crate) composed_wcsu_bytes: u64,
     wcsu_alignment: u64,
-    pub(super) contributing_roots: BTreeSet<ExternalRootId>,
+    pub(crate) contributing_roots: BTreeSet<ExternalRootId>,
     validation_receipts: BTreeSet<StackValidationReceiptId>,
     pub(super) composition_evidence: StackCompositionEvidence,
-    pub(super) non_authoritative_artifact_composition_report_fingerprint: u64,
-    pub(super) non_authoritative_composition_report_fingerprint: u64,
+    pub(crate) non_authoritative_artifact_composition_report_fingerprint: u64,
+    pub(crate) non_authoritative_composition_report_fingerprint: u64,
 }
 
 impl ComposedStackDemand {

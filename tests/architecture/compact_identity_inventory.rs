@@ -431,8 +431,9 @@ fn private_authority_carriers_retain_strong_subject_commitments() {
         root.join("omega-rust/omega/representations/calling-conventions/src/stack_realizations.rs");
     let stack = fs::read_to_string(&stack_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", stack_path.display()));
-    let roots_path =
-        root.join("omega-rust/omega/backend/runtime/external-roots/src/epoch_stack_demand.rs");
+    let roots_path = root.join(
+        "omega-rust/omega/backend/runtime/external-roots/src/stack_and_fuel/epoch_stack_demand.rs",
+    );
     let roots = fs::read_to_string(&roots_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", roots_path.display()));
     assert!(

@@ -986,5 +986,4 @@ impl SecondaryProcessorWithdrawError {
 }
 
 #[cfg(test)]
-#[path = "secondary_processor_tests.rs"]
 mod tests;

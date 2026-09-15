@@ -14,13 +14,13 @@ use layout_plans::{
     RelocationTarget,
 };
 
-use super::{
+use crate::identities::Fnv1a;
+use crate::{
     ExternalRootDiagnostic, ExternalRootEntryClaim, ExternalRootId, FixedFuelLocalEvidence,
     ProviderExecutionId, ProviderPlanId, RootEffectId, RootProviderId, StackLocalEvidence,
     StateValidationReceiptId, TrustReceiptId, ValidatedExternalRoot, validate_external_root,
     validate_installed_entry_fuel, validate_installed_entry_stack,
 };
-use crate::identities::Fnv1a;
 
 /// Evidence that an opaque provider cannot escape the boundary's admitted
 /// exit contract. An accepted claim is checked against the exact normalized
@@ -91,9 +91,9 @@ impl OpaqueProviderExitAssurance {
 /// evidence and never replace its structural replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderExecution {
-    pub(super) identity: ProviderExecutionId,
-    pub(super) root_evidence: ValidatedExternalRoot,
-    pub(super) provider_plan: ProviderPlanId,
+    pub(crate) identity: ProviderExecutionId,
+    pub(crate) root_evidence: ValidatedExternalRoot,
+    pub(crate) provider_plan: ProviderPlanId,
     pub(super) root: ExternalRootId,
     pub(super) normalized_root_report_identity: u64,
     pub(super) provider: RootProviderId,
@@ -106,7 +106,7 @@ pub struct ProviderExecution {
     pub(super) exit_assurance: OpaqueProviderExitAssurance,
     pub(super) exit_assurance_report_fingerprint: u64,
     pub(super) effects: BTreeSet<RootEffectId>,
-    pub(super) normalized_report_identity: u64,
+    pub(crate) normalized_report_identity: u64,
 }
 
 /// Non-constructible evidence that the external-root ledger admitted one exact
@@ -134,13 +134,13 @@ pub struct AdmittedProviderExecution {
 pub struct PreparedExternalRootPostHandoffWriterInvocation {
     pub(super) provider_execution: AdmittedProviderExecution,
     pub(super) provider_execution_evidence: ProviderExecution,
-    pub(super) root_evidence: ValidatedExternalRoot,
+    pub(crate) root_evidence: ValidatedExternalRoot,
     pub(super) selected_entry: EntryStubId,
-    pub(super) selected_entry_source_slot: usize,
+    pub(crate) selected_entry_source_slot: usize,
     pub(super) architecture: target::Architecture,
-    pub(super) invocation: PostHandoffWriterInvocationPlan,
-    pub(super) writer: PostHandoffWriterPlan,
-    pub(super) context: ResolvedPostHandoffEntryWriterContext,
+    pub(crate) invocation: PostHandoffWriterInvocationPlan,
+    pub(crate) writer: PostHandoffWriterPlan,
+    pub(crate) context: ResolvedPostHandoffEntryWriterContext,
 }
 
 /// Still-unpublished destination retaining the exact selected external-root
@@ -243,7 +243,7 @@ impl<'mapping, 'bytes> PreparedExternalRootWriterExecutionError<'mapping, 'bytes
 }
 
 impl PreparedExternalRootPostHandoffWriterInvocation {
-    pub(super) fn validate_execution(
+    pub(crate) fn validate_execution(
         &self,
         installed_code: &InstalledCode,
     ) -> Result<(), layout_plans::MaterializationDiagnostic> {
@@ -1050,7 +1050,7 @@ impl ProviderExecution {
         self.exit_assurance_report_fingerprint
     }
 
-    pub(super) fn matches_root(&self, root: &ValidatedExternalRoot) -> bool {
+    pub(crate) fn matches_root(&self, root: &ValidatedExternalRoot) -> bool {
         let candidate = root.candidate();
         self.root_evidence == *root
             && self.root == candidate.identity
@@ -1077,7 +1077,7 @@ impl ProviderExecution {
             && self.effects == candidate.effects
     }
 
-    pub(super) fn validate_installed_entry_binding(
+    pub(crate) fn validate_installed_entry_binding(
         &self,
         installed_code: &InstalledCode,
     ) -> Result<(), ExternalRootDiagnostic> {

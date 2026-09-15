@@ -16,52 +16,24 @@
 //! evidence family: fuel, stack demand, program-local roots and extents,
 //! provider execution, progress profiles, interrupt tables, secondary
 //! processors and UEFI bootstrap.
+//!
+//! The evidence families are grouped into folders: `root_entry/`,
+//! `interrupts/`, `stack_and_fuel/`, `program_local/` and
+//! `platform_bringup/`, each opened by a route file that lists its modules.
 
 mod diagnostic;
-mod epoch_stack_demand;
-mod fixed_fuel;
 mod identities;
 mod installed_root_ledger;
-mod interrupt_entries;
-mod interrupt_masks;
-mod interrupt_table;
-mod opaque_callback_replacement;
-mod program_local_extents;
-mod program_local_roots;
-mod progress_profile_installation;
-mod provider_execution;
-mod required_root_slots;
-mod root_admission;
-mod root_validation;
-mod secondary_processor;
-mod stack_demand;
+mod interrupts;
+mod platform_bringup;
+mod program_local;
+mod root_entry;
+mod stack_and_fuel;
 #[cfg(test)]
 mod tests;
-mod uefi_bootstrap;
 
 pub use diagnostic::ExternalRootDiagnostic;
-pub use epoch_stack_demand::{
-    AdapterStackRealizationOrigin, AdmittedOpaqueArrivalContextSet, ArrivalStackRealizationOrigin,
-    BoundEpochStackComposition, BoundEpochStackCompositionInput, ComposedEpochStackDemand,
-    DomainStackDemand, EntryStackRealizationEvidence, EpochStackComposition,
-    EpochStackCompositionInput, GeneratedProgramStorageAdapterLiveFrameDemand,
-    GeneratedProgramStorageAdapterStackEvidence, InstalledX86_64TargetDerivedHardwareArrival,
-    ValidatedX86_64InstalledGateProfileRoster, X86_64GeneratedProgramStorageAdapterEmission,
-    admit_opaque_arrival_context_set, bind_direct_generated_entry_stack_realization,
-    bind_opaque_adapter_stack_realization,
-    bind_x86_64_generated_program_storage_adapter_stack_realization,
-    bind_x86_64_target_direct_entry_stack_realization, compose_bound_entry_stack_epochs,
-    compose_entry_stack_epochs, derive_generated_program_storage_adapter_live_frame_demand,
-    produce_x86_64_installed_hardware_entry_facts, validate_x86_64_installed_gate_profile_roster,
-};
 pub use executable_installation::{ArtifactId, InstallationScopeId, InstalledCodeId};
-pub use fixed_fuel::{
-    ComposedFuelDemand, FixedFuelCall, FixedFuelLocalEvidence, FixedFuelProviderSummary,
-    InstalledEntryFuelCertificate, InstalledSegmentFuelCatalog, InstalledSegmentFuelCertificate,
-    LogicalFuelResourceColumn, bind_installed_entry_fuel, bind_installed_segment_fuel,
-    bind_installed_segment_fuel_catalog, compose_fixed_fuel, validate_installed_entry_fuel,
-    validate_installed_segment_fuel, validate_installed_segment_fuel_catalog,
-};
 pub use identities::{
     AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
     ComponentVersionPinId, ExternalRootId, FuelProvisionId, FuelValidationReceiptId,
@@ -93,17 +65,17 @@ pub use installed_root_ledger::{
     InstalledExternalRoot, InstalledRootLedger, InstalledRootRecord, InstalledRootRemoval,
     InstalledRootTeardownError, RootInstallError, RootRemovalError, RootRemovalReceipt,
 };
-pub use interrupt_entries::{
+pub use interrupts::interrupt_entries::{
     CompletedInterruptAcknowledgement, CompletedInterruptEntry, InstalledInterruptCompletionRoute,
     InterruptAcknowledgement, InterruptAcknowledgementError, InterruptAcknowledgementReceipt,
     InterruptEntryFinishError, InterruptEntryObligations, InterruptEntryReceipt,
     InterruptEntryStartError, PendingInterruptExit,
 };
-pub use interrupt_masks::{
+pub use interrupts::interrupt_masks::{
     InterruptMaskControl, InterruptMaskGuard, InterruptMaskRestoreError,
     InterruptMaskRestoreReceipt, InterruptMaskSaveError, InterruptMaskSaveReceipt,
 };
-pub use interrupt_table::{
+pub use interrupts::interrupt_table::{
     EstablishedInterruptTable, ExecutedInterruptTablePublication,
     INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES, InterruptDescriptorTableState,
     InterruptTableAdmissionError, InterruptTableClose, InterruptTableCompletionError,
@@ -115,65 +87,7 @@ pub use interrupt_table::{
     InterruptTablePublicationRefusal, InterruptTablePublicationScope, PublishedInterruptTable,
     X86_64_GATE_DESCRIPTOR_BYTES, X86_64_IST_SLOT_LIMIT,
 };
-pub use opaque_callback_replacement::{
-    CompletedOpaqueCallbackUnregistration, OpaqueCallbackRegistrationCapacityOccurrence,
-    OpaqueCallbackRegistrationError, OpaqueCallbackRegistrationReceipt,
-    OpaqueCallbackUnregistrationError, OpaqueCallbackUnregistrationReceipt,
-    ProcessLifetimeGatewayAdmissionError, ProcessLifetimeGatewayAdmissionReceipt,
-    ProcessLifetimeOpaqueCallback, ReclaimableOpaqueCallback,
-    admit_process_lifetime_opaque_callback, admit_reclaimable_opaque_callback,
-};
-pub use program_local_extents::{
-    ProgramLocalExtentMaterializationError, ProgramLocalExtentRegistry,
-    ProgramLocalExtentRetirementError, ReleasedRetainedForeignArgument, RetainedForeignAccess,
-    RetainedForeignArgument, RetainedForeignArgumentDisposition, RetainedForeignArgumentError,
-    RetainedForeignArgumentId, RetainedForeignArgumentRequest, RetiredProgramLocalExtent,
-};
-pub use program_local_roots::{
-    EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,
-    InstalledProgramLocalRootEpochCohort, InstalledProgramLocalRootEpochCohortId,
-    InstalledProgramLocalRootOccurrence, InstalledProgramLocalRootOccurrenceId,
-    InstalledProgramLocalRootSubject, ProgramLocalRootBatchEstablishmentError,
-    ProgramLocalRootCoexistenceReport, ProgramLocalRootCohortMember,
-    ProgramLocalRootCohortSealError, ProgramLocalRootEntryInvocationId,
-    ProgramLocalRootEpochAggregate, ProgramLocalRootEpochAggregateCapacity,
-    ProgramLocalRootEpochAggregateSnapshot, ProgramLocalRootEpochRuntime,
-    ProgramLocalRootEstablishmentError, ProgramLocalRootInstallationLedger,
-    ProgramLocalRootInstalledPrebinding, ProgramLocalRootInstalledPrebindingCount,
-    ProgramLocalRootLineageId, ProgramLocalRootOccurrenceRetirementError,
-    ProgramLocalRootPrebindingId, ProgramLocalRootRetirementError, ProgramLocalRootScalarBinding,
-    ProgramLocalRootScalarSource, ProgramLocalRootSchemaDigest, ProgramLocalRootSubjectPlaceId,
-    RetiredProgramLocalRootOccurrence, compose_program_local_root_coexistence_report,
-};
-pub use progress_profile_installation::{
-    AdmittedProgressProfileEstablishment, ComponentProgressDemandIdentity,
-    ComponentProgressReceiptBinding, ComponentProgressSealError, InstalledComponentProgressClosure,
-    InstalledProviderOccurrence, InstalledProviderOccurrenceClosure,
-    ProgressProfileEstablishmentAdmissionError, ProgressProfileEstablishmentAttestation,
-    ProviderOccurrenceInstallationReceipt, ProviderOccurrencePlanBinding,
-};
-pub use provider_execution::{
-    AdmittedProviderExecution, OpaqueProviderExitAssurance,
-    PreparedExternalRootPostHandoffWriterInvocation, PreparedExternalRootWriterExecutionError,
-    ProviderExecution, ValidatedWrittenExternalRootPostHandoffWriterDestination,
-    WrittenExternalRootConsumerValidationError, WrittenExternalRootPostHandoffWriterDestination,
-    WrittenExternalRootWriterRecoveryError,
-};
-pub use required_root_slots::{
-    InstalledRequiredRootSlot, InstalledRequiredRootSlotClosure, TargetRequiredRootSlotSelection,
-    VerifiedRequiredRootSlot, VerifiedRequiredRootSlotClosure,
-    verify_target_required_root_slot_closure,
-};
-pub use root_admission::{
-    AdmittedEntryQualification, AdmittedEntrySubject, AdmittedResultQualification,
-    AdmittedResultSubject, RootAdmission, RootSlotAuthority,
-};
-pub use root_validation::{
-    ComponentVersionPin, ExternalRootCandidate, ExternalRootEntryClaim, ExternalRootResultClaim,
-    MachineStateResourceColumn, ResolvedRootServiceReach, ValidatedExternalRoot,
-    validate_external_root,
-};
-pub use secondary_processor::{
+pub use platform_bringup::secondary_processor::{
     InstalledSecondaryProcessorTrampoline, SecondaryProcessorAccount,
     SecondaryProcessorAccountError, SecondaryProcessorAdmissionError, SecondaryProcessorBindError,
     SecondaryProcessorCompletionError, SecondaryProcessorRecord,
@@ -184,13 +98,7 @@ pub use secondary_processor::{
     SecondaryProcessorWithdrawError, SecondaryProcessorWithdrawal,
     bind_secondary_processor_trampoline,
 };
-pub use semantic_vocabulary::FuelScheduleIdentity;
-pub use stack_demand::{
-    ArtifactStackComposition, ComposedStackDemand, InstalledEntryStackDemand, ProviderStackSummary,
-    StackDomain, StackLocalEvidence, StackNestingEdge, StackNestingRelation, StackResourceColumn,
-    bind_installed_entry_stack, compose_artifact_stacks, validate_installed_entry_stack,
-};
-pub use uefi_bootstrap::{
+pub use platform_bringup::uefi_bootstrap::{
     BoundUefiExitBootServicesInvocation, BoundUefiGetMemoryMapInvocation,
     BoundUefiHandleProtocolInvocation, ExecutedUefiExitBootServicesInvocation,
     ExecutedUefiGetMemoryMapInvocation, ExecutedUefiHandleProtocolInvocation,
@@ -237,4 +145,89 @@ pub use uefi_bootstrap::{
     prepare_uefi_application_bootstrap_adapter_invocation,
     prepare_uefi_exit_boot_services_invocation, prepare_uefi_get_memory_map_invocation,
     prepare_uefi_loaded_image_handle_protocol_invocation, project_uefi_application_boot_services,
+};
+pub use program_local::program_local_extents::{
+    ProgramLocalExtentMaterializationError, ProgramLocalExtentRegistry,
+    ProgramLocalExtentRetirementError, ReleasedRetainedForeignArgument, RetainedForeignAccess,
+    RetainedForeignArgument, RetainedForeignArgumentDisposition, RetainedForeignArgumentError,
+    RetainedForeignArgumentId, RetainedForeignArgumentRequest, RetiredProgramLocalExtent,
+};
+pub use program_local::program_local_roots::{
+    EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,
+    InstalledProgramLocalRootEpochCohort, InstalledProgramLocalRootEpochCohortId,
+    InstalledProgramLocalRootOccurrence, InstalledProgramLocalRootOccurrenceId,
+    InstalledProgramLocalRootSubject, ProgramLocalRootBatchEstablishmentError,
+    ProgramLocalRootCoexistenceReport, ProgramLocalRootCohortMember,
+    ProgramLocalRootCohortSealError, ProgramLocalRootEntryInvocationId,
+    ProgramLocalRootEpochAggregate, ProgramLocalRootEpochAggregateCapacity,
+    ProgramLocalRootEpochAggregateSnapshot, ProgramLocalRootEpochRuntime,
+    ProgramLocalRootEstablishmentError, ProgramLocalRootInstallationLedger,
+    ProgramLocalRootInstalledPrebinding, ProgramLocalRootInstalledPrebindingCount,
+    ProgramLocalRootLineageId, ProgramLocalRootOccurrenceRetirementError,
+    ProgramLocalRootPrebindingId, ProgramLocalRootRetirementError, ProgramLocalRootScalarBinding,
+    ProgramLocalRootScalarSource, ProgramLocalRootSchemaDigest, ProgramLocalRootSubjectPlaceId,
+    RetiredProgramLocalRootOccurrence, compose_program_local_root_coexistence_report,
+};
+pub use root_entry::opaque_callback_replacement::{
+    CompletedOpaqueCallbackUnregistration, OpaqueCallbackRegistrationCapacityOccurrence,
+    OpaqueCallbackRegistrationError, OpaqueCallbackRegistrationReceipt,
+    OpaqueCallbackUnregistrationError, OpaqueCallbackUnregistrationReceipt,
+    ProcessLifetimeGatewayAdmissionError, ProcessLifetimeGatewayAdmissionReceipt,
+    ProcessLifetimeOpaqueCallback, ReclaimableOpaqueCallback,
+    admit_process_lifetime_opaque_callback, admit_reclaimable_opaque_callback,
+};
+pub use root_entry::progress_profile_installation::{
+    AdmittedProgressProfileEstablishment, ComponentProgressDemandIdentity,
+    ComponentProgressReceiptBinding, ComponentProgressSealError, InstalledComponentProgressClosure,
+    InstalledProviderOccurrence, InstalledProviderOccurrenceClosure,
+    ProgressProfileEstablishmentAdmissionError, ProgressProfileEstablishmentAttestation,
+    ProviderOccurrenceInstallationReceipt, ProviderOccurrencePlanBinding,
+};
+pub use root_entry::provider_execution::{
+    AdmittedProviderExecution, OpaqueProviderExitAssurance,
+    PreparedExternalRootPostHandoffWriterInvocation, PreparedExternalRootWriterExecutionError,
+    ProviderExecution, ValidatedWrittenExternalRootPostHandoffWriterDestination,
+    WrittenExternalRootConsumerValidationError, WrittenExternalRootPostHandoffWriterDestination,
+    WrittenExternalRootWriterRecoveryError,
+};
+pub use root_entry::required_root_slots::{
+    InstalledRequiredRootSlot, InstalledRequiredRootSlotClosure, TargetRequiredRootSlotSelection,
+    VerifiedRequiredRootSlot, VerifiedRequiredRootSlotClosure,
+    verify_target_required_root_slot_closure,
+};
+pub use root_entry::root_admission::{
+    AdmittedEntryQualification, AdmittedEntrySubject, AdmittedResultQualification,
+    AdmittedResultSubject, RootAdmission, RootSlotAuthority,
+};
+pub use root_entry::root_validation::{
+    ComponentVersionPin, ExternalRootCandidate, ExternalRootEntryClaim, ExternalRootResultClaim,
+    MachineStateResourceColumn, ResolvedRootServiceReach, ValidatedExternalRoot,
+    validate_external_root,
+};
+pub use semantic_vocabulary::FuelScheduleIdentity;
+pub use stack_and_fuel::epoch_stack_demand::{
+    AdapterStackRealizationOrigin, AdmittedOpaqueArrivalContextSet, ArrivalStackRealizationOrigin,
+    BoundEpochStackComposition, BoundEpochStackCompositionInput, ComposedEpochStackDemand,
+    DomainStackDemand, EntryStackRealizationEvidence, EpochStackComposition,
+    EpochStackCompositionInput, GeneratedProgramStorageAdapterLiveFrameDemand,
+    GeneratedProgramStorageAdapterStackEvidence, InstalledX86_64TargetDerivedHardwareArrival,
+    ValidatedX86_64InstalledGateProfileRoster, X86_64GeneratedProgramStorageAdapterEmission,
+    admit_opaque_arrival_context_set, bind_direct_generated_entry_stack_realization,
+    bind_opaque_adapter_stack_realization,
+    bind_x86_64_generated_program_storage_adapter_stack_realization,
+    bind_x86_64_target_direct_entry_stack_realization, compose_bound_entry_stack_epochs,
+    compose_entry_stack_epochs, derive_generated_program_storage_adapter_live_frame_demand,
+    produce_x86_64_installed_hardware_entry_facts, validate_x86_64_installed_gate_profile_roster,
+};
+pub use stack_and_fuel::fixed_fuel::{
+    ComposedFuelDemand, FixedFuelCall, FixedFuelLocalEvidence, FixedFuelProviderSummary,
+    InstalledEntryFuelCertificate, InstalledSegmentFuelCatalog, InstalledSegmentFuelCertificate,
+    LogicalFuelResourceColumn, bind_installed_entry_fuel, bind_installed_segment_fuel,
+    bind_installed_segment_fuel_catalog, compose_fixed_fuel, validate_installed_entry_fuel,
+    validate_installed_segment_fuel, validate_installed_segment_fuel_catalog,
+};
+pub use stack_and_fuel::stack_demand::{
+    ArtifactStackComposition, ComposedStackDemand, InstalledEntryStackDemand, ProviderStackSummary,
+    StackDomain, StackLocalEvidence, StackNestingEdge, StackNestingRelation, StackResourceColumn,
+    bind_installed_entry_stack, compose_artifact_stacks, validate_installed_entry_stack,
 };

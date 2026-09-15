@@ -17,12 +17,12 @@ use terminal_codec::{
 };
 use terminal_psi::TerminalPsiIdentity;
 
-use super::{
+use crate::root_entry::root_admission::bind_terminal_function;
+use crate::{
     ExternalRootDiagnostic, ExternalRootId, InstalledExternalRoot,
     InstalledRequiredRootSlotClosure, InstalledRootLedger, ObjectEvidence, ProviderExecutionId,
     RootAdmissionId, RootSlotId, RootSlotOwnerId,
 };
-use crate::root_admission::bind_terminal_function;
 
 /// Collision-resistant commitment to every exact, resolved producer-schema
 /// field consumed by program-local root installation.

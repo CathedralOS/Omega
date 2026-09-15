@@ -28,13 +28,13 @@ use isa_x86_64::{
 };
 use layout_plans::EntryStubId;
 
-use super::stack_demand::fingerprint_stack_local_evidence;
-use super::{
+use crate::identities::Fnv1a;
+use crate::stack_and_fuel::stack_demand::fingerprint_stack_local_evidence;
+use crate::{
     ExternalRootDiagnostic, ExternalRootId, ProviderStackSummary, RootProviderId, StackDomain,
     StackLocalEvidence, StackNestingRelation, StackValidationReceiptId,
     X86_64GateProfileValidationReceiptId,
 };
-use crate::identities::Fnv1a;
 
 /// Structurally closed input to epoch composition.
 ///
@@ -452,7 +452,7 @@ impl EntryStackRealizationEvidence {
         self.validation_receipt
     }
 
-    pub(super) fn matches_installed_code_entry(
+    pub(crate) fn matches_installed_code_entry(
         &self,
         installed_code: &InstalledCode,
         entry: EntryStubId,
@@ -1837,12 +1837,14 @@ fn append_demand(
 ) -> Result<(), ExternalRootDiagnostic> {
     match demands.get_mut(&domain) {
         Some(existing) => {
-            existing.bytes =
-                super::stack_demand::align_up_checked(existing.bytes, appended.alignment)?
-                    .checked_add(appended.bytes)
-                    .ok_or_else(|| {
-                        ExternalRootDiagnostic("stack epoch demand addition overflowed".into())
-                    })?;
+            existing.bytes = crate::stack_and_fuel::stack_demand::align_up_checked(
+                existing.bytes,
+                appended.alignment,
+            )?
+            .checked_add(appended.bytes)
+            .ok_or_else(|| {
+                ExternalRootDiagnostic("stack epoch demand addition overflowed".into())
+            })?;
             existing.alignment = existing.alignment.max(appended.alignment);
         }
         None => {
@@ -1891,13 +1893,13 @@ fn non_authoritative_epoch_stack_inputs_report_fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use super::super::{NestingRelationId, StackNestingEdge};
     use super::{
         BTreeSet, DomainStackDemand, EntryStackStage, EpochStackCompositionInput,
         ExternalRootDiagnostic, ExternalRootId, Preemption, RootProviderId, StackDomain,
         StackDomainRef, StackNestingRelation, ValidatedEntryStackRealization,
         compose_entry_stack_epochs,
     };
+    use crate::{NestingRelationId, StackNestingEdge};
     use calling_conventions::{
         ArrivalContextId, ArrivalContextRealization, EntryStackEpoch, EntryStackRealization,
         StackOccupancy, validate_entry_stack_realization,

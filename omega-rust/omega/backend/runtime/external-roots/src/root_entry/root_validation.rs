@@ -11,13 +11,13 @@ use effects::{
 use layout_plans::EntryStubId;
 use terminal_psi::{ServiceDeclaration, TerminalModule, TerminalRootServiceReach};
 
-use super::{
+use crate::identities::Fnv1a;
+use crate::{
     AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
     ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId, LogicalFuelResourceColumn,
     NestingRelationId, ProviderPlanId, RootEffectId, RootProviderId, StackResourceColumn,
     StateValidationReceiptId, TrustReceiptId,
 };
-use crate::identities::Fnv1a;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentVersionPin {

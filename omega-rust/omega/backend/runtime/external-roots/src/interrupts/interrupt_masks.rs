@@ -2,7 +2,7 @@
 //! holds the masked state, and the restore receipt that settles it.
 
 use crate::ExternalRootResultClaim;
-use crate::interrupt_entries::InterruptInvocationEvidence;
+use crate::interrupts::interrupt_entries::InterruptInvocationEvidence;
 use crate::{
     AdmittedResultQualification, AdmittedResultSubject, ExternalRootDiagnostic, ExternalRootId,
     InterruptInvocationId, InterruptMaskControlId, InterruptMaskGuardId, InterruptMaskStateId,

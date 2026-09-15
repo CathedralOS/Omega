@@ -12,12 +12,12 @@ use installation_evidence::ObjectEvidence;
 use layout_plans::EntryStubId;
 use semantic_vocabulary::FuelScheduleIdentity;
 
-use super::{
+use crate::identities::Fnv1a;
+use crate::root_entry::root_admission::bind_terminal_function;
+use crate::{
     ExternalRootDiagnostic, FuelProvisionId, FuelValidationReceiptId, ProviderFuelSummaryId,
     ProviderFuelValidationReceiptId, RootProviderId,
 };
-use crate::identities::Fnv1a;
-use crate::root_admission::bind_terminal_function;
 
 /// One bounded call edge in a fixed-fuel provider summary. Multiplicity is
 /// explicit: a set of callees alone cannot distinguish one invocation from a
@@ -424,8 +424,8 @@ impl FixedFuelProviderSummary {
 /// The compact composition fingerprint is presentation identity only; root
 /// admission compares this graph through the sealed demand value itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct FixedFuelCompositionEvidence {
-    pub(super) summaries: BTreeMap<ProviderFuelSummaryId, FixedFuelProviderSummary>,
+pub(crate) struct FixedFuelCompositionEvidence {
+    pub(crate) summaries: BTreeMap<ProviderFuelSummaryId, FixedFuelProviderSummary>,
 }
 
 /// Canonical transitive result of a fixed-fuel provider graph. The private
@@ -435,11 +435,11 @@ pub struct ComposedFuelDemand {
     root: ProviderFuelSummaryId,
     root_provider: RootProviderId,
     schedule: FuelScheduleIdentity,
-    pub(super) units: u64,
-    pub(super) summaries: BTreeSet<ProviderFuelSummaryId>,
-    pub(super) provider_receipts: BTreeSet<ProviderFuelValidationReceiptId>,
-    pub(super) composition_evidence: FixedFuelCompositionEvidence,
-    pub(super) non_authoritative_composition_report_fingerprint: u64,
+    pub(crate) units: u64,
+    pub(crate) summaries: BTreeSet<ProviderFuelSummaryId>,
+    pub(crate) provider_receipts: BTreeSet<ProviderFuelValidationReceiptId>,
+    pub(crate) composition_evidence: FixedFuelCompositionEvidence,
+    pub(crate) non_authoritative_composition_report_fingerprint: u64,
 }
 
 impl ComposedFuelDemand {
@@ -695,7 +695,6 @@ fn write_fixed_fuel_local_evidence_to_report_fingerprint(
 }
 
 #[cfg(test)]
-#[path = "fixed_fuel_tests.rs"]
 mod tests;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

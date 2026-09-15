@@ -1,4 +1,5 @@
-use super::{
+use crate::installed_root_ledger::InstalledRootEvidence;
+use crate::{
     ExternalRootDiagnostic, ExternalRootId, GatewayAdmissionReceiptId, GatewayDispatchContractId,
     InstalledCodeId, InstalledExternalRoot, InstalledRootLedger, OpaqueCallbackProviderId,
     OpaqueCallbackRegistrationCapacityOccurrenceId, OpaqueCallbackRegistrationId,
@@ -6,7 +7,6 @@ use super::{
     OpaqueCallbackUnregistrationReceiptId, ProcessLifetimeGatewayId, RootRemovalReceipt,
     RootRemovalReceiptId, RootSlotAuthority,
 };
-use crate::installed_root_ledger::InstalledRootEvidence;
 use executable_installation::InstalledCode;
 use executable_installation::InstalledCodeContext;
 use layout_plans::EntryStubId;
