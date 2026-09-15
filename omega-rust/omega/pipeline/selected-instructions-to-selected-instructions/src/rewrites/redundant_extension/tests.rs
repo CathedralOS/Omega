@@ -1,3 +1,9 @@
+use crate::RedundantExtensionError;
+use crate::RedundantExtensionReceipt;
+use crate::ValidatedRedundantExtension;
+use crate::ValidatedSelectedAnalysis;
+use crate::remove_selected_redundant_extension;
+use crate::validate_redundant_extension_removal;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
@@ -14,9 +20,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-use super::*;
-use crate::ValidatedSelectedAnalysis;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()

@@ -1,5 +1,7 @@
 //! Wire and strong-identity custody of explicit edge transport; no rewrite admission is inferred.
-use super::*;
+use crate::FixedViewCopyPlan;
+use crate::FixedViewCopyPolicy;
+use crate::codec::tests::plan;
 use selected_instructions::{
     SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };

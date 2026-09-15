@@ -60,7 +60,9 @@ pub(super) fn decode_argument_source(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BlockId, Cursor, OperationId, PlaceId, TargetStructuralArgumentSource};
+    use crate::codec::selected::structural::argument_source::decode_argument_source;
+    use crate::codec::selected::structural::argument_source::encode_argument_source;
     use calling_conventions::{ValueClass, ValuePlacement, ValueShape};
 
     #[test]

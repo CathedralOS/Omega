@@ -1,3 +1,9 @@
+use super::Arc;
+use crate::RuntimeRematerializationError;
+use crate::RuntimeRematerializationReceipt;
+use crate::ValidatedRuntimeRematerialization;
+use crate::rematerialize_selected_runtime_value;
+use crate::validate_runtime_rematerialization;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
@@ -14,8 +20,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-use super::*;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()

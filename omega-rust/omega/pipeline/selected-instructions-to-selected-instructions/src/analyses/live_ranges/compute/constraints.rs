@@ -1,6 +1,9 @@
 //! Tied-operand and early-clobber constraint derivation.
-
-use super::*;
+use super::{
+    BTreeSet, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, RegisterOperandAccess,
+    VirtualRegisterId,
+};
+use super::{LiveRangeError, after_point, before_point};
 
 pub(crate) fn derive_early_clobbers(
     function: usize,

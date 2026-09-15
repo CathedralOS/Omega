@@ -1,4 +1,8 @@
-use crate::*;
+use crate::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
+    FixedPrecoloredSplitRequirementPlan, FixedPrecoloredSplitRequirementPlanIdentity,
+    FixedPrecoloredSplitRequirementPolicy, LiveRangeIdentity,
+};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_model::TargetRegisterEnvironmentIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;

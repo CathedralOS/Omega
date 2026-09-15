@@ -1,6 +1,27 @@
 //! Selected-lowering carriers, receipts, schedules, and errors.
-
-use super::*;
+use super::{
+    Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
+    OptimizationWorkUsage, RecoveryClassificationPolicy, SelectedInstructionPlanIdentity,
+    SelectedLoweringOptimizationCompletionIdentity, SpillChoicePolicy,
+};
+use crate::AllocationLegalityError;
+use crate::LiteralFoldError;
+use crate::LiteralFoldIdentity;
+use crate::LiteralFoldPolicy;
+use crate::LiveRangeError;
+use crate::LivenessError;
+use crate::MachineEffectStageError;
+use crate::OptimizedAllocationLegalityCustodyError;
+use crate::RecoveryClassificationError;
+use crate::SpillChoiceError;
+use crate::StagedOptimizedAllocationLegality;
+use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
+use crate::ValidatedAllocationLegality;
+use crate::ValidatedLiteralFold;
+use crate::ValidatedLiveRanges;
+use crate::ValidatedLiveness;
+use crate::ValidatedRecoveryClassifications;
+use crate::ValidatedSpillChoices;
 
 /// One explicitly requested pressure decision, semantic classification,
 /// literal fold, and complete analysis reconstruction. No source analysis fact

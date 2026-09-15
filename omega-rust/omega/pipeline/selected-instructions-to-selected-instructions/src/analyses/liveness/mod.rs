@@ -1,7 +1,6 @@
 //! Optimizer module role: executable entrance. Selected-CFG liveness compute -> independent validation entrance.
 
-use crate::*;
-
+use crate::ValidatedSelectedAnalysis;
 pub(crate) mod compute;
 pub(crate) mod edge_values;
 pub(crate) mod model;

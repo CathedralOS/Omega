@@ -1,6 +1,10 @@
-use super::*;
+use super::{
+    Arc, FuelScheduleIdentity, MachineId, NativeTarget, OptimizationUnitIdentity, fixture,
+    selected_instruction_plan_identity,
+};
 use crate::LIVE_RANGE_REUSED_FUNCTIONS as REUSED_FUNCTIONS;
 use crate::LIVENESS_FUNCTION_COMPUTATIONS as FUNCTION_COMPUTATIONS;
+use crate::ValidatedRuntimeSpill;
 use crate::{
     analyze_live_ranges, analyze_live_ranges_reusing, analyze_liveness, analyze_liveness_reusing,
 };

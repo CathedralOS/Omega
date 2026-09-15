@@ -1,12 +1,11 @@
+use super::super::super::super::super::{PressureRecoveryClassification, RecoveryClassification};
+
 use optimization_core::OptimizationWorkBudget;
 use register_model::RegisterViewId;
 use selected_instructions::VirtualRegisterId;
 
 use super::super::compute::{build_functions, ensure_budget, required_usage};
-use super::super::{
-    PressureRecoveryClassification, PressureRematerializationError,
-    PressureRematerializationPolicy, RecoveryClassification,
-};
+use super::super::{PressureRematerializationError, PressureRematerializationPolicy};
 use super::fixtures::{fixture, multiple_future_fixture, same_instruction_multiple_future_fixture};
 
 #[test]

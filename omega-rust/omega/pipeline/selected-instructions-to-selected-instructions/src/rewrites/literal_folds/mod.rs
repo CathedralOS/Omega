@@ -5,14 +5,8 @@
 //! carriers, execution/replay, scheduling receipts, and work accounting.
 
 use crate::{
-    AllocationLegalityError, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPolicy,
-    LiveRangeError, LivenessError, MachineEffectStageError, RecoveryClassificationError,
-    RecoveryClassificationPolicy, SpillChoiceError, SpillChoicePolicy, ValidatedAllocationLegality,
-    ValidatedLiteralFold, ValidatedLiveRanges, ValidatedLiveness, ValidatedRecoveryClassifications,
-    ValidatedSelectedAnalysis, ValidatedSpillChoices, analyze_allocation_legality,
-    analyze_live_ranges, analyze_liveness, choose_spill_victims, classify_pressure_recovery,
-    fold_selected_incoming_literal, resolve_selected_lowering_rules,
-    validated_machine_effect_catalog,
+    RecoveryClassificationPolicy, SpillChoicePolicy, ValidatedSelectedAnalysis,
+    resolve_selected_lowering_rules,
 };
 use optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
@@ -20,11 +14,7 @@ use optimization_core::{
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
 
-use crate::{
-    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
-    StagedOptimizedAllocationLegalityCustodyReceipt,
-    validate_optimized_allocation_legality_custody,
-};
+use crate::StagedOptimizedAllocationLegality;
 
 mod accounting;
 mod execution;

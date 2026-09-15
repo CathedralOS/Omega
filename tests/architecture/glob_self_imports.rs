@@ -23,10 +23,6 @@ use std::path::{Path, PathBuf};
 const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/packages/review/evidence", 90),
     (
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
-        53,
-    ),
-    (
         "omega-rust/omega/semantics/optimization-unit-semantics",
         158,
     ),

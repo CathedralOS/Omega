@@ -1,6 +1,9 @@
 //! Block domains, virtual fragments, connectors, and point arithmetic.
-
-use super::*;
+use super::{
+    BTreeSet, BlockLiveness, BlockPointDomain, LiveRangeEdgeConnector, LiveRangeFragment,
+    LiveRangePoint, LivenessPosition, RegisterOperandAccess, SelectedBlockId, VirtualRegisterId,
+};
+use crate::LiveRangeError;
 
 pub(super) fn block_domain(
     function: usize,

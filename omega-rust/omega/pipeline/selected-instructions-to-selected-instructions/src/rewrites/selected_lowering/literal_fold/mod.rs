@@ -1,6 +1,14 @@
 //! Optimizer module role: executable entrance. Exact incoming-literal fold and independent replay entrance.
-
-use crate::*;
+use crate::ValidatedAllocationLegality;
+use crate::ValidatedAllocatorAvailability;
+use crate::ValidatedLiveRanges;
+use crate::ValidatedRecoveryClassifications;
+use crate::ValidatedSpillChoices;
+use crate::{
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedRegisterReservationProfile, ValidatedSelectedAnalysis,
+};
 
 pub(crate) mod compute;
 pub(crate) mod identity;

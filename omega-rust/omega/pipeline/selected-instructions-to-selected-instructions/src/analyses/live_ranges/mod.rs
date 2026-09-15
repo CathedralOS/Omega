@@ -4,8 +4,8 @@
 //! those exact immutable inputs through independent range verification. Calling
 //! the public raw-plan validator here would replay the prerequisite a second
 //! time; skipping the first check would move computation ahead of input errors.
-
-use crate::*;
+use crate::ValidatedLiveness;
+use crate::ValidatedSelectedAnalysis;
 
 pub(crate) mod compute;
 pub(crate) mod model;

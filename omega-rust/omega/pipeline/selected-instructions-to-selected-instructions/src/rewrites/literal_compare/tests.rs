@@ -1,3 +1,9 @@
+use crate::LiteralCompareError;
+use crate::LiteralCompareReceipt;
+use crate::ValidatedLiteralCompare;
+use crate::ValidatedSelectedAnalysis;
+use crate::fold_selected_literal_compare;
+use crate::validate_literal_compare_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
@@ -14,9 +20,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-use super::*;
-use crate::ValidatedSelectedAnalysis;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()

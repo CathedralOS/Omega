@@ -1,5 +1,17 @@
 //! Focused spill-choice proposal and independent-replay tests.
+use super::{
+    FunctionSpillChoices, LiveRangePoint, OptimizationWorkUsage, ValidatedPhysicalRegisterModel,
+    VirtualInterference, compute_function,
+};
+use crate::SpillChoiceError;
+use crate::spill_choice::compute::WorkCounter;
+use crate::spill_choice::compute::reject_constraint_topologies;
 
+use crate::{
+    EarlyClobberConstraint, EarlyClobberUse, FunctionAllocationLegality, FunctionLiveRanges,
+    LiveRangeFragment, LivenessPosition, VirtualLiveRange, VirtualPointLegality,
+    VirtualRegisterAllocationLegality,
+};
 use register_model::{
     PhysicalRegisterModel, RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId,
     RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
@@ -7,13 +19,6 @@ use register_model::{
 };
 use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 use semantic_vocabulary::MachineId;
-
-use super::*;
-use crate::{
-    EarlyClobberConstraint, EarlyClobberUse, FunctionAllocationLegality, FunctionLiveRanges,
-    LiveRangeFragment, LivenessPosition, VirtualLiveRange, VirtualPointLegality,
-    VirtualRegisterAllocationLegality,
-};
 
 fn physical() -> ValidatedPhysicalRegisterModel {
     validate_physical_register_model(PhysicalRegisterModel {

@@ -3,6 +3,35 @@
 //! The upstream analysis artifacts are staged fixtures with self-consistent
 //! receipt identities, matching how the spill-recovery tests stage inputs;
 //! the fold's own producer and independent replay run for real.
+use super::super::super::super::{
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
+    FunctionRecoveryClassification, FunctionSpillChoices, LiveRangeIdentity, LivenessIdentity,
+    PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationIdentity,
+    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
+    RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+};
+
+use crate::AllocationLegalityValidationReceipt;
+use crate::AllocatorAvailabilityValidationReceipt;
+use crate::FunctionLiteralFold;
+use crate::LiteralFoldError;
+use crate::LiteralFoldIdentity;
+use crate::LiteralFoldPlan;
+use crate::LiteralFoldPolicy;
+use crate::LiteralFoldValidationReceipt;
+use crate::LiveRangeValidationReceipt;
+use crate::RecoveryClassificationValidationReceipt;
+use crate::SpillChoiceValidationReceipt;
+use crate::ValidatedAllocationLegality;
+use crate::ValidatedAllocatorAvailability;
+use crate::ValidatedLiteralFold;
+use crate::ValidatedLiveRanges;
+use crate::ValidatedRecoveryClassifications;
+use crate::ValidatedSpillChoices;
+use crate::fold_selected_incoming_literal;
+use crate::validate_literal_fold;
+use crate::validated_machine_effect_catalog;
 
 use std::sync::Arc;
 
@@ -31,8 +60,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-use super::*;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()

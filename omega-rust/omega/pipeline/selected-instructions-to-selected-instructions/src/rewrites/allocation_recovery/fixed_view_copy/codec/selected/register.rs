@@ -170,7 +170,12 @@ pub(super) fn decode_register(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Cursor, RegisterClassId, SelectedInstructionId, VirtualRegister, VirtualRegisterId,
+        VirtualRegisterOrigin,
+    };
+    use crate::codec::selected::register::decode_register;
+    use crate::codec::selected::register::encode_register;
 
     #[test]
     fn structural_observation_origin_round_trips_without_scalar_definition_site() {

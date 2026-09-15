@@ -123,7 +123,10 @@ fn decode_fields(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ClaimId, Cursor, PlaceId, StructuralDomainId, StructuralOperationResult,
+        StructuralResultClaimBinding, StructuralTypeId, decode, encode,
+    };
 
     #[test]
     fn result_codec_retains_qualifications_claims_and_submitted_layout() {

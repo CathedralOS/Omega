@@ -1,7 +1,10 @@
 //! Untied early outputs remain independent definitions, including dead scratch.
-use super::*;
+use super::{RegisterOperandAccess, SelectedInstructionId, VirtualRegisterId};
 use crate::analyses::liveness::compute::{compute_function, reject_unsupported_constraints};
 use crate::analyses::liveness::tests::supported_parallel_early_definitions_function;
+use crate::analyses::liveness::validate::replay_function;
+use crate::analyses::liveness::validate::tests::reject_v1_unsupported;
+use crate::analyses::liveness::validate::validate_function;
 
 #[test]
 fn parallel_untied_early_definitions_replay_used_result_and_dead_scratch() {

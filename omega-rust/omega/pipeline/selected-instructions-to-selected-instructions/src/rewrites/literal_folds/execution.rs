@@ -1,7 +1,31 @@
 //! Literal-fold execution, fixed-point iteration, and independent replay.
+use super::{
+    OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+    RecoveryClassificationPolicy, SpillChoicePolicy, ValidatedSelectedAnalysis,
+};
+use crate::LiteralFoldPolicy;
+use crate::OptimizedLiteralFoldCustodyError;
+use crate::StagedOptimizedAllocationLegality;
+use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
+use crate::StagedOptimizedLiteralFoldAttempt;
+use crate::StagedOptimizedLiteralFoldCustodyReceipt;
+use crate::StagedOptimizedLiteralFoldStep;
+use crate::StagedOptimizedLiteralFolds;
+use crate::StagedSelectedLoweringOptimizationCustodyReceipt;
+use crate::StagedSelectedLoweringOptimizationRun;
+use crate::ValidatedAllocationLegality;
+use crate::ValidatedLiveRanges;
+use crate::analyze_allocation_legality;
+use crate::analyze_live_ranges;
+use crate::analyze_liveness;
+use crate::choose_spill_victims;
+use crate::classify_pressure_recovery;
+use crate::fold_selected_incoming_literal;
+use crate::resolve_selected_lowering_rules;
+use crate::validate_optimized_allocation_legality_custody;
+use crate::validated_machine_effect_catalog;
 
 use super::accounting::*;
-use super::*;
 
 #[allow(clippy::too_many_arguments)]
 pub fn stage_first_optimized_literal_fold(

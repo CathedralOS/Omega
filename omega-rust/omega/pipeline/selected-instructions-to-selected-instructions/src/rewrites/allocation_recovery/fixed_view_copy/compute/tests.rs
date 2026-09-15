@@ -1,5 +1,17 @@
 //! Focused fixed-view-copy computation fixtures.
+use super::{FixedViewCopy, FixedViewCopyError, apply_copy, build_shared_entry_copy};
+use super::{
+    IntegerSign, RegisterInstructionConstraint, RegisterOperandAccess, ScalarType,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualFixedConstraintSite,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
 
+use crate::{
+    EntryFixedViewTransition, FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId,
+    FunctionAllocationLegality, LiveRangeEdgeConnector, LiveRangePoint, LivenessPosition,
+    VirtualRegisterAllocationLegality,
+};
 use optimization_unit::ValueDefinitionSite;
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
@@ -7,13 +19,6 @@ use register_model::{
 };
 use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedSuccessor};
 use semantic_vocabulary::{BlockId, EdgeId, IntegerType, MachineId, ValueId};
-
-use super::*;
-use crate::{
-    EntryFixedViewTransition, FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId,
-    FunctionAllocationLegality, LiveRangeEdgeConnector, LiveRangePoint, LivenessPosition,
-    VirtualRegisterAllocationLegality,
-};
 
 fn key(variant: u32) -> RegisterConstraintKey {
     RegisterConstraintKey {

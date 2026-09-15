@@ -1,4 +1,14 @@
-use super::*;
+use super::{
+    BlockId, Cursor, PlaceId, StructuralAccess, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+};
+use crate::FixedViewCopyDecodeError;
+use crate::codec::selected::structural::declarations::decode_path;
+use crate::codec::selected::structural::declarations::decode_place;
+use crate::codec::selected::structural::declarations::decode_type;
+use crate::codec::selected::structural::declarations::encode_path;
+use crate::codec::selected::structural::declarations::encode_place;
+use crate::codec::selected::structural::declarations::encode_type;
 
 #[test]
 fn reference_type_and_referent_path_round_trip_without_erasing_custody() {

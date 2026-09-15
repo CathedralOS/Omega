@@ -1,4 +1,15 @@
-use super::*;
+use super::{
+    Architecture, FunctionLiveRanges, LiveRangeFragment, LiveRangePoint, LivenessPosition,
+    MachineId, NativeTarget, ObjectFormat, RegisterClass, RegisterClassAvailability,
+    RegisterClassId, RegisterReservationProfile, RegisterUnit, RegisterUnitId, RegisterUnitKind,
+    RegisterView, RegisterViewId, RegisterWriteSemantics, SelectedBlockId, SelectedInstructionId,
+    allocator_availability_identity, range, validate_physical_register_model,
+    validate_register_reservation_profile,
+};
+use crate::ValidatedAllocatorAvailability;
+use crate::allocation_legality::compute::tests::availability;
+use crate::allocation_legality::compute::tests::early;
+use crate::allocation_legality::compute::tests::physical;
 use crate::analyses::allocation_legality::validate::{
     replay_function_for_test, replay_register_for_test,
 };

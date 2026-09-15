@@ -1,3 +1,9 @@
+use crate::StoredLoadForwardingError;
+use crate::StoredLoadForwardingReceipt;
+use crate::ValidatedSelectedAnalysis;
+use crate::ValidatedStoredLoadForwarding;
+use crate::forward_selected_stored_load;
+use crate::validate_stored_load_forwarding;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
@@ -18,9 +24,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-use super::*;
-use crate::ValidatedSelectedAnalysis;
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
