@@ -1,15 +1,21 @@
 //! Nested structural operands retain captured call coordinates and source scope.
-use super::{
-    CheckedLocatedScalarExpression, CheckedOperatorFacts, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionPlans, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode,
-    StatementNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-};
 use crate::values::call_array_constructions;
-use crate::values::scalar::ScalarLocal;
-use crate::values::scalar::lower_call_arguments;
-use crate::values::scalar::lower_return_expression;
-use crate::values::scalar::retain_call_arguments;
+use crate::values::scalar::call_lowering::lower_call_arguments;
+use crate::values::scalar::call_lowering::retain_call_arguments;
+use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::scalar_lowering::lower_return_expression;
+use checked_trees::CheckedLocatedScalarExpression;
+use checked_trees::CheckedOperatorFacts;
+use checked_trees::CheckedScalarExpressionBindings;
+use checked_trees::CheckedScalarExpressionPlans;
+use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::FlowFacts;
+use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
 
 pub(crate) fn is_scalar_return_call(
     program: &TypedTrees,

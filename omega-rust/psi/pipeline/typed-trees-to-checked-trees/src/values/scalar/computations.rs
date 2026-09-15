@@ -5,24 +5,35 @@
 //! graph, including calls whose result becomes known only at a later selection.
 //! Keep exact source occurrences on retained applications and selections so
 //! folding an enclosing guard does not change their operand custody.
-use super::{
-    ArithmeticDomain, BinaryOperator, CheckedBooleanExpression, CheckedOperatorFacts,
-    CheckedOperatorResolutionStatus, CheckedScalarExpression, CheckedScalarExpressionPlans,
-    CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType, StateParameter,
-    StatementNode, TransitionTargetNode, TypeReferenceNode, TypedTrees, UnaryOperator,
-};
 use crate::values::call_array_constructions;
 use crate::values::operator_is_builtin;
-use crate::values::scalar::ScalarLocal;
-use crate::values::scalar::is_integer;
-use crate::values::scalar::lower_return_expression;
+use crate::values::scalar::expression_facts::is_integer;
+use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::scalar_lowering::lower_return_expression;
 use crate::values::scalar::semantic_casts;
 use crate::values::scalar_expression_type;
+use checked_trees::CheckedBooleanExpression;
+use checked_trees::CheckedOperatorFacts;
+use checked_trees::CheckedOperatorResolutionStatus;
+use checked_trees::CheckedScalarExpression;
+use checked_trees::CheckedScalarExpressionPlans;
+use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::{
     CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarComputationPlans, CheckedScalarComputationRoot, FlowFacts, ProofFacts,
 };
+use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::BinaryOperator;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::UnaryOperator;
+use typed_trees::signature::StateParameter;
+use typed_trees::statement::StatementNode;
+use typed_trees::statement::TransitionTargetNode;
+use typed_trees::types::PrimitiveType;
+use typed_trees::types::TypeReferenceNode;
 
 mod call_arguments;
 mod cases;
@@ -369,7 +380,7 @@ pub(crate) fn build_checked_value_computation_plans(
                                             && !parameter.is_const
                                     })
                                     .and_then(|parameter| {
-                                        super::assignment_target_primitive_type(
+                                        crate::values::scalar::expression_plans::assignment_target_primitive_type(
                                             program,
                                             parameter.type_reference,
                                         )

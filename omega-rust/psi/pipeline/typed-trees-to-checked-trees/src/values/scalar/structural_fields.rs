@@ -1,11 +1,18 @@
 //! Resolve selected structural scalar reads against their authored parameter roots.
-use super::{
-    ArithmeticDomain, CheckedBooleanExpression, CheckedOperatorFacts,
-    CheckedOperatorResolutionStatus, CheckedScalarExpression,
-    CheckedStructuralPredicatePathSegment, ExpressionHandle, ExpressionNode, PrimitiveType,
-    StateParameter, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-};
-use crate::values::scalar::is_integer;
+use crate::values::scalar::expression_facts::is_integer;
+use checked_trees::CheckedBooleanExpression;
+use checked_trees::CheckedOperatorFacts;
+use checked_trees::CheckedOperatorResolutionStatus;
+use checked_trees::CheckedScalarExpression;
+use checked_trees::CheckedStructuralPredicatePathSegment;
+use numerics::arithmetic::ArithmeticDomain;
+use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::PrimitiveType;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
 
 #[cfg(test)]
 mod tests;

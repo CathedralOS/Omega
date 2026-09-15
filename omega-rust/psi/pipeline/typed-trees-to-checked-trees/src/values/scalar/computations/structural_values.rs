@@ -1,7 +1,6 @@
 //! Fresh structural establishment shares the scalar operand evaluation owner.
 //! Reference leaves are classified before referent-oriented normalization:
 //! their value is borrowed-storage custody, never a scalar pointer snapshot.
-use super::super::TypeReferenceHandle;
 use super::{
     Builder, CheckedScalarComputationRoot, CheckedScalarExpressionPlans,
     CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType, StatementNode,
@@ -12,6 +11,7 @@ use checked_trees::{
     CheckedStructuralValueKind, CheckedStructuralValuePlans,
 };
 use typed_trees::expression::MatchPattern;
+use typed_trees::types::TypeReferenceHandle;
 
 // Classify the destination before inserting scalar operand roots. A scalar or
 // array Match must not leave partial structural plans when a later arm fails.

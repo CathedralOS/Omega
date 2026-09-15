@@ -130,7 +130,7 @@ mod tests {
         let projection = project(&mut program, root, 1);
         let original = program.expression_table.expression(projection).clone();
         let operators = CheckedOperatorFacts::default();
-        let (lowered, _) = super::super::lower_scalar_expression(
+        let (lowered, _) = crate::values::scalar::scalar_lowering::lower_scalar_expression(
             &program,
             &operators,
             projection,
@@ -155,7 +155,7 @@ mod tests {
         let inner = project(&mut program, root, 1);
         let projection = project(&mut program, inner, 1);
         assert!(matches!(
-            super::super::lower_boolean_expression(
+            crate::values::scalar::boolean_lowering::lower_boolean_expression(
                 &program,
                 &operators,
                 projection,

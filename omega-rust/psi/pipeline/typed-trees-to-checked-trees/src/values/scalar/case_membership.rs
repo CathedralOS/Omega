@@ -2,11 +2,14 @@
 //! checking. It is a tag observation, never equality against a fabricated
 //! payload value. The current scalar namespace names parameter referents;
 //! constructor and local referents must arrive through ordinary value sequencing.
-use super::{
-    BinaryOperator, CheckedBooleanExpression, CheckedStructuralParameterField, ExpressionHandle,
-    ExpressionNode, StateParameter, TypedTrees,
-};
-use crate::values::scalar::structural_parameter_field_path;
+use crate::values::scalar::structural_fields::structural_parameter_field_path;
+use checked_trees::CheckedBooleanExpression;
+use checked_trees::CheckedStructuralParameterField;
+use typed_trees::TypedTrees;
+use typed_trees::expression::BinaryOperator;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::signature::StateParameter;
 
 pub(super) fn lower(
     program: &TypedTrees,
