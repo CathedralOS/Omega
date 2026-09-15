@@ -528,11 +528,24 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   replays false, and the artifact still publishes as an ordinary callable
   on all four targets
   (`red_zone_resident_frame::resident_leaf_spill_frame_publishes_through_ordinary_callable_entry`).
+  Stable-address loans are landed: a caller that establishes a `Pair`
+  record in activation-local storage and calls its borrowed `total`
+  receiver materializes that slot's stable address across the call, and
+  the validated layout records the exact loaned-local roster —
+  canonically ascending, duplicate-free, closed over declared local
+  slots, and excluding private spill reload windows — while replay
+  independently recovers the same roster from the physical
+  `FrameAddress` operations rather than the producer's claims. Every
+  materialized activation-local address resolves only through a
+  rostered slot's committed coordinates; an omitted, invented,
+  reordered, or misattributed loan fails closed, and the artifact still
+  reaches ordinary callable publication on all four targets
+  (`stable_address_loans::loaned_local_addresses_replay_through_ordinary_callable_entry`).
   Acceptance: every admitted frame policy
   replays its exact physical accesses through callable publication;
   requirements artifacts remain non-authoritative until that replay
-  succeeds. Remaining: unwind information,
-  stable-address loans, and dynamic-allocation constraints; general
+  succeeds. Remaining: unwind information
+  and dynamic-allocation constraints; general
   calls still need target-owned frame, callee-save, link-register, and
   call-site alignment plans beyond the landed callee-save frames.
 

@@ -36,7 +36,7 @@ use crate::{ReturnAddressFrameCustody, TargetFrameLayoutPlan, TargetFrameLayoutP
 
 pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {
     let mut hasher = Sha256::new();
-    hasher.update(b"omega.target-frame-layout.v8");
+    hasher.update(b"omega.target-frame-layout.v9");
     hasher.update(plan.post_allocation_machine.bytes());
     hasher.update(plan.callee_saved_requirements.bytes());
     hasher.update(plan.callee_save_storage.bytes());
@@ -67,6 +67,12 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
             hasher.update(slot.frame_offset_bytes.to_le_bytes());
             hasher.update(slot.size_bytes.to_le_bytes());
             hasher.update(slot.alignment_bytes.to_le_bytes());
+        }
+        encode_len(&mut hasher, function.stable_address_loans.len());
+        for slot in &function.stable_address_loans {
+            let mut identity = Vec::new();
+            slot.encode_identity(&mut identity);
+            hasher.update(identity);
         }
         encode_len(&mut hasher, function.callee_save_slots.len());
         for slot in &function.callee_save_slots {

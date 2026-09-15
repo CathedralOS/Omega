@@ -71,6 +71,32 @@ pub(super) fn derive(
                                 | MachineAlternativeFamily::CallAggregate
                         )
                     });
+                // A frame-address materialization on an activation-local
+                // slot loans that slot's stable coordinate to whatever
+                // observes the pointer. Allocator spill slots only gain the
+                // private reload materializations allocation inserts, which
+                // are consumed inside the same window, so they are never
+                // loans.
+                let stable_address_loans = machine_function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .filter_map(|instruction| match instruction.address {
+                        Some(physical_instructions::PhysicalAddressOperation::FrameAddress {
+                            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                            ..
+                        }) if !matches!(
+                            slot,
+                            selected_instructions::LocalStorageSlotId::Spill { .. }
+                        ) =>
+                        {
+                            Some(slot)
+                        }
+                        _ => None,
+                    })
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>();
                 let callee_save_slots = storage_function
                     .slots
                     .iter()
@@ -90,6 +116,7 @@ pub(super) fn derive(
                     contains_call,
                     &machine_function.outgoing_arguments,
                     &machine_function.local_storage_slots,
+                    stable_address_loans,
                     storage_function.abstract_area_bytes,
                     callee_save_slots,
                 )
@@ -118,6 +145,7 @@ fn function_layout(
     contains_call: bool,
     outgoing_arguments: &[selected_instructions::SelectedOutgoingArgumentSlot],
     local_storage: &[selected_instructions::SelectedLocalStorageSlot],
+    stable_address_loans: Vec<selected_instructions::LocalStorageSlotId>,
     callee_save_area_bytes: u64,
     mut callee_save_slots: Vec<CalleeSaveFrameSlot>,
 ) -> Result<FunctionTargetFrameLayout, TargetFrameLayoutError> {
@@ -170,6 +198,15 @@ fn function_layout(
             size_bytes: slot.byte_size,
             alignment_bytes: slot.alignment,
         });
+    }
+    // The loan roster is closed over declared activation-local storage: an
+    // instruction materializing the address of an undeclared slot cannot
+    // become a valid loan.
+    if stable_address_loans
+        .iter()
+        .any(|loan| !local_storage_slots.iter().any(|slot| slot.id == *loan))
+    {
+        return Err(TargetFrameLayoutError::NonCanonicalLayout);
     }
     // An outgoing scalar payload may end between save-slot alignment boundaries,
     // even when no activation-local slots intervene.
@@ -321,6 +358,7 @@ fn function_layout(
         abi_stack_alignment_bytes: 16,
         outgoing_abi_area,
         local_storage_slots,
+        stable_address_loans,
         callee_save_slots,
         return_address,
         stack_probe,
@@ -405,6 +443,7 @@ mod spill_tests {
                 true,
                 &[],
                 &slots,
+                Vec::new(),
                 0,
                 Vec::new(),
             )
@@ -424,6 +463,7 @@ mod spill_tests {
                     true,
                     &[],
                     &[slots[0].clone(), slots[0].clone()],
+                    Vec::new(),
                     0,
                     Vec::new()
                 )

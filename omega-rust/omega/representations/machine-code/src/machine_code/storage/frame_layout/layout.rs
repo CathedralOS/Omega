@@ -98,6 +98,17 @@ pub struct FunctionTargetFrameLayout {
     pub abi_stack_alignment_bytes: u16,
     pub outgoing_abi_area: OutgoingAbiFrameArea,
     pub local_storage_slots: Vec<LocalStorageFrameSlot>,
+    /// Activation-local slots whose stable addresses are materialized into
+    /// program values, in canonical ascending order without duplicates. A
+    /// `FrameAddress` materialization loans the slot's coordinate to whatever
+    /// observes the pointer — call argument or result storage transported
+    /// across the call boundary — so the coordinate must remain fixed for the
+    /// whole activation under any policy that could move storage. Allocator
+    /// spill slots are never loaned: the only addresses they gain are the
+    /// private reload windows allocation inserts, consumed inside that same
+    /// window. Every entry resolves to a `local_storage_slots` member; the
+    /// validated layout is this roster's only authority.
+    pub stable_address_loans: Vec<selected_instructions::LocalStorageSlotId>,
     pub callee_save_slots: Vec<CalleeSaveFrameSlot>,
     pub return_address: ReturnAddressFrameCustody,
     pub stack_probe: StackProbePlan,
