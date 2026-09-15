@@ -1762,6 +1762,24 @@ Owners include
   borrowed copies. Do not claim copy equivalence merely because a
   following callee sees the staged write.
 
+  Standalone-receiving-entrance slice landed at 3f48fd6a15:
+  `structural_signatures::validate` now replays every standalone receiving
+  entrance — the graph's own scalar parameter rows and the published
+  `scalar_abi`/`mixed_structural_scalar_abi` — against the signature
+  independently derived from the abstract declaration rather than trusting the
+  embedded plan. Scalar and result rows must bind the declared value identity,
+  scalar type, and canonical plan placement; a published ABI is admitted only
+  for the family its producer derives (scalar-only service-free for
+  `scalar_abi`, scalar-result with a structural suffix over Boolean/fixed-integer
+  parameters for the mixed form), so a coherent plan on an ineligible function,
+  either ABI form beside the other, or any substituted row rejects. Borrowed
+  structural parameters keep `BorrowedReference` through the shared classifier.
+  Witnessed on linux_x64 and linux_arm64 by the substitution matrices in
+  `src/tests/scalar_abi.rs` and `src/tests/scalar_primitive_stores.rs`; native
+  caller-visible writes and register/stack pointer passing replay through the
+  `primitive_store_return` and `terminal_psi_indexed_receivers` differential
+  legs. Remaining: the control-flow call path beyond standalone entrances.
+
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md), without allowing
   proofs to create or amplify authority. Extend symbolic
