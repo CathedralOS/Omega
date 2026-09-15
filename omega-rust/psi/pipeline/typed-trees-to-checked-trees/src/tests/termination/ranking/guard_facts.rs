@@ -1,4 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use super::super::{
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
 use crate::lower_typed_trees;
 
 fn typed_source(source: &str) -> typed_trees::TypedTrees {
