@@ -1,4 +1,4 @@
-use super::*;
+use super::{Builder, Diagnostic, SymbolHandle, TypeReferenceHandle, rejected};
 use symbols::{Symbol, SymbolKind};
 use typed_trees::data::{
     DataField, DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,

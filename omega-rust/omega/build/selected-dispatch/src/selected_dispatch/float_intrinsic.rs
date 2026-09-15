@@ -1091,7 +1091,15 @@ fn directed_binary_builtin(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Arc, ArithmeticDomain, BinaryOperator, BuiltinFunction, CheckedTrees,
+        CompilerIntrinsicExecutionIdentity, CompilerNumericType, ExpressionNode, FloatFormat,
+        NamedFloatRealization, ProviderBinding, SelectedCompilerIntrinsicExecutionIdentity,
+        StagedNamedFloatExecution, StagedNamedFloatRewrite,
+        apply_selected_float_intrinsic_rewrites,
+        derive_selected_compiler_intrinsic_execution_identity, preflight_named_float_execution,
+        resolve_selected_float_intrinsic_call, settle_selected_float_intrinsic_dispatch,
+    };
 
     const SOURCE: &str = r#"
         data F32 {}

@@ -346,7 +346,7 @@ fn validate_terminal_authority_permissions(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::validate_terminal_authority_permissions;
     use effects::{
         ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
         provider_plan::{ServiceMethod, ServiceSchema},

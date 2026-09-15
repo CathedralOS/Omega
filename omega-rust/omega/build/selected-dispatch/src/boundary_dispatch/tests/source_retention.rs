@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    Arc, CheckedTrees, ProviderPlan, SOURCE, checked_fixture, selected_plan,
+    settle_selected_boundary_adapter_dispatch,
+};
 fn sourced_checked_fixture() -> (CheckedTrees, Vec<ProviderPlan>) {
     let mut sources = source::SourceMap::default();
     sources.add("selected-dispatch/main.omg".into(), SOURCE.into());

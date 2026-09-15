@@ -161,7 +161,7 @@ fn binary_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CheckedOperatorResolutionStatus, CheckedTrees, ExpressionNode, OperatorSpelling};
     use std::sync::Arc;
 
     const SOURCE: &str = r#"

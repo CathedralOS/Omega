@@ -1,4 +1,4 @@
-use super::*;
+use super::{Builder, Diagnostic, TypeReferenceHandle, rejected};
 use typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

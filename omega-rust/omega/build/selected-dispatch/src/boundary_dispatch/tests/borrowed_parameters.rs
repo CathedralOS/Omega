@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    Arc, CheckedTrees, adapter_entry_symbol, selected_plan,
+    settle_selected_boundary_adapter_dispatch,
+};
 const BORROWED_SOURCE: &str = r#"
     boundary trait Output {
         machine emit(value: i32);

@@ -1,8 +1,10 @@
 //! Exact establishment custody for direct Fused fields of one selected
 //! `ProgramEntry` receiver.
 
-use super::*;
-
+use super::{
+    CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, CompositionMode,
+    DataMember, Diagnostic, SelectedProviderReviewProvenance, data_field_identity,
+};
 pub fn derive_fused_program_entry_establishments(
     checked: &CheckedTrees,
     source: &program_entry_plan::SelectedProgramEntrySourceSignature,

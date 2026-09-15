@@ -1433,12 +1433,15 @@ fn resolve_adapter_call<'adapter>(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        AdapterRow, Arc, BoundaryField, CheckedTrees, TypedTrees, exact_adapter_receiver_shape,
+        resolve_adapter_call, resolve_selected_adapter_row,
+        settle_selected_boundary_adapter_dispatch,
+    };
     mod borrowed_parameters;
     mod finite_family;
     mod generic_requirements;
     mod source_retention;
-
-    use super::*;
     use effects::provider_plan::{ProviderBinding, ProviderPlan};
     use typed_trees::expression::ExpressionNode;
 
