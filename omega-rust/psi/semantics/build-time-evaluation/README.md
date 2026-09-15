@@ -50,6 +50,19 @@ Open binders, machine-computed range arguments and owner-dependent operations
 still need their complete staging contexts. This route neither executes bodies
 nor proves that every generic record shape has a Terminal lowering.
 
+Const-generic arguments whose whole expression is a closed scalar machine call
+(`Buffer<sized(4)>`) evaluate through a whole-expression application probe
+inside [const_generic_calls.rs](src/const_generic_calls.rs): the authored
+expression is typed on a placeholder carrier, appended as a probe machine,
+excluded from ordinary checking, then evaluated by the exact scalar evaluator
+with const-initializer call admission — selected-entry resolution, concrete
+argument snapshots, and premise/failure discharge included. Every authored
+call must survive into the probe's transitive checked call closure before the
+canonical result replaces the argument expression and retains its normalization
+receipt. Calls outside a declared const argument destination, calls carrying
+machine or evidence arguments, and calls under surrounding expression nodes
+still need their complete staging contexts and remain rejected.
+
 The public ownership-taking pre-resolution and pre-check conveyors keep these
 Psi phases separate. Omega interposes target machine selection and schedules
 provider-dependent evaluation after the actual provider plans are selected.
@@ -225,9 +238,10 @@ and type-child path, selected operations, and provider-plan commitment. Final
 checking rejoins independently derived operator facts and evaluates the retained
 invocation again before accepting its literal length. This establishes custody
 within checked source compilation; the portable target capsule and application
-closure described below remain separate obligations. Selected ordinary provider
-bodies and the earlier const-generic normalization stage still need connected
-execution paths.
+closure described below remain separate obligations. Closed scalar calls in
+const-generic arguments now evaluate through the application probe above;
+selected ordinary provider bodies and the remaining const-generic
+normalization forms still need connected execution paths.
 
 The [semantic-evaluation contract](../../../../wiki/spec/language/evaluation.md)
 is broader than the current implementation. [admission.rs](src/admission.rs)
