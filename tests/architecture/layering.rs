@@ -807,7 +807,6 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 
 #[test]
 fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
-    let root = workspace_root().join("omega-rust/omega/compiler/compiler/src");
     let checked =
         std::fs::read_to_string(workspace_root().join(
             "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking.rs",
@@ -887,7 +886,6 @@ fn package_source_snapshot_has_a_physical_capture_owner() {
 #[test]
 fn checked_observations_consume_admission_without_owning_it() {
     let root = workspace_root();
-    let compiler = root.join("omega-rust/omega/compiler/compiler/src");
     let coordinator = compiler_product_coordinator_source(&root);
     let admission = std::fs::read_to_string(root.join(
         "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission/mod.rs",
@@ -1352,7 +1350,6 @@ fn application_operations_do_not_own_cli_presentation_or_process_exit() {
 #[test]
 fn compiler_product_stops_delegate_component_progress_admission() {
     let root = workspace_root();
-    let compiler = root.join("omega-rust/omega/compiler/compiler/src");
     let driver = compiler_product_coordinator_source(&root);
     let native_admission = std::fs::read_to_string(
         root.join("omega-rust/omega/compiler/native-realization/src/native_product/admission.rs"),
@@ -1385,7 +1382,6 @@ fn compiler_product_stops_delegate_component_progress_admission() {
 #[test]
 fn production_subject_projection_is_report_owned() {
     let root = workspace_root();
-    let compiler = root.join("omega-rust/omega/compiler/compiler/src");
     let driver = compiler_product_coordinator_source(&root);
     let native_optimization = std::fs::read_to_string(
         root.join("omega-rust/omega/compiler/native-realization/src/native_product.rs"),
