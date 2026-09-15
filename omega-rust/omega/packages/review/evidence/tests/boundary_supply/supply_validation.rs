@@ -14,7 +14,7 @@ pub data GenericProvider {}
 pub boundary requirement GenericSurface::identity<Element>(value: Element) -> Element;
 pub machine GenericProvider::identity<Value>(value: Value) -> Value
     satisfies GenericSurface::identity
-    via Binding::DllImport("omega-generic", "identity");
+    via Binding::Syscall(60);
 "#,
     );
     package.write(
@@ -88,7 +88,7 @@ pub data LifetimeProvider {}
 pub boundary requirement LifetimeSurface::observe<'input>(value: &'input u32);
 pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
     satisfies LifetimeSurface::observe
-    via Binding::DllImport("omega-generic", "observe");
+    via Binding::Syscall(60);
 "#,
     );
     package.write(

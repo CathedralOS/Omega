@@ -4,12 +4,58 @@
 // ExternalRealization supply mode (the interned normalized rendering is
 // its identity). Inert here (never called); the merge-time consumption is
 // the next rung.
+// Each target binds its own evaluated typed locator through a target-scoped
+// `halt_binding` producer: PE by-name on Windows, versioned ELF on both
+// Linux profiles, and one Mach-O dylib symbol on macOS AArch64.
+use omega::language::core::external_binding;
 use omega_language_std::console;
+
 boundary trait Shutdown {
     machine halt(code: i32);
 }
 
-machine halt_leaf(code: i32) satisfies Shutdown::halt via Binding::DllImport("kernel32.dll", "ExitProcess");
+windows_x86_64 machine halt_binding() -> Binding<12, 11, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    }
+}
+
+linux_x86_64 machine halt_binding() -> Binding<9, 4, 11> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "exit",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+linux_arm64 machine halt_binding() -> Binding<9, 4, 11> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "exit",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+macos_arm64 machine halt_binding() -> Binding<17, 5, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_exit",
+        },
+    }
+}
+
+windows_x86_64 machine halt_leaf(code: i32) satisfies Shutdown::halt via halt_binding();
+linux_x86_64 machine halt_leaf(code: i32) satisfies Shutdown::halt via halt_binding();
+linux_arm64 machine halt_leaf(code: i32) satisfies Shutdown::halt via halt_binding();
+macos_arm64 machine halt_leaf(code: i32) satisfies Shutdown::halt via halt_binding();
 
 data Main { console: Console; }
 machine Main::main(&mut self)

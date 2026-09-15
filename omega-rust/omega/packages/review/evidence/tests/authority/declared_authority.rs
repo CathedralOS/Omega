@@ -3,15 +3,22 @@ use compiler::CheckedCompileRequest;
 
 #[test]
 fn review_projects_root_boundary_and_build_authority() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
+    let target = "windows_x86_64";
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"boundary machine host_ping() reaches <= Host;
+        r#"use omega::language::core::external_binding;
+boundary machine host_ping() reaches <= Host;
 boundary trait Host { machine ping(); }
-machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "host_ping");
+windows_x86_64 machine ping_binding() -> Binding<10, 9, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega-test",
+            export: "host_ping",
+        },
+    }
+}
+machine ping_leaf() satisfies Host::ping via ping_binding();
 data Receipt [linear] { code: i32; }
 pub data Packet [copy] { #1 value: u32; }
 pub domain Packet::Ready;
@@ -336,10 +343,13 @@ crashes Abort
     );
     assert!(matches!(
         &provider.rows()[0].binding,
-        effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
-            library,
-            symbol,
-        } if library == "omega-test" && symbol == "host_ping"
+        effects::provider_plan::ProviderBinding::Import { evaluated }
+            if matches!(
+                evaluated.locator().locator(),
+                target::ForeignLocatorCandidate::PeByName { library, export }
+                    if library.as_slice() == "omega-test".as_bytes()
+                        && export.as_slice() == "host_ping".as_bytes()
+            )
     ));
     let provider_row = rows
         .iter()
@@ -435,7 +445,7 @@ fn review_projects_plan_name_provider_grant() {
     package.write(
         "main.omg",
         r#"boundary trait Host { machine ping(); }
-machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "host_ping");
+machine ping_leaf() satisfies Host::ping via Binding::Syscall(60);
 "#,
     );
     package.write(

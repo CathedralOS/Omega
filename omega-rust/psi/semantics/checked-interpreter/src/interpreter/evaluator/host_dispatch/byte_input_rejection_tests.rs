@@ -259,7 +259,7 @@ fn concrete_byte_input_lookalikes_do_not_gain_host_authority() {
         ),
         (
             "foreign binding",
-            "machine ConsoleNativeProvider::read_byte() -> ByteRead satisfies Console::read_byte via Binding::DllImport(\"console\", \"read_byte\");",
+            "machine ConsoleNativeProvider::read_byte() -> ByteRead satisfies Console::read_byte via Binding::Syscall(60);",
             "ConsoleNativeProvider::read_byte",
         ),
         (

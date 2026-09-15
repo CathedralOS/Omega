@@ -1,5 +1,7 @@
 // Seven scalar arguments consume x0..x6. The following two-register record
 // must move wholly to the normalized outgoing stack area, never split at x7.
+use omega::language::core::external_binding;
+
 data Pair { first: u64; second: u64; }
 
 boundary trait AggregateStackImport {
@@ -15,7 +17,16 @@ boundary trait AggregateStackImport {
     ) -> i64;
 }
 
-machine aggregate_stack_import(
+macos_arm64 machine aggregate_stack_binding() -> Binding<17, 33, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "omega_small_aggregate_stack_probe",
+        },
+    }
+}
+
+macos_arm64 machine aggregate_stack_import(
     a0: u64,
     a1: u64,
     a2: u64,
@@ -24,7 +35,7 @@ machine aggregate_stack_import(
     a5: u64,
     a6: u64,
     pair: Pair
-) -> i64 satisfies AggregateStackImport::call via Binding::DllImport("libSystem.B.dylib", "omega_small_aggregate_stack_probe");
+) -> i64 satisfies AggregateStackImport::call via aggregate_stack_binding();
 
 data Main { foreign: AggregateStackImport; pair: Pair; result: i64; }
 machine Main::main(&mut self) reaches AggregateStackImport {

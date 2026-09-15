@@ -7,7 +7,7 @@ use crate::accepted_policy_fixture;
 use package_evidence::ledger::OrdinaryPackageObligationStatus;
 use package_evidence::record::{
     PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewExternalBinding,
+    PackageReviewExternalBinding, PackageReviewForeignLocator,
 };
 use package_manager::admission::{AcceptedOrdinaryEvidenceError, accept_ordinary_closure_evidence};
 use package_manager::resolution::graph::PackageSourceClosureLimits;
@@ -295,12 +295,22 @@ machine build(builder: &mut Build) {
     .expect("write external-supply dependency build");
     std::fs::write(
         dependency.join("main.omg"),
-        r#"pub boundary trait ForeignSurface {
+        r#"use omega::language::core::external_binding;
+
+pub boundary trait ForeignSurface {
     machine invoke() reaches ForeignSurface;
 }
-pub machine invoke_leaf()
+pub windows_x86_64 machine invoke_binding() -> Binding<10, 9, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega-host",
+            export: "invoke_v1",
+        },
+    }
+}
+pub windows_x86_64 machine invoke_leaf()
     satisfies ForeignSurface::invoke
-    via Binding::DllImport("omega-host", "invoke_v1");
+    via invoke_binding();
 "#,
     )
     .expect("write external executable supply");
@@ -365,8 +375,15 @@ machine build(builder: &mut Build) {
     );
     assert!(matches!(
         supply.supply().binding(),
-        PackageReviewExternalBinding::Import { library, symbol }
-            if library == "omega-host" && symbol == "invoke_v1"
+        PackageReviewExternalBinding::NormalizedImport(import)
+            if matches!(
+                import.locator(),
+                PackageReviewForeignLocator::PeByName {
+                    library,
+                    export,
+                } if library.as_slice() == "omega-host".as_bytes()
+                    && export.as_slice() == "invoke_v1".as_bytes()
+            )
     ));
 
     let conflicts = compare_review_only_initial_capabilities(

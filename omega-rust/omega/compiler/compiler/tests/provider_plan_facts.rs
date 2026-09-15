@@ -78,15 +78,35 @@ fn checked_program_retains_the_exact_selected_provider_plan() {
     let source = project.join("main.omg");
     std::fs::write(
         &source,
-        r#"boundary trait Pair {
+        r#"use omega::language::core::external_binding;
+
+boundary trait Pair {
     machine first(code: i32) -> i32;
     machine second(code: i32) -> i32;
 }
 
+windows_x86_64 machine first_binding() -> Binding<10, 10, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega-test",
+            export: "pair_first",
+        },
+    }
+}
+
+windows_x86_64 machine second_binding() -> Binding<10, 11, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega-test",
+            export: "pair_second",
+        },
+    }
+}
+
 machine first_leaf(code: i32) -> i32
-    satisfies Pair::first via Binding::DllImport("omega-test", "pair_first");
+    satisfies Pair::first via first_binding();
 machine second_leaf(code: i32) -> i32
-    satisfies Pair::second via Binding::DllImport("omega-test", "pair_second");
+    satisfies Pair::second via second_binding();
 
 data Main { }
 machine Main::main(&mut self) { }
@@ -94,20 +114,23 @@ machine Main::main(&mut self) { }
     )
     .expect("write test program");
 
-    let checked = compile_to_checked(CheckedCompileRequest::new(&source, None))
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source, Some("windows_x86_64")))
         .expect("provider program should check");
     let facts = checked.selected_provider_plans();
     let [plan] = facts.plans() else {
         panic!("exactly one covering Pair plan should be selected");
     };
-    assert_eq!(plan.name, "satisfies::Pair");
+    // Evaluated import bindings make the selected plan target-scoped: the
+    // covering plan is named for the `windows_x86_64` satisfies provider set
+    // rather than the retired bootstrap's ambient `satisfies::Pair` name.
+    assert_eq!(plan.name, "windows_x86_64::satisfies::Pair");
     assert_eq!(plan.rows.len(), 2);
     assert!(plan.covers_schema());
     assert_eq!(
         facts
             .plan_by_report_fingerprint(plan.report_fingerprint())
             .map(|selected| selected.name.as_str()),
-        Some("satisfies::Pair")
+        Some("windows_x86_64::satisfies::Pair")
     );
     let root_plan = selected_external_root_provider_plan_id(facts, "Pair")
         .expect("external-root bridge must consume the retained Pair selection");

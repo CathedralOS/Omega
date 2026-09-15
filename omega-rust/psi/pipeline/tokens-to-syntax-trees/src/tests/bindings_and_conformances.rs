@@ -201,6 +201,30 @@ fn retired_vtable_slot_rejects_before_consuming_its_payload() {
 }
 
 #[test]
+fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
+    let source = r#"
+        trait Contract {
+            machine call(value: i64) -> i64;
+        }
+
+        machine call_external(value: i64) -> i64
+        satisfies Contract::call
+        via Binding::DllImport("legacy.dll", "call");
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize retired string-backed import");
+    let error = parse_syntax_trees(&tokens)
+        .expect_err("authored string-backed import bootstrap is retired");
+    assert_eq!(
+        error.message,
+        "`Binding::DllImport(\"module\", \"symbol\")` is retired; return the \
+         compiler-owned `Binding::DllImport { import: DllImport::Case { .. } }` \
+         value from one `via` producer machine instead"
+    );
+}
+
+#[test]
 fn rejects_stable_identities_above_u64_max() {
     let source = "data TooLarge { #18446744073709551616 value: u8; }";
     let tokens = Lexer::new(source)
@@ -1219,7 +1243,7 @@ fn retired_library_block_names_the_boundary_provider_migration() {
             && error.message.contains("is retired")
             && error
                 .message
-                .contains("satisfies ... via Binding::DllImport"),
+                .contains("producer machine returning `Binding::DllImport"),
         "got: {}",
         error.message
     );

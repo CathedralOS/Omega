@@ -1,6 +1,8 @@
 // Microsoft x64 passes fixed records larger than eight bytes by reference to
 // a 16-byte-aligned caller copy. The declared position still selects the
 // pointer register, so the record between two scalars occupies RDX.
+use omega::language::core::external_binding;
+
 data Triple {
     first: u64;
     second: u64;
@@ -11,7 +13,16 @@ boundary trait LargeAggregateImport {
     machine send(before: u64, value: Triple, after: u64) -> i32;
 }
 
-machine large_aggregate_import(before: u64, value: Triple, after: u64) -> i32 satisfies LargeAggregateImport::send via Binding::DllImport("omega_abi_probe.dll", "omega_win64_large_aggregate_probe");
+windows_x86_64 machine large_aggregate_binding() -> Binding<19, 33, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega_abi_probe.dll",
+            export: "omega_win64_large_aggregate_probe",
+        },
+    }
+}
+
+windows_x86_64 machine large_aggregate_import(before: u64, value: Triple, after: u64) -> i32 satisfies LargeAggregateImport::send via large_aggregate_binding();
 
 data Main {
     foreign: LargeAggregateImport;

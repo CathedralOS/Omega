@@ -1,5 +1,7 @@
 // Microsoft x64 returns 1/2/4/8-byte records by value in RAX. The compiler
 // test pins the eight-byte spill into the aggregate result place.
+use omega::language::core::external_binding;
+
 data Pair32 {
     first: u32;
     second: u32;
@@ -9,7 +11,16 @@ boundary trait DirectAggregateResultImport {
     machine receive(seed: u64) -> Pair32;
 }
 
-machine direct_aggregate_result_import(seed: u64) -> Pair32 satisfies DirectAggregateResultImport::receive via Binding::DllImport("omega_abi_probe.dll", "omega_win64_direct_result_probe");
+windows_x86_64 machine direct_aggregate_result_binding() -> Binding<19, 31, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega_abi_probe.dll",
+            export: "omega_win64_direct_result_probe",
+        },
+    }
+}
+
+windows_x86_64 machine direct_aggregate_result_import(seed: u64) -> Pair32 satisfies DirectAggregateResultImport::receive via direct_aggregate_result_binding();
 
 data Main {
     foreign: DirectAggregateResultImport;

@@ -2,6 +2,11 @@
 // equivalent. Microsoft x64 passes the separate pointer and length in two
 // positional registers, while the 16-byte descriptor is one indirect
 // aggregate argument backed by a caller-owned copy.
+// Each hosted target binds its own evaluated typed locator through a
+// target-scoped producer: PE by-name on Windows, versioned ELF on Linux,
+// and one Mach-O dylib symbol on macOS AArch64.
+use omega::language::core::external_binding;
+
 data ByteDescriptor {
     pointer: addr;
     length: u64;
@@ -12,8 +17,64 @@ boundary trait NativeByteShapes {
     machine take_descriptor(value: ByteDescriptor) -> i32;
 }
 
-machine take_separate(pointer: addr, length: u64) -> i32 satisfies NativeByteShapes::take_separate via Binding::DllImport("omega_abi_probe.dll", "omega_win64_take_separate");
-machine take_descriptor(value: ByteDescriptor) -> i32 satisfies NativeByteShapes::take_descriptor via Binding::DllImport("omega_abi_probe.dll", "omega_win64_take_descriptor");
+windows_x86_64 machine take_separate_binding() -> Binding<19, 25, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega_abi_probe.dll",
+            export: "omega_win64_take_separate",
+        },
+    }
+}
+
+linux_x86_64 machine take_separate_binding() -> Binding<21, 25, 7> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libomega_abi_probe.so",
+            symbol: "omega_win64_take_separate",
+            version: "OMEGA_1",
+        },
+    }
+}
+
+macos_arm64 machine take_separate_binding() -> Binding<24, 26, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libomega_abi_probe.dylib",
+            symbol: "_omega_win64_take_separate",
+        },
+    }
+}
+
+windows_x86_64 machine take_descriptor_binding() -> Binding<19, 27, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega_abi_probe.dll",
+            export: "omega_win64_take_descriptor",
+        },
+    }
+}
+
+linux_x86_64 machine take_descriptor_binding() -> Binding<21, 27, 7> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libomega_abi_probe.so",
+            symbol: "omega_win64_take_descriptor",
+            version: "OMEGA_1",
+        },
+    }
+}
+
+macos_arm64 machine take_descriptor_binding() -> Binding<24, 28, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libomega_abi_probe.dylib",
+            symbol: "_omega_win64_take_descriptor",
+        },
+    }
+}
+
+machine take_separate(pointer: addr, length: u64) -> i32 satisfies NativeByteShapes::take_separate via take_separate_binding();
+machine take_descriptor(value: ByteDescriptor) -> i32 satisfies NativeByteShapes::take_descriptor via take_descriptor_binding();
 
 data Main {
     foreign: NativeByteShapes;

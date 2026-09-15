@@ -348,7 +348,10 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
 
 #[test]
 fn provider_derivation_consumes_typed_external_binding_identity() {
-    let source = |library: &str, symbol: &str| {
+    // The authored `Binding::DllImport("module", "symbol")` spelling is retired,
+    // so `ExternalBindingIdentity::Import` no longer has a source producer. The
+    // remaining bootstrap spellings still exercise the typed id/table join.
+    let source = |number: i64| {
         format!(
             r#"
                 boundary trait Process {{
@@ -357,11 +360,11 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
 
                 machine exit_leaf(code: i32)
                 satisfies Process::exit
-                via Binding::DllImport("{library}", "{symbol}");
+                via Binding::Syscall({number});
             "#
         )
     };
-    let retained_source = source("retained-library", "retained-symbol");
+    let retained_source = source(60);
     let retained_tokens = source_files_to_tokens::Lexer::new(&retained_source)
         .tokenize()
         .expect("tokenize retained binding");
@@ -383,10 +386,7 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
 
     assert_eq!(
         plan.rows[0].binding,
-        ProviderBinding::StringBackedImportBootstrap {
-            library: "retained-library".to_owned(),
-            symbol: "retained-symbol".to_owned(),
-        }
+        ProviderBinding::Syscall { number: 60 }
     );
 }
 
@@ -535,7 +535,7 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
 
         machine exit_leaf(code: i32)
         satisfies Process::exit
-        via Binding::DllImport("retained-library", "retained-symbol");
+        via Binding::Syscall(60);
     "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -555,7 +555,7 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
         .expect("external leaf");
     let language_semantics::MachineSupplyMode::ExternalRealization {
         binding: Some(binding),
-        mechanism: Some(language_semantics::ExternalBindingMechanism::Import),
+        mechanism: Some(language_semantics::ExternalBindingMechanism::Syscall),
     } = machine.supply_mode
     else {
         panic!("legacy external binding must begin fully installed")
@@ -582,7 +582,7 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
         .expect("external leaf")
         .supply_mode = language_semantics::MachineSupplyMode::ExternalRealization {
         binding: Some(binding),
-        mechanism: Some(language_semantics::ExternalBindingMechanism::Syscall),
+        mechanism: Some(language_semantics::ExternalBindingMechanism::Import),
     };
     assert!(
         derive_satisfies_plans(&typed, None).is_empty(),
@@ -600,11 +600,11 @@ fn provider_derivation_retains_every_exact_external_realization_symbol() {
 
         machine first_leaf()
         satisfies Pair::first
-        via Binding::DllImport("omega-test", "pair_first");
+        via Binding::Syscall(60);
 
         machine second_leaf()
         satisfies Pair::second
-        via Binding::DllImport("omega-test", "pair_second");
+        via Binding::Syscall(93);
     "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

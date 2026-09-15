@@ -4,11 +4,25 @@
 // general import path has a PRE-EXISTING argument-marshaling gap (the
 // old compatibility-row twin also lost the argument; the runtime exit pins
 // landed with that fix rather than in this structural canary.
+// The binding is an evaluated typed locator: `leaf_binding` returns the
+// compiler-owned `Binding::DllImport` value carrying one exact Mach-O
+// dylib-symbol import, so raw foreign bytes stay data.
+use omega::language::core::external_binding;
+
 boundary trait Leaf {
     machine exit(code: i32) -> i32;
 }
 
-machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via Binding::DllImport("libSystem.B.dylib", "_exit");
+macos_arm64 machine leaf_binding() -> Binding<17, 5, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_exit",
+        },
+    }
+}
+
+macos_arm64 machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via leaf_binding();
 
 data Main { p: Leaf; }
 machine Main::main(&mut self)

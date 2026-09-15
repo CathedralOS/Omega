@@ -46,11 +46,13 @@ pub enum ProviderBinding {
     /// byte coordinates remain sealed together through selection and opaque
     /// executable accounting.
     Import { evaluated: EvaluatedForeignImport },
-    /// Temporary source `via Binding::DllImport("library", "symbol")` bridge.
+    /// Retired source `via Binding::DllImport("library", "symbol")` bridge.
     ///
-    /// This is intentionally distinct from [`Self::Import`]: string pairs are
-    /// not normalized evaluated binding data and cannot silently enter the new
-    /// locator path. Remove it with the source evaluator join.
+    /// The parser no longer produces this carrier; it is retained only for
+    /// decoded artifacts and snapshots. This is intentionally distinct from
+    /// [`Self::Import`]: string pairs are not normalized evaluated binding
+    /// data and cannot silently enter the new locator path. Remove it with
+    /// the decoded-artifact readers.
     StringBackedImportBootstrap { library: String, symbol: String },
     /// Direct system call by number.
     Syscall { number: i64 },

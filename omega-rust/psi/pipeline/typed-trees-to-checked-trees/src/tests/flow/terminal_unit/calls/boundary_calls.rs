@@ -309,13 +309,16 @@ fn selected_console_write_byte_intrinsic_projects_the_exact_boundary_requirement
 fn other_external_mechanisms_signatures_and_names_do_not_rejoin_as_intrinsic_boundaries() {
     for (label, source) in [
         (
-            "DllImport mechanism",
+            "evaluated import mechanism",
             r#"
         boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
         data ConsoleNativeProvider {}
+        machine exit_binding() -> i32 {
+            0
+        }
         machine ConsoleNativeProvider::exit_process(return_code: i32)
             satisfies Console::exit_process
-            via Binding::DllImport("libSystem.B.dylib", "_exit");
+            via exit_binding();
         data Root {}
         machine Root::enter() reaches Console {
             ConsoleNativeProvider::exit_process(37);

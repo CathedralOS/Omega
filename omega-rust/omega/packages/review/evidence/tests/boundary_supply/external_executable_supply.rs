@@ -91,14 +91,14 @@ pub machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
 
 #[test]
 fn review_projects_every_external_executable_supply_mechanism_as_opaque_blocking() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
+    let target = "windows_x86_64";
 
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"pub boundary trait ExternalSurface {
+        r#"use omega::language::core::external_binding;
+
+pub boundary trait ExternalSurface {
     machine imported() reaches ExternalSurface;
     machine syscalled() reaches ExternalSurface;
     machine intrinsic() reaches ExternalSurface;
@@ -111,9 +111,18 @@ pub data DispatchTable {
     invoke: addr;
 }
 
+pub windows_x86_64 machine import_binding() -> Binding<8, 11, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "libomega",
+            export: "omega_entry",
+        },
+    }
+}
+
 pub machine import_leaf()
     satisfies ExternalSurface::imported
-    via Binding::DllImport("libomega", "omega_entry");
+    via import_binding();
 pub machine syscall_leaf()
     satisfies ExternalSurface::syscalled
     via Binding::Syscall(61);
@@ -141,14 +150,45 @@ pub machine DispatchTable::table_leaf()
     let review = project_checked_package_review(&checked)
         .expect("external executable-supply review should close");
 
+    // The evaluated import carries its full normalized locator receipt, so its
+    // exact binding projection is asserted directly rather than through the
+    // fixed legacy string pair the retired bootstrap produced.
+    let import_supply = review
+        .external_executable_supply()
+        .iter()
+        .find(|supply| supply.callable().path() == "import_leaf")
+        .expect("external supply for the evaluated import leaf");
+    let PackageReviewExternalBinding::NormalizedImport(import) = import_supply.binding() else {
+        panic!("evaluated import leaf must project the normalized import binding")
+    };
+    assert_eq!(import.target(), "omega.target-profile.v1:windows_x86_64");
+    assert_eq!(
+        import.locator(),
+        &PackageReviewForeignLocator::PeByName {
+            library: b"libomega".to_vec(),
+            export: b"omega_entry".to_vec(),
+        }
+    );
+    assert_eq!(import.producer().path(), "import_binding");
+    assert_eq!(
+        import_supply
+            .conformance()
+            .expect("trait-bound external supply")
+            .trait_identity()
+            .path(),
+        "ExternalSurface"
+    );
+    assert!(
+        review
+            .callables()
+            .iter()
+            .find(|candidate| candidate.identity() == import_supply.callable())
+            .is_some_and(|candidate| {
+                candidate.supply() == PackageReviewCallableSupply::ExternalRealization
+            })
+    );
+
     let expected = [
-        (
-            "import_leaf",
-            PackageReviewExternalBinding::Import {
-                library: "libomega".to_owned(),
-                symbol: "omega_entry".to_owned(),
-            },
-        ),
         (
             "syscall_leaf",
             PackageReviewExternalBinding::Syscall { number: 61 },
@@ -170,7 +210,9 @@ pub machine DispatchTable::table_leaf()
             },
         ),
     ];
-    let expected_count = expected.len();
+    // `import_leaf` is asserted above; the remaining mechanisms share the
+    // simple binding table.
+    let expected_count = expected.len() + 1;
     assert_eq!(review.external_executable_supply().len(), expected_count);
     for (callable, binding) in expected {
         let supply = review
