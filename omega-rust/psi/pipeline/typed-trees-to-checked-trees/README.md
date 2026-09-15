@@ -3,9 +3,9 @@
 This stage checks typed programs and retains checked facts. Start at
 [checking.rs](src/checking.rs): specialization, validation, checked facts,
 execution plans, and publication are visible there in order.
-[selected_execution.rs](src/selected_execution.rs) owns rebuilding execution
+[selected_execution.rs](src/execution/selected_execution.rs) owns rebuilding execution
 plans after provider settlement; [lib.rs](src/lib.rs) wires the public API.
-Both paths use [execution_plans.rs](src/execution_plans.rs) for independent
+Both paths use [execution_plans.rs](src/execution/execution_plans.rs) for independent
 scalar returns, Unit closure, then dependent structural returns. It returns owned
 plans and diagnostics; each caller retains its own cleanup and publication point.
 Public borrow requirements are in
@@ -30,6 +30,12 @@ Their summaries derive the aggregate verdict from proof, borrow, effect,
 boundary, and termination dimensions. A checked tree is published only after
 diagnostics clear; these views are not persisted rejection certificates.
 
+Semantic fact construction owns declaration facts, proof obligations and initial
+domain assumptions. Shared call-coordinate queries come directly from
+`semantic_calls`, not through the semantic fact builder. The legacy
+`lower_typed_program` API is an alias of the ordinary checking entrypoint; it
+does not introduce a second semantic-to-checked route.
+
 `checking.rs` names complete, preliminary-package, and settled-package checking
 as distinct modes. Semantic validation returns both operational and service-reach
 analyses; behavior checking and fact construction consume those exact results
@@ -50,8 +56,8 @@ on rejection the original checked trees remain unchanged.
 
 | Owner under `src/` | Responsibility |
 | --- | --- |
-| `semantic.rs`, `semantic/contracts/`, `semantic/points.rs` | Contract payloads, places, obligation origins, and program points. |
-| `semantic_calls.rs`, `semantic_calls/traversal/` | Shared exact state/statement/call coordinates. |
+| `semantic/mod.rs`, `semantic/contracts/`, `semantic/points.rs` | Contract payloads, places, obligation origins, and program points. |
+| `semantic_calls/mod.rs`, `semantic_calls/traversal/` | Shared exact state/statement/call coordinates. |
 | `flow/`, `flow/call_phases.rs` | Entry facts, call requires, invalidation, guarantees, exits, and transfer order. |
 | `flow/place/`, `flow/domain/` | Canonical places and dependency-overlap invalidation. |
 | `flow/ownership/` | Type-multiplicity-based moves, drops, argument routes, and result storage. |
@@ -74,7 +80,7 @@ authority. Omega's coordinator owns the
 [ordered settlement boundary](../../../omega/compiler/compiler/checked_settlement.md)
 outside this crate.
 
-[Specialization](src/monomorphization.rs) runs explicit fixed-point rounds:
+[Specialization](src/monomorphization/mod.rs) runs explicit fixed-point rounds:
 discover call tuples, validate bounds, prepare the round's contract analyses,
 materialize missing instances, then rewrite calls and recheck selections.
 Authored templates remain generic and unchanged. Application candidates borrow
