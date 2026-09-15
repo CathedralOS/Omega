@@ -12,6 +12,7 @@ use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DataMember;
 use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceHandle;
@@ -463,4 +464,240 @@ fn direct_structural_normalization_replays_live_expression_and_selected_paramete
         &normalization,
     )
     .expect("atom itself remains unchanged throughout the hostile replay");
+}
+
+fn parse_multiple_sources(sources: &[&str]) -> SyntaxTrees {
+    let mut syntax = SyntaxTrees::new(SourceId::default());
+    for (index, source) in sources.iter().enumerate() {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize sources");
+        parse_syntax_trees_into_with_id(&mut syntax, SourceId(index + 1), &tokens)
+            .expect("parse sources");
+    }
+    syntax
+}
+
+/// The named argument of the only domain constraint matching `expected`,
+/// for tests that fold one application among several.
+fn named_domain_argument<'a>(
+    syntax: &'a SyntaxTrees,
+    expected: &str,
+) -> (TypeReferenceHandle, &'a Identifier) {
+    let constraint = syntax
+        .tables
+        .type_references
+        .domain_constraints()
+        .into_iter()
+        .find(|constraint| constraint.name.as_str() == expected)
+        .expect("domain application");
+    let [argument] = syntax
+        .tables
+        .type_references
+        .type_reference_handles(constraint.arguments)
+    else {
+        panic!("one index argument");
+    };
+    let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(*argument) else {
+        panic!("named index argument");
+    };
+    (*argument, name)
+}
+
+#[test]
+fn module_owned_indexed_domain_selects_its_own_telescope() {
+    // `buffers::Counted` was fence-rejected as a module-owned generic domain;
+    // the family now owns its closed applications under module name law, and
+    // named indices fold through the declaration's own module constants.
+    let module = "module buffers;
+        domain<const N: u64> u64::Counted<N> requires self < N;
+        const CAP: u64 = 3;
+        data Main { direct: u64 in Counted<2>; named: u64 in Counted<CAP>; }";
+    let syntax = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[module])))
+        .expect("module-owned indexed domain admits closed applications");
+    let arguments: Vec<TypeReferenceHandle> = syntax
+        .tables
+        .type_references
+        .domain_constraints()
+        .into_iter()
+        .filter(|constraint| constraint.name.as_str() == "Counted")
+        .flat_map(|constraint| {
+            syntax
+                .tables
+                .type_references
+                .type_reference_handles(constraint.arguments)
+                .to_vec()
+        })
+        .collect();
+    assert_eq!(arguments.len(), 2);
+    let atoms: Vec<String> = arguments
+        .iter()
+        .map(
+            |&argument| match syntax.type_references.type_reference(argument) {
+                TypeReferenceNode::Named(name) => name.as_str().to_owned(),
+                other => panic!("closed index stays named: {other:?}"),
+            },
+        )
+        .collect();
+    assert!(atoms.iter().any(|atom| atom == "2"));
+    // `CAP` folded against `buffers::Counted`'s own module constant, with the
+    // selected declaration's normalization record retained.
+    let folded = arguments
+        .iter()
+        .zip(&atoms)
+        .find_map(|(argument, atom)| (atom == "3").then_some(*argument))
+        .expect("the module constant folded against `buffers::Counted`");
+    let normalization = syntax
+        .type_references
+        .const_argument_normalization(folded)
+        .expect("the selected module const leaves its normalization record");
+    let [origin] = syntax
+        .type_references
+        .const_argument_origins(normalization.selections)
+    else {
+        panic!("one exact selected declaration");
+    };
+    assert_eq!(origin.declaration.source_id, SourceId(1));
+}
+
+#[test]
+fn same_leaf_indexed_domain_families_follow_exact_namespace_selection() {
+    let a = "module a; pub domain<const N: u64, const M: u64> u64::Counted<N, M>;";
+    let b = "module b; pub domain<const N: u64> u64::Counted<N>;";
+    // A narrow import exposes exactly one same-leaf owner. `a`'s two-index
+    // telescope rejects the arity outright — the witness that the leaf
+    // selected `a::Counted` rather than declining or borrowing `b`'s.
+    let imported_a = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[
+        a,
+        b,
+        "use a::Counted; data Hold { value: u64 in Counted<3>; }",
+    ])))
+    .expect_err("the import selects `a::Counted`'s telescope");
+    assert!(
+        imported_a.iter().any(|error| error
+            .message
+            .contains("requires 2 closed index argument(s)")),
+        "{imported_a:?}"
+    );
+    // Under `use b::Counted` the leaf folds a named index through the
+    // requester's own constant — proof `b::Counted`'s telescope owns it.
+    let syntax = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[
+        a,
+        b,
+        "use b::Counted; const CAP: u64 = 4; data Hold { value: u64 in Counted<CAP>; }",
+    ])))
+    .expect("the import selects `b::Counted`'s telescope");
+    let (argument, name) = named_domain_argument(&syntax, "Counted");
+    assert_eq!(name.as_str(), "4");
+    assert!(
+        syntax
+            .type_references
+            .const_argument_normalization(argument)
+            .is_some(),
+        "the selected module const leaves its normalization record"
+    );
+    // Unimported, the leaf reaches neither foreign owner: `CAP` stays
+    // authored rather than folding against a telescope the source cannot
+    // name (selecting `a` would fail arity; `b` would fold to `7`).
+    let syntax = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[
+        a,
+        b,
+        "module c; const CAP: u64 = 7; data Hold { value: u64 in Counted<CAP>; }",
+    ])))
+    .expect("unreachable foreign families leave the application open");
+    let (argument, name) = named_domain_argument(&syntax, "Counted");
+    assert_eq!(name.as_str(), "CAP");
+    assert!(
+        syntax
+            .type_references
+            .const_argument_normalization(argument)
+            .is_none()
+    );
+}
+
+#[test]
+fn module_local_indexed_family_outranks_a_same_leaf_root_family() {
+    let root_family = "domain<const N: u64> u64::Counted<N>;
+        data Root { value: u64 in Counted<7>; }";
+    // Inside `c`, `Counted` names `c`'s own two-index family — never the
+    // same-leaf root family. The arity error is the witness: against the root
+    // telescope `Counted<7>` would fold cleanly.
+    let errors = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[
+        root_family,
+        "module c;
+            domain<const N: u64, const M: u64> u64::Counted<N, M>;
+            data Hold { value: u64 in Counted<7>; }",
+    ])))
+    .expect_err("the module's own family owns its application");
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("requires 2 closed index argument(s)")),
+        "{errors:?}"
+    );
+    // Each source folds against its own family when the spellings line up.
+    normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[
+        root_family,
+        "module c;
+            domain<const N: u64, const M: u64> u64::Counted<N, M>;
+            data Hold { value: u64 in Counted<7, 9>; }",
+    ])))
+    .expect("root and module applications select their own telescopes");
+}
+
+#[test]
+fn open_template_domain_indices_keep_their_binder_at_root_and_in_modules() {
+    // `Counted<N>` inside an open template defers binder selection; the
+    // synthesized instance inherits the authored constraint verbatim at both
+    // scopes. Instance-side domain-constraint replay is a later stage's job.
+    for prefix in ["", "module buffers; "] {
+        let source = format!(
+            "{prefix}domain<const N: u64> u64::Counted<N> requires self < N;
+             data Buffer<const N: u64> {{ value: u64 in Counted<N>; }}
+             data Main {{ field: Buffer<3>; }}"
+        );
+        let syntax =
+            normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[&source])))
+                .expect("open domain index defers binder selection");
+        // The instance shares the template's constrained type node verbatim:
+        // both fields carry the same `Counted<N>` constraint handle.
+        let field_types: Vec<TypeReferenceHandle> = ["Buffer", "Buffer<3>"]
+            .into_iter()
+            .map(|expected| {
+                let definition = syntax
+                    .root_items()
+                    .find_map(|item| match item {
+                        Item::Data(definition) if definition.name.as_str() == expected => {
+                            Some(definition)
+                        }
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| panic!("missing {expected}"));
+                let [DataMember::Field(field)] = syntax.items.data_members(definition.members)
+                else {
+                    panic!("one field on {expected}");
+                };
+                field.type_reference
+            })
+            .collect();
+        assert_eq!(
+            field_types[0], field_types[1],
+            "domain-constrained field type is shared verbatim: prefix {prefix:?}"
+        );
+        for constraint in syntax.tables.type_references.domain_constraints() {
+            assert_eq!(constraint.name.as_str(), "Counted");
+            let [argument] = syntax
+                .tables
+                .type_references
+                .type_reference_handles(constraint.arguments)
+            else {
+                panic!("one index argument");
+            };
+            assert!(
+                matches!(
+                    syntax.type_references.type_reference(*argument),
+                    TypeReferenceNode::Named(name) if name.as_str() == "N"
+                ),
+                "the authored binder rides verbatim: prefix {prefix:?}"
+            );
+        }
+    }
 }
