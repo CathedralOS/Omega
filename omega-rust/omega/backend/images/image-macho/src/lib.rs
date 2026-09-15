@@ -81,7 +81,8 @@
 
 use diagnostics::Diagnostic;
 use image::{
-    ExecutableImageOutput, FinalImage, apply_aarch64_relocations, place_executable_regions,
+    ExecutableImageOutput, FinalImage, apply_aarch64_relocations, place_data_regions,
+    place_executable_regions,
 };
 
 mod code_signature;
@@ -96,6 +97,7 @@ use code_signature::macho_ad_hoc_code_signature;
 use dyld_linking::imports::{
     install_import_thunks, macho_bind_info, patch_import_thunks, validate_import_thunk_footprints,
 };
+pub use dyld_linking::imports::validate_macho_aarch64_import_binding_pairing;
 use dyld_linking::load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
     write_macho_code_signature_command, write_macho_dyld_info_command,
@@ -170,6 +172,7 @@ pub fn emit_macho_aarch64_executable_signed(
     let rebase_pointers = rebase_info.validate_patched_preferred_pointers(&image, &layout)?;
     validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
+    let data_regions = place_data_regions(&image, layout)?;
 
     let mut bytes = Vec::new();
     write_macho_executable_header(&mut bytes, plan.command_count, plan.sizeofcmds);
@@ -274,5 +277,6 @@ pub fn emit_macho_aarch64_executable_signed(
         imports: image.symbol_table.imports.len(),
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
+        data_regions,
     })
 }

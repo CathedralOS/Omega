@@ -2,8 +2,10 @@
 //! correspondence. This fixture supplies no source or installed-root authority.
 
 use image::{
-    ExecutableImageOutput, FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory,
-    FinalImageRelocation, FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle,
+    ExecutableImageOutput, FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion,
+    FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageImportPlan,
+    FinalImageMemory, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
+    FinalImageSymbolHandle,
 };
 use object_file::{RelocationKind, SymbolKind};
 
@@ -30,6 +32,21 @@ fn fixup_image(with_import: bool) -> ExecutableImageOutput {
         size: 8,
         kind: SymbolKind::Function,
         ..Default::default()
+    });
+    // Classify the complete compiler-authored text so the placed executable
+    // inventory starts with no unclassified gap.
+    image.executable_regions.push(FinalExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 0,
+        byte_count: image.memory.text.len(),
+        symbol: "entry".into(),
+        footprint: None,
+    });
+    image.data_regions.push(FinalDataRegion {
+        origin: FinalDataRegionOrigin::CompilerData,
+        section_offset: 0,
+        byte_count: image.memory.data.len(),
+        symbol: String::new(),
     });
     let storage = image.symbol_table.symbols.insert(FinalImageSymbol {
         name: "storage".into(),
@@ -409,5 +426,119 @@ fn macho_fixup_object_projection_retains_addends_and_normalized_import_targets()
         super::hosted_exit_runtime::assert_exit(&output.bytes, 37);
         #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
         eprintln!("SKIP: eager-bound Mach-O execution requires macOS AArch64");
+    }
+}
+
+/// Mirror the complete-placement gate installed-artifact projection applies:
+/// both placed-region inventories must replay over the exact final bytes, no
+/// byte may remain unclassified, and every import thunk must pair with its
+/// placed binding slot.
+fn validate_complete_placement(
+    output: &ExecutableImageOutput,
+) -> Result<(), diagnostics::Diagnostic> {
+    image::validate_placed_executable_region_inventory(
+        &output.executable_regions,
+        &output.final_text_bytes,
+    )?;
+    image::validate_placed_data_region_inventory(&output.data_regions, &output.final_data_bytes)?;
+    if output
+        .executable_regions
+        .unclassified_gaps
+        .first()
+        .is_some()
+        || output.data_regions.unclassified_gaps.first().is_some()
+    {
+        return Err(diagnostics::Diagnostic::error(
+            "placed inventories left final bytes unclassified",
+        ));
+    }
+    image_macho::validate_macho_aarch64_import_binding_pairing(
+        &output.final_text_bytes,
+        &output.executable_regions,
+        &output.data_regions,
+    )
+}
+
+/// Every import-custody row is required independently: omitting or
+/// substituting either the placed thunk or the placed binding slot must
+/// reject complete-placement validation. The emitted thunk decodes its bound
+/// pointer from the exact final text, so a forged inventory row cannot stand
+/// in for writer-retained placement.
+#[test]
+fn macho_import_custody_rejects_missing_and_substituted_placement() {
+    let output = fixup_image(true);
+    validate_complete_placement(&output).expect("emitted import custody is complete");
+    let thunk_offset = output
+        .executable_regions
+        .regions
+        .iter()
+        .find(|region| region.origin == FinalExecutableRegionOrigin::ImportThunk)
+        .expect("one placed import thunk")
+        .section_offset;
+    assert_eq!(thunk_offset, 8, "the thunk follows the compiler text");
+    let slot_offset = output
+        .data_regions
+        .regions
+        .iter()
+        .find(|region| region.origin == FinalDataRegionOrigin::ImportBindingSlot)
+        .expect("one placed binding slot")
+        .section_offset;
+    assert_eq!(slot_offset, 16, "the binding slot follows compiler data");
+
+    let mutations: Vec<(&str, Box<dyn Fn(&mut ExecutableImageOutput)>)> = vec![
+        (
+            "missing thunk placement",
+            Box::new(move |output| {
+                output
+                    .executable_regions
+                    .regions
+                    .retain(|region| !(region.section_offset == thunk_offset));
+            }),
+        ),
+        (
+            "missing binding-slot placement",
+            Box::new(move |output| {
+                output
+                    .data_regions
+                    .regions
+                    .retain(|region| !(region.section_offset == slot_offset));
+            }),
+        ),
+        (
+            "substituted thunk placement",
+            Box::new(move |output| {
+                let region = output
+                    .executable_regions
+                    .regions
+                    .iter_mut()
+                    .find(|region| region.section_offset == thunk_offset)
+                    .expect("placed thunk region");
+                region.address += 0x2000;
+            }),
+        ),
+        (
+            "substituted binding-slot placement",
+            Box::new(move |output| {
+                let region = output
+                    .data_regions
+                    .regions
+                    .iter_mut()
+                    .find(|region| region.section_offset == slot_offset)
+                    .expect("placed binding-slot region");
+                region.address += 8;
+            }),
+        ),
+    ];
+    for (label, mutate) in mutations {
+        let mut changed = output.clone();
+        mutate(&mut changed);
+        // Mapping and loader fixups alone cannot see the drifted custody; the
+        // placed-region replay and thunk↔slot pairing must reject it.
+        validate_mapping(&changed).expect("segment mapping does not arbitrate custody");
+        validate_fixups(&changed, true).expect("loader fixups do not arbitrate custody");
+        assert!(
+            validate_complete_placement(&changed).is_err(),
+            "{label}: complete placement must reject it"
+        );
     }
 }

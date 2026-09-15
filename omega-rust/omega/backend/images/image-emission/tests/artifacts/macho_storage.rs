@@ -118,6 +118,12 @@ fn relocated_macho_bss_is_zero_filled_and_writable() {
         kind: SymbolKind::Function,
         ..Default::default()
     });
+    image.data_regions.push(image::FinalDataRegion {
+        origin: image::FinalDataRegionOrigin::CompilerData,
+        section_offset: 0,
+        byte_count: image.memory.data.len(),
+        symbol: String::new(),
+    });
     let pointer = image.symbol_table.symbols.insert(FinalImageSymbol {
         name: "pointer".into(),
         section: FinalImageSection::Data,

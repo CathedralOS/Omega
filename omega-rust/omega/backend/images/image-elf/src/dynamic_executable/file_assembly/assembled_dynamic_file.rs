@@ -16,7 +16,7 @@ use crate::dynamic_executable::load_placement::load_layout::{
 };
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
-use image::{ExecutableImageOutput, FinalImage, place_executable_regions};
+use image::{ExecutableImageOutput, FinalImage, place_data_regions, place_executable_regions};
 use target::TargetProfile;
 
 const SECTION_COUNT: usize = 13;
@@ -277,6 +277,7 @@ fn derive_executable_output(
     let load = load_layout(&assembled.resolved_linkage);
     let format = dynamic_executable_format(load.target())?;
     let executable_regions = place_executable_regions(image, load.final_image_layout())?;
+    let data_regions = place_data_regions(image, load.final_image_layout())?;
     Ok(ExecutableImageOutput {
         bytes: assembled.bytes().to_vec(),
         final_image_layout: load.final_image_layout(),
@@ -291,6 +292,7 @@ fn derive_executable_output(
         imports: image.symbol_table.imports.len(),
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
+        data_regions,
     })
 }
 
@@ -303,6 +305,7 @@ fn validate_executable_output(
     let load = load_layout(&assembled.resolved_linkage);
     let expected_format = dynamic_executable_format(load.target())?;
     let expected_regions = place_executable_regions(image, load.final_image_layout())?;
+    let expected_data_regions = place_data_regions(image, load.final_image_layout())?;
     require(
         image.target == load.target().native_target()
             && image.memory.text == assembled.resolved_linkage.source_text_bytes()
@@ -316,7 +319,8 @@ fn validate_executable_output(
             && output.symbols == image.symbol_table.symbols.len()
             && output.imports == image.symbol_table.imports.len()
             && output.relocations == image.relocation_table.relocations.len()
-            && output.executable_regions == expected_regions,
+            && output.executable_regions == expected_regions
+            && output.data_regions == expected_data_regions,
         "admitted dynamic ELF output drifted from exact assembled-file custody",
     )?;
     require(

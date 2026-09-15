@@ -2,8 +2,8 @@ use arena::Handle;
 use target::NativeTarget;
 
 use crate::final_image::{
-    FinalExecutableRegion, FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolHandle,
-    FinalImageSymbolTable,
+    FinalDataRegion, FinalExecutableRegion, FinalImageMemory, FinalImageRelocationTable,
+    FinalImageSymbolHandle, FinalImageSymbolTable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,6 +13,9 @@ pub struct FinalImage {
     pub symbol_table: FinalImageSymbolTable,
     pub relocation_table: FinalImageRelocationTable,
     pub executable_regions: Vec<FinalExecutableRegion>,
+    /// Classified `.data` rows: the compiler's initialized-data image plus any
+    /// writer-installed binding slots and alignment padding.
+    pub data_regions: Vec<FinalDataRegion>,
 }
 
 impl Default for FinalImage {
@@ -35,6 +38,7 @@ impl FinalImage {
         symbol_table: FinalImageSymbolTable,
         relocation_table: FinalImageRelocationTable,
         executable_regions: Vec<FinalExecutableRegion>,
+        data_regions: Vec<FinalDataRegion>,
     ) -> Self {
         Self {
             target,
@@ -42,6 +46,7 @@ impl FinalImage {
             symbol_table,
             relocation_table,
             executable_regions,
+            data_regions,
         }
     }
 
@@ -58,6 +63,7 @@ impl FinalImage {
             memory,
             FinalImageSymbolTable::with_capacity(entry_symbol, symbol_capacity, import_capacity),
             FinalImageRelocationTable::with_capacity(relocation_capacity),
+            Vec::new(),
             Vec::new(),
         )
     }
@@ -89,6 +95,7 @@ mod tests {
             symbol_table.clone(),
             relocation_table.clone(),
             Vec::new(),
+            Vec::new(),
         );
 
         assert_eq!(image.target, target);
@@ -96,5 +103,6 @@ mod tests {
         assert_eq!(image.symbol_table, symbol_table);
         assert_eq!(image.relocation_table, relocation_table);
         assert!(image.executable_regions.is_empty());
+        assert!(image.data_regions.is_empty());
     }
 }

@@ -45,6 +45,9 @@ pub struct ExecutableImageOutput {
     pub imports: usize,
     pub relocations: usize,
     pub executable_regions: crate::PlacedExecutableRegionInventory,
+    /// Placed initialized-data custody: compiler data plus any writer-owned
+    /// binding slots. The complete final data must classify or be refused.
+    pub data_regions: crate::PlacedDataRegionInventory,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,6 +71,7 @@ pub struct EmittedImageOutput {
     pub final_image_imports: usize,
     pub final_image_relocations: usize,
     pub executable_regions: crate::PlacedExecutableRegionInventory,
+    pub data_regions: crate::PlacedDataRegionInventory,
     pub compiler_text_validation: Option<CompilerTextValidationEvidence>,
     pub compiler_function_validation: Option<CompilerFunctionValidationEvidence>,
     pub compiler_entry_region_binding: Option<CompilerEntryRegionBindingEvidence>,
@@ -481,6 +485,7 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         final_image_imports: output.imports,
         final_image_relocations: output.relocations,
         executable_regions: output.executable_regions,
+        data_regions: output.data_regions,
         compiler_text_validation: None,
         compiler_function_validation: None,
         compiler_entry_region_binding: None,

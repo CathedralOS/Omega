@@ -188,20 +188,14 @@ fn preflight_component_deployment(
             "terminal component target differs from the installed-code architecture".into(),
         );
     }
-    let Some(final_compiler_text) = candidate
-        .image()
-        .output()
-        .final_text_bytes
-        .get(..candidate.object().text_bytes().len())
-    else {
-        return Err("terminal component image truncates its compiler-authored object text".into());
-    };
-    if !installed.binds_exact_materialized_artifact_bytes(
-        candidate.object().text_bytes(),
-        final_compiler_text,
-    ) {
+    let memory = image_emission::project_installed_artifact_memory_images(
+        candidate.object(),
+        candidate.image(),
+    )
+    .map_err(|error| error.to_string())?;
+    if !installed.binds_exact_materialized_artifact_bytes(memory.encoded(), memory.materialized()) {
         return Err(
-            "installed code does not contain the candidate's exact unrelocated and materialized text"
+            "installed code does not contain the candidate's exact unrelocated and materialized image"
                 .into(),
         );
     }
