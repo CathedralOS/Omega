@@ -1,7 +1,8 @@
 use super::{
-    CheckedScalarComputationKind, Terminator, assert_constructed_wrapper_execution, checked,
-    constructed_wrapper_source, decode_module, record_field_computation, unit_wrapper_artifact,
+    Terminator, assert_constructed_wrapper_execution, checked, constructed_wrapper_source,
+    decode_module, record_field_computation, unit_wrapper_artifact,
 };
+use checked_trees::CheckedScalarComputationKind;
 use semantic_vocabulary::IntegerValue;
 
 const EXACT_FIELDS: [&str; 4] = [
