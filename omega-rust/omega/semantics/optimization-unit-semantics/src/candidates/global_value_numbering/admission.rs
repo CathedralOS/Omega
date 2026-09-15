@@ -1,7 +1,15 @@
 //! Proof-class expression reconstruction and accepted-obligation evidence.
+use crate::BTreeMap;
+use crate::O;
+use crate::OperationId;
+use crate::OptimizationFact;
+use crate::PsiOptimizationFunction;
+use crate::PsiOptimizationUnit;
+use crate::ScalarType;
+use crate::ValueId;
+use crate::candidates::global_value_numbering::ScalarCseProofClass;
 
 use super::expression_keys::*;
-use super::*;
 
 pub(crate) fn independent_cse_expression(
     operation: &O,

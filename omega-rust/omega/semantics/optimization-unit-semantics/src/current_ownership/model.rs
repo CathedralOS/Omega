@@ -1,4 +1,11 @@
-use super::*;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::ClaimId;
+use semantic_vocabulary::PlaceId;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use terminal_psi::StructuralAccess;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralPathSegment;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct LiveClaim {

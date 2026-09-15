@@ -1,6 +1,10 @@
 //! Canonical unit identity plus accepted proof/frontier fact indexes.
-
-use super::*;
+use crate::BTreeSet;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::TerminalFuelSchedule;
+use crate::canonical_ownership_frontier_snapshot;
+use crate::recompute_psi_optimization_unit_identity;
 
 pub(super) fn validate_identity_and_fact_indexes(
     unit: &PsiOptimizationUnit,

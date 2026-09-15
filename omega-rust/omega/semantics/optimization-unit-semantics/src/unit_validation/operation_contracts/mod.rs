@@ -3,8 +3,17 @@
 //! Value flow, node contract families, bindings, structural access, claims,
 //! payloadless cases, boundaries, and scalar typing descend into named leaves.
 //! This entrance owns their exact per-node validation order.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::BoundaryMachineId;
+use crate::MachineId;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::ServiceId;
+use crate::StructuralDomainId;
+use crate::StructuralTypeId;
+use crate::dominators;
 
 mod affine_calls;
 mod boundaries;

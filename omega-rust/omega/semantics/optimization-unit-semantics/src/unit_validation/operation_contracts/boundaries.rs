@@ -1,4 +1,9 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::PsiOptimizationFunction;
+use crate::StructuralDomainId;
+use crate::function_claim_input;
+use crate::structural_source_contract;
 
 pub(crate) fn boundary_requirements_match(
     caller: &PsiOptimizationFunction,

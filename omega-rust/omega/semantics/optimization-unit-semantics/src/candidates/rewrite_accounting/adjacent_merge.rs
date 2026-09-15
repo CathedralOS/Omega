@@ -1,4 +1,16 @@
-use super::*;
+use crate::AdjacentBlockMergeRewrite;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::EdgeId;
+use crate::NodeLocation;
+use crate::OwnershipFrontierSite;
+use crate::OwnershipFrontierWitness;
+use crate::OwnershipFrontierWitnessRow;
+use crate::ProvenanceDisposition;
+use crate::PsiOptimizationFunction;
+use crate::PsiOptimizationUnit;
+use crate::PsiRealizationSite;
+use crate::ScalarSubstitution;
 
 pub(crate) fn reconstruct_adjacent_merge_ownership_is_identity(
     unit: &PsiOptimizationUnit,

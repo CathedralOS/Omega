@@ -1,9 +1,27 @@
 //! Independent constant/proof range reconstruction and canonical fact identity.
+use crate::independent_reachable_dominators;
+use crate::scalar_value_definition;
+use crate::validator_scalar_constant_facts;
+use optimization_core::ValueRangeFactIdentity;
+use optimization_unit::OptimizationFact;
+use optimization_unit::ProofQuestionOwner;
+use optimization_unit::PsiOptimizationUnit;
+use optimization_unit::ScalarConstantValue;
+use optimization_unit::ValueRangeFact;
+use optimization_unit::ValueRangeRegion;
+use optimization_unit::ValueRangeScope;
+use optimization_unit::ValueRangeSupport;
+use optimization_unit::value_range_fact_identity;
+use semantic_vocabulary::BlockId;
+use semantic_vocabulary::IntegerType;
+use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::MachineId;
+use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::ValueId;
 
 use super::availability::{scope_applies_at, value_available_at};
 use super::intervals::{IntervalExtraction, extract_integer_intervals};
 use super::proof_goals::proof_range_goal;
-use super::*;
 
 pub(super) fn reconstruct_value_range_fact(
     unit: &PsiOptimizationUnit,

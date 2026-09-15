@@ -1,4 +1,17 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BoundaryMachineId;
+use crate::MachineId;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::ServiceId;
+use crate::StructuralDomainId;
+use crate::StructuralTypeId;
+use crate::ValueDefinition;
+use crate::ValueId;
+use crate::operation_scalar_types_match;
+use crate::operation_service_contract_matches;
+use crate::operation_structural_call_contract_matches;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_node_operation_contracts(

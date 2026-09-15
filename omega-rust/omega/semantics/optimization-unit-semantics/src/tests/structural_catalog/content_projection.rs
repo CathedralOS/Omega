@@ -1,6 +1,17 @@
 //! Structural-domain content-projection replay tests.
-
-use super::super::*;
+use super::super::id;
+use crate::ContentProjectionExpression;
+use crate::ContentProjectionScalar;
+use crate::OptimizationUnitValidationError;
+use crate::ScalarType;
+use crate::StructuralDomainId;
+use crate::StructuralTypeId;
+use crate::tests::refresh_identity;
+use crate::tests::structural_catalog_unit;
+use crate::tests::structural_domain;
+use crate::tests::structural_leaf_field;
+use crate::tests::structural_type;
+use crate::validate_psi_optimization_unit;
 
 #[test]
 fn structural_domain_content_projection_replays_terminal_contract() {

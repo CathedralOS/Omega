@@ -2,8 +2,10 @@
 //!
 //! Acceptance proceeds through canonical identity/fact indexes, unit catalogs,
 //! retained affine authority, and final frontier/entry/service checks.
-
-use super::*;
+use crate::MachineId;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::unit_validation::function_structure;
 
 mod affine_authority;
 mod catalogs;

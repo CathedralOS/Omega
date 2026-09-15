@@ -3,8 +3,11 @@
 //! The adjacent catalog maps every exact producer identity to one validation
 //! protocol. Protocol leaves reconstruct semantics and publish the exact
 //! validator identity; no sibling pass entrance recognizes these rules.
-
-use super::*;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::ValidatedPsiRewrite;
+use crate::validate_dead_scalar_node_candidate;
 
 mod candidate_validation;
 mod identity_classification;

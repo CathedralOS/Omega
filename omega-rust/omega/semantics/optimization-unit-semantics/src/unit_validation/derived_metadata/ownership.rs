@@ -1,6 +1,5 @@
 //! Independently reconstructed ownership events.
-
-use super::*;
+use crate::OwnershipEvent;
 
 pub(crate) fn expected_ownership(
     operation: &abstract_operations::AbstractOperation,

@@ -1,6 +1,7 @@
 //! Dominance reconstruction and terminator classification.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
 
 pub(crate) fn dominators(
     entry: BlockId,

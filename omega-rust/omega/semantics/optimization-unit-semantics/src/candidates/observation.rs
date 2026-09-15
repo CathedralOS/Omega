@@ -1,6 +1,11 @@
 //! Closed scalar observation boundaries shared by scalar rewrites.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::NodeLocation;
+use crate::OptimizationCandidateIdentity;
+use crate::OptimizationValidatorIdentity;
+use crate::PsiOptimizationUnit;
+use crate::ValueId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosedScalarObservationBoundary {

@@ -1,6 +1,6 @@
 //! Independently reconstructed node provenance.
-
-use super::*;
+use crate::O;
+use crate::PsiProvenance;
 
 pub(crate) fn expected_provenance(
     operation: &abstract_operations::AbstractOperation,

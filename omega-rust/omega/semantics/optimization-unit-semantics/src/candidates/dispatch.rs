@@ -1,6 +1,25 @@
 //! Typed candidate dispatch to exact independent validators.
-
-use super::*;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ValidatedPsiRewrite;
+use crate::is_proof_check_elision_rule;
+use crate::validate_adjacent_block_merge_candidate;
+use crate::validate_constant_conditional_candidate;
+use crate::validate_dead_scalar_node_candidate;
+use crate::validate_dominating_scalar_common_subexpression_candidate;
+use crate::validate_linear_empty_block_candidate;
+use crate::validate_local_scalar_common_subexpression_candidate;
+use crate::validate_non_adjacent_block_merge_candidate;
+use crate::validate_path_qualified_empty_block_candidate;
+use crate::validate_phi_translated_scalar_common_subexpression_candidate;
+use crate::validate_proof_check_elision_candidate;
+use crate::validate_redundant_block_parameter_candidate;
+use crate::validate_scalar_evaluation_candidate;
+use crate::validate_shared_jump_fusion_candidate;
+use crate::validate_total_scalar_identity_candidate;
+use crate::validate_unreachable_private_machines_candidate;
 
 pub fn validate_psi_rewrite_candidate(
     input: &PsiOptimizationUnit,

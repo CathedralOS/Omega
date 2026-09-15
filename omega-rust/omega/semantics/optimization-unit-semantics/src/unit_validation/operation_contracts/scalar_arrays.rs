@@ -1,8 +1,11 @@
 //! Primitive arrays retain ordered scalar leaves and ordinary owned storage.
 //! Shape reconstruction uses the Terminal type contract, including empty inner
 //! dimensions; current value availability and ownership are checked separately.
-
-use super::*;
+use crate::BTreeMap;
+use crate::O;
+use crate::PsiOptimizationFunction;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
 
 pub(crate) fn scalar_array_establishment_matches(
     function: &PsiOptimizationFunction,

@@ -1,7 +1,17 @@
 //! Independent law-literal fact reconstruction.
+use crate::O;
+use crate::OptimizationFact;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::ScalarConstantValue;
+use crate::ScalarType;
+use crate::ValueDefinitionSite;
+use crate::literal_scalar_constant_fact_identity;
+use crate::scalar_value_definition;
 
 use super::classification::IndependentTotalScalarIdentity;
-use super::*;
 
 pub(super) fn independently_validate_law_literal(
     input: &PsiOptimizationUnit,

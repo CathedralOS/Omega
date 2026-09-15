@@ -1,4 +1,5 @@
-use super::super::{id, refresh_identity};
+use super::super::super::{id, refresh_identity};
+
 use super::type_declarations::{structural_leaf_field, structural_type};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,

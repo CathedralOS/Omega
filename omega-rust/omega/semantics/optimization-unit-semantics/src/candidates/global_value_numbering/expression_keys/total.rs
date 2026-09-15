@@ -1,6 +1,11 @@
 //! Obligation-free total scalar-expression reconstruction.
-
-use super::*;
+use crate::BTreeMap;
+use crate::O;
+use crate::OperationId;
+use crate::ScalarType;
+use crate::ValueId;
+use crate::candidates::global_value_numbering::expression_keys::IndependentTotalScalarExpressionKey;
+use crate::candidates::global_value_numbering::expression_keys::independent_pair;
 
 pub(crate) fn independent_total_scalar_expression(
     operation: &O,

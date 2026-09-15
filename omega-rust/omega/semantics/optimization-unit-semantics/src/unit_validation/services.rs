@@ -1,6 +1,16 @@
 //! Service catalogs, root reachability, and structural signatures.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BoundaryMachineId;
+use crate::MachineId;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::PsiOptimizationUnit;
+use crate::ServiceId;
+use crate::StructuralDomainId;
+use crate::StructuralTypeId;
+use crate::structural_qualifications_match;
 
 pub(crate) fn index_service_catalog(
     unit: &PsiOptimizationUnit,

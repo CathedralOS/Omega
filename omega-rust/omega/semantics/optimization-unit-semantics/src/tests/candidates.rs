@@ -1,6 +1,62 @@
 //! Candidate observation, replay, and corruption tests.
-
-use super::*;
+use super::id;
+use crate::BlockId;
+use crate::ClaimId;
+use crate::DeadScalarNodeRewrite;
+use crate::EdgeId;
+use crate::MachineId;
+use crate::OptimizationFact;
+use crate::OptimizationUnitValidationError;
+use crate::OwnershipEvent;
+use crate::OwnershipFrontierSite;
+use crate::OwnershipFrontierSnapshot;
+use crate::PlaceId;
+use crate::ProvenanceDisposition;
+use crate::PsiProvenance;
+use crate::PsiRealizationSite;
+use crate::ValueDefinition;
+use crate::ValueDefinitionSite;
+use crate::expected_definitions;
+use crate::expected_edges;
+use crate::expected_ownership;
+use crate::expected_provenance;
+use crate::expected_uses;
+use crate::normalize_redundant_parameter_observation_input;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_closed_scalar_node_boundary;
+use crate::reconstruct_psi_closed_region_observation;
+use crate::tests::exact_add_unit;
+use crate::tests::integer_candidate;
+use crate::tests::integer_candidate_with_facts;
+use crate::tests::integer_candidate_with_facts_and_cost;
+use crate::tests::redundant_parameter_region_fixture;
+use crate::tests::refresh_identity;
+use crate::tests::unit;
+use crate::tests::write_only_store_unit;
+use crate::unchanged_outside_redundant_parameter_region;
+use crate::validate_dead_scalar_node_candidate;
+use crate::validate_integer_evaluation_candidate;
+use crate::validate_psi_optimization_unit;
+use abstract_operations::AbstractOperation;
+use optimization_core::AnalysisInvalidationSet;
+use optimization_core::AnalysisKind;
+use optimization_core::AnalysisSet;
+use optimization_core::OptimizationPassIdentity;
+use optimization_core::OptimizationRuleContract;
+use optimization_core::OptimizationRuleIdentity;
+use optimization_core::OptimizationSafetyClass;
+use optimization_unit::NodeLocation;
+use optimization_unit::OwnershipFrontierFact;
+use optimization_unit::ProvenanceRewrite;
+use optimization_unit::PsiRewriteCandidate;
+use optimization_unit::ValueUse;
+use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::IntegerSign;
+use semantic_vocabulary::IntegerType;
+use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::OperationId;
+use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::ValueId;
 
 #[test]
 fn write_only_store_cannot_be_dropped_as_a_dead_scalar_node() {

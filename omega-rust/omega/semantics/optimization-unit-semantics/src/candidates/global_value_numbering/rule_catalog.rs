@@ -1,6 +1,6 @@
 //! Exact GVN rule identities and the proof classes they admit.
-
-use super::*;
+use crate::OptimizationRuleIdentity;
+use crate::OptimizationUnitValidationError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ScalarCseScope {

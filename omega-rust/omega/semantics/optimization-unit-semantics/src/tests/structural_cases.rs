@@ -1,6 +1,20 @@
 //! Source-produced sum inspection through the independent abstract validator.
-
-use super::*;
+use super::id;
+use crate::BlockId;
+use crate::EdgeId;
+use crate::OptimizationUnitValidationError;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::StructuralPlaceKind;
+use crate::tests::refresh_identity;
+use crate::tests::refresh_node_derivatives;
+use crate::valid_edge_affine_transition;
+use crate::validate_psi_optimization_unit;
+use abstract_operations::AbstractOperation;
+use optimization_unit::OwnershipFrontierFact;
+use optimization_unit::reconstruct_psi_optimization_unit_seed;
+use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::ValueId;
 
 fn inspection_unit() -> PsiOptimizationUnit {
     let source = r#"

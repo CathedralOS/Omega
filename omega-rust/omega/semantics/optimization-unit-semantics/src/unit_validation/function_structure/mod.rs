@@ -4,8 +4,22 @@
 //! claims and parameters, CFG shape, results, structural roots, provenance,
 //! facts, values, ownership, and service contracts. Each invariant family
 //! descends into one named leaf.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BoundaryMachineId;
+use crate::MachineId;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::ServiceId;
+use crate::StructuralDomainId;
+use crate::StructuralTypeId;
+use crate::current_ownership;
+use crate::valid_service_ceiling;
+use crate::validate_byte_sequence_literal_witnesses;
+use crate::validate_function_structural_catalog;
+use crate::validate_places_and_claims;
+use crate::validate_provider_attachment_specialization;
+use crate::validate_trivial_affine_local_witnesses;
+use crate::validate_values_and_bindings;
 
 mod byte_field_freshness;
 mod byte_views;

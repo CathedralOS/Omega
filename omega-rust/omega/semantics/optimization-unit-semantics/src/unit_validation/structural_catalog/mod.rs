@@ -3,8 +3,11 @@
 //! Type indexing precedes domain indexing at this entrance. Projection,
 //! declaration, graph, function-local, witness, provider-specialization, and
 //! path mechanics descend into named leaves.
-
-use super::*;
+use crate::BTreeMap;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::StructuralDomainId;
+use crate::StructuralTypeId;
 
 mod catalog;
 mod content_projection;

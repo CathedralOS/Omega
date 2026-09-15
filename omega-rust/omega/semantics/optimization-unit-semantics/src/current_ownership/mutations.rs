@@ -1,4 +1,10 @@
-use super::*;
+use crate::OptimizationUnitValidationError;
+use crate::current_ownership::CurrentOwnership;
+use crate::current_ownership::parameter_establishment_order;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::BlockId;
+use semantic_vocabulary::PlaceId;
+use terminal_psi::StructuralMultiplicity;
 
 pub(super) fn insert_owned_result(
     function: &PsiOptimizationFunction,

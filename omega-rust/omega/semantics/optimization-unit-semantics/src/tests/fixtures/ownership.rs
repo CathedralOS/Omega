@@ -1,6 +1,24 @@
 //! Affine claim, place, and join fixture units.
+use super::super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, FuelScheduleIdentity, SemanticFingerprint, TerminalPsiIdentity,
+    VocabularyMarker, id, reconstruct_psi_optimization_unit_seed,
+};
 
-use super::*;
+use crate::BlockId;
+use crate::BoundaryMachineId;
+use crate::ClaimId;
+use crate::EdgeId;
+use crate::MachineId;
+use crate::OperationId;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::StructuralTypeId;
+use crate::ValueId;
+use crate::tests::refresh_function_derivatives;
+use crate::tests::refresh_identity;
+use crate::tests::refresh_node_derivatives;
+use crate::tests::structural_call_unit;
 
 pub(crate) fn affine_claim_transfer_unit() -> PsiOptimizationUnit {
     let mut unit = structural_call_unit();

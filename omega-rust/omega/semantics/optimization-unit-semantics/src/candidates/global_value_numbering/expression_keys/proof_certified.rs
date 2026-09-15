@@ -1,6 +1,10 @@
 //! Proof-certified scalar-expression reconstruction.
-
-use super::*;
+use crate::O;
+use crate::OperationId;
+use crate::ScalarType;
+use crate::ValueId;
+use crate::candidates::global_value_numbering::expression_keys::IndependentProofScalarExpressionKey;
+use crate::candidates::global_value_numbering::expression_keys::independent_pair;
 
 pub(crate) fn independent_proof_scalar_expression(
     operation: &O,

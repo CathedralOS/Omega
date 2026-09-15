@@ -1,4 +1,9 @@
-use super::*;
+use crate::BlockId;
+use crate::NodeLocation;
+use crate::ProvenanceDisposition;
+use crate::PsiOptimizationFunction;
+use crate::PsiRealizationSite;
+use crate::SharedJumpFusionRewrite;
 
 pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
     function: &PsiOptimizationFunction,

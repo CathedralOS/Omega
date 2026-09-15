@@ -1,4 +1,19 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::BoundaryMachineId;
+use crate::ClaimId;
+use crate::O;
+use crate::OperationId;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::StructuralDomainId;
+use crate::StructuralPlaceKind;
+use crate::StructuralTypeId;
+use crate::resolve_structural_path;
+use crate::structural_projected_qualifications_match;
+use crate::structural_qualifications_match;
+use crate::structural_signature_matches;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ValidatorStructuralRootKey {

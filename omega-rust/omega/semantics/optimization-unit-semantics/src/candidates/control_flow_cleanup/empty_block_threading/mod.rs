@@ -1,7 +1,5 @@
 //! Optimizer module role: stage group. Empty-block threading validation.
 
-use super::*;
-
 mod linear;
 mod path_qualified;
 

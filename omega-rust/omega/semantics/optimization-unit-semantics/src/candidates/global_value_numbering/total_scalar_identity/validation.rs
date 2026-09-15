@@ -1,9 +1,28 @@
 //! Candidate contract, shape, evidence, and accounting join.
+use crate::AnalysisInvalidationSet;
+use crate::AnalysisKind;
+use crate::AnalysisSet;
+use crate::OptimizationFact;
+use crate::OptimizationRuleIdentity;
+use crate::OptimizationSafetyClass;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ScalarSubstitution;
+use crate::ScalarType;
+use crate::TotalScalarIdentityKind;
+use crate::ValidatedPsiRewrite;
+use crate::ValueDefinition;
+use crate::ValueDefinitionSite;
+use crate::reconstruct_total_scalar_identity_accounting;
+use crate::scalar_value_definition;
+use crate::validate_psi_optimization_unit;
 
 use super::application::independently_apply_total_scalar_identity;
 use super::classification::independently_classify_total_scalar_identity;
 use super::evidence::independently_validate_law_literal;
-use super::*;
 
 const NEUTRAL_ARITHMETIC_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1";

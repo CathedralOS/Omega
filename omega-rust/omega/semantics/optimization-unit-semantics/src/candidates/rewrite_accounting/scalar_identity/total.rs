@@ -1,4 +1,7 @@
-use super::*;
+use crate::BlockId;
+use crate::PsiOptimizationFunction;
+use crate::ScalarType;
+use crate::TotalScalarIdentityRewrite;
 
 pub(crate) fn reconstruct_total_scalar_identity_accounting(
     function: &PsiOptimizationFunction,

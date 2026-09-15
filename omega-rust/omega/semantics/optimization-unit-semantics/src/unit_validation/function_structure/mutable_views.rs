@@ -1,5 +1,10 @@
 //! Current-graph exclusive bindings and fresh mutable view observations.
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationFunction;
+use crate::StructuralTypeId;
 use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
 
 pub(super) fn validate(

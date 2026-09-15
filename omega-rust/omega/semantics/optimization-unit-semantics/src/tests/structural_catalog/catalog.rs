@@ -1,6 +1,13 @@
 //! Structural type and domain catalog indexing tests.
-
-use super::super::*;
+use super::super::id;
+use crate::OptimizationUnitValidationError;
+use crate::StructuralTypeId;
+use crate::tests::refresh_identity;
+use crate::tests::structural_catalog_unit;
+use crate::tests::structural_domain;
+use crate::tests::structural_leaf_field;
+use crate::tests::structural_type;
+use crate::validate_psi_optimization_unit;
 
 #[test]
 fn top_level_structural_type_roster_is_canonical_and_identity_unique() {

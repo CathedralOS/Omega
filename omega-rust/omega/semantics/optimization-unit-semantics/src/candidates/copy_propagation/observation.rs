@@ -1,6 +1,17 @@
 //! Closed-region normalization and outside-region comparison.
-
-use super::*;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::MachineId;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::RedundantBlockParameterRewrite;
+use crate::ValueDefinitionSite;
+use crate::ValueId;
+use crate::expected_definitions;
+use crate::expected_edges;
+use crate::expected_ownership;
+use crate::expected_uses;
+use crate::recompute_psi_optimization_unit_identity;
 
 /// Construct the validator's normalized pre-rewrite question independently of
 /// the output constructor below. Only the exact scalar substitution and the

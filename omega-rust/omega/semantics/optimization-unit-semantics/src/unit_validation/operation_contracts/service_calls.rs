@@ -1,4 +1,26 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BoundaryMachineId;
+use crate::MachineId;
+use crate::O;
+use crate::PsiOptimizationFunction;
+use crate::ServiceId;
+use crate::StructuralDomainId;
+use crate::StructuralProjectionPolicy;
+use crate::StructuralTypeId;
+use crate::boundary_completion_matches;
+use crate::boundary_requirements_match;
+use crate::exact_payloadless_structural_call;
+use crate::exact_plain_affine_structural_call;
+use crate::payloadless_selected_evidence_surface_matches;
+use crate::plain_record_call;
+use crate::plain_scalar_array_call;
+use crate::plain_scalar_sum_call;
+use crate::record_establishment_matches;
+use crate::scalar_array_establishment_matches;
+use crate::scalar_case_establishment_matches;
+use crate::structural_arguments_match;
+use crate::validate_internal_claim_transfers;
+use crate::validate_structural_call_result;
 
 pub(crate) fn operation_service_contract_matches(
     caller: &PsiOptimizationFunction,

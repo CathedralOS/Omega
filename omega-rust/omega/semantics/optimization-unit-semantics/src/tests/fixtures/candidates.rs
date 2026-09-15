@@ -1,6 +1,38 @@
 //! Candidate and redundant-region fixtures.
+use super::super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, FuelScheduleIdentity,
+    OptimizationPassIdentity, OptimizationRuleContract, SemanticFingerprint, TerminalPsiIdentity,
+    VocabularyMarker, id, reconstruct_psi_optimization_unit_seed,
+};
 
-use super::*;
+use crate::AnalysisInvalidationSet;
+use crate::AnalysisKind;
+use crate::AnalysisSet;
+use crate::BlockId;
+use crate::EdgeId;
+use crate::IntegerConstantRewrite;
+use crate::IntegerEvaluationWitness;
+use crate::IntegerSign;
+use crate::IntegerType;
+use crate::IntegerValue;
+use crate::MachineId;
+use crate::NodeLocation;
+use crate::OperationId;
+use crate::OptimizationRuleIdentity;
+use crate::OptimizationSafetyClass;
+use crate::ProvenanceDisposition;
+use crate::ProvenanceRewrite;
+use crate::PsiOptimizationUnit;
+use crate::PsiRealizationSite;
+use crate::PsiRewriteCandidate;
+use crate::RedundantBlockParameterRewrite;
+use crate::ScalarConstantValue;
+use crate::ScalarType;
+use crate::ValueId;
+use crate::literal_scalar_constant_fact_identity;
+use crate::normalize_redundant_parameter_observation_input;
+use crate::scalar_value_definition;
 
 pub(crate) fn redundant_parameter_region_fixture() -> (
     PsiOptimizationUnit,

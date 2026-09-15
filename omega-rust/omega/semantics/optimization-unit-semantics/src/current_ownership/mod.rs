@@ -10,16 +10,11 @@
 //! Claims remain independent obligations even when their root is unrestricted;
 //! omitting a root must not bypass claim replay or weaken CFG joins.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-use abstract_operations::{AbstractFunctionResult, AbstractOperation as O};
 use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
-use semantic_vocabulary::{BlockId, ClaimId, MachineId, PlaceId, StructuralTypeId};
-use terminal_psi::{
-    BoundaryMachineDeclaration, StructuralAccess, StructuralAffineDiscard, StructuralFieldType,
-    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction,
-};
+use semantic_vocabulary::{BlockId, MachineId, StructuralTypeId};
+use terminal_psi::{BoundaryMachineDeclaration, StructuralTypeDeclaration};
 
 use crate::OptimizationUnitValidationError;
 

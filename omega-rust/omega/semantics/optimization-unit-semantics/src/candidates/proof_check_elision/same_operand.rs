@@ -1,7 +1,37 @@
 //! Same-operand exact integer laws and candidate acceptance.
+use crate::AnalysisInvalidationSet;
+use crate::AnalysisKind;
+use crate::AnalysisSet;
+use crate::IntegerCarrier;
+use crate::IntegerSign;
+use crate::IntegerType;
+use crate::O;
+use crate::ObservationKnowledge;
+use crate::OperationId;
+use crate::OptimizationRuleIdentity;
+use crate::OptimizationSafetyClass;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::ProvenanceDisposition;
+use crate::ProvenanceRewrite;
+use crate::PsiOptimizationUnit;
+use crate::PsiRealizationSite;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ScalarType;
+use crate::ValidatedPsiRewrite;
+use crate::ValueDefinition;
+use crate::ValueDefinitionSite;
+use crate::ValueId;
+use crate::independently_accepted_operation_fact;
+use crate::observation_at;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_closed_scalar_node_boundary;
+use crate::reconstruct_fact_index;
+use crate::same_closed_scalar_observation;
+use crate::validate_psi_optimization_unit;
 
 use super::identity_classification::*;
-use super::*;
 
 /// Independently reconstructed scalar interface of one closed node region.
 /// Canonical ordering is by `ValueId`; block-parameter bindings remain uses of

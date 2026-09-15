@@ -3,8 +3,14 @@
 //! Common edge-custody preservation and scalar-substitution contracts live at
 //! this entrance. Exact transformation accounting descends into named family
 //! leaves.
-
-use super::*;
+use crate::BlockId;
+use crate::MachineId;
+use crate::O;
+use crate::OptimizationEdge;
+use crate::RedundantBlockParameterRewrite;
+use crate::ScalarSubstitution;
+use crate::expected_edges;
+use crate::rewrite_block_parameter_operation;
 
 mod adjacent_merge;
 mod common_subexpression;

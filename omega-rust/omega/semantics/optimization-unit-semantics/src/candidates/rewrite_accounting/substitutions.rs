@@ -1,4 +1,7 @@
-use super::*;
+use crate::BlockId;
+use crate::EdgeId;
+use crate::O;
+use crate::ValueId;
 
 pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: ValueId) {
     let replace = |value: &mut ValueId| {

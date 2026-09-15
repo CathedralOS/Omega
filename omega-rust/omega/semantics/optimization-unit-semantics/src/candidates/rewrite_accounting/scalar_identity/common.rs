@@ -1,4 +1,13 @@
-use super::*;
+use crate::BlockId;
+use crate::DeadScalarNodeRewrite;
+use crate::NodeLocation;
+use crate::OperationId;
+use crate::ProvenanceDisposition;
+use crate::PsiOptimizationFunction;
+use crate::PsiRealizationSite;
+use crate::ScalarType;
+use crate::ValueId;
+use crate::reconstruct_dead_scalar_node_accounting;
 
 pub(super) fn reconstruct_scalar_identity_accounting(
     function: &PsiOptimizationFunction,

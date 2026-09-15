@@ -1,7 +1,13 @@
 //! Mutation controls isolate current-CFG freshness from source provenance checks.
-use super::*;
+use super::validate;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::BlockId;
+use crate::O;
+use crate::OperationId;
 use crate::tests::{id, indexed_byte_fields::indexed_field_unit};
 use optimization_unit::{OptimizationBlock, OptimizationEdge};
+use terminal_psi::StructuralAccess;
 
 #[test]
 fn indexed_byte_field_freshness_preserves_only_length_preserving_effects() {

@@ -1,4 +1,6 @@
-use super::*;
+use crate::BTreeMap;
+use crate::StructuralDomainId;
+use crate::StructuralTypeId;
 
 pub(crate) fn structural_qualifications_match(
     carrier: StructuralTypeId,

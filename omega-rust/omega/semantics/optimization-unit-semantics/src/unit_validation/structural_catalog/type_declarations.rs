@@ -1,4 +1,8 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::StructuralTypeId;
 
 pub(crate) fn validate_structural_fields(
     unit: &PsiOptimizationUnit,

@@ -1,4 +1,11 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::ClaimId;
+use crate::ContentTerm;
+use crate::PlaceId;
+use crate::Proposition;
+use crate::PsiOptimizationFunction;
+use crate::ScalarTerm;
 
 pub(crate) fn validate_internal_claim_transfers(
     caller: &PsiOptimizationFunction,

@@ -1,7 +1,5 @@
 //! Optimizer module role: stage group. Typed units and candidates shared by independent-validator test families.
 
-use super::*;
-
 mod candidates;
 mod dominance;
 mod ownership;

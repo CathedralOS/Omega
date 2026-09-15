@@ -1,6 +1,23 @@
 //! Operation-result availability across distinct control-flow shapes.
 
-use super::*;
+use super::super::super::AbstractParameter;
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, FuelScheduleIdentity, SemanticFingerprint, TerminalPsiIdentity,
+    VocabularyMarker, id, reconstruct_psi_optimization_unit_seed,
+};
+use crate::BlockId;
+use crate::ClaimId;
+use crate::EdgeId;
+use crate::MachineId;
+use crate::OperationId;
+use crate::PlaceId;
+use crate::PsiOptimizationUnit;
+use crate::ScalarType;
+use crate::StructuralTypeId;
+use crate::ValueId;
+use terminal_psi::ByteSequenceCarrier;
+use terminal_psi::StructuralTypeShape;
 
 #[derive(Clone, Copy)]
 pub(crate) enum OperationResultCfgShape {

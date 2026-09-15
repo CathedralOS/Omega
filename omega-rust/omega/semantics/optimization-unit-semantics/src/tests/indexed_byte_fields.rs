@@ -1,5 +1,10 @@
 //! Current-IR indexed field custody, scalar identity, and exact bounds.
-use super::*;
+use super::id;
+use crate::OptimizationUnitValidationError;
+use crate::PsiOptimizationUnit;
+use crate::tests::refresh_node_derivatives;
+use crate::validate_psi_optimization_unit;
+use abstract_operations::AbstractOperation;
 
 pub(crate) fn indexed_field_unit() -> PsiOptimizationUnit {
     let source = r#"

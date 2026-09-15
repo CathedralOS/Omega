@@ -1,6 +1,16 @@
 //! Retained edge-cleanup and hidden-establishment affine authority.
-
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::O;
+use crate::OptimizationUnitValidationError;
+use crate::OwnershipFrontierOwnedPlace;
+use crate::OwnershipFrontierSite;
+use crate::OwnershipFrontierSnapshot;
+use crate::PlaceId;
+use crate::PsiOptimizationFunction;
+use crate::PsiOptimizationUnit;
+use crate::PsiProvenance;
+use crate::StructuralPlaceKind;
 
 mod block_bindings;
 

@@ -1,4 +1,7 @@
-use super::*;
+use crate::BlockId;
+use crate::ProofCertifiedScalarIdentityRewrite;
+use crate::PsiOptimizationFunction;
+use crate::ScalarType;
 
 pub(crate) fn reconstruct_proof_certified_scalar_identity_accounting(
     function: &PsiOptimizationFunction,

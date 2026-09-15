@@ -1,4 +1,13 @@
-use super::*;
+use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::O;
+use crate::PlaceId;
+use crate::PsiOptimizationFunction;
+use crate::ScalarType;
+use crate::StructuralDomainId;
+use crate::StructuralTypeId;
+use crate::record_loan;
+use crate::resolve_structural_path;
 
 #[cfg(test)]
 mod tests;

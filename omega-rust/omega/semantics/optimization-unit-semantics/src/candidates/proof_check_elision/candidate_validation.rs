@@ -1,7 +1,37 @@
 //! Proof-certified scalar identity candidate acceptance.
+use crate::AnalysisInvalidationSet;
+use crate::AnalysisKind;
+use crate::AnalysisSet;
+use crate::O;
+use crate::OptimizationFact;
+use crate::OptimizationRuleIdentity;
+use crate::OptimizationSafetyClass;
+use crate::OptimizationUnitValidationError;
+use crate::OptimizationValidatorIdentity;
+use crate::ProofCertifiedScalarIdentityKind;
+use crate::PsiOptimizationUnit;
+use crate::PsiRewriteCandidate;
+use crate::PsiRewritePatch;
+use crate::ScalarConstantValue;
+use crate::ScalarSubstitution;
+use crate::ScalarType;
+use crate::ValidatedPsiRewrite;
+use crate::ValueDefinition;
+use crate::ValueDefinitionSite;
+use crate::expected_definitions;
+use crate::expected_ownership;
+use crate::expected_uses;
+use crate::literal_scalar_constant_fact_identity;
+use crate::preserve_edge_custody;
+use crate::recompute_psi_optimization_unit_identity;
+use crate::reconstruct_declared_places;
+use crate::reconstruct_fact_index;
+use crate::reconstruct_proof_certified_scalar_identity_accounting;
+use crate::rewrite_scalar_value_uses;
+use crate::scalar_value_definition;
+use crate::validate_psi_optimization_unit;
 
 use super::identity_classification::*;
-use super::*;
 
 /// Independently remove one live proof-certified integer identity.
 /// Accepted proof and literal evidence are reconstructed from immutable input
