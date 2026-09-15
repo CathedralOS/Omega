@@ -492,7 +492,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   block, rebinding each to the source and dropping the destination roster
   row, admitting a source redefinition on the last use's own instruction
   but none inside the open interval, each under replayed
-  restore-by-content validation (crate `nextest`: 242 pass). Remaining:
+  restore-by-content validation (crate `nextest`: 254 pass). Remaining:
   address folding, scheduling, left-operand literal folding (immediate
   forms fix the literal as the subtrahend), and producers whose contracts
   do not fix the high bits (`ZeroExtendU32` output, packed loads, FP bit
