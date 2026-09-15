@@ -525,9 +525,10 @@ pub enum TrustProviderRealization {
     Import {
         evaluated: effects::provider_plan::EvaluatedForeignImport,
     },
-    /// Temporary source `via Binding::DllImport("library", "symbol")`
-    /// realization. This remains visibly distinct from an evaluated,
-    /// target-normalized foreign locator.
+    /// Retired source `via Binding::DllImport("library", "symbol")`
+    /// realization, retained only for decoded artifacts. This remains
+    /// visibly distinct from an evaluated, target-normalized foreign
+    /// locator.
     StringBackedImportBootstrap {
         library: String,
         symbol: String,

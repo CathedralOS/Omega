@@ -1,5 +1,7 @@
 // Microsoft x64 returns larger records through a caller-owned destination in
 // hidden RCX. The declared seed argument therefore shifts to RDX.
+use omega::language::core::external_binding;
+
 data Triple {
     first: u64;
     second: u64;
@@ -10,7 +12,16 @@ boundary trait LargeAggregateResultImport {
     machine receive(seed: u64) -> Triple;
 }
 
-machine large_aggregate_result_import(seed: u64) -> Triple satisfies LargeAggregateResultImport::receive via Binding::DllImport("omega_abi_probe.dll", "omega_win64_large_result_probe");
+windows_x86_64 machine large_aggregate_result_binding() -> Binding<19, 30, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega_abi_probe.dll",
+            export: "omega_win64_large_result_probe",
+        },
+    }
+}
+
+windows_x86_64 machine large_aggregate_result_import(seed: u64) -> Triple satisfies LargeAggregateResultImport::receive via large_aggregate_result_binding();
 
 data Main {
     foreign: LargeAggregateResultImport;

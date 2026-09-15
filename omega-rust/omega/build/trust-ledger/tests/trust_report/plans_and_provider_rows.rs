@@ -24,7 +24,7 @@ boundary trait Flags {{
     machine open_read() -> i32;
 }}
 machine open_read() -> i32
-    satisfies Flags::open_read via Binding::DllImport("omega-test", "flags_{slot}");
+    satisfies Flags::open_read via Binding::Syscall({slot});
 data Main {{ console: Console; }}
 machine Main::exercise(&mut self) {{
     self.console.exit_process(70);
@@ -73,7 +73,7 @@ boundary trait Flags {
     machine open_read() -> i32;
 }
 machine open_read() -> i32
-    satisfies Flags::open_read via Binding::DllImport("omega-test", "flags_open_read");
+    satisfies Flags::open_read via Binding::Syscall(101);
 data Main { console: Console; }
 machine Main::exercise(&mut self) {
     self.console.exit_process(70);
@@ -126,9 +126,7 @@ machine Main::exercise(&mut self) {
     assert!(requirement_row.contains("result type: named(name(i32))"));
     assert!(requirement_row.contains("named-callable(path(Flags::open_read)"));
     assert!(requirement_row.contains("method: open_read"));
-    assert!(requirement_row.contains(
-        "realization: string-backed import bootstrap `omega-test` symbol `flags_open_read`"
-    ));
+    assert!(requirement_row.contains("realization: syscall 101"));
     assert!(requirement_row.contains("grant selectors: none"));
     assert!(requirement_row.contains("STANDING WARNING"));
 
@@ -174,7 +172,7 @@ machine NoResultPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
 }
 
 boundary trait Tick: Calling<NoResultPolicy> { machine tick(); }
-machine tick_leaf() satisfies Tick::tick via Binding::DllImport("omega-test", "tick");
+machine tick_leaf() satisfies Tick::tick via Binding::Syscall(102);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -252,9 +250,9 @@ boundary trait Pair {
 }
 
 machine effectful_leaf(callback: &mut Callback)
-    satisfies Pair::effectful via Binding::DllImport("omega-test", "pair_effectful");
+    satisfies Pair::effectful via Binding::Syscall(103);
 machine quiet_leaf()
-    satisfies Pair::quiet via Binding::DllImport("omega-test", "pair_quiet");
+    satisfies Pair::quiet via Binding::Syscall(104);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -331,7 +329,7 @@ boundary trait SchedulerRuntime {
 }
 
 machine wait_leaf(scheduler: SchedulerHandle)
-    satisfies SchedulerRuntime::wait via Binding::DllImport("omega-test", "scheduler_wait");
+    satisfies SchedulerRuntime::wait via Binding::Syscall(105);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -402,7 +400,7 @@ boundary trait Issuer {
 
 machine issue_leaf(id: u64) -> Token in Issued
     satisfies Issuer::issue
-    via Binding::DllImport("omega-test", "issuer_issue");
+    via Binding::Syscall(106);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -527,7 +525,7 @@ boundary trait Issuer {
 
 machine issue_leaf(id: u64) -> Token in Issued
     satisfies Issuer::issue
-    via Binding::DllImport("omega-test", "issuer_issue");
+    via Binding::Syscall(106);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -575,7 +573,7 @@ boundary trait Pair {
     machine second(code: i32) -> i32;
 }
 
-machine first_leaf(code: i32) -> i32 satisfies Pair::first via Binding::DllImport("omega-test", "pair_first");
+machine first_leaf(code: i32) -> i32 satisfies Pair::first via Binding::Syscall(107);
 
 data Main { console: Console; }
 machine Main::exercise(&mut self) {
@@ -638,7 +636,7 @@ boundary trait Pair {
 }
 
 machine bound_leaf() -> Token in Bound
-    satisfies Pair::bound via Binding::DllImport("omega-test", "pair_bound");
+    satisfies Pair::bound via Binding::Syscall(108);
 
 data Main {}
 machine Main::exercise(&mut self) {}

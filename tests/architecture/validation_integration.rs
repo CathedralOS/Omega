@@ -6615,7 +6615,7 @@ fn compiler_intrinsic_may_retain_a_compiler_owned_safe_carrier_surface() {
 }
 
 #[test]
-fn foreign_import_still_rejects_a_private_safe_carrier_surface() {
+fn external_binding_still_rejects_a_private_safe_carrier_surface() {
     let typed = typed_program_from_source(
         r#"
         boundary trait Console {
@@ -6626,7 +6626,7 @@ fn foreign_import_still_rejects_a_private_safe_carrier_surface() {
 
         machine console_read_line(out_line: &mut [u8])
         satisfies Console::read_line
-        via Binding::DllImport("host", "read_line");
+        via Binding::Syscall(60);
         "#,
     );
 

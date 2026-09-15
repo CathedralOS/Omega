@@ -340,23 +340,20 @@ machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via exit_binding();"#,
     );
 }
 
-/// A called legacy `via Binding::DllImport(...)` leaf is refused at
-/// source-import coverage: raw foreign strings are data, never native import
-/// authority.
+/// A called legacy `via Binding::DllImport("module", "symbol")` leaf is
+/// refused at source admission: raw foreign strings are data, never binding
+/// authority, so the retired magic spelling never enters the pipeline.
 #[test]
-fn called_legacy_string_backed_leaf_is_refused_at_native_coverage() {
+fn called_legacy_string_backed_leaf_is_refused_at_source_admission() {
     let diagnostics = compile_called_leaf(
         r#"machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via Binding::DllImport("kernel32.dll", "ExitProcess");"#,
     )
     .expect_err("a called legacy leaf must not reach native emission");
     assert!(
         diagnostics.iter().any(|message| {
-            message.contains(
-                "retains a legacy string-backed binding with no normalized \
-                 terminal-mechanism identity",
-            )
+            message.contains("`Binding::DllImport(\"module\", \"symbol\")` is retired")
         }),
-        "the called legacy leaf must be refused at source-import coverage: \
+        "the called legacy leaf must be refused at source admission: \
          {diagnostics:?}"
     );
 }

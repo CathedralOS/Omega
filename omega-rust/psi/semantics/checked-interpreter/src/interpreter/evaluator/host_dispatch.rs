@@ -482,11 +482,11 @@ mod tests {
                 "ConsoleNativeProvider::custom_write",
             ),
             (
-                "DllImport",
+                "Syscall",
                 "i32",
                 "machine ConsoleNativeProvider::write_byte(byte: i32)
                     satisfies Console::write_byte
-                    via Binding::DllImport(\"console\", \"write_byte\");",
+                    via Binding::Syscall(60);",
                 "ConsoleNativeProvider::write_byte",
             ),
             (

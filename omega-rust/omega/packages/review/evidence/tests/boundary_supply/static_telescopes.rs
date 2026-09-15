@@ -25,7 +25,7 @@ pub machine BoundProvider::identity<
     ProviderOrder: Value satisfies Ranked
 >(value: Value) -> Value
     satisfies BoundSurface::identity
-    via Binding::DllImport("omega-bound", "identity");
+    via Binding::Syscall(60);
 "#,
     );
     package.write(
@@ -104,7 +104,7 @@ pub machine BoundProvider::identity<
     ProviderHash: Value satisfies Hashed
 >(value: Value) -> Value
     satisfies BoundSurface::identity
-    via Binding::DllImport("omega-bound", "identity");
+    via Binding::Syscall(60);
 "#,
     );
     weaker_provider.write(
@@ -150,7 +150,7 @@ pub machine BoundProvider::identity<
     ProviderOrder: Value satisfies Ranked
 >(value: Value) -> Value
     satisfies BoundSurface::identity
-    via Binding::DllImport("omega-bound", "identity");
+    via Binding::Syscall(60);
 "#,
     );
     stronger_provider.write(
@@ -192,7 +192,7 @@ pub machine ConstProvider::identity<const Length: u64>(
     value: [u8; Length]
 ) -> [u8; Length]
     satisfies ConstSurface::identity
-    via Binding::DllImport("omega-const", "identity");
+    via Binding::Syscall(60);
 "#,
     );
     package.write(
@@ -326,7 +326,7 @@ pub data GenericProvider {}
 pub boundary requirement GenericSurface::identity<Element [copy]>(value: Element) -> Element;
 pub machine GenericProvider::identity<Value>(value: Value) -> Value
     satisfies GenericSurface::identity
-    via Binding::DllImport("omega-generic", "identity");
+    via Binding::Syscall(60);
 "#,
     );
     package.write(
@@ -448,12 +448,16 @@ pub data LifetimeProvider {}
 pub boundary requirement GenericSurface::identity<Element>(value: Element) -> Element;
 pub boundary requirement LifetimeSurface::observe<'input>(value: &'input u32);
 
+// Unselected top-level requirement supply has no derived provider-plan
+// provenance row for an evaluated `via` to join, so these leaves keep the
+// remaining bootstrap mechanism; evaluated-import coverage for supply lives
+// in the selected-provider fixtures.
 pub machine GenericProvider::identity<Value>(value: Value) -> Value
     satisfies GenericSurface::identity
-    via Binding::DllImport("omega-generic", "identity");
+    via Binding::Syscall(60);
 pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
     satisfies LifetimeSurface::observe
-    via Binding::DllImport("omega-generic", "observe");
+    via Binding::Syscall(60);
 "#,
     );
     package.write(
@@ -507,12 +511,10 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
                 "external-supply identity must alpha-normalize `{authored_binder}`",
             );
         }
+        let _ = symbol;
         assert_eq!(
             supply.binding(),
-            &PackageReviewExternalBinding::Import {
-                library: "omega-generic".to_owned(),
-                symbol: symbol.to_owned(),
-            }
+            &PackageReviewExternalBinding::Syscall { number: 60 }
         );
         assert!(
             review.selected_providers().iter().all(|provider| provider

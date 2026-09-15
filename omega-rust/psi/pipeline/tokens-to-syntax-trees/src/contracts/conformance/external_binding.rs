@@ -15,7 +15,7 @@ pub(crate) fn parse_external_provider_binding<'tokens, 'source>(
     if root.as_str() != "Binding" {
         return Err(start.error_here(
             "an external realization must construct the compiler-known Binding sum; \
-             write `via Binding::DllImport(...)` or another qualified `Binding::Case`",
+             write `via Binding::Syscall(n)` or another qualified `Binding::Case`",
         ));
     }
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
@@ -37,14 +37,17 @@ fn parse_provider_binding_case<'tokens, 'source>(
             "`Binding::VtableSlot` is retired; declare the foreign table layout and use \
                  `Binding::VtableField(field)`",
         )),
-        "DllImport" => {
-            let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-            let (module, input) = input.take_string()?;
-            let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-            let (symbol, input) = input.take_string()?;
-            let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-            Ok((ExternalBinding::DllImport { module, symbol }, input))
-        }
+        // The string-backed `Binding::DllImport("module", "symbol")` bootstrap
+        // is retired: raw foreign bytes never again become binding authority
+        // through an authored magic spelling. Durable source evaluates the
+        // compiler-owned `Binding` data sum through an ordinary producer
+        // machine, so `via` remains one exact machine call whose result is a
+        // typed locator value.
+        "DllImport" => Err(input.error_here(
+            "`Binding::DllImport(\"module\", \"symbol\")` is retired; return the \
+             compiler-owned `Binding::DllImport { import: DllImport::Case { .. } }` \
+             value from one `via` producer machine instead",
+        )),
         "CompilerIntrinsic" => Ok((ExternalBinding::CompilerIntrinsic, input)),
         // A service-table function: dispatch through the `over` struct's
         // fn-ptr FIELD like a bare-field arm, but the table pointer is
@@ -67,9 +70,10 @@ fn parse_provider_binding_case<'tokens, 'source>(
         }
         other => Err(input.error_here(format!(
             "unknown Binding case `{other}`: external leaves require one of \
-             `Binding::Syscall(n)`, `Binding::DllImport(\"module\", \"symbol\")`, \
+             `Binding::Syscall(n)`, \
              `Binding::CompilerIntrinsic`, \
-             `Binding::VtableField(field)`, or `Binding::TableFunction(field)`"
+             `Binding::VtableField(field)`, or `Binding::TableFunction(field)`; \
+             imports evaluate a `Binding::DllImport {{ .. }}` producer through `via`"
         ))),
     }
 }

@@ -1,8 +1,11 @@
 // External leaves bind each boundary-trait method to one mechanism from the
 // compiler-known, closed `Binding` sum. This target-filtered declaration set
-// exercises Syscall, DllImport, and a named VtableField without retaining the retired
+// exercises Syscall, an evaluated typed DllImport locator, and a named
+// VtableField without retaining the retired
 // authored `provides` table surface. Provider constants are ordinary format or
 // layout facts, independent of the retired Binding::Value carrier.
+use omega::language::core::external_binding;
+
 boundary trait Mixed {
     machine via_syscall() reaches Mixed;
     machine via_import() reaches Mixed;
@@ -10,7 +13,15 @@ boundary trait Mixed {
 }
 
 macos_arm64 machine syscall_leaf() satisfies Mixed::via_syscall via Binding::Syscall(1);
-macos_arm64 machine import_leaf() satisfies Mixed::via_import via Binding::DllImport("kernel32", "WriteFile");
+macos_arm64 machine import_binding() -> Binding<17, 5, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_exit",
+        },
+    }
+}
+macos_arm64 machine import_leaf() satisfies Mixed::via_import via import_binding();
 data NativeTable { reserved0: addr; reserved1: addr; via_vtable: addr; }
 macos_arm64 machine NativeTable::vtable_leaf() satisfies Mixed::via_vtable via Binding::VtableField(via_vtable);
 

@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
 // An erased result field has no AAPCS64 transfer operation. The stripped Pair
@@ -16,7 +17,16 @@ boundary trait HfaResultImport {
     machine call(seed: i64) -> Pair;
 }
 
-machine hfa_result_import(seed: i64) -> Pair satisfies HfaResultImport::call via Binding::DllImport("libSystem.B.dylib", "omega_hfa_result_probe");
+macos_arm64 machine hfa_result_binding() -> Binding<17, 22, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "omega_hfa_result_probe",
+        },
+    }
+}
+
+macos_arm64 machine hfa_result_import(seed: i64) -> Pair satisfies HfaResultImport::call via hfa_result_binding();
 
 data Main {
     foreign: HfaResultImport;

@@ -32,7 +32,10 @@ data Policy {}
 boundary trait Native: Calling<Policy> {
     machine send(value: &[u8]);
 }
-machine send(value: &[u8]) satisfies Native::send via Binding::DllImport("foreign", "send");
+machine send_binding() -> i32 {
+    0
+}
+machine send(value: &[u8]) satisfies Native::send via send_binding();
 "#;
 
 #[test]
@@ -68,7 +71,10 @@ data Vec<T> { value: u64; }
 boundary trait Native {
     machine send(value: &Vec<u8>);
 }
-machine send(value: &Vec<u8>) satisfies Native::send via Binding::DllImport("foreign", "send");
+machine send_binding() -> i32 {
+    0
+}
+machine send(value: &Vec<u8>) satisfies Native::send via send_binding();
 "#;
 
 #[test]

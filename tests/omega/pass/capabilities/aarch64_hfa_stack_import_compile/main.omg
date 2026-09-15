@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
 // ENT2c: two four-member HFAs consume v0-v7, so the following Pair is passed
@@ -9,7 +10,16 @@ boundary trait HfaStackImport {
     machine call(first: Quad, second: Quad, trailing: Pair) -> i64;
 }
 
-machine hfa_stack_import(first: Quad, second: Quad, trailing: Pair) -> i64 satisfies HfaStackImport::call via Binding::DllImport("libSystem.B.dylib", "omega_hfa_stack_probe");
+macos_arm64 machine hfa_stack_binding() -> Binding<17, 21, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "omega_hfa_stack_probe",
+        },
+    }
+}
+
+macos_arm64 machine hfa_stack_import(first: Quad, second: Quad, trailing: Pair) -> i64 satisfies HfaStackImport::call via hfa_stack_binding();
 
 data Main {
     foreign: HfaStackImport;

@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
 // ENT2c: one by-value flat f64 record is one AAPCS64 HFA parameter. The
@@ -12,7 +13,16 @@ boundary trait HfaImport {
     machine call(pair: Pair) -> i64;
 }
 
-machine hfa_import(pair: Pair) -> i64 satisfies HfaImport::call via Binding::DllImport("libSystem.B.dylib", "omega_hfa_probe");
+macos_arm64 machine hfa_binding() -> Binding<17, 15, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "omega_hfa_probe",
+        },
+    }
+}
+
+macos_arm64 machine hfa_import(pair: Pair) -> i64 satisfies HfaImport::call via hfa_binding();
 
 data Main { foreign: HfaImport; pair: Pair; result: i64; }
 machine Main::main(&mut self) reaches HfaImport {

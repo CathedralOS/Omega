@@ -339,6 +339,10 @@ fn retains_public_machine_visibility_in_typed_trees() {
 
 #[test]
 fn retains_structured_external_binding_table_in_typed_trees() {
+    // The authored `Binding::DllImport("module", "symbol")` bootstrap spelling
+    // is retired, so `ExternalBindingIdentity::Import` no longer has a source
+    // producer. The remaining bootstrap spellings still exercise the interned
+    // identity table until their carriers are removed.
     let source = r#"
         boundary trait Console {
             machine write(value: u8);
@@ -346,7 +350,7 @@ fn retains_structured_external_binding_table_in_typed_trees() {
 
         machine write_leaf(value: u8)
         satisfies Console::write
-        via Binding::DllImport("a,b", "c");
+        via Binding::Syscall(4);
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -364,10 +368,7 @@ fn retains_structured_external_binding_table_in_typed_trees() {
 
     assert_eq!(
         typed.external_bindings.identity(binding),
-        Some(&language_semantics::ExternalBindingIdentity::Import {
-            library: "a,b".to_owned(),
-            symbol: "c".to_owned(),
-        })
+        Some(&language_semantics::ExternalBindingIdentity::Syscall { number: 4 })
     );
 }
 

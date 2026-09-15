@@ -1365,31 +1365,50 @@ fn runtime_import_call_argument_exit_canary_runs() {
     // The authored-import argument fix: exit(70) through an external
     // DllImport leaf reaches libSystem with its argument intact. NATIVE
     // assert only -- the interpreter does not serve custom-capability
-    // imports (its own rung).
+    // imports (its own rung). The leaf is one evaluated typed Mach-O
+    // locator produced by `leaf_binding`; ordinary external `via`
+    // evaluation requires the canary's own selected Darwin target.
     let canary = pass_canary(fixture_roster::RUNTIME_IMPORT_CALL_ARGUMENT_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
-        .expect("free DllImport leaf should resolve the Leaf slot");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &main_path,
+        Some("macos_arm64"),
+    ))
+    .expect("evaluated DllImport leaf should resolve the Leaf slot for its Darwin target");
     assert_eq!(
         checked.selected_program_entry_machine(),
-        None,
-        "targetless checking must not select an authored target entry"
+        Some("Main::main"),
+        "the reviewed Darwin fixture selects the authored main entry"
     );
     let leaf_plan = checked
         .selected_provider_plans()
         .plans()
         .iter()
         .find(|plan| plan.schema.trait_name == "Leaf")
-        .expect("Leaf must retain its selected free DllImport plan");
+        .expect("Leaf must retain its selected evaluated DllImport plan");
     assert_eq!(leaf_plan.provider_type, "");
     assert!(leaf_plan.covers_schema());
     assert_eq!(leaf_plan.rows.len(), 1);
     assert_eq!(leaf_plan.rows[0].method, "exit");
-    assert!(matches!(
-        &leaf_plan.rows[0].binding,
-        effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { library, symbol }
-            if library == "libSystem.B.dylib" && symbol == "_exit"
-    ));
+    let effects::provider_plan::ProviderBinding::Import { evaluated } = &leaf_plan.rows[0].binding
+    else {
+        panic!("Leaf must retain one evaluated import binding, never a string-backed row");
+    };
+    assert_eq!(
+        evaluated.locator().target(),
+        target::TargetProfile::MacosArm64
+    );
+    assert_eq!(
+        evaluated.locator().locator(),
+        &target::ForeignLocatorCandidate::MachODylibSymbol {
+            install_name: b"libSystem.B.dylib".to_vec(),
+            symbol: b"_exit".to_vec(),
+        }
+    );
+    assert_eq!(
+        evaluated.receipt().locator_identity_digest(),
+        evaluated.locator().identity_digest()
+    );
 
     let build_dir = std::env::temp_dir().join(format!("omega-import-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);

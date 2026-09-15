@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
 // An authored scalar-float signature must retain its float class through
@@ -6,7 +7,16 @@ boundary trait ScalarFloatImport {
     machine call(value: f64) -> f64;
 }
 
-machine scalar_float_import(value: f64) -> f64 satisfies ScalarFloatImport::call via Binding::DllImport("libSystem.B.dylib", "omega_scalar_float_probe");
+macos_arm64 machine scalar_float_binding() -> Binding<17, 24, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "omega_scalar_float_probe",
+        },
+    }
+}
+
+macos_arm64 machine scalar_float_import(value: f64) -> f64 satisfies ScalarFloatImport::call via scalar_float_binding();
 
 data Main { foreign: ScalarFloatImport; value: f64; result: f64; }
 machine Main::main(&mut self) reaches ScalarFloatImport {

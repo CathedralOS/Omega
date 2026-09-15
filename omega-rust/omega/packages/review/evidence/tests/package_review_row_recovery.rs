@@ -65,7 +65,7 @@ pub boundary trait ForeignSurface {
 }
 pub machine invoke_leaf()
     satisfies ForeignSurface::invoke
-    via Binding::DllImport("omega-host", "invoke");
+    via Binding::Syscall(60);
 "#,
     );
     package.write(

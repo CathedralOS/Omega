@@ -3,11 +3,22 @@ use omega::language::core::float_operations;
 // Microsoft x64 uses one positional register bank: these f64 arguments occupy
 // XMM1 and XMM3 around integer RCX/R8 arguments, then the fifth argument uses
 // stack slot 32. The f64 result returns in XMM0.
+use omega::language::core::external_binding;
+
 boundary trait ScalarFloatImport {
     machine call(before: u64, value: f64, after: u64, fourth: f64, fifth: f64) -> f64;
 }
 
-machine scalar_float_import(before: u64, value: f64, after: u64, fourth: f64, fifth: f64) -> f64 satisfies ScalarFloatImport::call via Binding::DllImport("omega_abi_probe.dll", "omega_win64_scalar_float_probe");
+windows_x86_64 machine scalar_float_binding() -> Binding<19, 30, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega_abi_probe.dll",
+            export: "omega_win64_scalar_float_probe",
+        },
+    }
+}
+
+windows_x86_64 machine scalar_float_import(before: u64, value: f64, after: u64, fourth: f64, fifth: f64) -> f64 satisfies ScalarFloatImport::call via scalar_float_binding();
 
 data Main {
     foreign: ScalarFloatImport;
