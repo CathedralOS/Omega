@@ -82,7 +82,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_optimized_layout_independent_selected_form_encoding",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout.rs",
         coordination_marker: "stage_optimized_resolved_selected_form_layout",
     },
     RequiredCoordinationEntrance {

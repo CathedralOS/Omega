@@ -2,9 +2,11 @@
 
 //! Optimizer module role: crate map. Selected-form encoding to resolved layout.
 //!
-//! Required function-relative layout independently checks its result before
-//! publication. Optional layout rewrites belong to the following X-to-X phase.
-//! Current layout data and content identity belong to machine-code.
+//! Start at `resolved_selected_form_layout.rs`: required function-relative
+//! layout independently checks its result before publication; the folder
+//! beneath it holds computation, the model, ordinary rows and validation.
+//! Optional layout rewrites belong to the following X-to-X phase. Current
+//! layout data and content identity belong to machine-code.
 
 mod resolved_selected_form_layout;
 
