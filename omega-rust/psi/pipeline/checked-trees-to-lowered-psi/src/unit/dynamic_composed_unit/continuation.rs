@@ -5,21 +5,33 @@ use super::super::{
     validate_direct_parameter_types,
 };
 use super::{
-    Block, CheckedDynamicScalarCallPlan, CheckedStructuralAccess, CheckedTrees, DynamicCallerShape,
-    DynamicLoweringLane, LoweredPsi, LoweringError, Operation, OperationKind, OperationResult,
-    ProofBundle, StructuralAccess, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, block_id,
-    collect_dynamic_realizations, dynamic_source_call_occurrences_for_chain, edge_id,
-    empty_terminal_contract, extend_parameter_forwarding_catalog, forwarded_helper_chain_ids,
-    lookup_type_id, lower_dynamic_call_custody, lower_exact_application,
-    lower_initial_rebound_application, lower_installation_machine_service_ceiling, machine_id,
-    materialize_dynamic_realizations, materialize_forwarded_helper_chain, operation_id, place_id,
-    retain_dynamic_source_owners, retain_realizations_for_lane, terminal_callable_result,
-    terminal_scalar_type, terminal_structural_multiplicity, unsupported, validate_and_lower_source,
-    value_id,
+    Block, CheckedDynamicScalarCallPlan, CheckedStructuralAccess, CheckedTrees, LoweredPsi,
+    LoweringError, Operation, OperationKind, OperationResult, ProofBundle, StructuralAccess,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, block_id, edge_id,
+    lookup_type_id, lower_installation_machine_service_ceiling, machine_id, operation_id, place_id,
+    terminal_scalar_type, unsupported, value_id,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::unit::dynamic_composed_unit::applications::{
+    lower_exact_application, lower_initial_rebound_application, terminal_callable_result,
+};
+use crate::unit::dynamic_composed_unit::dynamic_lanes::{
+    DynamicCallerShape, DynamicLoweringLane, retain_dynamic_source_owners,
+};
+use crate::unit::dynamic_composed_unit::forwarded_helpers::{
+    dynamic_source_call_occurrences_for_chain, extend_parameter_forwarding_catalog,
+    forwarded_helper_chain_ids, materialize_forwarded_helper_chain,
+};
+use crate::unit::dynamic_composed_unit::realizations::{
+    collect_dynamic_realizations, materialize_dynamic_realizations, retain_realizations_for_lane,
+};
+use crate::unit::dynamic_composed_unit::source_lowering::{
+    lower_dynamic_call_custody, validate_and_lower_source,
+};
+use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
+use crate::unit::dynamic_composed_unit::structural_types::terminal_structural_multiplicity;
 
 pub(super) fn lower(
     checked: &CheckedTrees,

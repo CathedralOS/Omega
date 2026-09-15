@@ -6,24 +6,37 @@
 use super::{
     Block, CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralPathSegment,
     ClosedConformanceApplication, ClosedConformanceCallableResult,
-    ClosedConformanceRealizationCallable, ClosedConformanceRow, DynamicLoweringLane,
-    LoweredDynamicRealization, LoweredPsi, LoweredSourceCallOccurrence, LoweringError,
-    Multiplicity, Operation, OperationKind, OperationResult, ProofBundle, StructuralAccess,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, LoweredPsi,
+    LoweredSourceCallOccurrence, LoweringError, Multiplicity, Operation, OperationKind,
+    OperationResult, ProofBundle, StructuralAccess, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
     TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
     TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog,
     TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
     TerminalParameterDynamicDispatch, TerminalReboundDynamicDescriptor, Terminator,
     VocabularyMarker, allocate_dense, block_id, closed_conformance_application_commitment,
-    closed_conformance_application_report_fingerprint, dynamic_parameter_interface, edge_id,
-    empty_terminal_contract, evidence_lowering, exact_empty_machine_service_ceiling,
-    exact_machine_service_summary, lookup_type_id, lower_dynamic_structural_types_for_source,
-    lower_initial_rebound_application, lower_installation_machine_service_ceiling,
-    lower_root_service_reach, machine_id, operation_id, place_id,
-    terminal_projected_source_multiplicity_for, terminal_structural_multiplicity, unsupported,
-    validate_and_lower_dynamic_source, validate_empty_contract, validate_empty_service_summary,
+    closed_conformance_application_report_fingerprint, edge_id, evidence_lowering, lookup_type_id,
+    lower_installation_machine_service_ceiling, lower_root_service_reach, machine_id, operation_id,
+    place_id, unsupported,
+};
+use crate::unit::dynamic_composed_unit::applications::{
+    exact_empty_machine_service_ceiling, exact_machine_service_summary,
+    lower_initial_rebound_application, validate_empty_contract, validate_empty_service_summary,
+};
+use crate::unit::dynamic_composed_unit::dynamic_lanes::{
+    DynamicLoweringLane, LoweredDynamicRealization,
+};
+use crate::unit::dynamic_composed_unit::plan_validation::{
     validate_forwarded_dynamic_call_coordinates, validate_parameter_forwarding_call,
+};
+use crate::unit::dynamic_composed_unit::source_lowering::{
+    dynamic_parameter_interface, validate_and_lower_dynamic_source,
+};
+use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
+use crate::unit::dynamic_composed_unit::structural_types::{
+    lower_dynamic_structural_types_for_source, terminal_projected_source_multiplicity_for,
+    terminal_structural_multiplicity,
 };
 use checked_trees::{
     CheckedDynamicUnitCallOrigin, CheckedDynamicUnitCallPlan, CheckedReboundDynamicUnitCallPlan,
