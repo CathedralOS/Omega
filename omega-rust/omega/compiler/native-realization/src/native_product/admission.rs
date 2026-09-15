@@ -1,3 +1,4 @@
+use assembled_syntax_to_checked_compilation::CheckedCompilation;
 use diagnostics::Diagnostic;
 
 pub(super) struct NativeCompilationAdmission {
@@ -6,7 +7,7 @@ pub(super) struct NativeCompilationAdmission {
 }
 
 pub(super) fn reject_unconsumed_callbacks(
-    checked: &crate::CheckedCompilation,
+    checked: &CheckedCompilation,
 ) -> Result<(), Vec<Diagnostic>> {
     let placements = checked.callback_placements();
     if placements.is_empty() {
@@ -24,7 +25,7 @@ pub(super) fn reject_unconsumed_callbacks(
 }
 
 pub(super) fn admit(
-    checked: &crate::CheckedCompilation,
+    checked: &CheckedCompilation,
 ) -> Result<NativeCompilationAdmission, Vec<Diagnostic>> {
     let program_entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(

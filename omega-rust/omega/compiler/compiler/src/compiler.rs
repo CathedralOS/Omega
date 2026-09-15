@@ -8,17 +8,15 @@ use crate::{
     admit_checked_compilation,
 };
 use assembled_syntax_to_checked_compilation::{PreparedCheckedSource, run_on_compile_thread};
+use checked_compilation_to_terminal_artifact::produce_terminal_report;
 use diagnostics::Diagnostic;
+use native_realization::{NativeInputReuse, prepare_native_product};
 
 pub(crate) mod admission;
-pub(crate) mod native;
-mod native_checked;
 pub(crate) mod optimization;
 pub(crate) mod options;
 pub(crate) mod package;
 pub(crate) mod request;
-pub(crate) mod terminal_native_realization;
-pub(crate) mod terminal_product;
 
 /// Compile every requested target, retaining failures alongside successful products.
 /// Invalid requests reject before source acquisition. Shared preparation failures
@@ -31,7 +29,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             request.shared.package_sources.clone(),
         );
         let target_count = request.targets.len();
-        let mut native_inputs = native::NativeInputReuse::default();
+        let mut native_inputs = NativeInputReuse::default();
         let mut outcomes = Vec::with_capacity(target_count);
 
         // Checkpoint clones share immutable parsing. repeat_n moves the final
@@ -72,7 +70,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                                 "a Terminal stop cannot satisfy a native proof-product request",
                             )])?
                         }
-                        terminal_product::compile_report(
+                        produce_terminal_report(
                             target.options.root_path,
                             checked,
                             &target.configuration.terminal_admission_profile,
@@ -80,7 +78,8 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                         )?
                     }
                     RequestedCompileProduct::NativeArtifact => {
-                        let terminal = native::prepare(target, checked)?;
+                        let terminal =
+                            prepare_native_product(target.into_native_product_request(), checked)?;
                         native_inputs.realize(terminal)?
                     }
                 };

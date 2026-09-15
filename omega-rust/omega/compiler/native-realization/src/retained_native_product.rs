@@ -47,11 +47,11 @@ impl<'evidence> SourceEvaluatedImportSettlement<'evidence> {
 pub struct RetainedNativeRealizationRequest<'request> {
     pub profile: &'request proof_admission::AdmissionProfile,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
-    pub terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
+    pub terminal_authority_policy: crate::TerminalAuthorityPolicy,
     pub accepted_package_terminal_authority_permission_policy:
-        native_realization::TerminalAuthorityPermissionPolicy,
-    pub terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
-    pub image_request: native_realization::ExecutableImageEmissionRequest,
+        crate::TerminalAuthorityPermissionPolicy,
+    pub terminal_authority_permission_policy: crate::TerminalAuthorityPermissionPolicy,
+    pub image_request: crate::ExecutableImageEmissionRequest,
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
 }
 
@@ -64,13 +64,8 @@ pub struct RetainedNativeRealizationRequest<'request> {
 pub fn realize_retained_native_artifact(
     retained: compilation_report::RetainedTerminalArtifact,
     request: RetainedNativeRealizationRequest<'_>,
-) -> Result<
-    native_realization::RequestedNativeArtifact,
-    (
-        native_realization::ExecutableImageEmissionRequest,
-        Vec<Diagnostic>,
-    ),
-> {
+) -> Result<crate::RequestedNativeArtifact, (crate::ExecutableImageEmissionRequest, Vec<Diagnostic>)>
+{
     let RetainedNativeRealizationRequest {
         profile,
         optimization_selections,
@@ -102,7 +97,7 @@ pub fn realize_retained_native_artifact(
         // metadata follows the artifact across invocations
         // (wiki/spec/build/macos_application.md).
         let mut image_request = image_request;
-        if let native_realization::ExecutableImageEmissionRequest::Direct {
+        if let crate::ExecutableImageEmissionRequest::Direct {
             subsystem,
             code_signature_identifier,
         } = &mut image_request
@@ -154,11 +149,11 @@ pub fn realize_retained_native_artifact(
                 "receiving lowerer selections differ from the exact post-Terminal build proposal",
             ));
         }
-        native_realization::validate_retained_package_terminal_authority_permissions(
+        crate::validate_retained_package_terminal_authority_permissions(
             proposal.package_terminal_authority_permissions(),
             &accepted_package_terminal_authority_permission_policy,
         )?;
-        native_realization::validate_package_terminal_authority_permissions(
+        crate::validate_package_terminal_authority_permissions(
             accepted_package_terminal_authority_permission_policy
                 .rows()
                 .iter(),
@@ -198,7 +193,7 @@ pub fn realize_retained_native_artifact(
                             ),
                         )
                     })?;
-                Ok(native_realization::NativeCompilerBuiltinSettlement {
+                Ok(crate::NativeCompilerBuiltinSettlement {
                     requirement_identity: builtin.requirement_identity(),
                     provider_plan,
                     execution: builtin.execution(),
@@ -225,7 +220,7 @@ pub fn realize_retained_native_artifact(
                         "ordinary native lowering currently requires admitted x86 FMA custody",
                     )
                 })?;
-                Ok(native_realization::AdmittedIeeeFloatFmaSettlement {
+                Ok(crate::AdmittedIeeeFloatFmaSettlement {
                     terminal_operation: occurrence.terminal_operation(),
                     provider_plan,
                     format: occurrence.format(),
@@ -245,15 +240,15 @@ pub fn realize_retained_native_artifact(
         // own production derived; attaching it here supplies the independently
         // admitted checked initialization/cleanup authority the entry
         // settlement requires once the checked frontend is gone.
-        let program_entry = native_realization::NativeProgramEntrySettlement::new(
+        let program_entry = crate::NativeProgramEntrySettlement::new(
             proposal.program_entry().source_signature(),
             calling_plans,
             proposal.program_entry().fused_service_establishments(),
         )
         .with_checked_entry(proposal.checked_program_entry());
-        native_realization::realize_native_artifact(
+        crate::realize_native_artifact(
             artifact,
-            native_realization::NativeRealizationRequest {
+            crate::NativeRealizationRequest {
                 checked_scope: Some(proposal.checked_boundary_operator_scope()),
                 prepared_input: None,
                 target: proposal.native_target(),
@@ -281,7 +276,7 @@ pub fn realize_retained_native_artifact(
 fn admitted_native_callback_thunks<'artifact>(
     placements: &'artifact [backend_plan::BoundNominalCallbackPlacement],
     occurrences: &'artifact [compilation_report::TerminalCallbackOccurrenceProposal],
-) -> Result<Vec<native_realization::NativeCallbackThunkSettlement<'artifact>>, Vec<Diagnostic>> {
+) -> Result<Vec<crate::NativeCallbackThunkSettlement<'artifact>>, Vec<Diagnostic>> {
     let mut admitted = Vec::with_capacity(occurrences.len());
     for occurrence in occurrences {
         let placement = placements
@@ -309,7 +304,7 @@ fn admitted_native_callback_thunks<'artifact>(
                 "callback thunk body, symbol, or function identity drifted from its retained placement",
             ));
         }
-        admitted.push(native_realization::NativeCallbackThunkSettlement {
+        admitted.push(crate::NativeCallbackThunkSettlement {
             terminal_operation: occurrence.terminal_operation(),
             placement_index: occurrence.placement_index(),
             callback_function: occurrence.callback_thunk_identity(),
@@ -431,7 +426,7 @@ fn exact_demanded_import_plans<'proposal>(
 fn rejoin_external_import_settlements<'proposal, 'evidence>(
     exact_plans: &BTreeMap<String, &'proposal effects::provider_plan::ProviderPlan>,
     imports: &[SourceEvaluatedImportSettlement<'evidence>],
-) -> Result<Vec<native_realization::NativeProviderSettlement<'proposal>>, Vec<Diagnostic>>
+) -> Result<Vec<crate::NativeProviderSettlement<'proposal>>, Vec<Diagnostic>>
 where
     'evidence: 'proposal,
 {
@@ -461,12 +456,10 @@ where
                 ),
             ));
         }
-        settlements.push(native_realization::NativeProviderSettlement {
+        settlements.push(crate::NativeProviderSettlement {
             provider_execution: import.provider_execution,
             provider_plan,
-            realization: native_realization::NativeBoundaryRealization::NormalizedForeignCall(
-                import.same_stack,
-            ),
+            realization: crate::NativeBoundaryRealization::NormalizedForeignCall(import.same_stack),
         });
     }
     if let Some(missing) = exact_plans

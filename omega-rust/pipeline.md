@@ -46,9 +46,12 @@ typing against the retained base.
 | --- | --- |
 | Source files → assembled syntax | [source-files-to-assembled-syntax](omega/pipeline/source-files-to-assembled-syntax/src/source_assembly.rs) |
 | Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/pipeline/assembled-syntax-to-checked-compilation/src/checking.rs) |
+| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs) |
 
-Both consume build-layer crates, so the layering test ranks them with the
+All three consume build-layer crates, so the layering test ranks them with the
 compiler that schedules them while they keep the pipeline's shape and naming.
+The Terminal stage hands its program-entry artifact to `native-realization`,
+which owns the native product from there.
 
 [Terminal production](psi/compiler/terminal-production/README.md) sequences its
 Psi stages; [native realization](omega/compiler/native-realization/README.md)

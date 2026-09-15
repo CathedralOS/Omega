@@ -1,14 +1,17 @@
 //! Invocation-local reuse of exactly matching Terminal inputs.
 
 use super::prepared::{NativeInputReuseKey, PreparedNativeCompilation};
-use crate::CompileReport;
+use compilation_report::CompileReport;
 use diagnostics::Diagnostic;
 
+/// Prepared native realization inputs shared by every target of one
+/// invocation whose exact Terminal identity, admission profile and physical
+/// selections agree.
 #[derive(Default)]
-pub(in crate::compiler) struct NativeInputReuse {
+pub struct NativeInputReuse {
     inputs: Vec<(
         NativeInputReuseKey,
-        Result<native_realization::PreparedNativeRealizationInput, Vec<Diagnostic>>,
+        Result<crate::PreparedNativeRealizationInput, Vec<Diagnostic>>,
     )>,
 }
 
@@ -16,7 +19,7 @@ impl NativeInputReuse {
     /// Prepare each exact input once, including failed preparations. Physical
     /// realization and all target-specific authority remain with the caller's
     /// own prepared compilation.
-    pub(in crate::compiler) fn realize(
+    pub fn realize(
         &mut self,
         compilation: PreparedNativeCompilation,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
@@ -40,7 +43,7 @@ impl NativeInputReuse {
         }
     }
 
-    pub(in crate::compiler) fn prepared_input_count(&self) -> usize {
+    pub fn prepared_input_count(&self) -> usize {
         self.inputs.len()
     }
 }

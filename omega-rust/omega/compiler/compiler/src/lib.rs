@@ -12,6 +12,7 @@ pub use assembled_syntax_to_checked_compilation::{
     CheckedCompilation, CheckedCompileRequest, OptimizationRollback,
     OptimizationRollbackInputError, PreparedCheckedSource, compile_to_checked,
 };
+pub use checked_compilation_to_terminal_artifact::validate_lowered_ieee_float_comparison_custody;
 pub use compilation_report::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, FinalRealizationEvidenceError,
     OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
@@ -25,9 +26,8 @@ pub use compiler::request::{
     CompileOutcomes, CompileRequest, CompileTargetOutcome, ExplicitTargetSet,
     RequestedCompileProduct, TargetCompileConfiguration,
 };
-pub use compiler::terminal_native_realization::{
+pub use native_realization::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
     realize_retained_native_artifact,
 };
-pub use compiler::terminal_product::validate_lowered_ieee_float_comparison_custody;
 pub use trust_model::{TrustAdmission, TrustAdmissionSettlement};

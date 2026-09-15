@@ -343,6 +343,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "checked-compilation-to-terminal-artifact"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "assembled-syntax-to-checked-compilation",
+ "backend-plan",
+ "boundary-applications",
+ "build-evaluation",
+ "calling-conventions",
+ "checked-trees",
+ "checked-trees-to-lowered-psi",
+ "compilation-report",
+ "diagnostics",
+ "effects",
+ "lowered-psi",
+ "lowered-psi-to-lowered-psi",
+ "lowered-psi-to-terminal-psi",
+ "optimization-core",
+ "package-compilation",
+ "proof-admission",
+ "provider-planning",
+ "selected-dispatch",
+ "semantic-vocabulary",
+ "symbols",
+ "target",
+ "terminal-codec",
+ "terminal-production",
+ "terminal-psi",
+ "terminal-verifier",
+ "typed-trees",
+ "validation",
+]
+
+[[package]]
 name = "checked-interpreter"
 version = "0.1.0"
 dependencies = [
@@ -476,6 +510,7 @@ dependencies = [
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
+ "checked-compilation-to-terminal-artifact",
  "checked-interpreter",
  "checked-trees",
  "checked-trees-to-lowered-psi",
@@ -1138,10 +1173,16 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "assembled-syntax-to-checked-compilation",
+ "backend-plan",
  "boundary-applications",
+ "build-declarations",
+ "build-evaluation",
  "calling-conventions",
+ "checked-compilation-to-terminal-artifact",
  "checked-trees",
  "checked-trees-to-lowered-psi",
+ "compilation-report",
  "diagnostics",
  "effects",
  "function-identity",
@@ -1162,6 +1203,7 @@ dependencies = [
  "optimization",
  "optimization-core",
  "optimization-unit",
+ "package-compilation",
  "program-entry-plan",
  "proof-admission",
  "provider-planning",

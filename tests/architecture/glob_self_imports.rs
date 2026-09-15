@@ -59,7 +59,7 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/build/trust-ledger", 1),
     ("omega-rust/omega/build/trust-model", 3),
     ("omega-rust/omega/compiler/compilation-report", 2),
-    ("omega-rust/omega/compiler/compiler", 6),
+    ("omega-rust/omega/compiler/compiler", 3),
     ("omega-rust/omega/compiler/native-realization", 21),
     ("omega-rust/omega/packages/manager", 58),
     ("omega-rust/omega/packages/review/evidence", 90),

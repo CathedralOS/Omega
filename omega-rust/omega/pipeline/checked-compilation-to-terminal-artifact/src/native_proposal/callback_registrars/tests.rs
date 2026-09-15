@@ -1,5 +1,10 @@
-use super::*;
+use super::{CallbackSourceCalls, CallbackTerminalOperations};
+use checked_trees::NominalMachineUseSite;
+use lowered_psi::LoweredSourceCallOccurrence;
+use semantic_vocabulary::OperationId;
 use std::cell::Cell;
+use symbols::SymbolHandle;
+use terminal_psi::Operation;
 use terminal_psi::{OperationKind, OperationResult, ValueDeclaration};
 
 fn site(position: u32) -> NominalMachineUseSite {

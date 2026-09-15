@@ -13,12 +13,12 @@ pub fn retained_terminal_report_from_checked_package(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     assembled_syntax_to_checked_compilation::run_on_compile_thread(move || {
         checked.verify_current_source_consumption()?;
-        if crate::pipeline::reporting::project_production_subject(&checked)?.is_none() {
+        if checked.production_subject()?.is_none() {
             return Err(vec![Diagnostic::error(
                 "reviewed package Terminal production requires package-aware checked custody",
             )]);
         }
-        super::terminal_product::compile_report(
+        checked_compilation_to_terminal_artifact::produce_terminal_report(
             root_path,
             checked,
             &profile,

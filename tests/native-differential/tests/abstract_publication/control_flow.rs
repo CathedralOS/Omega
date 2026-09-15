@@ -137,11 +137,7 @@ fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
         let optimized =
             publish_optimization_run(run(non_adjacent_block_merge_verified(), selections.clone()))
                 .unwrap();
-        let lowered = lower_optimized_to_target_operations(
-            optimized,
-            OptimizedTargetLoweringRequest::new(target),
-        )
-        .unwrap();
+        let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.optimized().commits().len(), 2);
     }

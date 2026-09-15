@@ -1,24 +1,13 @@
+use assembled_syntax_to_checked_compilation::CheckedCompilation;
+use checked_compilation_to_terminal_artifact::ProgramEntryTerminalArtifact;
 use diagnostics::Diagnostic;
-use optimization_core::{OptimizationSelections, PostTerminalOptimizationSelections};
-
-pub(super) struct PreparedTerminalNativeArtifact {
-    artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
-    checked_boundary_operator_scope:
-        lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
-}
-
-impl PreparedTerminalNativeArtifact {
-    pub(super) const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
-        &self.artifact
-    }
-}
+use optimization_core::PostTerminalOptimizationSelections;
 
 pub(super) fn validate_terminal_authority_permissions(
-    checked: &crate::CheckedCompilation,
-    terminal_authority_permission_policy: &native_realization::TerminalAuthorityPermissionPolicy,
+    checked: &CheckedCompilation,
+    terminal_authority_permission_policy: &crate::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
-    native_realization::validate_package_terminal_authority_permissions(
+    crate::validate_package_terminal_authority_permissions(
         checked
             .resolved_semantic_bindings()
             .flat_map(|binding| binding.terminal_authority_permissions()),
@@ -26,81 +15,21 @@ pub(super) fn validate_terminal_authority_permissions(
     )
 }
 
-pub(super) fn prepare_terminal_artifact(
-    checked: &crate::CheckedCompilation,
+pub(super) fn realize(
+    checked: &CheckedCompilation,
     admission: &super::admission::NativeCompilationAdmission,
-    optimization_selections: &OptimizationSelections,
-) -> Result<PreparedTerminalNativeArtifact, Vec<Diagnostic>> {
-    let psi_optimizations = optimization_selections.project_psi();
-    let terminal_trees = checked.terminal_production_trees();
-    let produced = terminal_production::TerminalProductionRequest {
-        checked: terminal_trees,
-        machine: terminal_production::TerminalMachineSelection::Symbol(
-            admission.program_entry.source_signature().machine_symbol(),
-        ),
-        optimization_selections: psi_optimizations.selections().clone(),
-    }
-    .produce_program_entry(
-        admission
-            .program_entry
-            .source_signature()
-            .identity()
-            .bytes(),
-    )
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "native-artifact Terminal production failed: {error}"
-        ))]
-    })?;
+    profile: &proof_admission::AdmissionProfile,
+    terminal_authority_permission_policy: crate::TerminalAuthorityPermissionPolicy,
+    optimization_selections: &PostTerminalOptimizationSelections,
+    prepared_terminal: ProgramEntryTerminalArtifact,
+    prepared_input: &crate::PreparedNativeRealizationInput,
+) -> Result<crate::NativeArtifact, Vec<Diagnostic>> {
     let (
         artifact,
         checked_program_entry,
         checked_boundary_operator_scope,
-        selected_ieee_float_fma_occurrences,
-        selected_ieee_float_comparison_occurrences,
-    ) = produced.into_parts();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "native IEEE comparison custody could not decode Terminal semantics: {error}"
-        ))]
-    })?;
-    // The direct entrance must perform the same source/provider join as retained
-    // Terminal re-entry. Portable numeric semantics alone do not select a provider.
-    // Realization below retains the exact checked application coverage; ordinary
-    // graph lowering carries each surviving operation into its physical child.
-    crate::compiler::terminal_product::float_comparisons::associate(
-        checked,
-        &module,
-        checked.selected_provider_plans(),
-        checked.selected_provider_provenance(),
-        &selected_ieee_float_comparison_occurrences,
-    )?;
-    if !selected_ieee_float_fma_occurrences.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "optimized direct native realization does not yet consume retained IEEE-FMA occurrence custody",
-        )]);
-    }
-    Ok(PreparedTerminalNativeArtifact {
-        artifact,
-        checked_program_entry,
-        checked_boundary_operator_scope,
-    })
-}
-
-pub(super) fn realize(
-    checked: &crate::CheckedCompilation,
-    admission: &super::admission::NativeCompilationAdmission,
-    profile: &proof_admission::AdmissionProfile,
-    terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
-    optimization_selections: &PostTerminalOptimizationSelections,
-    prepared_terminal: PreparedTerminalNativeArtifact,
-    prepared_input: &native_realization::PreparedNativeRealizationInput,
-) -> Result<native_realization::NativeArtifact, Vec<Diagnostic>> {
-    let PreparedTerminalNativeArtifact {
-        artifact,
-        checked_program_entry,
-        checked_boundary_operator_scope,
-    } = prepared_terminal;
+        boundary_application_coverage,
+    ) = prepared_terminal.into_parts();
     let terminal_module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
         |error| {
             vec![Diagnostic::error(format!(
@@ -108,12 +37,6 @@ pub(super) fn realize(
             ))]
         },
     )?;
-    let boundary_application_coverage =
-        crate::compiler::terminal_product::project_terminal_boundary_application_coverage(
-            checked,
-            &artifact,
-            &checked_boundary_operator_scope,
-        )?;
     let demanded_intrinsics =
         provider_planning::compiler_intrinsics::demanded_boundary_identities(&terminal_module)?;
     let intrinsic_proposals =
@@ -125,13 +48,11 @@ pub(super) fn realize(
     let selected_plans = checked.selected_provider_plans().plans();
     let compiler_builtins = intrinsic_proposals
         .iter()
-        .map(
-            |proposal| native_realization::NativeCompilerBuiltinSettlement {
-                requirement_identity: &proposal.requirement_identity,
-                provider_plan: &selected_plans[proposal.plan_index],
-                execution: proposal.execution,
-            },
-        )
+        .map(|proposal| crate::NativeCompilerBuiltinSettlement {
+            requirement_identity: &proposal.requirement_identity,
+            provider_plan: &selected_plans[proposal.plan_index],
+            execution: proposal.execution,
+        })
         .collect::<Vec<_>>();
     let calling_plans = admission.program_entry.calling_plans().map(|plans| {
         (
@@ -140,13 +61,13 @@ pub(super) fn realize(
             &plans.storage_entry,
         )
     });
-    let program_entry = native_realization::NativeProgramEntrySettlement::new(
+    let program_entry = crate::NativeProgramEntrySettlement::new(
         admission.program_entry.source_signature(),
         calling_plans,
         admission.program_entry.fused_service_establishments(),
     )
     .with_checked_entry(&checked_program_entry);
-    let _validated_program_entry = native_realization::validate_native_program_entry_settlement(
+    let _validated_program_entry = crate::validate_native_program_entry_settlement(
         &artifact,
         &checked_program_entry,
         program_entry,
@@ -176,17 +97,14 @@ pub(super) fn realize(
             "signed macOS GUI image emission requires the authored Build identifier",
         )]);
     }
-    let request = native_realization::NativeRealizationRequest {
+    let request = crate::NativeRealizationRequest {
         checked_scope: Some(&checked_boundary_operator_scope),
         prepared_input: Some(prepared_input),
         target: admission.target,
-        image_request: native_realization::ExecutableImageEmissionRequest::direct(
-            checked.subsystem(),
-        )
-        .with_code_signature_identifier(code_signature_identifier),
+        image_request: crate::ExecutableImageEmissionRequest::direct(checked.subsystem())
+            .with_code_signature_identifier(code_signature_identifier),
         profile,
-        terminal_authority_policy:
-            native_realization::current_compiler_intrinsic_terminal_authority_policy(),
+        terminal_authority_policy: crate::current_compiler_intrinsic_terminal_authority_policy(),
         terminal_authority_permission_policy,
         program_entry,
         optimization_selections,
@@ -199,7 +117,7 @@ pub(super) fn realize(
         native_callbacks: &[],
         callback_thunks: &[],
     };
-    native_realization::realize_native_artifact(artifact, request)
+    crate::realize_native_artifact(artifact, request)
         .map_err(|error| error.into_parts().1)?
         .into_direct()
         .map_err(|_| {
@@ -211,11 +129,11 @@ pub(super) fn realize(
 
 #[cfg(test)]
 mod tests {
+    use crate::validate_package_terminal_authority_permissions;
     use effects::{
         ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
         provider_plan::{ProviderPlanDigest, ServiceSchemaDigest},
     };
-    use native_realization::validate_package_terminal_authority_permissions;
     use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
     use semantic_vocabulary::PackageKeyIdentity;
 
@@ -239,11 +157,9 @@ mod tests {
         .expect("exact permission")
     }
 
-    fn policy(
-        permitted: TerminalAuthorityDisposition,
-    ) -> native_realization::TerminalAuthorityPermissionPolicy {
-        native_realization::terminal_authority_permission_policy_with_rows(vec![
-            native_realization::TerminalAuthorityPermissionPolicyRow::new(
+    fn policy(permitted: TerminalAuthorityDisposition) -> crate::TerminalAuthorityPermissionPolicy {
+        crate::terminal_authority_permission_policy_with_rows(vec![
+            crate::TerminalAuthorityPermissionPolicyRow::new(
                 ServiceSchemaDigest::from_digest([41; 32]),
                 "Console::exit_process#exact",
                 permitted,
@@ -276,7 +192,7 @@ mod tests {
         .expect_err("changed classes must reject");
         assert!(diagnostics[0].message.contains("substitutes"));
 
-        let missing = native_realization::current_terminal_authority_permission_policy();
+        let missing = crate::current_terminal_authority_permission_policy();
         let diagnostics = validate_package_terminal_authority_permissions(
             binding.terminal_authority_permissions().iter(),
             &missing,

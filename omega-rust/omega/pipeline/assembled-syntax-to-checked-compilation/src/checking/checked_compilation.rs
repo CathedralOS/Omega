@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 #[cfg(test)]
 mod custody_tests;
+mod production_subject;
 
 /// Psi-checked semantics paired with the Omega-owned provider realization
 /// selected for one engine run. The semantic program deliberately does not

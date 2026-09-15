@@ -295,15 +295,14 @@ fn canonical_terminal_native_route_uses_one_composition_edge() {
 fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
     let repo_root = repo_root();
     let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
-    let owner_path =
-        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/terminal_product.rs");
+    let owner_path = repo_root.join("omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs");
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     let owner = fs::read_to_string(&owner_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", owner_path.display()));
 
     assert!(
-        driver.contains("terminal_product::compile_report("),
+        driver.contains("produce_terminal_report("),
         "the compiler driver must stop Terminal production through its named product owner"
     );
     for forbidden in [
@@ -321,7 +320,7 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
 
     let mut ordered_owner = owner.as_str();
     for stage in [
-        "produce_with_callback_custody(",
+        "produce_program_entry_with_callback_custody(",
         "verify_terminal_artifact(",
         "project_terminal_native_realization_proposal(",
         "RetainedTerminalArtifact::new_with_native_realization_proposal(",
@@ -339,9 +338,9 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
     let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
     let request_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/request.rs");
     let optimization_path =
-        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/native.rs");
-    let native_report_path =
-        repo_root.join("omega-rust/omega/compiler/compiler/src/compiler/native/prepared.rs");
+        repo_root.join("omega-rust/omega/compiler/native-realization/src/native_product.rs");
+    let native_report_path = repo_root
+        .join("omega-rust/omega/compiler/native-realization/src/native_product/prepared.rs");
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     let request = fs::read_to_string(&request_path)
@@ -372,7 +371,7 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
     );
     assert!(
         compact_driver.contains(
-            "source?.check(target.options(),target.package_inputs(),&target.configuration.optimization_rollback,)?"
+            "source?.check(&options.root_path,options.target_name.as_deref(),options.build_dir(),target.package_inputs(),&target.configuration.optimization_rollback,)?"
         ),
         "checked and Terminal children must continue from the prepared source"
     );
@@ -410,7 +409,7 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         .map(|(_, native_arm)| native_arm)
         .expect("the common product stop must contain its native arm");
     native_arm
-        .find("native::prepare(target,checked)")
+        .find("prepare_native_product(target.into_native_product_request(),checked)")
         .expect("each native product must prepare its own checked Terminal input");
     let checked_receipt = compact_optimization
         .find("NativeCompilationWithCheckedReceipt::new(checked,report)")
@@ -512,7 +511,7 @@ fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
 fn typed_to_checked_surface_owns_contract_stand_down_capture() {
     let repo_root = repo_root();
     let transition_path =
-        repo_root.join("omega-rust/omega/compiler/compiler/src/pipeline/phase_transitions.rs");
+        repo_root.join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs");
     let transition = fs::read_to_string(&transition_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", transition_path.display()));
     assert!(
@@ -520,9 +519,7 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
         "typed-derived contract stand-downs must be captured at the ownership-moving phase boundary"
     );
 
-    let driver_path = repo_root.join(
-        "omega-rust/omega/compiler/compiler/src/pipeline/checked_entry/execution_settlement.rs",
-    );
+    let driver_path = repo_root.join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs");
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     assert!(
@@ -552,9 +549,7 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
 #[test]
 fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
     let repo_root = repo_root();
-    let checked_entry_path = repo_root.join(
-        "omega-rust/omega/compiler/compiler/src/pipeline/checked_entry/build_continuation.rs",
-    );
+    let checked_entry_path = repo_root.join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs");
     let checked_entry = fs::read_to_string(&checked_entry_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_entry_path.display()));
     let checked_entry = without_ascii_whitespace(&checked_entry);
@@ -601,8 +596,8 @@ fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
         );
     }
 
-    let source_assembly_path =
-        repo_root.join("omega-rust/omega/compiler/compiler/src/pipeline/source_assembly.rs");
+    let source_assembly_path = repo_root
+        .join("omega-rust/omega/pipeline/source-files-to-assembled-syntax/src/source_assembly.rs");
     let source_assembly = fs::read_to_string(&source_assembly_path).unwrap_or_else(|error| {
         panic!("failed to read {}: {error}", source_assembly_path.display())
     });
@@ -618,7 +613,7 @@ fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
 fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() {
     let repo_root = repo_root();
     let transition_path =
-        repo_root.join("omega-rust/omega/compiler/compiler/src/pipeline/phase_transitions.rs");
+        repo_root.join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs");
     let transition = fs::read_to_string(&transition_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", transition_path.display()));
     let transition = without_ascii_whitespace(&transition);
@@ -638,7 +633,7 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     );
     assert!(
         transition
-            .contains("pub(super)selected_provider_plan_facts:effects::SelectedProviderPlanFacts,"),
+            .contains("pub(crate)selected_provider_plan_facts:effects::SelectedProviderPlanFacts,"),
         "the final checked phase surface must require its settled provider facts"
     );
     assert!(
@@ -678,7 +673,7 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     }
     for settled_output in ["component_progress", "task_activations"] {
         assert!(
-            transition.contains(&format!("pub(super){settled_output}:")),
+            transition.contains(&format!("pub(crate){settled_output}:")),
             "the final selected-execution settlement surface must carry `{settled_output}`"
         );
         let returned_settlement = transition
@@ -697,10 +692,10 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
 
     for driver_relative_path in [
         "omega-rust/omega/compiler/compiler/src/compiler.rs",
-        "omega-rust/omega/compiler/compiler/src/pipeline/checked_entry.rs",
-        "omega-rust/omega/compiler/compiler/src/pipeline/checked_entry/build_continuation.rs",
-        "omega-rust/omega/compiler/compiler/src/pipeline/checked_entry/execution_settlement.rs",
-        "omega-rust/omega/compiler/compiler/src/pipeline/checked_entry/checked_compilation.rs",
+        "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking.rs",
+        "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs",
+        "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs",
+        "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/checked_compilation.rs",
     ] {
         let driver_path = repo_root.join(driver_relative_path);
         let driver = fs::read_to_string(&driver_path)
@@ -713,7 +708,7 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     }
 
     let checked_entry_path = repo_root.join(
-        "omega-rust/omega/compiler/compiler/src/pipeline/checked_entry/execution_settlement.rs",
+        "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs",
     );
     let checked_entry = fs::read_to_string(&checked_entry_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_entry_path.display()));
