@@ -4968,7 +4968,8 @@ fn uefi_target_layout_fingerprint_is_report_only_beside_exact_replay() {
         "omega-rust/omega/backend/runtime/external-roots/src/platform_bringup/uefi_bootstrap.rs",
     );
     let lifecycle = std::fs::read_to_string(&lifecycle_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", lifecycle_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", lifecycle_path.display()))
+        + &recursive_production_rust_source(&lifecycle_path.with_extension(""));
     assert!(
         lifecycle.contains("if !integrity.layout().matches_exact_plan(&expected_layout)")
             && lifecycle.contains("non_authoritative_layout_report_fingerprint: u64")
