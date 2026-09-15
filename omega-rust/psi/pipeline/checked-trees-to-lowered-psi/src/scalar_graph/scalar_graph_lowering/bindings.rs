@@ -5,12 +5,13 @@ use super::super::CheckedScalarBindingValue;
 use super::{
     CheckedScalarExpressionRole, CheckedScalarStateTerminator, CheckedTrees, LoweringError,
     PreparedScalarQualifications, QualifiedScalarType, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, computations, field_stores, lower_checked_direct_call_binding,
-    primitive_locals, scalar_carriers, source_custody, storage, structural_values,
-    terminal_scalar_type, unit_operations, unsupported, validate_direct_parameter_types,
+    StructuralTypeDeclaration, computations, field_stores, primitive_locals, scalar_carriers,
+    source_custody, storage, structural_values, terminal_scalar_type, unit_operations, unsupported,
+    validate_direct_parameter_types,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_checked_direct_call_binding;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };

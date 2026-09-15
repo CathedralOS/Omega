@@ -2,10 +2,11 @@
 use super::{
     CheckedScalarBranchDestination, CheckedScalarExpressionRole, CheckedTrees, LoweringError,
     QualifiedScalarType, ScalarType, computations, scalar_carriers, storage, unsupported,
-    validate_boolean_parameter_types, validate_short_circuit_expression,
+    validate_boolean_parameter_types,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::scalar_graph::scalar_graph_lowering::graph_validation::validate_short_circuit_expression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
