@@ -351,6 +351,75 @@ impl ConstantCalls for Invocation<'_> {
         expression: ExpressionHandle,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
         let typed = self.program.typed();
+        let AdmittedCall {
+            premise_discharge,
+            machine,
+            entry,
+            arguments,
+            warnings,
+        } = self.admit_call(expression)?;
+        let custody =
+            BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
+        let result = if premise_discharge {
+            // The probe above re-ran ordinary checked contract proof at the
+            // snapshot arguments; its success is what admits the authored
+            // `requires` premises here. Interpretation itself proves nothing.
+            self.program
+                .admission
+                .evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
+                    typed,
+                    machine.symbol,
+                    arguments,
+                    custody,
+                )?
+        } else {
+            self.program
+                .admission
+                .evaluate_const_evaluable_machine_symbol_for_invocation(
+                    typed,
+                    machine.symbol,
+                    arguments,
+                    custody,
+                )?
+        };
+        let destination =
+            crate::const_generic_expressions::exact_probe_destination(typed, entry.return_type)
+                .ok_or("constant result lost its exact carrier")?;
+        let value = match result {
+            BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
+                CanonicalConstValue::boolean(value)
+            }
+            BuildTimeValue::Int(value) if destination.accepts_integer_literal() => {
+                let value = if destination.is_signed_integer() {
+                    i128::from(value)
+                } else {
+                    i128::from(value as u64)
+                };
+                let identity = CanonicalConstIdentity::integer(destination.name(), value);
+                CanonicalConstValue::new(identity.type_name, identity.encoding, value.to_string())
+            }
+            _ => return Err("constant result does not match its declared scalar carrier".into()),
+        };
+        Ok((value, warnings))
+    }
+}
+
+/// One admitted authored call: exact entry, evaluated snapshot arguments, and
+/// the concrete discharge evidence the scalar evaluator turns into a result.
+struct AdmittedCall<'program> {
+    premise_discharge: bool,
+    machine: &'program Machine,
+    entry: &'program State,
+    arguments: Vec<BuildTimeValue>,
+    warnings: Vec<Diagnostic>,
+}
+
+impl Invocation<'_> {
+    /// Admit one authored call without interpreting it: select its exact
+    /// closed entry, evaluate every argument snapshot in this probe's context,
+    /// and discharge its crash/requires contract at those concrete arguments.
+    fn admit_call(&self, expression: ExpressionHandle) -> Result<AdmittedCall<'_>, String> {
+        let typed = self.program.typed();
         let (premise_discharge, machine, entry) = self.selected(expression)?;
         // Reuse complete argument-independent evidence when it exists. A
         // fallible or otherwise unsummarized call needs fresh checking
@@ -414,50 +483,219 @@ impl ConstantCalls for Invocation<'_> {
         if needs_concrete_discharge {
             self.require_concrete_failure_discharge(expression, machine, entry, snapshots)?;
         }
-        let custody =
-            BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
-        let result = if premise_discharge {
-            // The probe above re-ran ordinary checked contract proof at the
-            // snapshot arguments; its success is what admits the authored
-            // `requires` premises here. Interpretation itself proves nothing.
+        Ok(AdmittedCall {
+            premise_discharge,
+            machine,
+            entry,
+            arguments,
+            warnings,
+        })
+    }
+
+    /// Admit one authored call inside a structured leaf without interpreting
+    /// it: the enclosing probe's checked interpretation supplies the value
+    /// itself, while this call's selection, argument snapshots, and concrete
+    /// premise/failure discharge remain required evidence.
+    pub(super) fn check_call(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Result<Vec<Diagnostic>, String> {
+        Ok(self.admit_call(expression)?.warnings)
+    }
+
+    /// Every expression root in this probe's single state: the return value
+    /// plus compiler-hoisted `let` initializers and named-transition arguments
+    /// produced by ordinary terminal-call normalization for aggregate results.
+    fn probe_roots(&self) -> Result<Vec<ExpressionHandle>, String> {
+        let typed = self.program.typed();
+        let mut roots = Vec::new();
+        for statement in typed.statement_table.statements(self.state.statement_nodes) {
+            match statement {
+                typed_trees::statement::StatementNode::LocalData(local) => {
+                    if local.initial_value.is_valid() {
+                        roots.push(local.initial_value);
+                    }
+                }
+                typed_trees::statement::StatementNode::Transition(transition) => {
+                    for target in [transition.target, transition.continuation] {
+                        match typed.statement_table.transition_target(target) {
+                            typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                                roots.push(*expression);
+                            }
+                            typed_trees::statement::TransitionTargetNode::Named {
+                                arguments,
+                                ..
+                            } => {
+                                let handles = typed.statement_table.expression_handles(*arguments);
+                                if handles.len() != arguments.len() {
+                                    return Err(
+                                        "typed probe transition has a stale argument span".into()
+                                    );
+                                }
+                                roots.extend(handles.iter().copied());
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let typed_trees::statement::TransitionGuardNode::When(guard) =
+                        transition.guard
+                    {
+                        roots.push(guard);
+                    }
+                }
+                typed_trees::statement::StatementNode::Expression(expression) => {
+                    roots.push(*expression);
+                }
+                typed_trees::statement::StatementNode::Assignment(assignment) => {
+                    roots.extend([assignment.target, assignment.value]);
+                }
+                typed_trees::statement::StatementNode::AssemblyFact(fact) => {
+                    roots.push(fact.expression);
+                }
+                _ => {}
+            }
+        }
+        if roots.is_empty() {
+            return Err("typed probe lost its expression return".into());
+        }
+        Ok(roots)
+    }
+
+    /// The leaf span this probe answers for: its transition statement retains
+    /// the authored coordinate through normalization.
+    fn probe_reference(&self) -> Result<source::SourceSpan, String> {
+        let typed = self.program.typed();
+        for statement in typed.statement_table.statements(self.state.statement_nodes) {
+            if let typed_trees::statement::StatementNode::Transition(transition) = statement {
+                return Ok(transition.source_span);
+            }
+        }
+        Err("typed probe lost its expression return".into())
+    }
+
+    /// Interpret this probe machine under the common invocation floor. When
+    /// the probe's call closure carries an authored `requires` premise, the
+    /// per-call concrete discharge evidence produced while admitting each
+    /// authored call is what allows the premise-discharge entry point here.
+    fn interpret(&self, reference: source::SourceSpan) -> Result<BuildTimeValue, String> {
+        let typed = self.program.typed();
+        let custody = BuildTimeInvocationCustody::Source(reference);
+        if self
+            .program
+            .admission
+            .closure_includes_authored_requires(typed, self.machine)
+        {
             self.program
                 .admission
                 .evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
                     typed,
-                    machine.symbol,
-                    arguments,
+                    self.machine.symbol,
+                    Vec::new(),
                     custody,
-                )?
+                )
         } else {
             self.program
                 .admission
                 .evaluate_const_evaluable_machine_symbol_for_invocation(
                     typed,
-                    machine.symbol,
-                    arguments,
+                    self.machine.symbol,
+                    Vec::new(),
                     custody,
-                )?
-        };
-        let destination =
-            crate::const_generic_expressions::exact_probe_destination(typed, entry.return_type)
-                .ok_or("constant result lost its exact carrier")?;
-        let value = match result {
-            BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
-                CanonicalConstValue::boolean(value)
-            }
-            BuildTimeValue::Int(value) if destination.accepts_integer_literal() => {
-                let value = if destination.is_signed_integer() {
-                    i128::from(value)
-                } else {
-                    i128::from(value as u64)
-                };
-                let identity = CanonicalConstIdentity::integer(destination.name(), value);
-                CanonicalConstValue::new(identity.type_name, identity.encoding, value.to_string())
-            }
-            _ => return Err("constant result does not match its declared scalar carrier".into()),
-        };
-        Ok((value, warnings))
+                )
+        }
     }
+
+    /// Evaluate one aggregate-producing initializer leaf by interpreting its
+    /// private probe machine. Every authored call inside the leaf is admitted
+    /// individually at its concrete arguments first; the structured result then
+    /// crosses the ordinary ConstEvaluable admission on the declared carrier.
+    pub(super) fn evaluate_leaf(
+        &self,
+        reference: source::SourceSpan,
+        expected_origins: &[syntax_trees::types::ConstArgumentOrigin],
+        expected_calls: &[(source::SourceSpan, source::SourceSpan)],
+        syntax: &syntax_trees::SyntaxTrees,
+    ) -> Result<LeafEvaluation, String> {
+        let typed = self.program.typed();
+        let roots = self.probe_roots()?;
+        crate::admission::require_const_expression_selection(
+            typed,
+            self.machine,
+            reference,
+            self.program.authority.as_deref(),
+        )?;
+        let (origins, operators, calls) = crate::const_generic_expressions::leaf_call_custody(
+            typed,
+            self.machine,
+            self.state,
+            &roots,
+            false,
+            syntax,
+        )?;
+        if calls.len() != expected_calls.len()
+            || calls.iter().any(|call| !expected_calls.contains(call))
+        {
+            return Err("standalone probe changed the original call declaration selection".into());
+        }
+        if origins.len() != expected_origins.len()
+            || origins
+                .iter()
+                .any(|origin| !expected_origins.contains(origin))
+        {
+            return Err(
+                "standalone probe changed the original constant selection or selected a pending value"
+                    .into(),
+            );
+        }
+        let mut warnings = Vec::new();
+        for call in crate::const_generic_expressions::call_expressions(typed, &roots)? {
+            for warning in self.check_call(call)? {
+                if !warnings.contains(&warning) {
+                    warnings.push(warning);
+                }
+            }
+        }
+        let value = self.interpret(reference)?;
+        Ok(LeafEvaluation {
+            value,
+            destination: self.state.return_type,
+            origins,
+            operators,
+            warnings,
+        })
+    }
+
+    /// Interpret this retained probe's own transition and return the
+    /// structured result with its declared carrier. Receiving-side replay uses
+    /// the same checked admission as the original evaluation.
+    pub(super) fn evaluate_value(
+        &self,
+    ) -> Result<(BuildTimeValue, typed_trees::types::TypeReferenceHandle), String> {
+        let typed = self.program.typed();
+        let roots = self.probe_roots()?;
+        let reference = self.probe_reference()?;
+        crate::admission::require_const_expression_selection(
+            typed,
+            self.machine,
+            reference,
+            self.program.authority.as_deref(),
+        )?;
+        for call in crate::const_generic_expressions::call_expressions(typed, &roots)? {
+            self.check_call(call)?;
+        }
+        Ok((self.interpret(reference)?, self.state.return_type))
+    }
+}
+
+/// The evaluated result of one aggregate-producing initializer leaf: the
+/// checked interpreter's structured value, its declared carrier, and the same
+/// custody receipts the scalar leaf path collects.
+pub(super) struct LeafEvaluation {
+    pub(super) value: BuildTimeValue,
+    pub(super) destination: typed_trees::types::TypeReferenceHandle,
+    pub(super) origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
+    pub(super) operators: Vec<source::SourceSpan>,
+    pub(super) warnings: Vec<Diagnostic>,
 }
 
 fn scalar_snapshot(

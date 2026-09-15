@@ -505,6 +505,39 @@ fn inherits_normalized_constant_call(
         })
 }
 
+/// Every authored call expression surviving inside detached initializer
+/// expression roots, in deterministic walk order.
+pub(super) fn call_expressions(
+    program: &typed_trees::TypedTrees,
+    roots: &[typed_trees::expression::ExpressionHandle],
+) -> Result<Vec<typed_trees::expression::ExpressionHandle>, String> {
+    call_custody::call_expressions(program, roots)
+}
+
+/// Selected-constant origins, builtin-operator receipts, and the exact call
+/// roster for one structured initializer leaf probe — the same closure walk
+/// the scalar call path uses, kept together for aggregate destinations. The
+/// roots cover the probe's complete normalized body so a terminal call hoisted
+/// into a `let` initializer still contributes its invocation custody.
+pub(super) fn leaf_call_custody(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    roots: &[typed_trees::expression::ExpressionHandle],
+    public: bool,
+    syntax: &SyntaxTrees,
+) -> Result<
+    (
+        Vec<ConstArgumentOrigin>,
+        Vec<SourceSpan>,
+        Vec<(SourceSpan, SourceSpan)>,
+    ),
+    String,
+> {
+    let custody = call_custody::collect_roots(program, machine, state, roots, public, syntax)?;
+    Ok((custody.origins, custody.operators, custody.calls))
+}
+
 /// Detect invocation demand from actual initializer nodes while validating the
 /// complete expression graph, independently of retained selection receipts.
 pub(crate) fn initializer_contains_call(

@@ -36,7 +36,7 @@ impl ConstInitializerSelection {
         if !self
             .pending_leaves(syntax, definition)?
             .iter()
-            .any(|leaf| leaf.0 == expression)
+            .any(|leaf| leaf.expression == expression)
         {
             return Err(vec![
                 Diagnostic::error("dependency request is not an authored scalar initializer leaf")
@@ -143,17 +143,29 @@ impl ConstInitializerSelection {
         &self,
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
-    ) -> Result<
-        Vec<(
-            syntax_trees::expression::ExpressionHandle,
-            syntax_trees::types::TypeReferenceHandle,
-        )>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<Vec<crate::constant::PendingConstInitializerLeaf>, Vec<Diagnostic>> {
         crate::constant::pending_const_initializer_leaves(syntax, definition, &self.selection)
             .map_err(|reason| {
                 vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
             })
+    }
+
+    /// Synthesize one closed zero literal for a pending structured leaf so the
+    /// surrounding probe forest can type. The placeholder is preparation-only:
+    /// it is replaced by the evaluated literal before any value publishes.
+    pub fn pending_value_placeholder(
+        &self,
+        syntax: &mut SyntaxTrees,
+        destination: syntax_trees::types::TypeReferenceHandle,
+        reference: source::SourceSpan,
+    ) -> Result<syntax_trees::expression::ExpressionHandle, Vec<Diagnostic>> {
+        crate::constant::pending_aggregate_placeholder(
+            syntax,
+            &self.selection,
+            destination,
+            reference,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(reference)])
     }
 
     pub fn canonicalize_value(

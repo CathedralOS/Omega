@@ -38,6 +38,50 @@ struct Context<'program> {
     initializer: bool,
 }
 
+/// Every authored call expression surviving inside detached initializer
+/// expression roots, in deterministic walk order. Aggregate-producing leaf
+/// probes discharge each of these invocations individually before
+/// interpretation; hoisted probe bodies contribute one root per statement.
+pub(super) fn call_expressions(
+    program: &TypedTrees,
+    roots: &[ExpressionHandle],
+) -> Result<Vec<ExpressionHandle>, String> {
+    let mut calls = Vec::new();
+    let mut pending = roots
+        .iter()
+        .rev()
+        .map(|root| (*root, false))
+        .collect::<Vec<_>>();
+    let mut active = Vec::new();
+    let mut complete = Vec::new();
+    while let Some((expression, finish)) = pending.pop() {
+        if finish {
+            if active.pop() != Some(expression) {
+                return Err("constant initializer has invalid expression traversal".into());
+            }
+            complete.push(expression);
+            continue;
+        }
+        if active.contains(&expression) {
+            return Err("constant initializer contains a cyclic expression".into());
+        }
+        if complete.contains(&expression) {
+            continue;
+        }
+        let children = expression_children(program, expression)?;
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Call(_)
+        ) {
+            calls.push(expression);
+        }
+        active.push(expression);
+        pending.push((expression, true));
+        pending.extend(children.into_iter().rev().map(|child| (child, false)));
+    }
+    Ok(calls)
+}
+
 pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Result<bool, String> {
     let mut pending = vec![(root, false)];
     let mut active = Vec::new();
@@ -153,7 +197,22 @@ pub(super) fn collect(
     public: bool,
     syntax: &SyntaxTrees,
 ) -> Result<Custody, String> {
-    collect_internal(program, machine, state, root, public, Some(syntax))
+    collect_internal(program, machine, state, &[root], public, Some(syntax))
+}
+
+/// The same closure walk over several expression roots: a structured leaf
+/// probe's normalized body may hoist its terminal call into a `let`
+/// initializer beside the return transition, so custody covers every
+/// statement root rather than the return value alone.
+pub(super) fn collect_roots(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    roots: &[ExpressionHandle],
+    public: bool,
+    syntax: &SyntaxTrees,
+) -> Result<Custody, String> {
+    collect_internal(program, machine, state, roots, public, Some(syntax))
 }
 
 pub(super) fn validate_retained(
@@ -186,7 +245,7 @@ pub(super) fn validate_retained(
             expected.push(target);
         }
     }
-    let actual = collect_internal(program, machine, state, root, false, None)?;
+    let actual = collect_internal(program, machine, state, &[root], false, None)?;
     if actual.call_targets.len() != expected.len()
         || actual
             .call_targets
@@ -204,7 +263,7 @@ fn collect_internal(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    root: ExpressionHandle,
+    roots: &[ExpressionHandle],
     public: bool,
     syntax: Option<&SyntaxTrees>,
 ) -> Result<Custody, String> {
@@ -218,7 +277,7 @@ fn collect_internal(
         syntax,
         public,
         custody: Custody::default(),
-        expressions: vec![(root, context)],
+        expressions: roots.iter().rev().map(|root| (*root, context)).collect(),
         machines: Vec::new(),
         retained_call_targets: Vec::new(),
     };
@@ -807,7 +866,7 @@ mod tests {
         *retained.expression_table.expression_mut(call_expression) =
             ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(7));
         assert!(
-            collect_internal(&retained, machine, state, *expression, false, None).is_err(),
+            collect_internal(&retained, machine, state, &[*expression], false, None).is_err(),
             "erasing the call cannot leave its authored occurrence unaccounted for"
         );
         assert!(

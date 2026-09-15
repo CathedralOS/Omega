@@ -41,6 +41,7 @@ use syntax_trees::types::{ConstArgumentOrigin, TypeReferenceNode};
 mod tests;
 
 mod invocations;
+mod materialize;
 mod replay;
 
 pub(super) use replay::validate as validate_retained_invocations;
@@ -48,6 +49,9 @@ pub(super) use replay::validate as validate_retained_invocations;
 struct PendingLeaf {
     expression: ExpressionHandle,
     destination: syntax_trees::types::TypeReferenceHandle,
+    /// Structured leaves are aggregate-producing expressions evaluated through
+    /// the checked interpreter; scalar leaves keep the exact probe evaluator.
+    structured: bool,
     dependencies: Vec<(SourceSpan, usize)>,
     calls: Vec<(SourceSpan, SourceSpan)>,
 }
@@ -102,9 +106,10 @@ pub(super) fn evaluate(
         let leaves = preparation
             .pending_leaves(&syntax, definition)?
             .into_iter()
-            .map(|(expression, destination)| PendingLeaf {
-                expression,
-                destination,
+            .map(|leaf| PendingLeaf {
+                expression: leaf.expression,
+                destination: leaf.destination,
+                structured: leaf.structured,
                 dependencies: Vec::new(),
                 calls: Vec::new(),
             })
@@ -185,19 +190,30 @@ pub(super) fn evaluate(
             let mut definition = declaration.definition.clone();
             let mut placeholders = HashMap::new();
             for leaf in &declaration.leaves {
-                let boolean = matches!(
-                    probe.type_references.type_reference(leaf.destination),
-                    TypeReferenceNode::Named(name) if name.as_str() == "bool"
-                );
-                let value = if boolean {
-                    ExpressionNode::Boolean(false)
+                let reference = syntax.expressions.source_span(leaf.expression);
+                let placeholder = if leaf.structured {
+                    // A closed zero literal with the leaf's exact carrier lets
+                    // the non-executing probe forest type; the evaluated value
+                    // replaces it before the declaration materializes.
+                    preparation.pending_value_placeholder(
+                        &mut probe,
+                        leaf.destination,
+                        reference,
+                    )?
                 } else {
-                    ExpressionNode::Integer(numerics::literals::IntegerLiteral::zero())
+                    let boolean = matches!(
+                        probe.type_references.type_reference(leaf.destination),
+                        TypeReferenceNode::Named(name) if name.as_str() == "bool"
+                    );
+                    let value = if boolean {
+                        ExpressionNode::Boolean(false)
+                    } else {
+                        ExpressionNode::Integer(numerics::literals::IntegerLiteral::zero())
+                    };
+                    let placeholder = probe.expressions.insert(value);
+                    probe.expressions.set_source_span(placeholder, reference);
+                    placeholder
                 };
-                let placeholder = probe.expressions.insert(value);
-                probe
-                    .expressions
-                    .set_source_span(placeholder, syntax.expressions.source_span(leaf.expression));
                 placeholders.insert(leaf.expression, placeholder);
             }
             definition.value = materialize_value(&mut probe, definition.value, &placeholders)?;
@@ -256,7 +272,7 @@ pub(super) fn evaluate(
                 declarations[*ordinal]
                     .leaves
                     .iter()
-                    .any(|leaf| !leaf.calls.is_empty())
+                    .any(|leaf| leaf.structured || !leaf.calls.is_empty())
             })
             .then(|| {
                 let mut symbols = Vec::new();
@@ -318,6 +334,49 @@ pub(super) fn evaluate(
                             }
                         }
                     }
+                }
+                if leaf.structured {
+                    let checked = checked
+                        .as_ref()
+                        .expect("aggregate leaf has checked preparation");
+                    let calls = checked
+                        .calls_for_source(reference)
+                        .map_err(|reason| failure(reference, reason))?;
+                    // The leaf probe's checked interpreter supplies the value;
+                    // every authored call inside the leaf is still admitted at
+                    // its concrete arguments, and the reconstructed origins and
+                    // call roster must match the original selection exactly.
+                    let evaluation = calls
+                        .evaluate_leaf(reference, &expected, &leaf.calls, &syntax)
+                        .map_err(|reason| failure(reference, reason))?;
+                    for selection in &leaf.calls {
+                        if !call_selections.contains(selection) {
+                            call_selections.push(*selection);
+                        }
+                    }
+                    for origin in evaluation.origins {
+                        if !selections.contains(&origin) {
+                            selections.push(origin);
+                        }
+                    }
+                    for operator in evaluation.operators {
+                        if !builtin_operators.contains(&operator) {
+                            builtin_operators.push(operator);
+                        }
+                    }
+                    let materialized = materialize::literal(
+                        &mut syntax,
+                        typed,
+                        evaluation.destination,
+                        &evaluation.value,
+                        reference,
+                    )
+                    .map_err(|reason| failure(reference, reason))?;
+                    replacements.insert(leaf.expression, materialized);
+                    for warning in &evaluation.warnings {
+                        eprintln!("{warning}");
+                    }
+                    continue;
                 }
                 let result = if leaf.calls.is_empty() {
                     crate::const_generic_expressions::evaluate_probe(
@@ -405,8 +464,12 @@ pub(super) fn evaluate(
                 materialize_value(&mut syntax, authored_expression, &replacements)?
             };
             let mut definition = declarations[ordinal].definition.clone();
+            // A single scalar leaf's canonical result is its probe encoding; a
+            // structured or multi-leaf value encodes from the complete
+            // materialized literal instead.
             let canonical_result_encoding = if declarations[ordinal].leaves.len() == 1
                 && authored_expression == declarations[ordinal].leaves[0].expression
+                && !declarations[ordinal].leaves[0].structured
             {
                 scalar_encoding.expect("scalar initializer encoding")
             } else {
