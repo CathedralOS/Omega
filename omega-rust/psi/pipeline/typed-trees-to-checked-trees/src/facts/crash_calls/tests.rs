@@ -1,0 +1,634 @@
+//! Checked crash call tests.
+
+use super::{
+    CrashPredicateExpression, SymbolHandle, TypedTrees, infer_checked_crash_causes,
+    infer_checked_machine_crash_causes,
+};
+use crate::facts::crash_calls::private_summaries::PrivateSummaryDependency;
+use crate::facts::crash_calls::private_summaries::PrivateSummaryEquation;
+use crate::facts::crash_calls::private_summaries::solve_private_summary_fixed_point;
+use crate::facts::crash_calls::summary_predicates::CallArgumentSubstitution;
+use crate::facts::crash_calls::summary_predicates::SummaryCrashPredicate;
+use crate::facts::crash_calls::summary_predicates::SummaryCrashRouteGuard;
+use crate::facts::crash_calls::summary_predicates::normalize_summary_guards;
+use crate::facts::crash_calls::summary_predicates::summary_boolean_value;
+use crate::facts::crash_calls::{
+    SummaryCrashBucket, crash_predicate_from_expression, normalize_summary_buckets,
+};
+
+fn integer_comparison(
+    operator: typed_trees::expression::BinaryOperator,
+    left: &str,
+    right: &str,
+) -> CrashPredicateExpression {
+    CrashPredicateExpression::Binary {
+        operator: operator as u8,
+        left: Box::new(CrashPredicateExpression::Integer(left.into())),
+        right: Box::new(CrashPredicateExpression::Integer(right.into())),
+    }
+}
+
+#[test]
+fn closed_summary_integer_comparisons_use_exact_literal_values() {
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    for (operator, expected) in [(BinaryOperator::And, false), (BinaryOperator::Or, true)] {
+        let expression = CrashPredicateExpression::Binary {
+            operator: operator as u8,
+            left: Box::new(integer_comparison(BinaryOperator::Equal, "2", "2")),
+            right: Box::new(integer_comparison(BinaryOperator::Equal, "2", "0")),
+        };
+        assert_eq!(summary_boolean_value(&expression), Some(expected));
+    }
+    for (operator, left, right, expected) in [
+        (BinaryOperator::Equal, "0xff", "255", true),
+        (BinaryOperator::NotEqual, "0b11", "0o3", false),
+        (BinaryOperator::Less, "-9223372036854775809", "0", true),
+        (
+            BinaryOperator::LessOrEqual,
+            "18446744073709551615",
+            "18446744073709551615",
+            true,
+        ),
+        (
+            BinaryOperator::Greater,
+            "18446744073709551615",
+            "9223372036854775807",
+            true,
+        ),
+        (BinaryOperator::GreaterOrEqual, "-0x10", "-15", false),
+    ] {
+        let comparison = integer_comparison(operator, left, right);
+        assert_eq!(summary_boolean_value(&comparison), Some(expected));
+        let inverted = CrashPredicateExpression::Unary {
+            operator: UnaryOperator::LogicalNot as u8,
+            operand: Box::new(comparison),
+        };
+        assert_eq!(summary_boolean_value(&inverted), Some(!expected));
+    }
+    for malformed in ["", "-", "0x", "--1", "+1", "1u64", "1_0", "0b2"] {
+        assert_eq!(
+            summary_boolean_value(&integer_comparison(BinaryOperator::Equal, malformed, "0")),
+            None
+        );
+    }
+    assert_eq!(
+        summary_boolean_value(&integer_comparison(BinaryOperator::Add, "1", "1")),
+        None
+    );
+    assert_eq!(
+        summary_boolean_value(&CrashPredicateExpression::Parameter(0)),
+        None
+    );
+}
+
+#[test]
+fn forwarded_numeric_guards_discharge_without_scalar_annotations() {
+    use typed_trees::expression::BinaryOperator;
+    let guard = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(CrashPredicateExpression::Parameter(0)),
+        right: Box::new(CrashPredicateExpression::Integer("0".into())),
+    };
+    for (actual, survives) in [
+        ("0", true),
+        ("2", false),
+        ("-1", false),
+        ("18446744073709551615", false),
+    ] {
+        let mut observed = Vec::new();
+        for scalar in [
+            None,
+            Some(checked_trees::CheckedBooleanExpression::Constant(false)),
+        ] {
+            let bucket = SummaryCrashBucket {
+                cause: checked_trees::CrashCause::Trap,
+                alternative_guards: vec![SummaryCrashRouteGuard::Predicate(
+                    SummaryCrashPredicate {
+                        identity: guard.clone(),
+                        builtin_meaning: true,
+                        scalar,
+                    },
+                )],
+            };
+            let forwarded = bucket.substitute(&identity_substitution(vec![Some(
+                CrashPredicateExpression::Parameter(0),
+            )]));
+            let concrete = forwarded.substitute(&identity_substitution(vec![Some(
+                CrashPredicateExpression::Integer(actual.into()),
+            )]));
+            let causes = normalize_summary_buckets(vec![concrete])
+                .into_iter()
+                .map(|bucket| bucket.cause)
+                .collect::<Vec<_>>();
+            assert_eq!(!causes.is_empty(), survives);
+            observed.push(causes);
+        }
+        assert_eq!(observed[0], observed[1]);
+    }
+    let bucket = SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Trap,
+        alternative_guards: vec![predicate(guard)],
+    };
+    assert_eq!(
+        bucket.substitute(&identity_substitution(vec![None])),
+        SummaryCrashBucket::unconditional(checked_trees::CrashCause::Trap)
+    );
+}
+
+#[test]
+fn summary_normalization_cannot_launder_builtin_meaning() {
+    use typed_trees::expression::BinaryOperator;
+    let identity = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(CrashPredicateExpression::Parameter(0)),
+        right: Box::new(CrashPredicateExpression::Integer("0".into())),
+    };
+    for meanings in [[true, false], [false, true]] {
+        let mut guards = meanings
+            .into_iter()
+            .map(|builtin_meaning| {
+                SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+                    identity: identity.clone(),
+                    builtin_meaning,
+                    scalar: None,
+                })
+            })
+            .collect::<Vec<_>>();
+        normalize_summary_guards(&mut guards);
+        assert_eq!(guards.len(), 2);
+        let bucket = SummaryCrashBucket {
+            cause: checked_trees::CrashCause::Trap,
+            alternative_guards: guards,
+        };
+        let substituted = bucket.substitute(&identity_substitution(vec![Some(
+            CrashPredicateExpression::Integer("2".into()),
+        )]));
+        let [SummaryCrashRouteGuard::Predicate(survivor)] =
+            substituted.alternative_guards.as_slice()
+        else {
+            panic!("unknown selected meaning must retain its route");
+        };
+        assert!(!survivor.builtin_meaning);
+    }
+}
+
+#[test]
+fn authored_integer_comparison_does_not_supply_summary_builtin_meaning() {
+    for custom in [false, true] {
+        let declaration = if custom {
+            "boundary operator == Meaning::equal(left: u16, right: u16) -> bool;"
+        } else {
+            ""
+        };
+        let source = format!(
+            "{declaration} machine value(input: u16) -> u16 crashes Trap input == 0u16 {{ input }}"
+        );
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
+        let program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "value")
+            .unwrap();
+        let expression = program
+            .machine_contracts(machine)
+            .iter()
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .find_map(|fact| {
+                if let typed_trees::domain::ProofFact::Expression(expression) = fact {
+                    Some(*expression)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let builtin_meaning = validation::has_builtin_bound_expression_meaning(
+            &program,
+            machine,
+            program.machine_states(machine).first(),
+            expression,
+        );
+        assert_eq!(builtin_meaning, !custom);
+        let identity =
+            crash_predicate_from_expression(&program, expression, &["input".into()], None);
+        let bucket = SummaryCrashBucket {
+            cause: checked_trees::CrashCause::Trap,
+            alternative_guards: vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+                identity,
+                builtin_meaning,
+                scalar: None,
+            })],
+        };
+        let concrete = bucket.substitute(&identity_substitution(vec![Some(
+            CrashPredicateExpression::Integer("2".into()),
+        )]));
+        assert_eq!(
+            !normalize_summary_buckets(vec![concrete]).is_empty(),
+            custom
+        );
+    }
+}
+
+#[test]
+fn concrete_call_summary_preserves_authored_comparison_meaning() {
+    for custom in [false, true] {
+        let declaration = if custom {
+            "boundary operator == Meaning::equal(left: u16, right: u16) -> bool;"
+        } else {
+            ""
+        };
+        let source = format!(
+            "{declaration}
+            machine value(input: u16) -> u16 crashes Trap input == 0u16 {{ input }}
+            machine caller() -> u16 {{ value(2u16) }}"
+        );
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
+        let program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .unwrap()
+            .symbol;
+        let checked = crate::lower_typed_trees(program);
+        if custom {
+            if let Ok(checked) = checked {
+                assert_ne!(
+                    infer_checked_machine_crash_causes(&checked.typed, &checked.facts, caller),
+                    Some(Vec::new()),
+                    "authored equality cannot become builtin crash discharge"
+                );
+            }
+        } else {
+            let checked = checked.expect("builtin guarded call checks");
+            assert_eq!(
+                infer_checked_machine_crash_causes(&checked.typed, &checked.facts, caller),
+                Some(Vec::new())
+            );
+        }
+    }
+}
+
+#[test]
+fn callee_boolean_meaning_cannot_authorize_custom_actual_comparison() {
+    for body in [
+        "value(2u16 == 0u16)",
+        "let flag: bool = 2u16 == 0u16; value(flag)",
+    ] {
+        let source = format!(
+            "boundary operator == Meaning::equal(left: u16, right: u16) -> bool;
+             machine value(flag: bool) -> u16 crashes Trap flag {{ 7u16 }}
+             machine caller() -> u16 {{ {body} }}"
+        );
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
+        let program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .unwrap()
+            .symbol;
+        if let Ok(checked) = crate::lower_typed_trees(program) {
+            assert_ne!(
+                infer_checked_machine_crash_causes(&checked.typed, &checked.facts, caller),
+                Some(Vec::new()),
+                "callee Boolean guard cannot establish custom actual meaning: {body}"
+            );
+        }
+    }
+}
+
+fn predicate(identity: CrashPredicateExpression) -> SummaryCrashRouteGuard {
+    SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+        identity,
+        builtin_meaning: false,
+        scalar: None,
+    })
+}
+
+fn identity_substitution(
+    identity: Vec<Option<CrashPredicateExpression>>,
+) -> CallArgumentSubstitution {
+    CallArgumentSubstitution {
+        scalar: vec![None; identity.len()],
+        identity,
+    }
+}
+
+#[test]
+fn arithmetic_actual_guards_discharge_through_checked_scalar_evidence() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+        CheckedScalarExpression,
+    };
+    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::types::PrimitiveType;
+
+    let literal = |text: &str| CheckedScalarExpression::IntegerLiteral {
+        literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, text)
+            .unwrap()
+            .with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::U64,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            }),
+    };
+    // `divide(value - 1)` inside a forwarding body: the published guard
+    // `value == 0` retains the arithmetic actual over the caller's entry.
+    let identity = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Subtract as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(0)),
+            right: Box::new(CrashPredicateExpression::Integer("1".into())),
+        }),
+        right: Box::new(CrashPredicateExpression::Integer("0".into())),
+    };
+    let scalar = CheckedBooleanExpression::IntegerComparison {
+        kind: CheckedIntegerComparisonKind::Equal,
+        left: Box::new(CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactSubtract,
+            primitive_type: PrimitiveType::U64,
+            left: Box::new(CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::U64,
+            }),
+            right: Box::new(literal("1")),
+        }),
+        right: Box::new(literal("0")),
+    };
+    let bucket = SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Trap,
+        alternative_guards: vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+            identity,
+            builtin_meaning: true,
+            scalar: Some(scalar),
+        })],
+    };
+    let substitute = |actual: &str| {
+        let mut substitution =
+            identity_substitution(vec![Some(CrashPredicateExpression::Integer(actual.into()))]);
+        substitution.scalar = vec![Some(literal(actual))];
+        normalize_summary_buckets(vec![bucket.substitute(&substitution)])
+    };
+    // `3 - 1 == 0` is decided false: the guarded Trap discharges.
+    assert!(substitute("3").is_empty());
+    // `1 - 1 == 0` is decided true: the route is unconditional.
+    assert_eq!(
+        substitute("1"),
+        vec![SummaryCrashBucket::unconditional(
+            checked_trees::CrashCause::Trap
+        )],
+    );
+    // `0 - 1` cannot produce a u64 under the exact domain, so the guard
+    // stays undecidable and the route survives as a predicate.
+    let surviving_buckets = substitute("0");
+    let [surviving] = surviving_buckets.as_slice() else {
+        panic!("the undecidable arithmetic guard retains its route")
+    };
+    let [SummaryCrashRouteGuard::Predicate(_)] = surviving.alternative_guards.as_slice() else {
+        panic!("exact-domain underflow keeps the guarded route")
+    };
+    // The identity alone cannot fold arithmetic: without the annotation
+    // the same substitution only retains.
+    let mut without_scalar = bucket.clone();
+    without_scalar.alternative_guards =
+        vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+            scalar: None,
+            ..match &without_scalar.alternative_guards[0] {
+                SummaryCrashRouteGuard::Predicate(predicate) => predicate.clone(),
+                _ => unreachable!(),
+            }
+        })];
+    let mut substitution =
+        identity_substitution(vec![Some(CrashPredicateExpression::Integer("3".into()))]);
+    substitution.scalar = vec![Some(literal("3"))];
+    let [SummaryCrashRouteGuard::Predicate(_)] = without_scalar
+        .substitute(&substitution)
+        .alternative_guards
+        .as_slice()
+    else {
+        panic!("an arithmetic identity alone cannot decide the guard")
+    };
+}
+
+#[test]
+fn missing_call_actual_provenance_widens_instead_of_retaining_callee_parameter() {
+    let route = SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Trap,
+        alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(0))],
+    };
+    for actuals in [Vec::new(), vec![None]] {
+        assert_eq!(
+            route.substitute(&identity_substitution(actuals)),
+            SummaryCrashBucket::unconditional(checked_trees::CrashCause::Trap),
+            "a missing actual must not relabel the callee formal as a caller entry input",
+        );
+    }
+}
+
+#[test]
+fn unreferenced_unknown_actual_does_not_erase_exact_guard_substitution() {
+    let route = SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Trap,
+        alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(1))],
+    };
+    let substituted = route.substitute(&identity_substitution(vec![
+        None,
+        Some(CrashPredicateExpression::Parameter(2)),
+    ]));
+    assert_eq!(
+        substituted.alternative_guards,
+        vec![predicate(CrashPredicateExpression::Parameter(2))]
+    );
+}
+
+#[test]
+fn summary_guard_normalization_keeps_checked_scalar_structure() {
+    let identity = CrashPredicateExpression::Parameter(0);
+    let scalar = checked_trees::CheckedBooleanExpression::Parameter { position: 0 };
+    let mut guards = vec![
+        predicate(identity.clone()),
+        SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+            identity,
+            builtin_meaning: false,
+            scalar: Some(scalar.clone()),
+        }),
+    ];
+
+    normalize_summary_guards(&mut guards);
+
+    let [SummaryCrashRouteGuard::Predicate(predicate)] = guards.as_slice() else {
+        panic!("equivalent predicates should merge into one guarded route")
+    };
+    assert_eq!(predicate.scalar, Some(scalar));
+}
+
+#[test]
+fn cause_only_summary_does_not_depend_on_scalar_annotations() {
+    use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression, CrashCause};
+
+    for replacement in [
+        CrashPredicateExpression::Boolean(false),
+        CrashPredicateExpression::Boolean(true),
+        CrashPredicateExpression::Parameter(1),
+    ] {
+        let without_scalar = SummaryCrashBucket {
+            cause: CrashCause::Trap,
+            alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(0))],
+        };
+        let with_scalar = SummaryCrashBucket {
+            cause: CrashCause::Trap,
+            alternative_guards: vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+                identity: CrashPredicateExpression::Parameter(0),
+                builtin_meaning: false,
+                scalar: Some(CheckedBooleanExpression::Parameter { position: 0 }),
+            })],
+        };
+        let scalar = match &replacement {
+            CrashPredicateExpression::Boolean(value) => CheckedBooleanExpression::Constant(*value),
+            CrashPredicateExpression::Parameter(position) => CheckedBooleanExpression::Parameter {
+                position: *position as usize,
+            },
+            _ => unreachable!(),
+        };
+        let mut substitution = identity_substitution(vec![Some(replacement)]);
+        let without = normalize_summary_buckets(vec![without_scalar.substitute(&substitution)]);
+        substitution.scalar = vec![Some(CheckedScalarExpression::Boolean(Box::new(scalar)))];
+        let with = normalize_summary_buckets(vec![with_scalar.substitute(&substitution)]);
+        assert_eq!(
+            without, with,
+            "scalar annotations do not select or erase causes"
+        );
+    }
+}
+
+#[test]
+fn cause_query_missing_machine_is_unknown_not_complete_empty() {
+    assert!(
+        infer_checked_crash_causes(
+            &TypedTrees::default(),
+            &checked_trees::CheckFacts::default(),
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        infer_checked_machine_crash_causes(
+            &TypedTrees::default(),
+            &checked_trees::CheckFacts::default(),
+            SymbolHandle::from_arena_index(1),
+        ),
+        None,
+    );
+}
+
+#[test]
+fn private_summary_fixed_point_closes_recursive_components() {
+    let first = SymbolHandle::from_arena_index(1);
+    let second = SymbolHandle::from_arena_index(2);
+    let abort = SummaryCrashBucket::unconditional(checked_trees::CrashCause::Abort);
+    let guarded_abort = SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Abort,
+        alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(0))],
+    };
+    let trap = SummaryCrashBucket::unconditional(checked_trees::CrashCause::Trap);
+    let equations = vec![
+        PrivateSummaryEquation {
+            machine: first,
+            direct: Vec::new(),
+            private_dependencies: vec![PrivateSummaryDependency {
+                machine: second,
+                substitution: identity_substitution(Vec::new()),
+                recursive: true,
+            }],
+            published_dependencies: vec![guarded_abort],
+        },
+        PrivateSummaryEquation {
+            machine: second,
+            direct: vec![trap.clone()],
+            private_dependencies: vec![PrivateSummaryDependency {
+                machine: first,
+                substitution: identity_substitution(Vec::new()),
+                recursive: true,
+            }],
+            published_dependencies: Vec::new(),
+        },
+    ];
+
+    let summaries = solve_private_summary_fixed_point(&equations);
+    for machine in [first, second] {
+        let buckets = summaries
+            .iter()
+            .find_map(|(candidate, buckets)| (*candidate == machine).then_some(buckets))
+            .expect("each recursive member has a summary");
+        assert!(buckets.contains(&abort));
+        assert!(buckets.contains(&trap));
+    }
+}
+
+#[test]
+fn private_summary_preserves_acyclic_guard_substitution() {
+    let leaf = SymbolHandle::from_arena_index(1);
+    let wrapper = SymbolHandle::from_arena_index(2);
+    let route = SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Trap,
+        alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(0))],
+    };
+    let equations = vec![
+        PrivateSummaryEquation {
+            machine: leaf,
+            direct: Vec::new(),
+            private_dependencies: Vec::new(),
+            published_dependencies: vec![route],
+        },
+        PrivateSummaryEquation {
+            machine: wrapper,
+            direct: Vec::new(),
+            private_dependencies: vec![PrivateSummaryDependency {
+                machine: leaf,
+                substitution: identity_substitution(vec![Some(
+                    CrashPredicateExpression::Parameter(1),
+                )]),
+                recursive: false,
+            }],
+            published_dependencies: Vec::new(),
+        },
+    ];
+
+    let summaries = solve_private_summary_fixed_point(&equations);
+    let [bucket] = summaries
+        .iter()
+        .find_map(|(machine, buckets)| (*machine == wrapper).then_some(buckets.as_slice()))
+        .expect("wrapper summary")
+    else {
+        panic!("wrapper should retain one guarded bucket")
+    };
+    assert_eq!(
+        bucket.alternative_guards,
+        vec![predicate(CrashPredicateExpression::Parameter(1))]
+    );
+}
