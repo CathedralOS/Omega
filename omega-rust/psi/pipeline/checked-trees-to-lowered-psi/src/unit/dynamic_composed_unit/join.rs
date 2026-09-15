@@ -6,20 +6,35 @@
 
 use super::{
     Block, CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedScalarExpression,
-    CheckedStructuralAccess, CheckedTrees, ForwardedHelperIds, LoweredDynamicRealization,
-    LoweredPsi, LoweredSourceCallOccurrence, LoweringError, Operation, OperationKind,
-    OperationResult, PrimitiveType, ProofBundle, StructuralAccess, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalDynamicConformanceSelection,
-    TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
-    TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch, Terminator,
-    ValueDeclaration, VocabularyMarker, block_id, collect_dynamic_realizations,
-    dynamic_parameter_interface, edge_id, empty_terminal_contract, exact_machine_service_summary,
-    extend_parameter_forwarding_catalog, lookup_type_id, lower_dynamic_structural_types,
-    lower_exact_application, lower_installation_machine_service_ceiling, lower_root_service_reach,
-    machine_id, materialize_dynamic_realizations, materialize_forwarded_helper_chain, operation_id,
-    place_id, terminal_scalar_type, terminal_structural_multiplicity, unsupported,
-    validate_and_lower_source, validate_exact_direct_plan, value_id,
+    CheckedStructuralAccess, CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence, LoweringError,
+    Operation, OperationKind, OperationResult, PrimitiveType, ProofBundle, StructuralAccess,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
+    TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalParameterDynamicDispatch, Terminator, ValueDeclaration, VocabularyMarker, block_id,
+    edge_id, lookup_type_id, lower_installation_machine_service_ceiling, lower_root_service_reach,
+    machine_id, operation_id, place_id, terminal_scalar_type, unsupported, value_id,
+};
+use crate::unit::dynamic_composed_unit::applications::{
+    exact_machine_service_summary, lower_exact_application,
+};
+use crate::unit::dynamic_composed_unit::dynamic_lanes::{
+    ForwardedHelperIds, LoweredDynamicRealization,
+};
+use crate::unit::dynamic_composed_unit::forwarded_helpers::{
+    extend_parameter_forwarding_catalog, materialize_forwarded_helper_chain,
+};
+use crate::unit::dynamic_composed_unit::plan_validation::validate_exact_direct_plan;
+use crate::unit::dynamic_composed_unit::realizations::{
+    collect_dynamic_realizations, materialize_dynamic_realizations,
+};
+use crate::unit::dynamic_composed_unit::source_lowering::{
+    dynamic_parameter_interface, validate_and_lower_source,
+};
+use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
+use crate::unit::dynamic_composed_unit::structural_types::{
+    lower_dynamic_structural_types, terminal_structural_multiplicity,
 };
 pub(super) fn lower(
     checked: &CheckedTrees,
