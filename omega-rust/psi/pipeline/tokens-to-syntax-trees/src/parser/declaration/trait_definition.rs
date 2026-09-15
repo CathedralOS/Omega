@@ -81,7 +81,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
                 .first()
                 .is_some_and(|token| token.punctuation().is_some())
             {
-                let (spelling, rest) = crate::parser::operator::parse_operator_spelling(input)?;
+                let (spelling, rest) =
+                    crate::parser::declaration::operator::parse_operator_spelling(input)?;
                 input = rest;
                 Some(spelling)
             } else {
@@ -468,7 +469,7 @@ fn parse_trait_requirement<'tokens, 'source>(
 /// Parses the `reaches`/`requires`/`ensures` clauses that may follow a bodyless
 /// machine signature: trait machine signatures and platform entry signatures
 /// share this clause grammar.
-pub(super) fn parse_signature_clauses<'tokens, 'source>(
+pub(in crate::parser) fn parse_signature_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
     allow_clauses_after_operational_separator: bool,

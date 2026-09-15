@@ -2139,7 +2139,8 @@ Owners include
   optional closed-vocabulary token after `machine`, records it as
   `syntax_trees::item::Machine::spelling`, and rejects tokens on `satisfies`
   realizations, `boundary requirement`, and conformance members
-  (`tokens-to-syntax-trees/src/parser/machine.rs`, `item.rs`; tests in
+  (`tokens-to-syntax-trees/src/parser/machine.rs`, `declaration.rs`,
+  `declaration/conformance.rs`; tests in
   `parser/tests/properties_and_requirements.rs`). Next frontier: carry
   `spelling` into symbol-resolved/typed/checked representations
   (`lowering/machine.rs` notes the current inert drop), then operand-directed
