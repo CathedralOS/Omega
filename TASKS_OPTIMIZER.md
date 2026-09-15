@@ -610,8 +610,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   each transformation is independently verifiable. Existing narrow same-view
   and compare-adjacent cases do not imply general authority. Landed:
   `rewrites/redundant_extension` rewrites an extension whose input's unique
-  producer already guarantees the normalized bits to `CopyI64`, and
-  `rewrites/literal_compare` rewrites a `CompareI64` whose right operand's
+  producer already guarantees the normalized bits to `CopyI64` — the
+  producer table spans the fixed normalizations and the partial carriers
+  `ZeroExtendU32`, `LoadPacked`, and `Float32ToBits`, whose contracts fix
+  nothing above their meaningful width and so witness only `ZeroExtendU32`,
+  the one extension whose own result leaves those bits unmeaningful, and
+  only when the meaningful width already fits in 32 bits; wider packed
+  loads genuinely narrow rather than witness, and admission resolves the
+  defining operand so a packed load's undocumented scratch shares none of
+  the assembled result's guarantee — and `rewrites/literal_compare`
+  rewrites a `CompareI64` whose right operand's
   unique producer is a `MaterializeI64` inside the shared twelve-bit
   unsigned immediate bound to `CompareI64Immediate` — or `CompareI64Zero`
   for a literal of zero — keeping the compare's identity, position, and
@@ -621,11 +629,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   block, rebinding each to the source and dropping the destination roster
   row, admitting a source redefinition on the last use's own instruction
   but none inside the open interval, each under replayed
-  restore-by-content validation (crate `nextest`: 254 pass). Remaining:
-  address folding, scheduling, left-operand literal folding (immediate
-  forms fix the literal as the subtrahend), and producers whose contracts
-  do not fix the high bits (`ZeroExtendU32` output, packed loads, FP bit
-  transfers).
+  restore-by-content validation (crate `nextest`: 335 pass). Remaining:
+  address folding, scheduling, and left-operand literal folding (immediate
+  forms fix the literal as the subtrahend).
 
 ## Proof-, ownership-, and state-aware optimization
 
