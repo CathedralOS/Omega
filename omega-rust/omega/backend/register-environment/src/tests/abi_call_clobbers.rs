@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+mod arithmetic_effects;
 mod branch_effects;
 mod call_effects;
 mod memory_effects;
