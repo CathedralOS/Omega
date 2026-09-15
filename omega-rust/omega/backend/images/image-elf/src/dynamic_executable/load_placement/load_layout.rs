@@ -21,6 +21,8 @@ mod abi_validation;
 mod candidates;
 mod compatibility_fingerprint;
 mod load_headers;
+#[cfg(test)]
+mod tests;
 mod validated_layout;
 
 pub use load_headers::{

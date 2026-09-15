@@ -2,13 +2,19 @@
 
 use super::{
     Candidate, DYNAMIC_MAX_PAGE_SIZE, ElfLoadProgramHeader, ElfLoadProgramHeaderKind,
-    ElfPlacedDynamicSectionKind, ElfProcedureLinkagePlacementConstraintKind,
-    ElfRelativeSectionPayloadRegion, ElfSectionPlacementResolutionKind, IMAGE_BASE, PF_R, PF_W,
-    PF_X, ValidatedElfRelativeSectionPayloadLayout, aarch64_page_delta_covers_extent,
-    checked_align, checked_product, checked_sum, derive_contents,
+    ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind, IMAGE_BASE, PF_R, PF_W, PF_X,
+    ValidatedElfRelativeSectionPayloadLayout, derive_contents,
     non_authoritative_layout_compatibility_fingerprint, plan_elf_dynamic_load_layout,
-    retained_target, validate_abi, validate_candidate, validate_deferred_constraint_envelope,
+    retained_target, validate_candidate,
 };
+use crate::dynamic_executable::load_placement::load_layout::abi_validation::{
+    aarch64_page_delta_covers_extent, validate_abi, validate_deferred_constraint_envelope,
+};
+use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::{
+    checked_align, checked_product, checked_sum,
+};
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ElfProcedureLinkagePlacementConstraintKind;
+use crate::dynamic_executable::section_headers::relative_section_layout::ElfRelativeSectionPayloadRegion;
 use crate::{
     plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
     plan_elf_dynamic_section_roster, plan_elf_dynamic_sections,
@@ -120,13 +126,8 @@ fn relative_with_bss_alignment(
 fn candidate(target: TargetProfile) -> Candidate {
     let relative = relative(target);
     let target = retained_target(&relative);
-    let (
-        program_headers,
-        image_memory,
-        sections,
-        section_header_table_file_offset,
-        resolutions,
-    ) = derive_contents(&relative, target).unwrap();
+    let (program_headers, image_memory, sections, section_header_table_file_offset, resolutions) =
+        derive_contents(&relative, target).unwrap();
     let non_authoritative_layout_compatibility_fingerprint =
         non_authoritative_layout_compatibility_fingerprint(
             &relative,
@@ -226,8 +227,7 @@ fn special_headers_alias_sections_and_file_only_metadata_stays_outside_loads() {
     let rw = layout.program_headers()[3];
     assert!(shstrtab.file_offset() >= rw.file_offset() + rw.file_size());
     assert!(
-        layout.section_header_table_file_offset()
-            >= shstrtab.file_offset() + shstrtab.byte_size()
+        layout.section_header_table_file_offset() >= shstrtab.file_offset() + shstrtab.byte_size()
     );
     assert_eq!(layout.section_header_table_byte_size(), 13 * 64);
 }
@@ -252,9 +252,7 @@ fn exact_twenty_three_fixups_are_resolved_without_mutating_template_bytes() {
         );
         let placed = &layout.sections()[fixup.row_index as usize];
         let expected = match resolution.kind() {
-            ElfSectionPlacementResolutionKind::VirtualAddress => {
-                placed.virtual_address().unwrap()
-            }
+            ElfSectionPlacementResolutionKind::VirtualAddress => placed.virtual_address().unwrap(),
             ElfSectionPlacementResolutionKind::FileOffset => placed.file_offset(),
         };
         assert_eq!(resolution.value(), expected);
@@ -323,8 +321,7 @@ fn independent_abi_replay_rejects_each_source_and_auxiliary_geometry_family() {
         Box::new(|candidate| candidate.image_memory.text_virtual_address ^= 1),
         Box::new(|candidate| candidate.image_memory.data_virtual_address ^= 1),
         Box::new(|candidate| {
-            candidate.image_memory.bss_virtual_address =
-                candidate.image_memory.data_virtual_address
+            candidate.image_memory.bss_virtual_address = candidate.image_memory.data_virtual_address
         }),
         Box::new(|candidate| candidate.image_memory.bss_alignment = 0),
         Box::new(|candidate| candidate.program_headers[2].memory_size = 0),
@@ -368,9 +365,7 @@ fn aarch64_relocation_envelopes_use_exact_four_kibibyte_page_boundaries() {
     );
     let maximum_negative_page = source - ((1_u64 << 20) * 0x1000);
     assert!(aarch64_page_delta_covers_extent(source, maximum_negative_page, 1).unwrap());
-    assert!(
-        !aarch64_page_delta_covers_extent(source, maximum_negative_page - 0x1000, 1).unwrap()
-    );
+    assert!(!aarch64_page_delta_covers_extent(source, maximum_negative_page - 0x1000, 1).unwrap());
     assert!(!aarch64_page_delta_covers_extent(source, source, 0).unwrap());
 
     let arm = candidate(TargetProfile::LinuxArm64);
@@ -383,8 +378,7 @@ fn aarch64_relocation_envelopes_use_exact_four_kibibyte_page_boundaries() {
         .map(|constraint| constraint.kind)
         .collect::<Vec<_>>();
     assert!(
-        constraint_kinds
-            .contains(&ElfProcedureLinkagePlacementConstraintKind::Aarch64PageDelta21)
+        constraint_kinds.contains(&ElfProcedureLinkagePlacementConstraintKind::Aarch64PageDelta21)
     );
     assert!(
         constraint_kinds
@@ -395,17 +389,16 @@ fn aarch64_relocation_envelopes_use_exact_four_kibibyte_page_boundaries() {
     );
 
     let mut branch_drift = candidate(TargetProfile::LinuxArm64);
-    branch_drift.sections[ElfPlacedDynamicSectionKind::ProcedureLinkage as usize]
-        .virtual_address = Some(1_u64 << 40);
+    branch_drift.sections[ElfPlacedDynamicSectionKind::ProcedureLinkage as usize].virtual_address =
+        Some(1_u64 << 40);
     validate_deferred_constraint_envelope(&branch_drift)
         .expect_err("out-of-range AArch64 branch target must reject");
 
     let mut low_twelve_drift = candidate(TargetProfile::LinuxArm64);
-    low_twelve_drift.sections[ElfPlacedDynamicSectionKind::ProcedureGot as usize]
-        .virtual_address = low_twelve_drift.sections
-        [ElfPlacedDynamicSectionKind::ProcedureGot as usize]
-        .virtual_address
-        .map(|address| address + 1);
+    low_twelve_drift.sections[ElfPlacedDynamicSectionKind::ProcedureGot as usize].virtual_address =
+        low_twelve_drift.sections[ElfPlacedDynamicSectionKind::ProcedureGot as usize]
+            .virtual_address
+            .map(|address| address + 1);
     validate_deferred_constraint_envelope(&low_twelve_drift)
         .expect_err("misaligned AArch64 low-12 target must reject");
 }
