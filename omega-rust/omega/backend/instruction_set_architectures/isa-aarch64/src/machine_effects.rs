@@ -124,22 +124,35 @@ pub fn validate_aarch64_machine_effect_catalog(
     Ok(validated)
 }
 
+/// The AArch64 encoding matrix declares one call/return ABI family per
+/// supported (architecture, object-format) pair: AAPCS64 under ELF and the
+/// Darwin AAPCS64 variant under Mach-O. An undeclared format fails closed
+/// rather than silently inheriting one family's rows; adding a supported
+/// AArch64 format extends this matrix deliberately.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Aarch64SelectedAbi {
+    Aapcs64,
+    Darwin,
+}
+
 fn selected_keys(
     target: NativeTarget,
 ) -> Result<SelectedConstraintKeys, Aarch64MachineEffectCatalogValidationError> {
-    let return_i64 = match target.object_format {
-        ObjectFormat::Elf => AARCH64_AAPCS64_RETURN,
-        ObjectFormat::MachO => AARCH64_DARWIN_RETURN,
+    let abi = match target.object_format {
+        ObjectFormat::Elf => Aarch64SelectedAbi::Aapcs64,
+        ObjectFormat::MachO => Aarch64SelectedAbi::Darwin,
         ObjectFormat::Coff => {
             return Err(Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi);
         }
     };
-    let return_unit = match target.object_format {
-        ObjectFormat::Elf => AARCH64_AAPCS64_RETURN_UNIT,
-        ObjectFormat::MachO => AARCH64_DARWIN_RETURN_UNIT,
-        ObjectFormat::Coff => {
-            return Err(Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi);
-        }
+    let darwin = abi == Aarch64SelectedAbi::Darwin;
+    let return_i64 = match abi {
+        Aarch64SelectedAbi::Aapcs64 => AARCH64_AAPCS64_RETURN,
+        Aarch64SelectedAbi::Darwin => AARCH64_DARWIN_RETURN,
+    };
+    let return_unit = match abi {
+        Aarch64SelectedAbi::Aapcs64 => AARCH64_AAPCS64_RETURN_UNIT,
+        Aarch64SelectedAbi::Darwin => AARCH64_DARWIN_RETURN_UNIT,
     };
     Ok(SelectedConstraintKeys {
         copy_bytes: Some(crate::AARCH64_COPY_BYTES),
@@ -175,42 +188,29 @@ fn selected_keys(
         address_offset: Some(crate::AARCH64_ADDRESS_OFFSET),
         store64: Some(crate::AARCH64_STORE64),
         frame_address: Some(crate::AARCH64_FRAME_ADDRESS),
-        call_unit_mixed: if target.object_format == ObjectFormat::Elf {
-            crate::aarch64_aapcs64_mixed_unit_call_keys()
-        } else {
-            crate::aarch64_darwin_mixed_unit_call_keys()
+        call_unit_mixed: match abi {
+            Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_mixed_unit_call_keys(),
+            Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_mixed_unit_call_keys(),
         },
-        call_unit: if target.object_format == ObjectFormat::Elf {
-            crate::aarch64_aapcs64_register_unit_call_keys()
-        } else {
-            crate::aarch64_darwin_register_unit_call_keys()
+        call_unit: match abi {
+            Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_register_unit_call_keys(),
+            Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_unit_call_keys(),
         },
-        call_scalar: (if matches!(target.object_format, ObjectFormat::Elf) {
-            aarch64_aapcs64_register_call_keys()
-        } else {
-            crate::aarch64_darwin_register_call_keys()
+        call_scalar: (match abi {
+            Aarch64SelectedAbi::Aapcs64 => aarch64_aapcs64_register_call_keys(),
+            Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_call_keys(),
         })
         .into_iter()
-        .chain(crate::aarch64_float_scalar_call_keys(
-            target.object_format == ObjectFormat::MachO,
-        ))
+        .chain(crate::aarch64_float_scalar_call_keys(darwin))
         .collect(),
         materialize_i64: AARCH64_MATERIALIZE_I64,
         materialize_boolean: crate::AARCH64_MATERIALIZE_BOOLEAN,
-        call_aggregate: crate::aarch64_register_aggregate_call_keys(
-            target.object_format == ObjectFormat::MachO,
-        )
-        .into_iter()
-        .chain(crate::aarch64_mixed_aggregate_call_keys(
-            target.object_format == ObjectFormat::MachO,
-        ))
-        .chain(crate::aarch64_indirect_aggregate_call_keys(
-            target.object_format == ObjectFormat::MachO,
-        ))
-        .collect(),
-        return_aggregate: crate::aarch64_register_aggregate_return_keys(
-            target.object_format == ObjectFormat::MachO,
-        ),
+        call_aggregate: crate::aarch64_register_aggregate_call_keys(darwin)
+            .into_iter()
+            .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
+            .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
+            .collect(),
+        return_aggregate: crate::aarch64_register_aggregate_return_keys(darwin),
         copy_i64: AARCH64_COPY_I64,
         float32_to_bits: Some(crate::AARCH64_FLOAT32_TO_BITS),
         float64_to_bits: Some(crate::AARCH64_FLOAT64_TO_BITS),
@@ -229,9 +229,7 @@ fn selected_keys(
         compare_i64_immediate: AARCH64_COMPARE_I64_IMMEDIATE,
         conditional_branch: AARCH64_CONDITIONAL_BRANCH,
         jump: crate::AARCH64_JUMP,
-        return_float: crate::aarch64_float_scalar_return_keys(
-            target.object_format == ObjectFormat::MachO,
-        ),
+        return_float: crate::aarch64_float_scalar_return_keys(darwin),
         return_i64,
         return_unit,
     })
@@ -603,11 +601,12 @@ const fn packed_load_width(semantic: MachineSemanticKind) -> Option<u16> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_SUBTRACT_I64,
-        Aarch64MachineEffectCatalogValidationError, MachineAlternativeApplicability,
+        AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_CONDITIONAL_BRANCH,
+        AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT, AARCH64_SUBTRACT_I64,
+        Aarch64MachineEffectCatalogValidationError, Architecture, MachineAlternativeApplicability,
         MachineBarrier, MachineCallEffect, MachineEncodedControlEffect, MachineEncodedEffects,
         MachineEncodedStackEffect, MachineSemanticKind, MachineSizeKnowledge, NativeTarget,
-        ValidatedRegisterConstraintCatalog, aarch64_machine_effect_catalog,
+        ObjectFormat, ValidatedRegisterConstraintCatalog, aarch64_machine_effect_catalog,
         validate_aarch64_machine_effect_catalog,
     };
     use crate::{
@@ -896,5 +895,126 @@ mod tests {
             validate_aarch64_machine_effect_catalog(target, &constraints, wrong),
             Err(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)
         );
+    }
+
+    #[test]
+    fn selected_keys_declare_the_supported_aarch64_pairs() {
+        let constraints = constraints();
+        for (target, darwin, return_i64, return_unit, read, exit, write) in [
+            (
+                NativeTarget::linux_arm64(),
+                false,
+                AARCH64_AAPCS64_RETURN,
+                AARCH64_AAPCS64_RETURN_UNIT,
+                crate::AARCH64_HOSTED_READ_BYTE,
+                crate::AARCH64_HOSTED_EXIT_PROCESS_I32,
+                crate::AARCH64_HOSTED_WRITE_BYTE_I32,
+            ),
+            (
+                NativeTarget::macos_arm64(),
+                true,
+                AARCH64_DARWIN_RETURN,
+                AARCH64_DARWIN_RETURN_UNIT,
+                crate::AARCH64_DARWIN_HOSTED_READ_BYTE,
+                crate::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32,
+                crate::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32,
+            ),
+        ] {
+            let keys = aarch64_machine_effect_catalog(target, &constraints)
+                .unwrap()
+                .selected_keys;
+            assert_eq!(keys.return_i64, return_i64);
+            assert_eq!(keys.return_unit, return_unit);
+            assert_eq!(keys.hosted_read_byte, Some(read));
+            assert_eq!(keys.hosted_exit_process_i32, Some(exit));
+            assert_eq!(keys.hosted_write_byte_i32, Some(write));
+            assert_eq!(
+                keys.call_unit,
+                if darwin {
+                    crate::aarch64_darwin_register_unit_call_keys()
+                } else {
+                    crate::aarch64_aapcs64_register_unit_call_keys()
+                }
+            );
+            assert_eq!(
+                keys.call_unit_mixed,
+                if darwin {
+                    crate::aarch64_darwin_mixed_unit_call_keys()
+                } else {
+                    crate::aarch64_aapcs64_mixed_unit_call_keys()
+                }
+            );
+            let mut expected_scalar = if darwin {
+                crate::aarch64_darwin_register_call_keys()
+            } else {
+                crate::aarch64_aapcs64_register_call_keys()
+            };
+            expected_scalar.extend(crate::aarch64_float_scalar_call_keys(darwin));
+            assert_eq!(keys.call_scalar, expected_scalar);
+            assert_eq!(
+                keys.call_aggregate,
+                crate::aarch64_register_aggregate_call_keys(darwin)
+                    .into_iter()
+                    .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
+                    .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                keys.return_aggregate,
+                crate::aarch64_register_aggregate_return_keys(darwin)
+            );
+            assert_eq!(
+                keys.return_float,
+                crate::aarch64_float_scalar_return_keys(darwin)
+            );
+        }
+    }
+
+    #[test]
+    fn selected_keys_fail_closed_on_undeclared_pairs() {
+        let constraints = constraints();
+        let coff = NativeTarget {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        };
+        assert_eq!(
+            aarch64_machine_effect_catalog(coff, &constraints),
+            Err(Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi)
+        );
+    }
+
+    #[test]
+    fn hosted_rows_follow_the_declared_target_not_the_format_shape() {
+        let constraints = constraints();
+        // Same-format AArch64 targets that are not the declared Linux or
+        // macOS targets claim no hosted syscall rows.
+        for (undeclared, return_i64) in [
+            (
+                NativeTarget {
+                    pointer_size: 4,
+                    pointer_alignment: 4,
+                    ..NativeTarget::linux_arm64()
+                },
+                AARCH64_AAPCS64_RETURN,
+            ),
+            (
+                NativeTarget {
+                    pointer_size: 4,
+                    pointer_alignment: 4,
+                    ..NativeTarget::macos_arm64()
+                },
+                AARCH64_DARWIN_RETURN,
+            ),
+        ] {
+            let keys = aarch64_machine_effect_catalog(undeclared, &constraints)
+                .unwrap()
+                .selected_keys;
+            assert_eq!(keys.return_i64, return_i64);
+            assert!(keys.hosted_write_byte_i32.is_none());
+            assert!(keys.hosted_read_byte.is_none());
+            assert!(keys.hosted_exit_process_i32.is_none());
+        }
     }
 }
