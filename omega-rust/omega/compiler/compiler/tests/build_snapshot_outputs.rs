@@ -528,6 +528,119 @@ fn artifact_only_build_rejects_executable_root_bindings() {
 }
 
 #[test]
+fn snapshot_source_lookups_are_narrowed_to_captured_membership() {
+    let project = Project::new("negative-lookup");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    let templates = project.root.join("templates");
+    std::fs::create_dir(&templates).expect("create template directory");
+    project.write("templates/banner.tmpl", "HELLO {name}\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-negative-lookup");
+    let required: RequiredOutput = builder.output.require("lookup.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let absent: BuildPath = builder.source.resolve("templates/absent.tmpl");
+    let absent_descriptor: i32 = builder.source.open(absent, 0);
+    transition absent_descriptor < 0 {
+        true -> denied(builder, required, artifact, descriptor)
+        _ -> opened(builder, required, artifact, descriptor)
+    }
+
+    state denied(builder: &mut Build, required: RequiredOutput, artifact: BuildPath, descriptor: i32) {
+        let written: i64 = builder.output.write(descriptor, "absent\n");
+        let closed: i32 = builder.output.close(descriptor);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+
+    state opened(builder: &mut Build, required: RequiredOutput, artifact: BuildPath, descriptor: i32) {
+        let written: i64 = builder.output.write(descriptor, "present\n");
+        let closed: i32 = builder.output.close(descriptor);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+}
+"#,
+    );
+
+    let checked = run_build(&project, "negative-lookup", "linux_x86_64", &[]).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "a snapshot build observing a denied negative lookup must publish: {}",
+                diagnostic_messages(&diagnostics)
+            )
+        },
+    );
+    let observation = checked
+        .build_observation_summary()
+        .expect("negative-lookup execution retains a build observation");
+    let staged = observation
+        .staged_output_tree()
+        .expect("completed outputs remain in staged custody");
+    let entry = staged
+        .sealed_entry(b"lookup.txt")
+        .expect("the lookup verdict is discoverable in sealed custody");
+    let build_output::BuildStagedOutputEntryKind::File { bytes, .. } = entry.kind() else {
+        panic!("the lookup verdict completes only as a sealed regular file")
+    };
+    assert_eq!(
+        bytes, b"absent\n",
+        "a member absent from the captured inventory denies the lookup rather than consulting the host"
+    );
+}
+
+#[test]
+fn snapshot_rejects_a_substituted_source_inventory_after_binding() {
+    let project = Project::new("substitution");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    let templates = project.root.join("templates");
+    std::fs::create_dir(&templates).expect("create template directory");
+    project.write("templates/banner.tmpl", "HELLO {name}\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-substitution");
+    let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
+    let descriptor: i32 = builder.source.open(template, 0);
+    let mut banner_bytes: [u8; 4];
+    let read_count: i64 = builder.source.read(descriptor, &mut banner_bytes, 4);
+    let closed: i32 = builder.source.close(descriptor);
+}
+"#,
+    );
+
+    let (session, sponsor, build_dir) = bound_build_output_session("substitution");
+    set_canonical_source_tree_permissions(&project.root, true);
+    // The package binding captures its canonical index over the sealed tree.
+    // Substituting a member payload afterward must reject the request before
+    // the occurrence is admitted; the snapshot never serves bytes a stale
+    // binding did not validate.
+    let inputs = package_inputs(&project.root);
+    set_canonical_source_tree_permissions(&project.root, false);
+    project.write("templates/banner.tmpl", "SUBSTITUTED\n");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir),
+        package_inputs: Some(inputs),
+        filesystem_sponsor: Some(sponsor),
+        build_snapshot: Some(build_evaluation::BuildSnapshotRequest::new(
+            Vec::<Vec<u8>>::new(),
+        )),
+        ..CheckedCompileRequest::new(&project.main(), Some("linux_x86_64"))
+    })
+    .expect_err("a snapshot occurrence must not admit a substituted source inventory");
+    set_canonical_source_tree_permissions(&project.root, false);
+    let _ = std::fs::remove_dir_all(session);
+
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("no longer matches the complete physical root"),
+        "unexpected diagnostics: {messages}"
+    );
+}
+
+#[test]
 fn executable_route_accepts_a_companion_required_output() {
     let project = Project::new("companion");
     project.write(

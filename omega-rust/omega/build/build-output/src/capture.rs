@@ -478,7 +478,7 @@ pub(crate) fn is_executable(metadata: &std::fs::Metadata) -> bool {
 }
 
 #[cfg(not(unix))]
-fn is_executable(_metadata: &std::fs::Metadata) -> bool {
+pub(crate) fn is_executable(_metadata: &std::fs::Metadata) -> bool {
     false
 }
 
@@ -498,7 +498,7 @@ pub(crate) fn same_file_observation(left: &std::fs::Metadata, right: &std::fs::M
 }
 
 #[cfg(not(unix))]
-fn same_file_observation(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
+pub(crate) fn same_file_observation(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
     left.file_type().is_file()
         && right.file_type().is_file()
         && left.len() == right.len()

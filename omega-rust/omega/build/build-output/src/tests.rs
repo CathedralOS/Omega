@@ -3,7 +3,9 @@
 
 use crate::portable_paths::validate_portable_component;
 use crate::staged_output_tree::RetainedStagedOutputEntryKind;
-use crate::{capture, empty, replayed_files, replayed_ordinary_files, select_included_sources};
+#[cfg(unix)]
+use crate::replayed_files;
+use crate::{capture, empty, replayed_ordinary_files, select_included_sources};
 use checked_interpreter::FilesystemSponsor;
 use sha2::Digest;
 use sha2::Sha256;

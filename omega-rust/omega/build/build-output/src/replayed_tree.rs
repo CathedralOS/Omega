@@ -219,6 +219,7 @@ pub fn replayed_output_tree(
 mod tests {
     use super::{ReplayedBuildOutputEntry, replayed_output_tree};
     use crate::staged_output_tree::MAX_STAGED_OUTPUT_ENTRIES;
+    #[cfg(unix)]
     use crate::staged_output_tree::RetainedStagedOutputEntryKind;
     use crate::{empty, replayed_empty_directories, replayed_files};
 
