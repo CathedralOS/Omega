@@ -292,10 +292,18 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
         "checked contract plans must label compact coordinates as reports and reject empty strong commitments",
     );
 
-    let terminal_path = root
-        .join("omega-rust/psi/representations/checked-trees/src/checked_trees/flow/terminal.rs");
-    let terminal = fs::read_to_string(&terminal_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", terminal_path.display()));
+    let terminal_dir =
+        root.join("omega-rust/psi/representations/checked-trees/src/checked_trees/flow/terminal");
+    let mut terminal = String::new();
+    for entry in fs::read_dir(&terminal_dir)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", terminal_dir.display()))
+    {
+        let path = entry.expect("terminal plan file").path();
+        terminal.push_str(
+            &fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display())),
+        );
+    }
     for required in [
         // Ordinary call custody is an enum variant, whose fields are public
         // through the enum rather than individually marked `pub`.
