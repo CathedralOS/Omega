@@ -4,6 +4,7 @@ mod arithmetic_effects;
 mod branch_effects;
 mod call_effects;
 mod memory_effects;
+mod provenance_effects;
 mod register_calls;
 mod return_effects;
 
@@ -265,6 +266,8 @@ fn produced_effects(
 enum EffectRejection {
     SemanticMismatch,
     Structural(MachineEffectCatalogValidationError),
+    TargetArchitectureMismatch,
+    UnsupportedTargetAbi,
 }
 
 fn validate_effects(
@@ -282,7 +285,12 @@ fn validate_effects(
                     X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch => {
                         EffectRejection::SemanticMismatch
                     }
-                    other => panic!("unexpected x86-64 effect rejection: {other:?}"),
+                    X86_64MachineEffectCatalogValidationError::TargetArchitectureMismatch => {
+                        EffectRejection::TargetArchitectureMismatch
+                    }
+                    X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi => {
+                        EffectRejection::UnsupportedTargetAbi
+                    }
                 },
             )
         }
@@ -295,7 +303,12 @@ fn validate_effects(
                     Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch => {
                         EffectRejection::SemanticMismatch
                     }
-                    other => panic!("unexpected AArch64 effect rejection: {other:?}"),
+                    Aarch64MachineEffectCatalogValidationError::TargetArchitectureMismatch => {
+                        EffectRejection::TargetArchitectureMismatch
+                    }
+                    Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi => {
+                        EffectRejection::UnsupportedTargetAbi
+                    }
                 },
             )
         }
