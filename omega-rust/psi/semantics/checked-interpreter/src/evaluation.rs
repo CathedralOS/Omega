@@ -374,6 +374,22 @@ pub struct DescribedProductSchema {
     pub canonical_path: String,
 }
 
+/// One product-provider description issued by the compiler-owned
+/// `Build.product.provider` query during build evaluation. Same marker
+/// discipline as `DescribedProductSchema`: the evaluator keeps this payload
+/// in a private side table and the `ProductProviderRef` value handed to
+/// evaluated code carries only an opaque index into it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DescribedProductProvider {
+    /// Exact provider data declaration the description selected in its
+    /// query's lexical package scope. A provider declaration is the nominal
+    /// data type owning at least one `satisfies` machine.
+    pub provider_symbol: symbols::SymbolHandle,
+    /// The selected declaration's canonical path, retained for `path()`
+    /// inspection and diagnostics.
+    pub canonical_path: String,
+}
+
 /// One executed `roots.bind` declaration plus, when its implementation
 /// operand was a delegated description, the exact product entry the compiler
 /// issued for it.

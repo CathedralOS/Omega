@@ -468,6 +468,9 @@ impl<'program> Evaluator<'program> {
         if self.try_build_product_schema_statement(call, frame)? {
             return Ok(Value::Unit);
         }
+        if self.try_build_product_provider_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
         if self.try_build_output_obligation_statement(call, frame)? {
             return Ok(Value::Unit);
         }
@@ -475,6 +478,9 @@ impl<'program> Evaluator<'program> {
             return Ok(Value::Unit);
         }
         if self.try_product_type_schema_path_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
+        if self.try_product_provider_ref_path_statement(call, frame)? {
             return Ok(Value::Unit);
         }
 
