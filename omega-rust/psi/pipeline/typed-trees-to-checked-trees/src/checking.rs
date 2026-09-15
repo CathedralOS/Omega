@@ -26,6 +26,20 @@ fn check_program(
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    // A deferred range endpoint is pre-check-continuation custody: the
+    // semantic evaluation owner marks it when its fold must wait for selected
+    // execution and clears the mark as it lands the integer. Only the
+    // preliminary package checkpoint runs inside that window; every other
+    // checking mode must receive the bound already folded, so a surviving
+    // mark is a lost continuation and refuses rather than reading the
+    // still-authored call as an unbounded or dependent range.
+    if !mode.allows_pending_const_range_endpoints()
+        && !program.pending_const_range_endpoints.is_empty()
+    {
+        return Err(vec![diagnostics::Diagnostic::error(
+            "a deferred range endpoint reached checked lowering still unevaluated",
+        )]);
+    }
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
     // concrete machine here. Validation permits unused template bodies but the
@@ -267,6 +281,10 @@ impl CheckingMode {
         matches!(self, Self::PreliminaryPackage)
     }
 
+    fn allows_pending_const_range_endpoints(self) -> bool {
+        matches!(self, Self::PreliminaryPackage)
+    }
+
     fn allows_unresolved_toolchain_selections(self) -> bool {
         matches!(self, Self::PreliminaryPackage | Self::SettledPackage)
     }
@@ -329,11 +347,14 @@ mod tests {
     fn checking_modes_preserve_package_settlement_permissions() {
         for mode in [CheckingMode::Complete, CheckingMode::CrashFactInspection] {
             assert!(!mode.allows_pending_opaque_copy());
+            assert!(!mode.allows_pending_const_range_endpoints());
             assert!(!mode.allows_unresolved_toolchain_selections());
         }
         assert!(CheckingMode::PreliminaryPackage.allows_pending_opaque_copy());
+        assert!(CheckingMode::PreliminaryPackage.allows_pending_const_range_endpoints());
         assert!(CheckingMode::PreliminaryPackage.allows_unresolved_toolchain_selections());
         assert!(!CheckingMode::SettledPackage.allows_pending_opaque_copy());
+        assert!(!CheckingMode::SettledPackage.allows_pending_const_range_endpoints());
         assert!(CheckingMode::SettledPackage.allows_unresolved_toolchain_selections());
     }
 }

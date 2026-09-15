@@ -512,3 +512,222 @@ fn generic_record_arguments_still_reject_unclosable_endpoint_calls() {
         );
     }
 }
+
+/// A selected boundary-operator use inside an endpoint callee: the provider's
+/// ordinary checked body computes `left | right` = 7 where builtin `%` would
+/// fold 1, so a folded bound of 7 is the positive witness that the provider
+/// machine -- not host arithmetic -- ran.
+fn provider_endpoint_fixture() -> (TypedTrees, Vec<crate::SelectedBuildTimeProviderBody>) {
+    let program = typed(
+        "data Math {}
+         boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+         data Provider {}
+         machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
+         machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
+         machine take_bounded(value: u64[0..=limit()]) -> u64 { value }",
+    );
+    let rows = provider_rows(&program);
+    (program, rows)
+}
+
+/// The fixture's selected provider-body rows: every resolved boundary
+/// operator use binds `Provider::remainder`'s exact entry under a fixed test
+/// plan commitment.
+fn provider_rows(program: &TypedTrees) -> Vec<crate::SelectedBuildTimeProviderBody> {
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(program);
+    facts
+        .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
+        .filter(|fact| {
+            program.operators().iter().any(|operator| {
+                operator.symbol == fact.selected_operator_symbol && operator.is_boundary
+            })
+        })
+        .map(|fact| {
+            let provider = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "Provider::remainder")
+                .unwrap();
+            let entry = program.machine_states(provider).first().unwrap();
+            crate::SelectedBuildTimeProviderBody {
+                expression: fact.expression,
+                origin: fact.origin,
+                requirement: fact.selected_operator_symbol,
+                operands: fact.operands(program).unwrap(),
+                provider_machine: provider.symbol,
+                provider_state: entry.symbol,
+                provider_type: provider.attached_data.as_ref().unwrap().as_str().to_owned(),
+                provider: checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]),
+            }
+        })
+        .collect()
+}
+
+/// The folded integer bound of the fixture's single range constraint.
+fn folded_maximum(program: &TypedTrees) -> Option<String> {
+    let mut bounds = Vec::new();
+    for (_, _, constraints) in program
+        .type_reference_table
+        .constrained_type_reference_sites()
+    {
+        for constraint in program.type_reference_table.constraints(constraints) {
+            let TypeConstraintNode::Range { maximum, .. } = constraint else {
+                continue;
+            };
+            if let ExpressionNode::Integer(literal) = program.expression_table.expression(*maximum)
+            {
+                bounds.push(literal.value_bignum().unwrap().to_string());
+            }
+        }
+    }
+    (bounds.len() == 1).then(|| bounds.pop().unwrap())
+}
+
+#[test]
+fn provider_boundary_endpoint_waits_for_selected_execution() {
+    let (program, rows) = provider_endpoint_fixture();
+    assert_eq!(rows.len(), 1);
+    assert!(
+        super::pending_endpoint_calls_need_operator_selection(&program, None).unwrap(),
+        "a boundary-operator callee must defer its endpoint until selected rows exist"
+    );
+    let independent = typed(
+        "machine limit() -> u64 { 7 }
+         machine take_bounded(value: u64[0..=limit()]) -> u64 { value }",
+    );
+    assert!(
+        !super::pending_endpoint_calls_need_operator_selection(&independent, None).unwrap(),
+        "an independent endpoint keeps its early route"
+    );
+}
+
+#[test]
+fn provider_boundary_endpoint_executes_the_selected_body() {
+    let (mut program, rows) = provider_endpoint_fixture();
+    crate::validate_selected_provider_bodies(&program, &rows).unwrap();
+    super::evaluate_const_range_endpoints_with_selected(&mut program, None, &[], &rows)
+        .unwrap_or_else(|errors| panic!("provider-boundary endpoint: {errors:?}"));
+    assert_eq!(
+        folded_maximum(&program).as_deref(),
+        Some("7"),
+        "the provider's `left | right` body must run; builtin `%` would fold 1"
+    );
+}
+
+#[test]
+fn unselected_boundary_endpoint_never_falls_back_to_host_semantics() {
+    let (mut program, _rows) = provider_endpoint_fixture();
+    let errors = super::evaluate_const_range_endpoints_with_selected(&mut program, None, &[], &[])
+        .expect_err("an unselected boundary use must not execute");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("requires exact authored selection")),
+        "{errors:?}"
+    );
+    assert!(folded_maximum(&program).is_none(), "no fold may survive");
+}
+
+#[test]
+fn deferred_continuation_folds_provider_boundary_endpoint() {
+    let source = r#"
+data Math {}
+boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+data Provider {}
+machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
+machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
+machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
+"#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
+    let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: None,
+    })
+    .unwrap();
+    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let mut program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let Some(pending) = pre_check.evaluate_or_defer(&mut program).unwrap() else {
+        panic!("a provider-dependent endpoint must defer its pre-check continuation");
+    };
+    assert_eq!(
+        program.pending_const_range_endpoints.len(),
+        1,
+        "the deferred endpoint must keep interim checking from reading it as a non-constant bound"
+    );
+    let rows = provider_rows(&program);
+    pending
+        .evaluate_with_selected_operators(&mut program, &[], &rows)
+        .unwrap_or_else(|errors| panic!("deferred endpoint: {errors:?}"));
+    assert_eq!(
+        folded_maximum(&program).as_deref(),
+        Some("7"),
+        "the deferred endpoint must fold under the selected provider body"
+    );
+    assert!(
+        program.pending_const_range_endpoints.is_empty(),
+        "the landed endpoint must release its deferred-evaluation mark"
+    );
+}
+
+/// The deferred mark keeps interim package checking from misreading the
+/// pending endpoint as a non-constant bound, while every final checking mode
+/// still refuses a program whose continuation never resumed. After the
+/// selected fold lands its integer, ordinary checked lowering accepts the
+/// same tree.
+#[test]
+fn deferred_endpoint_mark_admits_interim_checking_only() {
+    let source = r#"
+data Math {}
+boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+data Provider {}
+machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
+machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
+machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
+"#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
+    let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: None,
+    })
+    .unwrap();
+    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let mut program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let Some(pending) = pre_check.evaluate_or_defer(&mut program).unwrap() else {
+        panic!("a provider-dependent endpoint must defer its pre-check continuation");
+    };
+    typed_trees_to_checked_trees::lower_preliminary_typed_trees(program.clone()).unwrap_or_else(
+        |errors| panic!("the marked endpoint must survive interim checking: {errors:?}"),
+    );
+    let errors = typed_trees_to_checked_trees::lower_typed_trees(program.clone())
+        .expect_err("final checking must refuse a lost deferred continuation");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("still unevaluated")),
+        "{errors:?}"
+    );
+    let rows = provider_rows(&program);
+    pending
+        .evaluate_with_selected_operators(&mut program, &[], &rows)
+        .unwrap_or_else(|errors| panic!("deferred endpoint: {errors:?}"));
+    typed_trees_to_checked_trees::lower_typed_trees(program)
+        .unwrap_or_else(|errors| panic!("the folded endpoint must check: {errors:?}"));
+}
