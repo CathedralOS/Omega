@@ -11,12 +11,13 @@ use super::{
     evaluate_call_plan, fingerprint_initialized_data, graph_structural,
     hosted_write_byte_custody_is_exact, incoming_structural,
     installed_forwarded_dynamic_scalar_result_is_canonical,
-    installed_function_scalar_transport_is_canonical, installed_scalar_source_is_exact,
-    installed_unit_scalar_transport, linux_write_line_custody_is_exact, semantic_code_attribution,
-    validate_completion_custody, validate_installed_unit_dynamic_descriptor_joins,
-    validate_installed_unit_scalar_calls, validate_installed_unit_structural_scalar_field_stores,
+    installed_function_scalar_transport_is_canonical, installed_unit_scalar_transport,
+    linux_write_line_custody_is_exact, semantic_code_attribution, validate_completion_custody,
+    validate_installed_unit_dynamic_descriptor_joins, validate_installed_unit_scalar_calls,
+    validate_installed_unit_structural_scalar_field_stores,
     validate_installed_unit_write_only_primitive_stores,
 };
+use crate::installation_record::record_validation::installed_scalar_source_is_exact;
 pub(super) fn validate_record_shape(record: &InstallationRecord) -> Result<(), InstallationError> {
     if !record
         .compiler_text_validation

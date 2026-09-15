@@ -4925,7 +4925,8 @@ fn native_provider_execution_compact_coordinates_are_report_only() {
     let installation_path =
         root.join("omega-rust/omega/backend/images/image-emission/src/installation_record.rs");
     let installation = std::fs::read_to_string(&installation_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()))
+        + &recursive_production_rust_source(&installation_path.with_extension(""));
     assert!(
         installation.contains("pub struct SelectedProviderPlanReportIdentity(NonZeroU64)")
             && installation.contains("execution.provider_execution_report_identity")

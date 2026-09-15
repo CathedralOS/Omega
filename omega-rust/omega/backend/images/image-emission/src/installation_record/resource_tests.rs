@@ -7,9 +7,9 @@ use super::record_shape::{
 };
 use super::{
     CallSiteOwner, INSTALLATION_FORMAT_MARKER, InstallationError, InstalledForeignCallStack,
-    InstalledFunction, InstalledInternalUnitCall, MAGIC, MachineId, OperationId, Reader,
-    StructuralTypeId, decode_installation_record, decode_structural_types, encode_structural_types,
-    installed_scalar_control_cleanups_match_object, push_u16, push_u32, structural_argument_codec,
+    InstalledFunction, InstalledInternalUnitCall, MachineId, Reader, StructuralTypeId,
+    decode_installation_record, decode_structural_types, encode_structural_types, push_u16,
+    push_u32, structural_argument_codec,
 };
 use super::{
     function_affine_cleanup_codec::{
@@ -20,6 +20,9 @@ use super::{
     function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
     internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls},
 };
+use crate::installation_record::envelope_codec::MAGIC;
+use crate::installation_record::record_validation::installed_scalar_control_cleanups_match_object;
+use semantic_vocabulary::OperationId;
 use semantic_vocabulary::{EdgeId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
 
 pub(super) fn installed_function_with_unit_call() -> InstalledFunction {
