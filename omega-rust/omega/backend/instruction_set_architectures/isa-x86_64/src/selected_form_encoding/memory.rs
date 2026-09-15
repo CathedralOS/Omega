@@ -4,8 +4,10 @@ use super::{
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
     MachineEncodedTrapBehavior, RegisterViewId, SelectedInstructionKind,
     ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
-    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint, modrm, resolve_registers, rex,
+    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
+use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
+use crate::selected_form_encoding::request_validation::resolve_registers;
 mod indexed;
 #[cfg(test)]
 mod load32_tests;

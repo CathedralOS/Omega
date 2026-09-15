@@ -5,8 +5,10 @@ use super::{
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
     MachineEncodedTrapBehavior, RegisterViewId, ValidatedPhysicalRegisterModel,
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
-    X86_64SelectedFormFootprint, modrm, resolve_registers, rex,
+    X86_64SelectedFormFootprint,
 };
+use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
+use crate::selected_form_encoding::request_validation::resolve_registers;
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
