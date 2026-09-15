@@ -5,10 +5,10 @@
 //! produce package-review comparison rows; that belongs to `encode`.
 //! `policy/` restores receipt-free typed policy without compiler replay.
 
+mod canonical_row_recovery;
 mod codec;
 mod envelope;
 mod framing;
-mod model;
 mod policy;
 mod source;
 
@@ -22,13 +22,13 @@ pub use policy::{
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
+pub use canonical_row_recovery::{
+    DecodedPackageReviewCanonicalRow, PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION,
+    PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
+};
 pub use envelope::{
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row, encode_package_review_canonical_row_with_limits,
-};
-pub use model::{
-    DecodedPackageReviewCanonicalRow, PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION,
-    PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
 };
 
 use crate::record::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};

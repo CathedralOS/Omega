@@ -38,10 +38,10 @@ pub use identity::{
     SourceRelativePath, WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 pub use limits::LocalSourceLimits;
-pub use local::model::{
+pub use local::operations::{resolve_local_source, resolve_local_source_snapshot_with_storage};
+pub use local::resolution_observations::{
     LocalSourceResolutionObservation, ResolvedLocalSnapshot, ResolvedLocalSource,
 };
-pub use local::operations::{resolve_local_source, resolve_local_source_snapshot_with_storage};
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 pub use observations::storage::GitRetainedStorageCustody;
 pub use storage::SourceResolverStorage;

@@ -1,4 +1,4 @@
-use super::{rejected, types};
+use super::{instantiation, rejected};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -89,7 +89,8 @@ pub(super) fn collect(
             .type_reference_handles(edge.arguments)
             .to_vec();
         for argument in &mut arguments {
-            *argument = types::instantiate(compilation, *argument, &substitutions, &lifetimes, 0)?;
+            *argument =
+                instantiation::instantiate(compilation, *argument, &substitutions, &lifetimes, 0)?;
         }
         let lifetime_arguments = edge
             .lifetime_arguments

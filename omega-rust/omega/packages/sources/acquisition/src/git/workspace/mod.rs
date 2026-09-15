@@ -1,8 +1,8 @@
 //! Syntax-neutral coordination for selecting one declared Git workspace member.
 
-mod model;
+mod workspace_declaration;
 
-pub use model::{
+pub use workspace_declaration::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionCustody,
     GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult,
     GitWorkspaceSelection,

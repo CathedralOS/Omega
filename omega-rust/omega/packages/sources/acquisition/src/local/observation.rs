@@ -3,7 +3,7 @@
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-use super::model::{LocalSourceResolutionObservation, ResolvedLocalSource};
+use super::resolution_observations::{LocalSourceResolutionObservation, ResolvedLocalSource};
 use super::snapshot::local_snapshot_custody_identity;
 use crate::identity::digest::{format_sha256, hash_bytes};
 use crate::limits::{

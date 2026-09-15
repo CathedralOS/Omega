@@ -10,7 +10,7 @@
 mod codec;
 mod construction;
 mod limits;
-mod model;
+mod obligation_ledger;
 mod results;
 mod validation;
 
@@ -25,7 +25,7 @@ pub use construction::{
 pub use limits::{
     ORDINARY_PACKAGE_OBLIGATION_LEDGER_ENCODING_VERSION, ORDINARY_PACKAGE_OBLIGATION_SCHEMA_VERSION,
 };
-pub use model::{
+pub use obligation_ledger::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerFingerprint,
     OrdinaryPackageObligationLedgerRecoveryError, OrdinaryPackageObligationRow,
     OrdinaryPackageObligationSchemaIdentity,

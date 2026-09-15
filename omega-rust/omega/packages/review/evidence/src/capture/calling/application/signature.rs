@@ -3,8 +3,8 @@
 mod arguments;
 mod declaration;
 mod inheritance;
+mod instantiation;
 mod parameters;
-mod types;
 pub(crate) use declaration::{declaration_parameters, project_declaration};
 pub(crate) use parameters::instantiate as instantiate_static_parameters;
 
@@ -119,7 +119,9 @@ fn project_with_binders(
     }
     let root_arguments = boundary_arguments
         .iter()
-        .map(|argument| types::instantiate(&mut projected, *argument, &[], &root_lifetimes, 0))
+        .map(|argument| {
+            instantiation::instantiate(&mut projected, *argument, &[], &root_lifetimes, 0)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let mut inherited = Vec::new();
     inheritance::collect(
@@ -269,7 +271,7 @@ fn project_with_binders(
         .collect::<Vec<_>>();
     let mut semantic_parameters = Vec::new();
     for parameter in source_parameters {
-        let reference = types::instantiate(
+        let reference = instantiation::instantiate(
             &mut projected,
             parameter.type_reference,
             &substitutions,
@@ -294,7 +296,7 @@ fn project_with_binders(
         });
     }
     let semantic_result = if signature.return_type.is_valid() {
-        let reference = types::instantiate(
+        let reference = instantiation::instantiate(
             &mut projected,
             signature.return_type,
             &substitutions,

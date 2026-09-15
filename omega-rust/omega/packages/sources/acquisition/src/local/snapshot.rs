@@ -12,9 +12,9 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
-use super::model::{ResolvedLocalSnapshot, ResolvedLocalSource};
 use super::observation::issue_local_source_resolution_observation;
 use super::operations::resolve_local_source;
+use super::resolution_observations::{ResolvedLocalSnapshot, ResolvedLocalSource};
 use crate::SourceResolveError;
 use crate::custody::lock::CacheEntryLock;
 use crate::custody::tree::verify_local_cache_custody;

@@ -1,6 +1,6 @@
 //! Local-source behavior tests grouped by resolver responsibility.
 
-use super::{model::*, operations::*, snapshot::*};
+use super::{operations::*, resolution_observations::*, snapshot::*};
 use crate::error::SourceResolveError;
 use crate::identity::*;
 use crate::limits::*;

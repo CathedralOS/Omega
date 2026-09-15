@@ -1,14 +1,14 @@
 //! Bounded capture of a materialized package-source tree.
 
-mod model;
 mod traversal;
+mod traversal_observations;
 
 use std::path::{Path, PathBuf};
 
 use cap_std::fs::Dir as CapabilityDirectory;
 
-use model::SourceEntryKind;
-pub(crate) use model::{
+use traversal_observations::SourceEntryKind;
+pub(crate) use traversal_observations::{
     CapturedLocalEntry, CapturedLocalEntryKind, CapturedLocalTree, SourceTreePolicy,
 };
 

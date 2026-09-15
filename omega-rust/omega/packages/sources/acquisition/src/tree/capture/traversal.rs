@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use cap_std::fs::Dir as CapabilityDirectory;
 
-use super::model::{SourceEntry, SourceEntryKind, SourceTreePolicy};
+use super::traversal_observations::{SourceEntry, SourceEntryKind, SourceTreePolicy};
 use crate::SourceResolveError;
 use crate::limits::{DEFAULT_BUILD_OUTPUT_DIRECTORY, LocalSourceLimits};
 use crate::tree::filesystem::{

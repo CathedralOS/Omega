@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
-use super::model::ResolvedLocalSource;
+use super::resolution_observations::ResolvedLocalSource;
 use super::snapshot::{
     publish_local_tree_in_lane, verify_live_source_unchanged, verify_requested_local_root,
 };

@@ -1,9 +1,9 @@
 use semantic_vocabulary::PackageKeyIdentity;
 
-use super::codec::{RecoveryDecoder, RecoveryEncoder, clone_string};
-use super::model::{
+use super::canonical_row_recovery::{
     PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
 };
+use super::codec::{RecoveryDecoder, RecoveryEncoder, clone_string};
 use crate::record::{
     PackageReviewCanonicalRowSource, PackageReviewSourceLocation, PackageReviewSourceLocationOwner,
     PackageReviewSourceLocationRole, PackageReviewSyntheticSourceKind,

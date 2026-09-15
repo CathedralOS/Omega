@@ -1,6 +1,6 @@
 //! Clone-local instantiation of nested static parameter signatures.
 
-use super::{rejected, types};
+use super::{instantiation, rejected};
 use crate::capture::semantics::signatures::parameters::CallingContractScope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -28,7 +28,7 @@ pub(crate) fn instantiate(
         match &mut parameter.kind {
             TypeParameterKind::Const { type_reference }
             | TypeParameterKind::Value { type_reference } => {
-                *type_reference = types::instantiate(
+                *type_reference = instantiation::instantiate(
                     compilation,
                     *type_reference,
                     substitutions,
@@ -99,7 +99,7 @@ pub(crate) fn instantiate(
                     depth + 1,
                 )?;
                 signature.parameters = compilation.state_parameters.insert_many(values);
-                signature.return_type = types::instantiate(
+                signature.return_type = instantiation::instantiate(
                     compilation,
                     signature.return_type,
                     substitutions,
@@ -135,7 +135,7 @@ fn instantiate_values(
     depth: usize,
 ) -> Result<(), Vec<Diagnostic>> {
     for value in values {
-        value.type_reference = types::instantiate(
+        value.type_reference = instantiation::instantiate(
             compilation,
             value.type_reference,
             substitutions,
