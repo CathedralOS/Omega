@@ -537,16 +537,30 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   because coverage looks forward, while forks to distinct blocks,
   returns and hosted exits, re-entered blocks, and edge transports
   writing or retiring the dead place's storage end the walk unproven.
-  Load forwarding also walks back across
-  edges when the load's block has exactly one predecessor block — every
+  `rewrites/store_motion` sinks a place `Store` carrying exactly one
+  `WritePlace` row to just before the first position that must stay
+  ordered after it — an interfering roster row on the moved place, a
+  call or hosted effect, a carried pointer or value redefinition, an
+  unaccounted memory-capable instruction, or a boundary settlement —
+  and keeps walking forward across a terminator when every outgoing
+  edge names one block that sees the crossed block as its only
+  predecessor, checking each crossed terminator's roster rows and each
+  edge's transports: forks to distinct blocks, joins into the
+  successor, successors that can reach back to the walked chain, and
+  transports redefining the carried registers or writing the moved
+  place's storage land the store at the last proven position rather
+  than rejecting. The roster names the store by instruction identity,
+  so it stays unchanged; boundary settlements at or after a
+  crossed-block landing shift one ordinal. Load forwarding also walks
+  back across edges when the load's block has exactly one predecessor
+  block — every
   path to the load then carries that block's writer — checking each
   crossed terminator's roster rows and each crossed edge's transports:
   edge-defined register parameters colliding with the carried value or
   the load's result reject, as do structural destinations, case custody
   slots, and custody discards touching the forwarded place's storage,
   while joins, unreachable blocks, self-loops, and the function entry
-  end the walk unproven (crate `nextest`: 261 pass). Remaining: mutation
-  motion and killers
+  end the walk unproven (crate `nextest`: 282 pass). Remaining: killers
   beyond the exact `Store`/`WritePlace` pair; forwarding still stops at
   joins.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
