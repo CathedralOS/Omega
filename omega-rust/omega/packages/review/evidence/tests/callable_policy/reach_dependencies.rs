@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Fixture, callable, package_identity, project, project_checked_callable_policy};
 const SOURCE: &str = include_str!(
     "../../../../../../../tests/omega/pass/effects/nominal_callback_dependency/main.omg"
 );

@@ -1,4 +1,12 @@
-use super::*;
+use super::{
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, CheckLockedSourcesError,
+    ExternalSourceContext, HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits,
+    LocalSourceLimits, LockedSourceRecoveryOptions, PackageLock, PackageLockRecoveryLimits,
+    PackageLockTarget, PackageRootSourceRequest, PackageSourceClosureLimits,
+    RecoverLockedSourcesError, ResolvedPackageSourceClosure, SourceResolverStorage, TARGET,
+    TargetProfile, Tree, assert_fresh_matches, capture_lock, check_locked_sources,
+    compile_resolved_package_reviews, fs, package,
+};
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;
 use package_manager::resolution::graph::{

@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    AcceptedSemanticBindingRole, PackageCompilationInputs, PackageDependencyBinding,
+    PackageKeyIdentity, PackageSourceBinding, ReviewFixture, TargetProfile, TempPackage,
+    compile_review_fixture, package_identity, package_inputs,
+};
 use compiler::CheckedCompileRequest;
 
 pub(super) struct Fixture {

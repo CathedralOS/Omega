@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    CanonicalSourceClosureSubjectLimits, ExternalSourceContext, GitExactRevisionAcquisition,
+    LocalSourceLimits, LockedSourceRecoveryOptions, PackageLock, PackageLockRecoveryLimits,
+    PackageRootSourceRequest, PackageSourceClosureLimits, RecoverLockedSourcesError,
+    ResolvedPackageSourceClosure, SourceResolverStorage, TARGET, TargetProfile, Tree,
+    assert_fresh_matches, capture_lock, fs, package, recover_locked_sources,
+};
 use package_manager::resolution::graph::{
     PackageSourceClosureResolutionError, ResolveLockedPackageClosureError,
     resolve_external_local_project_closure_with_storage,

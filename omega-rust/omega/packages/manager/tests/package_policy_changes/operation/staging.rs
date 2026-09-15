@@ -1,4 +1,12 @@
-use super::*;
+use super::super::{
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, assert_fresh_matches,
+};
+use super::{
+    ASSUMPTION, MAXIMUM_DOCUMENT_BYTES, PURE, PackageChangeError, PackageChangeReview, PackageLock,
+    PackageLockTarget, PackagePolicyReviewError, TARGET, Tree, decisions, fs, package, propose,
+    recover_package_policy_review, render_package_policy_review, review, review_package_change,
+    source,
+};
 use package_manager::declarations::{
     BuildDependencyEditPlan, BuildFileReplacement, plan_dependency_addition,
     plan_dependency_replacement,

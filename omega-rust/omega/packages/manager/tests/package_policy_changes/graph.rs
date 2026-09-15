@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    PackageLockTarget, PackagePolicyChangeKind, PackagePolicyChangeLimits, PackagePolicyRowKind,
+    TARGET, Tree, assert_fresh_matches, candidate, capture_lock, compare_package_policy_changes,
+    fs, lock_from_reviews, package, source,
+};
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;
 

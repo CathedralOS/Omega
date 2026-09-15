@@ -1,5 +1,10 @@
+use super::super::{
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictLimits,
+    compare_review_only_capabilities,
+};
+
 use super::fixture::ExactCompilerRowScenario;
-use super::*;
 
 pub(super) fn derive_and_assert(
     scenario: &ExactCompilerRowScenario,

@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CompilerIssuedPackageReviewSet, PackageLockTarget, PackagePolicyChangeKind,
+    PackagePolicyChangeLimits, ResolvedPackageSourceClosure, TARGET, Tree, candidate,
+    compare_package_policy_changes, fs, lock_from_reviews, package, source,
+};
 use package_manager::review::{
     PackagePolicyChangeSet, PackagePolicyDecision, PackagePolicyDecisionError,
     PackagePolicyDecisionSubject as Subject, PackagePolicyReviewError as Error,

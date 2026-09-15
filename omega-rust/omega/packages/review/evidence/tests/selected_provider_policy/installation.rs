@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    Fixture, PackageReviewNominalOwner, TargetProfile, fixtures, package_identity, project,
+    project_checked_selected_provider_policy,
+};
 #[test]
 fn selected_installation_ceiling_and_checked_refinement_are_policy() {
     let source = r#"pub boundary trait MachineControl {}

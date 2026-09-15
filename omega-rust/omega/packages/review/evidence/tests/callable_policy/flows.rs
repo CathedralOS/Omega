@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Fixture, PackageReviewNominalOwner, callable, package_identity, project,
+    project_checked_callable_policy,
+};
 use flow_effects::CapabilityFlowKind;
 
 // Direct boundary leaves declare their services; ordinary forwarding helpers

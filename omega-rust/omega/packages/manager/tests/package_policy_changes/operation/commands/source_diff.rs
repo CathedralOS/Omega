@@ -1,5 +1,9 @@
-use super::*;
-
+use super::super::ASSUMPTION;
+use super::{
+    PURE, PackageCommandKind, PackageCommandStatus, TARGET, Tree, accept, accepted_files,
+    documents, execute, fixture, fs, install, lock, package, pending_install, proposal_path,
+    resume, update,
+};
 fn source_document(tree: &Tree) -> String {
     fs::read_to_string(tree.path("sources/root/build/package-manager/source-diff.txt")).unwrap()
 }

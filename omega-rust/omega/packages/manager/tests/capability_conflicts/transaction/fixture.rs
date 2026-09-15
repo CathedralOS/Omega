@@ -1,4 +1,9 @@
-use super::*;
+use super::super::{
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PathBuf,
+    ResolvedPackageSourceClosure, compile_resolved_package_reviews,
+    resolve_external_local_package_closure, temp_root, write_package,
+};
+
 use package_manager::review::SemanticBindingReview;
 
 pub(super) struct ExactCompilerRowScenario {

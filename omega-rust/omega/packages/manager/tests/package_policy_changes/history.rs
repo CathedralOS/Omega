@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
+    CompilerIssuedPackageReviewSet, HistoricalPackagePolicyDecisions,
+    HistoricalPackagePolicyLimits, PackageLock, PackageLockRecoveryLimits, PackageLockTarget,
+    PackagePolicyChangeKind, PackagePolicyChangeLimits, ResolvedPackageSourceClosure, TARGET,
+    TargetProfile, Tree, candidate, compare_package_policy_changes, fs, lock_from_reviews, package,
+    resolve, source,
+};
 #[path = "history/codec.rs"]
 mod codec;
 use package_manager::lock::{

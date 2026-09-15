@@ -1,5 +1,8 @@
-use super::*;
-
+use super::super::{PackagePolicyChangeKind, fs, lock_from_reviews, package};
+use super::{
+    ASSUMPTIONS, Error, PackagePolicyDecision, RejectCandidateChange, Subject, TARGET, Tree,
+    accepting, candidate, compare, initial_assumptions, resolve_package_policy_decisions, source,
+};
 #[test]
 fn same_policy_source_edits_invalidate_whole_comparisons_and_foreign_rows_reject() {
     let tree = Tree::new();

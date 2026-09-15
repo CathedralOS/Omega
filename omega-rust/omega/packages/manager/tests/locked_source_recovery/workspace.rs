@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    ExternalSourceContext, LocalSourceLimits, LockedSourceRecoveryOptions,
+    PackageRootSourceRequest, PackageSourceClosureLimits, RecoverLockedSourcesError,
+    ResolvedPackageSourceClosure, SourceResolverStorage, TARGET, Tree, assert_fresh_matches,
+    capture_lock, fs, package, recover_locked_sources,
+};
 use package_manager::resolution::graph::{
     resolve_workspace_project_closure_in_context_with_storage,
     resolve_workspace_project_closure_with_storage,

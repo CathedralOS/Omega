@@ -1,4 +1,13 @@
-use super::*;
+use super::super::super::{
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, assert_fresh_matches,
+    resolve_external_local_project_closure_with_storage,
+};
+use super::super::ASSUMPTION;
+use super::{
+    PURE, PackageCommand, PackageCommandKind, PackageCommandStatus, TARGET, TargetProfile, accept,
+    accepted_files, edit_decisions, execute, fixture, fs, install, lock, pending_install,
+    proposal_path, resume, update,
+};
 use package_manager::operations::{LockedSourceRecoveryOptions, check_locked_sources};
 
 #[test]
