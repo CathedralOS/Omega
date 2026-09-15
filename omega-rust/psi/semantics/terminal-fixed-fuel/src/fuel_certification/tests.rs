@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    BlockId, EdgeId, FixedFuelError, FixedSegmentFuelCertificate, MachineId, TerminalFuelSchedule,
+    validate_certificate_sequence,
+};
 use crate::{FuelScheduleIdentity, Proposition};
 use terminal_codec::TerminalPsiIdentity;
 use terminal_psi::{
@@ -65,7 +68,16 @@ fn segment_row_comparison_binds_every_identity_endpoint_and_ceiling() {
 }
 
 mod machine_bounds {
-    use super::*;
+    use super::super::{
+        derive_fixed_segment_fuel, derive_maximum_entry_bound,
+        derive_validated_fixed_safe_point_segments, retain_validated_fixed_safe_point_segments,
+        validate_retained_fixed_safe_point_segments,
+    };
+    use super::{
+        BlockId, EdgeId, FixedFuelError, FuelScheduleIdentity, OperationKind, Proposition,
+        TerminalMachine, TerminalModule, TerminalNaturalCycle, TerminalRankedScc, Terminator,
+        identity,
+    };
     use semantic_vocabulary::{ContractId, IntegerSign, IntegerType, ValueId};
     use terminal_psi::{
         Block, MachineContract, Operation, OperationResult, TerminalBlockNaturalRank,

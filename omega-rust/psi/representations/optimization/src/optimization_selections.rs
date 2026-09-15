@@ -196,7 +196,10 @@ impl std::error::Error for PsiOptimizationSelectionDecodeError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        DuplicatePsiOptimization, PsiOptimization, PsiOptimizationSelectionDecodeError,
+        PsiOptimizationSelections,
+    };
     use std::collections::BTreeSet;
 
     #[test]

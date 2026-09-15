@@ -37,17 +37,13 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/semantics/optimization-unit-semantics",
         158,
     ),
-    ("omega-rust/omega/tooling/platform-custody", 4),
     ("omega-rust/psi/foundation/language-semantics", 3),
-    ("omega-rust/psi/pipeline/lowered-psi-to-lowered-psi", 4),
     (
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
         37,
     ),
     ("omega-rust/psi/pipeline/typed-trees-to-checked-trees", 451),
-    ("omega-rust/psi/representations/optimization", 1),
     ("omega-rust/psi/semantics/checked-interpreter", 38),
-    ("omega-rust/psi/semantics/terminal-fixed-fuel", 1),
     ("omega-rust/psi/semantics/validation", 110),
 ];
 
