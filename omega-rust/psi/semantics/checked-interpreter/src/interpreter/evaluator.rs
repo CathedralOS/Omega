@@ -338,7 +338,7 @@ struct MutableRecordProjection {
 /// A lexical scope: parameter / local bindings by name, plus the receiver (`self`) cell.
 /// `locals` is behind a `RefCell` so `let` bindings can be added while the frame is
 /// shared by `&` during statement execution.
-struct Frame {
+pub(crate) struct Frame {
     return_type: TypeReferenceHandle,
     locals: RefCell<BTreeMap<String, Cell>>,
     type_locals: RefCell<BTreeMap<String, TypeReferenceHandle>>,
@@ -389,7 +389,7 @@ struct VirtualFd {
     is_dir: bool,
 }
 
-pub(super) struct Evaluator<'program> {
+pub(crate) struct Evaluator<'program> {
     program: &'program TypedTrees,
     /// Full-program interpretation retains checked named-operator evidence so
     /// a root-preserving intrinsic rewrite can still report the source
