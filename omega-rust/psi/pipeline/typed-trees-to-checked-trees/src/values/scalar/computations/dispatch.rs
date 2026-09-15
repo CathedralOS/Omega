@@ -5,6 +5,24 @@ use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
 use typed_trees::expression::{MatchPattern, TableMatchExpression};
 
 impl Builder<'_, '_> {
+    /// Shared operand primitive when one use is an admitted selected
+    /// comparison. IEEE float requirements carry their canonical operation
+    /// identity; integer boundary comparisons carry their authored spelling.
+    /// Neither classification realizes provider semantics here.
+    pub(super) fn selected_comparison_primitive(
+        &self,
+        operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
+    ) -> Option<PrimitiveType> {
+        self.operators
+            .selected_float_comparison(self.program, operator_use)
+            .map(|(_, primitive)| primitive)
+            .or_else(|| {
+                self.operators
+                    .selected_integer_comparison(self.program, operator_use)
+                    .map(|(_, primitive)| primitive)
+            })
+    }
+
     pub(super) fn comparison_use(
         &self,
         expression: ExpressionHandle,
@@ -14,7 +32,7 @@ impl Builder<'_, '_> {
             (selected.expression == expression && selected.occurrence == occurrence
                 && matches!(selected.origin, checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, state_symbol, statement_index, .. }
                     if machine_symbol == self.machine && state_symbol == self.state && statement_index == self.statement_index)
-                && self.operators.selected_float_comparison(self.program, handle).is_some()).then_some(handle)
+                && self.selected_comparison_primitive(handle).is_some()).then_some(handle)
         });
         let selected = matching.next()?;
         matching.next().is_none().then_some(selected)
