@@ -1,6 +1,27 @@
 //! One boundary structural result inspected through its complete closed case roster.
+use super::super::{
+    CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
+    CheckedClosedSumCaseSuccessorPlan, CheckedClosedSumPayloadTransferPlan,
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
+    CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralScalarParameterPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, DataMember, DataShapeKind, Multiplicity,
+    StatementNode, SymbolHandle, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    TypeReferenceNode, TypedTrees,
+};
 
-use super::*;
+use crate::flow::ScalarCalleePlans;
+use crate::flow::terminal_unit::ExpectedCallValueResult;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::build_call_operation;
+use crate::flow::terminal_unit::checked_composed_provider_attachment_requirements;
+use crate::flow::terminal_unit::checked_unit_structural_result_local;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::return_unit_affine_discards;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_scalar_signature;
 
 pub(super) fn build(
     program: &TypedTrees,

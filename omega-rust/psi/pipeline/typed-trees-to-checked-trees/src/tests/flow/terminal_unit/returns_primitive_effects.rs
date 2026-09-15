@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    Multiplicity, PrimitiveType,
+};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 #[test]
 fn primitive_store_scalar_return_retains_source_effect_and_borrow() {

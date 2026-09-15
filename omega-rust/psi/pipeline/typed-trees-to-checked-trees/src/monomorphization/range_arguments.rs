@@ -210,7 +210,9 @@ pub(super) fn collect_binders(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{TypeConstraintNode, TypeParameterKind, TypedTrees, closed_integer_range_bound};
+    use crate::monomorphization::range_arguments::declared_range;
+    use crate::monomorphization::range_arguments::infer;
     use numerics::arithmetic::ArithmeticDomain;
     use typed_trees::types::TypeReferenceNode;
 

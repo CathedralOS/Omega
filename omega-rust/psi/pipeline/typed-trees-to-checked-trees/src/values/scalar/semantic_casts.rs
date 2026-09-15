@@ -1,6 +1,5 @@
 //! Semantic cast custody is independent of the pure scalar payload grammar.
-
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees};
 use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode};
 
 pub(super) fn result_type(

@@ -1,5 +1,4 @@
 //! Atomic multi-state Unit control plans.
-use super::*;
 mod assembly;
 mod closed_sum;
 mod custody;

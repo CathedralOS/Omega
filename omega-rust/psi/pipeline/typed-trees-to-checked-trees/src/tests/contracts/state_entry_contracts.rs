@@ -1,5 +1,8 @@
-use super::*;
+use crate::build_borrow_facts;
+use crate::build_proof_facts;
+use crate::build_semantic_facts;
 use crate::flow::check_against_whole_pass as lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 fn check(source: &str, accepted: bool, rejection: &str) {
     match lower_typed_trees(parse_typed_trees(source)) {

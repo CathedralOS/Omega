@@ -2,8 +2,8 @@
 //!
 //! Origins alone supply no row. Every row is captured from an available fact;
 //! incoming joins can only remove claims, and root entry is never narrowed.
-
-use super::*;
+use super::TransitionTargetNode;
+use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};

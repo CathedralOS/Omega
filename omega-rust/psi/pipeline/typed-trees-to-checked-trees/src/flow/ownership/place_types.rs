@@ -1,4 +1,6 @@
-use super::*;
+use crate::find_state;
+use crate::flow::CanonicalPlace;
+use crate::flow::canonical_place_from_expression_in_state;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;

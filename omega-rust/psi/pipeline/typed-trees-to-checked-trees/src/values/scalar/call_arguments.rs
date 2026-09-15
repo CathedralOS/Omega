@@ -1,6 +1,14 @@
 //! Nested structural operands retain captured call coordinates and source scope.
-
-use super::*;
+use super::{
+    CheckedLocatedScalarExpression, CheckedOperatorFacts, CheckedScalarExpressionBindings,
+    CheckedScalarExpressionPlans, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode,
+    StatementNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+};
+use crate::values::call_array_constructions;
+use crate::values::scalar::ScalarLocal;
+use crate::values::scalar::lower_call_arguments;
+use crate::values::scalar::lower_return_expression;
+use crate::values::scalar::retain_call_arguments;
 use checked_trees::FlowFacts;
 
 pub(crate) fn is_scalar_return_call(

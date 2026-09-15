@@ -2,8 +2,7 @@
 //! Discovery does not schedule evaluation or create a synthetic call. Pure and
 //! computed leaves share this roster after flow capture, while statement-owned
 //! arrays retain their existing pre-flow value production.
-
-use super::*;
+use super::{ExpressionHandle, StatementNode, TypeReferenceHandle, TypedTrees};
 use checked_trees::{CheckedArrayConstructionSource, FlowFacts};
 
 #[derive(Clone, Copy)]

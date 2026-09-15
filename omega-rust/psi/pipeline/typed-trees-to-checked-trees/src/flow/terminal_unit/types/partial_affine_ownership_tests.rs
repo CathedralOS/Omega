@@ -1,4 +1,5 @@
-use super::*;
+use super::DataMember;
+use crate::flow::terminal_unit::types::partial_affine_source_contents_are_owned;
 
 fn field_is_owned(spelling: &str) -> bool {
     let source = format!("data Carrier {{ value: {spelling}; }}");

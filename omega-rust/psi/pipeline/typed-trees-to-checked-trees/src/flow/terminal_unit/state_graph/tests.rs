@@ -1,6 +1,10 @@
 //! The graph's shared-call fence does not widen literal custody.
-
-use super::*;
+use super::super::CheckedUnitStructuralPathSegment;
+use super::{
+    CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan,
+};
+use crate::flow::terminal_unit::state_graph::whole_shared_argument;
 
 #[test]
 fn literal_call_arguments_require_shared_whole_source_custody() {

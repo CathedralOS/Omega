@@ -1,4 +1,6 @@
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 
 #[test]
 fn borrowed_receiver_scalar_results_survive_later_mutation_in_composed_plan() {

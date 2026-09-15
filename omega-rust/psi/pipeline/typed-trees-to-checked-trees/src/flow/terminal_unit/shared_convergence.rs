@@ -3,8 +3,12 @@
 //! Arithmetic composes through its operation tree. Collecting roots grants no
 //! arithmetic proof: Terminal production must discharge every emitted operation,
 //! including intermediate operations whose results are later erased.
-
-use super::*;
+use super::{
+    BTreeSet, CheckFacts, CheckedIntegerBinaryKind, CheckedScalarBinding, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedStructuralScalarReturnCleanupAction, PrimitiveType,
+    SymbolHandle,
+};
+use crate::flow::terminal_unit::checked_boolean_contains_short_circuit;
 
 pub(super) fn checked_shared_boolean_convergence(
     facts: &CheckFacts,

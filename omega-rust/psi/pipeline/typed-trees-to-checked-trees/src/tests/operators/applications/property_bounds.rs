@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    Identifier, Lexer, ResolutionRequest, SymbolHandle, TypeReferenceNode,
+    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+use crate::tests::operators::checked_program_from_source;
 
 #[test]
 fn same_spelled_foreign_nominal_does_not_inherit_declared_property() {

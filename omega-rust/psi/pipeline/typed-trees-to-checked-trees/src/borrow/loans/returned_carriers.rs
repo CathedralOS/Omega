@@ -1,8 +1,20 @@
 //! Returned carrier loans are declaration-derived lifetime transfers, not
 //! storage-frame inference. Source selectors and result selectors are distinct.
-
-use super::*;
+use super::is_reference_type;
+use crate::borrow::BorrowOwnerSegment;
+use crate::borrow::loans::StatementBorrowLoan;
+use crate::borrow::loans::borrow_access_place;
+use crate::borrow::loans::borrowed_initializer_loans;
+use crate::borrow::loans::borrowed_initializers;
+use crate::borrow::loans::call_view_return_source;
+use crate::borrow::loans::call_view_signature;
+use crate::borrow::loans::helper_call_aggregate_borrow_loans;
+use crate::borrow::loans::owner_path_matches;
+use crate::borrow::loans::reference_borrow_access_kind;
+use crate::borrow::tracker::StateLoanTracker;
 use crate::borrow::view_link::ViewReturnFieldSource;
+use crate::borrow::view_link::ViewReturnSource;
+use crate::find_state;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 

@@ -126,7 +126,8 @@ fn ambiguous_operator_diagnostic(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::CheckFacts;
+    use crate::checks::operators::check_operator_resolution;
     use arena::{Arena, HandleSpan};
     use checked_trees::{
         CheckedOperatorCandidateFact, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,

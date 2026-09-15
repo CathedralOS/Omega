@@ -1,4 +1,4 @@
-use super::*;
+use crate::borrow::accesses::BorrowAccessPlace;
 use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 
 pub(super) fn append_argument_access(

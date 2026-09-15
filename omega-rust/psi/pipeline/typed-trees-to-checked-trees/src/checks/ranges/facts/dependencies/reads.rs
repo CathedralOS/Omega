@@ -1,4 +1,6 @@
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, Machine, State, TypedTrees};
+use crate::flow::CanonicalPlace;
+use crate::flow::canonical_place_from_expression_in_state;
 
 pub(super) fn collect_reads(
     program: &TypedTrees,

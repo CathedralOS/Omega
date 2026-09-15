@@ -1,4 +1,5 @@
-use super::*;
+use super::ExpressionHandle;
+use crate::values::ValueFactBuilder;
 use typed_trees::expression::ExpressionNode;
 
 impl ValueFactBuilder<'_, '_> {

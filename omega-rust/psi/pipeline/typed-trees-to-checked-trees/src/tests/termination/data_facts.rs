@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 /// R2 rung 2 slice 2: the admitted zero-satisfying default-domain facts
 /// travel to the TYPED data definition -- rung 3's consumer substrate.
 #[test]

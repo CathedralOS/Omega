@@ -1,4 +1,17 @@
-use super::*;
+use super::super::AuthoredDeclarationSelectionLateBinding;
+use super::{
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, CheckedTrees,
+    ExpressionNode, StatementNode, SymbolHandle, TypedTrees,
+};
+use crate::lower_typed_trees;
+use crate::tests::authored_selections::projected_receivers::CALL_FORMS;
+use crate::tests::authored_selections::projected_receivers::CallForm;
+use crate::tests::authored_selections::projected_receivers::assert_exact_selection;
+use crate::tests::authored_selections::projected_receivers::field_symbol;
+use crate::tests::authored_selections::projected_receivers::method_symbol;
+use crate::tests::authored_selections::projected_receivers::replace_typed_callees;
+use crate::tests::authored_selections::projected_receivers::statement_call_mut;
+use crate::tests::authored_selections::projected_receivers::typed_fixture;
 
 fn input_symbol(program: &TypedTrees, machine_name: &str) -> SymbolHandle {
     let machine = program

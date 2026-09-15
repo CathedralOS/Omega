@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralTypeShape, PrimitiveType,
+};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{CheckedPrimitiveStoreDestination, CheckedUnitStructuralArgumentSourcePlan};
 
 const SOURCE: &str = r#"

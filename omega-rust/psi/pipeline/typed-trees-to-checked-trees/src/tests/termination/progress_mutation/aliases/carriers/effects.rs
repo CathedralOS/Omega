@@ -1,4 +1,9 @@
-use super::*;
+use super::super::super::TerminationGuarantee;
+use crate::tests::termination::progress_mutation::assert_subjects;
+use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
+use crate::tests::termination::progress_mutation::fixture_source;
+use crate::tests::termination::progress_mutation::fixture_with_body;
+use crate::tests::termination::symbol_of_checked;
 
 #[test]
 fn a_reference_stored_from_a_helper_retains_disjoint_effects() {

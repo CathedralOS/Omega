@@ -1,4 +1,8 @@
-use super::*;
+use crate::flow::FlowBuildContext;
+use crate::flow::append_constraint_ref;
+use crate::flow::common;
+use crate::flow::retained_constraint_refs;
+use crate::flow::retained_flow_contexts;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
@@ -849,7 +853,11 @@ fn contextual_expression_place(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExpressionHandle, FactPayload, FactPlan, PlaceHandle, ProgramPoint, QualificationEvidence,
+        QualificationPayloadIdentity, SymbolHandle,
+    };
+    use crate::flow::transfers::retain_qualification_correspondence;
     use arena::HandleSpan;
     use facts::{Fact, FactOrigin, FactPlace, PlaceSegment};
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};

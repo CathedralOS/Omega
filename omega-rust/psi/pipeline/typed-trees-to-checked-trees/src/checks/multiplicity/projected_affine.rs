@@ -1,6 +1,15 @@
 //! A projected affine move transfers a subtree, not its still-live root.
-
-use super::*;
+use super::{
+    CheckFacts, FlowPermissionEventFact, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionProvenance, SymbolHandle, TypeReferenceNode,
+};
+use crate::checks::multiplicity::LinearPlace;
+use crate::checks::multiplicity::event_statement_index;
+use crate::checks::multiplicity::permission_kind_for_move;
+use crate::checks::multiplicity::permission_source;
+use crate::checks::multiplicity::type_reference_is_reference;
+use crate::checks::type_multiplicity;
+use crate::flow::FlowOwnershipEventSource;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_transfer(

@@ -1,4 +1,7 @@
-use super::*;
+use crate::flow::CanonicalPlace;
+use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::canonical_place_joined_segments_may_overlap;
+use crate::flow::canonical_place_segments_may_overlap;
 use checked_trees::DomainFacts;
 use facts::{Fact, FactPayload, FactPlan};
 

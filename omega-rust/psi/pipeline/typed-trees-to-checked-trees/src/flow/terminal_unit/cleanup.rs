@@ -1,6 +1,33 @@
 //! Nominal and partial-affine Unit cleanup planning.
-
-use super::*;
+use super::{
+    BTreeMap, CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
+    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
+    CheckedStructuralScalarIntegerBoundRequirementPlan, CheckedStructuralScalarParameterPlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
+    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
+    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner, DataMember,
+    Diagnostic, ExpressionNode, MachineSupplyMode, Multiplicity, PermissionAccess,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PrimitiveType, ProofFact,
+    SignatureContractKind, StateParameter, StatementNode, SymbolHandle, TypeReferenceNode,
+    TypedTrees, type_graph_requires_nominal_drop,
+};
+use crate::flow::terminal_unit::ExpectedCallValueResult;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::build_call_operation;
+use crate::flow::terminal_unit::checked_unit_structural_result_local;
+use crate::flow::terminal_unit::control;
+use crate::flow::terminal_unit::entry_claims;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::parameter_root_symbol;
+use crate::flow::terminal_unit::partial_affine_structural_signature;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_signature;
+use crate::flow::terminal_unit::terminal_field_identity;
 
 pub(super) mod anonymous;
 mod residuals;

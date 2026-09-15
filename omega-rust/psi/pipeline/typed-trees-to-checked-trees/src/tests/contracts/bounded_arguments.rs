@@ -1,4 +1,5 @@
-use super::{lower_typed_trees, parse_typed_trees};
+use super::super::lower_typed_trees;
+use super::parse_typed_trees;
 
 #[test]
 fn carrier_safety_proofs_preserve_tighter_argument_bounds() {

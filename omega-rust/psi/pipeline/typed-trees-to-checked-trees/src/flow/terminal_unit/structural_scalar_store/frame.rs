@@ -1,7 +1,6 @@
 //! Replay the complete state frame without confusing it with the local body.
 
-use super::*;
-
+use super::TypedTrees;
 pub(super) fn matches(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,

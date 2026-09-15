@@ -1,4 +1,5 @@
-use super::*;
+use super::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
+use crate::values::scalar::computations::tests::checked_source;
 use checked_trees::{CheckedArrayConstructionSource, CheckedScalarComputationStructuralArgument};
 
 #[test]

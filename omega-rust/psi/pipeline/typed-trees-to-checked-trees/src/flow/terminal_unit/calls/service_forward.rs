@@ -1,6 +1,11 @@
 //! Exact admission for one source-visible routed-Service forwarding hop.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralParameterPlan, Multiplicity, StatementNode, TypedTrees,
+};
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_access_for_type_reference;
 
 /// This check is deliberately independent from the ordinary empty-path fast
 /// path: routed authority must retain one exact carrier, requirement, and

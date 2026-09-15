@@ -1,4 +1,6 @@
-use super::*;
+use crate::checks::borrows::overlap::captured_place_compatibility;
+use crate::checks::borrows::overlap::captured_place_compatibility_from_selector_snapshot;
+use crate::checks::borrows::overlap::captured_place_compatibility_with_selector_snapshot;
 use checked_trees::{
     BorrowAccessKind, CapturedPlace, CapturedPlaceCompatibility, CapturedPlaceContainment,
 };

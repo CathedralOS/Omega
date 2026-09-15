@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    CheckedScalarComputationKind, CheckedScalarExpressionRole, ExpressionNode, StatementNode,
+};
+use crate::values::scalar::computations::tests::checked_source;
 
 #[test]
 fn selected_case_fields_keep_distinct_occurrences_in_the_shared_value_plan() {

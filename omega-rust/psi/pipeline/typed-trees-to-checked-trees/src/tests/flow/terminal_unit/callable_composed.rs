@@ -1,6 +1,7 @@
 //! Ordinary and composed Unit bodies share one complete call-target closure.
-
-use super::*;
+use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 const CHAIN: &str = r#"
     data Root {}

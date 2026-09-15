@@ -1,6 +1,7 @@
 //! Exact transitive internal Unit-call closure from composed control.
-
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 #[test]
 fn composes_one_call_internal_target_and_retains_its_empty_callee() {

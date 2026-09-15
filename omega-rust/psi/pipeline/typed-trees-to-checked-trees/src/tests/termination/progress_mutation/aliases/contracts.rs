@@ -1,4 +1,11 @@
-use super::*;
+use super::super::{
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+
+use crate::lower_typed_trees;
+use crate::tests::termination::progress_mutation::assert_subjects;
+use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
+use crate::tests::termination::progress_mutation::fixture_source;
 
 fn checks(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().unwrap();

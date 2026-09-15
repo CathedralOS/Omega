@@ -1,4 +1,6 @@
-use super::*;
+use super::super::super::super::effective_member_symbol;
+use super::super::machine_by_symbol;
+
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 

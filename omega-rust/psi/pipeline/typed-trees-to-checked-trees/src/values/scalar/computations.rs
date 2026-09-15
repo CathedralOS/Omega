@@ -5,8 +5,19 @@
 //! graph, including calls whose result becomes known only at a later selection.
 //! Keep exact source occurrences on retained applications and selections so
 //! folding an enclosing guard does not change their operand custody.
-
-use super::*;
+use super::{
+    ArithmeticDomain, BinaryOperator, CheckedBooleanExpression, CheckedOperatorFacts,
+    CheckedOperatorResolutionStatus, CheckedScalarExpression, CheckedScalarExpressionPlans,
+    CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType, StateParameter,
+    StatementNode, TransitionTargetNode, TypeReferenceNode, TypedTrees, UnaryOperator,
+};
+use crate::values::call_array_constructions;
+use crate::values::operator_is_builtin;
+use crate::values::scalar::ScalarLocal;
+use crate::values::scalar::is_integer;
+use crate::values::scalar::lower_return_expression;
+use crate::values::scalar::semantic_casts;
+use crate::values::scalar_expression_type;
 use checked_trees::{
     CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarComputationPlans, CheckedScalarComputationRoot, FlowFacts, ProofFacts,

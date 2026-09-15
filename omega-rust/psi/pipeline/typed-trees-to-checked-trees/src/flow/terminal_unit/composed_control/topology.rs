@@ -1,6 +1,19 @@
 //! Exact three-state graph and authored-parameter partition.
+use super::super::{
+    CheckFacts, CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralScalarParameterPlan,
+    CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, ExpressionNode, PrimitiveType,
+    StatementNode, SymbolHandle, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    TypedTrees,
+};
 
-use super::*;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::free_structural_scalar_signature;
+use crate::flow::terminal_unit::is_reference;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::structural_scalar_signature;
 
 pub(super) struct Topology<'a> {
     pub(super) entry: &'a typed_trees::state::State,

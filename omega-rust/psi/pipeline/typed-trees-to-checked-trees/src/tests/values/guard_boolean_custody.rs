@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::values::typed_trees;
 
 fn check(source: &str, accepted: bool) {
     match lower_typed_trees(typed_trees(source)) {

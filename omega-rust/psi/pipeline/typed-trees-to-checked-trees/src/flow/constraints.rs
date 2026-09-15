@@ -1,4 +1,4 @@
-use super::*;
+use crate::flow::append_constraint_ref;
 use arena::Handle;
 use checked_trees::{
     BorrowArgumentAccessFact, BorrowWritableRootFact, FlowConstraintKind, FlowConstraintRef,

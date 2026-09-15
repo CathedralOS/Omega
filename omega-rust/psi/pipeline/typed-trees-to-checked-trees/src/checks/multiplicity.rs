@@ -4012,7 +4012,8 @@ fn data_field_name(program: &typed_trees::TypedTrees, field_symbol: SymbolHandle
 
 #[cfg(test)]
 mod generic_substitution_tests {
-    use super::*;
+    use super::Multiplicity;
+    use crate::checks::type_multiplicity;
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};

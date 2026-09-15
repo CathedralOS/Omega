@@ -2,8 +2,11 @@
 //! scalar contract roster. The requires tail keeps an explicit unsupported
 //! row per range until the lowered scalar predicate vocabulary carries IEEE
 //! comparisons.
-
-use super::*;
+use super::{
+    Lexer, ResolutionRequest, SymbolHandle, TypeReferenceNode, lower_symbol_resolved_trees,
+    parse_syntax_trees, resolve,
+};
+use crate::lower_typed_trees;
 use semantic_vocabulary::IeeeFloatValue;
 use typed_trees::types::PrimitiveType;
 

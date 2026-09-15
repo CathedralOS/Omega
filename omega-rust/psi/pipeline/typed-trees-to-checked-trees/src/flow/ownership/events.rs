@@ -1,4 +1,4 @@
-use super::*;
+use crate::flow::CanonicalPlace;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
@@ -133,7 +133,8 @@ pub(crate) fn normalized_event_place_root(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::SymbolHandle;
+    use crate::flow::normalized_event_place_root;
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::{machine::Machine, signature::StateParameter, state::State};
 

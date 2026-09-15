@@ -1,6 +1,6 @@
 //! Whole-place assignment transports live predicates on its contained fields.
-
-use super::*;
+use super::PlaceHandle;
+use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionHandle;

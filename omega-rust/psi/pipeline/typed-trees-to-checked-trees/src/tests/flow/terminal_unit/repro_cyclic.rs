@@ -1,6 +1,6 @@
 //! Temporary reproduction for the print_squares cyclic Unit plan gap.
-
-use super::*;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 fn assert_has_plan(source: &str, label: &str) {
     let checked = checked(source);

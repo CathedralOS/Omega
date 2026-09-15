@@ -1,4 +1,9 @@
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, Machine, State, SymbolHandle, TypedTrees};
+use crate::checks::ranges::RangeFacts;
+use crate::checks::ranges::facts::dependencies::ExpressionDependencies;
+use crate::checks::ranges::facts::dependencies::collect_reads;
+use crate::checks::ranges::facts::dependencies::reads;
+use crate::checks::ranges::facts::dependencies::same_reads;
 
 impl RangeFacts<'_> {
     pub(in crate::checks::ranges) fn alias_integer_place_value(

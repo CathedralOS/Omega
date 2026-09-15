@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 #[test]
 fn resultless_law_accepts_an_exact_resultless_satisfier() {

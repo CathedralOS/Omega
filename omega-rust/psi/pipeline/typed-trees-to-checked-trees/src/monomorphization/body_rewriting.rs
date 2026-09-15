@@ -1,6 +1,15 @@
 //! Substitute instance types and rewrite calls with exact lexical subjects.
-
-use super::*;
+use super::{
+    CallSite, Diagnostic, ExpressionHandle, ExpressionNode, Handle, HandleSpan, ProofFact,
+    StateSignature, StatementNode, StaticMachineArgument, SymbolHandle, TypeConstraintNode,
+    TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+};
+use crate::monomorphization::Candidate;
+use crate::monomorphization::collect_expression_tree;
+use crate::monomorphization::const_arguments;
+use crate::monomorphization::copy_type_reference;
+use crate::monomorphization::remapped_symbol;
+use crate::monomorphization::state_by_symbol;
 
 pub(super) fn rewrite_selected_call(
     program: &mut TypedTrees,

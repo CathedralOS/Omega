@@ -361,7 +361,9 @@ impl CaseObservation<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ExpressionNode, FactPayload, FlowExitFact};
+    use crate::checks::contracts::exits::cases::CaseObservation;
+    use crate::checks::contracts::return_values::exit_return_expression;
 
     #[test]
     fn result_field_observation_requires_a_complete_return_write_frame() {

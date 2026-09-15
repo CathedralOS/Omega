@@ -1,4 +1,6 @@
-use super::*;
+use super::SymbolHandle;
+use crate::checks::borrows::persistent::StaticPersistentPath;
+use crate::checks::borrows::persistent::retain_static_paths_across_call_frame;
 use std::cell::Cell;
 
 #[test]

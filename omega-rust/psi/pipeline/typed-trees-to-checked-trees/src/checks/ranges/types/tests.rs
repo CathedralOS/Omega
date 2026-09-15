@@ -1,4 +1,5 @@
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, SymbolHandle};
+use crate::checks::ranges::expression_enforced_declared_range;
 use typed_trees::typed_trees::StaticRequirementDispatch;
 
 fn fixture(source: &str) -> (typed_trees::TypedTrees, ExpressionHandle) {

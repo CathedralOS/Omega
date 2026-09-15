@@ -1,8 +1,12 @@
 //! Fresh structural establishment shares the scalar operand evaluation owner.
 //! Reference leaves are classified before referent-oriented normalization:
 //! their value is borrowed-storage custody, never a scalar pointer snapshot.
-
-use super::*;
+use super::super::TypeReferenceHandle;
+use super::{
+    Builder, CheckedScalarComputationRoot, CheckedScalarExpressionPlans,
+    CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType, StatementNode,
+    SymbolHandle, TypeReferenceNode, TypedTrees,
+};
 use checked_trees::{
     CheckedStructuralDispatchArm, CheckedStructuralValue, CheckedStructuralValueHandle,
     CheckedStructuralValueKind, CheckedStructuralValuePlans,

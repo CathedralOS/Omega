@@ -1,6 +1,7 @@
 //! Acyclic composed Unit control with an unconditional scalar prefix edge.
-
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 #[test]
 fn composes_scalar_prefix_before_boundary_call_conditional() {

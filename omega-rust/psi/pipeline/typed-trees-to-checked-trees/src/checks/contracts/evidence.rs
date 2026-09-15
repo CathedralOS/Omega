@@ -622,7 +622,10 @@ fn call_target_name(program: &typed_trees::TypedTrees, target: symbols::SymbolHa
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckFacts, CheckedEvidenceTerm, ContractProofFactKind, ContractProofFactOwner, Handle,
+    };
+    use crate::checks::contracts::exact_target_evidence_parameters;
 
     #[test]
     fn proof_expression_target_lane_is_ordered_across_machine_and_state_owners() {

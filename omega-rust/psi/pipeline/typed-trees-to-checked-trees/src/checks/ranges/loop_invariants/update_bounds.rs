@@ -4,8 +4,14 @@
 //! incoming guards, never from the monotonicity fact being proposed. Other
 //! states receive the union of their evaluated arrivals. Widening loses a
 //! bound rather than assuming that an unfinished iteration is inductive.
-
-use super::*;
+use super::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State, StatementNode, SymbolHandle,
+    TransitionGuardNode,
+};
+use crate::checks::ranges::loop_invariants::assignment_counter_field;
+use crate::checks::ranges::loop_invariants::expression_is_counter_member;
+use crate::checks::ranges::loop_invariants::integer_literal;
+use crate::checks::ranges::loop_invariants::transition_target_symbol;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Bounds {

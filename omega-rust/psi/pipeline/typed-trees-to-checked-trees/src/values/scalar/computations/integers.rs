@@ -1,6 +1,20 @@
 //! Integer policy stays attached to each operand until its operation is selected.
-
-use super::*;
+use super::{
+    ArithmeticDomain, BinaryOperator, Builder, CheckedBooleanExpression,
+    CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarExpression,
+    ExpressionHandle, ExpressionNode, PrimitiveType, UnaryOperator,
+};
+use crate::values::operator_is_builtin;
+use crate::values::scalar::combine_arithmetic_domains;
+use crate::values::scalar::construct_integer_binary;
+use crate::values::scalar::construct_integer_bitwise_not;
+use crate::values::scalar::construct_integer_cast;
+use crate::values::scalar::construct_integer_comparison;
+use crate::values::scalar::is_integer;
+use crate::values::scalar::land_anonymous_scalar_expression;
+use crate::values::scalar::lower_scalar_expression;
+use crate::values::scalar::semantic_casts;
+use crate::values::scalar_expression_type;
 
 pub(super) struct IntegerOperand {
     pub(super) value: CheckedScalarExpression,

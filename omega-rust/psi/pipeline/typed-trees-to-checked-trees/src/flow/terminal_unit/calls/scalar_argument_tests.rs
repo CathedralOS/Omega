@@ -1,4 +1,9 @@
-use super::*;
+use super::super::{CheckedBooleanExpression, CheckedScalarExpression};
+use super::{
+    CheckFacts, CheckedScalarExpressionRole, CheckedStructuralScalarParameterPlan,
+    CheckedUnitCallCoordinate, PrimitiveType, SymbolHandle,
+};
+use crate::flow::terminal_unit::calls::checked_call_scalar_arguments;
 
 #[test]
 fn checked_call_scalar_arguments_require_unique_bound_rows() {

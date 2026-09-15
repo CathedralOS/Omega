@@ -1,6 +1,8 @@
 //! Arrival membership is a live fact, independently of progress subject lineage.
-
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::termination::progress_lineage::PROGRESS_PROFILE;
+use crate::tests::termination::progress_lineage::checked;
+use crate::tests::termination::progress_lineage::typed;
 
 fn source(body: &str) -> String {
     format!(

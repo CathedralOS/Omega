@@ -1,6 +1,12 @@
 //! Erase nonescaping reference carriers, not their captured referent or access.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedStructuralAccess, ExpressionNode, StatementNode, SymbolHandle,
+    TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+};
+use crate::flow::terminal_unit::base_type_identity;
+use crate::flow::terminal_unit::calls;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_access_for_type_reference;
 use checked_trees::{
     BorrowAccessKind, BorrowLoanLineage, FlowBorrowWeakeningReason, FlowInvalidationSource,
 };

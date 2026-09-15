@@ -791,7 +791,12 @@ pub(crate) fn bind_float_meaning_projection_facts(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BinaryOperator, CheckedFloatProjectionInput, CheckedFloatProjectionSource,
+        CheckedProofPropositionId, ExpressionNode, FloatProjectionOperation, PrimitiveType,
+        ProofFacts, TypedTrees,
+    };
+    use crate::proof::bind_float_meaning_projection_facts;
     use checked_trees::{CheckedFloatProjectionInputId, CheckedProofValueId};
     use source::{SourceMap, SourceOrigin};
     use source_files_to_tokens::Lexer;

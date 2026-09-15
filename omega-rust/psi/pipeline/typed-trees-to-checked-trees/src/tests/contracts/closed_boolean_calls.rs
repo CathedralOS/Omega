@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 fn guarded_call(requirement: &str) -> typed_trees::TypedTrees {
     parse_typed_trees(&format!(

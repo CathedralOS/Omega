@@ -225,7 +225,9 @@ fn write_affects_bound(name: &str, path: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Machine, State, TypedTrees};
+    use crate::checks::ranges::RangeFacts;
+    use crate::checks::ranges::facts::invalidation::write_affects_bound;
     use symbols::SymbolHandle;
 
     #[test]

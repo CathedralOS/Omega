@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 const DEFINITIONS: &str = r#"
     domain [u8; 2]::Utf8 requires valid_utf8(self);

@@ -1,4 +1,5 @@
-use super::*;
+use super::PrimitiveType;
+use crate::values::scalar::computations::tests::checked_source;
 use checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedStructuralValueKind,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,

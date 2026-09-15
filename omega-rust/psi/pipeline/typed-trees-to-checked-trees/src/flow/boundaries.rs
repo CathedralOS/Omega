@@ -1,4 +1,4 @@
-use super::*;
+use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::{BorrowCallFact, FlowBoundaryEdgeFact};
 use symbols::SymbolHandle;

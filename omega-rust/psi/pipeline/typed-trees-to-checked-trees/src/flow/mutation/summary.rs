@@ -4,9 +4,15 @@
 //! complete-or-opaque call and cycle law. This module retains symbol-based
 //! field/range places for flow invalidation and propagates those places across
 //! the calls which the shared resolver admitted as complete.
+use crate::call_site_argument_expressions;
+use crate::find_call_site;
+use crate::find_state;
+use crate::flow::CanonicalPlace;
+use crate::flow::canonical_place_from_expression;
+use crate::flow::canonical_place_from_expression_in_state;
+use crate::flow::mutation::WritePlaceNamespace;
 
 use super::local_origins::rebase_local_write_places;
-use super::*;
 use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
@@ -517,7 +523,19 @@ fn storage_place_has_declared_identity(place: &CanonicalPlace) -> bool {
 
 #[cfg(test)]
 mod cache_tests {
-    use super::*;
+    use super::{BorrowFacts, WritePlaceNamespace, find_state};
+    use crate::flow::StateMutationSummaryCache;
+    use crate::flow::canonical_place_from_symbol;
+    use crate::flow::mutation::summary::SUMMARY_VISITS;
+    use crate::flow::mutation::summary::StateMutationSummary;
+    use crate::flow::mutation::summary::borrow_state_for_symbol;
+    use crate::flow::mutation::summary::collect_state_mutation_summary_places;
+    use crate::flow::mutation::summary::instantiate_call_relative_places;
+    use crate::flow::mutation::summary::machine_symbol_for_state;
+    use crate::flow::mutation::summary::propagate_state_mutation_summaries;
+    use crate::flow::mutation::summary::state_mutation_summary_places;
+    use crate::flow::mutation::summary::state_summary_exposes_place;
+    use crate::flow::mutation::summary::summary_index_from;
 
     fn typed(source: &str) -> typed_trees::TypedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)

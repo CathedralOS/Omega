@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, Lexer, ResolutionRequest,
+    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+use crate::lower_typed_trees;
 
 mod identities;
 use arena::HandleSpan;

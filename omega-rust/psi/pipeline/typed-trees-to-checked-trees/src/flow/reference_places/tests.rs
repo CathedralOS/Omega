@@ -1,4 +1,6 @@
-use super::*;
+use super::{FlowStateFact, PlaceRoot, StatementNode};
+use crate::flow::CanonicalPlace;
+use crate::flow::reference_places::preserve_frame;
 use facts::{NormalizedWriteFrame, PlaceSegment};
 
 #[test]

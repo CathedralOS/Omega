@@ -1,7 +1,9 @@
 //! Entry-rooted parameter transfers establish exact state telescopes. Every
 //! arrival then rechecks range membership; cyclic edges also owe strict descent.
 
-use super::{graph, patterns, preserved_entry_prefix};
+use super::super::super::{graph, patterns};
+
+use super::preserved_entry_prefix;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};

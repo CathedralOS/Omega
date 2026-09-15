@@ -1,6 +1,7 @@
 //! Exact structural-claim custody through composed Unit control.
-
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 #[test]
 fn composes_one_whole_root_linear_claim_through_both_boundary_leaves() {

@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    Lexer, ResolutionRequest, SymbolHandle, lower_symbol_resolved_trees, parse_syntax_trees,
+    resolve,
+};
 const COPY_OPAQUE: &str = r#"
 boundary data Token [copy];
 data Main {}

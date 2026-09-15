@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::values::typed_trees;
 
 const COST: &str = r#"
     machine cost(level: u32 [1..=10]) -> u32 [15..=60] {

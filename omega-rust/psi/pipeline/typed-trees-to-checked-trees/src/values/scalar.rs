@@ -3881,7 +3881,14 @@ fn checked_integer_binary_kind(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ArithmeticDomain, BinaryOperator, CheckedBooleanExpression, CheckedOperatorFacts,
+        CheckedOperatorResolutionStatus, CheckedScalarExpression, ExpressionNode, IntegerLanding,
+        LandedIntegerType, PrimitiveType, TypedTrees, integer_widen_is_total,
+    };
+    use crate::values::scalar::lower_boolean_guard;
+    use crate::values::scalar::retag_exact_integer_literal;
+    use crate::values::scalar_expression_type;
     use arena::Arena;
 
     #[test]

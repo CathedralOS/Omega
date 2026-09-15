@@ -1,6 +1,11 @@
 //! A dispatch retains one subject computation and its covered authored prefix.
-
-use super::*;
+use super::{
+    Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
+    ExpressionNode, PrimitiveType,
+};
+use crate::values::operator_is_builtin;
+use crate::values::scalar::is_integer;
+use crate::values::scalar_expression_type;
 use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
 use typed_trees::expression::{MatchPattern, TableMatchExpression};
 

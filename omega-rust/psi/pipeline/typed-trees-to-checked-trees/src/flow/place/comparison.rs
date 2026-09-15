@@ -261,7 +261,8 @@ fn index_expressions_may_overlap(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::ExpressionHandle;
+    use crate::flow::canonical_place_segments_may_overlap;
 
     fn integer_expression(program: &mut typed_trees::TypedTrees, value: i64) -> ExpressionHandle {
         program

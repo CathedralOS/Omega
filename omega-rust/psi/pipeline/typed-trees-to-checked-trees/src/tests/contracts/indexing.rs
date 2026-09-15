@@ -1,4 +1,14 @@
-use super::*;
+use super::super::{
+    ContractProofFactKind, ContractProofFactOwner, HandleSpan, Identifier, Machine,
+    SignatureContract, SignatureContractKind, State, StateSignature, StatementNode, SymbolHandle,
+    TableCall, TraitConformance, TraitDefinition,
+};
+
+use crate::build_borrow_facts;
+use crate::build_proof_facts;
+use crate::build_semantic_facts;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 #[test]
 fn same_named_array_fields_use_the_receivers_length() {

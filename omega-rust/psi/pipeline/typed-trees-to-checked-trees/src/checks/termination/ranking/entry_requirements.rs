@@ -1,6 +1,11 @@
 //! Export only requirements covered by a complete inductive graph judgment.
-
-use super::*;
+use super::{
+    ExpressionHandle, resolve_machine_witness_subjects, resolve_machine_witness_view_arguments,
+};
+use crate::checks::termination::ranking::DecreaseMeasure;
+use crate::checks::termination::ranking::OrderResolution;
+use crate::checks::termination::ranking::RankingOrder;
+use crate::checks::termination::ranking::ranges;
 
 pub(crate) fn proves_ranked_entry_requirement(
     program: &typed_trees::TypedTrees,

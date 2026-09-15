@@ -1,7 +1,9 @@
 //! Arithmetic-policy storage keeps the complete source type while projecting
 //! only its integer payload shape. Other qualifications cannot borrow this gate.
-
-use super::*;
+use super::{
+    CheckedUnitStructuralTypeShape, DataMember, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
 
 fn field_program(spelling: &str) -> (TypedTrees, TypeReferenceHandle) {
     let source = format!("data Other {{ value: u64; }} data Carrier {{ values: {spelling}; }}");

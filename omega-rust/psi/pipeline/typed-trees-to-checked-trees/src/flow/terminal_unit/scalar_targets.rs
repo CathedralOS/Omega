@@ -3,8 +3,22 @@
 //! A retained legacy row must match; its drift cannot select that fallback.
 //! Availability closes dependencies, while the receiving lowerer independently
 //! replays every retained operation and its authored source custody.
-
-use super::*;
+use super::{
+    CarryPolicy, CheckFacts, CheckedStructuralScalarReturnMachinePlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, MachineSupplyMode,
+    PermissionEventKind, PrimitiveType, SignatureContractKind, SymbolHandle, TypeReferenceNode,
+    TypedTrees, returns,
+};
+use crate::flow::ScalarCalleePlans;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::call_claim_transfers;
+use crate::flow::terminal_unit::entry_claims;
+use crate::flow::terminal_unit::free_structural_scalar_signature;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_scalar_graph_signature;
+use crate::flow::terminal_unit::structural_scalar_signature;
+use crate::flow::terminal_unit::structural_signature;
 
 #[cfg(test)]
 mod tests;

@@ -1,4 +1,10 @@
-use super::*;
+use super::super::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
+use super::{
+    BorrowAccessKind, BorrowLoanLineage, ExpressionNode, FlowBorrowWeakeningReason,
+    FlowInvalidationSource, StatementNode, SymbolHandle,
+};
+use crate::flow::terminal_unit::receiver_aliases::ReceiverAlias;
+use crate::flow::terminal_unit::receiver_aliases::prefix;
 
 mod mutable;
 

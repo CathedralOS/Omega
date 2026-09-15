@@ -1,6 +1,21 @@
 //! Anonymous result roots use the existing nested schedule and partial plan.
-
-use super::*;
+use super::super::CheckedUnitStructuralResultBindingPlan;
+use super::{
+    CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralPathSegment, MachineSupplyMode, Multiplicity, PermissionAccess,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StatementNode, TypedTrees,
+    control,
+};
+use crate::flow::projected_argument_path;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::base_type_identity;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::machine_has_content_evidence;
+use crate::flow::terminal_unit::partial_affine_residuals;
+use crate::flow::terminal_unit::service_reach_is_empty;
+use crate::flow::terminal_unit::service_reach_plan_is_empty;
+use crate::flow::terminal_unit::state_flow;
 
 pub(super) fn binding(
     program: &TypedTrees,

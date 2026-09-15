@@ -1,6 +1,52 @@
 //! Structural Unit and scalar return analysis.
-
-use super::*;
+use super::{
+    BTreeSet, CarryPolicy, CheckFacts, CheckedBoundaryMachinePlan,
+    CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedPayloadlessCaseReturnMachinePlan,
+    CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallEvidenceUsePlan,
+    CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedScalarBinding,
+    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralAccess, CheckedStructuralCallReturnPlans, CheckedStructuralResultPlan,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedTraitOperatorScalarReturnMachinePlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
+    CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralTypeShape, DataMember, Diagnostic, ExpressionNode, MachineSupplyMode,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    PermissionEventSource, PrimitiveType, ProofFact, SemanticDomainId, SignatureContractKind,
+    StateParameter, StatementNode, SymbolHandle, TransitionExit, TransitionGuardNode,
+    TransitionTargetNode, TypeReferenceNode, TypedTrees, has_plain_owned_contents,
+    type_graph_requires_nominal_drop,
+};
+use crate::flow::terminal_unit::ExpectedCallValueResult;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::build_boundary_machine;
+use crate::flow::terminal_unit::build_call_operation;
+use crate::flow::terminal_unit::build_static_boundary_requirements;
+use crate::flow::terminal_unit::checked_requires_expressions;
+use crate::flow::terminal_unit::checked_shared_boolean_convergence;
+use crate::flow::terminal_unit::checked_structural_signature_contract_supported;
+use crate::flow::terminal_unit::entry_claims;
+use crate::flow::terminal_unit::free_structural_scalar_signature;
+use crate::flow::terminal_unit::is_reference;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::machine_has_content_evidence;
+use crate::flow::terminal_unit::nominal_cleanup_boolean_requirements;
+use crate::flow::terminal_unit::nominal_cleanup_missing_requirement;
+use crate::flow::terminal_unit::nominal_scalar_caller_requirements;
+use crate::flow::terminal_unit::outer_calls;
+use crate::flow::terminal_unit::parameter_qualifications;
+use crate::flow::terminal_unit::projected_parameter_qualifications;
+use crate::flow::terminal_unit::return_unit_affine_discards;
+use crate::flow::terminal_unit::scalar_nominal_cleanup_missing_requirement_diagnostic;
+use crate::flow::terminal_unit::service_reach_is_empty;
+use crate::flow::terminal_unit::service_reach_plan_is_empty;
+use crate::flow::terminal_unit::shared_convergence;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_scalar_signature;
+use crate::flow::terminal_unit::structural_signature;
 
 pub(super) mod primitive_effects;
 pub(crate) use primitive_effects::{

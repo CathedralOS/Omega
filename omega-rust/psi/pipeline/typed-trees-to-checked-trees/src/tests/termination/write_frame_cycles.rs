@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 #[test]
 fn write_frame_stays_opaque_for_non_bijective_exclusive_cycle() {
     // This deliberately duplicates one exclusive parameter on a backedge.

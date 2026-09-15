@@ -1,4 +1,5 @@
-use super::*;
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::lower_typed_trees;
 
 #[test]
 fn operator_entry_guard_does_not_survive_entry_state_rearrival() {

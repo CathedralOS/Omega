@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 #[test]
 fn finite_call_trees_preserve_deep_effects_and_reject_hostile_siblings() {
     let nested = |callee: &str, leaf: &str| {

@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    CheckedScalarBranchDestination, CheckedScalarStateTerminator, StatementNode, TransitionExit,
+};
+use crate::flow::terminal_scalar::checked_branch_destination;
 
 mod cyclic_owned;
 mod primitive_locals;

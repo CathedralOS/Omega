@@ -242,7 +242,10 @@ fn bound_shift(value: NormalizedBound, base: NormalizedBound) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::BorrowCompatibilityPremiseRelation;
+    use crate::checks::borrows::overlap::StatedOrderingPremise;
+    use crate::checks::borrows::overlap::premises::NormalizedBound;
+    use crate::checks::borrows::overlap::premises::premise_proves;
 
     fn symbol(index: u32) -> symbols::SymbolHandle {
         symbols::SymbolHandle::from_arena_index(index)

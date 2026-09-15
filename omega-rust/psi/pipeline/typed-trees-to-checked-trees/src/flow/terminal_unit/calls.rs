@@ -1,6 +1,34 @@
 //! Structural call closure, argument custody, and claim transfer.
-
-use super::*;
+use super::{
+    BTreeSet, BuiltinFunction, CarryPolicy, CheckFacts, CheckedAffineConstructionElementPlan,
+    CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
+    CheckedUnitClaimTransferPlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypeShape, DataMember,
+    ExpressionNode, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource, PrimitiveType, ProofFact, SignatureContractKind,
+    StateParameter, StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
+    TypedTrees, type_graph_requires_nominal_drop,
+};
+use crate::flow::ScalarCalleePlans;
+use crate::flow::byte_sequence_carrier;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::attached_data_identity;
+use crate::flow::terminal_unit::base_type_identity;
+use crate::flow::terminal_unit::byte_sequence_type_identity;
+use crate::flow::terminal_unit::is_reference;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::parameter_qualifications;
+use crate::flow::terminal_unit::parameter_root_symbol;
+use crate::flow::terminal_unit::projected_parameter_qualifications;
+use crate::flow::terminal_unit::scalar_targets;
+use crate::flow::terminal_unit::service_reach_is_empty;
+use crate::flow::terminal_unit::signature_contracts_are_exact_parameter_qualifications;
+use crate::flow::terminal_unit::structural_access_for_type_reference;
+use crate::flow::terminal_unit::terminal_field_identity;
 
 pub(super) mod byte_subslice;
 mod computation_arguments;

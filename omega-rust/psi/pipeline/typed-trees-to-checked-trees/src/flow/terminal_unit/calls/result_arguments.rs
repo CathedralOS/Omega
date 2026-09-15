@@ -1,6 +1,18 @@
 //! Result operands retain exact source access, ownership, and projected storage.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, PermissionAccess,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StateParameter,
+    StatementNode, SymbolHandle, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::base_type_identity;
+use crate::flow::terminal_unit::calls::exact_structural_argument_access;
+use crate::flow::terminal_unit::calls::projected_argument_path_with_identity;
+use crate::flow::terminal_unit::shared_plain_affine_referent;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_access_for_type_reference;
 
 mod anonymous_shared;
 

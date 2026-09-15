@@ -1,4 +1,6 @@
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, State, SymbolHandle, TypedTrees};
+use crate::checks::ranges::RangeFacts;
+use crate::flow::CanonicalPlace;
 use typed_trees::statement::StatementNode;
 
 mod atomics;

@@ -1,7 +1,9 @@
 //! Primitive locals at authored statement and dense binding positions.
 
-use super::*;
-
+use super::{
+    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedUnitScalarResultBindingPlan, StatementNode, TypedTrees,
+};
 pub(super) fn scalar_expression_local_suffix(
     program: &TypedTrees,
     facts: &CheckFacts,

@@ -1,4 +1,11 @@
-use super::*;
+use super::super::super::super::{
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+
+use super::fixture_source;
+use crate::lower_typed_trees;
+use crate::tests::termination::progress_mutation::aliases::carriers::inputs::assert_input_subject;
+use crate::tests::termination::progress_mutation::check_source;
 
 pub(super) fn typed_source(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().unwrap();

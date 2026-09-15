@@ -1,4 +1,13 @@
-use super::*;
+use super::super::{CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan};
+use super::{
+    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, SymbolHandle, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::build_checked_composed_unit_control_machines;
+use crate::flow::terminal_unit::candidate_closure::CandidateClosure;
+use crate::flow::terminal_unit::candidate_closure::retain_available;
+use crate::flow::terminal_unit::scalar_targets;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)

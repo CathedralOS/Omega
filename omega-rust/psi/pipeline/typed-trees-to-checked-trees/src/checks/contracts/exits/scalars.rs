@@ -8,7 +8,7 @@ use typed_trees::{TypedTrees, expression::ExpressionHandle, machine::Machine};
 use super::super::{
     prover::{
         ScalarValue, evaluate_checked_scalar, evaluate_scalar, evaluate_with_atoms,
-        has_builtin_operators, scalar_value_at_place, semantic_contexts_prove_boolean_expression,
+        has_builtin_operators, semantic_contexts_prove_boolean_expression,
     },
     return_values::{exit_return_expression, is_result_reference},
 };
@@ -532,7 +532,8 @@ fn stable_segments(segments: &[PlaceSegment]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::TypedTrees;
+    use crate::checks::contracts::prover::has_builtin_operators;
     use checked_trees::{
         CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
     };

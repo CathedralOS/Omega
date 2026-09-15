@@ -10,8 +10,10 @@
 //! survives that replacement boundary. Baseline contents still copy per sweep,
 //! including context-point links, while clone_from reuses their allocations.
 //! This is not a generation-preserving suffix rollback into a live fact plan.
-
-use super::*;
+use crate::flow::FlowBuildContext;
+use crate::flow::StateMutationSummaryCache;
+use crate::flow::attach_reach_summaries;
+use crate::flow::build_state_flow_fact;
 use checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
 use facts::{FactPlan, ProgramPoint};
 

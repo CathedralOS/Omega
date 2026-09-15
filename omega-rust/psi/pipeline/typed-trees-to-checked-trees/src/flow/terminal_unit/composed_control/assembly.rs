@@ -1,6 +1,17 @@
 //! Atomic assembly after topology, guard, leaf, and provider admission.
+use super::super::{
+    CheckFacts, CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan,
+    CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
+    CheckedProviderAttachmentRequirementPlan, MachineSupplyMode, TypedTrees,
+};
 
-use super::*;
+use crate::flow::ScalarCalleePlans;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::checked_composed_provider_attachment_requirements;
+use crate::flow::terminal_unit::composed_control::closed_sum;
+use crate::flow::terminal_unit::composed_control::nested_control;
+use crate::flow::terminal_unit::composed_control::prefixed_control;
+use crate::flow::terminal_unit::state_flow;
 
 pub(in crate::flow::terminal_unit) fn build_all(
     program: &TypedTrees,

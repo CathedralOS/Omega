@@ -1,4 +1,6 @@
-use super::*;
+use super::{CheckedScalarComputationKind, CheckedScalarExpressionRole, PrimitiveType};
+use crate::values::scalar::computations::normal_return;
+use crate::values::scalar::computations::tests::checked_source;
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 #[test]

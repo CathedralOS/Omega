@@ -1,6 +1,59 @@
 //! Structural control and boundary-machine construction.
-
-use super::*;
+use super::{
+    BTreeSet, CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
+    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypeShape, ExpressionNode, MachineSupplyMode, Multiplicity,
+    PermissionAccess, PermissionEventKind, PermissionEventSource, PrimitiveType, StatementNode,
+    SymbolHandle, TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceHandle,
+    TypeReferenceNode, TypedTrees, exact_compiler_intrinsic_boundary_requirement,
+    type_graph_requires_nominal_drop,
+};
+use crate::flow::ScalarCalleePlans;
+use crate::flow::byte_sequence_carrier;
+use crate::flow::terminal_unit::ExpectedCallValueResult;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::boundary_domain_requirements;
+use crate::flow::terminal_unit::build_affine_array_construction_prefix;
+use crate::flow::terminal_unit::build_call_operation;
+use crate::flow::terminal_unit::build_selected_ieee_float_fma;
+use crate::flow::terminal_unit::build_selected_operator_scalar_call;
+use crate::flow::terminal_unit::build_selected_operator_structural_call;
+use crate::flow::terminal_unit::build_selected_operator_structural_scalar_call;
+use crate::flow::terminal_unit::build_structural_scalar_field_store;
+use crate::flow::terminal_unit::build_unit_trivial_affine_locals;
+use crate::flow::terminal_unit::build_write_only_primitive_store;
+use crate::flow::terminal_unit::checked_no_code_affine_discard_positions;
+use crate::flow::terminal_unit::checked_provider_attachment_requirements;
+use crate::flow::terminal_unit::checked_state_contracts_supported;
+use crate::flow::terminal_unit::entry_claims;
+use crate::flow::terminal_unit::free_fused_service_scalar_signature;
+use crate::flow::terminal_unit::free_selected_operator_structural_signature;
+use crate::flow::terminal_unit::free_structural_scalar_signature;
+use crate::flow::terminal_unit::fused_service_scalar_signature;
+use crate::flow::terminal_unit::is_reference;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::parameter_qualifications;
+use crate::flow::terminal_unit::projected_parameter_qualifications;
+use crate::flow::terminal_unit::receiver_aliases;
+use crate::flow::terminal_unit::return_unit_affine_discards;
+use crate::flow::terminal_unit::scalar_expression_local_suffix;
+use crate::flow::terminal_unit::selected_ieee_float_fma_result_locals;
+use crate::flow::terminal_unit::selected_operator_scalar_result_local;
+use crate::flow::terminal_unit::selected_operator_structural_result_local;
+use crate::flow::terminal_unit::shared_plain_affine_referent;
+use crate::flow::terminal_unit::signature_contracts_are_exact_parameter_qualifications;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_access_for_type_reference;
+use crate::flow::terminal_unit::structural_scalar_signature;
+use crate::flow::terminal_unit::structural_signature;
 use checked_trees::{
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
     CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,

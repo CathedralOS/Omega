@@ -1,6 +1,11 @@
 //! Canonical template and application commitments, including independent replay.
-
-use super::*;
+use super::{
+    Diagnostic, Sha256, StaticMachineArgument, SymbolHandle, SymbolKind, TypeParameterKind,
+    TypedTrees,
+};
+use crate::monomorphization::conformance_symbol_identity;
+use crate::monomorphization::normalized_machine_identity;
+use sha2::Digest;
 
 pub(super) fn encode_bound_static_argument(
     program: &TypedTrees,

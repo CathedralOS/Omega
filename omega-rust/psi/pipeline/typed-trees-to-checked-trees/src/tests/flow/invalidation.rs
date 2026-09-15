@@ -1,4 +1,16 @@
-use super::*;
+use super::super::{
+    FactPayload, FactPlace, Lexer, ResolutionRequest, lower_symbol_resolved_trees,
+    parse_syntax_trees, resolve,
+};
+
+use crate::build_borrow_facts;
+use crate::build_domain_facts;
+use crate::build_flow_facts;
+use crate::build_proof_facts;
+use crate::build_semantic_facts;
+use crate::lower_typed_trees;
+use crate::tests::StateMutationSummaryCache;
+use crate::tests::call_mutated_places;
 
 #[test]
 fn direct_alias_stores_invalidate_domain_facts_but_rebinding_does_not() {

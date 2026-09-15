@@ -1,6 +1,7 @@
 //! Endpoint custody is retained before executable range admission.
-
-use super::*;
+use super::StatementNode;
+use crate::lower_typed_trees;
+use crate::tests::values::typed_trees;
 use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
 use typed_trees::{expression::ExpressionNode, types::PrimitiveType};
 

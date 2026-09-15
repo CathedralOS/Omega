@@ -1,6 +1,24 @@
 //! Fresh instance storage, lexical symbol remapping, and retained source custody.
-
-use super::*;
+use super::{
+    Diagnostic, ExpressionHandle, ExpressionNode, HandleSpan, ProofFact, StatementNode,
+    SymbolHandle, SymbolKind, TypeReferenceHandle, TypedTrees,
+};
+use crate::monomorphization::Candidate;
+use crate::monomorphization::candidate_conformance_fingerprint_arguments;
+use crate::monomorphization::cloned_expression_roots;
+use crate::monomorphization::closed_operator_realizations_for_machine;
+use crate::monomorphization::collect_statement_expression_trees;
+use crate::monomorphization::const_arguments;
+use crate::monomorphization::const_values;
+use crate::monomorphization::reject_runtime_bound_static_occurrences;
+use crate::monomorphization::remap_machine_argument_symbols;
+use crate::monomorphization::remapped_symbol;
+use crate::monomorphization::resolve_specialized_receiver_calls;
+use crate::monomorphization::rewrite_cloned_calls;
+use crate::monomorphization::specialization_selection_report_fingerprint;
+use crate::monomorphization::specialized_attached_data;
+use crate::monomorphization::statement_span_handles;
+use crate::monomorphization::substitute_cloned_type_parameters;
 
 pub(super) fn clone_specialized_machine(
     source: Option<&TypedTrees>,

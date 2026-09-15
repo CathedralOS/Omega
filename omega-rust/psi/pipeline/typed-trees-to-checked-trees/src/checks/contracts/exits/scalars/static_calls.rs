@@ -3,8 +3,11 @@
 //! binder position to the exact static selection instead. Ordinary runtime-call
 //! readers keep their no-machine-arguments fence; this reader separately checks
 //! the complete const roster before using the shared call/guarantee custody.
-
-use super::*;
+use super::{ExpressionHandle, ScalarValue};
+use crate::checks::contracts::exits::scalars::ExitScalars;
+use crate::checks::contracts::exits::scalars::stable_segments;
+use crate::checks::contracts::prover::evaluate_scalar;
+use crate::flow::canonical_place_from_expression_in_state;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::{BinaryOperator, ExpressionNode, StaticMachineArgument};
 

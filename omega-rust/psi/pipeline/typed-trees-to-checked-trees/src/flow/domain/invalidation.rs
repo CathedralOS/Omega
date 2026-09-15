@@ -1,10 +1,11 @@
+use crate::flow::CanonicalPlace;
+use crate::flow::append_place_segments;
+use crate::flow::common;
 use checked_trees::{
     DomainFacts, FlowInvalidationFact, FlowInvalidationSource, FlowSemanticContextRef,
 };
 use facts::{FactPayload, FactPlace, FactPlan};
 mod matching;
-
-use super::*;
 
 use self::matching::matching_mutation_for_fact_place;
 

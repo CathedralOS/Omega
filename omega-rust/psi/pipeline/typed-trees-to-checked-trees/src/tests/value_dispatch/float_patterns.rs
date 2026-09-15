@@ -1,3 +1,6 @@
+use super::super::{
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
 use super::check;
 use language_core::operator_spelling::OperatorSpelling;
 
@@ -202,9 +205,6 @@ fn implicit_equality_keeps_arm_identity_and_never_becomes_an_expression_operator
 
 #[test]
 fn collecting_float_pattern_operators_does_not_manufacture_source_expressions() {
-    use super::{
-        Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-    };
     let source = source("f32", EQUALITY, "identity(first)");
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();

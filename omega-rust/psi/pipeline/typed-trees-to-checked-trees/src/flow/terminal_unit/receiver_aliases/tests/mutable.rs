@@ -1,4 +1,7 @@
-use super::*;
+use super::{BorrowAccessKind, FlowBorrowWeakeningReason};
+use crate::flow::terminal_unit::receiver_aliases::tests::aliases;
+use crate::flow::terminal_unit::receiver_aliases::tests::checked;
+use crate::flow::terminal_unit::receiver_aliases::tests::fixture;
 
 #[test]
 fn mutable_root_cannot_widen_its_write_only_child() {

@@ -1,4 +1,7 @@
-use super::*;
+use super::ProgressSubject;
+use crate::checks::termination::progress::lineage::ParameterLineage;
+use crate::checks::termination::progress::lineage::StateParameterLineage;
+use crate::checks::termination::progress::lineage::transfers;
 use symbols::SymbolHandle;
 
 mod discovery;

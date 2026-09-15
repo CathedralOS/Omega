@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::values::typed_trees;
 
 fn check_loop(carrier: &str, policy: &str, operation: &str, guard: &str, accepted: bool) {
     let source = format!(

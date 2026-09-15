@@ -1,4 +1,5 @@
-use super::*;
+use crate::flow::CanonicalPlace;
+use crate::flow::domain::invalidation::matching::domain_membership_matching_dependency;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint};

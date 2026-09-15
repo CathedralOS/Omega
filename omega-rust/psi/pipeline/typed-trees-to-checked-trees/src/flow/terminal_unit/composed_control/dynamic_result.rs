@@ -1,6 +1,17 @@
 //! Immediate binary Unit control over one direct named-dynamic scalar result.
+use super::super::{
+    CheckFacts, CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    CheckedUnitScalarResultBindingPlan, PrimitiveType, StatementNode, TransitionExit,
+    TransitionGuardNode, TypedTrees,
+};
 
-use super::*;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::checked_composed_provider_attachment_requirements;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_scalar_signature;
 
 pub(crate) fn build(
     program: &TypedTrees,

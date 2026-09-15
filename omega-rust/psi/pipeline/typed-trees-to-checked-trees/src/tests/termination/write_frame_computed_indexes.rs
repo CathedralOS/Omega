@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 #[test]
 fn computed_indexes_preserve_origins_and_all_eager_writes() {
     let alternating = (0..16).fold("index(audit) + index(other)".to_owned(), |index, _| {

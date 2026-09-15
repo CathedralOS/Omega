@@ -721,7 +721,16 @@ pub(super) fn normalized_bound(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BorrowCompatibilityPlaceSide, BorrowCompatibilitySelectorPosition,
+        BorrowCompatibilitySelectorValue, ExpressionHandle, ExpressionNode, SymbolHandle,
+        TableRangeExpression,
+    };
+    use crate::checks::borrows::overlap::indexes::SelectorLocation;
+    use crate::checks::borrows::overlap::indexes::SelectorSnapshotEvaluation;
+    use crate::checks::borrows::overlap::indexes::index_expression_may_contain_fixed;
+    use crate::checks::borrows::overlap::indexes::index_expressions_may_overlap;
+    use crate::checks::borrows::overlap::indexes::index_expressions_may_overlap_with_selectors;
     use typed_trees::expression::{BinaryOperator, Expression, NamePath, TableBinaryExpression};
     use typed_trees::machine::Machine;
     use typed_trees::name::Identifier;

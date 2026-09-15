@@ -1,4 +1,13 @@
-use super::*;
+use super::super::super::super::{
+    Lexer, ResolutionRequest, TerminationGuarantee, lower_symbol_resolved_trees,
+    parse_syntax_trees, resolve,
+};
+
+use crate::tests::termination::progress_mutation::assert_subjects;
+use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
+use crate::tests::termination::progress_mutation::fixture_source;
+use crate::tests::termination::progress_mutation::fixture_with_body;
+use crate::tests::termination::symbol_of_checked;
 
 fn assert_no_subject(program: &checked_trees::CheckedTrees, operation: &str) {
     let plan = program

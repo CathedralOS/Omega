@@ -3,8 +3,18 @@
 //! A partial move from a temporary has no remaining local owner in which to
 //! retain unselected linear claims. The selected path must carry every live
 //! obligation; ordinary affine siblings may be discarded.
-
-use super::*;
+use super::{
+    CheckFacts, Diagnostic, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
+    PermissionClaimIdentity, PermissionEventKind, PermissionProvenance, SymbolHandle,
+    TypeReferenceNode,
+};
+use crate::checks::multiplicity::claim_paths_are_case_alternatives;
+use crate::checks::multiplicity::event_statement_index;
+use crate::checks::multiplicity::linear_claim_frontier;
+use crate::checks::multiplicity::permission_source;
+use crate::checks::type_carries_linear_obligation;
+use crate::checks::type_multiplicity;
+use crate::flow::FlowOwnershipEventSource;
 
 mod projected;
 mod shared;

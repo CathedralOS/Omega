@@ -2,8 +2,35 @@
 //! Constructors and calls share structural binding ordinals. Completion selects
 //! one existing result or constructs its final expression in this same sequence;
 //! surrounding supported effects do not select a different producer family.
-
-use super::*;
+use super::super::{
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    PermissionProvenance,
+};
+use super::{
+    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, PermissionEventSource,
+    StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
+};
+use crate::flow::ScalarCalleePlans;
+use crate::flow::terminal_unit::ExpectedCallValueResult;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::base_type_identity;
+use crate::flow::terminal_unit::bind_structural_call_result;
+use crate::flow::terminal_unit::build_call_operation;
+use crate::flow::terminal_unit::checked_boolean_contains_short_circuit;
+use crate::flow::terminal_unit::checked_structural_result_type;
+use crate::flow::terminal_unit::checked_unit_structural_result_local;
+use crate::flow::terminal_unit::control::bind_scalar_call_result;
+use crate::flow::terminal_unit::control::call_occurrences;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::parameter_qualifications;
+use crate::flow::terminal_unit::scalar_expression_local_at;
+use crate::flow::terminal_unit::structural_operands;
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
 /// Completion forwards a whole parameter only when its exact output contract

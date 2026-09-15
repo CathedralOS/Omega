@@ -595,7 +595,8 @@ fn boundary_capability(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CapabilityFlowKind, CapabilityFlowPlan, SymbolHandle, TypedTrees};
+    use crate::facts::build_capability_facts;
     use checked_trees::FlowFacts;
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;

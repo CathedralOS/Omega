@@ -1,6 +1,14 @@
 //! One exact ordinary or boundary Unit call followed by Unit return.
+use super::super::{
+    CarryPolicy, CheckFacts, CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan,
+    CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
+    CheckedUnitClaimTransferPlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan, Multiplicity,
+    StatementNode, TypedTrees,
+};
 
-use super::*;
+use crate::flow::terminal_unit::build_call_operation;
+use crate::flow::terminal_unit::state_flow;
 
 pub(super) fn build(
     program: &TypedTrees,

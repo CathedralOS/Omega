@@ -1,6 +1,29 @@
 //! State-local calls and explicit successor bindings, independent of graph shape.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
+    CheckedComposedUnitControlTerminatorPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan, ExpressionNode,
+    Multiplicity, PermissionEventKind, PermissionEventSource, PrimitiveType, StatementNode,
+    TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
+    calls,
+};
+use crate::flow::ScalarCalleePlans;
+use crate::flow::byte_sequence_carrier;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::checked_boolean_contains_short_circuit;
+use crate::flow::terminal_unit::checked_composed_provider_attachment_requirements;
+use crate::flow::terminal_unit::composed_control;
+use crate::flow::terminal_unit::control;
+use crate::flow::terminal_unit::entry_claims;
+use crate::flow::terminal_unit::free_structural_scalar_signature;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::return_unit_affine_discards;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_scalar_signature;
 
 mod closed_sum;
 mod local_results;

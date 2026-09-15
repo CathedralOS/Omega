@@ -1,4 +1,5 @@
-use super::*;
+use super::ProgressSubject;
+use crate::checks::termination::progress::lineage::transfers::ParameterTransfer;
 use symbols::SymbolHandle;
 
 fn transfer(source: u32, destination: u32, projected: bool) -> ParameterTransfer {

@@ -1,4 +1,7 @@
-use super::*;
+use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::build_checked_machine;
+use crate::flow::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 use checked_trees::{CheckedScalarComputationKind, CheckedStructuralScalarFieldStoreValue};
 
 fn fixture() -> checked_trees::CheckedTrees {

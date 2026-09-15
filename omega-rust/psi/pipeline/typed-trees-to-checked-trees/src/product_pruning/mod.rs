@@ -317,7 +317,14 @@ fn selection_identity(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CheckedTrees, SymbolHandle};
+    use crate::CheckedTreeProductPruning;
+    use crate::CheckedTreeProductRoots;
+    use crate::CheckedTreeProductRootsError;
+    use crate::product_pruning::MachineIndex;
+    use crate::product_pruning::collect_machine_edges;
+    use crate::product_pruning::selection_identity;
+    use crate::prune_checked_tree_product;
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};

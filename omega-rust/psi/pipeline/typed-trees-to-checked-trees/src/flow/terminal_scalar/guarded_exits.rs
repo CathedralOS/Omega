@@ -1,7 +1,8 @@
 //! Ordered scalar exits retain every authored guard and selected destination.
 //! Coverage is separate from evaluation: a final case guard is not a wildcard.
-
-use super::*;
+use super::{CheckedScalarBranchDestination, StatementNode, TransitionGuardNode, TypedTrees};
+use crate::flow::terminal_scalar::checked_branch_destination;
+use crate::flow::terminal_scalar::guards;
 use checked_trees::{CheckedScalarGuardedExit, CheckedScalarGuardedTail};
 
 pub(super) fn build(

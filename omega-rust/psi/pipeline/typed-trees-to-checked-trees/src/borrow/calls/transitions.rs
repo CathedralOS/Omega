@@ -1,4 +1,5 @@
-use super::*;
+use crate::borrow::calls::BorrowCallCollection;
+use crate::borrow::calls::expression;
 use checked_trees::statement::TransitionTargetNode;
 
 pub(super) fn collect_transition_target_borrow_calls(

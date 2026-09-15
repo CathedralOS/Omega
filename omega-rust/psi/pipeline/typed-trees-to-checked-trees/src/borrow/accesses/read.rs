@@ -1,4 +1,4 @@
-use super::*;
+use crate::borrow::accesses::BorrowAccessCollection;
 use checked_trees::BorrowAccessKind;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 

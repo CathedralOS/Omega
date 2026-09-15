@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 #[test]
 fn ordinary_empty_transition_arms_owe_machine_postconditions() {

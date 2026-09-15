@@ -1,6 +1,7 @@
 //! Two conditional frontiers and three exact effect leaves.
-
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 fn conditional_successors(
     state: &checked_trees::CheckedComposedUnitControlStatePlan,

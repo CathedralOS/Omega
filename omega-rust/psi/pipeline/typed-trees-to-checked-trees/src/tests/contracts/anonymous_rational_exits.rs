@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
 
 fn accepts(source: &str) -> checked_trees::CheckedTrees {

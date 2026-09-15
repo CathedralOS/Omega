@@ -1,4 +1,4 @@
-use super::*;
+use crate::tests::termination::progress_mutation::aliases::opaque::opaque_fixture;
 use typed_trees::statement::StatementNode;
 
 #[test]

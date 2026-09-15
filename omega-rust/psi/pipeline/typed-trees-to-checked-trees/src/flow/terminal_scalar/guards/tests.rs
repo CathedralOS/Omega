@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionPlans,
+    CheckedScalarExpressionRole,
+};
+use crate::flow::terminal_scalar::guards::complementary;
 
 fn negate(expression: CheckedBooleanExpression) -> CheckedBooleanExpression {
     CheckedBooleanExpression::Not(Box::new(expression))

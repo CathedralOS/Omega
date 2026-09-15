@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    HandleSpan, Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+use crate::lower_typed_trees;
 
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source)

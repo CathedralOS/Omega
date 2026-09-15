@@ -244,7 +244,11 @@ impl AssignedValues<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExpressionHandle, FactPayload, FactPlace, FactPlan, ScalarValue, literal_at_place,
+        scalar_value_at_place,
+    };
+    use crate::flow::CanonicalPlace;
     use facts::{Fact, PlaceRoot, ProgramPoint};
     use typed_trees::expression::{ExpressionNode, TableBinaryExpression};
 

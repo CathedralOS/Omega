@@ -1,4 +1,7 @@
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, ProofFact, StatementNode, TypedTrees};
+use crate::monomorphization::collect_expression_tree;
+use crate::monomorphization::collect_statement_expression_trees;
+use crate::monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses;
 use typed_trees::machine::Machine;
 use typed_trees::typed_trees::MachineSpecialization;
 

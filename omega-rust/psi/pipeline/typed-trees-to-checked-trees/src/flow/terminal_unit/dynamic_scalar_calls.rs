@@ -8,8 +8,19 @@
 //! typed coordinates once, joins them to checked conformance, contract, value,
 //! and service-reach facts, and publishes an all-or-nothing source-handle-free
 //! roster for later checked-to-Terminal composition.
-
-use super::*;
+use super::{
+    BTreeMap, CheckFacts, CheckedBooleanExpression, CheckedBoundaryMachinePlan,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedUnitCallCoordinate, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralPathSegment, ExpressionNode, MachineSupplyMode, PrimitiveType,
+    ServiceReachSummary, StatementNode, SymbolHandle, TransitionExit, TransitionGuardNode,
+    TransitionTargetNode, TypeReferenceNode, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_access_for_type_reference;
+use crate::flow::terminal_unit::terminal_field_identity;
 use typed_trees::name::Identifier;
 
 mod join;

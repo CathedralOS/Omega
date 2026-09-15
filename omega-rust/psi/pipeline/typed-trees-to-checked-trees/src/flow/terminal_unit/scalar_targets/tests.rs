@@ -1,4 +1,9 @@
-use super::*;
+use super::super::{
+    CheckedScalarBindingValue, CheckedScalarExpressionRole, CheckedStructuralAccess,
+};
+use super::{CheckedUnitEffectOperationPlan, PrimitiveType, SymbolHandle};
+use crate::flow::terminal_unit::scalar_targets::is_available;
+use crate::flow::terminal_unit::scalar_targets::registered_structural_graph_target;
 
 const SOURCE: &str = r#"
 machine stamp(value: &mut u64, number: u64) -> u64 { value = number; number }

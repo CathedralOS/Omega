@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 fn byte_store_source(callee: &str, body: &str) -> String {
     format!(

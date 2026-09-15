@@ -1,6 +1,9 @@
 //! Exact range custody and occurrence guards enter the shared arithmetic owner.
-
-use super::super::*;
+use super::super::{ExpressionHandle, ExpressionNode};
+use crate::checks::termination::graph;
+use crate::checks::termination::ranking::DecreaseMeasure;
+use crate::checks::termination::ranking::RankingOrder;
+use crate::checks::termination::ranking::patterns;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 mod state_edges;

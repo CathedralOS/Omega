@@ -1,4 +1,10 @@
-use super::*;
+use super::super::super::TerminationGuarantee;
+use crate::tests::termination::progress_mutation::aliases::opaque::CHOOSE;
+use crate::tests::termination::progress_mutation::assert_subjects;
+use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
+use crate::tests::termination::progress_mutation::check_source;
+use crate::tests::termination::progress_mutation::fixture_source;
+use crate::tests::termination::symbol_of_checked;
 
 fn effects_fixture_source(body: &str, extra: &str) -> String {
     fixture_source(body, true, false, &format!("{CHOOSE}\n{extra}")).replace(

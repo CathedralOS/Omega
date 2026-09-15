@@ -1,4 +1,11 @@
-use super::super::*;
+use super::super::{
+    Expression, HandleSpan, Identifier, Machine, NamePath, State, StateParameter, StatementNode,
+    SymbolHandle, TableCall,
+};
+use crate::build_borrow_facts;
+use crate::tests::StateMutationSummaryCache;
+use crate::tests::call_mutated_places;
+use crate::tests::mutable_borrow;
 
 #[test]
 fn write_only_immutable_local_range_bounds_retain_exact_element_window() {

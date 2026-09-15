@@ -1,6 +1,15 @@
 //! Unit cleanup and structural-return producer tests.
-
-use super::*;
+use super::{
+    BindingRelevance, CheckedBooleanExpression, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, Lexer, Multiplicity,
+    PrimitiveType, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+use crate::lower_typed_trees;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::contextual_cleanup_diagnostics;
+use crate::tests::flow::terminal_unit::machine_named;
+use crate::tests::flow::terminal_unit::record_fields;
 
 mod results;
 

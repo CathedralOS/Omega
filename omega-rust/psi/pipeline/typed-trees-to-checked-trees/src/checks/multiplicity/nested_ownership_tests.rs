@@ -1,8 +1,10 @@
 //! Source ownership of whole ordinary affine call operands. These assertions
 //! inspect permissions independently of the Terminal Unit planner.
 
-use super::*;
-
+use super::{
+    Diagnostic, FlowPermissionEventFact, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource,
+};
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

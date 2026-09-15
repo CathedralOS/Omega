@@ -397,7 +397,7 @@ pub(super) fn borrow_loan_compatibility_from_selector_snapshot(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::checks::borrows::overlap::captured_place_compatibility;
     use checked_trees::{BorrowAccessKind, CapturedPlace, CapturedPlaceContainment};
 
     fn symbol(index: u32) -> symbols::SymbolHandle {

@@ -1,4 +1,13 @@
-use super::*;
+use super::super::{
+    HandleSpan, Identifier, Machine, SignatureContract, SignatureContractKind, State,
+    StateSignature, StatementNode, SymbolHandle, TableCall, TraitConformance, TraitDefinition,
+};
+
+use crate::build_borrow_facts;
+use crate::build_domain_facts;
+use crate::build_flow_facts;
+use crate::build_proof_facts;
+use crate::build_semantic_facts;
 
 #[test]
 fn builds_shared_flow_facts_for_state_and_call_sites() {

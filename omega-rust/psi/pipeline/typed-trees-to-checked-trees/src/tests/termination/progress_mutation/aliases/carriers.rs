@@ -1,4 +1,5 @@
-use super::*;
+use crate::tests::termination::progress_mutation::assert_subjects;
+use crate::tests::termination::progress_mutation::fixture_with_body;
 
 mod adversarial;
 mod borrowed;

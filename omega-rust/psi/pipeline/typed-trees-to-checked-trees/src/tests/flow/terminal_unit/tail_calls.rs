@@ -1,6 +1,7 @@
 //! Unit tails retain authored call expressions and normal return cleanup.
-
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::CheckedCallScalarArgument;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 

@@ -1,4 +1,9 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::assert_input_premise;
+use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::direct::direct_source;
+use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
+use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
+use crate::tests::termination::progress_mutation::check_source;
 use symbols::SymbolHandle;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 

@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
+    AuthoredDeclarationSelectionTarget, Lexer, ResolutionRequest, lower_symbol_resolved_trees,
+    parse_syntax_trees, resolve,
+};
+use crate::lower_typed_trees;
 use checked_trees::CheckedOperatorResolutionStatus;
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};

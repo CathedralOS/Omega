@@ -1,5 +1,7 @@
 //! Runtime scalar observations require the original receiver, not an attachment.
-use super::*;
+use super::super::CheckedScalarExpression;
+use super::{CheckFacts, TypedTrees};
+use crate::flow::terminal_unit::is_reference;
 use checked_trees::{CheckedBooleanExpression, CheckedScalarComputationKind};
 
 pub(in crate::flow::terminal_unit) fn reads_receiver(

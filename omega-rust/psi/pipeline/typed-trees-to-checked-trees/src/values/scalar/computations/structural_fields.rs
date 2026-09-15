@@ -1,6 +1,8 @@
 //! Local record observations are leaves in the ordinary evaluation sequence.
-
-use super::*;
+use super::{
+    Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
+    ExpressionNode,
+};
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,

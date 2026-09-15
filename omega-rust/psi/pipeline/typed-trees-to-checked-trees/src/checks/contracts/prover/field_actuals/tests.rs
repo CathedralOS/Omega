@@ -1,4 +1,5 @@
-use super::*;
+use super::{ExpressionNode, SymbolHandle, TypedTrees};
+use crate::checks::contracts::prover::field_actuals::checked_place;
 
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)

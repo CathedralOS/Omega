@@ -247,7 +247,15 @@ fn payloads_at_place<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExpressionHandle, ExpressionNode, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue,
+        TypedTrees,
+    };
+    use crate::flow::CanonicalPlace;
+    use crate::flow::canonical_place_from_symbol;
+    use crate::values::integer_bounds_at_place;
+    use crate::values::literal_at_place;
+    use crate::values::scalar_value_at_place;
     use facts::{Fact, FactOrigin, ProgramPoint};
 
     #[test]

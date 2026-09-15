@@ -8,7 +8,7 @@ mod tests;
 use reads::collect_reads;
 
 use super::RangeFacts;
-use crate::flow::{CanonicalPlace, canonical_place_from_expression_in_state};
+use crate::flow::CanonicalPlace;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::{TypedTrees, machine::Machine, state::State};

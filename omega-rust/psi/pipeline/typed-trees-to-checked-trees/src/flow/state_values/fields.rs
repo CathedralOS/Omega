@@ -1,7 +1,9 @@
 //! Live attached-field facts at ordinary state edges. No declaration seeds them.
-
-use super::*;
 use crate::facts::field_domain::ByteSequencePredicate;
+use crate::flow::FlowBuildContext;
+use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::normalize_attached_place_root;
+use crate::flow::normalized_event_place_root;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};

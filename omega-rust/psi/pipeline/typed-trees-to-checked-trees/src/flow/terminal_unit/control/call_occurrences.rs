@@ -1,7 +1,15 @@
 //! Scalar operand calls belong to computation roots; structural operands retain
 //! their own result producers within the same authored statement.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedScalarExpressionRole, ExpressionNode, StatementNode, SymbolHandle,
+    TypeReferenceNode, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::checked_structural_result_type;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::statement_sequence;
+use crate::flow::terminal_unit::structural_operands;
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
 pub(in crate::flow::terminal_unit) fn tail_call<'a>(

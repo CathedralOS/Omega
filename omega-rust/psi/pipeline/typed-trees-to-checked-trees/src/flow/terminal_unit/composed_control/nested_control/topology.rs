@@ -1,6 +1,16 @@
 //! General acyclic conditional topology and exact scalar-edge admission.
+use super::super::super::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarParameterPlan, PrimitiveType, StatementNode, SymbolHandle,
+    TransitionExit, TransitionGuardNode, TransitionTargetNode,
+};
 
-use super::*;
+use super::{CheckFacts, TypedTrees};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::structural_scalar_signature;
 
 pub(super) struct NestedTopology<'a> {
     pub(super) controls: Vec<&'a typed_trees::state::State>,

@@ -1,8 +1,19 @@
 //! Structural parameters, projected shared operands, and primitive referents
 //! in scalar computations. Parameter projections reuse established storage;
 //! local construction remains independently restricted to supported whole values.
-
-use super::*;
+use super::super::CheckedUnitStructuralFieldType;
+use super::{
+    CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralTypeShape, ExpressionNode,
+    Multiplicity, PrimitiveType, StateParameter, StatementNode, SymbolHandle, TypeReferenceHandle,
+    TypeReferenceNode, TypedTrees,
+};
+use crate::flow::projected_argument_path;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::base_type_identity;
+use crate::flow::terminal_unit::calls::exact_structural_borrow_access;
+use crate::flow::terminal_unit::parameter_qualifications;
+use crate::flow::terminal_unit::structural_access_for_type_reference;
 
 #[cfg(test)]
 mod tests;

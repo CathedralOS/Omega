@@ -1,6 +1,15 @@
 //! Structural Unit call-closure and custody tests.
-
-use super::*;
+use super::{
+    BindingRelevance, CheckedBooleanExpression, CheckedBoundaryMachineResultPlan,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypeShape, Lexer, Multiplicity, PrimitiveType, ResolutionRequest,
+    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+use crate::lower_typed_trees;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
+use crate::tests::flow::terminal_unit::record_fields;
 use checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedScalarBinding, CheckedScalarBindingValue,
 };

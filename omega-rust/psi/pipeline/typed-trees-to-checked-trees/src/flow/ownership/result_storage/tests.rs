@@ -1,4 +1,6 @@
-use super::*;
+use super::{DataMember, TypeReferenceHandle, TypeReferenceNode};
+use crate::flow::CanonicalPlace;
+use crate::flow::ownership::result_storage::is_private_result_place;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 

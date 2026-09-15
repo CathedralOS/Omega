@@ -1,4 +1,11 @@
-use super::*;
+use super::TerminationGuarantee;
+use crate::lower_typed_trees;
+use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::assert_input_premise;
+use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
+use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
+use crate::tests::termination::progress_mutation::assert_subjects;
+use crate::tests::termination::progress_mutation::check_source;
+use crate::tests::termination::progress_mutation::fixture_with_body;
 
 mod adversarial;
 

@@ -1,6 +1,7 @@
 //! Affine temporaries retain their source ownership across nested calls.
-
-use super::*;
+use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 #[test]
 fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() {

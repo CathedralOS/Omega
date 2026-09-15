@@ -1,4 +1,5 @@
-use super::{lower_typed_trees, parse_typed_trees};
+use super::super::lower_typed_trees;
+use super::parse_typed_trees;
 
 #[test]
 fn inline_const_generic_selector_infers_from_its_array_witness() {

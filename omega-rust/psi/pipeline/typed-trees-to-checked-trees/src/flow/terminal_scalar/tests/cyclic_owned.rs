@@ -1,4 +1,9 @@
-use super::super::*;
+use super::super::{
+    CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
+    CheckedScalarSuccessor,
+};
+use crate::flow::build_checked_scalar_graph_plans;
+use crate::flow::finalize_checked_scalar_graph_plans;
 use checked_trees::{
     CheckedStructuralControlTransferSourcePlan, CheckedStructuralScalarArgumentSourcePlan,
 };

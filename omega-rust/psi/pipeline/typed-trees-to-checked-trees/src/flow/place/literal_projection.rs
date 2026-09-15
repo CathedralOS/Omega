@@ -1,8 +1,8 @@
 //! Project a callee access route through constructors, without replacing a
 //! caller binding by its captured storage origin. Constructors have no caller
 //! address; their actual field/element expressions supply the access routes.
-
-use super::*;
+use crate::flow::CanonicalPlace;
+use crate::flow::canonical_place_from_expression_in_state;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
