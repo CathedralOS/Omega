@@ -9,8 +9,8 @@ use crate::rewrites::dead_store::{
 use optimization_core::OptimizationWorkBudget;
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
-    SelectedMemoryAccessRole, VirtualRegisterId,
+    LocalStorageSlotId, PackedByteWidth, SelectedInstructionId, SelectedInstructionKind,
+    SelectedMemoryAccess, SelectedMemoryAccessRole, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
 use target::NativeTarget;
@@ -539,5 +539,261 @@ fn admission_boundaries_and_budget_hold() {
     assert_eq!(
         eliminate_selected_dead_store(&source, 0, STORE, &environment, tiny).unwrap_err(),
         DeadStoreEliminationError::WorkBudgetExceeded
+    );
+}
+
+/// A dead store narrower than eight bytes is eliminated by any later place
+/// store whose `WritePlace` row covers its whole range: a same-width store at
+/// the same offset, a wider store starting earlier, or a packed store.
+#[test]
+fn sub_width_dead_stores_and_covering_killers_eliminate() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A four-byte dead store killed by the same-width store at the same
+    // offset: the narrowest exact pair.
+    let exact = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 4,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 4,
+            ..access(STORE, 1, place(), 4, SelectedMemoryAccessRole::WritePlace)
+        };
+        function.blocks[0].instructions[3] = instruction(
+            KILLER,
+            SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 4,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses[1] = SelectedMemoryAccess {
+            byte_count: 4,
+            ..access(KILLER, 2, place(), 4, SelectedMemoryAccessRole::WritePlace)
+        };
+    });
+    let result = eliminate(&exact, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, KILLER]
+    );
+    assert_eq!(
+        result.transformed().functions[0]
+            .memory_accesses
+            .iter()
+            .map(|access| (access.instruction, access.byte_count))
+            .collect::<Vec<_>>(),
+        vec![(KILLER, 4)]
+    );
+    // A wider covering store starting before the dead range rewrites every
+    // dead byte: dead `Store` of four bytes at offset 4, killer `Store` of
+    // eight at offset 0.
+    let wider = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 4,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 4,
+            ..access(STORE, 1, place(), 4, SelectedMemoryAccessRole::WritePlace)
+        };
+    });
+    eliminate(&wider, &environment).unwrap();
+    // A packed store covers a shifted dead range: six bytes at offset 2
+    // contain the dead four bytes at offset 4.
+    let packed = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let packed = environment
+            .constraint(environment.selected_keys().store_packed.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 4,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 4,
+            ..access(STORE, 1, place(), 4, SelectedMemoryAccessRole::WritePlace)
+        };
+        function.blocks[0].instructions[3] = instruction(
+            KILLER,
+            SelectedInstructionKind::StorePacked {
+                byte_offset: 2,
+                width: PackedByteWidth::Six,
+            },
+            packed,
+            &[POINTER, SCRATCH, SCRATCH],
+        );
+        function.memory_accesses[1] = SelectedMemoryAccess {
+            byte_count: 6,
+            ..access(KILLER, 2, place(), 2, SelectedMemoryAccessRole::WritePlace)
+        };
+    });
+    let result = eliminate(&packed, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0].instructions[2].kind,
+        SelectedInstructionKind::StorePacked {
+            byte_offset: 2,
+            width: PackedByteWidth::Six,
+        }
+    );
+    validate_dead_store_elimination(
+        &packed,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A one-byte dead store at the tail of the killer's range.
+    let tail = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store {
+                byte_offset: 7,
+                byte_size: 1,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(STORE, 1, place(), 7, SelectedMemoryAccessRole::WritePlace)
+        };
+    });
+    eliminate(&tail, &environment).unwrap();
+}
+
+/// A write that only partially overlaps the dead range, a packed store too
+/// narrow to cover, a row that does not match its instruction's encoded
+/// range, a packed store on the wrong constraint, and a dead store of a
+/// packed width each leave the dead bytes observable or the pair unproven.
+#[test]
+fn non_covering_or_mismatched_killers_reject() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A seven-byte packed store leaves the dead store's last byte uncovered.
+    let short = mutated(target, |function, environment| {
+        let packed = environment
+            .constraint(environment.selected_keys().store_packed.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[3] = instruction(
+            KILLER,
+            SelectedInstructionKind::StorePacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Seven,
+            },
+            packed,
+            &[POINTER, SCRATCH, SCRATCH],
+        );
+        function.memory_accesses[1].byte_count = 7;
+    });
+    assert_eq!(
+        eliminate(&short, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A store starting inside the dead range leaves its head bytes live.
+    let shifted = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[3] = instruction(
+            KILLER,
+            SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses[1].byte_offset = 4;
+    });
+    assert_eq!(
+        eliminate(&shifted, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A `WritePlace` row that does not match the store's own encoded range
+    // cannot cover, whatever the row claims.
+    let mismatched = mutated(target, |function, _| {
+        function.memory_accesses[1].byte_count = 4;
+    });
+    assert_eq!(
+        eliminate(&mismatched, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A packed store carrying the plain store constraint is not the target's
+    // packed-store row.
+    let wrong_constraint = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[3] = instruction(
+            KILLER,
+            SelectedInstructionKind::StorePacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Seven,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses[1].byte_count = 7;
+    });
+    assert_eq!(
+        eliminate(&wrong_constraint, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
+    );
+    // A dead store of a packed width is not the plain two-use place store:
+    // packed fragment stores select `StorePacked`, whose scratch operand
+    // would leave its defining register orphaned by removal.
+    let odd_dead = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 3,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses[0].byte_count = 3;
+    });
+    assert_eq!(
+        eliminate(&odd_dead, &environment).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedInstruction
     );
 }

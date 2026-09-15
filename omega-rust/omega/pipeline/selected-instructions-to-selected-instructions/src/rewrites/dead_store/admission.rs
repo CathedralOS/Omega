@@ -1,6 +1,7 @@
 //! Shared admission for dead-store elimination: locate the named `Store`,
 //! prove its exact `WritePlace` row, then walk forward to the first access on
-//! the dead place and require it to be the covering store.
+//! the dead place and require it to be a place store whose own row covers the
+//! dead range entirely.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! dead place interferes when it can observe the stored bytes or leave them
@@ -47,13 +48,14 @@ pub(super) struct Admission<'source> {
 struct Dead {
     place: PlaceId,
     byte_offset: u32,
+    byte_count: u32,
 }
 
 impl Dead {
     /// Exact rows intersect when their half-open byte intervals share a byte;
     /// widened to u64 so edge offsets cannot wrap.
     fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
-        u64::from(access.byte_offset) < u64::from(self.byte_offset) + 8
+        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
             && u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count)
     }
@@ -90,13 +92,19 @@ pub(super) fn admit<'source>(
     let dead_store = &block.instructions[store_index];
     let SelectedInstructionKind::Store {
         byte_offset,
-        byte_size: 8,
+        byte_size,
     } = dead_store.kind
     else {
         return Err(DeadStoreEliminationError::UnsupportedInstruction);
     };
+    // The dead store is the target's plain exact-width place store; packed
+    // fragment widths select `StorePacked`, whose extra scratch operand would
+    // leave its defining register orphaned by removal.
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
+        return Err(DeadStoreEliminationError::UnsupportedInstruction);
+    }
     // The write's semantic identity: exactly one roster row, one place root,
-    // and the same eight bytes the instruction encodes. `WritePlace` carries
+    // and the same bytes the instruction encodes. `WritePlace` carries
     // no obligation payload, so dropping the row loses no proof receipt.
     let mut rows = function
         .memory_accesses
@@ -109,24 +117,25 @@ pub(super) fn admit<'source>(
     if rows.next().is_some()
         || write.role != SelectedMemoryAccessRole::WritePlace
         || write.byte_offset != byte_offset
-        || write.byte_count != 8
+        || write.byte_count != u32::from(byte_size)
     {
         return Err(DeadStoreEliminationError::UnsupportedPair);
     }
     let dead = Dead {
         place: write.place,
         byte_offset: write.byte_offset,
+        byte_count: write.byte_count,
     };
     // The removed instruction must be the target's plain two-use place store;
     // an exotic operand surface would make the removal contract unclear.
     place_store_shape(dead_store, environment)?;
     // Walk forward to the first access that can reach the dead bytes. It must
-    // be an exact covering store of the same range; anything else leaves the
-    // bytes observable or only partially overwritten. Reaching a block's end
-    // without interference crosses into its only successor block — every edge
-    // out naming one block means each path forward from the store arrives
-    // there — checking the terminator's roster rows and each crossed edge's
-    // transports on the way.
+    // be a place store whose row covers the dead range entirely; anything else
+    // leaves the bytes observable or only partially overwritten. Reaching a
+    // block's end without interference crosses into its only successor block —
+    // every edge out naming one block means each path forward from the store
+    // arrives there — checking the terminator's roster rows and each crossed
+    // edge's transports on the way.
     let mut visited = vec![false; function.blocks.len()];
     let mut crossed = Vec::new();
     let mut interval = 0usize;
@@ -274,7 +283,7 @@ fn place_store_shape(
 /// Whether one roster row can observe the dead bytes or leave them
 /// observable. Reads must intersect the dead range; dynamic extents always
 /// reach it. Writes must target the same place root to overlap; the covering
-/// store is handled by the caller after this returns true. Local-slot and
+/// write is checked by the caller after this returns true. Local-slot and
 /// outgoing-area storage never aliases a referent place.
 fn interferes(dead: &Dead, access: &SelectedMemoryAccess) -> bool {
     match access.role {
@@ -294,9 +303,12 @@ fn interferes(dead: &Dead, access: &SelectedMemoryAccess) -> bool {
     }
 }
 
-/// The found access must be a `Store` of all eight bytes at the identical
-/// row: one `WritePlace` access, matching place and byte offset, and the
-/// target's own `[pointer, value]` operand shape.
+/// The found access must be a place store whose single `WritePlace` row
+/// covers the dead range entirely: a `Store` of any exact width or a packed
+/// `StorePacked`, each encoding the same byte range its row names. A write
+/// that only partially overlaps the dead range leaves the remaining bytes
+/// observable, and a place-backed local slot or materialized local address
+/// writes or exposes different storage — neither can cover.
 fn covering_source(
     instruction: &SelectedInstruction,
     dead: &Dead,
@@ -304,16 +316,28 @@ fn covering_source(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), DeadStoreEliminationError> {
     let reject = || DeadStoreEliminationError::InterveningAccess;
-    let SelectedInstructionKind::Store {
-        byte_offset,
-        byte_size: 8,
-    } = instruction.kind
-    else {
-        return Err(reject());
+    // The encoded byte range must equal the row's exact range: a `Store`
+    // writes its `byte_size` at `byte_offset` through the referent pointer,
+    // and a `StorePacked` writes its packed `width` the same way.
+    let (encoded_offset, encoded_size) = match instruction.kind {
+        SelectedInstructionKind::Store {
+            byte_offset,
+            byte_size,
+        } => {
+            if !matches!(byte_size, 1 | 2 | 4 | 8) {
+                return Err(reject());
+            }
+            place_store_shape(instruction, environment)?;
+            (byte_offset, u32::from(byte_size))
+        }
+        SelectedInstructionKind::StorePacked { byte_offset, width } => {
+            if environment.selected_keys().store_packed != Some(instruction.constraint) {
+                return Err(DeadStoreEliminationError::ConstraintMismatch);
+            }
+            (byte_offset, u32::from(width.byte_size()))
+        }
+        _ => return Err(reject()),
     };
-    if byte_offset != dead.byte_offset {
-        return Err(reject());
-    }
     let mut rows = function
         .memory_accesses
         .iter()
@@ -324,12 +348,21 @@ fn covering_source(
     if rows.next().is_some()
         || row.role != SelectedMemoryAccessRole::WritePlace
         || row.place != dead.place
-        || row.byte_offset != dead.byte_offset
-        || row.byte_count != 8
+        || row.byte_offset != encoded_offset
+        || row.byte_count != encoded_size
     {
         return Err(reject());
     }
-    place_store_shape(instruction, environment)
+    // Coverage is containment, not equality: the killer's bytes may start
+    // before and extend past the dead range, but every dead byte must be
+    // inside the row the killer writes.
+    if row.byte_offset > dead.byte_offset
+        || u64::from(row.byte_offset) + u64::from(row.byte_count)
+            < u64::from(dead.byte_offset) + u64::from(dead.byte_count)
+    {
+        return Err(reject());
+    }
+    Ok(())
 }
 
 /// Calls, hosted effects, and terminator kinds are always barriers: they can
