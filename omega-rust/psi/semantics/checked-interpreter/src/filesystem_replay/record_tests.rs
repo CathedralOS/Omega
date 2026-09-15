@@ -1,22 +1,33 @@
 use super::{
-    BuildIncludedSource, EvaluationObservations, FILESYSTEM_METADATA_API_CARRIER_BYTES,
-    FILESYSTEM_REPLAY_ATTEMPT_RETENTION_WEIGHT, FILESYSTEM_REPLAY_BYTE_OPERAND_RETENTION_WEIGHT,
-    FilesystemByteOperand, FilesystemGrantAccess, FilesystemGrantRootIdentity,
-    FilesystemInputOutputAbsentRemovesReplayRecord, FilesystemInputOutputReplayRecord,
-    FilesystemLogicalHandleIdentity, FilesystemLogicalHandleInputResolution,
-    FilesystemLogicalHandleOutputSource, FilesystemMetadataObservation,
-    FilesystemMetadataObservationKind, FilesystemObservationProvider, FilesystemOperationAttempt,
-    FilesystemOperationAttemptOutcome, FilesystemOperationResult, FilesystemOutputAbsentRemoveKind,
-    FilesystemOutputAbsentRemoveReplayRecord, FilesystemOutputDuplicateReplayRecord,
-    FilesystemOutputFileOperationReplayRecord, FilesystemOutputFileReplayRecord,
-    FilesystemOutputWriteReplayKind, FilesystemOutputWriteReplayRecord, FilesystemReplay,
-    FilesystemReplayReadKind, FilesystemReplayReadRecord, FilesystemScalarOperand,
-    FilesystemScalarOperandValue, FilesystemSourceDescriptorMetadataReplayRecord,
+    BuildIncludedSource, EvaluationObservations, FilesystemInputOutputAbsentRemovesReplayRecord,
+    FilesystemInputOutputReplayRecord, FilesystemOperationAttempt,
+    FilesystemOutputAbsentRemoveKind, FilesystemOutputAbsentRemoveReplayRecord,
+    FilesystemOutputDuplicateReplayRecord, FilesystemOutputFileOperationReplayRecord,
+    FilesystemOutputFileReplayRecord, FilesystemOutputWriteReplayKind,
+    FilesystemOutputWriteReplayRecord, FilesystemReplay, FilesystemReplayReadKind,
+    FilesystemReplayReadRecord, FilesystemSourceDescriptorMetadataReplayRecord,
     FilesystemSourceInputReplayEventRecord, FilesystemSourceInputReplayRecord,
     FilesystemSourceReadChainReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES,
-    MAX_FILESYSTEM_REPLAY_RETAINED_BYTES, MAX_FILESYSTEM_REPLAY_RETENTION_WEIGHT,
-    output_absent_remove_attempt_is_exact, validate_filesystem_replay_size,
+    MAX_FILESYSTEM_REPLAY_RETAINED_BYTES, output_absent_remove_attempt_is_exact,
+    validate_filesystem_replay_size,
 };
+use crate::filesystem::FILESYSTEM_METADATA_API_CARRIER_BYTES;
+use crate::filesystem::FilesystemByteOperand;
+use crate::filesystem::FilesystemGrantAccess;
+use crate::filesystem::FilesystemGrantRootIdentity;
+use crate::filesystem::FilesystemLogicalHandleIdentity;
+use crate::filesystem::FilesystemLogicalHandleInputResolution;
+use crate::filesystem::FilesystemLogicalHandleOutputSource;
+use crate::filesystem::FilesystemMetadataObservation;
+use crate::filesystem::FilesystemMetadataObservationKind;
+use crate::filesystem::FilesystemObservationProvider;
+use crate::filesystem::FilesystemOperationAttemptOutcome;
+use crate::filesystem::FilesystemOperationResult;
+use crate::filesystem::FilesystemScalarOperand;
+use crate::filesystem::FilesystemScalarOperandValue;
+use crate::filesystem_replay::replay_validation::FILESYSTEM_REPLAY_ATTEMPT_RETENTION_WEIGHT;
+use crate::filesystem_replay::replay_validation::FILESYSTEM_REPLAY_BYTE_OPERAND_RETENTION_WEIGHT;
+use crate::filesystem_replay::replay_validation::MAX_FILESYSTEM_REPLAY_RETENTION_WEIGHT;
 use crate::{FilesystemGrantRefusal, FilesystemGrantRefusalReason};
 
 fn root(value: u32) -> FilesystemGrantRootIdentity {
