@@ -1,3 +1,11 @@
+//! Calling conventions: value passing, stack realization, and callbacks per host.
+//!
+//! `plans` owns the calling-plan vocabulary the README's contract publishes;
+//! `darwin`, `linux`, and `windows` fix each host's registers, syscall numbers,
+//! and import libraries; `aggregate_layout` and `stack_realizations` decide how
+//! aggregates and stack slots are passed; `callback_materializations` binds
+//! native callbacks. Layout and selection consume these; they never re-derive them.
+
 mod aggregate_layout;
 mod callback_materializations;
 mod darwin;

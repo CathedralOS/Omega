@@ -2,6 +2,11 @@
 
 //! Dependency-clean x86 encodings shared by the legacy and terminal-Psi
 //! machine-emission lanes.
+//!
+//! Only immediate port-I/O sequences live here: `encode_immediate_port_write`
+//! and `encode_immediate_port_read_u8` produce fixed-width byte sequences whose
+//! operands stay exactly `u16` and `u8`. The crate depends on nothing, so both
+//! lanes can agree on these bytes without sharing representations.
 
 pub const IMMEDIATE_PORT_WRITE_WIDTH: usize = 27;
 pub const IMMEDIATE_PORT_READ_U8_WIDTH: usize = 16;

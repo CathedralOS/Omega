@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 
 //! Target-neutral symbol identities, names, paths, and hierarchy storage.
+//!
+//! A `SymbolHandle` is the durable identity of one declaration; names and paths
+//! are lookup and display metadata around it. `builtin` seeds the language's
+//! builtin types and functions, and `table` owns the hierarchy arena that scoped
+//! lookup walks. String names never stand in for identity after resolution.
 
 mod builtin;
 mod kind;

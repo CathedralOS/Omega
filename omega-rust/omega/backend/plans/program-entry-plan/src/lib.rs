@@ -3,6 +3,11 @@
 //! Data-only declarations that join a selected source entry to its target
 //! contract and native realization. This crate owns no emitted bytes,
 //! installation state, or legacy backend pipeline.
+//!
+//! `selected_entry` names the entry, `root_role` its storage role,
+//! `program_entry_physical` its physical contract, `optimized_semantic_entry`
+//! and `optimized_semantic_wrapper` the optimized wrappers, and the optional
+//! `post_handoff_writer` the plan a provider replays after handoff.
 
 mod boundary_entry_storage;
 mod diagnostic;

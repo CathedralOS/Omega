@@ -3,6 +3,9 @@
 //! Reconciled package compilation inputs and exact source-consumption custody.
 //!
 //! Start at `package_compilation.rs` for input construction and validation.
+//! `source_snapshot` captures the package source a compilation consumed,
+//! `source_consumption` records exactly which of it was read, and
+//! `semantic_bindings` carries the optional standard-library bindings.
 
 mod package_compilation;
 mod semantic_bindings;

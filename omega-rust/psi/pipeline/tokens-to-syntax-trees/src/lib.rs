@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 
 //! Psi-owned parsing of Omega tokens into unresolved source-shaped syntax.
+//!
+//! Start at `parser.rs`: `parse_syntax_trees` drives one construct module per
+//! language form and returns `SyntaxTrees` with no name resolved. `parse_error`
+//! owns the closed failure surface. Meaning belongs to the resolution and typing
+//! stages that follow; this stage only recognizes shape.
 
 pub mod parse_error;
 pub mod parser;

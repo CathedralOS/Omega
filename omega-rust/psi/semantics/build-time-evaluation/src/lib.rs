@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 
 //! Target-neutral admission and execution of compile-time Omega machines.
+//!
+//! Start at `build_time_evaluation.rs`: build machines are admitted against the
+//! checked program, executed through the checked interpreter, and their results
+//! installed as const lengths, const domain facts, layout plans, placed views,
+//! and wire plans. Omega schedules these services; it never reinterprets them.
 
 mod access_plans;
 mod admission;

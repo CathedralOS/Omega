@@ -2,7 +2,10 @@
 
 //! Parsed Omega source shape before name and symbol resolution.
 //!
-//! Start at [`syntax_trees::SyntaxTrees`]; its modules own the program's concepts.
+//! Start at `syntax_trees::SyntaxTrees`; its modules own the program's concepts:
+//! items, statements, expressions, types, names, and inspection snapshots.
+//! Identifiers are spellings with spans, not symbols, and no expression carries
+//! a type; both are assigned by the stages that consume this shape.
 
 pub mod syntax_trees;
 

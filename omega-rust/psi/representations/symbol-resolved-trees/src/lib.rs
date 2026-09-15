@@ -6,7 +6,10 @@
 
 //! Source-shaped Psi trees after name and symbol identity resolution.
 //!
-//! Start at [`symbol_resolved_trees::SymbolResolvedTrees`]; its modules own the program's concepts.
+//! Start at `symbol_resolved_trees::SymbolResolvedTrees`; its modules own the
+//! program's concepts: declarations, control flow, calls, names, evidence, and
+//! inspection snapshots. Every name is a `SymbolHandle` here; types and
+//! signatures are still unjudged and belong to the typing stage.
 
 pub mod declaration_selection {
     pub use language_semantics::declaration_selection::*;

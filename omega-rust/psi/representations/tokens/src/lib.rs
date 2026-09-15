@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 
 //! Spelling-level tokens for Omega source files, owned by Psi.
+//!
+//! `TokenStream` is the lexer's output: each `Token` pairs a `TokenKind` with the
+//! `Span` it was read from and, for literals and identifiers, its `TokenText`.
+//! Keywords, punctuation, comments, and numeric bases are classified here;
+//! nothing about grammar or meaning is decided at this level.
 
 pub mod token_stream;
 pub use token_stream::{token, token_kind, token_text};

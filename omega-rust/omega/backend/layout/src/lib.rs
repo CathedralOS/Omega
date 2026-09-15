@@ -1,3 +1,11 @@
+//! Native type layout: sizes, alignment, field paths, and sum materialization.
+//!
+//! `build_layout_plan` turns a checked type reference into a `TypeLayout` whose
+//! descriptor records packed fields, bit-field fragments, and case payloads;
+//! `field_paths` resolves a field path to its offset; `sum_materialization`
+//! projects conventional sum layouts for the layout-plans foundation. Layout
+//! never authorizes an access; it only fixes where a value's bytes live.
+
 use arena::{Arena, HandleSpan};
 use checked_trees::name::Identifier;
 use std::sync::Arc;

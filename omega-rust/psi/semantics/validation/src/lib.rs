@@ -1,4 +1,9 @@
 //! Semantic validation API. Start at `program_validation.rs` for the validation lifecycle.
+//!
+//! That file owns `validate_specialized_program` and the order of the passes.
+//! The remaining root modules are either one validator each (calls, traits,
+//! domains, literals, transitions, wire) or reusable semantic queries (places,
+//! expression types, definition facts) that checking and lowering also read.
 
 mod arithmetic_domains;
 mod bound_expression_meaning;

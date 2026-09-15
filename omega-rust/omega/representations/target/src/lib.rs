@@ -1,3 +1,11 @@
+//! Target descriptions: semantics, x86 feature sets, ELF loading, UEFI tables.
+//!
+//! `target_semantics` names each supported native target and what it promises;
+//! `x86_features` records feature requirements; `elf_loader` and the
+//! `uefi_*` modules describe the loader and firmware structures a program may
+//! be handed, with their occurrence carriers; `foreign_locator` identifies
+//! foreign providers. Emission reads these; none of them emits bytes.
+
 use diagnostics::Diagnostic;
 
 mod elf_loader;
