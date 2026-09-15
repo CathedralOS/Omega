@@ -7119,6 +7119,411 @@ fn installation_selected_provider_plan_rejects_every_one_field_substitution() {
     );
 }
 
+/// Every representable field of an installed structural-return row is an
+/// authenticated custody axis: a one-field substitution either cannot encode
+/// canonically or still encodes, recomputes a distinct installation
+/// fingerprint, and independent replay against the unchanged image rejects
+/// it. The fixture retains both admitted lanes side by side: machine 1 is the
+/// claim-free affine identity family and machine 3 the claim-bearing linear
+/// family, each bound to its exact `mov rax, rdi; ret` interval by
+/// byte-regenerating object replay.
+#[test]
+fn installation_structural_return_rejects_every_one_field_substitution() {
+    let plan = structural_return_plan();
+    let artifact = build_object_artifact(&plan).expect("structural-return artifact");
+    let image = emit_executable_image(&artifact, 3).expect("structural-return image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(11).expect("profile"))
+        .expect("structural-return installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let [affine, linear] = record.structural_returns() else {
+        panic!("fixture retains both structural-return lanes");
+    };
+    assert_eq!(affine.machine, machine_id(1));
+    assert_eq!(linear.machine, machine_id(3));
+    assert!(affine.returned.returned_claims.is_empty());
+    assert_eq!(
+        linear.returned.returned_claims,
+        [ClaimId::new(31).expect("authentic claim")]
+    );
+    assert_eq!(affine.returned.result.place, PlaceId::new(42).unwrap());
+    assert_eq!(linear.returned.result.place, PlaceId::new(52).unwrap());
+
+    // The result place is bound only by distinctness from the source place,
+    // and the linear lane's carried claim identity is bound only by its
+    // count, so each one-field substitution still encodes canonically,
+    // recomputes a distinct installation fingerprint, and independent replay
+    // against the unchanged image rejects it.
+    type RepresentableMutation = (
+        &'static str,
+        usize,
+        fn(&mut image_emission::InstalledStructuralReturn),
+    );
+    let representable: [RepresentableMutation; 3] = [
+        ("result.place", 0, |row| {
+            row.returned.result.place = PlaceId::new(77).expect("substituted result place");
+        }),
+        ("result.place::linear", 1, |row| {
+            row.returned.result.place = PlaceId::new(77).expect("substituted result place");
+        }),
+        ("returned_claims", 1, |row| {
+            row.returned.returned_claims[0] = ClaimId::new(32).expect("substituted claim identity");
+        }),
+    ];
+    for (field, index, mutate) in representable {
+        let mut changed = record.clone();
+        mutate(&mut changed.structural_returns_mut_for_test()[index]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: substituted row decodes: {error:?}"));
+        assert_eq!(
+            replayed, changed,
+            "{field}: codec preserves the substituted row"
+        );
+        assert_ne!(
+            installation_fingerprint(&replayed)
+                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted row"
+        );
+    }
+
+    // Every other field is a canonical projection bound by the record's own
+    // joins — the function roster pins `machine` and `byte_count`, the
+    // attribution roster pins `psi_edge` and the cleanup ordinals, the call
+    // plan pins every placement, and the source/result/lane consistency rules
+    // pin the rest — so a one-field substitution is rejected at encoding
+    // before any identity or replay could accept it.
+    let invalid_affine = InstallationError::InvalidStructuralReturn(machine_id(1));
+    let invalid_linear = InstallationError::InvalidStructuralReturn(machine_id(3));
+    let drifted_placement = ValuePlacement {
+        shape: ValueShape::integer(4, 4),
+        locations: Vec::new(),
+    };
+    let projected_qualification = terminal_psi::StructuralPathQualification {
+        path: vec![terminal_psi::StructuralPathSegment::Field("field".into())],
+        domain: semantic_vocabulary::StructuralDomainId::new(1).expect("domain"),
+    };
+    let trivial_local = (
+        operation_id(9),
+        terminal_psi::StructuralPlaceDeclaration {
+            id: PlaceId::new(61).expect("local place"),
+            kind: semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: 0,
+                structural_type: StructuralTypeId::new(61).expect("local type"),
+                construction: None,
+            },
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: StructuralTypeId::new(61).expect("local type"),
+            identity: "local".into(),
+            shape: terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
+        },
+    );
+    type ReturnMutation = (
+        &'static str,
+        usize,
+        Box<dyn Fn(&mut image_emission::InstalledStructuralReturn)>,
+        InstallationError,
+    );
+    let mutations: Vec<ReturnMutation> = vec![
+        (
+            "machine::other_function",
+            0,
+            Box::new(|row| row.machine = machine_id(2)),
+            InstallationError::InvalidStructuralReturn(machine_id(2)),
+        ),
+        (
+            "machine::missing",
+            0,
+            Box::new(|row| row.machine = machine_id(99)),
+            InstallationError::StructuralReturnMachineMissing(machine_id(99)),
+        ),
+        (
+            "psi_edge",
+            0,
+            Box::new(|row| row.returned.psi_edge = edge_id(9)),
+            invalid_affine.clone(),
+        ),
+        (
+            "scalar_parameters",
+            0,
+            Box::new(move |row| {
+                row.returned
+                    .scalar_parameters
+                    .push(target_operations::ScalarAbiValue {
+                        value: semantic_vocabulary::ValueId::new(9).expect("scalar value"),
+                        scalar_type: semantic_vocabulary::ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Signed,
+                                32,
+                            )
+                            .expect("i32"),
+                        ),
+                        placement: drifted_placement.clone(),
+                    });
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "parameters",
+            0,
+            Box::new(|row| {
+                row.returned.parameters[0].place =
+                    PlaceId::new(55).expect("substituted parameter place");
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "parameters::extended",
+            0,
+            Box::new(|row| {
+                let mut extra = row.returned.parameters[0].clone();
+                extra.place = PlaceId::new(55).expect("extra parameter place");
+                extra.position = 1;
+                row.returned.parameters.push(extra);
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "parameter_placements",
+            0,
+            Box::new(|row| {
+                row.returned.parameter_placements[0] = row.returned.result_placement.clone();
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "source.place",
+            0,
+            Box::new(|row| {
+                row.returned.source.place = PlaceId::new(55).expect("substituted source place");
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "source.position",
+            0,
+            Box::new(|row| row.returned.source.position = 1),
+            invalid_affine.clone(),
+        ),
+        (
+            "source.is_self",
+            0,
+            Box::new(|row| row.returned.source.is_self = true),
+            invalid_affine.clone(),
+        ),
+        (
+            "source.structural_type",
+            0,
+            Box::new(|row| {
+                row.returned.source.structural_type =
+                    StructuralTypeId::new(9).expect("substituted source type");
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "source.multiplicity",
+            0,
+            Box::new(|row| {
+                row.returned.source.multiplicity = StructuralMultiplicity::Linear;
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "source.access",
+            0,
+            Box::new(|row| row.returned.source.access = StructuralAccess::SharedBorrow),
+            invalid_affine.clone(),
+        ),
+        (
+            "source.qualifications",
+            0,
+            Box::new(|row| {
+                row.returned
+                    .source
+                    .qualifications
+                    .push(semantic_vocabulary::StructuralDomainId::new(1).expect("domain"));
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "source.projected_qualifications",
+            0,
+            Box::new(move |row| {
+                row.returned
+                    .source
+                    .projected_qualifications
+                    .push(projected_qualification.clone());
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "result.structural_type",
+            0,
+            Box::new(|row| {
+                row.returned.result.structural_type =
+                    StructuralTypeId::new(9).expect("substituted result type");
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "result.multiplicity",
+            1,
+            Box::new(|row| {
+                row.returned.result.multiplicity = StructuralMultiplicity::Affine;
+            }),
+            invalid_linear.clone(),
+        ),
+        (
+            "result.qualifications",
+            0,
+            Box::new(|row| {
+                row.returned
+                    .result
+                    .qualifications
+                    .push(semantic_vocabulary::StructuralDomainId::new(1).expect("domain"));
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "result.reference_sources",
+            0,
+            Box::new(|row| {
+                row.returned.result.reference_sources.push(
+                    terminal_psi::StructuralReferenceResultSource {
+                        path: vec![terminal_psi::StructuralPathSegment::Field("field".into())],
+                        source: StructuralArgument {
+                            place: PlaceId::new(41).expect("reference source place"),
+                            path: Vec::new(),
+                            access: StructuralAccess::Owned,
+                        },
+                    },
+                );
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "shape",
+            0,
+            Box::new(|row| row.returned.shape = ValueShape::integer(16, 8)),
+            invalid_affine.clone(),
+        ),
+        (
+            "source_placement",
+            0,
+            Box::new(|row| {
+                row.returned.source_placement = row.returned.result_placement.clone();
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "result_placement",
+            0,
+            Box::new(|row| {
+                row.returned.result_placement = row.returned.source_placement.clone();
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "returned_claims::affine",
+            0,
+            Box::new(|row| {
+                row.returned
+                    .returned_claims
+                    .push(ClaimId::new(32).expect("extra claim"));
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "returned_claims::dropped",
+            1,
+            Box::new(|row| row.returned.returned_claims.clear()),
+            invalid_linear.clone(),
+        ),
+        (
+            "trivial_affine_locals",
+            0,
+            Box::new(move |row| {
+                row.returned
+                    .trivial_affine_locals
+                    .push(trivial_local.clone());
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "trivial_affine_discards",
+            0,
+            Box::new(|row| {
+                row.returned
+                    .trivial_affine_discards
+                    .push(PlaceId::new(61).expect("discard place"));
+            }),
+            invalid_affine.clone(),
+        ),
+        (
+            "code_offset",
+            0,
+            Box::new(|row| row.returned.code_offset += 1),
+            invalid_affine.clone(),
+        ),
+        (
+            "byte_count",
+            0,
+            Box::new(|row| row.returned.byte_count += 1),
+            invalid_affine.clone(),
+        ),
+    ];
+    for (field, index, mutate, expected) in mutations {
+        let mut changed = record.clone();
+        mutate(&mut changed.structural_returns_mut_for_test()[index]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: non-canonical substitution rejected at encoding"
+        );
+    }
+
+    // The roster itself is canonical too: a machine-descending swap or a
+    // duplicated row is rejected at encoding, while a dropped row still
+    // encodes and independent replay rejects the thinned roster.
+    let mut swapped = record.clone();
+    swapped.structural_returns_mut_for_test().swap(0, 1);
+    assert_eq!(
+        encode_installation_record(&swapped),
+        Err(invalid_affine.clone())
+    );
+    let mut duplicated = record.clone();
+    let row = duplicated.structural_returns()[0].clone();
+    duplicated.structural_returns_mut_for_test().insert(1, row);
+    assert_eq!(
+        encode_installation_record(&duplicated),
+        Err(invalid_affine.clone())
+    );
+    let mut dropped = record.clone();
+    dropped.structural_returns_mut_for_test().pop();
+    let bytes = encode_installation_record(&dropped).expect("dropped row encodes");
+    let replayed = decode_installation_record(&bytes).expect("dropped row decodes");
+    assert_eq!(replayed, dropped);
+    assert_ne!(
+        installation_fingerprint(&replayed).expect("substituted fingerprint"),
+        authentic_fingerprint
+    );
+    assert_eq!(
+        validate_installation_record(&replayed, &image),
+        Err(InstallationError::ImageBindingMismatch),
+        "dropped row: independent replay rejects the thinned roster"
+    );
+}
+
 #[test]
 fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let artifact = build_object_artifact(&two_function_plan()).expect("artifact");
@@ -7483,6 +7888,104 @@ fn two_function_plan() -> MachineCodePlan {
             },
         ],
     }
+}
+
+/// One machine per admitted structural-return custody lane beside the ordinary
+/// entry machine: machine 1 carries the claim-free affine identity return and
+/// machine 3 the claim-bearing linear return. Both records describe the same
+/// emitted `mov rax, rdi; ret` interval, so object replay regenerates every
+/// byte from the retained record rather than trusting the row.
+fn structural_return_plan() -> MachineCodePlan {
+    let target = NativeTarget::linux_x64();
+    let shape = ValueShape::integer(8, 8);
+    let call_plan = calling_conventions::evaluate_call_plan(
+        calling_conventions::CallingPolicy::native_for_target(target),
+        &calling_conventions::CallSignature {
+            parameters: vec![shape],
+            result: Some(shape),
+        },
+    )
+    .expect("one-u64 structural ABI");
+    let source_placement = call_plan
+        .parameters
+        .first()
+        .expect("parameter placement")
+        .clone();
+    let result_placement = call_plan.result.clone().expect("result placement");
+    let structural_type = StructuralTypeId::new(41).expect("structural type");
+    let install = |function: &mut MachineCodeFunction,
+                   edge: u64,
+                   multiplicity: StructuralMultiplicity,
+                   source_place: u64,
+                   result_place: u64,
+                   returned_claims: Vec<ClaimId>| {
+        let edge = edge_id(edge);
+        let source = terminal_psi::StructuralParameterDeclaration {
+            place: PlaceId::new(source_place).expect("source place"),
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        function.bytes = vec![0x48, 0x89, 0xf8, 0xc3];
+        function.provenance = TerminalPsiProvenance {
+            operations: Vec::new(),
+            edges: vec![edge],
+        };
+        function.semantic_code_attribution = vec![SemanticCodeAttribution {
+            site: SemanticCodeSite::Edge(edge),
+            operation_ordinal: 0,
+            code_offset: 0,
+            byte_count: 4,
+        }];
+        function.structural_return = Some(machine_code::StructuralReturnRecord {
+            psi_edge: edge,
+            scalar_parameters: Vec::new(),
+            parameters: vec![source.clone()],
+            parameter_placements: vec![source_placement.clone()],
+            source,
+            result: terminal_psi::StructuralResultDeclaration {
+                place: PlaceId::new(result_place).expect("result place"),
+                structural_type,
+                multiplicity,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            },
+            shape,
+            source_placement: source_placement.clone(),
+            result_placement: result_placement.clone(),
+            returned_claims,
+            trivial_affine_locals: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            code_offset: 0,
+            byte_count: 4,
+        });
+    };
+    let mut plan = two_function_plan();
+    install(
+        &mut plan.functions[0],
+        10,
+        StructuralMultiplicity::Affine,
+        41,
+        42,
+        Vec::new(),
+    );
+    let mut linear = plan.functions[0].clone();
+    linear.machine = machine_id(3);
+    install(
+        &mut linear,
+        30,
+        StructuralMultiplicity::Linear,
+        51,
+        52,
+        vec![ClaimId::new(31).expect("returned claim")],
+    );
+    plan.functions.push(linear);
+    plan
 }
 
 fn callback_private_plan() -> machine_code::MachineCodePlanWithPrivateFunctions {

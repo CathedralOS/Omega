@@ -286,6 +286,11 @@ impl InstallationRecord {
     }
 
     #[cfg(any(test, feature = "test-support"))]
+    pub fn structural_returns_mut_for_test(&mut self) -> &mut Vec<InstalledStructuralReturn> {
+        &mut self.structural_returns
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
     pub fn boundary_settlements_mut_for_test(&mut self) -> &mut Vec<ObjectBoundarySettlement> {
         &mut self.boundary_settlements
     }
