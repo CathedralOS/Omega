@@ -5067,7 +5067,8 @@ fn external_root_stack_and_logical_work_fingerprints_are_report_only() {
     );
 
     let epochs = std::fs::read_to_string(runtime.join("stack_and_fuel/epoch_stack_demand.rs"))
-        .expect("read external-root epoch stack composition");
+        .expect("read external-root epoch stack composition")
+        + &recursive_production_rust_source(&runtime.join("stack_and_fuel/epoch_stack_demand"));
     let pure_composition = epochs
         .split_once("pub struct EpochStackComposition {")
         .and_then(|(_, tail)| tail.split_once("\n}\n\nimpl EpochStackComposition"))
