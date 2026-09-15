@@ -99,11 +99,9 @@ impl StructuralFieldType {
     pub fn canonical_leaf_shape(&self) -> Option<StructuralTypeShape> {
         match self {
             Self::Scalar(scalar_type) => Some(StructuralTypeShape::PrimitiveScalar(*scalar_type)),
-            Self::IeeeFloat(format) => {
-                Some(StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
-                    *format,
-                )))
-            }
+            Self::IeeeFloat(format) => Some(StructuralTypeShape::PrimitiveScalar(
+                ScalarType::IeeeFloat(*format),
+            )),
             Self::ByteSequence(carrier) => Some(StructuralTypeShape::ByteSequence(*carrier)),
             Self::BoundedInteger(_) | Self::Structural(_) | Self::Erased { .. } => None,
         }
