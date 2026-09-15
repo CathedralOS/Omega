@@ -284,7 +284,7 @@ pub(crate) fn check(audit: &mut Audit) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{constant_declarations, is_optimization_array};
 
     #[test]
     fn catalog_scan_ignores_const_functions_and_finds_proxy_arrays() {
