@@ -362,8 +362,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   assigned-partner edges and partner votes, mirrored in independent replay and
   the scan reference
   (`copy_affinity_avoids_stealing_a_constrained_neighbors_guaranteed_home`).
+  Landed: runtime-spill recovery admits fixed-view body instruction uses —
+  a pressured victim feeding an ABI-pinned call operand gets its own
+  address/load pair immediately before the consumer while the operand
+  keeps its fixed view, pinning the fresh reload to that physical unit
+  for exactly the load-to-use window on all four targets
+  (`fixed_view_instruction_uses_pin_their_reload_at_the_call_operand`).
   Remaining: coalescing across split points, live-range splitting, and
-  fixed/precolored intervals on the default recovery path.
+  sequencing the fixed/precolored interval stages on the default
+  recovery path.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
   CFG families: red-zone policy, probing, unwind
