@@ -23,7 +23,7 @@
 // ok = true) and every decoded field equals the original.
 
 use omega::language::core::fixed_vec;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data RoomHeader {
     #0 room_id: u32;
@@ -60,7 +60,7 @@ data Main {
     verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let msg: RoomPacketValue = RoomPacketValue {
         header: RoomHeaderValue {
             room_id: 300

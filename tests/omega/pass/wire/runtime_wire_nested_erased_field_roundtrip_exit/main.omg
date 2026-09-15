@@ -1,4 +1,4 @@
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Evidence { case Only; case Step(previous: Evidence); }
 
@@ -22,7 +22,7 @@ data Main {
     verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let value: Packet = Packet {
         header: Header { code: 70, proof: Evidence::Only },
         flag: true,

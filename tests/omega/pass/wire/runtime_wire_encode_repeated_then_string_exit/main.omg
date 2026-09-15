@@ -23,7 +23,7 @@ requires
 // written = 10.
 
 use omega::language::core::fixed_vec;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Report {
     #0 samples: FixedVec<i32, 4>;
@@ -41,7 +41,7 @@ data Main {
     written: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // Field-assignment form for the &[u8] in Utf8 (struct-literal &[u8] in Utf8 fields and
     // assignments both lower; assignment keeps parity with the other
     // encode-&[u8] in Utf8 canary).

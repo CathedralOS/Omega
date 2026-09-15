@@ -1,7 +1,7 @@
 // A fixed array contributes exactly N repeated elements. No synthetic
 // `<name>_count` sibling is required or consulted.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Telemetry {
     #0 readings: [u32; 4];
@@ -17,7 +17,7 @@ data Main {
     written: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let msg: TelemetryValue = TelemetryValue {
         readings: [1, 2, 3, 4]
     };
