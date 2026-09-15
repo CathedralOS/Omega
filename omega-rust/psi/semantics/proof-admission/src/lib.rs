@@ -10,47 +10,57 @@
 //! calculus with stratified relevant and strict universes.
 
 #![forbid(unsafe_code)]
+//!
+//! `proof.rs` checks explicit proof nodes and `kernel.rs` re-decides closed
+//! primitive judgments over the `mathematical_core.rs` term model and
+//! `predicate_denotation.rs`; `integer_rules/` holds the checked integer
+//! normalizations and `admission/` the evidence routes.
 
-mod closed_integer;
-mod evidence;
-mod integer_affine;
-mod integer_cast;
-mod integer_forbidden_root;
-mod integer_shift;
+mod admission;
+mod integer_rules;
 mod kernel;
 mod mathematical_core;
-mod normalization;
 mod predicate_denotation;
 mod proof;
-mod recursion;
 
-pub use closed_integer::{
-    ClosedIntegerEvaluationError, ClosedIntegerEvaluator, compare_integer_math_terms,
-};
-pub use evidence::{
+pub use admission::evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind,
     AdmissionProfile, AuthorizedAdmission, CertificateEnvelope, EvidenceError, EvidenceRoute,
     Obligation, ObligationClass, ProofSystemMarker, verify_obligation,
     verify_obligation_with_machine_parameters,
 };
-pub use integer_affine::{
+pub use admission::normalization::{
+    NormalizationAcceptance, NormalizationCertificate, NormalizationError,
+    NormalizationLawAcceptance, NormalizationLawCertificate, NormalizationLawObligation,
+    NormalizationObligation, verify_normalization,
+};
+pub use admission::recursion::{
+    CertificateObligation, RecursiveComponentAcceptance, RecursiveComponentCertificate,
+    RecursiveComponentError, RecursiveComponentObligation, RecursiveEdgeCertificate,
+    RecursiveEdgeObligation, verify_recursive_component,
+    verify_recursive_component_with_machine_parameters,
+};
+pub use integer_rules::closed_integer::{
+    ClosedIntegerEvaluationError, ClosedIntegerEvaluator, compare_integer_math_terms,
+};
+pub use integer_rules::integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitness,
     IntegerAffineWitnessError, check_integer_affine_bound_conversion, check_integer_affine_witness,
     integer_affine_truth_bounds, integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
-pub use integer_cast::{
+pub use integer_rules::integer_cast::{
     CheckedIntegerCastChain, IntegerCastBoundConversionError, IntegerCastChainWitness,
     IntegerCastChainWitnessError, check_integer_cast_bound_conversion,
     check_integer_cast_chain_witness, integer_cast_truth_bounds,
 };
-pub use integer_forbidden_root::{
+pub use integer_rules::integer_forbidden_root::{
     CheckedIntegerCorrelatedForbiddenRoots, CorrelatedAffineBranch, CorrelatedAffineBranchWitness,
     CorrelatedAffineStepWitness, IntegerCorrelatedForbiddenRootConversionError,
     IntegerCorrelatedForbiddenRootWitness, IntegerCorrelatedForbiddenRootWitnessError,
     check_integer_correlated_forbidden_root_conversion,
     check_integer_correlated_forbidden_root_witness,
 };
-pub use integer_shift::{
+pub use integer_rules::integer_shift::{
     CheckedIntegerShiftChain, CheckedIntegerShiftStep, IntegerShiftChainWitness,
     IntegerShiftChainWitnessError, IntegerShiftDirection, IntegerShiftStepWitness,
     check_integer_shift_chain_witness,
@@ -64,11 +74,6 @@ pub use mathematical_core::{
     instantiate_levels, judgment_assumption_closure, shift, substitute,
     verify_mathematical_certificate, weak_head_normalize,
 };
-pub use normalization::{
-    NormalizationAcceptance, NormalizationCertificate, NormalizationError,
-    NormalizationLawAcceptance, NormalizationLawCertificate, NormalizationLawObligation,
-    NormalizationObligation, verify_normalization,
-};
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,
     check_predicate_denotations_with_value_equalities, check_predicate_evaluation_size,
@@ -79,10 +84,4 @@ pub use proof::{
     accept_certificate, accept_certificate_with_machine_parameters, check_certificate,
     check_certificate_with_machine_parameters, lift_fixed_integer_relation,
     lower_integer_math_relation,
-};
-pub use recursion::{
-    CertificateObligation, RecursiveComponentAcceptance, RecursiveComponentCertificate,
-    RecursiveComponentError, RecursiveComponentObligation, RecursiveEdgeCertificate,
-    RecursiveEdgeObligation, verify_recursive_component,
-    verify_recursive_component_with_machine_parameters,
 };

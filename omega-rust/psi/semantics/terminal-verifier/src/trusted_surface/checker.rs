@@ -9,7 +9,7 @@ use proof_admission::{EvidenceRoute, PrimitiveJudgment, ProofRule};
 use super::{CoveredSurface, EntryBinding, LedgerFamily, SoundnessStatus, TrustedSurfaceEntry};
 
 const KERNEL: &str = "omega-rust/psi/semantics/proof-admission/src/kernel.rs";
-const EVIDENCE: &str = "omega-rust/psi/semantics/proof-admission/src/evidence.rs";
+const EVIDENCE: &str = "omega-rust/psi/semantics/proof-admission/src/admission/evidence.rs";
 const PROOF: &str = "omega-rust/psi/semantics/proof-admission/src/proof.rs";
 const TRAVERSAL: &str = "omega-rust/psi/semantics/proof-admission/src/proof/traversal.rs";
 const SUBTRACT_ORDER: &str = "omega-rust/psi/semantics/proof-admission/src/proof/subtract_order.rs";
@@ -17,10 +17,12 @@ const ORDER_DISCRETENESS: &str =
     "omega-rust/psi/semantics/proof-admission/src/proof/order_discreteness.rs";
 const STRICT_ORDER: &str =
     "omega-rust/psi/semantics/proof-admission/src/proof/strict_order_transitivity.rs";
-const INTEGER_AFFINE: &str = "omega-rust/psi/semantics/proof-admission/src/integer_affine.rs";
-const INTEGER_CAST: &str = "omega-rust/psi/semantics/proof-admission/src/integer_cast.rs";
+const INTEGER_AFFINE: &str =
+    "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_affine.rs";
+const INTEGER_CAST: &str =
+    "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_cast.rs";
 const INTEGER_FORBIDDEN: &str =
-    "omega-rust/psi/semantics/proof-admission/src/integer_forbidden_root.rs";
+    "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_forbidden_root.rs";
 const PREDICATE_DENOTATION: &str =
     "omega-rust/psi/semantics/proof-admission/src/predicate_denotation.rs";
 const VALUE_EQUALITIES: &str =

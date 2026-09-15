@@ -1,4 +1,4 @@
-use crate::closed_integer::{
+use crate::integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, check_integer_math_term_size, compare_integer_math_terms,
 };
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};

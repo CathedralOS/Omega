@@ -140,32 +140,32 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: false,
     },
     ImplementationSite {
-        path: "omega-rust/psi/semantics/proof-admission/src/closed_integer.rs",
+        path: "omega-rust/psi/semantics/proof-admission/src/integer_rules/closed_integer.rs",
         sha256: Some("c19f178676771feafd841838972e0f45dd708fa7ecbd902fdb0ec3e6408dcb1b"),
         inventory_machinery: false,
     },
     ImplementationSite {
-        path: "omega-rust/psi/semantics/proof-admission/src/evidence.rs",
+        path: "omega-rust/psi/semantics/proof-admission/src/admission/evidence.rs",
         sha256: Some("eaf956334cbf67463703a460516f70c636111d629de4ea7221fef67fd6f992b1"),
         inventory_machinery: false,
     },
     ImplementationSite {
-        path: "omega-rust/psi/semantics/proof-admission/src/integer_affine.rs",
+        path: "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_affine.rs",
         sha256: Some("6aba8ea0ca8bae63d968a9c95356ae4ee6c0fadc17c508bc247373acce6264a6"),
         inventory_machinery: false,
     },
     ImplementationSite {
-        path: "omega-rust/psi/semantics/proof-admission/src/integer_cast.rs",
+        path: "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_cast.rs",
         sha256: Some("da16b64dc48f83ac905597d2ecb4f66964e42db204837ba099a4d469c28b438d"),
         inventory_machinery: false,
     },
     ImplementationSite {
-        path: "omega-rust/psi/semantics/proof-admission/src/integer_forbidden_root.rs",
+        path: "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_forbidden_root.rs",
         sha256: Some("c2a54fde00c12eb8dc0b824243d7837237ae994210103e2f2601a019094c925b"),
         inventory_machinery: false,
     },
     ImplementationSite {
-        path: "omega-rust/psi/semantics/proof-admission/src/integer_shift.rs",
+        path: "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_shift.rs",
         sha256: Some("03159712862bbd147506a6b9d866209744d170e0ac12c044fd7104773002ae55"),
         inventory_machinery: false,
     },
@@ -215,7 +215,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: false,
     },
     ImplementationSite {
-        path: "omega-rust/psi/semantics/proof-admission/src/normalization.rs",
+        path: "omega-rust/psi/semantics/proof-admission/src/admission/normalization.rs",
         sha256: Some("c6125df81983cb4255c9b8c664d4e88f8eebc7b2f44c9798b53e4d449034e606"),
         inventory_machinery: false,
     },
@@ -260,7 +260,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: false,
     },
     ImplementationSite {
-        path: "omega-rust/psi/semantics/proof-admission/src/recursion.rs",
+        path: "omega-rust/psi/semantics/proof-admission/src/admission/recursion.rs",
         sha256: Some("878420e1c259971d766cece22a47f45a2d54fd8fad531c3b59deb1858f27705d"),
         inventory_machinery: false,
     },
