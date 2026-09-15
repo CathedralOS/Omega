@@ -3,7 +3,7 @@ use super::super::limits::{
     LEDGER_FINGERPRINT_DOMAIN, LEDGER_MAGIC, MAXIMUM_LEDGER_ENCODING_BYTES,
     ORDINARY_PACKAGE_OBLIGATION_LEDGER_ENCODING_VERSION,
 };
-use super::super::model::{
+use super::super::obligation_ledger::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerFingerprint,
     OrdinaryPackageObligationLedgerRecoveryError,
 };

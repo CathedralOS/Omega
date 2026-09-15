@@ -13,7 +13,7 @@ use crate::snapshot::permissions::verify_open_snapshot_tree_modes;
 use crate::storage::RetainedStorageLane;
 use crate::storage::SourceResolverStorage;
 
-use super::model::{
+use super::resolution_observations::{
     ResolvedLocalSnapshot, ResolvedLocalSource, VerifiedPackageSourceEntry,
     VerifiedPackageSourceEntryKind,
 };

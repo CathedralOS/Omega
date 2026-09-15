@@ -3,7 +3,7 @@ use super::limits::{
     MAXIMUM_LEDGER_PACKAGES, MAXIMUM_LEDGER_ROW_BYTES, MAXIMUM_LEDGER_ROWS,
     MAXIMUM_LEDGER_TARGET_BYTES, MAXIMUM_LEDGER_TOTAL_ROW_BYTES,
 };
-use super::model::{
+use super::obligation_ledger::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError,
     OrdinaryPackageObligationRow, OrdinaryPackageObligationSchemaIdentity,
 };

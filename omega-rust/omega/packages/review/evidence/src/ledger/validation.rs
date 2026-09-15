@@ -1,5 +1,5 @@
 use super::construction::ordinary_package_obligation_ledger_from_compiler_rows;
-use super::model::OrdinaryPackageObligationLedger;
+use super::obligation_ledger::OrdinaryPackageObligationLedger;
 use crate::PackageReviewInput;
 use crate::project_checked_package_review;
 use diagnostics::Diagnostic;

@@ -16,8 +16,8 @@ mod expressions;
 mod external;
 mod identity;
 mod intrinsic;
-mod model;
 mod physical_calling_policy;
+mod policy_recovery_accounting;
 mod public_api;
 mod reader;
 mod representation;
@@ -32,6 +32,6 @@ pub use text::PackagePolicyTextRecoveryLimits;
 pub(in crate::encoding) use text::framing::binary as decode_policy_text_scalars;
 
 use PackagePolicyRecoveryError as Error;
-pub use model::{
+pub use policy_recovery_accounting::{
     PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
 };

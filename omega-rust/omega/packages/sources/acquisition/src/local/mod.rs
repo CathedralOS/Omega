@@ -1,9 +1,9 @@
 //! Local-source capture, immutable publication, and verification.
 
-pub mod model;
 pub(crate) mod observation;
 pub mod operations;
 mod recovery;
+pub mod resolution_observations;
 pub(crate) mod snapshot;
 pub mod staging;
 

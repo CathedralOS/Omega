@@ -1,5 +1,5 @@
 use super::{
-    authentication::*, batch::*, identity::*, inspection::*, model::*, projection::*, tree::*,
+    authentication::*, batch::*, identity::*, inspection::*, object_rows::*, projection::*, tree::*,
 };
 use crate::error::SourceResolveError;
 use crate::git::executable::executor::test_system_git_executor;

@@ -1,9 +1,9 @@
-use super::codec::{RecoveryDecoder, RecoveryEncoder, clone_bytes};
-use super::framing::parse_canonical_row;
-use super::model::{
+use super::canonical_row_recovery::{
     DecodedPackageReviewCanonicalRow, PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION,
     PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
 };
+use super::codec::{RecoveryDecoder, RecoveryEncoder, clone_bytes};
+use super::framing::parse_canonical_row;
 use super::source::{
     decode_location, decode_synthetic_source, encode_location, synthetic_source_tag,
     validate_source,

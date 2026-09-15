@@ -1,10 +1,10 @@
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
-use super::codec::{RecoveryDecoder, clone_bytes};
-use super::model::{
+use super::canonical_row_recovery::{
     PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
 };
+use super::codec::{RecoveryDecoder, clone_bytes};
 use crate::encoding::encode::ROW_MAGIC;
 use crate::encoding::{PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION};
 use crate::record::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};

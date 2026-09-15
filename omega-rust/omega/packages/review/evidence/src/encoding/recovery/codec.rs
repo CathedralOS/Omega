@@ -1,4 +1,4 @@
-use super::model::PackageReviewCanonicalRowRecoveryError;
+use super::canonical_row_recovery::PackageReviewCanonicalRowRecoveryError;
 
 pub(super) fn clone_bytes(
     bytes: &[u8],

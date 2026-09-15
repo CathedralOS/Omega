@@ -1,13 +1,13 @@
 //! Source-graph package membership, without admission or declaration claims.
 
 mod framing;
-mod model;
+mod membership_accounting;
 #[cfg(test)]
 mod tests;
 mod visitor;
 
 use crate::record::PackagePolicyBaseline;
-pub use model::{
+pub use membership_accounting::{
     PackagePolicyMembershipError, PackagePolicyMembershipLimits, PackagePolicyMembershipUsage,
 };
 use semantic_vocabulary::PackageKeyIdentity;

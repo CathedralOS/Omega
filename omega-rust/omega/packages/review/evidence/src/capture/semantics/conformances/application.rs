@@ -1,4 +1,4 @@
-use super::model::ProjectedSelectedConformanceApplication;
+use super::projected_application::ProjectedSelectedConformanceApplication;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::static_arguments::{
     ContractCallStaticParameterKind, contract_call_static_parameter_kind, project_static_argument,

@@ -6,9 +6,9 @@
 pub(crate) mod capture;
 pub(crate) mod filesystem;
 pub(crate) mod identity;
-mod model;
+mod resolved_tree;
 
-pub use model::{
+pub use resolved_tree::{
     ResolvedLocalSource, ResolvedSourceTree, VerifiedPackageSourceEntry,
     VerifiedPackageSourceEntryKind,
 };
