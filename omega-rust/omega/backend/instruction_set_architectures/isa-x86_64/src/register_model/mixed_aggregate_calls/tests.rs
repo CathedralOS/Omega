@@ -1,5 +1,13 @@
 //! Independent ABI expectations for every mixed aggregate call row.
-use super::*;
+use super::super::{
+    validate_x86_64_register_constraint_catalog, x86_64_microsoft_register_unit_call_keys,
+    x86_64_physical_register_model, x86_64_register_constraint_catalog,
+    x86_64_system_v_register_unit_call_keys,
+};
+use super::{
+    RegisterOperandAccess, x86_64_microsoft_mixed_aggregate_call_keys,
+    x86_64_system_v_mixed_aggregate_call_keys,
+};
 use register_model::validate_physical_register_model;
 
 #[test]

@@ -359,7 +359,9 @@ fn outgoing_fits(placement: &calling_conventions::ValuePlacement, frame_bytes: u
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan, outgoing_fits,
+    };
 
     #[test]
     fn canonical_outgoing_copies_require_aligned_space_in_the_retained_frame() {

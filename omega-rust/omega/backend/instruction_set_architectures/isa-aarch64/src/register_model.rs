@@ -1662,12 +1662,26 @@ fn overlay(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN,
+        AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO,
+        AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_LINUX_SYSTEM_CALL,
+        AARCH64_MATERIALIZE_I64, AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SUBTRACT_I64,
+        Aarch64RegisterConstraintCatalogValidationError, GPR64, MachineRegister, NativeTarget,
+        RegisterConstraintCatalog, RegisterConstraintId, RegisterConstraintKey,
+        RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnit, RegisterUnitId,
+        RegisterUnitKind, aarch64_aapcs64_mixed_unit_call_keys,
+        aarch64_darwin_mixed_unit_call_keys, aarch64_fixed_register_view,
+        aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys,
+        aarch64_indirect_aggregate_call_keys, aarch64_mixed_aggregate_call_keys,
+        aarch64_physical_register_model, aarch64_preservation_convention_for_target,
+        aarch64_register_aggregate_call_keys, aarch64_register_aggregate_return_keys,
+        aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
+    };
     use register_model::{
         RegisterConstraintCatalogValidationError, RegisterModelValidationError,
         validate_physical_register_model,
     };
-
-    use super::*;
 
     fn row(
         catalog: &RegisterConstraintCatalog,

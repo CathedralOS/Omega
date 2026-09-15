@@ -315,9 +315,15 @@ pub(super) fn decode_unit_affine_scalar_records(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        IeeeFloatFormat, InstallationError, IntegerValue, OperationId, PlaceId, Reader, ScalarType,
+        StructuralFieldId, StructuralTypeId, UnitAffineScalarRecordEstablishmentRecord,
+        UnitScalarHomeRecord, ValueId, decode_scalar_type, decode_unit_affine_scalar_records,
+        decode_unit_scalar_home, encode_scalar_type, encode_unit_affine_scalar_records,
+        encode_unit_scalar_home,
+    };
     #[test]
     fn ieee_scalar_identity_codec_retains_format_and_rejects_other_widths() {
-        use super::*;
         for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
             let scalar_type = ScalarType::IeeeFloat(format);
             let mut bytes = Vec::new();
@@ -334,8 +340,6 @@ mod tests {
         }
     }
     use calling_conventions::ValueShape;
-
-    use super::*;
 
     fn record() -> UnitAffineScalarRecordEstablishmentRecord {
         UnitAffineScalarRecordEstablishmentRecord {

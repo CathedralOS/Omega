@@ -515,7 +515,9 @@ pub(crate) const SCALAR_CALL_REFERENCE_FINGERPRINT: [u8; 32] = [
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        decode, decode_windows, encode, encode_windows, main_points_to, pe_entry_points_to,
+    };
     #[test]
     fn darwin_main_requires_exact_adapter_offset_and_target_header() {
         let mut bytes = vec![0u8; 208];

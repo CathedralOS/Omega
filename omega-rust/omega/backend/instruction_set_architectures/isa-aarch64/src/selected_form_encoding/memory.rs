@@ -1,5 +1,11 @@
 //! Unsigned-offset LDR with independently decoded pointer-read evidence.
-use super::*;
+use super::{
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
+    ValidatedPhysicalRegisterModel, aarch64_physical_register_model, resolve_registers,
+};
 mod frame;
 mod indexed;
 #[cfg(test)]
@@ -178,7 +184,11 @@ fn load_width(kind: SelectedInstructionKind) -> Result<u32, Aarch64SelectedFormE
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
+        aarch64_physical_register_model, encode_aarch64_selected_memory_form,
+        validate_aarch64_selected_memory_form,
+    };
 
     #[test]
     fn pointer_load_replays_opcode_registers_and_scaled_offset() {

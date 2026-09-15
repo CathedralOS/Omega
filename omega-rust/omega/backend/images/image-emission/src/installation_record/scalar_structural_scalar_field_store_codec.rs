@@ -154,7 +154,7 @@ pub(super) fn decode_scalar_structural_scalar_field_stores(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{InstallationError, Reader, decode_scalar_structural_scalar_field_stores};
 
     #[test]
     fn scalar_store_count_is_bounded_canonically() {

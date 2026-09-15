@@ -78,7 +78,11 @@ pub fn aarch64_preservation_storage_catalog(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Aarch64PreservationStorageCatalogError, NativeTarget, ValidatedPhysicalRegisterModel,
+        ValidatedPreservationStorageCatalog, aarch64_physical_register_model,
+        aarch64_preservation_storage_catalog,
+    };
     use register_model::validate_physical_register_model;
     use target::{Architecture, ObjectFormat};
 

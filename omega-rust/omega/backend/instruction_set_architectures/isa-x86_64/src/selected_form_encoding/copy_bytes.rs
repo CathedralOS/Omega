@@ -1,6 +1,12 @@
 //! Exact live-byte copy with explicit scratch registers and local control flow.
-use super::*;
 
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, RegisterViewId, ValidatedPhysicalRegisterModel,
+    ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
+    X86_64SelectedFormFootprint, modrm, resolve_registers, rex,
+};
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -169,7 +175,11 @@ fn request(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{
+        SelectedInstructionKind, encode_x86_64_selected_form,
+        validate_x86_64_selected_form_encoding,
+    };
+    use super::{MachineAlternativeFamily, MachineAlternativeKey, encode, validate};
 
     #[test]
     fn copy_bytes_catalog_requires_both_early_clobbers_and_exact_dynamic_effect() {

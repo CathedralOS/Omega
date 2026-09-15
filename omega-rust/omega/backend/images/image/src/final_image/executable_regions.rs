@@ -659,7 +659,12 @@ fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageLayout,
+        PlacedExecutableGap, PlacedExecutableGapBytesDigest, PlacedExecutableRegionInventoryDigest,
+        bind_compiler_entry_footprint, byte_report_fingerprint, digest_bytes,
+        place_executable_regions, validate_placed_executable_region_inventory,
+    };
     use calling_conventions::{
         MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
     };

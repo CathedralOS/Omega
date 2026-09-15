@@ -1988,11 +1988,22 @@ fn footprint(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        DecodedInstruction, IntegerValue, MachineAlternativeFamily, MachineAlternativeKey,
+        MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+        MachineEncodedTrapBehavior, SelectedInstructionKind, X86_64SelectedFormEncodingError,
+        decode_one, encode_x86_64_selected_form, encode_x86_64_selected_i64_less_than_branch_form,
+        encode_x86_64_selected_nonzero_branch_form,
+        encode_x86_64_selected_short_nonzero_branch_form,
+        encode_x86_64_selected_u64_less_than_branch_form, validate_x86_64_selected_form_encoding,
+        validate_x86_64_selected_i64_less_than_branch_form,
+        validate_x86_64_selected_nonzero_branch_form,
+        validate_x86_64_selected_short_nonzero_branch_form,
+        validate_x86_64_selected_u64_less_than_branch_form, x86_64_physical_register_model,
+    };
     use optimization_core::AcceptedObligationFactIdentity;
     use register_model::validate_physical_register_model;
     use semantic_vocabulary::{MachineId, ObligationId};
-
-    use super::*;
 
     fn alternative(family: MachineAlternativeFamily, variant: u32) -> MachineAlternativeKey {
         MachineAlternativeKey { family, variant }

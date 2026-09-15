@@ -1,5 +1,11 @@
 //! Exact byte accesses with an explicit early-clobber scratch register.
-use super::*;
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, RegisterViewId, SelectedInstructionKind,
+    ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint, modrm, resolve_registers, rex,
+};
 mod replay;
 
 type Request = (bool, u8, [u8; 3], X86_64SelectedFormFootprint);

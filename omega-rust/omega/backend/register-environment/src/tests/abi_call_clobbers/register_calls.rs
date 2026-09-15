@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    Architecture, NativeTarget, assert_target_semantic_error, baseline_target_register_environment,
+    row_mut, scalar_abi_cases, target_constraint_catalog, target_physical_register_model,
+    units_for_names, validate_target_register_environment,
+};
 use register_model::RegisterOperandAccess;
 
 #[test]

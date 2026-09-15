@@ -1,6 +1,12 @@
 //! LDRB Wt, [Xn, Xm], with full-width runtime indexing and a zero-extended result.
-use super::*;
 
+use super::{
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    RegisterViewId, ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
+    aarch64_physical_register_model, resolve_registers,
+};
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -87,7 +93,11 @@ fn request(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{
+        SelectedInstructionKind, encode_aarch64_selected_memory_form,
+        validate_aarch64_selected_memory_form,
+    };
+    use super::{MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect};
 
     #[test]
     fn indexed_byte_load_decodes_every_bit_and_operand_role() {

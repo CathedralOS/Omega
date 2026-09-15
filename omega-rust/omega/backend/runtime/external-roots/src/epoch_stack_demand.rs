@@ -1881,7 +1881,12 @@ fn non_authoritative_epoch_stack_inputs_report_fingerprint(
 #[cfg(test)]
 mod tests {
     use super::super::{NestingRelationId, StackNestingEdge};
-    use super::*;
+    use super::{
+        BTreeSet, DomainStackDemand, EntryStackStage, EpochStackCompositionInput,
+        ExternalRootDiagnostic, ExternalRootId, Preemption, RootProviderId, StackDomain,
+        StackDomainRef, StackNestingRelation, ValidatedEntryStackRealization,
+        compose_entry_stack_epochs,
+    };
     use calling_conventions::{
         ArrivalContextId, ArrivalContextRealization, EntryStackEpoch, EntryStackRealization,
         StackOccupancy, validate_entry_stack_realization,

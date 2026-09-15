@@ -89,7 +89,10 @@ pub(super) fn decode_abi_value(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Reader, ScalarAbiValue, ScalarFunctionAbi, ValueId, decode_abi_value, decode_scalar_abi,
+        encode_abi_value, encode_scalar_abi,
+    };
     use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
     use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 

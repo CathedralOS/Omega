@@ -120,7 +120,7 @@ pub(in crate::exit_contract) fn scalar_return_view(
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Architecture, NativeTarget, scalar_return_view};
     use register_model::RegisterOperandAccess;
     use selected_instructions::{
         SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,

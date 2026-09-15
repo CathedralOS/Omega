@@ -93,7 +93,10 @@ pub fn validate_final_image_function_linkage(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FinalImage, FinalImageSection, ObjectPlan, SectionKind, SymbolKind, SymbolSection,
+        validate_final_image_function_linkage,
+    };
     use crate::{FinalImageInput, FinalImageSymbol, build_final_image};
     use function_identity::{MachineFunctionIdentity, StateKey};
     use object_file::{FunctionSymbolPlan, SymbolPlan};

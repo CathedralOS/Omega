@@ -1,5 +1,15 @@
 //! Independent object-record comparison against admitted call and storage contracts.
-use super::*;
+use super::{
+    CallSiteOwner, Error, IndirectPointerLocation, InternalUnitCallArgumentRecord,
+    InternalUnitCallSource, InternalUnitScalarArgumentSourceRecord,
+    InternalUnitStructuralArgumentSourceRecord, LegalizedScalarArgument, MachineId,
+    NativeCallOrigin, ObjectBoundarySettlement, ObjectFunction, OperationId, PlaceId,
+    SelectedBoundarySettlement, SelectedFunction, SelectedMemoryAccessRole,
+    SemanticCodeAttribution, SemanticCodeSite, StagedOptimizedRelocationFreeObjectContainer,
+    StructuralSourceLocation, ValueLocation, ValuePlacement, attribution, byte_input, byte_output,
+    established_views, fragment, host, inline_owned_placement, primitive_locals, process_exit,
+    published_call, scalar_result, scalar_type, selected, source,
+};
 pub(in crate::function_fragments) fn validate_function(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     function: &ObjectFunction,

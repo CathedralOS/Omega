@@ -43,7 +43,7 @@ pub fn encode_immediate_port_read_u8(port: u16) -> [u8; IMMEDIATE_PORT_READ_U8_W
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{encode_immediate_port_read_u8, encode_immediate_port_write};
 
     #[test]
     fn pic_eoi_has_one_exact_out_instruction() {

@@ -81,7 +81,9 @@ fn count(bytes: &mut Vec<u8>, len: usize) -> Result<(), InstallationError> {
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundaryMachineId, InstallationError, InternalUnitCallSource, Reader, decode, encode,
+    };
 
     fn provider_source() -> InternalUnitCallSource {
         let boundary = BoundaryMachineId::new(3).unwrap();

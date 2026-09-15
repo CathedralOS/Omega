@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Cursor, OptimizedOrdinaryCallableEntryError, ScalarType, ValueDeclaration, ValueId, decode_id,
+    decode_scalar, encode_result_declaration,
+};
 use semantic_vocabulary::ScalarQualificationSetId;
 
 fn declaration(qualification: u64) -> ValueDeclaration {

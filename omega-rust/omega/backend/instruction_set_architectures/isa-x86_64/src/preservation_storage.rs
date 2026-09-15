@@ -89,7 +89,10 @@ pub fn x86_64_preservation_storage_catalog(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        NativeTarget, ValidatedPhysicalRegisterModel, X86_64PreservationStorageCatalogError,
+        x86_64_physical_register_model, x86_64_preservation_storage_catalog,
+    };
     use register_model::{RegisterUnitId, validate_physical_register_model};
     use target::{Architecture, ObjectFormat};
 

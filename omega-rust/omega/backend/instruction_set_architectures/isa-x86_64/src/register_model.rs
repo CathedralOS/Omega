@@ -1607,12 +1607,28 @@ fn overlay(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        GPR64, MachineRegister, NativeTarget, RegisterConstraintCatalog, RegisterConstraintId,
+        RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnit,
+        RegisterUnitId, RegisterUnitKind, VECTOR128, X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE,
+        X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
+        X86_64_LINUX_SYSTEM_CALL, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL_UNIT,
+        X86_64_MICROSOFT_RETURN, X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SUBTRACT_I64,
+        X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
+        X86_64RegisterConstraintCatalogValidationError,
+        validate_x86_64_register_constraint_catalog, x86_64_fixed_register_view,
+        x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys,
+        x86_64_indirect_aggregate_call_keys, x86_64_microsoft_aggregate_call_keys,
+        x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_mixed_aggregate_call_keys,
+        x86_64_microsoft_mixed_unit_call_keys, x86_64_physical_register_model,
+        x86_64_preservation_convention_for_target, x86_64_register_constraint_catalog,
+        x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
+        x86_64_system_v_mixed_aggregate_call_keys, x86_64_system_v_mixed_unit_call_keys,
+    };
     use register_model::{
         RegisterConstraintCatalogValidationError, RegisterModelValidationError,
         validate_physical_register_model,
     };
-
-    use super::*;
 
     fn row(
         catalog: &RegisterConstraintCatalog,

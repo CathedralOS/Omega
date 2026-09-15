@@ -1980,6 +1980,16 @@ fn canonical_usize(value: usize) -> [u8; 8] {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        IntegerSign, IntegerType, NativeOptimizationProjection,
+        NativeOptimizationProjectionIdentity, NativePhysicalOccurrence,
+        NativeSelectedProviderPlanDigest, NativeTarget, OptimizedBoundaryOccurrenceIdentity,
+        OptimizedOperatorOccurrenceIdentity, PhysicalChildCoordinate, ScalarType,
+        boundary_occurrence_identity, builtin_structural_boundary_trait_settlement_identity,
+        native_optimization_projection, operator_occurrence_identity,
+        optimized_boundary_occurrence, optimized_operator_occurrence,
+        validate_exact_physical_child_coordinates,
+    };
     #[test]
     fn reference_projection_identity_is_distinct_from_owned_paths() {
         use terminal_psi::StructuralPathSegment;
@@ -1996,8 +2006,6 @@ mod tests {
         );
         assert_ne!(reference, identity(&[StructuralPathSegment::FixedIndex(3)]));
     }
-
-    use super::*;
     use terminal_psi::{SemanticFingerprint, VocabularyMarker};
 
     fn physical_projection() -> NativeOptimizationProjection {

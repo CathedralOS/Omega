@@ -330,7 +330,10 @@ pub(super) fn decode_register(value: u8) -> Result<MachineRegister, Installation
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineRegister, Reader, ValueLocation, ValuePlacement, ValueShape,
+        decode_direct_placement, decode_register, encode_direct_placement, register_tag,
+    };
 
     #[test]
     fn ieee_abi_placements_round_trip_without_integer_relabeling() {

@@ -1,5 +1,11 @@
 //! AMD64 ordinary load/store/address primitives with independent byte replay.
-use super::*;
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, RegisterViewId, SelectedInstructionKind,
+    ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint, modrm, resolve_registers, rex,
+};
 mod indexed;
 #[cfg(test)]
 mod load32_tests;
@@ -313,7 +319,11 @@ fn request(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
+        X86_64SelectedFormEncodingError, encode_x86_64_selected_memory_form,
+        validate_x86_64_selected_memory_form,
+    };
     use register_model::validate_physical_register_model;
     use selected_instructions::OutgoingArgumentSlotId;
     use semantic_vocabulary::OperationId;

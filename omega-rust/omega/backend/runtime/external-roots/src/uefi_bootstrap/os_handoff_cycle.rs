@@ -417,7 +417,12 @@ pub unsafe fn drive_uefi_os_handoff_cycle<'system_table, 'boot_services, 'buffer
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExternalRootDiagnostic, PlannedUefiExitBootServicesInvocation,
+        UefiApplicationFirmwareLedger, UefiMemoryMapBuffer, UefiOsHandoffCycleRejection,
+        UefiOsHandoffCycleResolution, UefiOsHandoffLedger, UefiOsHandoffMapRequired,
+        drive_uefi_os_handoff_cycle,
+    };
     use crate::{
         LifecycleScopedUefiBootServicesProjection, UefiApplicationBootstrapLedgerId,
         UefiBootServicesPhaseLeaseId, UefiBootServicesTableOccurrenceId, UefiErrorStatus,

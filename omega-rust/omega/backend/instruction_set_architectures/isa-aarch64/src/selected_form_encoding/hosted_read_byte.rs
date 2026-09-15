@@ -1,5 +1,8 @@
 //! Hosted read-one-byte leaf: caller frame storage, no hidden stack adjustment.
-use super::*;
+use super::{
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, RegisterViewId,
+    ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
+};
 use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
 use target::NativeTarget;
@@ -210,7 +213,13 @@ pub fn decode_aarch64_selected_hosted_read_byte(target: NativeTarget, bytes: &[u
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
+        MachineEncodedStackEffect, MachineSemanticKind, MachineSizeKnowledge, NativeTarget,
+        SelectedInstructionKind, decode_aarch64_selected_hosted_read_byte, effects,
+        encode_aarch64_selected_hosted_read_byte_form,
+        validate_aarch64_selected_hosted_read_byte_form,
+    };
     use semantic_vocabulary::{OperationId, PlaceId};
 
     #[test]

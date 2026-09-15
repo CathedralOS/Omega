@@ -1,11 +1,12 @@
+use super::super::{
+    TargetRegisterEnvironmentValidationError, validate_target_register_environment,
+};
 use isa_x86_64::{
     X86_64_COMPARE_I64_ZERO, X86_64RegisterConstraintCatalogValidationError,
     x86_64_physical_register_model, x86_64_register_constraint_catalog,
 };
 use register_model::validate_physical_register_model;
 use target::{Architecture, NativeTarget};
-
-use super::super::*;
 
 #[test]
 fn raw_join_rejects_target_drift_and_target_semantic_corruption() {

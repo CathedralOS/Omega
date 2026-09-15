@@ -1,7 +1,10 @@
 //! D29 joins to already resolved calls in the common physical program.
 
-use super::*;
-
+use super::{
+    Architecture, CallSiteOwner, NativeTarget, OperationKind, OperatorPhysicalSpan,
+    OptimizedOperatorOccurrence, PhysicalRelocationDisposition, SectionKind, derive_span,
+    ranges_overlap,
+};
 pub(super) fn derive(
     occurrence: &OptimizedOperatorOccurrence,
     operation: &terminal_psi::Operation,
@@ -132,7 +135,7 @@ fn validate_destination(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Architecture, validate_destination};
 
     #[test]
     fn resolved_call_destination_is_exact_on_both_targets() {

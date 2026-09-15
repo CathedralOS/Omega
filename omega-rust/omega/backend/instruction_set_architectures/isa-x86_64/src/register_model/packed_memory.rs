@@ -1,6 +1,10 @@
 //! Multi-instruction exact-byte memory transport declares all temporary writes.
-use super::*;
 
+use super::{
+    GPR64, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
+    ValidatedPhysicalRegisterModel,
+};
 pub const X86_64_LOAD_PACKED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 734,

@@ -42,7 +42,7 @@ fn stack_access(base: u32, byte_offset: u32) -> Result<u32, Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{encode_restore_fpcr_from_sp_displacement, encode_save_fpcr_to_sp_displacement};
 
     #[test]
     fn fpcr_save_and_restore_use_exact_system_register_and_stack_words() {

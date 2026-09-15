@@ -130,7 +130,11 @@ pub(crate) fn test_byte_read_declaration(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundaryRealization, BoundaryResultRecord, IntegerSign, IntegerType, MachineRegister,
+        NativeTarget, ScalarType, ValueLocation, ValueShape, boundary_result_is_exact,
+        hosted_read_byte_declaration_is_valid, test_byte_read_declaration,
+    };
 
     #[test]
     fn read_byte_declaration_replay_rejects_noncanonical_case_and_field_custody() {

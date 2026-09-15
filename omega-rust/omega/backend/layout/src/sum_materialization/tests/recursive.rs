@@ -1,5 +1,9 @@
 //! Recursive record/sum projection and replay, including hostile geometry and custody.
-use super::*;
+use super::{
+    BuildTimeValue, ByteOrder, DataMember, DataShape, LayoutPlacementReport, NativeTarget,
+    SymbolHandle, TypeLayoutDescriptor, TypeReferenceNode, checked, unique_data_layout,
+};
+use crate::project_conventional_record_with_recursive_nested_sums_materialization_layout;
 use build_time_evaluation::ValidatedConstRecordWithRecursiveNestedSumsMaterialization;
 use build_time_evaluation::validate_const_materializable_record_with_recursive_nested_sums;
 use layout_plans::ConventionalRecordSumPathsLayoutReport;

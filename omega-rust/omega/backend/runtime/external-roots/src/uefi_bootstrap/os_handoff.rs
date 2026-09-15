@@ -559,7 +559,14 @@ impl UefiOsHandoffTransitionError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExternalRootDiagnostic, NonZeroU32, UefiErrorStatus, UefiExitBootServicesProviderResult,
+        UefiExitBootServicesProviderResultKind, UefiExitBootServicesReceiptId,
+        UefiFirmwareSessionId, UefiMemoryMapAcquisition, UefiMemoryMapKeyId,
+        UefiMemoryMapSnapshotId, UefiOsHandoffAllocationRosterId, UefiOsHandoffBootServicesId,
+        UefiOsHandoffId, UefiOsHandoffLedger, UefiOsHandoffMapAcquired, UefiOsHandoffMapRequired,
+        UefiOsHandoffProgress, UefiOsHandoffStackEvidenceId, UefiPhysicalInvocationId,
+    };
 
     fn id<T>(value: u64, make: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
         make(value).unwrap()

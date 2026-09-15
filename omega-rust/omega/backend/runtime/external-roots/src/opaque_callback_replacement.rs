@@ -1,4 +1,12 @@
-use super::*;
+use super::{
+    EntryStubId, ExternalRootDiagnostic, ExternalRootId, GatewayAdmissionReceiptId,
+    GatewayDispatchContractId, InstalledCode, InstalledCodeContext, InstalledCodeId,
+    InstalledExternalRoot, InstalledRootEvidence, InstalledRootLedger, OpaqueCallbackProviderId,
+    OpaqueCallbackRegistrationCapacityOccurrenceId, OpaqueCallbackRegistrationId,
+    OpaqueCallbackRegistrationReceiptId, OpaqueCallbackUnregistrationContractId,
+    OpaqueCallbackUnregistrationReceiptId, ProcessLifetimeGatewayId, RootRemovalReceipt,
+    RootRemovalReceiptId, RootSlotAuthority,
+};
 use std::sync::Arc;
 
 /// Private process-local provenance for one provider-issued capacity

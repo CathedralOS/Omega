@@ -337,9 +337,15 @@ mod unit_calls;
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        Aarch64ScalarCallFixup, Aarch64ScalarCallTemplateError, MachineAlternativeFamily,
+        MachineAlternativeKey, MachineEncodedEffects, MachineId, NativeTarget, RegisterViewId,
+        SelectedInstructionKind, ValidatedPhysicalRegisterModel,
+        aarch64_aapcs64_register_call_keys, aarch64_physical_register_model, canonical_fixup,
+        encode_aarch64_selected_scalar_call_template, expected_effects, expected_operand_views,
+        validate_aarch64_selected_scalar_call_template,
+    };
     use register_model::validate_physical_register_model;
-
-    use super::*;
 
     fn inputs() -> (
         ValidatedPhysicalRegisterModel,

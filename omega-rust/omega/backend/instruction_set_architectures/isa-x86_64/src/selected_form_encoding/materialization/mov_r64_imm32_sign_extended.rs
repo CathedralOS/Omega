@@ -245,7 +245,14 @@ const GPR_NAMES: [&str; 16] = [
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        GPR_NAMES, IntegerValue, RegisterWriteSemantics,
+        X86_64MovR64Imm32SignExtendedI64MaterializationError,
+        decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
+        encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
+        validate_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
+        x86_64_physical_register_model,
+    };
     use register_model::{RegisterViewId, validate_physical_register_model};
 
     #[test]

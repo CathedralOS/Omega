@@ -1,5 +1,8 @@
 //! Private address formation retains exact operand roles and never accesses memory.
-use super::*;
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    SelectedInstructionKind, encode_aarch64_selected_form, validate_aarch64_selected_form_encoding,
+};
 use register_model::validate_physical_register_model;
 
 #[test]

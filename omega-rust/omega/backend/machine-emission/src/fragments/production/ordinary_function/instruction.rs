@@ -154,15 +154,18 @@ fn selected<'a>(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        FunctionFragmentInternalMachineFixupState, ResolvedSelectedFormRow,
+        SelectedFormInternalMachineFixupState, SelectedInstruction, SelectedInstructionKind,
+        translate_fixup,
+    };
+    use machine_code::{SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind};
     use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionId,
         SelectedInstructionProvenance,
     };
     use semantic_vocabulary::MachineId;
-
-    use super::*;
-    use machine_code::{SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind};
 
     fn selected_call(callee: MachineId) -> SelectedInstruction {
         SelectedInstruction {

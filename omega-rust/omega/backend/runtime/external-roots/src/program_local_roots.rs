@@ -2106,7 +2106,11 @@ impl<'root, 'code> ProgramLocalRootOccurrenceRetirementError<'root, 'code> {
 
 #[cfg(test)]
 mod capacity_evaluation_tests {
-    use super::*;
+    use super::{
+        BTreeMap, BTreeSet, BigInt, ContentAlgebra, ContentAlgebraKind,
+        ContentProjectionExpression, ContentProjectionScalar, EstablishedProgramLocalRootCapacity,
+        ProgramLocalRootScalarSource, evaluate_capacity, program_local_root_schema_fields_digest,
+    };
 
     #[test]
     fn interval_capacity_evaluates_each_runtime_path_without_scalar_multiplication() {

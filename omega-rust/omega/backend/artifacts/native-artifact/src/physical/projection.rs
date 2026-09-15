@@ -347,6 +347,10 @@ fn canonical_usize(value: usize) -> [u8; 8] {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        AbstractOperation, AbstractOperationPlan, D29ReferenceCoordinate,
+        ValidatedProjectionCoordinates, derive_optimized_scope,
+    };
     use abstract_operations::{
         AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractResult,
     };
@@ -356,8 +360,6 @@ mod tests {
         OperationId, ScalarType, ValueId,
     };
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-    use super::*;
 
     fn terminal(marker: u8) -> TerminalPsiIdentity {
         TerminalPsiIdentity {

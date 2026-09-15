@@ -243,7 +243,10 @@ fn append_word(bytes: &mut Vec<u8>, word: u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Aarch64FrameProtocolError, Aarch64FrameSlot, Aarch64StackProbe,
+        MAX_STACK_POINTER_ADJUST_BYTES, encode_aapcs64_frame_protocol,
+    };
     use register_model::validate_physical_register_model;
 
     const NO_PROBE: Aarch64StackProbe = Aarch64StackProbe {

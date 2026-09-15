@@ -602,13 +602,19 @@ const fn packed_load_width(semantic: MachineSemanticKind) -> Option<u16> {
 
 #[cfg(test)]
 mod tests {
-    use register_model::validate_physical_register_model;
-
-    use super::*;
+    use super::{
+        AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_SUBTRACT_I64,
+        Aarch64MachineEffectCatalogValidationError, MachineAlternativeApplicability,
+        MachineBarrier, MachineCallEffect, MachineEncodedControlEffect, MachineEncodedEffects,
+        MachineEncodedStackEffect, MachineSemanticKind, MachineSizeKnowledge, NativeTarget,
+        ValidatedRegisterConstraintCatalog, aarch64_machine_effect_catalog,
+        validate_aarch64_machine_effect_catalog,
+    };
     use crate::{
         Aarch64RegisterConstraintCatalogValidationError, aarch64_physical_register_model,
         aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
     };
+    use register_model::validate_physical_register_model;
 
     fn constraints() -> ValidatedRegisterConstraintCatalog {
         let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();

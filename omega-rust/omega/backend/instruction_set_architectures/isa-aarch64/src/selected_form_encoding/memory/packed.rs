@@ -3,8 +3,13 @@
 //! Scratch is a supplied early-clobber definition, never a hidden fixed
 //! register. Each byte is accessed once; register padding is zero on loads
 //! and never becomes a memory access. Replay decodes every instruction field.
-
-use super::*;
+use super::{
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
+    ValidatedPhysicalRegisterModel, aarch64_physical_register_model, resolve_registers,
+};
 use selected_instructions::PackedByteWidth;
 
 fn request(

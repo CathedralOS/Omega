@@ -245,11 +245,12 @@ fn hash_digest_field(digest: &mut Sha256, bytes: &[u8]) {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        ProgramEntryPhysicalContractPackageSourceDigest, ProgramEntryPhysicalContractPlan,
+    };
     use calling_conventions::{
         CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
     };
-
-    use super::*;
 
     fn plan_for_source(source: &[u8], report_fingerprint: u64) -> ProgramEntryPhysicalContractPlan {
         let package = target::ProgramEntryPhysicalContractPackage::UefiX64;

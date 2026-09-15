@@ -128,7 +128,12 @@ impl ProgramEntryPhysicalContractPlan {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ProgramEntryPhysicalContractPlan, UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
+        UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, UEFI_X64_STATUS_TYPE_IDENTITY,
+        UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, exact_uefi_x64_physical_boundary_entry_plan,
+        exact_uefi_x64_physical_contract_package_source_digest,
+    };
     use crate::ProgramEntryPhysicalContractPackageSourceDigest;
 
     fn exact_contract() -> ProgramEntryPhysicalContractPlan {

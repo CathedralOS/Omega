@@ -995,7 +995,17 @@ impl<'system_table> UefiApplicationFirmwareLedger<'system_table> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        EFI_INVALID_PARAMETER, EFI_STATUS_ERROR_BIT, EFI_SUCCESS, EXIT_BOOT_SERVICES_FIELD_OFFSET,
+        ExternalRootDiagnostic, LifecycleScopedUefiBootServicesProjection,
+        LifecycleScopedUefiExitBootServicesProvider, NonZeroU64, TargetProfile,
+        UefiApplicationFirmwareLedger, UefiBootServicesTableOccurrenceId,
+        UefiExitBootServicesAttemptOutcome, UefiImageHandleOccurrenceId, UefiMemoryMapKeyId,
+        UefiOsHandoffMapAcquired, UefiPhysicalInvocationId,
+        admit_uefi_exit_boot_services_execution, bind_uefi_exit_boot_services_invocation, c_void,
+        execute_uefi_exit_boot_services, join_lifecycle_scoped_uefi_exit_boot_services_provider,
+        plan_uefi_boot_services_native_layout, prepare_uefi_exit_boot_services_invocation,
+    };
     use crate::{
         UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId, UefiErrorStatus,
         UefiFirmwareSessionId, UefiMemoryMapAcquisition, UefiMemoryMapSnapshotId,

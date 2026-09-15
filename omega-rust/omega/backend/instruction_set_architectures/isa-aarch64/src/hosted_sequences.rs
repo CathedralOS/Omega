@@ -314,7 +314,10 @@ fn checked_instruction_distance(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        encode_brk, encode_hosted_exit_process_i32, encode_hosted_write_byte_i32_from_w9,
+        encode_linux_read_byte_to_stack, encode_linux_write_line_literal,
+    };
 
     #[test]
     fn hosted_exit_process_uses_exact_darwin_trap_abi() {

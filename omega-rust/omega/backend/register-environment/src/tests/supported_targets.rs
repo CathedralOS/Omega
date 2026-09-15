@@ -1,3 +1,4 @@
+use super::super::baseline_target_register_environment;
 use isa_aarch64::{
     AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COPY_I64, AARCH64_SUBTRACT_I64,
 };
@@ -6,8 +7,6 @@ use isa_x86_64::{
     X86_64_MICROSOFT_CALL_UNIT, X86_64_STORE64, X86_64_SUBTRACT_I64,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
-
-use super::super::*;
 
 #[test]
 fn every_supported_native_target_builds_a_matching_closed_environment() {

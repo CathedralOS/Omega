@@ -122,7 +122,10 @@ fn xmm_index(register: MachineRegister, role: &str, instruction: &str) -> Result
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        DecodedScalarFmaFormat, DecodedVfmadd132Scalar, MachineRegister, decode_vfmadd132_scalar,
+        encode_vfmadd132sd, encode_vfmadd132ss,
+    };
 
     #[test]
     fn encodes_canonical_low_register_scalar_fma3_forms() {

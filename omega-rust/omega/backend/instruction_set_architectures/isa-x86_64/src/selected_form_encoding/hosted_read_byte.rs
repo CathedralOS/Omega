@@ -1,5 +1,8 @@
 //! Hosted read-one-byte leaf: caller frame storage, no hidden stack adjustment.
-use super::*;
+use super::{
+    RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
+};
 use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
 
@@ -159,7 +162,13 @@ pub fn decode_x86_64_selected_hosted_read_byte(bytes: &[u8]) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
+        MachineEncodedStackEffect, MachineSemanticKind, SelectedInstructionKind,
+        decode_x86_64_selected_hosted_read_byte, effects,
+        encode_x86_64_selected_hosted_read_byte_form,
+        validate_x86_64_selected_hosted_read_byte_form,
+    };
     use semantic_vocabulary::{OperationId, PlaceId};
 
     #[test]

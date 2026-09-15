@@ -336,7 +336,10 @@ pub fn verify_target_required_root_slot_closure(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        EntryStubId, TargetProfile, TargetRequiredRootSlotSelection,
+        verify_target_required_root_slot_closure,
+    };
 
     fn entry(identity: u64) -> EntryStubId {
         EntryStubId::from_normalized_identity(identity).expect("entry identity")

@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineId, NativeTarget,
+    SelectedInstructionKind, X86_64ScalarCallTemplateError,
+    encode_x86_64_selected_scalar_call_template, expected_effects,
+    validate_x86_64_selected_scalar_call_template, x86_64_physical_register_model,
+    x86_64_register_constraint_catalog,
+};
 use register_model::validate_physical_register_model;
 
 #[test]

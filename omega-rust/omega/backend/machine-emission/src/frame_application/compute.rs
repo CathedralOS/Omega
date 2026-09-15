@@ -333,6 +333,11 @@ mod branch_tests;
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        FrameApplicationError, FunctionFragment, FunctionFragmentControlProvenance,
+        FunctionFragmentEmissionPlan, FunctionFragmentInternalMachineFixup,
+        TargetFrameProtocolEncodingPlan, apply,
+    };
     use machine_code::{
         FunctionFragmentBlockSpan, FunctionFragmentInstructionSpan,
         FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
@@ -358,8 +363,6 @@ mod tests {
         TargetFrameProtocolEncodingPolicy,
     };
     use machine_code::TargetFrameLayoutIdentity;
-
-    use super::*;
 
     pub(super) fn source_plan() -> FunctionFragmentEmissionPlan {
         let machine = MachineId::new(1).unwrap();

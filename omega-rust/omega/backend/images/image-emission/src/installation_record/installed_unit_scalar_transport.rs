@@ -1151,13 +1151,15 @@ fn installed_zero_code_store_source_is_consistent(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        InstalledFunction, NativeTarget, installed_forwarded_dynamic_scalar_result_is_canonical,
+        scalar_home_shape,
+    };
     use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
     use machine_code::{ForeignCallScalarResultRecord, UnitScalarHomeRecord};
     use semantic_vocabulary::{
         IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType, ValueId,
     };
-
-    use super::*;
 
     fn forwarded_result_fixture(
         scalar_type: ScalarType,

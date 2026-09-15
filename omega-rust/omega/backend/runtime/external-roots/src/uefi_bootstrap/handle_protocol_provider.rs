@@ -681,7 +681,19 @@ impl<'system_table> UefiApplicationFirmwareLedger<'system_table> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundUefiHandleProtocolInvocation, ExternalRootDiagnostic,
+        LifecycleScopedUefiBootServicesProjection, MachineRegister, NonZeroU64, TargetProfile,
+        UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiApplicationFirmwareLedger,
+        UefiBootServicesTableOccurrenceId, UefiHandleProtocolExecutionStatus,
+        UefiHandleProtocolInterfaceOutputSlot, UefiImageHandleOccurrenceId,
+        UefiPhysicalInvocationId, UefiProtocolGuid,
+        admit_uefi_loaded_image_handle_protocol_execution,
+        bind_uefi_loaded_image_handle_protocol_invocation,
+        execute_uefi_loaded_image_handle_protocol,
+        join_lifecycle_scoped_uefi_handle_protocol_provider, plan_uefi_boot_services_native_layout,
+        prepare_uefi_loaded_image_handle_protocol_invocation,
+    };
     use crate::{
         UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
         UefiSystemTableOccurrenceId, join_lifecycle_scoped_uefi_system_table,

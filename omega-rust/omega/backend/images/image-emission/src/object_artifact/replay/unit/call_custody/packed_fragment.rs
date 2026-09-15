@@ -120,7 +120,7 @@ pub(super) fn aarch64_store(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{aarch64_load, aarch64_store, is_packed, x86_load, x86_store};
 
     #[test]
     fn packed_three_byte_fragments_replay_exact_accesses_and_shifts() {

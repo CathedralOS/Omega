@@ -578,7 +578,15 @@ impl Cursor<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        NativeTarget, X86_64SemanticUnitWrapperEncodingError,
+        X86_64SemanticUnitWrapperEncodingRequest, X86_64SemanticUnitWrapperResolutionError,
+        canonical_x86_64_semantic_unit_wrapper_encoding_request,
+        encode_x86_64_semantic_unit_wrapper_template, expected_footprint, expected_relocation,
+        resolve_x86_64_semantic_unit_wrapper_private_continuation,
+        validate_x86_64_resolved_semantic_unit_wrapper,
+        validate_x86_64_semantic_unit_wrapper_template,
+    };
 
     fn request() -> X86_64SemanticUnitWrapperEncodingRequest {
         canonical_x86_64_semantic_unit_wrapper_encoding_request(NativeTarget::uefi_x64())

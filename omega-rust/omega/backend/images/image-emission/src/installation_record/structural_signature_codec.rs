@@ -94,7 +94,10 @@ pub(super) fn decode_structural_result(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        InstallationError, PlaceId, Reader, StructuralResultDeclaration, StructuralTypeId,
+        decode_structural_result, encode_structural_result,
+    };
     use terminal_psi::{
         StructuralAccess, StructuralArgument, StructuralMultiplicity,
         StructuralReferenceResultSource,

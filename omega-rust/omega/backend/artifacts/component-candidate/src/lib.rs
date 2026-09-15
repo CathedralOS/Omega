@@ -206,7 +206,10 @@ fn validate_selected_provider_closure(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
+        validate_selected_provider_closure,
+    };
     use effects::SelectedProviderPlanFacts;
     use effects::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,

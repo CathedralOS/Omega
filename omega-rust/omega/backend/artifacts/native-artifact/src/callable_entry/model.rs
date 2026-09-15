@@ -1,7 +1,19 @@
 //! Callable-entry records, manifests, custody, and errors.
 
 use super::codec::*;
-use super::*;
+use super::{
+    CallingPolicy, EdgeId, MANIFEST_MAGIC, MachineId, MachineRegister, NativeTarget,
+    ObjectLocalSymbolId, OptimizationSelectionIdentity, OptimizedObjectArtifactError,
+    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
+    OptimizedOrdinaryCallableEntryManifestIdentity, OptimizedTerminalOrdinaryCallableEntryIdentity,
+    PhysicalRegisterModelIdentity, RECORD_MAGIC, RegisterClassId, RegisterHomeIdentity,
+    RegisterUnitId, RegisterViewId, RelocationFreeObjectContainerIdentity,
+    RelocationFreeObjectPlanIdentity, ScalarType, SelectedInstructionId,
+    SelectedInstructionPlanIdentity, StagedValidatedOptimizedObjectArtifact, TerminalPsiIdentity,
+    VERSION, ValueDeclaration, ValueId, ValueShape, VirtualRegisterId,
+    WholeFunctionEntryAssumption, WholeFunctionExitContractIdentity, WholeFunctionExitPolicy,
+    WholeFunctionHardeningPolicy,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedOrdinaryCallableEntryStage {

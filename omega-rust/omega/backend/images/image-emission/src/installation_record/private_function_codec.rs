@@ -121,12 +121,15 @@ pub(super) fn decode_private_functions(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        InstallationError, InstalledCompilerPrivateFunction, MachineFunctionIdentity, MachineId,
+        Reader, SemanticFingerprint, StateKey, SymbolHandle, TerminalPsiIdentity, VocabularyMarker,
+        decode_private_functions, encode_private_functions,
+    };
     use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
     use semantic_vocabulary::{IntegerSign, IntegerType, ValueId};
     use target::NativeTarget;
     use target_operations::{ScalarAbiValue, ScalarFunctionAbi};
-
-    use super::*;
 
     fn private_function() -> InstalledCompilerPrivateFunction {
         let target = NativeTarget::windows_x64();

@@ -274,7 +274,11 @@ fn signature_for_boundary(plan: &BoundaryEntryPlan) -> CallSignature {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Arc, BoundNominalCallbackPlacement, CallbackRootSchedule, MachineFunctionIdentity,
+        StateKey, canonical_callback_private_symbol, plan_callback_root_schedule,
+        replay_callback_root_schedule,
+    };
     use calling_conventions::{
         CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValueShape,
     };

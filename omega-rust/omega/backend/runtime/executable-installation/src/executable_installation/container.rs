@@ -1,5 +1,13 @@
-use super::*;
+use sha2::Digest;
 
+use super::{
+    AdmissionReceiptId, AdmittedArtifact, Architecture, Artifact, ArtifactAdmissionEvidence,
+    ArtifactAuthorityCommitments, ArtifactContentDigest, ArtifactEntry, ArtifactId, EntrySetId,
+    InstallationDiagnostic, MachineContractSetId, MachineFootprintId,
+    NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
+    PlacementConstraints, PlacementPlanId, ProofPayloadDigest, RelocationSetId, RelocationTarget,
+    RetainedContainerProof, Sha256, admit_executable,
+};
 pub const OMEGA_EXECUTABLE_CONTAINER_V1_MARKER: u16 = u16::from_le_bytes(*b"OX");
 pub const OMEGA_EXECUTABLE_CONTAINER_V2_MARKER: u16 = u16::from_le_bytes(*b"O2");
 pub const OMEGA_EXECUTABLE_CONTAINER_MARKER: u16 = OMEGA_EXECUTABLE_CONTAINER_V2_MARKER;
@@ -859,7 +867,18 @@ fn require_identity<T: Copy + PartialEq>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::EntryStubId;
+    use super::{
+        AdmissionReceiptId, Architecture, ArtifactAuthorityCommitments, ArtifactEntry, ArtifactId,
+        ArtifactRelocationKind, ContainerLimits, ContainerSection, ContainerSectionKind,
+        DecodedArtifactContainer, DecodedArtifactRelocation, EntrySetId, InstallationDiagnostic,
+        MachineContractSetId, MachineFootprintId, NonAuthoritativeContainerFingerprint64,
+        NonAuthoritativeInformationalFingerprint64, OMEGA_EXECUTABLE_CONTAINER_MARKER,
+        PlacementConstraints, PlacementPlanId, RelocationSetId, RelocationTarget,
+        ValidatedContainerAdmissionEvidence, admit_validated_container,
+        non_authoritative_decoded_container_fingerprint, normalized_decoded_content_digest,
+        normalized_proof_payload_digest, validate_decoded_container,
+    };
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, InstallationDiagnostic>) -> T {
         constructor(identity).expect("normalized identity")

@@ -696,14 +696,23 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
 
 #[cfg(test)]
 mod tests {
-    use register_model::validate_physical_register_model;
-
-    use super::*;
+    use super::{
+        Architecture, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
+        MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedEffects,
+        MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+        MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, NativeTarget, ObjectFormat,
+        ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
+        X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
+        X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+        X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
+        x86_64_machine_effect_catalog, x86_64_system_v_register_call_keys,
+    };
     use crate::{
         X86_64RegisterConstraintCatalogValidationError,
         validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
         x86_64_register_constraint_catalog,
     };
+    use register_model::validate_physical_register_model;
 
     fn constraints() -> ValidatedRegisterConstraintCatalog {
         let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();

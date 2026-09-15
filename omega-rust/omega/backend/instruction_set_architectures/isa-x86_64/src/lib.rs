@@ -291,7 +291,10 @@ pub use register_model::{x86_64_float_scalar_call_keys, x86_64_float_scalar_retu
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        encode_hosted_exit_process_i32, encode_hosted_write_byte_i32_from_r11,
+        encode_linux_read_byte_to_stack, encode_linux_write_line_literal,
+    };
 
     #[test]
     fn linux_exit_and_write_literal_keep_exact_bytes() {

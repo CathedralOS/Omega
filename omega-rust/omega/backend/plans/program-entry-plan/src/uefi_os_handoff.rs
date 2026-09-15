@@ -504,7 +504,13 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        EFI_BUFFER_TOO_SMALL_CODE, EFI_INVALID_PARAMETER_CODE, EFI_STATUS_ERROR_BIT,
+        EFI_SUCCESS_CODE, TargetProfile, UefiBootServicesNativeField, UefiOsHandoffInvocationPlan,
+        UefiOsHandoffStatusRole, plan_uefi_boot_services_native_layout,
+        plan_uefi_os_handoff_invocation, uefi_os_handoff_exhaustion_requires_error,
+        validate_candidate,
+    };
 
     fn exact_plan() -> UefiOsHandoffInvocationPlan {
         plan_uefi_os_handoff_invocation(TargetProfile::UefiX64).unwrap()

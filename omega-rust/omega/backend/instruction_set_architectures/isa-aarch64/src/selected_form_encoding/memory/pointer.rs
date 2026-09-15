@@ -1,6 +1,12 @@
 //! Pointer stores and constant address offsets with independent instruction replay.
-use super::*;
 
+use super::{
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
+    ValidatedPhysicalRegisterModel, aarch64_physical_register_model, resolve_registers,
+};
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,

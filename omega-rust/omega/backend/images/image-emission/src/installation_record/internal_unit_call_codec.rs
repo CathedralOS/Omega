@@ -776,7 +776,14 @@ fn decode_structural_result(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BlockId, InstallationError, InternalStructuralCallResult,
+        InternalUnitStructuralArgumentSourceRecord, MachineId, OperationId, PlaceId, Reader,
+        StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+        StructuralResultDeclaration, StructuralTypeId, decode_structural_result,
+        decode_structural_source, encode_direct_placement, encode_structural_result,
+        encode_structural_source, push_u64,
+    };
 
     #[test]
     fn structural_sources_keep_established_producers_distinct_from_abi_placements() {

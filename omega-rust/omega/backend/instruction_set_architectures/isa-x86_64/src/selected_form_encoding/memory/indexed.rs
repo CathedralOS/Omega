@@ -1,6 +1,12 @@
 //! MOVZX r64, byte [base + index], with full-width runtime indexing.
-use super::*;
 
+use super::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, RegisterViewId, ValidatedPhysicalRegisterModel,
+    ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
+    X86_64SelectedFormFootprint, modrm, resolve_registers, rex,
+};
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -110,7 +116,11 @@ fn request(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{
+        SelectedInstructionKind, encode_x86_64_selected_memory_form,
+        validate_x86_64_selected_memory_form,
+    };
+    use super::{MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect};
 
     #[test]
     fn indexed_byte_load_decodes_every_bit_and_operand_role() {

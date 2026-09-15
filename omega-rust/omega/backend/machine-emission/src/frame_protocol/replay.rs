@@ -131,7 +131,7 @@ fn validate_span(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{FrameProtocolByteSpan, validate_span};
 
     #[test]
     fn span_replay_rejects_padding_aliases_truncation_and_substituted_bytes() {

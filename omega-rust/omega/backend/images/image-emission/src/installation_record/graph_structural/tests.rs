@@ -1,7 +1,7 @@
 //! Canonical structural ABI and pointer-home rosters at installation.
 use super::super::borrowed_structural;
 use super::super::resource_tests::installed_function_with_unit_call;
-use super::*;
+use super::{CallSignature, CallingPolicy, StructuralMultiplicity, evaluate_call_plan};
 use calling_conventions::{MachineRegister, ValueShape};
 use semantic_vocabulary::{PlaceId, StructuralTypeId, ValueId};
 use target::NativeTarget;

@@ -1,4 +1,4 @@
-use super::*;
+use super::{AbstractOperation, ieee_literal_retained, requires_graph_storage_replay};
 use semantic_vocabulary::{IeeeFloatValue, OperationId, ValueId};
 use target_operations::TargetUnitOperation;
 
