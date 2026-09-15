@@ -135,6 +135,7 @@ fn nested_index_traversal_checks_each_collection_extent() {
             &checked_trees::FlowFacts::default(),
             frames.as_ref(),
             &incoming,
+            &crate::flow::StateMutationSummaryCache::default(),
         );
         assert_eq!(checked.is_ok(), accepted, "{access}: {checked:?}");
     }

@@ -254,13 +254,13 @@ pub(crate) fn plan_reborrow_restored_call_uses(
     installation: &[ParentResourceIndex],
     dispositions: &[CheckedReborrowDispositionEventDraft],
     containments: &[CheckedReborrowContainmentCertificateDraft],
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<Vec<CheckedReborrowRestoredCallUseCertificateDraft>, Vec<Diagnostic>> {
     if installation.len() != reborrows.len() {
         return Err(reborrow_restored_call_use_drift());
     }
 
     let mut certificates = Vec::new();
-    let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
     for (child_index, child) in reborrows.iter().enumerate() {
         let ParentResourceIndex::Direct(parent_index) = installation[child_index] else {
             continue;
@@ -576,7 +576,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             child.state_symbol,
             borrow,
             borrow_call,
-            &mutation_summaries,
+            mutation_summaries,
         );
         let [mutated_place] = mutated_places.as_slice() else {
             continue;

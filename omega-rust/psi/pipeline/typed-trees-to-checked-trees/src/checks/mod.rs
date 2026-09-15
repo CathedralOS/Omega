@@ -36,22 +36,45 @@ pub(crate) fn check_unretained_borrow_fixture_facts(
     facts: &checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut scratch = facts.clone();
-    borrows::initialize_checked_direct_borrow_resources(program, &mut scratch)?;
+    borrows::initialize_checked_direct_borrow_resources(
+        program,
+        &mut scratch,
+        &crate::flow::StateMutationSummaryCache::default(),
+    )?;
     check_checked_facts_recording(program, &mut scratch)
 }
 
 pub(crate) fn initialize_checked_direct_borrow_resources(
     program: &typed_trees::TypedTrees,
     facts: &mut checked_trees::CheckFacts,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
-    borrows::initialize_checked_direct_borrow_resources(program, facts)
+    borrows::initialize_checked_direct_borrow_resources(program, facts, mutation_summaries)
 }
 
+#[cfg(test)]
 pub(crate) fn check_checked_facts_recording(
     program: &typed_trees::TypedTrees,
     facts: &mut checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    check_checked_facts_recording_with_crash_admission(program, facts, true)
+    check_checked_facts_recording_with_crash_admission(
+        program,
+        facts,
+        true,
+        &crate::flow::StateMutationSummaryCache::default(),
+    )
+}
+
+/// Check-stage entry for callers that already retain the pass's shared
+/// mutation summary table. The summaries depend only on the immutable typed
+/// program and the borrow facts, so the same table answers fact construction,
+/// resource replay, borrow statements, and range indexing in one check pass.
+pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
+    program: &typed_trees::TypedTrees,
+    facts: &mut checked_trees::CheckFacts,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
+) -> Result<(), Vec<Diagnostic>> {
+    check_checked_facts_recording_with_crash_admission(program, facts, true, mutation_summaries)
 }
 
 #[cfg(test)]
@@ -59,13 +82,19 @@ pub(crate) fn check_checked_facts_recording_without_crash_admission(
     program: &typed_trees::TypedTrees,
     facts: &mut checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    check_checked_facts_recording_with_crash_admission(program, facts, false)
+    check_checked_facts_recording_with_crash_admission(
+        program,
+        facts,
+        false,
+        &crate::flow::StateMutationSummaryCache::default(),
+    )
 }
 
 fn check_checked_facts_recording_with_crash_admission(
     program: &typed_trees::TypedTrees,
     facts: &mut checked_trees::CheckFacts,
     enforce_crash_admission: bool,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let call_frames = validation::CallFrameResolver::new(program);
@@ -76,7 +105,9 @@ fn check_checked_facts_recording_with_crash_admission(
         diagnostics.append(&mut evidence_diagnostics);
     }
 
-    if let Err(mut borrow_diagnostics) = borrows::check_flow_call_borrows(program, facts) {
+    if let Err(mut borrow_diagnostics) =
+        borrows::check_flow_call_borrows(program, facts, mutation_summaries)
+    {
         diagnostics.append(&mut borrow_diagnostics);
     }
 
@@ -131,6 +162,7 @@ fn check_checked_facts_recording_with_crash_admission(
         &facts.flow,
         call_frames.as_ref(),
         &incoming_guards,
+        mutation_summaries,
     ) {
         diagnostics.append(&mut range_diagnostics);
     }

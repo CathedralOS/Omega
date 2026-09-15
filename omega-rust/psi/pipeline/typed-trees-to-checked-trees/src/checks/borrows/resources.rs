@@ -40,6 +40,7 @@ use diagnostics::Diagnostic;
 pub(super) fn initialize_checked_direct_borrow_resources(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     replay_checked_direct_reborrow_lineage(program, &facts.borrow)?;
     let direct = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
@@ -57,6 +58,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
         &installation,
         &dispositions,
         &containments,
+        mutation_summaries,
     )?;
     install_borrow_resources(
         &mut facts.borrow,
@@ -76,6 +78,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
 pub(super) fn replay_checked_direct_borrow_resources(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     replay_checked_direct_reborrow_lineage(program, &facts.borrow)?;
     let expected_direct = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
@@ -125,6 +128,7 @@ pub(super) fn replay_checked_direct_borrow_resources(
         &installation,
         &dispositions,
         &containments,
+        mutation_summaries,
     )?;
     validate_retained_restored_call_uses(
         &facts.borrow,

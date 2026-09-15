@@ -103,6 +103,7 @@ pub(crate) fn build_check_facts(
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     validation_facts: &validation::ProgramValidationFacts,
     nominal_machine_uses: Vec<validation::ValidatedNominalMachineUse>,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<CheckFacts, Vec<diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
     let mut values = build_value_facts(program, proof_plan);
@@ -145,6 +146,7 @@ pub(crate) fn build_check_facts(
         &values.scalar_expressions,
         &operators,
         &validation_facts.exact_integer_casts,
+        mutation_summaries,
     );
     crate::facts::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
     crate::values::retain_nested_structural_call_arguments(

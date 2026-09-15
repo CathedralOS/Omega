@@ -109,6 +109,12 @@ fn check_program(
         opaque_property_receipts,
         mode.allows_pending_opaque_copy(),
     )?;
+    // Caller-visible mutation summaries depend only on the immutable typed
+    // program and the borrow facts assembled once here. Fact construction, the
+    // direct-borrow resource closures, and the independent check replay all
+    // query the same (program, borrow) pair, so one lazily-filled table serves
+    // the whole check pass instead of each consumer rebuilding it.
+    let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
     let mut facts = build_check_facts(
         &program,
         &validated.proof_plan,
@@ -116,8 +122,9 @@ fn check_program(
         validated.service_reaches,
         &validated.validation_facts,
         nominal_machine_uses,
+        &mutation_summaries,
     )?;
-    checks::initialize_checked_direct_borrow_resources(&program, &mut facts)?;
+    checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
 
     // MP5: specialization selection happens before checked contract plans
     // exist. Bind the selected machines' normalized contract identities now,
@@ -132,7 +139,11 @@ fn check_program(
         CheckingMode::Complete
         | CheckingMode::PreliminaryPackage
         | CheckingMode::SettledPackage => {
-            checks::check_checked_facts_recording(&program, &mut facts)?;
+            checks::check_checked_facts_recording_with_mutation_summaries(
+                &program,
+                &mut facts,
+                &mutation_summaries,
+            )?;
         }
         #[cfg(test)]
         CheckingMode::CrashFactInspection => {

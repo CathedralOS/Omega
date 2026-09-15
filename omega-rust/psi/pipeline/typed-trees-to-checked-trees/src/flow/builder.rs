@@ -32,6 +32,7 @@ pub(crate) fn build_flow_facts(
     operational: &flow_effects::OperationalPlan,
 ) -> FlowFacts {
     let service_reaches = validation::infer_service_reaches(program, operational);
+    let state_mutation_summary_cache = StateMutationSummaryCache::default();
     build_flow_facts_with_service_reaches(
         program,
         borrow,
@@ -43,6 +44,7 @@ pub(crate) fn build_flow_facts(
         &Default::default(),
         &Default::default(),
         &[],
+        &state_mutation_summary_cache,
     )
 }
 
@@ -58,6 +60,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    state_mutation_summary_cache: &StateMutationSummaryCache,
 ) -> FlowFacts {
     #[cfg(test)]
     if tests::WHOLE_PASS_REFERENCE.get() {
@@ -97,8 +100,8 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     let call_frames = validation::CallFrameResolver::new(program);
     // These summaries use only program and borrow facts, neither of which
     // changes with the incoming value inputs. Keep first-demand construction
-    // lazy, and never carry this table into another flow-build invocation.
-    let state_mutation_summary_cache = StateMutationSummaryCache::default();
+    // lazy; the check pass owns the table so later consumers reuse it rather
+    // than rebuilding identical rows.
     let mut ctx = FlowBuildContext::new(
         borrow,
         proof,
@@ -107,7 +110,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         operators,
         exact_integer_casts,
         call_frames.as_ref(),
-        &state_mutation_summary_cache,
+        state_mutation_summary_cache,
     );
     let mut complete_pass = true;
     // Each state becomes reachable once; each formal can acquire a constant
