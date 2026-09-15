@@ -29,8 +29,11 @@ pub use validate::validate_literal_fold;
 /// exact-add, at the right operand of exact-subtract/compare, at the index
 /// operand of the indexed byte load, or at the offset operand of the
 /// byte-view address projection into the matching immediate or
-/// constant-offset form, or an unsigned 64-bit literal through a unary
-/// extension or copy into a direct `MaterializeI64`.
+/// constant-offset form, an unsigned 64-bit literal through a unary
+/// extension or copy into a direct `MaterializeI64`, or the literal `1` at
+/// the divisor operand of an unsigned exact divide into a `CopyI64` of the
+/// dividend — the divide-by-one identity that discharges the consumer's
+/// encoded fault surface and drops its zeroed auxiliary `Use` operands.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

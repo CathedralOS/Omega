@@ -20,12 +20,18 @@
 //! consumer's right `Use` operand, a commutative binary consumer's left
 //! `Use` operand, or a unary consumer's sole `Use` operand. Beyond the
 //! isolated machine-effect surface, [`PairMachineEffects::IndexedPointerReadFold`]
-//! declares the first non-isolated relationship: a consumer that reads memory
-//! through the folded index and a rewritten form that reads the same bytes
-//! through a materialized byte offset. When a rule needs shape data beyond
-//! those — a further non-isolated effect relationship or further operand
-//! roles — extend this struct rather than re-inlining kind matches in
-//! compute.
+//! declares the first non-isolated relationship — a consumer that reads
+//! memory through the folded index and a rewritten form that reads the same
+//! bytes through a materialized byte offset — and
+//! [`PairMachineEffects::FaultDischargedByLiteral`] declares the first
+//! trap-carrying one: a consumer whose encoded alternatives may
+//! architecturally fault, where the folded literal is exactly the value
+//! that makes the fault unreachable. The immediate bound carries whether
+//! any literal up to an encoding limit is admitted or the fold's
+//! correctness requires one exact literal value. When a rule needs shape
+//! data beyond those — a further non-isolated effect relationship or
+//! further operand roles — extend this struct rather than re-inlining kind
+//! matches in compute.
 
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandConstraint,
@@ -78,6 +84,17 @@ pub enum PairUnitEffects {
     /// scratch-clobbering realization — declares a new variant instead of
     /// weakening this one.
     Isolated,
+    /// The rewritten row stays as under [`Isolated`](Self::Isolated), but
+    /// the admitted consumer's operands may carry `fixed_view` bindings —
+    /// the register pins a pinned-operand form such as the x86-64 `div`
+    /// realization requires. The rewrite rebuilds the operand list from
+    /// the unpinned rewritten row, so every pin the folded form needed is
+    /// deliberately discarded with it: a surviving operand's register
+    /// keeps its other uses' own constraints and gains strictly more
+    /// allocation freedom, and a dropped operand's pin dies with the
+    /// operand. `tied_to` and `early_clobber` still reject — neither has a
+    /// carried meaning once the operand list is rebuilt.
+    BoundConsumerOperands,
 }
 
 impl PairUnitEffects {
@@ -86,35 +103,47 @@ impl PairUnitEffects {
     /// channel and stay under `PairResultDisposition`.
     pub fn admits_row_units(self, row: &RegisterInstructionConstraint) -> bool {
         match self {
-            Self::Isolated => row.implicit_uses.is_empty() && row.clobbers.is_empty(),
+            Self::Isolated | Self::BoundConsumerOperands => {
+                row.implicit_uses.is_empty() && row.clobbers.is_empty()
+            }
         }
     }
 
     /// Whether one constraint-row operand carries no unit binding.
     pub fn admits_operand(self, operand: &RegisterOperandConstraint) -> bool {
         match self {
-            Self::Isolated => {
+            Self::Isolated | Self::BoundConsumerOperands => {
                 operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
             }
         }
     }
 
-    /// Whether the admitted consumer's operands carry no unit bindings the
-    /// wholesale rebuild from the constraint row would silently drop.
+    /// Whether the admitted consumer's operand unit bindings survive the
+    /// wholesale rebuild from the constraint row. Under
+    /// [`Isolated`](Self::Isolated) no operand may carry a binding; under
+    /// [`BoundConsumerOperands`](Self::BoundConsumerOperands) a `fixed_view`
+    /// pin is admitted because the rewrite deliberately drops it with the
+    /// pinned form.
     pub fn admits_consumer(self, consumer: &SelectedInstruction) -> bool {
         match self {
             Self::Isolated => consumer.operands.iter().all(|operand| {
                 operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
             }),
+            Self::BoundConsumerOperands => consumer
+                .operands
+                .iter()
+                .all(|operand| operand.tied_to.is_none() && !operand.early_clobber),
         }
     }
 
     /// Whether the eliminated producer's instruction record carries no unit
     /// traffic — implicit uses, definitions, clobbers, or operand bindings —
-    /// that removing the instruction would silently drop.
+    /// that removing the instruction would silently drop. The requirement is
+    /// the same under every variant: the eliminated instruction never
+    /// survives in any form.
     pub fn admits_producer(self, producer: &SelectedInstruction) -> bool {
         match self {
-            Self::Isolated => {
+            Self::Isolated | Self::BoundConsumerOperands => {
                 producer.implicit_uses.is_empty()
                     && producer.implicit_defs.is_empty()
                     && producer.clobbers.is_empty()
@@ -184,6 +213,25 @@ pub enum PairMachineEffects {
         /// The consumer operand position carrying the folded index register.
         index_operand: u16,
     },
+    /// The consumer may architecturally fault — its encoded alternatives
+    /// carry `MayArchitecturalFaultV1` — and the folded literal is exactly
+    /// the value that makes every such fault unreachable. Declaring this
+    /// surface attests that the rewrite replaces the consumer's trap
+    /// surface wholesale because the admitted immediate discharges it:
+    /// `EXACT_DIVIDE_ONE_COPY` folds a divisor of one, under which an
+    /// unsigned divide can neither divide by zero nor overflow — provided
+    /// the auxiliary `Use` operands the shape drops are provably zero, the
+    /// operand-shape contract's own requirement. The eliminated producer
+    /// stays effect-isolated, as under [`Isolated`](Self::Isolated). The
+    /// consumer declaration must be non-unit isolated — no memory, hosted
+    /// trap, barrier, call, or cleanup surface — with alternatives that
+    /// touch no memory, leave the stack unchanged, fall through, carry no
+    /// implicit uses, define no unit the rewritten form does not also
+    /// define, and encode only `NeverV1` or `MayArchitecturalFaultV1` trap
+    /// behavior; clobbers are unrestricted since dropping them only
+    /// narrows what may be destroyed. The rewritten form is fully
+    /// effect-isolated.
+    FaultDischargedByLiteral,
 }
 
 impl PairMachineEffects {
@@ -193,7 +241,9 @@ impl PairMachineEffects {
     /// drop nothing machine-visible.
     pub fn admits_producer(self, declaration: &MachineEffectDeclaration) -> bool {
         match self {
-            Self::Isolated | Self::IndexedPointerReadFold { .. } => {
+            Self::Isolated
+            | Self::IndexedPointerReadFold { .. }
+            | Self::FaultDischargedByLiteral => {
                 isolated_declaration(declaration)
                     && declaration.alternatives.iter().all(|alternative| {
                         isolated_alternative(alternative)
@@ -215,7 +265,11 @@ impl PairMachineEffects {
     /// is the indexed pointer read: the two declarations share the same
     /// non-unit surface, and every consumer alternative's encoded indexed
     /// read at the folded operand position is matched by every rewritten
-    /// alternative's direct read over the same pointer and byte count.
+    /// alternative's direct read over the same pointer and byte count. For
+    /// [`FaultDischargedByLiteral`](Self::FaultDischargedByLiteral) the
+    /// consumer keeps the isolated non-unit surface but may encode an
+    /// architectural fault: the admitted literal is the value that
+    /// discharges it.
     pub fn admits_consumer(
         self,
         declaration: &MachineEffectDeclaration,
@@ -247,6 +301,17 @@ impl PairMachineEffects {
                         })
                     })
             }
+            // The consumer keeps the isolated non-unit declaration surface
+            // but may encode an architectural fault the literal discharges;
+            // every other encoded dimension is the isolated contract.
+            Self::FaultDischargedByLiteral => {
+                isolated_declaration(declaration)
+                    && declaration.alternatives.iter().all(|alternative| {
+                        fault_discharged_alternative(alternative)
+                            && alternative.encoded.implicit_unit_uses.is_empty()
+                            && implicit_defs_covered(alternative, rewritten)
+                    })
+            }
         }
     }
 
@@ -256,7 +321,10 @@ impl PairMachineEffects {
     /// its result channel; [`IndexedPointerReadFold`](Self::IndexedPointerReadFold)
     /// requires the plain pointer-read form whose alternatives all read
     /// memory through a pointer operand and byte offset, fall through, leave
-    /// the stack unchanged, and declare no implicit uses or clobbers.
+    /// the stack unchanged, and declare no implicit uses or clobbers;
+    /// [`FaultDischargedByLiteral`](Self::FaultDischargedByLiteral) requires
+    /// the same fully isolated surface as [`Isolated`](Self::Isolated)
+    /// because the consumer's fault does not survive the fold.
     pub fn admits_rewritten(self, declaration: &MachineEffectDeclaration) -> bool {
         match self {
             Self::Isolated => {
@@ -276,6 +344,16 @@ impl PairMachineEffects {
                         ) && alternative.encoded.stack == MachineEncodedStackEffect::UnchangedV1
                             && alternative.encoded.control
                                 == MachineEncodedControlEffect::FallThroughV1
+                            && alternative.encoded.implicit_unit_uses.is_empty()
+                            && alternative.encoded.implicit_unit_clobbers.is_empty()
+                    })
+            }
+            // The folded form is fully isolated: the discharged fault does
+            // not reappear anywhere in the rewrite.
+            Self::FaultDischargedByLiteral => {
+                isolated_declaration(declaration)
+                    && declaration.alternatives.iter().all(|alternative| {
+                        isolated_alternative(alternative)
                             && alternative.encoded.implicit_unit_uses.is_empty()
                             && alternative.encoded.implicit_unit_clobbers.is_empty()
                     })
@@ -362,6 +440,22 @@ fn isolated_alternative(alternative: &MachineAlternative) -> bool {
         && encoded.control == MachineEncodedControlEffect::FallThroughV1
 }
 
+/// The encoded surface a fault-discharging fold's consumer may carry: the
+/// isolated contract except that `MayArchitecturalFaultV1` is admitted —
+/// the folded literal is the value that makes the fault unreachable, so the
+/// rewrite may retire it wholesale.
+fn fault_discharged_alternative(alternative: &MachineAlternative) -> bool {
+    let encoded = &alternative.encoded;
+    encoded.memory == MachineEncodedMemoryEffect::NoneV1
+        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+        && matches!(
+            encoded.trap,
+            MachineEncodedTrapBehavior::NeverV1
+                | MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        )
+        && encoded.control == MachineEncodedControlEffect::FallThroughV1
+}
+
 /// Where the folded literal sits in the consumer's operand list, and therefore
 /// what shape the rewritten constraint row carries.
 ///
@@ -390,6 +484,30 @@ pub enum PairOperandShape {
     /// extension-elimination and copy-materialization rules whose rewritten
     /// form is a `MaterializeI64`.
     UnaryLiteral,
+    /// Binary right-literal consumer whose operand list continues past its
+    /// scalar `Def` result: the literal victim is the operand-1 `Use`,
+    /// operand 0 is the surviving `Use`, operand 2 is the `Def` result, and
+    /// every operand past the result must be a `Use` the fold drops.
+    /// Declaring this shape attests each dropped operand is semantically
+    /// inert once the literal folds: its register must be defined in the
+    /// same function only by `MaterializeI64` instructions producing
+    /// `Unsigned(0)` — the zeroed high-half input an x86-64 `div`
+    /// realization requires, which a divide by one leaves dead. An operand
+    /// that is not a dropped `Use` — a `Def`, or any operand at position 0
+    /// through 2 outside this grammar — rejects.
+    BinaryRightLiteralAuxiliaryUses,
+}
+
+/// The literal values a pair's fold admits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairImmediateBound {
+    /// Any unsigned literal up to the encoding limit the rewritten form's
+    /// immediate field admits — the folded value only needs to fit.
+    Encoding(u64),
+    /// Exactly one literal value: the fold is an algebraic identity whose
+    /// correctness depends on the value itself — the divide-by-one divisor
+    /// — not merely on fitting an immediate field.
+    Exactly(u64),
 }
 
 /// The symbolic instruction triple, immediate bound, result channel,
@@ -401,7 +519,7 @@ pub struct SelectedInstructionPairRule {
     consumer: MachineSemanticKind,
     rewritten: MachineSemanticKind,
     operand_shape: PairOperandShape,
-    immediate_limit: u64,
+    immediate_bound: PairImmediateBound,
     result: PairResultDisposition,
     unit_effects: PairUnitEffects,
     machine_effects: PairMachineEffects,
@@ -413,7 +531,7 @@ impl SelectedInstructionPairRule {
         consumer: MachineSemanticKind::ExactAddI64,
         rewritten: MachineSemanticKind::ExactAddI64Immediate,
         operand_shape: PairOperandShape::BinaryRightLiteral,
-        immediate_limit: 4095,
+        immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
         machine_effects: PairMachineEffects::Isolated,
@@ -432,7 +550,7 @@ impl SelectedInstructionPairRule {
         consumer: MachineSemanticKind::ExactSubtractI64,
         rewritten: MachineSemanticKind::ExactSubtractI64Immediate,
         operand_shape: PairOperandShape::BinaryRightLiteral,
-        immediate_limit: 4095,
+        immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
         machine_effects: PairMachineEffects::Isolated,
@@ -442,7 +560,7 @@ impl SelectedInstructionPairRule {
         consumer: MachineSemanticKind::CompareI64,
         rewritten: MachineSemanticKind::CompareI64Immediate,
         operand_shape: PairOperandShape::BinaryRightLiteral,
-        immediate_limit: 4095,
+        immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ImplicitUnits,
         unit_effects: PairUnitEffects::Isolated,
         machine_effects: PairMachineEffects::Isolated,
@@ -460,7 +578,7 @@ impl SelectedInstructionPairRule {
         operand_shape: PairOperandShape::UnaryLiteral,
         // The folded value always encodes as a `MaterializeI64` constant; no
         // target immediate bound applies to the source literal itself.
-        immediate_limit: u64::MAX,
+        immediate_bound: PairImmediateBound::Encoding(u64::MAX),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
         machine_effects: PairMachineEffects::Isolated,
@@ -539,7 +657,7 @@ impl SelectedInstructionPairRule {
             consumer: MachineSemanticKind::Load8Indexed,
             rewritten: MachineSemanticKind::Load8,
             operand_shape: PairOperandShape::BinaryRightLiteral,
-            immediate_limit: 4095,
+            immediate_bound: PairImmediateBound::Encoding(4095),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
             machine_effects: PairMachineEffects::IndexedPointerReadFold { index_operand: 1 },
@@ -572,10 +690,50 @@ impl SelectedInstructionPairRule {
         consumer: MachineSemanticKind::ByteViewAddress,
         rewritten: MachineSemanticKind::AddressOffset,
         operand_shape: PairOperandShape::BinaryRightLiteral,
-        immediate_limit: 4095,
+        immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
         machine_effects: PairMachineEffects::Isolated,
+    };
+
+    /// Eliminate `MaterializeI64` feeding the divisor operand of
+    /// `ExactDivideU64` when the literal is exactly one: an unsigned divide
+    /// by one returns the dividend, so the rewrite is a `CopyI64` of the
+    /// surviving operand-0 register. The declared surface carries the
+    /// dimensions a `div` realization brings: the consumer may encode an
+    /// architectural fault — divide by zero or quotient overflow — which
+    /// the folded divisor of one discharges under
+    /// [`FaultDischargedByLiteral`](PairMachineEffects::FaultDischargedByLiteral),
+    /// its operands may carry the register pins the pinned-operand form
+    /// requires under
+    /// [`BoundConsumerOperands`](PairUnitEffects::BoundConsumerOperands),
+    /// and every `Use` operand past the operand-2 `Def` result — the
+    /// zeroed high-half scratch a realization like x86-64 `div` reads — is
+    /// dropped under
+    /// [`BinaryRightLiteralAuxiliaryUses`](PairOperandShape::BinaryRightLiteralAuxiliaryUses),
+    /// which requires each such register to be defined only by zero
+    /// materializations. Targets whose divide row carries no auxiliary
+    /// `Use` — aarch64's `udiv` — admit the same rule with an empty
+    /// auxiliary tail.
+    pub const EXACT_DIVIDE_ONE_COPY: Self = {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::ExactDivideU64,
+            rewritten: MachineSemanticKind::CopyI64,
+            operand_shape: PairOperandShape::BinaryRightLiteralAuxiliaryUses,
+            immediate_bound: PairImmediateBound::Exactly(1),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundConsumerOperands,
+            machine_effects: PairMachineEffects::FaultDischargedByLiteral,
+        };
+        assert!(
+            matches!(
+                rule.machine_effects,
+                PairMachineEffects::FaultDischargedByLiteral
+            ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(1)),
+            "the fault discharge holds only for the divisor literal one"
+        );
+        rule
     };
 
     pub const fn producer(self) -> MachineSemanticKind {
@@ -618,17 +776,23 @@ impl SelectedInstructionPairRule {
     /// The consumer operand index the literal victim must occupy.
     pub const fn victim_operand(self) -> u16 {
         match self.operand_shape {
-            PairOperandShape::BinaryRightLiteral => 1,
+            PairOperandShape::BinaryRightLiteral
+            | PairOperandShape::BinaryRightLiteralAuxiliaryUses => 1,
             PairOperandShape::BinaryLeftLiteral | PairOperandShape::UnaryLiteral => 0,
         }
     }
 
-    pub const fn immediate_limit(self) -> u64 {
-        self.immediate_limit
+    /// The declared immediate admission: an encoding limit any literal up
+    /// to, or one exact literal value the fold's semantics require.
+    pub const fn immediate_bound(self) -> PairImmediateBound {
+        self.immediate_bound
     }
 
     pub const fn admits_immediate(self, value: u64) -> bool {
-        value <= self.immediate_limit
+        match self.immediate_bound {
+            PairImmediateBound::Encoding(limit) => value <= limit,
+            PairImmediateBound::Exactly(exact) => value == exact,
+        }
     }
 
     /// The constant payload the rewritten instruction embeds for `literal`:
@@ -637,9 +801,9 @@ impl SelectedInstructionPairRule {
     /// result is the recorded `immediate` in [`crate::LiteralFoldAction`].
     pub fn fold_immediate(self, literal: u64) -> Option<u64> {
         match self.operand_shape {
-            PairOperandShape::BinaryRightLiteral | PairOperandShape::BinaryLeftLiteral => {
-                Some(literal)
-            }
+            PairOperandShape::BinaryRightLiteral
+            | PairOperandShape::BinaryLeftLiteral
+            | PairOperandShape::BinaryRightLiteralAuxiliaryUses => Some(literal),
             PairOperandShape::UnaryLiteral => match self.consumer {
                 MachineSemanticKind::CopyI64 => Some(literal),
                 MachineSemanticKind::ZeroExtendU8 => Some(literal & 0xFF),
@@ -679,6 +843,7 @@ impl SelectedInstructionPairRule {
             MachineSemanticKind::MaterializeI64 => Some(keys.materialize_i64),
             MachineSemanticKind::Load8 => keys.load8,
             MachineSemanticKind::AddressOffset => keys.address_offset,
+            MachineSemanticKind::CopyI64 => Some(keys.copy_i64),
             _ => None,
         }
     }
@@ -745,6 +910,12 @@ impl SelectedInstructionPairRule {
                 u32::try_from(immediate)
                     .ok()
                     .map(|byte_offset| SelectedInstructionKind::AddressOffset { byte_offset })
+            }
+            // A divide by one is the dividend: the `CopyI64` rewrite drops
+            // the proof-custody fields from the kind — the obligation list
+            // in the rebuilt provenance retains them.
+            (MachineSemanticKind::CopyI64, SelectedInstructionKind::ExactDivideU64 { .. }) => {
+                Some(SelectedInstructionKind::CopyI64)
             }
             _ => None,
         }

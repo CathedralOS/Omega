@@ -3212,6 +3212,589 @@ fn staged_add_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
     }
 }
 
+/// A `MaterializeI64` victim producing the literal `1` feeding operand 1 —
+/// the divisor — of `ExactDivideU64`, whose operand-2 `Def` result is
+/// `VirtualRegisterId(2)`, with the pressure-recovery classification already
+/// admitted as an `Incoming` rematerialization candidate. The consumer's
+/// operand decorations come from the target's real divide row: on x86-64
+/// that is the pinned `div` form whose operand 3 `Use` is the high-half
+/// dividend, staged as a `VirtualRegisterId(3)` scratch defined by a
+/// `MaterializeI64(0)` emitted immediately before the literal — the shape
+/// selected construction produces; aarch64's `udiv` row carries no
+/// auxiliary `Use` and stages the bare three-operand form.
+fn staged_divide_inputs(target: NativeTarget) -> Inputs {
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let machine = MachineId::new(1).unwrap();
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let materialize = environment.constraint(keys.materialize_i64).unwrap();
+    let divide = environment.constraint(keys.divide_u64).unwrap();
+    let branch = environment.constraint(keys.conditional_branch).unwrap();
+    let terminal = environment.constraint(keys.return_unit).unwrap();
+    let gpr = materialize.operands[0].class;
+    let source_block = BlockId::new(1).unwrap();
+    let literal_operation = OperationId::new(1).unwrap();
+    let literal_value = ValueId::new(2).unwrap();
+    let literal_provenance = SelectedInstructionProvenance {
+        operations: vec![literal_operation],
+        values: vec![literal_value],
+        edges: Vec::new(),
+        obligations: Vec::new(),
+        fuel: vec![FuelSettlement {
+            site: PsiProvenance::Operation(literal_operation),
+            units: 2,
+        }],
+    };
+    // The operand grammar fixes positions 0 through 2 — dividend `Use`,
+    // folded divisor `Use`, result `Def`; every `Use` operand past the
+    // result is an auxiliary input the fold drops, staged with its own
+    // zero-materializing scratch definition.
+    let auxiliary_uses = divide.operands.len() - 3;
+    let literal_id = SelectedInstructionId(u32::try_from(auxiliary_uses).unwrap());
+    let consumer_id = SelectedInstructionId(literal_id.0 + 1);
+    let auxiliaries = (0..auxiliary_uses)
+        .map(|auxiliary| {
+            let register = VirtualRegisterId(u32::try_from(3 + auxiliary).unwrap());
+            (
+                register,
+                SelectedInstruction {
+                    id: SelectedInstructionId(u32::try_from(auxiliary).unwrap()),
+                    kind: SelectedInstructionKind::MaterializeI64 {
+                        value: IntegerValue::Unsigned(0),
+                    },
+                    constraint: materialize.key,
+                    operands: vec![SelectedOperand {
+                        operand: materialize.operands[0].operand,
+                        virtual_register: register,
+                        access: materialize.operands[0].access,
+                        class: gpr,
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    }],
+                    implicit_uses: materialize.implicit_uses.clone(),
+                    implicit_defs: materialize.implicit_defs.clone(),
+                    clobbers: materialize.clobbers.clone(),
+                    provenance: Default::default(),
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let literal = SelectedInstruction {
+        id: literal_id,
+        kind: SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(1),
+        },
+        constraint: materialize.key,
+        operands: vec![SelectedOperand {
+            operand: materialize.operands[0].operand,
+            virtual_register: VirtualRegisterId(1),
+            access: materialize.operands[0].access,
+            class: gpr,
+            fixed_view: None,
+            tied_to: None,
+            early_clobber: false,
+        }],
+        implicit_uses: materialize.implicit_uses.clone(),
+        implicit_defs: materialize.implicit_defs.clone(),
+        clobbers: materialize.clobbers.clone(),
+        provenance: literal_provenance.clone(),
+    };
+    let consumer = SelectedInstruction {
+        id: consumer_id,
+        kind: SelectedInstructionKind::ExactDivideU64 {
+            obligation: ObligationId::new(7).unwrap(),
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes([9; 32]),
+        },
+        constraint: divide.key,
+        operands: divide
+            .operands
+            .iter()
+            .map(|operand| SelectedOperand {
+                operand: operand.operand,
+                virtual_register: VirtualRegisterId(u32::from(operand.operand)),
+                access: operand.access,
+                class: operand.class,
+                fixed_view: operand.fixed_view,
+                tied_to: operand.tied_to,
+                early_clobber: operand.early_clobber,
+            })
+            .collect(),
+        implicit_uses: divide.implicit_uses.clone(),
+        implicit_defs: divide.implicit_defs.clone(),
+        clobbers: divide.clobbers.clone(),
+        provenance: SelectedInstructionProvenance {
+            operations: vec![OperationId::new(2).unwrap()],
+            values: vec![ValueId::new(1).unwrap()],
+            obligations: vec![ObligationId::new(7).unwrap()],
+            ..Default::default()
+        },
+    };
+    let branch_instruction = SelectedInstruction {
+        id: SelectedInstructionId(consumer_id.0 + 1),
+        kind: SelectedInstructionKind::ConditionalBranchNonZero,
+        constraint: branch.key,
+        operands: Vec::new(),
+        implicit_uses: branch.implicit_uses.clone(),
+        implicit_defs: branch.implicit_defs.clone(),
+        clobbers: branch.clobbers.clone(),
+        provenance: Default::default(),
+    };
+    let return_instruction = SelectedInstruction {
+        id: SelectedInstructionId(consumer_id.0 + 2),
+        kind: SelectedInstructionKind::ReturnUnit,
+        constraint: terminal.key,
+        operands: Vec::new(),
+        implicit_uses: terminal.implicit_uses.clone(),
+        implicit_defs: terminal.implicit_defs.clone(),
+        clobbers: terminal.clobbers.clone(),
+        provenance: Default::default(),
+    };
+    let mut virtual_registers = vec![
+        VirtualRegister {
+            id: VirtualRegisterId(0),
+            scalar_type: scalar,
+            class: gpr,
+            origin: VirtualRegisterOrigin::EntryParameter {
+                source_value: ValueId::new(1).unwrap(),
+                parameter_index: 0,
+            },
+            definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
+            entry_fixed_view: None,
+        },
+        VirtualRegister {
+            id: VirtualRegisterId(1),
+            scalar_type: scalar,
+            class: gpr,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: literal_id,
+                source_value: literal_value,
+            },
+            definition_site: Some(ValueDefinitionSite::Node {
+                block: source_block,
+                node: 0,
+            }),
+            entry_fixed_view: None,
+        },
+        VirtualRegister {
+            id: VirtualRegisterId(2),
+            scalar_type: scalar,
+            class: gpr,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: consumer_id,
+                source_value: ValueId::new(3).unwrap(),
+            },
+            definition_site: Some(ValueDefinitionSite::Node {
+                block: source_block,
+                node: 1,
+            }),
+            entry_fixed_view: None,
+        },
+    ];
+    virtual_registers.extend(
+        auxiliaries
+            .iter()
+            .map(|(register, instruction)| VirtualRegister {
+                id: *register,
+                scalar_type: scalar,
+                class: gpr,
+                origin: VirtualRegisterOrigin::InstructionScratch {
+                    instruction: instruction.id,
+                    operand: 0,
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            }),
+    );
+    let mut block_instructions = auxiliaries
+        .iter()
+        .map(|(_, instruction)| instruction.clone())
+        .collect::<Vec<_>>();
+    block_instructions.extend([literal, consumer]);
+    let plan = SelectedInstructionPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
+        },
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        target,
+        entry: machine,
+        functions: vec![SelectedFunction {
+            machine,
+            attachment: None,
+            provenance: Default::default(),
+            structural: None,
+            local_storage_slots: Vec::new(),
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+            entry_block: SelectedBlockId(0),
+            virtual_registers,
+            blocks: vec![
+                SelectedBlock {
+                    id: SelectedBlockId(0),
+                    origin: SelectedBlockOrigin::Source(source_block),
+                    instructions: block_instructions,
+                    terminator: SelectedTerminator::ConditionalBranch {
+                        instruction: branch_instruction,
+                        when_nonzero: successor(1, 1),
+                        when_zero: successor(1, 2),
+                    },
+                },
+                SelectedBlock {
+                    id: SelectedBlockId(1),
+                    origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+                    instructions: Vec::new(),
+                    terminator: SelectedTerminator::Return {
+                        instruction: return_instruction,
+                        psi_return_edge: EdgeId::new(3).unwrap(),
+                    },
+                },
+            ],
+        }]
+        .into(),
+    };
+    let selected_identity = selected_instruction_plan_identity(&plan);
+    let unit = OptimizationUnitIdentity::from_bytes([8; 32]);
+    let fuel = plan.fuel_schedule;
+    let ranges_identity = LiveRangeIdentity::from_bytes([10; 32]);
+    let legality_identity = AllocationLegalityIdentity::from_bytes([11; 32]);
+    let availability_identity = AllocatorAvailabilityIdentity::from_bytes([12; 32]);
+    let spill_identity = SpillChoiceIdentity::from_bytes([13; 32]);
+    let recovery_identity = RecoveryClassificationIdentity::from_bytes([14; 32]);
+    let environment_identity = environment.identity();
+    let effect_catalog_identity =
+        validated_machine_effect_catalog(target, environment.constraints())
+            .unwrap()
+            .identity();
+
+    let selected = ValidatedLiteralFold {
+        plan: LiteralFoldPlan {
+            source_selected: selected_identity,
+            spill_choices: spill_identity,
+            recovery_classifications: recovery_identity,
+            ranges: ranges_identity,
+            legality: legality_identity,
+            register_environment: environment_identity,
+            allocator_availability: availability_identity,
+            machine_effect_catalog: effect_catalog_identity,
+            optimization_unit: unit,
+            fuel_schedule: fuel,
+            policy: LiteralFoldPolicy::EXACT_DIVIDE_V1,
+            budget: budget(),
+            usage: usage(),
+            functions: vec![FunctionLiteralFold {
+                machine,
+                action: None,
+            }],
+            transformed_selected: selected_identity,
+        },
+        transformed: Arc::new(plan),
+        receipt: LiteralFoldValidationReceipt {
+            identity: LiteralFoldIdentity::from_bytes([15; 32]),
+            source_selected: selected_identity,
+            spill_choices: spill_identity,
+            recovery_classifications: recovery_identity,
+            ranges: ranges_identity,
+            legality: legality_identity,
+            register_environment: environment_identity,
+            allocator_availability: availability_identity,
+            machine_effect_catalog: effect_catalog_identity,
+            optimization_unit: unit,
+            fuel_schedule: fuel,
+            transformed_selected: selected_identity,
+            policy: LiteralFoldPolicy::EXACT_DIVIDE_V1,
+            usage: usage(),
+            function_count: 1,
+            applied_count: 0,
+        },
+    };
+
+    let occurrence = |position: u32,
+                      instruction: SelectedInstructionId,
+                      operand: u16,
+                      access: RegisterOperandAccess| VirtualOccurrence {
+        position: LivenessPosition(position),
+        point: LiveRangePoint(position),
+        instruction,
+        operand,
+        access,
+    };
+    let fragment = |start: u32, end: u32| LiveRangeFragment {
+        block: SelectedBlockId(0),
+        start: LiveRangePoint(start),
+        end: LiveRangePoint(end),
+    };
+    let live = |virtual_register, occurrences, fragments| VirtualLiveRange {
+        virtual_register,
+        class: gpr,
+        occurrences,
+        fixed_constraints: Vec::new(),
+        fragments,
+        edge_connectors: Vec::new(),
+    };
+    let consumer_point = consumer_id.0;
+    let mut virtual_live_ranges = vec![
+        live(
+            VirtualRegisterId(0),
+            vec![occurrence(
+                consumer_point,
+                consumer_id,
+                0,
+                RegisterOperandAccess::Use,
+            )],
+            vec![fragment(0, consumer_point + 1)],
+        ),
+        live(
+            VirtualRegisterId(1),
+            vec![
+                occurrence(literal_id.0, literal_id, 0, RegisterOperandAccess::Def),
+                occurrence(consumer_point, consumer_id, 1, RegisterOperandAccess::Use),
+            ],
+            vec![fragment(literal_id.0, consumer_point + 1)],
+        ),
+        live(
+            VirtualRegisterId(2),
+            vec![occurrence(
+                consumer_point,
+                consumer_id,
+                2,
+                RegisterOperandAccess::Def,
+            )],
+            vec![fragment(consumer_point, consumer_point + 1)],
+        ),
+    ];
+    virtual_live_ranges.extend(auxiliaries.iter().enumerate().map(
+        |(index, (register, instruction))| {
+            let position = u32::try_from(index).unwrap();
+            live(
+                *register,
+                vec![
+                    occurrence(position, instruction.id, 0, RegisterOperandAccess::Def),
+                    occurrence(
+                        consumer_point,
+                        consumer_id,
+                        u16::try_from(3 + index).unwrap(),
+                        RegisterOperandAccess::Use,
+                    ),
+                ],
+                vec![fragment(position, consumer_point + 1)],
+            )
+        },
+    ));
+    let register_count = 3 + auxiliary_uses;
+    let occurrence_count = 4 + auxiliary_uses * 2;
+    let ranges = ValidatedLiveRanges {
+        plan: Arc::new(LiveRangePlan {
+            selected: selected_identity,
+            liveness: LivenessIdentity::from_bytes([16; 32]),
+            optimization_unit: unit,
+            fuel_schedule: fuel,
+            target,
+            functions: vec![FunctionLiveRanges {
+                machine,
+                block_domains: vec![
+                    BlockPointDomain {
+                        block: SelectedBlockId(0),
+                        source_block,
+                        start: LiveRangePoint(0),
+                        end: LiveRangePoint(consumer_point + 1),
+                    },
+                    BlockPointDomain {
+                        block: SelectedBlockId(1),
+                        source_block: BlockId::new(2).unwrap(),
+                        start: LiveRangePoint(consumer_point + 1),
+                        end: LiveRangePoint(consumer_point + 3),
+                    },
+                ],
+                virtual_registers: virtual_live_ranges,
+                tied_pairs: Vec::new(),
+                edge_transfers: Vec::new(),
+                copy_affinities: Vec::new(),
+                early_clobbers: Vec::new(),
+                architectural_units: Vec::new(),
+                interference: Vec::new(),
+            }],
+        }),
+        receipt: LiveRangeValidationReceipt {
+            identity: ranges_identity,
+            selected: selected_identity,
+            liveness: LivenessIdentity::from_bytes([16; 32]),
+            optimization_unit: unit,
+            fuel_schedule: fuel,
+            function_count: 1,
+            block_count: 2,
+            virtual_register_count: register_count,
+            virtual_occurrence_count: occurrence_count,
+            fixed_constraint_count: 0,
+            virtual_fragment_count: register_count,
+            architectural_unit_count: 0,
+            architectural_action_count: 0,
+            architectural_fragment_count: 0,
+            virtual_edge_connector_count: 0,
+            architectural_edge_connector_count: 0,
+            interference_count: 0,
+            tied_pair_count: 0,
+            copy_affinity_count: 0,
+            tied_component_count: 0,
+            early_clobber_count: 0,
+            early_clobber_use_count: 0,
+        },
+    };
+
+    let availability = ValidatedAllocatorAvailability {
+        plan: AllocatorAvailabilityPlan {
+            register_environment: environment_identity,
+            physical: environment.physical().identity(),
+            policy: AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
+            classes: Vec::new(),
+        },
+        receipt: AllocatorAvailabilityValidationReceipt {
+            identity: availability_identity,
+            register_environment: environment_identity,
+            physical: environment.physical().identity(),
+            class_count: 0,
+            unconstrained_view_count: 0,
+        },
+    };
+
+    let legality = ValidatedAllocationLegality {
+        plan: Arc::new(AllocationLegalityPlan {
+            ranges: ranges_identity,
+            register_environment: environment_identity,
+            allocator_availability: availability_identity,
+            functions: vec![FunctionAllocationLegality {
+                machine,
+                virtual_registers: Vec::new(),
+            }],
+        }),
+        receipt: AllocationLegalityValidationReceipt {
+            identity: legality_identity,
+            ranges: ranges_identity,
+            register_environment: environment_identity,
+            allocator_availability: availability_identity,
+            function_count: 1,
+            virtual_register_count: 0,
+            point_count: 0,
+            candidate_count: 0,
+            early_clobber_point_count: 0,
+            early_clobber_candidate_count: 0,
+            entry_transition_count: 0,
+        },
+    };
+
+    let spill_choices = ValidatedSpillChoices {
+        plan: SpillChoicePlan {
+            legality: legality_identity,
+            ranges: ranges_identity,
+            register_environment: environment_identity,
+            allocator_availability: availability_identity,
+            policy: SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            budget: budget(),
+            usage: usage(),
+            functions: vec![FunctionSpillChoices {
+                machine,
+                choice: Some(SpillChoice {
+                    block: SelectedBlockId(0),
+                    point: LiveRangePoint(consumer_point),
+                    incoming: VirtualRegisterId(1),
+                    incoming_class: gpr,
+                    incoming_common_candidates: Vec::new(),
+                    active_residents: Vec::new(),
+                    contenders: Vec::new(),
+                    selected_victim: VirtualRegisterId(1),
+                }),
+            }],
+        },
+        receipt: SpillChoiceValidationReceipt {
+            identity: spill_identity,
+            legality: legality_identity,
+            ranges: ranges_identity,
+            register_environment: environment_identity,
+            allocator_availability: availability_identity,
+            policy: SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            usage: usage(),
+            function_count: 1,
+            choice_count: 1,
+            contender_count: 0,
+        },
+    };
+
+    let recovery = ValidatedRecoveryClassifications {
+        plan: RecoveryClassificationPlan {
+            selected: selected_identity,
+            spill_choices: spill_identity,
+            ranges: ranges_identity,
+            legality: legality_identity,
+            register_environment: environment_identity,
+            allocator_availability: availability_identity,
+            optimization_unit: unit,
+            fuel_schedule: fuel,
+            policy: RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            budget: budget(),
+            usage: usage(),
+            functions: vec![FunctionRecoveryClassification {
+                machine,
+                classification: Some(PressureRecoveryClassification {
+                    block: SelectedBlockId(0),
+                    point: LiveRangePoint(consumer_point),
+                    victim: VirtualRegisterId(1),
+                    role: RecoveryVictimRole::Incoming,
+                    scalar_type: scalar,
+                    class: gpr,
+                    origin: VirtualRegisterOrigin::InstructionResult {
+                        instruction: literal_id,
+                        source_value: literal_value,
+                    },
+                    definition_site: Some(ValueDefinitionSite::Node {
+                        block: source_block,
+                        node: 0,
+                    }),
+                    classification:
+                        RecoveryClassification::ImmediateU64RematerializationCandidate {
+                            defining_instruction: literal_id,
+                            source_value: literal_value,
+                            value: IntegerValue::Unsigned(1),
+                            provenance: literal_provenance,
+                            future_uses: vec![RecoveryFutureUse {
+                                block: SelectedBlockId(0),
+                                point: LiveRangePoint(consumer_point),
+                                instruction: consumer_id,
+                                operand: 1,
+                            }],
+                        },
+                }),
+            }],
+        },
+        receipt: RecoveryClassificationValidationReceipt {
+            identity: recovery_identity,
+            selected: selected_identity,
+            spill_choices: spill_identity,
+            ranges: ranges_identity,
+            legality: legality_identity,
+            register_environment: environment_identity,
+            allocator_availability: availability_identity,
+            optimization_unit: unit,
+            fuel_schedule: fuel,
+            policy: RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            usage: usage(),
+            function_count: 1,
+            classification_count: 1,
+            immediate_candidate_count: 1,
+        },
+    };
+
+    Inputs {
+        selected,
+        ranges,
+        legality,
+        spill_choices,
+        recovery,
+        availability,
+    }
+}
+
 fn fold_with(
     inputs: &Inputs,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -5267,6 +5850,405 @@ fn byte_view_address_fold_rejects_consumer_operands_carrying_unit_bindings() {
             ),
             Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
             "mutation {mutation} replay"
+        );
+    }
+}
+
+#[test]
+fn exact_divide_identity_fold_rewrites_the_divide_to_a_copy_on_both_linux_targets() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let inputs = staged_divide_inputs(target);
+        let auxiliary_uses = environment
+            .constraint(keys.divide_u64)
+            .unwrap()
+            .operands
+            .len()
+            - 3;
+        let result = fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_DIVIDE_V1)
+            .expect("the staged divide fold should validate");
+
+        assert_eq!(result.receipt().applied_count(), 1);
+        let action = result.plan().functions[0].action.unwrap();
+        assert_eq!(action.result, Some(VirtualRegisterId(2)));
+        assert_eq!(action.immediate, 1);
+        assert_eq!(action.surviving, VirtualRegisterId(0));
+        assert_eq!(action.victim, VirtualRegisterId(1));
+        assert_eq!(
+            action.literal_instruction,
+            SelectedInstructionId(auxiliary_uses as u32)
+        );
+        assert_eq!(
+            action.consumer_instruction,
+            SelectedInstructionId(auxiliary_uses as u32 + 1)
+        );
+        assert_eq!(action.immediate_constraint, keys.copy_i64);
+
+        let function = &result.transformed().functions[0];
+        // The fold removes only the divisor literal and its register: every
+        // auxiliary scratch materialization and register stays, left dead.
+        assert_eq!(
+            function.virtual_registers.len(),
+            usize::try_from(2 + auxiliary_uses).unwrap()
+        );
+        let instructions = &function.blocks[0].instructions;
+        assert_eq!(
+            instructions.len(),
+            usize::try_from(1 + auxiliary_uses).unwrap()
+        );
+        for (index, instruction) in instructions[..auxiliary_uses].iter().enumerate() {
+            assert_eq!(instruction.id, SelectedInstructionId(index as u32));
+            assert_eq!(
+                instruction.kind,
+                SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(0),
+                }
+            );
+        }
+        let rewritten = &instructions[auxiliary_uses];
+        assert_eq!(rewritten.id, SelectedInstructionId(auxiliary_uses as u32));
+        assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+        assert_eq!(rewritten.constraint, keys.copy_i64);
+        assert_eq!(rewritten.operands.len(), 2);
+        // The rebuilt operand list binds the dividend `Use` and the result
+        // `Def` — the register pins and the dropped auxiliary `Use` are
+        // gone with the pinned divide form.
+        assert_eq!(rewritten.operands[0].virtual_register, VirtualRegisterId(0));
+        assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(rewritten.operands[0].fixed_view, None);
+        assert_eq!(rewritten.operands[1].virtual_register, VirtualRegisterId(1));
+        assert_eq!(rewritten.operands[1].access, RegisterOperandAccess::Def);
+        assert_eq!(rewritten.operands[1].fixed_view, None);
+        assert!(rewritten.implicit_uses.is_empty());
+        assert!(rewritten.implicit_defs.is_empty());
+        assert!(rewritten.clobbers.is_empty());
+        // The folded literal's provenance joins the consumer's, and the
+        // divide's obligation custody is retained.
+        assert_eq!(rewritten.provenance.operations.len(), 2);
+        assert_eq!(
+            rewritten.provenance.obligations,
+            vec![ObligationId::new(7).unwrap()]
+        );
+
+        let SelectedTerminator::ConditionalBranch { instruction, .. } =
+            &function.blocks[0].terminator
+        else {
+            panic!("conditional branch terminator retained");
+        };
+        assert_eq!(
+            instruction.id,
+            SelectedInstructionId(auxiliary_uses as u32 + 1)
+        );
+        let SelectedTerminator::Return { instruction, .. } = &function.blocks[1].terminator else {
+            panic!("return terminator retained");
+        };
+        assert_eq!(
+            instruction.id,
+            SelectedInstructionId(auxiliary_uses as u32 + 2)
+        );
+    }
+}
+
+#[test]
+fn divide_fold_rejects_a_non_unit_divisor() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let effect_catalog =
+            validated_machine_effect_catalog(environment.target(), environment.constraints())
+                .unwrap();
+        let inputs = staged_divide_inputs(target);
+        let auxiliary_uses = environment
+            .constraint(keys.divide_u64)
+            .unwrap()
+            .operands
+            .len()
+            - 3;
+        let mut plan = inputs.selected.transformed().clone();
+        // The literal is the divisor only under the identity fold: a divisor
+        // of two is a different computation both the producer's declared
+        // bound and the replay's re-derived grammar reject.
+        plan.functions[0].blocks[0].instructions[auxiliary_uses].kind =
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(2),
+            };
+        let mut selected = inputs.selected.clone();
+        selected.transformed = Arc::new(plan);
+        let mut recovery = inputs.recovery.clone();
+        let classification = recovery.plan.functions[0].classification.as_mut().unwrap();
+        let RecoveryClassification::ImmediateU64RematerializationCandidate { value, .. } =
+            &mut classification.classification
+        else {
+            panic!("staged classification is the immediate candidate");
+        };
+        *value = IntegerValue::Unsigned(2);
+
+        assert_eq!(
+            fold_selected_incoming_literal(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                LiteralFoldPolicy::EXACT_DIVIDE_V1,
+                budget(),
+            ),
+            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
+            "{target:?}"
+        );
+        assert_eq!(
+            validate_literal_fold(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                inputs.selected.plan().clone(),
+            ),
+            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
+            "{target:?} replay"
+        );
+    }
+}
+
+#[test]
+fn divide_fold_rejects_an_auxiliary_operand_without_zero_custody() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.allocation_constraint_keys();
+    let effect_catalog =
+        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
+    let divide_operands = environment
+        .constraint(keys.divide_u64)
+        .unwrap()
+        .operands
+        .len();
+    assert_eq!(
+        divide_operands, 4,
+        "the x86-64 divide carries one auxiliary use"
+    );
+
+    // The dropped operand is inert only when its register is defined solely
+    // by zero materializations: a nonzero materialization, a non-materialize
+    // definition, and a `Def`-access auxiliary operand each reject — the
+    // producer and the independent replay alike.
+    for mutation in 0..3 {
+        let inputs = staged_divide_inputs(target);
+        let mut plan = inputs.selected.transformed().clone();
+        match mutation {
+            // The high-half scratch materializes seven, not zero.
+            0 => {
+                plan.functions[0].blocks[0].instructions[0].kind =
+                    SelectedInstructionKind::MaterializeI64 {
+                        value: IntegerValue::Unsigned(7),
+                    };
+            }
+            // The scratch register is defined by a copy, not a zero
+            // materialization at all.
+            1 => {
+                plan.functions[0].blocks[0].instructions[0].kind = SelectedInstructionKind::CopyI64;
+            }
+            // The auxiliary operand defines a register rather than reading
+            // the proven-zero scratch.
+            _ => {
+                plan.functions[0].blocks[0].instructions[2].operands[3].access =
+                    RegisterOperandAccess::Def;
+            }
+        }
+        let mut selected = inputs.selected.clone();
+        selected.transformed = Arc::new(plan);
+
+        assert_eq!(
+            fold_selected_incoming_literal(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                LiteralFoldPolicy::EXACT_DIVIDE_V1,
+                budget(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "mutation {mutation}"
+        );
+        assert_eq!(
+            validate_literal_fold(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                inputs.selected.plan().clone(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "mutation {mutation} replay"
+        );
+    }
+}
+
+#[test]
+fn divide_fold_rejects_consumer_operands_carrying_forbidden_bindings() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.allocation_constraint_keys();
+    let effect_catalog =
+        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
+    let inputs = staged_divide_inputs(target);
+
+    // The pinned divide form carries `fixed_view` decorations the rewrite
+    // deliberately drops; `tied_to` and `early_clobber` have no carried
+    // meaning once the operand list is rebuilt and reject under the declared
+    // unit-effect surface.
+    for mutation in 0..2 {
+        let mut plan = inputs.selected.transformed().clone();
+        let operand = &mut plan.functions[0].blocks[0].instructions[2].operands[1];
+        match mutation {
+            0 => operand.tied_to = Some(0),
+            _ => operand.early_clobber = true,
+        }
+        let mut selected = inputs.selected.clone();
+        selected.transformed = Arc::new(plan);
+
+        assert_eq!(
+            fold_selected_incoming_literal(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                LiteralFoldPolicy::EXACT_DIVIDE_V1,
+                budget(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "mutation {mutation}"
+        );
+        assert_eq!(
+            validate_literal_fold(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                inputs.selected.plan().clone(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "mutation {mutation} replay"
+        );
+    }
+}
+
+#[test]
+fn divide_fold_rejects_consumers_the_selection_does_not_enable() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The divide's operand grammar admits the literal only under the
+    // divide-identity policy: another selected family sees no admitted
+    // consumer kind.
+    let inputs = staged_divide_inputs(target);
+    assert_eq!(
+        fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_SUBTRACT_V1).map(|_| ()),
+        Err(LiteralFoldError::ConsumerMismatch { function: 0 })
+    );
+    // And the divide policy admits no other consumer: the compare fixture's
+    // flag-defining consumer has no `Use` operand 1 the divide grammar
+    // could bind.
+    let compare = staged_inputs(target);
+    assert_eq!(
+        fold_with(&compare, &environment, LiteralFoldPolicy::EXACT_DIVIDE_V1).map(|_| ()),
+        Err(LiteralFoldError::ConsumerMismatch { function: 0 })
+    );
+}
+
+#[test]
+fn divide_fold_replay_rejects_every_decision_field_substitution() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let inputs = staged_divide_inputs(target);
+    let result = fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_DIVIDE_V1)
+        .expect("the staged divide fold should validate");
+
+    for mutation in 0..10 {
+        let mut plan = result.plan().clone();
+        match mutation {
+            // The recorded result register is the divide's own `Def`, not
+            // the dividend the copy reads.
+            0 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
+            // The recorded immediate is the folded divisor: only one is
+            // admitted, so any substitution replays differently.
+            1 => plan.functions[0].action.as_mut().unwrap().immediate += 1,
+            2 => {
+                plan.functions[0]
+                    .action
+                    .as_mut()
+                    .unwrap()
+                    .consumer_instruction = SelectedInstructionId(9)
+            }
+            3 => {
+                plan.functions[0]
+                    .action
+                    .as_mut()
+                    .unwrap()
+                    .immediate_constraint
+                    .variant += 1
+            }
+            4 => plan.functions[0].action = None,
+            5 => plan.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([99; 32]),
+            6 => plan.usage.candidates += 1,
+            7 => plan.policy = LiteralFoldPolicy::EXACT_ADD_V1,
+            // A plan binding a different effect catalog is a root mismatch:
+            // the replay refuses to re-derive the fold under a foreign
+            // declaration set.
+            8 => plan.machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes([98; 32]),
+            // The surviving register is the dividend: recording the dropped
+            // auxiliary scratch instead binds the wrong `Use`.
+            _ => plan.functions[0].action.as_mut().unwrap().surviving = VirtualRegisterId(3),
+        }
+        assert!(
+            validate(&inputs, &environment, plan).is_err(),
+            "mutation {mutation}"
         );
     }
 }
