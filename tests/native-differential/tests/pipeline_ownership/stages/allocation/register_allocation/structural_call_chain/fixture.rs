@@ -4,6 +4,10 @@ pub(super) fn caller_machine() -> MachineId {
     MachineId::new(STRUCTURAL_CALL_PRESERVING_CALLER).unwrap()
 }
 
+pub(super) fn staged_selected(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+    staged_structural_call_preserving(target)
+}
+
 pub(super) fn staged_legality(target: NativeTarget) -> StagedOptimizedAllocationLegality {
     stage_optimized_allocation_legality(
         stage_optimized_live_ranges(
