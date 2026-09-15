@@ -536,7 +536,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 continue;
             }
             let mut occurrences = Vec::new();
-            crate::contract_occurrences::append_expression_occurrences(
+            crate::facts::contract_occurrences::append_expression_occurrences(
                 self.program,
                 *expression,
                 &mut occurrences,

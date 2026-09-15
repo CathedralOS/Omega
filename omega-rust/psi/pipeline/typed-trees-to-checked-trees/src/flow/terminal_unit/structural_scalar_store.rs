@@ -60,7 +60,8 @@ pub(in crate::flow) fn build_local_scalar_field_store(
         let facts::PlaceSegment::Field { symbol } = segment else {
             return None;
         };
-        let owner = crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+        let owner =
+            crate::facts::field_domain::data_definition_for_field_type(program, carrier_type)?;
         if !plain_record(owner, program) {
             return None;
         }
@@ -70,7 +71,7 @@ pub(in crate::flow) fn build_local_scalar_field_store(
         ));
         carrier_type = field.type_reference;
     }
-    let owner = crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+    let owner = crate::facts::field_domain::data_definition_for_field_type(program, carrier_type)?;
     if !plain_record(owner, program) {
         return None;
     }
@@ -351,7 +352,7 @@ fn build_structural_field_store_at(
             .iter()
             .find(|data| data.symbol == machine.attached_data_symbol)?
     } else {
-        crate::field_domain::data_definition_for_field_type(program, carrier_type)?
+        crate::facts::field_domain::data_definition_for_field_type(program, carrier_type)?
     };
     if !plain_record(root_owner, program) {
         return None;
@@ -400,8 +401,11 @@ fn build_structural_field_store_at(
                     return None;
                 }
                 let carrier = exact_relevant_field(program, field_owner, *symbol)?;
-                if !crate::field_domain::domain_constraint_symbols(program, carrier.type_reference)
-                    .is_empty()
+                if !crate::facts::field_domain::domain_constraint_symbols(
+                    program,
+                    carrier.type_reference,
+                )
+                .is_empty()
                 {
                     return None;
                 }
@@ -409,8 +413,10 @@ fn build_structural_field_store_at(
                     terminal_field_identity(program, carrier.symbol)?,
                 ));
                 carrier_type = carrier.type_reference;
-                carrier_owner =
-                    crate::field_domain::data_definition_for_field_type(program, carrier_type);
+                carrier_owner = crate::facts::field_domain::data_definition_for_field_type(
+                    program,
+                    carrier_type,
+                );
             }
             facts::PlaceSegment::FixedIndex { index } if !reached_array => {
                 reached_array = true;
@@ -428,8 +434,10 @@ fn build_structural_field_store_at(
                     u64::try_from(*index).ok()?,
                 ));
                 carrier_type = *element_type;
-                carrier_owner =
-                    crate::field_domain::data_definition_for_field_type(program, carrier_type);
+                carrier_owner = crate::facts::field_domain::data_definition_for_field_type(
+                    program,
+                    carrier_type,
+                );
             }
             _ => return None,
         }
@@ -500,7 +508,7 @@ fn build_structural_field_store_at(
             return None;
         }
         if let Some(byte_index) = byte_index {
-            if !crate::field_domain::domain_constraint_symbols(program, field.type_reference)
+            if !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
                 .into_iter()
                 .all(|symbol| {
                     program
@@ -550,7 +558,7 @@ fn build_structural_field_store_at(
             return None;
         };
         if u64::try_from(bytes.len()).ok()? > capacity
-            || !crate::field_domain::domain_constraint_symbols(program, field.type_reference)
+            || !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
                 .into_iter()
                 .all(|symbol| {
                     program
@@ -560,7 +568,7 @@ fn build_structural_field_store_at(
                         .is_some_and(|domain| {
                             domain.establishment_routes.is_empty()
                                 && domain.semantic_roles == Default::default()
-                                && crate::field_domain::string_literal_expression_grants_domain(
+                                && crate::facts::field_domain::string_literal_expression_grants_domain(
                                     program,
                                     assignment.value,
                                     symbol,
@@ -585,7 +593,9 @@ fn build_structural_field_store_at(
     if byte_index.is_some() {
         return None;
     }
-    if !crate::field_domain::domain_constraint_symbols(program, field.type_reference).is_empty() {
+    if !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
+        .is_empty()
+    {
         return None;
     }
     let primitive_type = program.primitive_type_reference(field.type_reference)?;

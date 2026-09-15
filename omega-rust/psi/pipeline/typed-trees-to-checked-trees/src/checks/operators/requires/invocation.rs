@@ -73,7 +73,7 @@ impl<'facts> InvocationContexts<'facts> {
         };
         let mut occurrences = Vec::new();
         for expression in expressions {
-            crate::contract_occurrences::append_expression_occurrences(
+            crate::facts::contract_occurrences::append_expression_occurrences(
                 program,
                 expression,
                 &mut occurrences,

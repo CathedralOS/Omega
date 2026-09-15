@@ -385,9 +385,9 @@ pub(super) fn rebase_contexts(
             };
             let mut required_roots = Vec::new();
             if let Some(contract) = contract {
-                for occurrence in
-                    crate::contract_occurrences::fact_referenced_occurrences(program, contract)
-                {
+                for occurrence in crate::facts::contract_occurrences::fact_referenced_occurrences(
+                    program, contract,
+                ) {
                     if let Some(place) = canonical_place_from_expression_in_state(
                         program,
                         entry.symbol,

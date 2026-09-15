@@ -464,7 +464,7 @@ fn primitive_projection(
                 let field = fields.next()?;
                 if fields.next().is_some()
                     || field.relevance.is_erased()
-                    || !crate::field_domain::domain_constraint_symbols(
+                    || !crate::facts::field_domain::domain_constraint_symbols(
                         program,
                         field.type_reference,
                     )

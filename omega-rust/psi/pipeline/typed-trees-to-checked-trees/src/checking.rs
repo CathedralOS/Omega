@@ -4,9 +4,12 @@
 //! Package checkpoints select explicit checking modes; only the test-only
 //! crash-inspection mode omits crash admission.
 
+pub(crate) mod call_acknowledgements;
+pub(crate) mod program_validation;
+
+use crate::checking::program_validation::validate_typed_program;
 use crate::checks;
 use crate::facts::build_check_facts;
-use crate::validation::validate_typed_program;
 use checked_trees::CheckedTrees;
 
 /// Check a standalone program. Toolchain-owned selections may remain late-bound
@@ -149,12 +152,12 @@ fn check_program(
             &facts,
             &facts.flow.terminal_structural_returns,
         );
-    let crate::execution_plans::ExecutionPlans {
+    let crate::execution::execution_plans::ExecutionPlans {
         boundary_returns,
         unit_effects: terminal_unit_effects,
         structural_scalar_returns,
         mut cleanup_diagnostics,
-    } = crate::execution_plans::build_execution_plans(&program, &facts, None, &[], &[]);
+    } = crate::execution::execution_plans::build_execution_plans(&program, &facts, None, &[], &[]);
     facts.flow.terminal_partial_affine_unit_cleanups =
         crate::flow::build_checked_partial_affine_unit_cleanup_plans(
             &program,
@@ -302,8 +305,10 @@ pub fn specialize_static_machine_calls(
 pub(crate) fn specialize_static_machine_calls_with_nominal_uses(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<Vec<::validation::ValidatedNominalMachineUse>, Vec<diagnostics::Diagnostic>> {
-    crate::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(program)?;
-    crate::conformance_applications::validate_conformance_applications(program)?;
+    crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
+        program,
+    )?;
+    crate::conformance::conformance_applications::validate_conformance_applications(program)?;
     let mut nominal_uses = ::validation::validate_static_machine_selections_with_facts(program)?;
     ::validation::validate_generic_machine_contract_entailment(program)?;
     crate::monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses(

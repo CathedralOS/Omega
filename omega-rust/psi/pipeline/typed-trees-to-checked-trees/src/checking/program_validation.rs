@@ -30,7 +30,7 @@ pub(crate) fn validate_typed_program<'program>(
 
     let operational = validated.operational;
     validation::validate_behavior_plan(program, &operational)?;
-    crate::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
+    crate::checking::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
 
     Ok(ValidatedTypedProgram {
         proof_plan,

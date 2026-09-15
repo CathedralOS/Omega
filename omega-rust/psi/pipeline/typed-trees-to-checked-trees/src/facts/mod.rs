@@ -1,5 +1,5 @@
 use crate::borrow::build_borrow_facts;
-use crate::capabilities::build_capability_facts;
+use crate::facts::capabilities::build_capability_facts;
 use crate::flow::{build_domain_facts, build_flow_facts_with_service_reaches};
 use crate::operators::{
     bind_boundary_operator_application_demands, build_operator_facts,
@@ -13,6 +13,12 @@ use flow_effects::OperationalPlan;
 use proof::obligations::ProofPlan;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+
+pub(crate) mod capabilities;
+pub(crate) mod contract_occurrences;
+pub(crate) mod field_domain;
+pub(crate) mod qualification_evidence;
+pub(crate) mod review_sources;
 
 mod carry;
 mod crash_calls;
@@ -108,7 +114,7 @@ pub(crate) fn build_check_facts(
         &operators,
         &validation_facts.exact_integer_casts,
     );
-    crate::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
+    crate::facts::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
     crate::values::retain_nested_structural_call_arguments(
         program,
         &operators,

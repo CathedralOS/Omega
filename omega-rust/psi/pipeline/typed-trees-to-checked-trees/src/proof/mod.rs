@@ -1330,7 +1330,9 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     let (instantiated_proposition, instantiated_identity) =
                         instantiate_outcome_arm_fact(program, row.fact, &substitutions);
                     let referenced_occurrences =
-                        crate::contract_occurrences::fact_referenced_occurrences(program, row.fact);
+                        crate::facts::contract_occurrences::fact_referenced_occurrences(
+                            program, row.fact,
+                        );
                     let validity = checked_trees::OutcomeSpecificValidityFact {
                         result_occurrence: result_expression,
                         evidence_interface_scope: instantiated_proposition.as_ref().and_then(

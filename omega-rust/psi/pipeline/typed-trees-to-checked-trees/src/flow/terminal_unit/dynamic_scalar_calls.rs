@@ -1975,7 +1975,7 @@ fn checked_realization_structural_scalar_field_store_plan(
         carrier_path.push(CheckedUnitStructuralPathSegment::Field(
             terminal_field_identity(program, carrier_field.symbol)?,
         ));
-        field_owner = crate::field_domain::data_definition_for_field_type(
+        field_owner = crate::facts::field_domain::data_definition_for_field_type(
             program,
             carrier_field.type_reference,
         )?;

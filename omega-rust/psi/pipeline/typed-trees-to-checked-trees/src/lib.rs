@@ -3,27 +3,22 @@
 //! Start at `checking.rs` for specialization, validation, and plan construction;
 //! it also owns the open-index normalization and static machine-call
 //! specialization steps that package orchestration reuses on typed snapshots.
-//! `selected_execution.rs` owns rebuilding plans after provider settlement.
-//! This root preserves the crate API and wires the checking subsystems.
+//! `execution::selected_execution` owns rebuilding plans after provider
+//! settlement. Fact population lives in `facts`, flow and value analysis in
+//! `flow` and `values`, and the remaining folders each own one checking
+//! concern. This root preserves the crate API and wires the subsystems.
 
 mod authored_selections;
-mod call_acknowledgements;
-mod capabilities;
 mod checking;
 mod checks;
-mod conformance_application_lifetimes;
-mod conformance_applications;
-mod contract_occurrences;
-mod execution_plans;
+mod conformance;
+mod execution;
 mod facts;
-mod field_domain;
 mod labels;
 mod lookup;
 mod monomorphization;
 mod operators;
 mod product_pruning;
-mod selected_execution;
-mod validation;
 mod values;
 
 use checked_trees::{CheckFacts, CheckedSemanticDependencies};
@@ -36,7 +31,7 @@ pub use checking::{
     lower_typed_trees_with_selected_generic_operator_providers, normalize_open_index_identities,
     specialize_static_machine_calls,
 };
-pub use selected_execution::{
+pub use execution::selected_execution::{
     SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication,
     rebuild_checked_terminal_plans_with_selected_execution,
 };
@@ -257,7 +252,7 @@ pub fn infer_machine_termination_summary(
 /// BuildConfig fact the gate consumes; the other validations run inside
 /// `lower_typed_trees` and never see build.omg.
 pub use ::validation::{data_requires_establishment, validate_asm_discharge};
-pub use conformance_applications::close_conformance_application;
+pub use conformance::conformance_applications::close_conformance_application;
 pub use monomorphization::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,
     recompute_machine_specialization_commitment, refresh_closed_domain_instance_identities,
@@ -281,8 +276,6 @@ pub use proof::{
     CheckedContractEntailmentAssumptionDischargeRecheckError,
     recheck_contract_entailment_assumption_discharge,
 };
-mod qualification_evidence;
-mod review_sources;
 
 /// Read the exact authored source span retained when checked call identity was
 /// still joined to its typed owner. Compiler-generated calls contribute no
@@ -294,7 +287,7 @@ pub fn derive_checked_body_call_source_spans(
     facts: &checked_trees::CheckFacts,
     machine_symbol: symbols::SymbolHandle,
 ) -> Result<Vec<source::SourceSpan>, Vec<diagnostics::Diagnostic>> {
-    review_sources::derive_checked_body_call_source_spans(program, facts, machine_symbol)
+    facts::review_sources::derive_checked_body_call_source_spans(program, facts, machine_symbol)
 }
 
 #[cfg(test)]

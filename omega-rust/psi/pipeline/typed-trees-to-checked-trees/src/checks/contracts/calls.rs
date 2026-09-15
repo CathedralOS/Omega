@@ -209,7 +209,7 @@ fn subslice_grants_domain(
     let FactPlace::Place(place_handle) = place else {
         return false;
     };
-    if !crate::field_domain::domain_is_subslice_preserving(program, domain_symbol) {
+    if !crate::facts::field_domain::domain_is_subslice_preserving(program, domain_symbol) {
         return false;
     }
     // A subslice place is `base` followed by a trailing `Index` segment whose
@@ -242,7 +242,7 @@ fn subslice_grants_domain(
                 _ => return false,
             };
             if !facts.semantic.domain_implies(fact_domain, domain_symbol)
-                && !crate::field_domain::domain_membership_implies(
+                && !crate::facts::field_domain::domain_membership_implies(
                     program,
                     fact_domain,
                     domain_symbol,
@@ -313,11 +313,11 @@ fn parameter_domain_grants(
     if parameter.is_mutable || parameter.is_self {
         return false;
     }
-    crate::field_domain::domain_constraint_symbols(program, parameter.type_reference)
+    crate::facts::field_domain::domain_constraint_symbols(program, parameter.type_reference)
         .into_iter()
         .any(|param_domain| {
             facts.semantic.domain_implies(param_domain, domain_symbol)
-                || crate::field_domain::domain_membership_implies(
+                || crate::facts::field_domain::domain_membership_implies(
                     program,
                     param_domain,
                     domain_symbol,
@@ -344,7 +344,11 @@ fn string_literal_grants_domain(
     let PlaceRoot::Expression(expression) = resolved.root else {
         return false;
     };
-    crate::field_domain::string_literal_expression_grants_domain(program, expression, domain_symbol)
+    crate::facts::field_domain::string_literal_expression_grants_domain(
+        program,
+        expression,
+        domain_symbol,
+    )
 }
 
 /// #66 return-domain forwarding: a `requires <arg> in D` obligation whose argument
@@ -384,11 +388,11 @@ fn value_call_return_domain_grants(
     if !target.return_type.is_valid() {
         return false;
     }
-    crate::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
+    crate::facts::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
         .into_iter()
         .any(|return_domain| {
             semantic.domain_implies(return_domain, domain_symbol)
-                || crate::field_domain::domain_membership_implies(
+                || crate::facts::field_domain::domain_membership_implies(
                     program,
                     return_domain,
                     domain_symbol,
@@ -440,7 +444,7 @@ fn explain_domain_requirement_failure(
         };
 
         if (!facts.semantic.domain_implies(fact_domain, required_domain)
-            && !crate::field_domain::domain_membership_implies(
+            && !crate::facts::field_domain::domain_membership_implies(
                 program,
                 fact_domain,
                 required_domain,
