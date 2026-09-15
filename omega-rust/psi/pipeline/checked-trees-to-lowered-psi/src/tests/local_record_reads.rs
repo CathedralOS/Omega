@@ -1,9 +1,9 @@
 //! Stored records use exact field identities and current ownership places.
-use super::{
-    OperationKind, PrimitiveType, StructuralAccess, StructuralTypeShape, SymbolHandle,
-    checked_source, lower_machine, obligation_id,
-};
+use super::{SymbolHandle, checked_source, lower_machine};
+use crate::machine_lowering::terminal_identities::obligation_id;
 use checked_trees::CheckedScalarComputationKind;
+use checked_trees::types::PrimitiveType;
+use terminal_psi::{OperationKind, StructuralAccess, StructuralTypeShape};
 
 const SOURCE: &str = "
     data Record { prefix: u8; payload: u64; }

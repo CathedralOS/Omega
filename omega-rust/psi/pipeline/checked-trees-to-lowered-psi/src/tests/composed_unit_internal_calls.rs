@@ -1,9 +1,8 @@
 //! Internal Unit-call leaves and exact target replay.
 
-use super::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind,
-    OperationResult, Terminator, checked_source, lower_machine,
-};
+use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
+use checked_trees::CheckedUnitEffectOperationPlan;
+use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
 #[test]
 fn composed_scalar_call_locals_replay_their_authored_computation() {
     for (prefix, argument) in [

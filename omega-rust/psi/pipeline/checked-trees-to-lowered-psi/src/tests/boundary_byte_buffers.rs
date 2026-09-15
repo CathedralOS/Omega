@@ -1,14 +1,13 @@
 //! Source-produced bounded byte fields presented to an external boundary.
-use super::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, OperationKind,
-    checked_source, lower_machine,
-};
+use super::{checked_source, lower_machine};
 mod checked_provider;
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalStructuralValue,
 };
+use terminal_psi::OperationKind;
 
 const INPUT_SOURCE: &str = r#"
         domain [u8; 3]::Utf8 requires valid_utf8(self);

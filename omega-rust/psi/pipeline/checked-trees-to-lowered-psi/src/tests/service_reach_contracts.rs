@@ -1,12 +1,20 @@
 use super::{
-    IntegerSign, IntegerType, IntegerValue, Lexer, LoweringError, OperationKind, ResolutionRequest,
-    ServiceId, ServiceReachId, ServiceReachInterface, ServiceReachPlan, ServiceReachRowId,
-    ServiceReachSummary, SymbolHandle, TerminalModule, checked_source, collect_contract_services,
-    collect_published_contract_services, finalize_terminal_artifact,
-    lower_bounded_callback_identity_machine, lower_contract_service_ceiling, lower_machine,
-    lower_published_service_ceiling, lower_root_service_reach, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve, run_psi_optimization, service_id,
+    Lexer, LoweringError, ResolutionRequest, SymbolHandle, TerminalModule, checked_source,
+    lower_machine, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
+use crate::lower_bounded_callback_identity_machine;
+use crate::machine_lowering::terminal_identities::service_id;
+use crate::unit::attached_unit::{
+    collect_contract_services, collect_published_contract_services, lower_contract_service_ceiling,
+    lower_published_service_ceiling, lower_root_service_reach,
+};
+use language_semantics::{
+    ServiceReachId, ServiceReachInterface, ServiceReachPlan, ServiceReachRowId, ServiceReachSummary,
+};
+use lowered_psi_to_lowered_psi::run_psi_optimization;
+use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ServiceId};
+use terminal_psi::OperationKind;
 #[test]
 fn generic_callback_schema_retains_both_closed_callees_after_reload() {
     let checked = checked_source(include_str!(

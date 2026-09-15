@@ -1,14 +1,15 @@
 //! A fresh guard proves each indexed write without a termination claim.
 use super::{
-    IntegerSign, IntegerType, IntegerValue, Lexer, OperationKind, ResolutionRequest,
-    StructuralPathSegment, StructuralTypeShape, checked_source, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve,
+    Lexer, ResolutionRequest, checked_source, lower_symbol_resolved_trees, lower_typed_trees,
+    parse_syntax_trees, resolve,
 };
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalStructuralByteArrayValue, TerminalStructuralValue,
 };
+use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
 
 const FILL: &str = r#"
 machine fill(out: &mut [u8], byte: u8) {

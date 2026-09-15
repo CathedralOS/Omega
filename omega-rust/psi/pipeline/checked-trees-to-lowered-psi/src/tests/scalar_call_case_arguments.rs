@@ -1,9 +1,8 @@
 //! A case actual retains its constructor and each authored payload occurrence.
-use super::{
-    IntegerSign, IntegerType, IntegerValue, LoweringError, OperationKind, StructuralAccess,
-    StructuralTypeShape, checked_source, lower_machine,
-};
+use super::{LoweringError, checked_source, lower_machine};
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_psi::{OperationKind, StructuralAccess, StructuralTypeShape};
 
 const ORDERED_CONSTRUCTOR: &str = r#"
 data Unrelated [copy] { case Other; }

@@ -1,10 +1,9 @@
 //! Source-backed indexed replacement within a bounded byte field's live prefix.
 
-use super::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, IntegerValue, LoweringError,
-    OperationKind, Proposition, ScalarTerm, ScalarType, StructuralPathSegment, StructuralTypeShape,
-    checked_source, lower_machine,
-};
+use super::{LoweringError, ScalarType, checked_source, lower_machine};
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
+use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
+use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
 #[test]
 fn initialized_byte_field_runtime_index_replacement_publishes_terminal() {
     let checked = checked_source(

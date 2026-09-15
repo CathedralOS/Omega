@@ -1,10 +1,13 @@
 //! Structural scalar-return regression families.
 
 use super::{
-    CheckedScalarExpression, CheckedStructuralScalarReturnCleanupAction, CheckedTrees,
-    LoweringError, Operation, OperationKind, PrimitiveType, ScalarType,
-    TerminalAffineCleanupAction, TerminalMachineResult, Terminator, ValueDeclaration, block_id,
-    checked_source, lower_machine, place_id, value_id,
+    CheckedTrees, LoweringError, ScalarType, TerminalMachineResult, checked_source, lower_machine,
+};
+use crate::machine_lowering::terminal_identities::{block_id, place_id, value_id};
+use checked_trees::types::PrimitiveType;
+use checked_trees::{CheckedScalarExpression, CheckedStructuralScalarReturnCleanupAction};
+use terminal_psi::{
+    Operation, OperationKind, TerminalAffineCleanupAction, Terminator, ValueDeclaration,
 };
 fn structural_scalar_return_fixture(parameters: &str, result: &str, body: &str) -> CheckedTrees {
     checked_source(&format!(

@@ -1,7 +1,8 @@
 //! Owned match arms may move one projected affine child while each root's
 //! residual siblings die on the actual selected edge.
 
-use super::{CheckedTrees, Terminator, checked_source, lower_machine};
+use super::{CheckedTrees, checked_source, lower_machine};
+use terminal_psi::Terminator;
 fn projected_selection_source() -> CheckedTrees {
     checked_source(
         "data Payload { left: u64; right: u64; }

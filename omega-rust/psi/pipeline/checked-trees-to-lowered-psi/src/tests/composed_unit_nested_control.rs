@@ -1,10 +1,14 @@
 //! Independent replay of two conditional frontiers and three effect leaves.
 
 use super::{
-    CheckedBooleanExpression, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
-    Operation, OperationKind, StructuralPlaceKind, Terminator, checked_source, lower_machine,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, checked_source, lower_machine,
 };
+use checked_trees::{
+    CheckedBooleanExpression, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpression,
+    CheckedUnitEffectOperationPlan,
+};
+use semantic_vocabulary::StructuralPlaceKind;
+use terminal_psi::{Operation, OperationKind, Terminator};
 fn checked_nested_control() -> CheckedTrees {
     checked_source(
         r#"
