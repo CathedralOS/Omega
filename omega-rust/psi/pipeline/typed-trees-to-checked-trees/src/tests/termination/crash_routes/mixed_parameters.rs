@@ -1,4 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use super::super::{
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
 use crate::lower_typed_trees;
 use crate::tests::termination::symbol_of_checked;
 use checked_trees::{
