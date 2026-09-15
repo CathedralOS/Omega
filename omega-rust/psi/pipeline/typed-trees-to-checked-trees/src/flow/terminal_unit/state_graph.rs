@@ -11,19 +11,13 @@ use super::{
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
     calls,
 };
-use crate::flow::ScalarCalleePlans;
-use crate::flow::byte_sequence_carrier;
-use crate::flow::terminal_unit::ShapeCollector;
-use crate::flow::terminal_unit::checked_boolean_contains_short_circuit;
-use crate::flow::terminal_unit::checked_composed_provider_attachment_requirements;
-use crate::flow::terminal_unit::composed_control;
-use crate::flow::terminal_unit::control;
-use crate::flow::terminal_unit::entry_claims;
-use crate::flow::terminal_unit::free_structural_scalar_signature;
-use crate::flow::terminal_unit::machine_binders;
-use crate::flow::terminal_unit::return_unit_affine_discards;
-use crate::flow::terminal_unit::state_flow;
-use crate::flow::terminal_unit::structural_scalar_signature;
+use crate::flow::terminal_unit::returns::checked_boolean_contains_short_circuit;
+use crate::flow::terminal_unit::{
+    ShapeCollector, checked_composed_provider_attachment_requirements, composed_control, control,
+    entry_claims, free_structural_scalar_signature, machine_binders, return_unit_affine_discards,
+    state_flow, structural_scalar_signature,
+};
+use crate::flow::{ScalarCalleePlans, byte_sequence_carrier};
 
 mod closed_sum;
 mod local_results;
