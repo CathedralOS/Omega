@@ -212,7 +212,25 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   realization and offset joins, the call's machine, callee, commitment and
   semantic result, and out-of-range offsets and byte counts are rejected at
   encoding as non-canonical, as are dropped or duplicated adapters, tables,
-  and calls.
+  and calls. Landed: installed semantic code attribution rows
+  (`installation_semantic_code_attribution_rejects_every_one_field_substitution`)
+  — operation- and edge-site identities and in-bounds byte counts are
+  independently representable and rejected by replay; an unknown machine, a
+  roster-reordering ordinal, drifted code and text offsets, a past-function
+  byte count, and the boundary-joined return-edge row's site, ordinal, and
+  byte count are rejected at encoding as non-canonical; a dropped unjoined
+  row is rejected by replay while a dropped return-edge row, a duplicated
+  site, and a reordered roster are rejected at encoding. Landed: installed
+  privileged port-effect rows
+  (`installation_port_effect_rejects_every_one_field_substitution`)
+  — an unbound row's operation, service, port, value, and ordinal are
+  independently representable and rejected by replay; its machine, code
+  offset, byte count, and text offset are rejected at encoding as
+  non-canonical; every field of the `MetadataOnlyPort`-consumed row is
+  rejected at encoding through the canonical offset joins or the settlement
+  realization; a dropped unbound row is rejected by replay while a dropped
+  consumed row, a duplicated `(machine, operation)` pair, and a reordered
+  roster are rejected at encoding.
 
 ## Psi optimization and loops
 
