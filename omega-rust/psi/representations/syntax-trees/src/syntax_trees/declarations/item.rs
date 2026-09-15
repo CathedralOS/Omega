@@ -651,6 +651,12 @@ pub struct Machine {
     /// data. Empty on authored declarations and other synthesis families.
     pub generic_data_template: Identifier,
     pub attached_data: Option<Identifier>,
+    /// The optional fixed operator token written immediately after `machine`
+    /// (`machine + Name(...)`, `boundary machine + Name(...);`). `None` is an
+    /// ordinary named machine. The token vocabulary is closed and validated
+    /// at parse; semantic-home ownership and duplicate token/shape checks are
+    /// downstream (OPERATOR-MACHINE-SUPPLY).
+    pub spelling: Option<OperatorSpelling>,
     /// Source-level package visibility. This is independent from `boundary`:
     /// an ordinary public library callable remains checked Omega code while
     /// publishing strict effect and operational ceilings.

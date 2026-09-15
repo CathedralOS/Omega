@@ -940,6 +940,10 @@ fn machine_from_signature(
     Machine {
         name: machine_name,
         attached_data: Some(attached),
+        // A synthesized default body is an implementation of the requirement,
+        // which owns any token binding (`StateSignature::spelling`); the
+        // implementation never redeclares it.
+        spelling: None,
         is_public: false,
         bodyless: false,
         target: None,

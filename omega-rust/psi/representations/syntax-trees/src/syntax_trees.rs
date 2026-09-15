@@ -507,6 +507,7 @@ impl SyntaxTrees {
             name: machine.name.clone(),
             generic_data_template: machine.generic_data_template.clone(),
             attached_data: machine.attached_data.clone(),
+            spelling: machine.spelling,
             is_public: machine.is_public,
             target: machine.target.clone(),
             boundary: machine.boundary,

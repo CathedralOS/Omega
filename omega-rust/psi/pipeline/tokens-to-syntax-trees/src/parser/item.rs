@@ -261,6 +261,13 @@ pub(super) fn parse_item<'tokens, 'source>(
         if input.at_contextual("requirement") {
             let input = input.take_contextual("requirement")?;
             let (mut item, rest) = parse_machine(syntax_trees, input)?;
+            if item.spelling.is_some() {
+                return Err(rest.error_here(
+                    "a `boundary requirement` does not take a fixed operator token; a \
+                     token-bearing boundary requirement is spelled bodyless \
+                     `boundary machine + Name(...);`",
+                ));
+            }
             if !item.satisfies.is_empty() {
                 return Err(rest.error_here(
                     "a top-level `boundary requirement` declares a required operation and cannot itself carry a `satisfies` clause",
@@ -510,6 +517,12 @@ fn parse_conformance_body<'tokens, 'source>(
             if machine.service_reach_is_installation_bound {
                 return Err(rest.error_here(
                     "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
+                ));
+            }
+            if machine.spelling.is_some() {
+                return Err(rest.error_here(
+                    "a conformance member supplies an implementation and cannot declare an \
+                     operator token; the requirement owns the token binding",
                 ));
             }
             if machine.attached_data.is_some() {
