@@ -742,22 +742,38 @@ an implementation shortcut.
   route — the crate deliberately does not accept hand-authored endpoint
   inventories as verified evidence.
 
-  Seam map probed at 960a736352 (macOS x86_64; `omega install`/`update`
-  against a composition `build.omg`): all three consumption routes are
-  absent, so no compilable first slice exists yet. `build_depend_as` rows
-  are acquired and reviewed, but `use topology::policies` in the root
-  build.omg resolves the alias as an intra-package directory module
-  (`source/topology/policies.omg` under the requester's own snapshot)
-  while product-scope `depend_as` aliases do resolve there — build-purpose
-  nameability belongs to BUILD-DEPENDENCY-PURPOSES.
-  `builder.output.require`/`complete`/`fail` and `builder.artifact_only`
-  are absent from the toolchain build prelude and reject as unresolved
-  calls; `BuildSnapshotRequest` is populated only by
-  `compiler/tests/build_config_granted.rs`, never by the manager's compile
-  path — owned by BUILD-SNAPSHOT-OUTPUTS. No `verify_component`/
-  `VerifiedComponent` producer or consumer exists, and
-  `CompositionMode::Independent` still rejects at provider-planning's
-  explicit component-closure fence — owned by COMPONENT-SUBSTRATE. Next
+  Seam map re-probed at a76fbb7bf1 (macOS x86_64; `omega audit packages
+  --project <dir> --target linux_x86_64 --offline` against composition
+  projects): the output route and the verified-component consumer have
+  landed, but build-scope nameability is still the first blocker, so no
+  compilable first slice exists yet. `builder.artifact_only` and
+  `builder.output.require`/`complete`/`fail` are in the synthesized build
+  prelude and settle linearly in the real compile path — an artifact-only
+  application that requires and completes `payments.plan` finishes audit,
+  and leaving the obligation pending rejects "required output
+  `payments.plan` of `build` was declared but never completed".
+  `BuildSnapshotRequest` (captured source input plus the declared roster)
+  is still constructed only under `compiler/tests/`, never by the
+  manager's compile path — the remaining BUILD-SNAPSHOT-OUTPUTS binding.
+  `verify_component`/`VerifiedComponent` and the schema-V1
+  `ComponentDescription` codec now exist in
+  `omega-rust/omega/backend/artifacts/component-candidate` (with
+  `component-deployment` on the native install side), but nothing produces
+  a description in the compile path and no evaluated-build admission
+  surface exists: the build prelude has no component facet and
+  `builder.source` reads only the root's own snapshot —
+  COMPONENT-SUBSTRATE. `CompositionMode::Independent` still rejects at
+  provider-planning's component-closure fence, though an `artifact_only`
+  composition selects no providers, so that fence is not on the next
+  acceptance's path. `build_depend_as` rows are acquired and reviewed, but
+  `use topology::policies` — in the root build.omg or a helper source of
+  the root package — resolves the alias as an intra-package directory
+  module (`source/topology/policies.omg` under the requester's own
+  snapshot, witnessed file-not-found at compile) while the same spelling
+  under product-scope `depend_as` resolves the dependency:
+  `manager/src/resolution/compiler_input.rs` filters `is_product()` and
+  `package_compilation::dependency_target` sees only product bindings —
+  build-purpose nameability belongs to BUILD-DEPENDENCY-PURPOSES. Next
   acceptance when the seams land: the composition project compiles
   `use topology::...` under the build scope, admits three verified
   component descriptions, and publishes the checked plan as a required
