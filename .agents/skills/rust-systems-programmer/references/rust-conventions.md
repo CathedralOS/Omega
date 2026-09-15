@@ -41,6 +41,15 @@ sequencing and result handling there. Move subordinate mechanisms beneath their
 owner, not into a flat crowd of competing entrances. This is a readability test,
 not a mandatory filename, folder template, extra facade, or file-count rule.
 
+Before reorganizing variant entrypoints, distinguish configuration defaults from
+destination ownership: creating an arena and appending another source are not
+interchangeable operations. Compatibility adapters may preserve public callers,
+but must lead to one visible execution owner; moving wrappers or renaming a
+dispatcher alone does not improve the subordinate flow. Compare duplicated
+dispatch loops before separating them into folders. Share identical sequencing
+where appropriate, keeping distinct stopping rules, diagnostic precedence, and
+result publication explicit and covered by tests.
+
 Prefer explicit imports for project types; grouping related standard-library or external imports is fine. Follow local formatting, remove unused imports, and do not churn existing imports solely for style. Do not add empty `impl` blocks or pass-through helpers with no responsibility.
 
 ## Keep policy above mechanisms
