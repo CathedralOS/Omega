@@ -31,6 +31,11 @@ coordinator's procedure — the agents get rendered prompts, not this file.
    runs host gates/route/claims checks, renders prompts to
    `build/swarm/<wave>/prompts/<name>.md`, and prints the launch table.
    Fix what it rejects; do not `--skip-*` without a reason you can state.
+5. Read each row's `partition_hints` before spawning: `dependency_language`
+   and `same_layer_reference` mark items that belong in separate layers;
+   `uncovered_mentions` means `owning_paths` don't cover the machinery the
+   board text names — fix the paths so the fence protects the real surface;
+   `scale_hint` means the item is a multi-layer decomposition, not a slice.
 
 ## Launch
 
