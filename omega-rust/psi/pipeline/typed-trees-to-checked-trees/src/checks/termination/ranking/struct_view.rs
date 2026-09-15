@@ -20,6 +20,7 @@ pub(super) fn state_has_proven_self_loop(
     field: &Identifier,
     field_symbol: SymbolHandle,
     owner: SymbolHandle,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> bool {
     let ExpressionNode::Name(subject) = program.expression_table.expression(decreases) else {
         return false;
@@ -33,7 +34,9 @@ pub(super) fn state_has_proven_self_loop(
     else {
         return false;
     };
-    let Some(frames) = CallFrameResolver::new(program) else {
+    let mut owned_frames = None;
+    let Some(frames) = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+    else {
         return false;
     };
     let rank_path = format!("{}.{}", parameter.name.as_str(), field.as_str());

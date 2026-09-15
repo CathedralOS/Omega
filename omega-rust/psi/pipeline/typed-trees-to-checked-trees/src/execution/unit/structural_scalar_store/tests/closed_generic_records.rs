@@ -70,6 +70,7 @@ fn closed_generic_record_stores_reuse_exact_field_and_wrapping_computation_plans
             &structural,
             &scalar,
             0,
+            None,
         )
         .expect("substituted generic fields use ordinary exact store custody");
         let [

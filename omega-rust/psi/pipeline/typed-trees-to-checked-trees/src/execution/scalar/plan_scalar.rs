@@ -8,6 +8,7 @@ use checked_trees::{
 
 pub(crate) fn build_checked_terminal_machine_selections(
     program: &TypedTrees,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CheckedTerminalMachineSelections {
     CheckedTerminalMachineSelections {
         machines: program
@@ -24,10 +25,18 @@ pub(crate) fn build_checked_terminal_machine_selections(
                 } else if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()
                     || (machine.termination_plan.implementation_witness.is_some()
-                        && crate::checks::termination::proven_slice_length_ranks(program, machine)
-                            .is_none()
-                        && crate::checks::termination::proven_nat_countdown_sccs(program, machine)
-                            .is_none_or(|components| components.is_empty()))
+                        && crate::checks::termination::proven_slice_length_ranks_with_call_frames(
+                            program,
+                            machine,
+                            call_frames,
+                        )
+                        .is_none()
+                        && crate::checks::termination::proven_nat_countdown_sccs_with_call_frames(
+                            program,
+                            machine,
+                            call_frames,
+                        )
+                        .is_none_or(|components| components.is_empty()))
                     || machine.suspends
                     || machine.blocks
                     || !machine.supply_mode.is_checked_body()
@@ -83,11 +92,28 @@ mod successors;
 #[path = "tests/coverage.rs"]
 mod tests;
 
+#[cfg(test)]
 pub(crate) fn build_checked_scalar_graph_plans(
     program: &TypedTrees,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
+) -> CheckedScalarGraphPlans {
+    build_checked_scalar_graph_plans_with_call_frames(
+        program,
+        expressions,
+        computations,
+        structural_values,
+        None,
+    )
+}
+
+pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
+    program: &TypedTrees,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    structural_values: &checked_trees::CheckedStructuralValuePlans,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CheckedScalarGraphPlans {
     let (guarded_exits, guarded_tails) = guarded_exits::build(program, expressions);
     let mut parameter_storage = arena::Arena::default();
@@ -110,7 +136,7 @@ pub(crate) fn build_checked_scalar_graph_plans(
     let mut structural_transfers = arena::Arena::default();
     let mut scalar_arguments = arena::Arena::default();
     machines.retain_mut(|graph| {
-        let Some(ranked_scc) = ranking::plan(program, graph) else {
+        let Some(ranked_scc) = ranking::plan(program, graph, call_frames) else {
             return false;
         };
         graph.ranked_scc = ranked_scc;
@@ -134,14 +160,31 @@ pub(crate) fn build_checked_scalar_graph_plans(
 }
 
 /// Finalize discovered bodies only after ownership checking supplies the ledger.
+#[cfg(test)]
 pub(crate) fn finalize_checked_scalar_graph_plans(
     program: &TypedTrees,
     ownership: &checked_trees::FlowOwnershipFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
 ) {
+    finalize_checked_scalar_graph_plans_with_call_frames(
+        program,
+        ownership,
+        computations,
+        plans,
+        None,
+    )
+}
+
+pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
+    program: &TypedTrees,
+    ownership: &checked_trees::FlowOwnershipFacts,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    plans: &mut CheckedScalarGraphPlans,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) {
     plans.machines.retain(|graph| {
-        if ranking::plan(program, graph) != Some(graph.ranked_scc.clone()) {
+        if ranking::plan(program, graph, call_frames) != Some(graph.ranked_scc.clone()) {
             return false;
         }
         if successors::validate(

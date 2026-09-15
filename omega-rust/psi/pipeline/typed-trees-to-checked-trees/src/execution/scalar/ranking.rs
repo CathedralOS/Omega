@@ -10,6 +10,7 @@ use typed_trees::TypedTrees;
 pub(super) fn plan(
     program: &TypedTrees,
     graph: &CheckedScalarMachineGraph,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Option<CheckedStructuralRankedSccPlan>> {
     let machine = program
         .machines()
@@ -18,7 +19,11 @@ pub(super) fn plan(
     if machine.termination_plan.implementation_witness.is_none() {
         return Some(None);
     }
-    let components = crate::checks::termination::proven_nat_countdown_sccs(program, machine)?;
+    let components = crate::checks::termination::proven_nat_countdown_sccs_with_call_frames(
+        program,
+        machine,
+        call_frames,
+    )?;
     if components.is_empty() {
         return Some(None);
     }

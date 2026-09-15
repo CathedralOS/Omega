@@ -65,7 +65,8 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                                 .terminal_structural_scalar_returns
                         },
                         &mut shapes,
-                        machine
+                        machine,
+                        None,
                     )
                     .unwrap()
                     .body_qualifications
@@ -86,7 +87,8 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                         &mut shapes,
                         machine,
                         &[],
-                        &[]
+                        &[],
+                        None,
                     )
                     .unwrap()
                     .body_qualifications
@@ -112,7 +114,8 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                             structural_returns: &facts.flow.terminal_structural_scalar_returns
                         },
                         &mut shapes,
-                        machine
+                        machine,
+                        None,
                     )
                     .is_none()
                 );
@@ -128,7 +131,8 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                         &mut shapes,
                         machine,
                         &[],
-                        &[]
+                        &[],
+                        None,
                     )
                     .unwrap()
                     .body_qualifications,

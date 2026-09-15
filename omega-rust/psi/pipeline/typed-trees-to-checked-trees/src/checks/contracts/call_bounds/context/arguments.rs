@@ -66,6 +66,7 @@ pub(super) fn capture_is_current<'program>(
             state.symbol,
             statement_index,
             &frame,
+            Some(frames),
         )
         .is_some_and(|writes| {
             writes.iter().all(|write| {

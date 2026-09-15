@@ -36,6 +36,7 @@ pub(super) fn build(
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
     let states = program.machine_states(machine);
     if states.is_empty() || !machine_binders(program, machine).is_empty() {
@@ -64,7 +65,11 @@ pub(super) fn build(
     let natural_ranks = if machine.termination_plan.implementation_witness.is_some() {
         // Other retained witnesses belong to their existing producer until this
         // path can preserve them. Never publish an unranked replacement.
-        let ranks = crate::checks::termination::proven_state_natural_ranks(program, machine)?;
+        let ranks = crate::checks::termination::proven_state_natural_ranks_with_call_frames(
+            program,
+            machine,
+            call_frames,
+        )?;
         if ranks.is_empty() {
             return None;
         }
@@ -221,6 +226,7 @@ pub(super) fn build(
             &calls,
             &[],
             binding_count,
+            call_frames,
         )?;
         let mut operations = sequence.operations;
         // Named results remain live through successor operand evaluation. The

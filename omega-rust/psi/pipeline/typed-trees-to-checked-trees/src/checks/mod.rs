@@ -106,13 +106,13 @@ fn check_checked_facts_recording_with_crash_admission(
     }
 
     if let Err(mut borrow_diagnostics) =
-        borrows::check_flow_call_borrows(program, facts, mutation_summaries)
+        borrows::check_flow_call_borrows(program, facts, mutation_summaries, call_frames.as_ref())
     {
         diagnostics.append(&mut borrow_diagnostics);
     }
 
     if let Err(mut contract_diagnostics) =
-        contracts::check_flow_call_contracts(program, facts, &incoming_guards)
+        contracts::check_flow_call_contracts(program, facts, &incoming_guards, call_frames.as_ref())
     {
         diagnostics.append(&mut contract_diagnostics);
     }
@@ -167,7 +167,9 @@ fn check_checked_facts_recording_with_crash_admission(
         diagnostics.append(&mut range_diagnostics);
     }
 
-    if let Err(mut termination_diagnostics) = termination::check_machine_termination(program) {
+    if let Err(mut termination_diagnostics) =
+        termination::check_machine_termination_with_call_frames(program, call_frames.as_ref())
+    {
         diagnostics.append(&mut termination_diagnostics);
     }
 

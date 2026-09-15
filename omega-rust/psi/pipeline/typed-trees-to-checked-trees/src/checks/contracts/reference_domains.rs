@@ -11,6 +11,7 @@ pub(super) fn proves(
     call: &FlowCallFact,
     entry_contexts: &[FactContextHandle],
     required: &Fact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let FactPayload::ContractDomainMembership { domain_symbol, .. } = required.payload else {
         return false;
@@ -34,12 +35,14 @@ pub(super) fn proves(
     else {
         return false;
     };
-    let Some(frames) = validation::CallFrameResolver::new(program) else {
+    let mut owned_frames = None;
+    let Some(frames) = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+    else {
         return false;
     };
     let Some(source) = crate::flow::local_reference_storage_at_call(
         program,
-        &frames,
+        frames,
         machine,
         &facts.flow,
         state,
@@ -60,7 +63,7 @@ pub(super) fn proves(
         |candidate| {
             crate::flow::local_reference_storage_at_call(
                 program,
-                &frames,
+                frames,
                 machine,
                 &facts.flow,
                 state,
@@ -77,9 +80,15 @@ pub(super) fn proves(
     if !field_place(&place) {
         return false;
     }
-    let Some(source) =
-        crate::flow::value_origin_at_call(program, &facts.flow, machine, state, call, place)
-    else {
+    let Some(source) = crate::flow::value_origin_at_call(
+        program,
+        &facts.flow,
+        machine,
+        state,
+        call,
+        place,
+        Some(frames),
+    ) else {
         return false;
     };
     if !field_place(&source) {

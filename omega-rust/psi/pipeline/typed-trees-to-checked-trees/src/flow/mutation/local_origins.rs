@@ -22,6 +22,7 @@ use coordinates::origin_place;
 /// Facts can be expressed through any live reference to the written storage.
 /// Transport the shared prefix origins into this representation; do not infer
 /// bindings here or change the access routes used by borrow authorization.
+#[cfg(test)]
 pub(crate) fn close_storage_places_over_aliases(
     program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
@@ -97,6 +98,7 @@ pub(super) fn assignment_storage_places(
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let StatementNode::Assignment(assignment) = statement else {
         return None;
@@ -140,18 +142,31 @@ pub(super) fn assignment_storage_places(
     );
     if let Some(place) = &mut direct {
         normalize_write_only_range_place(program, state_symbol, place);
-        if !place_requires_local_write_origin(program, state_symbol, statement_index, place) {
+        if !place_requires_local_write_origin(
+            program,
+            state_symbol,
+            statement_index,
+            place,
+            call_frames,
+        ) {
             return direct.map(|place| vec![place]);
         }
     }
-    let resolver = validation::CallFrameResolver::new(program)?;
+    let mut owned_frames = None;
+    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     match resolver.assignment_write_target(machine, statement)? {
         validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => {
             direct.map(|place| vec![place])
         }
         validation::AssignmentWriteTarget::Storage { paths } => {
             if let Some(place) = direct {
-                rebase_local_write_places(program, state_symbol, statement_index, place)
+                rebase_local_write_places(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    place,
+                    call_frames,
+                )
             } else {
                 paths
                     .iter()
@@ -167,6 +182,7 @@ fn place_requires_local_write_origin(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return false;
@@ -186,7 +202,8 @@ fn place_requires_local_write_origin(
     else {
         return false;
     };
-    validation::CallFrameResolver::new(program)
+    let mut owned_frames = None;
+    crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
         .is_none_or(|resolver| resolver.local_requires_write_origin(local.type_reference))
 }
 
@@ -197,8 +214,15 @@ pub(crate) fn rebase_exact_local_place(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CanonicalPlace> {
-    if !place_requires_local_write_origin(program, state_symbol, statement_index, &place) {
+    if !place_requires_local_write_origin(
+        program,
+        state_symbol,
+        statement_index,
+        &place,
+        call_frames,
+    ) {
         return Some(place);
     }
     let facts::PlaceRoot::Symbol(root) = place.root else {
@@ -215,7 +239,8 @@ pub(crate) fn rebase_exact_local_place(
         .statement_table
         .statements(state.statement_nodes)
         .get(statement_index)?;
-    let resolver = validation::CallFrameResolver::new(program)?;
+    let mut owned_frames = None;
+    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let origins = resolver.local_write_origins_before_statement(machine, statement)?;
     let mut candidates = origins.iter().filter(|origin| {
         origin.local_symbol == root
@@ -251,8 +276,15 @@ pub(super) fn rebase_local_write_places(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    if !place_requires_local_write_origin(program, state_symbol, statement_index, &place) {
+    if !place_requires_local_write_origin(
+        program,
+        state_symbol,
+        statement_index,
+        &place,
+        call_frames,
+    ) {
         return Some(vec![place]);
     }
     let facts::PlaceRoot::Symbol(root) = place.root else {
@@ -266,7 +298,8 @@ pub(super) fn rebase_local_write_places(
             .iter()
             .any(|candidate| candidate.symbol == state_symbol)
     })?;
-    let resolver = validation::CallFrameResolver::new(program)?;
+    let mut owned_frames = None;
+    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let origins =
         resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?)?;
     let mut projected = Vec::new();

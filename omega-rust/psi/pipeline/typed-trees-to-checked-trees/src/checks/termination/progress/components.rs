@@ -15,6 +15,7 @@ pub(super) fn derive_summaries(
     program: &TypedTrees,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<CheckedProgressSummary> {
     let components = validation::validated_runtime_recursive_components(program);
     let mut summaries = program
@@ -29,13 +30,20 @@ pub(super) fn derive_summaries(
                 .iter()
                 .any(|component| component.contains(&machine.symbol))
             {
-                summaries[index] =
-                    derive_machine_summary(program, flow, semantic, machine, &previous)
-                        .unwrap_or_else(|| no_guarantee(machine.symbol));
+                summaries[index] = derive_machine_summary(
+                    program,
+                    flow,
+                    semantic,
+                    machine,
+                    &previous,
+                    call_frames,
+                )
+                .unwrap_or_else(|| no_guarantee(machine.symbol));
             }
         }
         for component in &components {
-            let derived = derive_component(program, flow, semantic, component, &previous);
+            let derived =
+                derive_component(program, flow, semantic, component, &previous, call_frames);
             for (index, machine) in program.machines().iter().enumerate() {
                 if component.contains(&machine.symbol) {
                     summaries[index] = derived[index].clone();
@@ -56,6 +64,7 @@ fn derive_component(
     semantic: &facts::FactPlan,
     component: &[SymbolHandle],
     external: &[CheckedProgressSummary],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<CheckedProgressSummary> {
     let mut summaries = external.to_vec();
     let mut unavailable = vec![false; summaries.len()];
@@ -64,7 +73,11 @@ fn derive_component(
     for (index, machine) in program.machines().iter().enumerate() {
         if component.contains(&machine.symbol) {
             summaries[index].guarantee =
-                super::super::infer_machine_checked_summary(program, machine);
+                super::super::infer_machine_checked_summary_with_call_frames(
+                    program,
+                    machine,
+                    call_frames,
+                );
             summaries[index].build_bound_demands.clear();
             unavailable[index] = projection_limit.is_none();
         }
@@ -78,7 +91,7 @@ fn derive_component(
             let mut summary = if unavailable[index] {
                 no_guarantee(machine.symbol)
             } else {
-                derive_machine_summary(program, flow, semantic, machine, &previous)
+                derive_machine_summary(program, flow, semantic, machine, &previous, call_frames)
                     .unwrap_or_else(|| no_guarantee(machine.symbol))
             };
             if let TerminationGuarantee::Terminates { premises } = &summary.guarantee

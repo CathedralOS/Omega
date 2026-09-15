@@ -700,6 +700,7 @@ fn computed_boolean_selected_actual_rejects_without_later_checked_operator_rows(
             call.target_symbol,
             parameters,
             expression,
+            None,
         ),
         "typed selected Boolean equality cannot be evaluated as builtin when its checked row is absent"
     );

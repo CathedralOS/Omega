@@ -46,6 +46,7 @@ use crate::execution::terminal_unit::ShapeCollector;
 pub(crate) fn build_checked_structural_unit_control_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CheckedStructuralUnitControlPlans {
     let mut shapes = ShapeCollector::new(program);
     let machines = program
@@ -53,7 +54,7 @@ pub(crate) fn build_checked_structural_unit_control_plans(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| {
-            build_structural_unit_control_machine(program, facts, &mut shapes, machine)
+            build_structural_unit_control_machine(program, facts, &mut shapes, machine, call_frames)
         })
         .collect::<Vec<_>>();
     let retained = machines

@@ -14,6 +14,7 @@ pub(super) fn pinned_expression_bounds(
     program: &TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Bounds> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -36,7 +37,8 @@ pub(super) fn pinned_expression_bounds(
             _ => return None,
         }
     }
-    let frames = validation::CallFrameResolver::new(program)?;
+    let mut owned_frames = None;
+    let frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     // Immutable storage is not enough: transition actuals may replace that
     // formal on every iteration, even with another value of the same type.
@@ -45,7 +47,7 @@ pub(super) fn pinned_expression_bounds(
             let actual = *edge.arguments.get(input.argument_position)?;
             if !input.preserved_by(program, actual)
                 || !prefix_preserves_path(
-                    &frames,
+                    frames,
                     machine,
                     &statements[..=edge.statement_ordinal],
                     &input.path(),

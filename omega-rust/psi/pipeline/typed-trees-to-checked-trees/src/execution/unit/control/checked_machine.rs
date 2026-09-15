@@ -32,6 +32,7 @@ pub(crate) fn build_checked_machine(
     machine: &typed_trees::machine::Machine,
     selected_operator_applications: &[crate::SelectedOperatorApplication],
     selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedUnitEffectMachinePlan> {
     build_checked_machine_with(
         program,
@@ -42,6 +43,7 @@ pub(crate) fn build_checked_machine(
         selected_operator_applications,
         selected_ieee_float_fma_applications,
         false,
+        call_frames,
     )
     .or_else(|| {
         // Retain borrowed self when ambient attachment cannot plan the body.
@@ -65,6 +67,7 @@ pub(crate) fn build_checked_machine(
                     selected_operator_applications,
                     selected_ieee_float_fma_applications,
                     true,
+                    call_frames,
                 )
             })
             .flatten()
@@ -80,6 +83,7 @@ pub(crate) fn build_checked_machine_with(
     selected_operator_applications: &[crate::SelectedOperatorApplication],
     selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
     retain_reference_self: bool,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedUnitEffectMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -364,6 +368,7 @@ pub(crate) fn build_checked_machine_with(
             &calls,
             sequence_trivial_locals.as_deref().unwrap_or(&[]),
             construction_statement_count,
+            call_frames,
         )?)
     } else {
         None

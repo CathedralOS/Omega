@@ -59,6 +59,7 @@ pub(super) fn value_preserves_indexed_extent<'program>(
         state.symbol,
         facts.statement_index,
         &facts::NormalizedWriteFrame::complete(paths),
+        call_frames,
     );
     facts.expression_is_disjoint_from_writes(
         program,

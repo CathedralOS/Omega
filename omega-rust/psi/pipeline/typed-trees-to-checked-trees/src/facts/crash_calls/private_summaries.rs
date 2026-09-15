@@ -20,6 +20,7 @@ pub(crate) fn infer_private_body_summaries(
     content_conservation: &[validation::ContentConservationSourcePlan],
     crash_capsules: &[checked_trees::CrashContractCapsule],
     plans: &[checked_trees::MachineContractPlan],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<(SymbolHandle, Vec<SummaryCrashBucket>)> {
     let mut nodes = plans
         .iter()
@@ -179,6 +180,7 @@ pub(crate) fn infer_private_body_summaries(
                         target_plan.crash.published(),
                         program.machine_contracts(target_machine),
                         content_conservation,
+                        call_frames,
                     ));
                 }
             } else {
@@ -216,6 +218,7 @@ pub(crate) fn infer_private_body_summaries(
                     capsule.published_buckets(),
                     program.state_signature_contracts(signature),
                     content_conservation,
+                    call_frames,
                 ));
             }
         }

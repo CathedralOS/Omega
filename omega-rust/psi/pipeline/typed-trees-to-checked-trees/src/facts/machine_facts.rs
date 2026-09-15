@@ -8,8 +8,14 @@ pub(crate) fn build_termination_facts(
     flow: &checked_trees::FlowFacts,
     semantic: &facts::FactPlan,
     validation: &validation::ProgramValidationFacts,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::TerminationFacts, Vec<diagnostics::Diagnostic>> {
-    let summaries = crate::checks::termination::analyze_checked_progress(program, flow, semantic)?;
+    let summaries = crate::checks::termination::analyze_checked_progress_with_call_frames(
+        program,
+        flow,
+        semantic,
+        call_frames,
+    )?;
     Ok(checked_trees::TerminationFacts {
         machines: program
             .machines()

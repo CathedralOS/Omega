@@ -53,6 +53,14 @@ impl<'program> RangeCallContext<'program> {
         }
     }
 
+    /// The pass-shared resolver this context already borrows; `None` leaves a
+    /// caller to construct its own exactly as it did before the pass shared one.
+    pub(in crate::checks::ranges) fn call_frames(
+        &self,
+    ) -> Option<&validation::CallFrameResolver<'_>> {
+        self.call_frames
+    }
+
     /// Rejoin the exact checked call occurrence for one authored site in the
     /// owning state. Flow and borrow rows agree on statement and ordinal only
     /// for the same occurrence; anything else reports no evidence.

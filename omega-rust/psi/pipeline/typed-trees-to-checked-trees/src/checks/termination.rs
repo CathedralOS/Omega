@@ -4,16 +4,28 @@ mod progress;
 mod ranking;
 
 pub(crate) use graph::named_transition_target_state_index;
+#[cfg(test)]
 pub(crate) use ranking::proven_nat_countdown_sccs;
-pub(crate) use ranking::proven_slice_length_ranks;
-pub(crate) use ranking::proven_state_natural_ranks;
+pub(crate) use ranking::proven_nat_countdown_sccs_with_call_frames;
+pub(crate) use ranking::proven_slice_length_ranks_with_call_frames;
+pub(crate) use ranking::proven_state_natural_ranks_with_call_frames;
+#[cfg(test)]
 pub(crate) use ranking::proves_ranked_entry_requirement;
+pub(crate) use ranking::proves_ranked_entry_requirement_with_call_frames;
 
 use crate::labels::machine_name;
 use diagnostics::Diagnostic;
 
+#[cfg(test)]
 pub(crate) fn check_machine_termination(
     program: &typed_trees::TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    check_machine_termination_with_call_frames(program, None)
+}
+
+pub(crate) fn check_machine_termination_with_call_frames(
+    program: &typed_trees::TypedTrees,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let ranked_call_components = validation::validated_runtime_recursive_components(program);
@@ -88,7 +100,7 @@ pub(crate) fn check_machine_termination(
             continue;
         }
 
-        match ranking::machine_decrease_outcome(program, machine) {
+        match ranking::machine_decrease_outcome(program, machine, call_frames) {
             ranking::DecreaseOutcome::Proven => {}
             ranking::DecreaseOutcome::Unproven => {
                 diagnostics.push(Diagnostic::error(format!(
@@ -166,7 +178,9 @@ pub(crate) fn build_checked_termination_plan_with_summary(
     plan
 }
 
+#[cfg(test)]
 pub(crate) use progress::analyze_checked_progress;
+pub(crate) use progress::analyze_checked_progress_with_call_frames;
 
 /// Derive the same body-local termination summary retained in checked facts.
 ///
@@ -178,6 +192,14 @@ pub(crate) fn infer_machine_checked_summary(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> language_semantics::TerminationGuarantee {
+    infer_machine_checked_summary_with_call_frames(program, machine, None)
+}
+
+pub(crate) fn infer_machine_checked_summary_with_call_frames(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> language_semantics::TerminationGuarantee {
     use language_semantics::TerminationGuarantee;
 
     let established = if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -188,7 +210,7 @@ pub(crate) fn infer_machine_checked_summary(
         true
     } else if machine.termination_plan.implementation_witness.is_some() {
         matches!(
-            ranking::machine_decrease_outcome(program, machine),
+            ranking::machine_decrease_outcome(program, machine, call_frames),
             ranking::DecreaseOutcome::Proven
         )
     } else {

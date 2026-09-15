@@ -24,8 +24,9 @@ pub(in crate::checks::contracts) fn proves(
     call: &FlowCallFact,
     contexts: &[facts::FactContextHandle],
     goal: ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    prove(program, facts, caller, call, contexts, goal).unwrap_or(false)
+    prove(program, facts, caller, call, contexts, goal, call_frames).unwrap_or(false)
 }
 
 fn prove(
@@ -35,6 +36,7 @@ fn prove(
     call: &FlowCallFact,
     contexts: &[facts::FactContextHandle],
     goal: ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
     let site = crate::find_call_site(
         program,
@@ -105,7 +107,12 @@ fn prove(
     let parameters = program.state_parameters(program.machine_states(callee).first()?);
     if caller.machine_symbol == callee.symbol
         && matches!(site, crate::CallSite::TransitionNamed { .. })
-        && crate::checks::termination::proves_ranked_entry_requirement(program, callee, goal)
+        && crate::checks::termination::proves_ranked_entry_requirement_with_call_frames(
+            program,
+            callee,
+            goal,
+            call_frames,
+        )
     {
         return Some(true);
     }
@@ -151,10 +158,11 @@ fn prove(
         return Some(true);
     }
     let caller_parameters = program.state_parameters(caller_state);
+    let mut owned_frames = None;
     let frames = caller_parameters
         .iter()
         .any(|parameter| parameter.is_mutable)
-        .then(|| validation::CallFrameResolver::new(program))
+        .then(|| crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames))
         .flatten();
     let bindings = caller_parameters
         .iter()
@@ -199,7 +207,7 @@ fn prove(
             call.statement_index,
             *argument,
             &arguments[position + 1..],
-            frames.as_ref(),
+            frames,
         ) {
             return None;
         }

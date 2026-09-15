@@ -69,6 +69,27 @@ use operator_calls::{
 };
 pub(crate) use place::contextual_canonical_place_from_expression;
 
+/// One `CallFrameResolver` serves an entire immutable program window of the
+/// check pass: construction rebuilds the top-level symbol index, so every
+/// consumer down the call tree receives the shared resolver instead of
+/// rebuilding it. A caller outside that context — a standalone query or a
+/// test — passes `None` and the site performs the same private construction
+/// it ran before the pass shared one, stored in `owned` for the call's
+/// duration. A `None` result therefore means exactly what a failed private
+/// construction meant: the resolver is unavailable and the site takes its
+/// existing opaque/conservative outcome.
+pub(crate) fn shared_call_frames_or<'program, 'a>(
+    shared: Option<&'a validation::CallFrameResolver<'program>>,
+    program: &'program typed_trees::TypedTrees,
+    owned: &'a mut Option<validation::CallFrameResolver<'program>>,
+) -> Option<&'a validation::CallFrameResolver<'program>> {
+    if shared.is_some() {
+        return shared;
+    }
+    *owned = validation::CallFrameResolver::new(program);
+    owned.as_ref()
+}
+
 pub(crate) fn resolved_operator_statement_symbol(
     program: &typed_trees::TypedTrees,
     call: &typed_trees::statement::TableCall,

@@ -284,6 +284,7 @@ pub(in crate::execution::terminal_unit) fn build(
     calls: &[&checked_trees::FlowCallFact],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     construction_statement_count: usize,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<StatementSequence> {
     let scalar_control = scalar_control(program, facts, machine, state).map(|(control, _)| control);
     if scalar_control.is_some()
@@ -327,6 +328,7 @@ pub(in crate::execution::terminal_unit) fn build(
             structural_parameters,
             scalar_parameters,
             construction_statement_count,
+            call_frames,
         )?
         .into_iter();
     for (index, statement) in program

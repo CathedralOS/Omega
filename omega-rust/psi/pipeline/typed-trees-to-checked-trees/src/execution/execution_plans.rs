@@ -27,6 +27,7 @@ pub(crate) fn build_execution_plans(
     previous_returns: Option<&CheckedStructuralScalarReturnPlans>,
     operator_applications: &[SelectedOperatorApplication],
     ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> ExecutionPlans {
     let boundary_returns = execution::build_checked_boundary_scalar_return_plans(program, facts);
     let primitive_returns =
@@ -41,12 +42,13 @@ pub(crate) fn build_execution_plans(
         boundary_returns: &boundary_returns,
         structural_returns: &structural_callees,
     };
-    let unit_effects = execution::build_checked_unit_effect_plans(
+    let unit_effects = execution::build_checked_unit_effect_plans_with_call_frames(
         program,
         facts,
         scalar_callees,
         operator_applications,
         ieee_float_fma_applications,
+        call_frames,
     );
     let mut cleanup_diagnostics = Vec::new();
     let structural_scalar_returns = execution::build_checked_structural_scalar_return_plans(

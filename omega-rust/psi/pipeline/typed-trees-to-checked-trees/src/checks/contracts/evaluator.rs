@@ -26,6 +26,7 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     target_symbol: symbols::SymbolHandle,
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     call_site_boolean_contract_expression_value_with_operators(
         program,
@@ -36,6 +37,7 @@ pub(super) fn call_site_proves_boolean_contract_expression(
         target_symbol,
         target_parameters,
         expression,
+        call_frames,
     )
     .unwrap_or(false)
 }
@@ -51,6 +53,7 @@ pub(crate) fn call_site_boolean_contract_expression_value(
     target_symbol: symbols::SymbolHandle,
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
     call_site_boolean_contract_expression_value_with_operators(
         program,
@@ -61,18 +64,21 @@ pub(crate) fn call_site_boolean_contract_expression_value(
         target_symbol,
         target_parameters,
         expression,
+        call_frames,
     )
 }
 
-fn call_site_boolean_contract_expression_value_with_operators(
-    program: &typed_trees::TypedTrees,
-    operators: Option<&checked_trees::CheckedOperatorFacts>,
+#[allow(clippy::too_many_arguments)]
+fn call_site_boolean_contract_expression_value_with_operators<'program, 'call>(
+    program: &'program typed_trees::TypedTrees,
+    operators: Option<&'program checked_trees::CheckedOperatorFacts>,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
-    call_site: &crate::CallSite<'_>,
+    call_site: &'call crate::CallSite<'program>,
     target_symbol: symbols::SymbolHandle,
-    target_parameters: &[StateParameter],
+    target_parameters: &'program [StateParameter],
     expression: ExpressionHandle,
+    call_frames: Option<&'call validation::CallFrameResolver<'program>>,
 ) -> Option<bool> {
     let caller_state =
         crate::find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)?;
@@ -90,6 +96,7 @@ fn call_site_boolean_contract_expression_value_with_operators(
         call_site,
         target_symbol,
         target_parameters,
+        call_frames,
         active_evaluations: RefCell::new(Vec::new()),
         active_resolutions: RefCell::new(Vec::new()),
     }
@@ -101,6 +108,10 @@ pub(super) struct ContractExpressionEvaluator<'program, 'call> {
     // Source call checking has selected operator facts. Earlier crash-fact
     // construction does not, and cannot gain Boolean equality authority here.
     operators: Option<&'program checked_trees::CheckedOperatorFacts>,
+    /// The enclosing pass's shared frame resolver, when one is live in this
+    /// immutable program window. `None` reconstructs a private resolver on
+    /// first use so standalone queries keep their established behavior.
+    call_frames: Option<&'call validation::CallFrameResolver<'program>>,
     caller_machine: &'program Machine,
     caller_state: &'program State,
     statement_index: usize,

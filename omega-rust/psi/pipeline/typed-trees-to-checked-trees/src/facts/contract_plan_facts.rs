@@ -25,6 +25,7 @@ pub(crate) fn build_contract_plans(
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &facts::FactPlan,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
     let content_conservation = validation::build_content_conservation_plans(program);
@@ -195,6 +196,7 @@ pub(crate) fn build_contract_plans(
         &content_conservation,
         &crash_capsules,
         &mut machines,
+        call_frames,
     );
     let realized_envelopes =
         machines
@@ -325,14 +327,19 @@ fn validate_checked_resource_envelope_coverage(
     Ok(())
 }
 
-pub(crate) fn build_mutation_facts(program: &TypedTrees) -> checked_trees::MutationFacts {
-    let frame_resolver = validation::CallFrameResolver::new(program);
+pub(crate) fn build_mutation_facts(
+    program: &TypedTrees,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> checked_trees::MutationFacts {
+    let mut owned_resolver = None;
+    let frame_resolver =
+        crate::flow::shared_call_frames_or(call_frames, program, &mut owned_resolver);
     let machines = program
         .machines()
         .iter()
         .map(|machine| {
             let states = program.machine_states(machine);
-            let frames = frame_resolver.as_ref().map_or_else(
+            let frames = frame_resolver.map_or_else(
                 || {
                     (0..states.len())
                         .map(|_| facts::NormalizedWriteFrame::opaque())

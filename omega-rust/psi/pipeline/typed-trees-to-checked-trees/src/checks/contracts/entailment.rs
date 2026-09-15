@@ -8,10 +8,10 @@ mod tests;
 /// Transient, program-local results of positive entailment judgments. The
 /// runtime place prover need not duplicate structural or integer proof rules,
 /// but absence of a validation error is not evidence for any postcondition.
-pub(super) struct ProvenExitExpressions<'program> {
+pub(super) struct ProvenExitExpressions<'program, 'frames> {
     program: &'program TypedTrees,
     classification: &'program typed_trees::proof_only::ProofOnlyClassification,
-    resolver: Option<validation::CallFrameResolver<'program>>,
+    resolver: Option<&'frames validation::CallFrameResolver<'program>>,
     machines: Vec<MachineEntailmentOutcome>,
 }
 
@@ -21,15 +21,19 @@ pub(super) struct MachineEntailmentOutcome {
     entry_premises_preserved: bool,
 }
 
-impl<'program> ProvenExitExpressions<'program> {
+impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
+    /// The check pass owns one resolver for the immutable program window;
+    /// `resolver` borrows it. `None` disables the isolated-proof-value path
+    /// exactly as an unconstructable resolver did before.
     pub(super) fn new(
         program: &'program TypedTrees,
         classification: &'program typed_trees::proof_only::ProofOnlyClassification,
+        resolver: Option<&'frames validation::CallFrameResolver<'program>>,
     ) -> Self {
         Self {
             program,
             classification,
-            resolver: validation::CallFrameResolver::new(program),
+            resolver,
             machines: Vec::new(),
         }
     }
@@ -49,7 +53,7 @@ impl<'program> ProvenExitExpressions<'program> {
                     facts,
                     machine_symbol,
                     self.classification,
-                    self.resolver.as_ref(),
+                    self.resolver,
                 );
                 let mut expressions = if entry_premises_preserved {
                     validation::proven_machine_contract_expressions(self.program, machine_symbol)

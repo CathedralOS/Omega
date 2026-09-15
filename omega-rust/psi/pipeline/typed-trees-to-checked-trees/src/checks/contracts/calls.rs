@@ -22,6 +22,7 @@ pub(super) fn check_call_requires(
     call_flow: &FlowCallFact,
     nominal_requirements: &super::nominal_inputs::DeclaredFieldRequirements,
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // The state-parameter domain facts (origin StateParameterDomain, surfaced at
@@ -69,6 +70,7 @@ pub(super) fn check_call_requires(
                             call_flow,
                             &entry_contexts,
                             expression,
+                            call_frames,
                         )
                         || super::call_bounds::proves_in_context(
                             program,
@@ -77,6 +79,7 @@ pub(super) fn check_call_requires(
                             call_flow,
                             &entry_contexts,
                             expression,
+                            call_frames,
                         )
                         || if !expression_is_boolean_place_like(program, expression) {
                             // R1: a DOMINATING incoming-arm guard establishes a
@@ -144,6 +147,7 @@ pub(super) fn check_call_requires(
                         call_flow,
                         &entry_contexts,
                         fact,
+                        call_frames,
                     )));
 
             if !satisfied {

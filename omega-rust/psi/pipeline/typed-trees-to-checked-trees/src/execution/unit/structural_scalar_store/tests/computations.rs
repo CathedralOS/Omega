@@ -76,6 +76,7 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         &structural,
         &scalar,
         0,
+        None,
     )
     .expect("retain complete write frame and both stores");
     let flow = state_flow(&checked.facts, machine.symbol, state.symbol).unwrap();
@@ -119,6 +120,7 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         &outer,
         &[],
         0,
+        None,
     )
     .expect("retain ordered statement sequence");
     build_checked_machine(
@@ -132,6 +134,7 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         machine,
         &[],
         &[],
+        None,
     )
     .expect("retain complete ordinary Unit candidate");
     assert!(
@@ -166,6 +169,7 @@ fn field_call_assignment_retains_original_root_and_scalar_parameter_namespace() 
         machine,
         &[],
         &[],
+        None,
     )
     .expect("call RHS belongs to the field store, not a dropped Unit call");
     let [
@@ -258,7 +262,8 @@ fn field_call_assignment_rejects_missing_stale_and_substituted_root_custody() {
                 &mut ShapeCollector::new(program),
                 machine,
                 &[],
-                &[]
+                &[],
+                None,
             )
             .is_none(),
             "mutation {mutation}"

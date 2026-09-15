@@ -34,11 +34,14 @@ pub(super) fn check_flow_call_contracts(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let content_plans = validation::build_content_conservation_plans(program);
     let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
-    let call_frames = validation::CallFrameResolver::new(program);
+    let mut owned_call_frames = None;
+    let call_frames =
+        crate::flow::shared_call_frames_or(call_frames, program, &mut owned_call_frames);
 
     assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
 
@@ -55,7 +58,7 @@ pub(super) fn check_flow_call_contracts(
     // decomposition of the arm-refined requires; probed 2026-07-16 with
     // add_cancel).
     let proof_only = typed_trees::proof_only::classify(program);
-    let mut entailment = entailment::ProvenExitExpressions::new(program, &proof_only);
+    let mut entailment = entailment::ProvenExitExpressions::new(program, &proof_only, call_frames);
     // Call targets carry the callee's ENTRY-STATE symbol (sub-state targets
     // carry that state's); resolve through states as well as the machine
     // symbol itself.
@@ -95,6 +98,7 @@ pub(super) fn check_flow_call_contracts(
                 call_flow,
                 &nominal_requirements,
                 incoming_guards.for_machine(state_flow.machine_symbol),
+                call_frames,
                 &mut diagnostics,
             );
         }
@@ -106,7 +110,7 @@ pub(super) fn check_flow_call_contracts(
                 exit_flow,
                 entailment.for_machine(facts, state_flow.machine_symbol),
                 &content_plans,
-                call_frames.as_ref(),
+                call_frames,
                 &mut diagnostics,
             );
         }

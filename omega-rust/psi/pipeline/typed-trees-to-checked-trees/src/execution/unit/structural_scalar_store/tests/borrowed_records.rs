@@ -256,6 +256,7 @@ fn borrowed_record_store_selects_the_exact_destination_among_other_inputs() {
             &structural,
             &scalar,
             0,
+            None,
         )
         .expect("read one borrowed record and write the independently selected destination");
         let [CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)] = stores.as_slice()
@@ -290,7 +291,8 @@ fn borrowed_record_store_selects_the_exact_destination_among_other_inputs() {
                 state,
                 &wrong_root,
                 &scalar,
-                0
+                0,
+                None,
             )
             .is_none()
         );
@@ -308,7 +310,8 @@ fn borrowed_record_store_selects_the_exact_destination_among_other_inputs() {
                 state,
                 &shared_destination,
                 &scalar,
-                0
+                0,
+                None,
             )
             .is_none()
         );

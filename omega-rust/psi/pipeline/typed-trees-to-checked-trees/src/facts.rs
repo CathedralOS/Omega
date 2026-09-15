@@ -135,6 +135,11 @@ pub(crate) fn build_check_facts(
         &operators,
         &validation_facts.exact_integer_casts,
     );
+    // One frame resolver serves the whole immutable fact-construction window:
+    // flow classification, terminal ranking projections, termination progress
+    // proofs, mutation frames, and crash-route refinement all classify the
+    // same typed program.
+    let call_frames = validation::CallFrameResolver::new(program);
     let mut flow = build_flow_facts_with_service_reaches(
         program,
         &borrow,
@@ -147,6 +152,7 @@ pub(crate) fn build_check_facts(
         &operators,
         &validation_facts.exact_integer_casts,
         mutation_summaries,
+        call_frames.as_ref(),
     );
     crate::facts::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
     crate::values::retain_nested_structural_call_arguments(
@@ -169,13 +175,16 @@ pub(crate) fn build_check_facts(
     let index_compatibility = index_compatibility::build_index_compatibility_facts(
         program, &operators, &semantic, &flow,
     )?;
-    flow.terminal_scalar_graphs = crate::execution::build_checked_scalar_graph_plans(
-        program,
-        &values.scalar_expressions,
-        &values.scalar_computations,
-        &values.structural_values,
-    );
-    flow.terminal_machines = crate::execution::build_checked_terminal_machine_selections(program);
+    flow.terminal_scalar_graphs =
+        crate::execution::build_checked_scalar_graph_plans_with_call_frames(
+            program,
+            &values.scalar_expressions,
+            &values.scalar_computations,
+            &values.structural_values,
+            call_frames.as_ref(),
+        );
+    flow.terminal_machines =
+        crate::execution::build_checked_terminal_machine_selections(program, call_frames.as_ref());
     flow.terminal_debug = crate::execution::build_checked_terminal_debug_plans(program);
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
     let (machine_suspensions, machine_blocking) = project_operational_rows(&operational);
@@ -191,7 +200,13 @@ pub(crate) fn build_check_facts(
     // retains public negative guarantees separately from private inference.
     let blocking = build_blocking_facts(program, &machine_blocking);
     // TPR/EFX: termination is published as an independent exact-machine root.
-    let termination = build_termination_facts(program, &flow, &semantic, validation_facts)?;
+    let termination = build_termination_facts(
+        program,
+        &flow,
+        &semantic,
+        validation_facts,
+        call_frames.as_ref(),
+    )?;
     let mut fact_call_projection_diagnostics = Vec::new();
     validation::validate_ordered_requirement_call_totality(
         program,
@@ -205,7 +220,7 @@ pub(crate) fn build_check_facts(
     let service_reaches = build_service_reach_facts(program, service_reach_inference);
     // R5/STR: body-derived mutation frames are an independent checked axis,
     // never a field of the published machine contract.
-    let mutation = build_mutation_facts(program);
+    let mutation = build_mutation_facts(program, call_frames.as_ref());
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
     let contract_plans = build_contract_plans(
@@ -221,6 +236,7 @@ pub(crate) fn build_check_facts(
         &operators,
         &semantic,
         &validation_facts.exact_integer_casts,
+        call_frames.as_ref(),
     )?;
     proof.contract_entailment_assumption_discharges =
         crate::proof::build_contract_entailment_assumption_discharges(program, &contract_plans)?;
