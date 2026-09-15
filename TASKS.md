@@ -1244,18 +1244,21 @@ Owners include
   widening, and boundary operator declarations do not yet carry a replayable
   Terminal crash contract; direct lowering rejects selected operator crash uses
   at `checked-trees-to-lowered-psi/src/machine_lowering.rs`. Copying checked rows onto
-  `MachineContract` alone would not establish replay meaning. A Terminal row
-  also has no producer yet: checked scalar computations admit a selected
-  comparison only through `selected_float_comparison`
-  (`values/scalar/computations/dispatch.rs`), so a selected integer boundary
-  operator such as `Comparison::equal(i32, i32)` binds no
-  `CheckedScalarComputationKind::SelectedComparison`; with the lowering fence
-  bypassed, `may_crash`/`safe` in `operators/crash_routes` reject earlier with
-  "scalar computation needs one checked expression and one source binding".
-  The next slice is that checked computation (exact operator use plus
-  published/surviving routes), then a Terminal operation-level carrier whose
-  verifier substitutes operands as `validate_call_crash_coverage` does; design
-  the row only after the producer exists.
+  `MachineContract` alone would not establish replay meaning. Checked scalar
+  computations now admit a selected integer boundary comparison such as
+  `Comparison::equal(i32, i32)` as
+  `CheckedScalarComputationKind::SelectedComparison`:
+  `checked_trees/operators/comparisons.rs`'s `selected_integer_comparison`
+  joins `selected_float_comparison`, and
+  `values/scalar/computations/dispatch.rs` admits either classifier while
+  retaining the exact operator use, authored operand order, and joined
+  published/surviving site rows. Terminal consumers still resolve selected
+  comparisons only through `selected_float_comparison`, so an integer
+  `SelectedComparison` rejects at lowering rather than replaying; the lowering
+  fence for crash-qualified uses is unchanged. The next slice is a Terminal
+  operation-level carrier whose verifier substitutes operands as
+  `validate_call_crash_coverage` does; design the row only now that the
+  producer exists.
 
 - **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
   and independent checker in Psi, under the
