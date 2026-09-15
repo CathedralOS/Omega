@@ -93,13 +93,13 @@ fn rooted_package_build_operation_refusal(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct PreparedTransferCount {
+pub(crate) struct PreparedTransferCount {
     pub(super) raw: u64,
     pub(super) host: usize,
 }
 
 #[derive(Clone)]
-pub(super) enum PreparedByteOutput {
+pub(crate) enum PreparedByteOutput {
     Text {
         text: crate::value::TextBuffer,
         capacity: usize,
@@ -159,14 +159,14 @@ fn prepared_byte(cell: &Cell) -> EvalResult<u8> {
     })
 }
 
-pub(super) struct PreparedMutableByteInput {
+pub(crate) struct PreparedMutableByteInput {
     #[allow(dead_code)]
     pub(super) output: PreparedByteOutput,
     pub(super) bytes: Vec<u8>,
 }
 
 #[derive(Clone)]
-pub(super) struct PreparedI64Output {
+pub(crate) struct PreparedI64Output {
     cell: Cell,
     pub(super) initial: i64,
 }
@@ -196,7 +196,7 @@ impl PreparedI64Output {
 /// Every canonical authored operand is represented, including ABI-shape
 /// operands a modeled provider does not otherwise need.
 #[allow(dead_code)]
-pub(super) enum PreparedFilesystemCall {
+pub(crate) enum PreparedFilesystemCall {
     Create {
         path: Vec<u8>,
         mode: i32,
@@ -482,7 +482,7 @@ pub(super) struct PreparedFilesystemLogicalHandleRetirement {
     pub(super) success: FilesystemLogicalHandleRetirementSuccess,
 }
 
-pub(super) struct PreparedFilesystemLogicalHandlePlan {
+pub(crate) struct PreparedFilesystemLogicalHandlePlan {
     pub(super) inputs: Vec<PreparedFilesystemLogicalHandleInput>,
     pub(super) input_success: Option<FilesystemLogicalHandleResultSuccess>,
     pub(super) output: Option<PreparedFilesystemLogicalHandleOutput>,
@@ -525,7 +525,7 @@ pub(super) struct PreparedFilesystemMutableI64Observation {
     pre_value: i64,
 }
 
-pub(super) struct PreparedFilesystemMutableObservationPlan {
+pub(crate) struct PreparedFilesystemMutableObservationPlan {
     byte_operands: Vec<PreparedFilesystemMutableByteObservation>,
     i64_operands: Vec<PreparedFilesystemMutableI64Observation>,
 }
@@ -2175,11 +2175,15 @@ mod tests {
 
     #[test]
     fn provider_boundaries_only_accept_prepared_calls() {
-        let virtual_source = include_str!("filesystem.rs");
+        let virtual_source = include_str!("filesystem/filesystem_calls.rs");
         let real_source = include_str!("real_filesystem.rs");
+        let virtual_signatures = virtual_source
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
         assert!(
-            virtual_source
-                .contains("fn serve_filesystem_call(&mut self, call: PreparedFilesystemCall)")
+            virtual_signatures
+                .contains("fn serve_filesystem_call( &mut self, call: PreparedFilesystemCall, )")
         );
         assert!(real_source.contains("call: PreparedFilesystemCall,"));
         assert!(!real_source.contains("ExpressionHandle"));
@@ -2580,7 +2584,7 @@ mod tests {
 
     #[test]
     fn operation_attempt_encloses_canonical_preparation() {
-        let source = include_str!("filesystem.rs");
+        let source = include_str!("filesystem/filesystem_calls.rs");
         let push = source.find("push(attempt_index)").expect("attempt push");
         let prepare = source
             .find(".prepare_filesystem_call(operation, arguments, frame)")

@@ -146,7 +146,7 @@ fn render_operations(operations: &[Operation]) -> String {
         "// @generated from source/library/std/filesystem_host.omg by checked-interpreter/build.rs.\n",
     );
     generated.push_str(
-        "#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n#[repr(u16)]\npub(super) enum FilesystemHostOperation {\n",
+        "#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n#[repr(u16)]\npub(crate) enum FilesystemHostOperation {\n",
     );
     for (index, operation) in operations.iter().enumerate() {
         writeln!(generated, "    {} = {},", operation.variant, index + 1).unwrap();
