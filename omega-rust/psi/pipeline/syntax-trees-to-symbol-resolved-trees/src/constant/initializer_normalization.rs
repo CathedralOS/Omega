@@ -476,7 +476,7 @@ pub(crate) fn finalize(
                         Kind::Call,
                         selected,
                     )
-                    .map_err(super::const_selection_record_diagnostic)?,
+                    .map_err(crate::constant::selections::const_selection_record_diagnostic)?,
             );
         }
         for origin in origins {
@@ -497,7 +497,7 @@ pub(crate) fn finalize(
                         Kind::StaticPathSegment,
                         selected,
                     )
-                    .map_err(super::const_selection_record_diagnostic)?,
+                    .map_err(crate::constant::selections::const_selection_record_diagnostic)?,
             );
         }
         for operator in operators {
@@ -508,7 +508,7 @@ pub(crate) fn finalize(
                     Kind::Operator,
                     LateBinding::CheckedOperator,
                 )
-                .map_err(super::const_selection_record_diagnostic)?;
+                .map_err(crate::constant::selections::const_selection_record_diagnostic)?;
             program
                 .finalize_intrinsic_authored_declaration_selection(
                     occurrence,
