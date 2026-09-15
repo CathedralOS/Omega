@@ -10,6 +10,7 @@ use crate::{application_coverage, float_comparisons, native_proposal};
 use assembled_syntax_to_checked_compilation::{CheckedCompilation, OptimizationRollback};
 use diagnostics::Diagnostic;
 
+pub(crate) mod behavior_exclusions;
 pub(crate) mod verification;
 
 /// Produce the retained Terminal product and its ordinary compiler report.
@@ -85,6 +86,10 @@ fn produce_retained_terminal_artifact(
         checked,
         checked.selected_provider_provenance(),
     )?;
+    // The root and provider selections are now fixed; the authored behavior
+    // exclusions must hold in the unoptimized composition before the product
+    // is produced and admitted.
+    behavior_exclusions::verify_entry_behavior_exclusions(checked, entry_machine_symbol)?;
     let psi_optimizations = selections.project_psi();
     let terminal_trees = checked.terminal_production_trees();
     let produced = terminal_production::TerminalProductionRequest {
@@ -174,6 +179,13 @@ pub fn produce_program_entry_terminal_artifact(
     program_entry: &build_evaluation::SelectedCompilerProgramEntry,
     optimization_selections: &optimization_core::OptimizationSelections,
 ) -> Result<ProgramEntryTerminalArtifact, Vec<Diagnostic>> {
+    // Same admission requirement as the retained product: the authored
+    // exclusions are verified against the unoptimized composition before the
+    // direct native route's artifact is produced.
+    behavior_exclusions::verify_entry_behavior_exclusions(
+        checked,
+        program_entry.source_signature().machine_symbol(),
+    )?;
     let psi_optimizations = optimization_selections.project_psi();
     let terminal_trees = checked.terminal_production_trees();
     let produced = terminal_production::TerminalProductionRequest {
