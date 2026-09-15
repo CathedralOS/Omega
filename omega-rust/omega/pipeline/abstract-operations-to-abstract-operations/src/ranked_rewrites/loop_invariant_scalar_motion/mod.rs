@@ -33,11 +33,13 @@ pub use model::{
 /// Propose every single-entry cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
 /// leaves, and side-effect-free scalar computations whose operands are all
-/// defined outside the component or name provably invariant parameters of the
-/// entry target (each rebound to the representative its entry edge binds).
-/// Each candidate relocates the component's complete admissible set into the
-/// tail of the component's unique preheader, ahead of the terminator that
-/// owns the entry edge and ahead of any already-relocated
+/// defined outside the component, name provably invariant parameters of the
+/// entry target (each rebound to the representative its entry edge binds), or
+/// are defined by another node the same run relocates — invariant discovery
+/// iterates to a fixed point so a chain of computations moves together in
+/// def-before-use order. Each candidate relocates the component's complete
+/// admissible set into the tail of the component's unique preheader, ahead of
+/// the terminator that owns the entry edge and ahead of any already-relocated
 /// countdown-certificate constants owned by the dedicated countdown boundary.
 pub fn propose_loop_invariant_scalar_motion(
     session: &VerifiedPsiOptimizationSession,

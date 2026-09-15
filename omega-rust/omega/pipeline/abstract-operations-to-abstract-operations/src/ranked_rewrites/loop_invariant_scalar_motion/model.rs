@@ -44,7 +44,8 @@ impl LoopInvariantScalarNode {
 
     /// Exact `(invariant parameter, entry representative)` operand rewrites
     /// the relocation performs, sorted by parameter. Empty for scalar-constant
-    /// leaves, which read no values.
+    /// leaves, which read no values, and for chained computations whose
+    /// member-internal operands all name results the same run preserves.
     pub fn operand_rewrites(&self) -> &[(ValueId, ValueId)] {
         &self.operand_rewrites
     }

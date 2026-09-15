@@ -48,6 +48,26 @@ const INVARIANT_COMPUTATION_SOURCE: &str = r#"
     }
 "#;
 
+/// `doubled` is invariant through the `scale` parameter and `quadrupled`
+/// chains on it: its only member-internal operand is `doubled`'s result, so
+/// the same atomic run relocates both computations and keeps the producer
+/// ahead of the consumer.
+const CHAINED_COMPUTATION_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u64 in Wrapping, entries: &[u8])
+    terminates by entries -> Slice::Length;
+    {
+        let doubled: u64 in Wrapping = scale + scale;
+        let quadrupled: u64 in Wrapping = doubled + doubled;
+        transition entries.len > 0 {
+            true -> scan(scale, entries[1..])
+            _ -> done(quadrupled)
+        }
+        state done(r: u64 in Wrapping) {}
+    }
+"#;
+
 /// Same computation shape, but the recursive edge advances `scale`, so the
 /// loop parameter is genuinely loop-carried and `scale + scale` must stay
 /// inside the component.
@@ -667,6 +687,325 @@ fn relocating_a_variant_computation_is_rejected_by_the_freeze_fence() {
                 block
             }
         ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn chained_invariant_computations_relocate_together_in_def_order() {
+    let (_, verified) = lowered_unit(CHAINED_COMPUTATION_SOURCE, "chained computation loop");
+    let session =
+        VerifiedPsiOptimizationSession::new(verified).expect("verified chained-computation loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one natural loop component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let member = component.members[0];
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let [function_parameter] = function.parameters.as_slice() else {
+        panic!("one scalar function parameter")
+    };
+    let function_parameter = function_parameter.value;
+    let header = function
+        .blocks
+        .iter()
+        .find(|block| block.id == entry.target)
+        .expect("entry target exists");
+    let [header_parameter] = header.parameters.as_slice() else {
+        panic!("one scalar header parameter")
+    };
+    let header_parameter = header_parameter.value;
+    let preheader = entry.source;
+    let member_block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == member)
+        .expect("member block exists");
+    let doubled = member_block
+        .nodes
+        .iter()
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::WrappingIntegerAdd { left, right, .. }
+                    if *left == header_parameter && *right == header_parameter
+            )
+        })
+        .expect("`scale + scale` lives in the loop");
+    let doubled_result = doubled.definitions[0].value;
+    let doubled_operation = match doubled.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+    let quadrupled = member_block
+        .nodes
+        .iter()
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::WrappingIntegerAdd { left, right, .. }
+                    if *left == doubled_result && *right == doubled_result
+            )
+        })
+        .expect("`doubled + doubled` lives in the loop");
+    let quadrupled_operation = match quadrupled.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let doubled_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == doubled_operation)
+        .expect("the invariant producer is a planned relocation");
+    let quadrupled_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == quadrupled_operation)
+        .expect("the chained consumer is a planned relocation");
+    assert_eq!(
+        doubled_relocation.node().operand_rewrites(),
+        &[(header_parameter, function_parameter)],
+    );
+    // The chained operand needs no rewrite: the run preserves the producer's
+    // result identity, so only the run order must keep the producer ahead of
+    // the consumer.
+    assert_eq!(quadrupled_relocation.node().operand_rewrites(), &[]);
+    assert_eq!(doubled_relocation.destination().block, preheader);
+    assert_eq!(quadrupled_relocation.destination().block, preheader);
+    assert!(
+        quadrupled_relocation.destination().node > doubled_relocation.destination().node,
+        "the consumer lands strictly after its relocated producer"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    assert_eq!(applied.session().unit().identity, candidate.output());
+
+    let destination = block(
+        applied.session().unit(),
+        quadrupled_relocation.destination().block,
+    );
+    let moved =
+        &destination.nodes[usize::try_from(quadrupled_relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::WrappingIntegerAdd { left, right, .. } => {
+            assert_eq!(*left, doubled_result);
+            assert_eq!(*right, doubled_result);
+        }
+        operation => panic!("relocated consumer keeps its operation: {operation:?}"),
+    }
+    assert!(
+        moved
+            .uses
+            .iter()
+            .all(|value_use| value_use.value == doubled_result)
+    );
+    assert_eq!(moved.provenance, quadrupled_relocation.node().provenance());
+    assert_eq!(moved.fuel, quadrupled_relocation.node().fuel());
+
+    let [record] = applied.ledger().records() else {
+        panic!("one atomic relocation has one ledger record")
+    };
+    for relocation in [doubled_relocation, quadrupled_relocation] {
+        let row = record
+            .provenance
+            .iter()
+            .find(|row| row.input == PsiRealizationSite::Node(relocation.node().location()))
+            .expect("every chained relocation has exact ledger custody");
+        assert_eq!(
+            row.disposition,
+            ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(relocation.destination()))
+        );
+        assert_eq!(&row.sources, relocation.node().provenance());
+        assert_eq!(&row.fuel, relocation.node().fuel());
+    }
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn chained_consumer_whose_producer_stays_inside_is_rejected_by_the_freeze_fence() {
+    let (_, verified) = lowered_unit(CHAINED_COMPUTATION_SOURCE, "chained computation loop");
+    let session =
+        VerifiedPsiOptimizationSession::new(verified).expect("verified chained-computation loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one natural loop component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let member = component.members[0];
+    let preheader = entry.source;
+    let (input, mut unit) = session.into_parts();
+    // The second `WrappingIntegerAdd` in the member block is `doubled +
+    // doubled`: hand-move it into the preheader while its producer stays
+    // inside. The member-internal operand names a result that never
+    // relocated, so the fence's seed-derived substitution cannot exist and
+    // the custody break rejects before core use/def validation runs.
+    let member_block = block(&unit, member);
+    let chained = member_block
+        .nodes
+        .iter()
+        .filter(|node| matches!(node.operation, AbstractOperation::WrappingIntegerAdd { .. }))
+        .nth(1)
+        .expect("the chained consumer lives in the loop")
+        .provenance
+        .first()
+        .copied()
+        .expect("computation carries its operation identity");
+    let operation = match chained {
+        PsiProvenance::Operation(operation) => operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+    let moved = take_operation(&mut unit, operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn a_relocated_run_keeps_producers_before_consumers() {
+    let (_, verified) = lowered_unit(CHAINED_COMPUTATION_SOURCE, "chained computation loop");
+    let session =
+        VerifiedPsiOptimizationSession::new(verified).expect("verified chained-computation loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one natural loop component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let header = function
+        .blocks
+        .iter()
+        .find(|block| block.id == entry.target)
+        .expect("entry target exists");
+    let [header_parameter] = header.parameters.as_slice() else {
+        panic!("one scalar header parameter")
+    };
+    let header_parameter = header_parameter.value;
+    let member_block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == component.members[0])
+        .expect("member block exists");
+    let doubled = member_block
+        .nodes
+        .iter()
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::WrappingIntegerAdd { left, right, .. }
+                    if *left == header_parameter && *right == header_parameter
+            )
+        })
+        .expect("`scale + scale` lives in the loop");
+    let doubled_result = doubled.definitions[0].value;
+    let doubled_operation = match doubled.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+    let quadrupled_operation = match member_block
+        .nodes
+        .iter()
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::WrappingIntegerAdd { left, right, .. }
+                    if *left == doubled_result && *right == doubled_result
+            )
+        })
+        .expect("`doubled + doubled` lives in the loop")
+        .provenance
+        .first()
+    {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+
+    let candidate = propose_loop_invariant_scalar_motion(&session, 1)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let producer = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == doubled_operation)
+        .map(|relocation| usize::try_from(relocation.destination().node).unwrap())
+        .expect("the invariant producer is a planned relocation");
+    let consumer = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == quadrupled_operation)
+        .map(|relocation| usize::try_from(relocation.destination().node).unwrap())
+        .expect("the chained consumer is a planned relocation");
+    assert!(consumer > producer);
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+
+    // Swap the chained pair inside the preheader run. The freeze fence still
+    // sees an admitted relocation shape — every moved node retains its
+    // source-owned fields — so the def-before-use order itself must be
+    // enforced by core validation.
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    preheader_block.nodes.swap(producer, consumer);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(OptimizationUnitValidationError::UseBeforeDefinition {
+            machine: rejected_machine,
+            block,
+            value
+        }) if rejected_machine == machine && block == preheader && value == doubled_result
     ));
 }
 

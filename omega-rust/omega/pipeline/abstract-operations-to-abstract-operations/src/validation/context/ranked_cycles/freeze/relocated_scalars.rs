@@ -3,21 +3,26 @@
 //! A transformed cyclic body stays frozen against the reconstructed seed
 //! except for independently admitted scalar motion: an admissible
 //! source-owned scalar constant leaf, or an admissible scalar computation
-//! whose uses are all defined outside the component or name provably
-//! invariant parameters of the entry target, may relocate from one of its
-//! component's member blocks into the tail of that component's unique-entry
-//! preheader. Moved computations rebind each invariant-parameter operand to
-//! the representative the entry edge binds — the substitution is re-derived
-//! here from the seed, not trusted from the transformed unit. Definition/use
-//! sites and the function-wide effect sequence are derived coordinates
-//! rebuilt by core validation, so the comparison below retains every
-//! source-owned field rather than the refreshed coordinates.
+//! whose uses are all defined outside the component, name provably invariant
+//! parameters of the entry target, or are defined by another node relocated
+//! out of the same component's run, may relocate from one of its component's
+//! member blocks into the tail of that component's unique-entry preheader.
+//! Moved computations rebind each invariant-parameter operand to the
+//! representative the entry edge binds — the substitution is re-derived here
+//! from the seed, not trusted from the transformed unit — while a
+//! run-internal producer operand stays bound to the result value the
+//! relocation preserves, and core use/def validation keeps the run
+//! def-before-use. Definition/use sites and the function-wide effect
+//! sequence are derived coordinates rebuilt by core validation, so the
+//! comparison below retains every source-owned field rather than the
+//! refreshed coordinates.
 
 use super::super::super::super::{
     BTreeSet, BlockId, OperationId, OptimizationBlock, OptimizationNode, PsiOptimizationFunction,
     PsiProvenance, ScalarType, ValueId,
 };
 
+use super::super::CycleComponentId;
 use super::{BTreeMap, MachineId, OptimizationUnitValidationError, OptimizerCycleComponent};
 struct Moved<'function> {
     home: &'function OptimizerCycleComponent,
@@ -83,6 +88,25 @@ pub(super) fn validate(
         return Ok(());
     }
 
+    // Result values every relocated node defined, keyed by its home
+    // component: a member-internal operand of one moved node is admissible
+    // exactly when its producer relocated out of the same component's member
+    // roster in the same run.
+    let mut relocated_results: BTreeMap<CycleComponentId, BTreeSet<ValueId>> = BTreeMap::new();
+    for relocation in &moved {
+        relocated_results
+            .entry(relocation.home.id.clone())
+            .or_default()
+            .extend(
+                relocation
+                    .expected
+                    .definitions
+                    .iter()
+                    .map(|definition| definition.value),
+            );
+    }
+    let no_relocated_results = BTreeSet::new();
+
     // Each relocated node must land in its own component's unique-entry
     // preheader ahead of the terminator that owns the entry edge, and it must
     // retain every source-owned field.
@@ -109,7 +133,10 @@ pub(super) fn validate(
         // Leaf relocations move byte-exact; invariant computations rebind
         // entry-target parameters to the representatives this validator
         // re-derives from the expected seed, so a forged operand rewrite
-        // cannot carry different authority than the loop's own edges prove.
+        // cannot carry different authority than the loop's own edges prove. A
+        // member-internal operand may instead name the result of another node
+        // relocated out of the same component's roster; an operand whose
+        // producer stayed inside the loop has no substitution and rejects.
         let substitution =
             if crate::validation::admissible_scalar_leaf_relocation(relocation.expected) {
                 BTreeMap::new()
@@ -118,6 +145,9 @@ pub(super) fn validate(
                     expected,
                     component,
                     relocation.expected,
+                    relocated_results
+                        .get(&component.id)
+                        .unwrap_or(&no_relocated_results),
                 ) {
                     Some(substitution) => substitution,
                     None => return Err(mismatch(machine, relocation.expected_block)),
