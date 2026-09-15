@@ -454,7 +454,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 ## Proof-, ownership-, and state-aware optimization
 
 - **ALIAS-AWARE-MEMORY.** Add borrow-aware load forwarding, dead-store
-  elimination, and mutation motion.
+  elimination, and mutation motion on the selected CFG, each decided from
+  the validated `memory_accesses` roster under place exclusivity and
+  replayed by restore-by-content validation. Landed:
+  `rewrites/load_forwarding` rewrites a `Load64` whose same-block writer
+  is a `Store` with the read's exact eight-byte `WritePlace` row to
+  `CopyI64` of the stored register, and `rewrites/dead_store` removes a
+  `Store` whose dead range a later same-block `Store` covering the same
+  row rewrites unobserved — the first access on the dead place decides,
+  boundary settlements inside the dead interval reject while later
+  positions shift one ordinal (crate `nextest`: 221 pass). Remaining:
+  mutation motion, cross-block coverage, non-`Load64` widths, and
+  killers beyond the exact `Store`/`WritePlace` pair.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
