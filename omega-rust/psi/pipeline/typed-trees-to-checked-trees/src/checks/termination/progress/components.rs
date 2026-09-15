@@ -1,6 +1,9 @@
 //! Close private progress assumptions only within a validated recursive component.
 
-use super::{CheckedProgressSummary, derive_machine_summary, no_guarantee};
+use super::CheckedProgressSummary;
+use crate::checks::termination::progress::machine_summaries::{
+    derive_machine_summary, no_guarantee,
+};
 use checked_trees::FlowFacts;
 use language_semantics::TerminationGuarantee;
 use symbols::SymbolHandle;

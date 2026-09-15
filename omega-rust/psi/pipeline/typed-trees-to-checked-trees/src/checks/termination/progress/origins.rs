@@ -44,7 +44,10 @@ pub(super) fn at_call(
             call_result_value_place(program, state, statement_index, call, relative, 16)
         },
     )?;
-    super::subject_from_place(place.root, &place.segments)
+    crate::checks::termination::progress::fact_subjects::subject_from_place(
+        place.root,
+        &place.segments,
+    )
 }
 
 /// Where the argument expressions a checked helper call binds live: inside
