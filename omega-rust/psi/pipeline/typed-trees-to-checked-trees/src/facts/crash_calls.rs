@@ -5,11 +5,10 @@
 //! concrete substitution they may discharge or confirm a route the domain-free
 //! identity cannot fold, and they never keep an undecidable origin from widening.
 
+use crate::facts::crash_plan_facts::is_true_crash_route;
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-
-use super::is_true_crash_route;
 
 pub(super) fn crash_predicate_from_expression(
     program: &TypedTrees,
