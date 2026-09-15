@@ -5,9 +5,11 @@ use super::{
 };
 use std::collections::BTreeMap;
 
-use crate::terminal_interpreter::{
-    ExecutableMachine, LiveClaim, TerminalExecutionStatus, TerminalScalarCaseValue,
-};
+use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
+use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
+use crate::terminal_interpreter::execution::ExecutableMachine;
+use crate::terminal_interpreter::execution::LiveClaim;
+use crate::terminal_interpreter::{TerminalExecutionStatus, TerminalScalarCaseValue};
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, StructuralDomainId,
     StructuralTypeId, ValueId,

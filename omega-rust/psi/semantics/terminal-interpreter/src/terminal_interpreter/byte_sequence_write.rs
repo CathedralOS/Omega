@@ -6,14 +6,13 @@ use terminal_psi::{
     StructuralMultiplicity, StructuralTypeShape,
 };
 
-use super::{
-    ByteSequenceBinding, StructuralByteSequenceRuntimeField, TerminalExecution,
-    TerminalInterpretError, TerminalScalarValue,
-};
+use super::{TerminalExecution, TerminalInterpretError, TerminalScalarValue};
+use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
+use crate::terminal_interpreter::values::StructuralByteSequenceRuntimeField;
 
 pub(super) enum MutableByteSequenceStorage {
     Field(StructuralByteSequenceRuntimeField),
-    Array(super::StructuralRuntimePlace),
+    Array(crate::terminal_interpreter::values::StructuralRuntimePlace),
 }
 
 impl TerminalExecution {

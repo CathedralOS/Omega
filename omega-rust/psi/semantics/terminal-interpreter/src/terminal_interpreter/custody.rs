@@ -1,8 +1,11 @@
 use super::{
-    ExecutableMachine, LiveClaim, StructuralRuntimePlace, TerminalInterpretError,
-    TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralPrimitiveValue,
-    TerminalStructuralValue, reference, terminal_scalar_belongs_to_type,
+    TerminalInterpretError, TerminalScalarCaseValue, TerminalScalarValue,
+    TerminalStructuralPrimitiveValue, TerminalStructuralValue, reference,
 };
+use crate::terminal_interpreter::execution::ExecutableMachine;
+use crate::terminal_interpreter::execution::LiveClaim;
+use crate::terminal_interpreter::scalar_operations::terminal_scalar_belongs_to_type;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
 use semantic_vocabulary::{
     ClaimId, MachineId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };

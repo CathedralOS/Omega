@@ -11,9 +11,13 @@ use terminal_psi::{
 use super::byte_sequence_binding::ByteSequenceBinding;
 use super::{
     TerminalExecution, TerminalInterpretError, TerminalScalarCaseValue, TerminalScalarValue,
-    TerminalStructuralValue, bind_affine_frontier, bind_arguments, bind_structural_arguments,
-    remove_affine_root, resolve_structural_arguments,
+    TerminalStructuralValue,
 };
+use crate::terminal_interpreter::custody::bind_affine_frontier;
+use crate::terminal_interpreter::custody::bind_arguments;
+use crate::terminal_interpreter::custody::bind_structural_arguments;
+use crate::terminal_interpreter::custody::remove_affine_root;
+use crate::terminal_interpreter::custody::resolve_structural_arguments;
 
 #[cfg(test)]
 mod tests;
@@ -28,7 +32,10 @@ pub(super) struct BlockBindings {
     /// frontier entries are split by the caller, not removed as transfers.
     projected_sources: BTreeSet<PlaceId>,
     affine_destinations: BTreeSet<StructuralAffineDiscard>,
-    record_payload: Vec<(super::StructuralScalarRuntimeField, TerminalScalarValue)>,
+    record_payload: Vec<(
+        crate::terminal_interpreter::values::StructuralScalarRuntimeField,
+        TerminalScalarValue,
+    )>,
     identity_cursor: Option<u64>,
 }
 

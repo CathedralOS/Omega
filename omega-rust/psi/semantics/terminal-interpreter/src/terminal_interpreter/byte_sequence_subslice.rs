@@ -118,7 +118,7 @@ impl TerminalExecution {
             self.byte_sequence_values.get(&result.place),
         ) {
             (None, None) => {}
-            (Some(previous), Some(super::ByteSequenceBinding::Immutable(_)))
+            (Some(previous), Some(crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding::Immutable(_)))
                 if *previous == destination => {}
             _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
         }
@@ -127,8 +127,12 @@ impl TerminalExecution {
         let view = bytes
             .subslice(start, end)
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        self.byte_sequence_values
-            .insert(result.place, super::ByteSequenceBinding::Immutable(view));
+        self.byte_sequence_values.insert(
+            result.place,
+            crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding::Immutable(
+                view,
+            ),
+        );
         self.structural_values.insert(result.place, destination);
         Ok(())
     }

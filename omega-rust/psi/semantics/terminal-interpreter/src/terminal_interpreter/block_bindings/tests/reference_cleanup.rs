@@ -4,7 +4,7 @@ use super::{
     TerminalMachineResult, TerminalScalarValue, TerminalStructuralValue, Terminator,
     ValueDeclaration, ValueId, execution,
 };
-use crate::terminal_interpreter::StructuralRuntimePlace;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
 use terminal_psi::{StructuralAffineDiscard, TerminalAffineCleanupAction};
 
 #[test]

@@ -1,9 +1,17 @@
 use super::{
-    ByteSequenceBinding, RuntimeDynamicDescriptor, StructuralCallArguments, SuspendedCall,
-    SuspendedCallResult, TerminalExecution, TerminalInterpretError, TerminalScalarValue,
-    TerminalStructuralValue, bind_affine_frontier, bind_arguments, bind_structural_arguments,
-    resolve_structural_arguments, scalar_case_arguments, transfer_claims,
+    TerminalExecution, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
+    scalar_case_arguments,
 };
+use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
+use crate::terminal_interpreter::byte_sequence_binding::StructuralCallArguments;
+use crate::terminal_interpreter::custody::bind_affine_frontier;
+use crate::terminal_interpreter::custody::bind_arguments;
+use crate::terminal_interpreter::custody::bind_structural_arguments;
+use crate::terminal_interpreter::custody::resolve_structural_arguments;
+use crate::terminal_interpreter::custody::transfer_claims;
+use crate::terminal_interpreter::execution::RuntimeDynamicDescriptor;
+use crate::terminal_interpreter::execution::SuspendedCall;
+use crate::terminal_interpreter::execution::SuspendedCallResult;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
 use std::collections::BTreeMap;
 use terminal_psi::{

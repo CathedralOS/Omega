@@ -3,9 +3,12 @@ use super::{
     StructuralTypeShape, TerminalExecution, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralValue, ValueId,
 };
-use crate::terminal_interpreter::{
-    ExecutableMachine, TerminalExecutionResult, TerminalExecutionStatus,
-};
+use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
+use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
+use crate::terminal_interpreter::execution::ExecutableMachine;
+use crate::terminal_interpreter::values::StructuralByteSequenceRuntimeField;
+use crate::terminal_interpreter::values::StructuralRuntimePlace;
+use crate::terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 use semantic_vocabulary::{EdgeId, MachineId, ScalarType, StructuralTypeId};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
@@ -154,11 +157,11 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         byte_sequence_values: BTreeMap::from([
             (
                 PlaceId::new(1).unwrap(),
-                crate::terminal_interpreter::ByteSequenceBinding::Immutable(crate::terminal_interpreter::ByteSequenceView::new(vec![0, 128])),
+                crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding::Immutable(crate::terminal_interpreter::byte_sequence_view::ByteSequenceView::new(vec![0, 128])),
             ),
             (
                 PlaceId::new(2).unwrap(),
-                crate::terminal_interpreter::ByteSequenceBinding::Immutable(crate::terminal_interpreter::ByteSequenceView::new(vec![
+                crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding::Immutable(crate::terminal_interpreter::byte_sequence_view::ByteSequenceView::new(vec![
                     255, 7, 42,
                 ])),
             ),
@@ -349,10 +352,6 @@ fn malformed_view_bindings_reject_without_replacing_values() {
 
 #[test]
 fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
-    use crate::terminal_interpreter::{
-        ByteSequenceBinding, ByteSequenceView, StructuralByteSequenceRuntimeField,
-        StructuralRuntimePlace,
-    };
     use semantic_vocabulary::StructuralFieldId;
     use terminal_psi::{
         BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
