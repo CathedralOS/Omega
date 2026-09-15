@@ -506,10 +506,21 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   targets, exact frame-layout and protocol-encoding replay, and fixed-frame
   object-artifact publication with custody rejection on both Linux ISAs
   (`tests/native-differential/.../fixtures/structural_call_preserving.rs`,
-  `.../register_allocation/structural_call_chain/`). Remaining: reload
-  intervals that survive an intervening call
+  `.../register_allocation/structural_call_chain/`). The bounded
+  reload-homes lane now witnesses a reload interval that survives an
+  intervening call: under an explicit physical-view allowlist a `CallUnit`'s
+  clobber set reduces the spill victim's common candidates to the single
+  callee-saved view (rbx on x86-64, x19 on AArch64) on all five native
+  targets, and independent replay rejects a caller-saved home, cleared
+  candidate or coexisting-home rosters, a shrunken interval, and root or
+  usage mismatches
+  (`tests/native-differential/.../fixtures/call_spanning_reload.rs`,
+  `.../register_allocation/reload_value_homes.rs`). Remaining: the
+  executable runtime-spill rewrite still realizes each use as a private
+  reload, so no produced interval needs to survive an intervening call
   (`selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs`
-  excludes them).
+  excludes them), and the sequenced allocation route does not yet reach the
+  bounded lane's call-crossing capability.
 
 ## Machine optimization
 

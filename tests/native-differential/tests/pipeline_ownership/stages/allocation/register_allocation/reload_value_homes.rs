@@ -1,11 +1,14 @@
 //! Logical reload-value reanalysis and bounded physical-view assignment.
 
 use crate::tests::{
-    LiveRangePoint, NativeTarget, OptimizationWorkBudget, SelectedInstructionId, SpillChoicePolicy,
-    StagedOptimizedAllocationLegality, VirtualRegisterId, choose_spill_victims,
-    selected_lowering_budget, stage_optimized_allocation_legality, stage_optimized_live_ranges,
-    stage_optimized_liveness, staged_active_resident_bridge_chain_two_view_legality,
-    staged_active_resident_two_view_legality, staged_exact_add_conditional,
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, RegisterViewId, SelectedInstructionId,
+    SelectedInstructionKind, SpillChoicePolicy, StagedOptimizedAllocationLegality,
+    VirtualRegisterId, call_spanning_reload_allowlist, call_spanning_reload_caller,
+    call_spanning_reload_surviving_view, choose_spill_victims, selected_lowering_budget,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    staged_active_resident_bridge_chain_two_view_legality,
+    staged_active_resident_two_view_legality, staged_call_spanning_reload_legality,
+    staged_exact_add_conditional,
 };
 #[test]
 fn reload_value_gets_a_deterministic_home_on_both_architectures() {
@@ -319,5 +322,162 @@ impl ReloadSources {
             &environment.allocation_constraint_keys(),
             plan,
         )
+    }
+}
+
+#[test]
+fn call_spanning_reload_interval_selects_the_callee_saved_home_on_every_target() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let sources = ReloadSources::from_legality(staged_call_spanning_reload_legality(target));
+        let ranges = sources.legality.live_range_stage();
+        let selected = ranges.liveness_stage().selected_stage();
+        let environment = selected.register_environment();
+        let model = environment.physical().model();
+        let caller = call_spanning_reload_caller();
+        let saved = model
+            .view_named(call_spanning_reload_surviving_view(target))
+            .unwrap()
+            .id;
+
+        let insertion = sources
+            .insertion
+            .plan()
+            .functions
+            .iter()
+            .find(|function| function.machine == caller)
+            .expect("the caller must be scheduled");
+        let action = insertion
+            .action
+            .as_ref()
+            .expect("the fixture must retain one spill action");
+        let first = action.rewrites.first().unwrap();
+        let last = action.rewrites.last().unwrap();
+        let block = selected
+            .selected()
+            .plan()
+            .functions
+            .iter()
+            .find(|function| function.machine == caller)
+            .unwrap()
+            .blocks
+            .iter()
+            .find(|block| block.id == first.block)
+            .unwrap();
+        // The rewritten uses of the spilled victim straddle a `CallUnit`, so
+        // the reload interval covers that call's clobber point.
+        let call = block
+            .instructions
+            .iter()
+            .find(|instruction| {
+                matches!(instruction.kind, SelectedInstructionKind::CallUnit { .. })
+                    && first.instruction < instruction.id
+                    && instruction.id < last.instruction
+            })
+            .expect("a clobbering CallUnit must sit inside the reload interval");
+        // Every other allowlisted view overlaps the call's clobber set; the
+        // surviving callee-saved view does not.
+        for name in call_spanning_reload_allowlist(target) {
+            let view = model.view_named(name).unwrap();
+            let clobbered = view
+                .units
+                .iter()
+                .chain(&view.write_units)
+                .any(|unit| call.clobbers.contains(unit));
+            assert_eq!(
+                clobbered,
+                view.id != saved,
+                "{target:?}: allowlisted view {name} clobbered={clobbered}"
+            );
+        }
+
+        let assigned = sources.assign(selected_lowering_budget()).unwrap();
+        let function = assigned
+            .plan()
+            .functions
+            .iter()
+            .position(|function| function.machine == caller)
+            .unwrap();
+        let assignment = assigned.plan().functions[function]
+            .assignment
+            .as_ref()
+            .expect("the call-spanning reload must be assigned");
+        assert_eq!(assignment.start, first.point);
+        assert_eq!(assignment.exclusive_end, LiveRangePoint(last.point.0 + 1));
+        assert_eq!(assignment.candidates, vec![saved]);
+        assert_eq!(assignment.view, saved);
+
+        let canonical = assigned.plan().clone();
+        assert!(sources.validate(canonical.clone()).is_ok());
+
+        let mut root = canonical.clone();
+        root.abstract_spill_insertion =
+            selected_instructions_to_register_homes::AbstractSpillInsertionIdentity::from_bytes(
+                [0x5c; 32],
+            );
+        assert_eq!(
+            sources.validate(root),
+            Err(selected_instructions_to_register_homes::ReloadValueHomeError::RootMismatch)
+        );
+
+        let caller_saved = call_spanning_reload_allowlist(target)
+            .iter()
+            .map(|name| model.view_named(name).unwrap().id)
+            .find(|view| *view != saved)
+            .unwrap();
+        type Plan = selected_instructions_to_register_homes::ReloadValueHomePlan;
+        for corrupt in [
+            // A caller-saved home cannot legitimately carry the reload across
+            // the clobbering call.
+            |plan: &mut Plan, function: usize, caller_saved: RegisterViewId| {
+                plan.functions[function].assignment.as_mut().unwrap().view = caller_saved;
+            },
+            |plan: &mut Plan, function: usize, _| {
+                plan.functions[function]
+                    .assignment
+                    .as_mut()
+                    .unwrap()
+                    .candidates
+                    .clear();
+            },
+            // Shrinking the interval below the intervening call must mismatch
+            // the recomputed reload bounds.
+            |plan: &mut Plan, function: usize, _| {
+                let assignment = plan.functions[function].assignment.as_mut().unwrap();
+                assignment.exclusive_end = LiveRangePoint(assignment.start.0 + 1);
+            },
+            |plan: &mut Plan, function: usize, _| {
+                plan.functions[function]
+                    .assignment
+                    .as_mut()
+                    .unwrap()
+                    .coexisting_homes
+                    .clear();
+            },
+        ] {
+            let mut changed = canonical.clone();
+            corrupt(&mut changed, function, caller_saved);
+            assert_eq!(
+                sources.validate(changed),
+                Err(
+                    selected_instructions_to_register_homes::ReloadValueHomeError::NonCanonicalAssignment {
+                        function,
+                    }
+                ),
+                "{target:?}: corrupted plan must fail independent replay"
+            );
+        }
+
+        let mut usage = canonical;
+        usage.usage.validation_steps += 1;
+        assert_eq!(
+            sources.validate(usage),
+            Err(selected_instructions_to_register_homes::ReloadValueHomeError::UsageMismatch)
+        );
     }
 }
