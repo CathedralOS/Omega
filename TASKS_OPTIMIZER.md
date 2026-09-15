@@ -659,7 +659,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **PER-RULE-COVERAGE.** Finish positive, negative, boundary, disabled, budget,
   determinism, fixed-point/idempotence, and corruption coverage for every exact
   rule. Do not call repeated reconstruction idempotence when the published
-  artifact is not a legal second input.
+  artifact is not a legal second input. The eight SelectedLowering literal-fold
+  rules are now fully covered in
+  `selected-instructions-to-selected-instructions` (326 lib tests pass on Linux
+  x86-64): every rule carries positive, negative, disabled-policy, budget,
+  determinism, and replay-corruption evidence; the five 12-bit-immediate rules
+  (exact add, exact subtract, compare, indexed byte load, byte-view address)
+  exercise both sides of the 4095/4096 boundary; and each fixed-point leg feeds
+  the published `ValidatedLiteralFold` back through the real liveness, range,
+  legality, victim-selection, and classification analyses as the legal second
+  input. Remaining: the same matrix for the other phases' exact rules.
 
 - **TARGET-MATRICES.** Complete supported target/OS allocator, encoding,
   unwind, object, and callable matrices. Existing selected-lowering and
