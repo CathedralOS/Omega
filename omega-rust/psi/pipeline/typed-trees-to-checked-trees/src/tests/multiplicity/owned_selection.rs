@@ -349,6 +349,61 @@ fn owned_selection_keeps_the_unrecorded_borrow_fence() {
     );
 }
 
+#[test]
+fn owned_selection_membership_subject_observes_without_transferring_it() {
+    // `subject in Type::Case` lowers to an exact case-membership comparison
+    // whose operands are a read-only subject and a symbol-stamped case
+    // reference with no result type. Neither is an ownership transfer, so the
+    // subject keeps its custody and stays observable after the selection.
+    for declaration in ["view: &Kind", "view: Kind"] {
+        let checked = lower_program(&format!(
+            "data Kind {{ case Missing; case Other; }}
+             data Choice {{ case Empty; case Some(value: u32); }}
+             machine choose({declaration}, left: Choice, right: Choice) -> bool {{
+                 let result: Choice = match view in Kind::Missing {{ true -> left, false -> right }};
+                 let observed: bool = view in Kind::Other;
+                 observed || result in Choice::Some
+             }}"
+        ))
+        .expect("membership subject remains observable after the selection");
+        let ownership = &checked.facts.flow.ownership;
+        let (_, receipt) = ownership
+            .owned_selections
+            .iter()
+            .next()
+            .expect("selection receipt");
+        assert_eq!(
+            ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .len(),
+            2
+        );
+    }
+    lower_program(
+        "data Kind { case Missing; case Other; }
+         data Choice { case Empty; case Some(value: u32); }
+         machine Kind::choose(&self, left: Choice, right: Choice) -> bool {
+             let result: Choice = match self in Kind::Missing { true -> left, false -> right };
+             self in Kind::Other || result in Choice::Some
+         }",
+    )
+    .expect("self membership subject remains observable after the selection");
+    // The affine local subject is only read by the guard, so a later
+    // statement can still move its whole owned custody.
+    lower_program(
+        "data Kind { case Missing; case Other; }
+         data Choice { case Empty; case Some(value: u32); }
+         machine choose(flag: bool, left: Choice, right: Choice) -> bool {
+             let kind: Kind = Kind::Missing;
+             let result: Choice = match kind in Kind::Missing { true -> left, false -> right };
+             let moved: Kind = kind;
+             moved in Kind::Missing || result in Choice::Some
+         }",
+    )
+    .expect("observed affine local remains movable after the selection");
+}
+
 fn lower_projection_program() -> checked_trees::CheckedTrees {
     lower_program(
         "data Payload { left:u64; right:u64; }
