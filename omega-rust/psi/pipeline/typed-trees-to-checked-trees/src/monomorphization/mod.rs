@@ -362,6 +362,10 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 /// never rewritten: it remains the package API and every closed application
 /// is cloned from that stable template.
 mod selected_operator_providers;
+use crate::monomorphization::selection::{
+    approved_type_bounds, contract_expression_handles, unique_complete_selections,
+    validate_candidate_conformance_bounds,
+};
 pub(crate) use selected_operator_providers::{
     SelectedProviderTemplates, specialize_selected_generic_operator_providers,
 };

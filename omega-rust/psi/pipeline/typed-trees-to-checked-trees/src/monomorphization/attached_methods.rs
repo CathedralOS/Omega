@@ -65,14 +65,22 @@ pub(crate) fn validate_selected_attached_method_bounds(
                 super::collect_expression_tree(program, call.call, &mut expressions);
             }
             for contract in program.machine_contracts(machine) {
-                super::collect_contract_facts(program, contract.facts, &mut expressions);
+                crate::monomorphization::selection::collect_contract_facts(
+                    program,
+                    contract.facts,
+                    &mut expressions,
+                );
             }
             for owned in program.machine_owned_data(machine) {
                 super::collect_expression_tree(program, owned.initial_value, &mut expressions);
             }
             for state in program.machine_states(machine) {
                 for contract in program.state_contracts(state) {
-                    super::collect_contract_facts(program, contract.facts, &mut expressions);
+                    crate::monomorphization::selection::collect_contract_facts(
+                        program,
+                        contract.facts,
+                        &mut expressions,
+                    );
                 }
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     super::collect_statement_expression_trees(program, statement, &mut expressions);
