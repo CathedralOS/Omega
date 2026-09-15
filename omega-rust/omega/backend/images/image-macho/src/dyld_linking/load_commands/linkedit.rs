@@ -1,5 +1,5 @@
-use crate::bytes::write_u32;
-use crate::constants::{
+use crate::file_layout::bytes::write_u32;
+use crate::file_layout::constants::{
     MACHO_CODE_SIGNATURE_COMMAND_SIZE, MACHO_DYLD_INFO_COMMAND_SIZE, MACHO_DYSYMTAB_COMMAND_SIZE,
     MACHO_SYMTAB_COMMAND_SIZE,
 };

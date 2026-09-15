@@ -1,5 +1,5 @@
-use crate::bytes::write_u32;
-use crate::constants::{
+use crate::file_layout::bytes::write_u32;
+use crate::file_layout::constants::{
     MACHO_HEADER_FLAGS_DYLDLINK, MACHO_HEADER_FLAGS_NOUNDEFS, MACHO_HEADER_FLAGS_PIE,
     MACHO_HEADER_FLAGS_TWOLEVEL,
 };
@@ -23,7 +23,10 @@ pub(crate) fn write_macho_executable_header(
 
 pub(crate) fn write_macho_uuid_command(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0x1b);
-    write_u32(bytes, crate::constants::MACHO_UUID_COMMAND_SIZE as u32);
+    write_u32(
+        bytes,
+        crate::file_layout::constants::MACHO_UUID_COMMAND_SIZE as u32,
+    );
     bytes.extend([
         0x4f, 0x6d, 0x65, 0x67, 0x61, 0x2d, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x2d, 0x6d, 0x30,
         0x31,

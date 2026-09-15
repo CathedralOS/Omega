@@ -74,32 +74,29 @@
 //! build, where a disagreement would instead ship an executable whose
 //! `LC_CODE_SIGNATURE` length does not match its actual signature blob.
 //!
+//!
+//! `file_layout/` places every byte and `dyld_linking/` describes the file to
+//! the loader; `entry_symbol.rs` and `code_signature.rs` stay at the root
+//! beside the emitter.
+
 use diagnostics::Diagnostic;
 use image::{
     ExecutableImageOutput, FinalImage, apply_aarch64_relocations, place_executable_regions,
 };
 
-mod bytes;
 mod code_signature;
 pub use code_signature::code_signature_identifier;
-mod constants;
+mod dyld_linking;
 mod entry_symbol;
-mod imports;
-mod layout;
-mod load_commands;
-mod loader_fixups;
-mod loader_mapping;
-mod plan;
-mod rebases;
+mod file_layout;
 #[cfg(test)]
 mod tests;
 
 use code_signature::macho_ad_hoc_code_signature;
-use entry_symbol::macho_entry_text_offset;
-use imports::{
+use dyld_linking::imports::{
     install_import_thunks, macho_bind_info, patch_import_thunks, validate_import_thunk_footprints,
 };
-use load_commands::{
+use dyld_linking::load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
     write_macho_code_signature_command, write_macho_dyld_info_command,
     write_macho_executable_build_version_command, write_macho_executable_data_segment,
@@ -108,13 +105,14 @@ use load_commands::{
     write_macho_load_dylinker_command, write_macho_main_command, write_macho_pagezero_segment,
     write_macho_uuid_command,
 };
-pub use loader_fixups::{
+pub use dyld_linking::loader_fixups::{
     MachoImportPointer, MachoRebasePointer, validate_macho_aarch64_loader_fixups,
     validate_macho_aarch64_object_fixups,
 };
-pub use loader_mapping::validate_macho_aarch64_loader_mapping;
-use plan::plan_macho_image;
-use rebases::macho_rebase_info;
+pub use dyld_linking::loader_mapping::validate_macho_aarch64_loader_mapping;
+use dyld_linking::rebases::macho_rebase_info;
+use entry_symbol::macho_entry_text_offset;
+use file_layout::plan::plan_macho_image;
 
 /// The executable leaf published today; it doubles as the ad-hoc signing
 /// label when the build authored no application identifier

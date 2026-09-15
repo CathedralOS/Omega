@@ -1,8 +1,8 @@
-use crate::bytes::{write_fixed_string_16, write_u32, write_u64};
-use crate::constants::{
+use crate::file_layout::bytes::{write_fixed_string_16, write_u32, write_u64};
+use crate::file_layout::constants::{
     MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE, MACHO_SECTION_SIZE, MACHO_SEGMENT_COMMAND_SIZE,
 };
-use crate::layout::{align_to_u64, alignment_power};
+use crate::file_layout::layout::{align_to_u64, alignment_power};
 
 pub(crate) fn write_macho_pagezero_segment(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0x19);
