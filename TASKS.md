@@ -1147,7 +1147,17 @@ Owners include
   not prove any of their three preservation obligations from actual wrapping
   add/divide equations. Coordinate the missing checked arithmetic bridge with
   **PROOF-KERNEL-CORE** before synthesizing that strengthening; do not substitute
-  exact arithmetic or enumerate loop states. The unchanged decimal loop remains
+  exact arithmetic or enumerate loop states. The checked wrapping bridge now
+  exists: the affine witness replays unsigned `WrappingIntegerAdd` steps
+  backward to an operand and forward to the sum, and `WrappingIntegerDivide`
+  steps toward the quotient; `map_integer_affine_bound` maps a strict or
+  non-strict root only alongside an independently proved no-wrap conjunct
+  (`operand <= maximum - addend`), so bounds transport through wrapping
+  updates without substituting exact arithmetic or enumerating loop states.
+  `integer_selection/wrapping` discovers those words and assembles the
+  root-bound conjunction from cited facts under its own memoization. The
+  strengthened counter/divisor clauses still need their preservation
+  obligations proved through this bridge; the unchanged decimal loop remains
   the next source acceptance, followed by the native customer.
   Indexed byte-field writes still need composed cyclic-Unit/customer closure
   coverage. Reuse the ordinary native bounded-field store and exact live-length
