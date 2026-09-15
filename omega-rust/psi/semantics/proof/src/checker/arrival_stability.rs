@@ -1,4 +1,7 @@
-use super::{ProofPlan, StatementNode, member_paths_may_alias, resolved_writes_overlap_reads};
+use crate::checker::assignment_stability::{member_paths_may_alias, resolved_writes_overlap_reads};
+use crate::obligations::ProofPlan;
+use typed_trees::statement::StatementNode;
+
 /// An arrival premise may refine a value only while its dependencies survive.
 /// Include the consuming expression's call effects, but not its subsequent
 /// destination write. Unknown effects and control flow remain conservative.
