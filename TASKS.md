@@ -2538,11 +2538,20 @@ Owners include
   Unknown scalar parameters and locals now bound conversion results by their
   primitive carrier (`values/bounds/sources.rs`; regression
   `unknown_scalar_inputs_bound_conversion_results_by_their_carrier`, Linux
-  `cargo nextest run -p typed-trees-to-checked-trees`). Indexed text writers
-  still need numeric conversion result evidence for effectful nested
-  arguments, nonlocal storage, and remaining cast policies beyond selected
-  normal-return scalar snapshots consumed by
-  `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`.
+  `cargo nextest run -p typed-trees-to-checked-trees`). Unselected call
+  arguments now bound captured scalar return ranges by their declared formals
+  — immutable formals by the declared type, mutable formals by the lent
+  place's live snapshot first — retained pure scalar operands keep Unit calls
+  nested inside a captured callee transparent to stored values, and exact and
+  trapping cast bounds meet the operand interval with the proved spelling
+  range and destination carrier (`flow/transfers/scalar_values`,
+  `values/bounds.rs`; regressions
+  `mutable_formal_call_results_read_the_lent_places_incoming_value` and
+  `effectful_nested_call_arguments_keep_the_return_bounds_live`, Linux
+  `cargo nextest run -p typed-trees-to-checked-trees`). Collection elements
+  still need the live declared-predicate coverage named above; the dungeon
+  probe currently stops earlier at case-literal construction and branch-local
+  transfer joins (Linux x86-64 `omega --check`, 6 diagnostics).
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
