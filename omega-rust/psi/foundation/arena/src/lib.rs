@@ -1,6 +1,12 @@
 #![forbid(unsafe_code)]
 
 //! Arena storage primitives for Psi-owned source representations.
+//!
+//! One contiguous `Arena` per node kind, linked by `Handle` and `HandleSpan`
+//! rather than owned vectors. `PagedArena` and `GenerationalPagedArena` grow
+//! without moving existing pages, `HierarchyArena` gives parents an owned child
+//! range for scoped lookup, and `OrderedRootArena` keeps root order stable.
+//! Handle zero is the shared null entry, so absence needs no `Option`.
 
 mod arena;
 mod free_stack;

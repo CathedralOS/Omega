@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 
 //! Loaded-source data and source-coordinate primitives owned by the Psi frontend.
+//!
+//! `SourceFile` and `SourceText` hold what was loaded and where it came from;
+//! `SourceId` and `SourceSpan` are the coordinates every token and diagnostic
+//! carries; `SourceMap` resolves them back to files and positions. Past
+//! resolution, source text is diagnostic and debug payload, never identity.
 
 mod source_file;
 mod source_id;

@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 
 //! Retained build-output custody, canonical identity, and materialization.
+//!
+//! `BuildStagedOutputTree` captures what a build wrote, commits to a canonical
+//! identity, materializes the tree on request, and verifies it against the
+//! commitment; `captured_source` does the same for captured source inputs and
+//! `replayed_tree` rebuilds a tree from retained entries without rerunning.
 
 mod captured_source;
 mod replayed_directories;

@@ -6,7 +6,10 @@
 
 //! Psi-owned typed source representation.
 //!
-//! Start at [`typed_trees::TypedTrees`]; its modules own the program's concepts.
+//! Start at `typed_trees::TypedTrees`; its modules own the program's concepts:
+//! declarations, control flow, calls with their signatures and boundaries, the
+//! type system with closed numerics and type identities, evidence, and
+//! inspection snapshots. Contracts, ownership, and proofs are checked later.
 
 pub mod typed_trees;
 

@@ -1,5 +1,12 @@
 #![forbid(unsafe_code)]
 //! Optimizer module role: crate map. Enter `lowering/mod.rs`, then descend by result family and semantic responsibility.
+//!
+//! `lower_to_target_operations` turns validated abstract operations into target
+//! operations with call placement; `model` carries the admitted settlements the
+//! lowering publishes, `optimized` the selected-optimization carriers,
+//! `placed_view_inputs` the placed-view plans, and `validation` the
+//! independent replay of every result.
+
 mod lowering;
 mod model;
 mod optimized;

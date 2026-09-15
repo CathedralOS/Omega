@@ -1,4 +1,9 @@
 //! Proof surface collection and proof-obligation building.
+//!
+//! This root collects every proposition, domain, and capability-contract surface
+//! a program declares; `obligations` turns them into the obligations checking
+//! must discharge, `lemmas` holds the reusable lemma library, `checker` decides
+//! obligations, and `boundary` owns the boundary-facing proof contract.
 
 use arena::Arena;
 use syntax_trees::SyntaxTrees;

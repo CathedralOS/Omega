@@ -1,4 +1,10 @@
 //! Source checking, compilation, and retained-artifact realization.
+//!
+//! Start at `compiler.rs`: one `CompileRequest` becomes one `CompileReport`
+//! through checking, terminal production, and native realization, with
+//! `pipeline` owning the stages between and `compiler::admission` deciding what
+//! a checked compilation may proceed to. Reports belong to compilation-report.
+
 mod compiler;
 mod pipeline;
 
