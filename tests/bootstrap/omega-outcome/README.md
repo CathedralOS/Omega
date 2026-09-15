@@ -29,7 +29,11 @@ canonical failure-frame encoder behave as the request contract assigns:
   duplicate-name `Reject`, an unanchored missing-entry `Reject`, a
   source-anchored coverage `Incomplete`, and the untouched tuple after
   `Complete` — including proof that a post-Complete tuple cannot encode a
-  frame.
+  frame;
+- the OCREQ V1 subject/invocation field/tag shape pass (phases 0, 2, and 6)
+  over a canonical single-package request, and its `malformed_request` tuple
+  for an unassigned product tag — encoded successfully by the frame writer,
+  proving the decoder's produced tuple is one the encoder accepts.
 
 The expected observation is [expected.hex](expected.hex), computed from the
 assigned tables rather than captured output. This is a development observation

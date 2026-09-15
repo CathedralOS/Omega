@@ -18,7 +18,7 @@ The gate requires the Omega product build to bind exactly one
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
 the Delta-written Epsilon implementation. The evaluator is currently 12,097
 lines / 617,354 bytes, authored in 87 explicitly manifested members.
-The complete gate checks 143 ordinary fixtures, five D customers, and seven
+The complete gate checks 143 ordinary fixtures, six D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
@@ -281,13 +281,38 @@ sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D Alpha t
 The third customer concatenates whole `representations.epsilon` and
 `request_and_utf8.epsilon` members with
 [`customers/omega_request/main.epsilon`](customers/omega_request/main.epsilon).
-Its 40,542-byte packed source exercises the actual `OmegaRequestEnvelope` and
-`OmegaUtf8Validation` receiver machines using literals and a Main-owned array
-view. It checks empty/nonempty outer OCREQ frames, hostile lengths and trailing
-bytes, valid multibyte UTF-8, and malformed continuation, surrogate, out-of-range,
-and truncated encodings. Its expected observation is tagged `Exit(0)` with
-stdout `A` followed by LF.
-The fourth customer concatenates whole `representations.epsilon` and
+Its 65,181-byte packed source exercises the actual `OmegaRequestEnvelope`,
+`OmegaRequestStructure`, and `OmegaUtf8Validation` receiver machines using
+literals and a Main-owned array view. It checks empty/nonempty outer OCREQ
+frames, hostile lengths and trailing bytes, valid multibyte UTF-8, and
+malformed continuation, surrogate, out-of-range, and truncated encodings.
+It then builds one canonical two-package OCREQ V1 request — package rows with
+name, lineage kind and payload, separate revision/tree/content resolutions,
+member projection, declared role, and a three-row snapshot covering every
+assigned kind; requester-local dependency edges; root package index and role;
+and an `alpha_bootstrap_tape` invocation with an empty admission table and
+32-byte commitment — and runs the real `OmegaRequestStructure::check`
+phase-0/2/6 shape pass over it. Its refusals pin the subject-side
+malformed_request coordinate rule: a count that cannot fit its section,
+unassigned lineage/role/snapshot/scope tags, a length field with its high bit
+set, a stream truncated inside a declared extent, and a stream ending inside
+the header. Its expected observation is tagged `Exit(0)` with stdout `A`
+followed by LF.
+The fourth customer concatenates the same members with
+[`customers/omega_request_invocation/main.epsilon`](customers/omega_request_invocation/main.epsilon).
+It builds a canonical single-package request with an empty snapshot table and
+no edges — the minimal subject that keeps the invocation-side vectors inside
+the watchdog — and runs the same `OmegaRequestStructure::check` pass. Its
+refusals pin the invocation-side malformed_request coordinates: unassigned
+root-role and product tags, a present admission row with no assigned kind, a
+commitment short of its fixed extent, and a trailing byte inside the declared
+invocation extent. Its expected observation is tagged `Exit(0)` with stdout
+`A` followed by LF.
+On macOS arm64 under ordinary shared-host load the subject customer produced
+the exact observation in 160.100 seconds and the invocation customer in
+131.069 seconds, inside the unchanged 300-second watchdog; earlier shapes of
+this coverage are not a matched comparison.
+The fifth customer concatenates whole `representations.epsilon` and
 `lexical_classification.epsilon` with
 [`customers/omega_numeric_base/main.epsilon`](customers/omega_numeric_base/main.epsilon).
 Its 34,904-byte source exercises all four cases in D's actual
@@ -295,7 +320,7 @@ Its 34,904-byte source exercises all four cases in D's actual
 cover admitted and rejected digits; the expected result is tagged `Exit(0)`
 with stdout `A`.
 
-The fifth customer combines the unchanged `representations.epsilon`,
+The sixth customer combines the unchanged `representations.epsilon`,
 `request_and_utf8.epsilon`, `lexical_classification.epsilon`, and `lexer.epsilon`
 members with [`customers/omega_lexer/main.epsilon`](customers/omega_lexer/main.epsilon).
 The four production members total 85,458 bytes. The 160-line / 6,771-byte Main
