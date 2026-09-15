@@ -4,27 +4,16 @@
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
-    machine::Machine,
 };
 
+/// `mutable_parameters` holds the machine's mutable primitive parameter
+/// symbols, which the caller computes once per machine: the set cannot change
+/// between the checked sites and calls that share one machine.
 pub(super) fn retains_entry_meaning(
     program: &TypedTrees,
-    machine: &Machine,
+    mutable_parameters: &[symbols::SymbolHandle],
     expression: ExpressionHandle,
 ) -> bool {
-    let mutable_parameters: Vec<_> = program
-        .machine_states(machine)
-        .iter()
-        .flat_map(|state| program.state_parameters(state))
-        .filter(|parameter| {
-            parameter.is_mutable
-                && !parameter.is_self
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_some()
-        })
-        .map(|parameter| parameter.symbol)
-        .collect();
     let mut pending = vec![expression];
     let mut seen = Vec::new();
     while let Some(expression) = pending.pop() {

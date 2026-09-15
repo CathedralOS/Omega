@@ -22,13 +22,18 @@ pub(super) fn collect(
     operators: &CheckedOperatorFacts,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
+    integer_types: &super::IntegerTypeClassification,
 ) -> EntryRequirements {
     let mut result = EntryRequirements::default();
     let Some(entry) = program.machine_states(machine).first() else {
         return result;
     };
-    let mut common =
-        consequences::Consequences::new(program, parameter_names, content_conservation);
+    let mut common = consequences::Consequences::new(
+        program,
+        parameter_names,
+        content_conservation,
+        integer_types,
+    );
     for contract in program
         .machine_contracts(machine)
         .iter()
@@ -57,6 +62,7 @@ pub(super) fn collect(
                 false,
                 parameter_names,
                 content_conservation,
+                integer_types,
                 &mut result.consequences,
             );
             if let Some(consequences) = common.collect(*expression, false, 0) {
@@ -175,6 +181,7 @@ mod tests {
                 .map(|name| (*name).to_owned())
                 .collect::<Vec<_>>(),
             &[],
+            &crate::checks::crashes::IntegerTypeClassification::build(program),
         )
     }
 

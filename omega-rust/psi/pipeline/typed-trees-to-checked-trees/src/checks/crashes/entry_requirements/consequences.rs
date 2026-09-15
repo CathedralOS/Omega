@@ -10,6 +10,7 @@ pub(super) struct Consequences<'a> {
     program: &'a TypedTrees,
     parameter_names: &'a [String],
     content_conservation: &'a [validation::ContentConservationSourcePlan],
+    integer_types: &'a super::super::IntegerTypeClassification,
     remaining: usize,
 }
 
@@ -24,11 +25,13 @@ impl<'a> Consequences<'a> {
         program: &'a TypedTrees,
         parameter_names: &'a [String],
         content_conservation: &'a [validation::ContentConservationSourcePlan],
+        integer_types: &'a super::super::IntegerTypeClassification,
     ) -> Self {
         Self {
             program,
             parameter_names,
             content_conservation,
+            integer_types,
             remaining: 4096,
         }
     }
@@ -94,6 +97,7 @@ impl<'a> Consequences<'a> {
                     negated,
                     self.parameter_names,
                     self.content_conservation,
+                    self.integer_types,
                     &mut output,
                 );
             }
@@ -180,7 +184,8 @@ mod tests {
     #[test]
     fn exhaustion_is_shared_and_cannot_resume_after_an_oversized_charge() {
         let program = TypedTrees::default();
-        let mut consequences = Consequences::new(&program, &[], &[]);
+        let integer_types = crate::checks::crashes::IntegerTypeClassification::build(&program);
+        let mut consequences = Consequences::new(&program, &[], &[], &integer_types);
         assert_eq!(consequences.charge(4090), Some(()));
         assert_eq!(consequences.charge(7), None);
         assert_eq!(consequences.remaining, 0);
@@ -199,7 +204,8 @@ mod tests {
     #[test]
     fn depth_limit_applies_before_collecting_or_matching_an_identity() {
         let program = TypedTrees::default();
-        let mut consequences = Consequences::new(&program, &[], &[]);
+        let integer_types = crate::checks::crashes::IntegerTypeClassification::build(&program);
+        let mut consequences = Consequences::new(&program, &[], &[], &integer_types);
         assert!(
             consequences
                 .collect(ExpressionHandle::default(), false, 64)
