@@ -1,14 +1,16 @@
 //! Claim-free affine and payloadless case return machines.
 
+use crate::flow::terminal_unit::cleanup::{
+    machine_has_content_evidence, service_reach_is_empty, service_reach_plan_is_empty,
+};
 use crate::flow::terminal_unit::{
     CheckFacts, CheckedClaimFreeAffineStructuralReturnMachinePlan,
     CheckedPayloadlessCaseReturnMachinePlan, CheckedStructuralAccess, CheckedStructuralResultPlan,
     CheckedUnitStructuralTypeShape, DataMember, ExpressionNode, Multiplicity, PrimitiveType,
     ShapeCollector, SignatureContractKind, StatementNode, TypeReferenceNode, TypedTrees,
     entry_claims, free_structural_scalar_signature, has_plain_owned_contents, machine_binders,
-    machine_has_content_evidence, parameter_qualifications, projected_parameter_qualifications,
-    service_reach_is_empty, service_reach_plan_is_empty, state_flow, structural_scalar_signature,
-    structural_signature, type_graph_requires_nominal_drop,
+    parameter_qualifications, projected_parameter_qualifications, state_flow,
+    structural_scalar_signature, structural_signature, type_graph_requires_nominal_drop,
 };
 
 pub(crate) fn build_claim_free_affine_structural_return_machine(

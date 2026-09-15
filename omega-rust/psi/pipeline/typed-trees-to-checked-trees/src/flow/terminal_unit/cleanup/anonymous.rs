@@ -8,14 +8,11 @@ use super::{
     control,
 };
 use crate::flow::projected_argument_path;
-use crate::flow::terminal_unit::ShapeCollector;
-use crate::flow::terminal_unit::base_type_identity;
-use crate::flow::terminal_unit::machine_binders;
-use crate::flow::terminal_unit::machine_has_content_evidence;
-use crate::flow::terminal_unit::partial_affine_residuals;
-use crate::flow::terminal_unit::service_reach_is_empty;
-use crate::flow::terminal_unit::service_reach_plan_is_empty;
-use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::cleanup::cleanup_evidence::{
+    machine_has_content_evidence, service_reach_is_empty, service_reach_plan_is_empty,
+};
+use crate::flow::terminal_unit::cleanup::partial_affine_cleanup::partial_affine_residuals;
+use crate::flow::terminal_unit::{ShapeCollector, base_type_identity, machine_binders, state_flow};
 
 pub(super) fn binding(
     program: &TypedTrees,

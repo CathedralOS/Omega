@@ -138,6 +138,7 @@ mod state_graph;
 mod structural_scalar_store;
 pub(super) mod types;
 
+use crate::flow::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;
 use calls::*;
 use cleanup::*;

@@ -1,13 +1,13 @@
 //! Payloadless guarded call return machines.
 
+use crate::flow::terminal_unit::cleanup::{service_reach_is_empty, service_reach_plan_is_empty};
 use crate::flow::terminal_unit::{
     CheckFacts, CheckedPayloadlessGuardedCallEvidencePlan,
     CheckedPayloadlessGuardedCallEvidenceUsePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
     CheckedStructuralResultPlan, CheckedStructuralReturnPlans, CheckedUnitCallCoordinate,
     DataMember, ExpressionNode, Multiplicity, ShapeCollector, SignatureContractKind, StatementNode,
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
-    machine_binders, parameter_qualifications, service_reach_is_empty, service_reach_plan_is_empty,
-    state_flow, structural_signature,
+    machine_binders, parameter_qualifications, state_flow, structural_signature,
 };
 
 pub(crate) fn build_payloadless_guarded_call_return_machine(
