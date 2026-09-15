@@ -44,6 +44,7 @@ mod invocations;
 mod materialize;
 mod replay;
 
+pub(crate) use invocations::CheckedInitializers;
 pub(super) use replay::validate as validate_retained_invocations;
 
 struct PendingLeaf {
