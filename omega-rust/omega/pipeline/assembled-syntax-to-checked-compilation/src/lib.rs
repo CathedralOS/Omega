@@ -8,14 +8,18 @@
 //! task activations, admits package declarations, checks, and seals the
 //! result with its source custody. The `checking` folder holds the build
 //! continuation, the phase transitions into the Psi stages, execution
-//! settlement, and the sealed carrier; `package` owns declaration admission;
+//! settlement, and the sealed carrier; `admission` settles the checked
+//! program's trust obligations against the owner's admissions and writes the
+//! optional observations; `package` owns declaration admission;
 //! `optimization` owns the checked optimization handoff and the release
 //! rollback request every product settles against.
 
+mod admission;
 mod checking;
 mod optimization;
 mod package;
 
+pub use admission::{ArtifactEmissionPolicy, CheckedAdmission, admit_checked_compilation};
 pub use checking::compile_thread::run_on_compile_thread;
 pub use checking::{
     CheckedCompilation, CheckedCompileRequest, PreparedCheckedSource, compile_to_checked,

@@ -1,4 +1,15 @@
 //! Required checked-program trust settlement, independent of observation output.
+//!
+//! `admit_checked_compilation` reconstructs the trust obligations of one sealed
+//! checked compilation and settles them against the owner's explicit
+//! admissions. `observations` writes the optional reports afterwards under
+//! the caller's `policy`; `snapshots` owns the checked-Psi snapshot files.
+
+mod observations;
+mod policy;
+mod snapshots;
+
+pub use policy::ArtifactEmissionPolicy;
 
 use crate::CheckedCompilation;
 use artifacts::TrustReport;
@@ -15,11 +26,11 @@ pub struct CheckedAdmission<'checked> {
 }
 
 impl CheckedAdmission<'_> {
-    pub(crate) fn checked(&self) -> &CheckedCompilation {
+    pub(super) fn checked(&self) -> &CheckedCompilation {
         self.checked
     }
 
-    pub(crate) fn trust_report(&self) -> &TrustReport {
+    pub(super) fn trust_report(&self) -> &TrustReport {
         &self.trust_report
     }
 

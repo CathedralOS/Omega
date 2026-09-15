@@ -889,11 +889,12 @@ fn checked_observations_consume_admission_without_owning_it() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
     let coordinator = compiler_product_coordinator_source(&root);
-    let admission = std::fs::read_to_string(compiler.join("compiler/admission.rs"))
-        .expect("read checked trust admission");
-    let reporter =
-        std::fs::read_to_string(compiler.join("pipeline/reporting/checked_observations.rs"))
-            .expect("read observation writer");
+    let admission = std::fs::read_to_string(root.join(
+        "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission/mod.rs",
+    ))
+    .expect("read checked trust admission");
+    let reporter = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission/observations.rs"))
+        .expect("read observation writer");
     assert_eq!(coordinator.matches("admit_checked_compilation(").count(), 1);
     assert_eq!(
         coordinator.matches("admission.write_observations(").count(),
@@ -1357,7 +1358,10 @@ fn compiler_product_stops_delegate_component_progress_admission() {
         root.join("omega-rust/omega/compiler/native-realization/src/native_product/admission.rs"),
     )
     .expect("read native optimization admission owner");
-    let reporting = recursive_rust_source(&compiler.join("pipeline/reporting"));
+    let reporting =
+        recursive_rust_source(&root.join(
+            "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission",
+        ));
 
     assert_eq!(
         native_admission

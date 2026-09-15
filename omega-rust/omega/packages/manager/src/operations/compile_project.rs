@@ -177,7 +177,7 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
         compiler::admit_checked_compilation(candidate.checked_root(), &accepted_trust_admissions)
             .map_err(CompilePreparedLocalProjectNativeError::TrustAdmission)?;
     admission
-        .write_observations(&options, artifact_policy)
+        .write_observations(&options.build_dir(), artifact_policy)
         .map_err(CompilePreparedLocalProjectNativeError::ObservationOutput)?;
     let trust_settlement = admission.into_settlement();
     let observation = observe(candidate.checked_root());

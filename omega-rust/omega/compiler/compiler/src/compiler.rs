@@ -12,7 +12,6 @@ use checked_compilation_to_terminal_artifact::produce_terminal_report;
 use diagnostics::Diagnostic;
 use native_realization::{NativeInputReuse, prepare_native_product};
 
-pub(crate) mod admission;
 pub(crate) mod optimization;
 pub(crate) mod options;
 pub(crate) mod package;
@@ -48,7 +47,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                 )?;
                 let admission =
                     admit_checked_compilation(&checked, target.accepted_trust_admissions())?;
-                admission.write_observations(target.options(), target.artifact_policy())?;
+                admission.write_observations(&options.build_dir(), target.artifact_policy())?;
                 let trust_settlement = admission.into_settlement();
 
                 let report = match request.shared.requested_product {
