@@ -29,6 +29,10 @@ boundary data BorrowedMappingToken [linear];
 data BorrowedMapping [linear] {
     token: BorrowedMappingToken;
     held_source: &Extent in Granted;
+    source_base: addr;
+    source_length: u64;
+    destination_base: addr;
+    destination_length: u64;
     install: TranslationInstallObligations;
     release: TranslationReleaseObligations;
 }

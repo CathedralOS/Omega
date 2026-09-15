@@ -1,0 +1,85 @@
+// Cathedral page-table formats and walk policy.
+//
+// This module is the OS-owned half of the translation canary: the table and
+// entry structures the provider's install/teardown routes operate on. Omega
+// owns only the custody and boundary rules the package composes
+// (wiki/spec/resources/extents.md "Mapping and reclamation": page tables,
+// translation policy, activation, shootdowns, and teardown belong to
+// OS/provider packages).
+//
+// The hierarchy policy is the 4KiB-granule four-level shape shared by the
+// x86-64 and AArch64 long formats: every table is one 4KiB extent read as
+// 512 8-byte slots, and a virtual base supplies one 9-bit index per level.
+// `Table` carries its backing as `Extent in Granted` -- the range's authority
+// stays with the hierarchy for the table's whole life, and an unqualified
+// range cannot name a table.
+//
+// `TableEntry` is the raw 64-bit slot content. The encode routes here are the
+// package's whole entry contract for this slice: bit 0 is present, bit 1 is
+// writable, and bits 12..52 carry the next table's or the terminal frame's
+// base. A next-level entry is always present+writable so the leaf's own flags
+// govern access; a terminal entry's writable bit is the caller's policy
+// choice.
+//
+// Reading an entry back out of a table is deliberately absent: interpreting
+// stored table memory is placed access (wiki/spec/resources/placed_access.md),
+// which is still undeclared vocabulary, so the package never consumes its own
+// entries. The provider realization traverses hardware-side; source composes
+// only the store/invalidate boundary requirements.
+use omega::language::core::extent;
+
+// One 4KiB page-table extent: 512 8-byte slots under one qualified range.
+// The record is linear through `storage`: moving or dropping the table moves
+// the backing authority, and teardown cannot lose it.
+pub data Table {
+    storage: Extent in Granted;
+}
+
+// The mask selecting a frame base inside a raw entry: bits 12..52, spelled
+// as 2^52 - 2^12 = 4503599627370496.
+pub const TableEntry::FRAME_MASK: u64 = 4503599627370496;
+
+// The inert empty slot: every flag clear. `remove` writes it over the leaf
+// entry a teardown retires.
+pub const TableEntry::EMPTY: TableEntry = TableEntry { raw: 0 };
+
+// One raw 64-bit page-table entry. `raw` is data, not authority: copying or
+// forging the bits grants no mapping, and the value only becomes a
+// translation when the provider's store crossing places it in a table slot.
+pub data TableEntry [copy] {
+    raw: u64;
+}
+
+// The 9-bit slot index `depth` selects out of `virtual_base`. Levels count
+// root-first: depth 0 is the root table's field (bits 39..48), depth 3 the
+// leaf table's (bits 12..21). The shift `39 - 9 * depth` stays nonnegative
+// because the parameter's own range caps it at 3, and the mask result is the
+// ranged slot every table store expects.
+pub machine level_index(virtual_base: u64, depth: u64 [0..=3]) -> u64 [0..=511] {
+    (virtual_base >> (39 - 9 * depth)) & 511
+}
+
+// A next-level entry: present and writable, pointing at the child table's
+// frame base. Table-link writability lets the leaf entry's own flags be the
+// only access policy.
+pub machine TableEntry::next_level(frame_base: u64) -> TableEntry {
+    TableEntry { raw: (frame_base & TableEntry::FRAME_MASK) | 3 }
+}
+
+// The terminal leaf entry for one mapped frame. `writable` selects the
+// caller's access policy; present is always set -- a mapping that is not
+// present is no installation at all.
+pub machine TableEntry::terminal(frame_base: u64, writable: bool) -> TableEntry {
+    transition writable {
+        true -> writable(frame_base)
+        _ -> read_only(frame_base)
+    }
+
+    state writable(frame_base: u64) -> TableEntry {
+        TableEntry { raw: (frame_base & TableEntry::FRAME_MASK) | 3 }
+    }
+
+    state read_only(frame_base: u64) -> TableEntry {
+        TableEntry { raw: (frame_base & TableEntry::FRAME_MASK) | 1 }
+    }
+}
