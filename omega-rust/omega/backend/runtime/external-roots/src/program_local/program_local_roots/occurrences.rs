@@ -1,7 +1,7 @@
 //! Installed program-local root occurrences, subjects and scalar bindings.
 
 use crate::program_local::program_local_roots::{
-    ProgramLocalRootInstalledPrebinding, ProgramLocalRootPrebindingId,
+    ProgramLocalEntryActivation, ProgramLocalRootInstalledPrebinding, ProgramLocalRootPrebindingId,
 };
 use crate::{ExternalRootDiagnostic, InstalledExternalRoot};
 use effects::{ComponentEraLedgerId, ProgramLocalRootEpochLease, ProgramLocalRootEpochLeaseId};
@@ -34,9 +34,11 @@ impl InstalledProgramLocalRootOccurrenceId {
 
 /// Report identity for one concrete activation of an installed entry bridge.
 ///
-/// This number is not authority. The non-clonable epoch runtime and the exact
-/// installed-root evidence retained by [`InstalledProgramLocalRootSubject`]
-/// are what make an activation eligible to establish a root.
+/// This number is not authority. Generated-entry subjects stamp it from the
+/// live [`ProgramLocalEntryActivation`] they were observed under, and the
+/// installation ledger re-derives it from the presented activation at
+/// establishment, so a caller-asserted value cannot stand in for a real
+/// entered activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProgramLocalRootEntryInvocationId(u64);
 
@@ -152,8 +154,9 @@ impl ProgramLocalRootScalarBinding {
 pub(crate) type ProgramLocalRootScalarKey = (ProgramLocalRootScalarSource, Vec<String>);
 
 /// Single-use subject observation emitted by a generated installed-entry
-/// bridge. It borrows the exact installed root and records the semantic and ABI
-/// parameter positions; an ordinary call has no such installed-root binding.
+/// bridge. It borrows the exact installed root, stamps the live activation's
+/// invocation identity, and records the semantic and ABI parameter positions;
+/// an ordinary call has no such installed-root binding.
 #[derive(Debug)]
 pub struct InstalledProgramLocalRootSubject<'root, 'code> {
     pub(crate) root: &'root InstalledExternalRoot<'code>,
@@ -170,7 +173,7 @@ impl<'root, 'code> InstalledProgramLocalRootSubject<'root, 'code> {
     #[allow(clippy::too_many_arguments)]
     pub fn from_generated_entry(
         root: &'root InstalledExternalRoot<'code>,
-        invocation: ProgramLocalRootEntryInvocationId,
+        activation: &ProgramLocalEntryActivation,
         argument_index: u32,
         source_parameter_position: u32,
         qualification_identity: impl Into<String>,
@@ -223,7 +226,7 @@ impl<'root, 'code> InstalledProgramLocalRootSubject<'root, 'code> {
         }
         Ok(Self {
             root,
-            invocation,
+            invocation: activation.invocation(),
             argument_index,
             source_parameter_position,
             qualification_identity,

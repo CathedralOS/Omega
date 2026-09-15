@@ -1,10 +1,10 @@
 use super::{
     entry_id, extent_id, extent_provider_issuance, install_program_local_required_root,
     installed_backing_extent, installed_code, installed_code_with_fill_and_installation_identity,
-    program_local_claim, program_local_epoch_lease, program_local_extent_module,
-    program_local_extent_subject, program_local_lifecycle, program_local_root_catalog,
-    program_local_root_module, program_local_subject, program_local_terminal_object,
-    publish_program_local_era,
+    program_local_activation, program_local_claim, program_local_epoch_lease,
+    program_local_extent_module, program_local_extent_subject, program_local_lifecycle,
+    program_local_root_catalog, program_local_root_module, program_local_subject,
+    program_local_terminal_object, publish_program_local_era,
 };
 use crate::{
     EstablishedProgramLocalRoot, ProgramLocalExtentRegistry, ProgramLocalRootCohortMember,
@@ -52,11 +52,13 @@ fn program_local_extent_registry_retains_exact_account_through_split_and_retirem
         )
         .expect("exact Extent epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 980, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_extent_subject(&root, 980, 1080, 0x4000, 0x100),
+            &activation,
+            program_local_extent_subject(&root, &activation, 1080, 0x4000, 0x100),
         )
         .expect("exact interval subject establishes its root");
     let mut registry = ProgramLocalExtentRegistry::new();
@@ -169,11 +171,13 @@ fn aggregate_materialization_discharges_reconstructed_capacity_over_installed_pa
         )
         .expect("exact Extent epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 980, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_extent_subject(&root, 980, 1080, 0x4040, 0x100),
+            &activation,
+            program_local_extent_subject(&root, &activation, 1080, 0x4040, 0x100),
         )
         .expect("exact interval subject establishes its root");
     let aggregate = installation
@@ -283,11 +287,13 @@ fn aggregate_materialization_rejects_stale_substituted_and_inexact_discharge() {
         )
         .expect("exact Extent epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 980, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_extent_subject(&root, 980, 1080, 0x4040, 0x100),
+            &activation,
+            program_local_extent_subject(&root, &activation, 1080, 0x4040, 0x100),
         )
         .expect("exact interval subject establishes its root");
     let stale_aggregate = installation
@@ -315,11 +321,13 @@ fn aggregate_materialization_rejects_stale_substituted_and_inexact_discharge() {
         )
         .expect("the next exact Extent epoch cohort")
         .into_runtime();
+    let next_activation = program_local_activation(&mut lifecycle, 981, 11);
     let next_established = installation
         .establish(
             &mut next_runtime,
             &lifecycle,
-            program_local_extent_subject(&root, 981, 1081, 0x4040, 0x100),
+            &next_activation,
+            program_local_extent_subject(&root, &next_activation, 1081, 0x4040, 0x100),
         )
         .expect("the same schema establishes in the next epoch");
     let next_identity = next_established.occurrence_identity();
@@ -435,11 +443,13 @@ fn counted_aggregate_capacity_cannot_discharge_extent_partitions() {
         )
         .expect("exact epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 980, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_subject(&root, 980, 1080, Some(8)),
+            &activation,
+            program_local_subject(&root, &activation, 1080, Some(8)),
         )
         .expect("exact counted subject establishes its root");
     let aggregate = installation
@@ -503,11 +513,13 @@ fn retained_foreign_argument_borrowed_pins_the_account_until_release() {
         )
         .expect("exact Extent epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 990, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_extent_subject(&root, 990, 1090, 0x4000, 0x100),
+            &activation,
+            program_local_extent_subject(&root, &activation, 1090, 0x4000, 0x100),
         )
         .expect("exact interval subject establishes its root");
     let mut registry = ProgramLocalExtentRegistry::new();
@@ -644,11 +656,13 @@ fn retained_foreign_argument_rejects_unknown_or_stale_backing() {
         )
         .expect("exact Extent epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 991, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_extent_subject(&root, 991, 1091, 0x4000, 0x100),
+            &activation,
+            program_local_extent_subject(&root, &activation, 1091, 0x4000, 0x100),
         )
         .expect("exact interval subject establishes its root");
     let mut registry = ProgramLocalExtentRegistry::new();
@@ -782,11 +796,13 @@ fn retained_foreign_argument_moved_returns_exact_authority_on_release() {
         )
         .expect("exact Extent epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 992, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_extent_subject(&root, 992, 1092, 0x4000, 0x100),
+            &activation,
+            program_local_extent_subject(&root, &activation, 1092, 0x4000, 0x100),
         )
         .expect("exact interval subject establishes its root");
     let mut registry = ProgramLocalExtentRegistry::new();
@@ -863,11 +879,13 @@ fn retained_foreign_argument_snapshot_pins_only_private_backing() {
         )
         .expect("first exact Extent epoch cohort")
         .into_runtime();
+    let first_activation = program_local_activation(&mut lifecycle, 993, 10);
     let first_established = first_installation
         .establish(
             &mut first_runtime,
             &lifecycle,
-            program_local_extent_subject(&first_root, 993, 1093, 0x4000, 0x100),
+            &first_activation,
+            program_local_extent_subject(&first_root, &first_activation, 1093, 0x4000, 0x100),
         )
         .expect("first interval subject establishes its root");
 
@@ -904,11 +922,13 @@ fn retained_foreign_argument_snapshot_pins_only_private_backing() {
         )
         .expect("second exact Extent epoch cohort")
         .into_runtime();
+    let second_activation = program_local_activation(&mut lifecycle, 994, 20);
     let second_established = second_installation
         .establish(
             &mut second_runtime,
             &lifecycle,
-            program_local_extent_subject(&second_root, 994, 1094, 0x5000, 0x20),
+            &second_activation,
+            program_local_extent_subject(&second_root, &second_activation, 1094, 0x5000, 0x20),
         )
         .expect("second interval subject establishes its root");
 
@@ -998,11 +1018,13 @@ fn counted_program_local_capacity_cannot_mint_an_extent() {
         )
         .expect("counted epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 982, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_subject(&root, 982, 1082, Some(8)),
+            &activation,
+            program_local_subject(&root, &activation, 1082, Some(8)),
         )
         .expect("counted root establishes");
     let mut registry = ProgramLocalExtentRegistry::new();
@@ -1062,11 +1084,13 @@ fn program_local_extent_materialization_requires_actual_installed_backing() {
 
     // A backing range that does not equal the evaluated interval capacity
     // rejects transactionally and returns the complete account plus backing.
+    let activation = program_local_activation(&mut lifecycle, 983, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_extent_subject(&root, 983, 1083, 0x4000, 0x100),
+            &activation,
+            program_local_extent_subject(&root, &activation, 1083, 0x4000, 0x100),
         )
         .expect("exact interval subject establishes its root");
     let rejected = registry
@@ -1202,13 +1226,15 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
         .expect("first epoch cohort")
         .into_runtime();
 
+    let batch_activation = program_local_activation(&mut lifecycle, 948, 10);
     let rejected_batch = installation
         .establish_batch(
             &mut runtime,
             &lifecycle,
+            &batch_activation,
             [
-                program_local_subject(&root, 948, 1048, Some(3)),
-                program_local_subject(&root, 949, 1049, Some(3)),
+                program_local_subject(&root, &batch_activation, 1048, Some(3)),
+                program_local_subject(&root, &batch_activation, 1049, Some(3)),
             ],
         )
         .expect_err("a batch cannot establish one pending occurrence twice");
@@ -1216,14 +1242,15 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
     let returned = rejected_batch.into_subjects();
     assert_eq!(returned.len(), 2);
     assert_eq!(returned[0].invocation().normalized_identity(), 948);
-    assert_eq!(returned[1].invocation().normalized_identity(), 949);
+    assert_eq!(returned[1].invocation().normalized_identity(), 948);
     assert_eq!(runtime.pending_occurrences().len(), 1);
 
     let rejected = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_subject(&root, 950, 1050, None),
+            &batch_activation,
+            program_local_subject(&root, &batch_activation, 1050, None),
         )
         .expect_err("missing subject-dependent capacity rejects");
     assert!(rejected.diagnostic().0.contains("omits or adds"));
@@ -1233,7 +1260,8 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_subject(&root, 951, 1051, Some(3)),
+            &batch_activation,
+            program_local_subject(&root, &batch_activation, 1051, Some(3)),
         )
         .expect("failed evaluation did not burn the pending occurrence");
     let first_lineage = first.lineage();
@@ -1260,11 +1288,13 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
         )
         .expect("later epoch cohort")
         .into_runtime();
+    let next_activation = program_local_activation(&mut lifecycle, 952, 20);
     let next = installation
         .establish(
             &mut next_runtime,
             &lifecycle,
-            program_local_subject(&root, 952, 1052, Some(3)),
+            &next_activation,
+            program_local_subject(&root, &next_activation, 1052, Some(3)),
         )
         .expect("later epoch establishes a fresh root");
     assert_ne!(first_lineage, next.lineage());

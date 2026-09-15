@@ -1,10 +1,11 @@
 use super::{
     entry_id, install_program_local_required_root, install_program_local_two_parameter_roots,
-    installed_code, installed_code_with_fill_and_installation_identity, program_local_claim,
-    program_local_claim_at, program_local_epoch_lease, program_local_extent_module,
-    program_local_extent_subject, program_local_lifecycle, program_local_root_catalog,
-    program_local_root_module, program_local_subject, program_local_subject_at,
-    program_local_terminal_object, program_local_two_schema_module, publish_program_local_era,
+    installed_code, installed_code_with_fill_and_installation_identity, program_local_activation,
+    program_local_claim, program_local_claim_at, program_local_epoch_lease,
+    program_local_extent_module, program_local_extent_subject, program_local_lifecycle,
+    program_local_root_catalog, program_local_root_module, program_local_subject,
+    program_local_subject_at, program_local_terminal_object, program_local_two_schema_module,
+    publish_program_local_era,
 };
 use crate::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,
@@ -367,12 +368,14 @@ fn installed_subject_establishes_exact_capacity_lineage_once_and_pins_the_epoch(
         )
         .expect("exact epoch cohort");
     let mut runtime = cohort.into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 940, 10);
 
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_subject(&root, 940, 1040, Some(8)),
+            &activation,
+            program_local_subject(&root, &activation, 1040, Some(8)),
         )
         .expect("exact installed subject establishes its root");
     assert_eq!(
@@ -392,11 +395,13 @@ fn installed_subject_establishes_exact_capacity_lineage_once_and_pins_the_epoch(
     assert_eq!(runtime.aggregates().len(), 1);
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
 
+    let replay_activation = program_local_activation(&mut lifecycle, 941, 10);
     let replay = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_subject(&root, 941, 1041, Some(8)),
+            &replay_activation,
+            program_local_subject(&root, &replay_activation, 1041, Some(8)),
         )
         .expect_err("the exact installed occurrence establishes at most once");
     assert!(replay.diagnostic().0.contains("no pending exact cohort"));
@@ -461,11 +466,13 @@ fn aggregate_capacity_reconstruction_sums_the_live_group_for_one_epoch() {
         )
         .expect("exact epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 990, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_subject(&root, 990, 1090, Some(8)),
+            &activation,
+            program_local_subject(&root, &activation, 1090, Some(8)),
         )
         .expect("exact counted subject establishes its root");
     let reconstructed = installation
@@ -567,11 +574,13 @@ fn aggregate_capacity_reconstruction_composes_the_interval_member_set() {
         )
         .expect("exact Extent epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 990, 10);
     let established = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_extent_subject(&root, 990, 1090, 0x4000, 0x100),
+            &activation,
+            program_local_extent_subject(&root, &activation, 1090, 0x4000, 0x100),
         )
         .expect("exact interval subject establishes its root");
     let reconstructed = installation
@@ -636,18 +645,21 @@ fn aggregate_capacity_reconstruction_rejects_mixed_schemas_cohorts_and_installat
         )
         .expect("exact two-schema epoch cohort")
         .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 990, 10);
     let first = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_subject_at(&root, 990, 1090, 0, 0, Some(8)),
+            &activation,
+            program_local_subject_at(&root, &activation, 1090, 0, 0, Some(8)),
         )
         .expect("first schema establishes on its exact parameter subject");
     let second = installation
         .establish(
             &mut runtime,
             &lifecycle,
-            program_local_subject_at(&root, 991, 1091, 1, 1, Some(4)),
+            &activation,
+            program_local_subject_at(&root, &activation, 1091, 1, 1, Some(4)),
         )
         .expect("second schema establishes on its exact parameter subject");
 
@@ -718,11 +730,13 @@ fn aggregate_capacity_reconstruction_rejects_mixed_schemas_cohorts_and_installat
         )
         .expect("the next exact epoch cohort")
         .into_runtime();
+    let next_activation = program_local_activation(&mut lifecycle, 992, 11);
     let next_first = installation
         .establish(
             &mut next_runtime,
             &lifecycle,
-            program_local_subject_at(&root, 992, 1092, 0, 0, Some(6)),
+            &next_activation,
+            program_local_subject_at(&root, &next_activation, 1092, 0, 0, Some(6)),
         )
         .expect("the same schema establishes in the next epoch");
     let spanned = installation
@@ -789,11 +803,13 @@ fn aggregate_capacity_reconstruction_rejects_mixed_schemas_cohorts_and_installat
         )
         .expect("foreign exact epoch cohort")
         .into_runtime();
+    let foreign_activation = program_local_activation(&mut foreign_lifecycle, 993, 10);
     let foreign_first = foreign_installation
         .establish(
             &mut foreign_runtime,
             &foreign_lifecycle,
-            program_local_subject_at(&foreign_root, 993, 1093, 0, 0, Some(3)),
+            &foreign_activation,
+            program_local_subject_at(&foreign_root, &foreign_activation, 1093, 0, 0, Some(3)),
         )
         .expect("the foreign schema establishes in its own installation");
     let foreign = installation
@@ -810,4 +826,170 @@ fn aggregate_capacity_reconstruction_rejects_mixed_schemas_cohorts_and_installat
             .normalized_identity(),
         foreign_code_identity
     );
+}
+
+#[test]
+fn entry_activation_is_the_only_invocation_authority_for_establishment() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed prebinding")
+        .try_into()
+        .expect("one producer schema");
+    // The cohort ledger starts in era 9 so one activation can be entered there
+    // and held while era 10 publishes: the held token then carries a stale era.
+    let mut lifecycle = program_local_lifecycle(
+        750,
+        9,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let stale_activation = program_local_activation(&mut lifecycle, 950, 9);
+    publish_program_local_era(
+        &mut lifecycle,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+        850,
+        true,
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 851, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 951, 10);
+
+    // A subject observed under an activation that entered era 9 cannot
+    // establish the era-10 cohort even though it presents the same ledger.
+    let stale_subject = program_local_subject(&root, &stale_activation, 1050, Some(8));
+    let stale = installation
+        .establish(&mut runtime, &lifecycle, &stale_activation, stale_subject)
+        .expect_err("a stale-era activation cannot establish the exact epoch");
+    assert!(
+        stale
+            .diagnostic()
+            .0
+            .contains("not entered on the cohort's exact lifecycle ledger and epoch")
+    );
+    assert_eq!(stale.into_subject().invocation().normalized_identity(), 950);
+    assert_eq!(runtime.pending_occurrences().len(), 1);
+
+    // A subject observed under an activation of a different lifecycle ledger —
+    // with the same era number and entry contract — is not this cohort's entry.
+    let mut foreign_lifecycle = program_local_lifecycle(
+        751,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let foreign_activation = program_local_activation(&mut foreign_lifecycle, 952, 10);
+    let foreign_subject = program_local_subject(&root, &foreign_activation, 1051, Some(8));
+    let foreign = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &foreign_activation,
+            foreign_subject,
+        )
+        .expect_err("a foreign ledger's activation cannot establish this cohort");
+    assert!(
+        foreign
+            .diagnostic()
+            .0
+            .contains("not entered on the cohort's exact lifecycle ledger and epoch")
+    );
+    assert_eq!(
+        foreign.into_subject().invocation().normalized_identity(),
+        952
+    );
+    assert_eq!(runtime.pending_occurrences().len(), 1);
+
+    // A subject stamped by one live activation cannot be established under
+    // another activation of the same era: the invocation identity is minted by
+    // the exact presented scope, not by the caller.
+    let other_activation = program_local_activation(&mut lifecycle, 953, 10);
+    let redirected = program_local_subject(&root, &other_activation, 1052, Some(8));
+    let rejected = installation
+        .establish(&mut runtime, &lifecycle, &activation, redirected)
+        .expect_err("a subject stamped by another activation cannot establish under this one");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("not observed under the presented entry activation")
+    );
+    assert_eq!(
+        rejected.into_subject().invocation().normalized_identity(),
+        953
+    );
+    assert_eq!(runtime.pending_occurrences().len(), 1);
+
+    // The matching activation establishes, and the same activation completes
+    // its scope through the ledger that minted it.
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_subject(&root, &activation, 1053, Some(8)),
+        )
+        .expect("the presented activation's own subject establishes");
+    assert_eq!(runtime.pending_occurrences().len(), 0);
+    let receipt = activation.leave_receipt(true);
+    activation
+        .leave(&mut lifecycle, receipt)
+        .expect("the exact activation leaves through its minting ledger");
+
+    // Leave through a foreign ledger rejects and returns the scope intact so
+    // the rightful ledger can still complete it.
+    let receipt = other_activation.leave_receipt(true);
+    let leave = other_activation
+        .leave(&mut foreign_lifecycle, receipt)
+        .expect_err("an activation cannot leave through a different ledger");
+    assert!(
+        leave
+            .diagnostic()
+            .0
+            .contains("cannot leave through a different lifecycle ledger")
+    );
+    let (other_activation, receipt) = leave.into_parts();
+    other_activation
+        .leave(&mut lifecycle, receipt)
+        .expect("the returned activation still completes on its own ledger");
+
+    // The stale-era token's entry hold also settles on the same ledger.
+    let receipt = stale_activation.leave_receipt(true);
+    stale_activation
+        .leave(&mut lifecycle, receipt)
+        .expect("a held stale-era activation still leaves its own era");
+    let receipt = foreign_activation.leave_receipt(true);
+    foreign_activation
+        .leave(&mut foreign_lifecycle, receipt)
+        .expect("the foreign activation leaves its own ledger");
+
+    installation
+        .retire_established(established, &mut lifecycle)
+        .expect("the exact lifecycle retires the root");
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
 }

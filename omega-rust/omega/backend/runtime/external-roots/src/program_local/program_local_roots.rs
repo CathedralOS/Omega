@@ -3,11 +3,13 @@
 //!
 //! `prebindings.rs` carries schema digests and installed prebindings,
 //! `occurrences.rs` the installed occurrence, subject and scalar bindings,
+//! `activation.rs` the live generated-entry activation token,
 //! `installation_ledger.rs` the ledger and capacity evaluation,
 //! `epoch_cohorts.rs` cohort members, aggregates and coexistence reports,
 //! `establishment.rs` established roots, epoch runtimes and retirement, and
 //! `capacity_evaluation_tests.rs` the capacity tests.
 
+mod activation;
 #[cfg(test)]
 mod capacity_evaluation_tests;
 mod epoch_cohorts;
@@ -16,6 +18,7 @@ mod installation_ledger;
 mod occurrences;
 mod prebindings;
 
+pub use activation::{ProgramLocalEntryActivation, ProgramLocalEntryActivationLeaveError};
 pub use epoch_cohorts::{
     InstalledProgramLocalRootEpochCohortId, ProgramLocalRootCoexistenceReport,
     ProgramLocalRootCohortMember, ProgramLocalRootEpochAggregate,

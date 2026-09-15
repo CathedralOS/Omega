@@ -8,8 +8,9 @@ use crate::program_local::program_local_roots::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,
     InstalledProgramLocalRootEpochCohort, InstalledProgramLocalRootEpochCohortId,
     InstalledProgramLocalRootOccurrence, InstalledProgramLocalRootOccurrenceId,
-    InstalledProgramLocalRootSubject, ProgramLocalRootBatchEstablishmentError,
-    ProgramLocalRootCohortMember, ProgramLocalRootCohortSealError, ProgramLocalRootEpochAggregate,
+    InstalledProgramLocalRootSubject, ProgramLocalEntryActivation,
+    ProgramLocalRootBatchEstablishmentError, ProgramLocalRootCohortMember,
+    ProgramLocalRootCohortSealError, ProgramLocalRootEpochAggregate,
     ProgramLocalRootEpochAggregateCapacity, ProgramLocalRootEpochRuntime,
     ProgramLocalRootEstablishmentError, ProgramLocalRootInstalledPrebinding,
     ProgramLocalRootInstalledPrebindingCount, ProgramLocalRootOccurrenceRetirementError,
@@ -505,19 +506,21 @@ impl ProgramLocalRootInstallationLedger {
     }
 
     /// Establish one exact pending cohort member from a generated installed-entry
-    /// subject. Every symbolic scalar is replayed against the verified schema
-    /// before the occurrence is removed from the runtime, so rejection returns
-    /// the complete subject binding and mints no lineage.
+    /// subject observed under the presented live activation. Every symbolic
+    /// scalar is replayed against the verified schema before the occurrence is
+    /// removed from the runtime, so rejection returns the complete subject
+    /// binding and mints no lineage.
     pub fn establish<'root, 'subject, 'code>(
         &mut self,
         runtime: &mut ProgramLocalRootEpochRuntime<'root, 'code>,
         lifecycle: &ComponentEraEntryLedger,
+        activation: &ProgramLocalEntryActivation,
         subject: InstalledProgramLocalRootSubject<'subject, 'code>,
     ) -> Result<
         EstablishedProgramLocalRoot<'root, 'code>,
         Box<ProgramLocalRootEstablishmentError<'subject, 'code>>,
     > {
-        match self.establish_batch(runtime, lifecycle, [subject]) {
+        match self.establish_batch(runtime, lifecycle, activation, [subject]) {
             Ok(mut roots) => Ok(roots
                 .pop()
                 .expect("one subject establishes exactly one program-local root")),
@@ -539,10 +542,19 @@ impl ProgramLocalRootInstallationLedger {
     /// Every member, scalar roster, evaluated capacity, and lifecycle lease is
     /// validated before any pending occurrence is removed. Rejection returns
     /// every subject in source order and leaves the epoch runtime unchanged.
+    ///
+    /// The presented activation is the only authority that can mint subject
+    /// invocation identities: it must have been entered on this exact
+    /// lifecycle ledger for the cohort's exact epoch, and every subject must
+    /// have been observed under it. A subject stamped by another activation —
+    /// or an activation that entered a different ledger or era — rejects, so
+    /// establishment cannot be claimed under a redirected or replayed entry
+    /// invocation.
     pub fn establish_batch<'root, 'subject, 'code>(
         &mut self,
         runtime: &mut ProgramLocalRootEpochRuntime<'root, 'code>,
         lifecycle: &ComponentEraEntryLedger,
+        activation: &ProgramLocalEntryActivation,
         subjects: impl IntoIterator<Item = InstalledProgramLocalRootSubject<'subject, 'code>>,
     ) -> Result<
         Vec<EstablishedProgramLocalRoot<'root, 'code>>,
@@ -577,10 +589,25 @@ impl ProgramLocalRootInstallationLedger {
                 "program-local establishment is not executing in the exact current lifecycle epoch",
             );
         }
+        if activation.ledger() != lifecycle.identity()
+            || activation.era_identity() != runtime.identity.lifecycle_epoch()
+        {
+            return reject(
+                subjects,
+                "program-local establishment activation is not entered on the cohort's exact lifecycle ledger and epoch",
+            );
+        }
+        let activation_invocation = activation.invocation();
 
         let mut selected = BTreeSet::new();
         let mut validated = Vec::with_capacity(subjects.len());
         for subject in &subjects {
+            if subject.invocation != activation_invocation {
+                return reject(
+                    subjects,
+                    "program-local installed subject was not observed under the presented entry activation",
+                );
+            }
             let matches = runtime
                 .pending
                 .values()
