@@ -825,7 +825,12 @@ pub(super) fn resolve_exact_selected_plan<'plans>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckedOperatorAuthoredUseKind, CheckedTrees, CheckedUnitEffectOperationPlan,
+        CheckedValueOrigin, CheckedValueStatementRole, ExpressionNode, ProviderBinding,
+        derive_checked_nongeneric_operator_application_realizations,
+        resolve_selected_operator_adapter_call, validate_selected_operator_terminal_custody,
+    };
     use crate::settle_selected_execution_dispatch;
     use std::sync::Arc;
 

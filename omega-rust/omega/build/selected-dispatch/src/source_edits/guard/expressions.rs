@@ -1,5 +1,5 @@
 use super::static_arguments::capture as static_arguments;
-use super::*;
+use super::{Builder, Diagnostic, ExpressionHandle, SymbolHandle, TypeReferenceHandle, rejected};
 use typed_trees::expression::{ExpressionNode, TableMatchArm, TableStructLiteralField};
 use typed_trees::name::Identifier;
 

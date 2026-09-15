@@ -1,4 +1,4 @@
-use super::*;
+use super::{CheckedOperatorOccurrence, CheckedTrees, replace_executions, selected_executions};
 use checked_trees::CheckedProviderPlanCommitment;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use std::sync::Arc;

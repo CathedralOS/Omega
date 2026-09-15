@@ -1,4 +1,4 @@
-use super::*;
+use super::{Builder, Diagnostic, MAX_NODES, StaticMachineArgument, rejected};
 use typed_trees::expression::TableCallExpression;
 
 pub(in super::super) fn validate_call_static_arguments(

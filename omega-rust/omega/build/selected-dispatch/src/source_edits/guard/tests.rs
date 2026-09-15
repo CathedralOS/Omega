@@ -1,4 +1,4 @@
-use super::*;
+use super::{GraphGuard, StaticMachineArgument, SymbolHandle, TypedTrees};
 use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
 use typed_trees::expression::{ExpressionNode, TableNamePath, TableUnaryExpression, UnaryOperator};
 use typed_trees::name::Identifier;

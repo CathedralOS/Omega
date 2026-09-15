@@ -1,7 +1,9 @@
 //! Selected operator applications that participate in attached Unit planning.
 
-use super::*;
-
+use super::{
+    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedValueOrigin, CheckedValueStatementRole,
+    Diagnostic, ExpressionHandle, ExpressionNode, OperatorAdapterRewrite, OperatorAdapterSource,
+};
 pub(super) fn selected_application(
     checked: &CheckedTrees,
     rewrite: &OperatorAdapterRewrite,
