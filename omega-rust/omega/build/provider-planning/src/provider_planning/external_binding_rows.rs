@@ -171,15 +171,7 @@ fn extract_external_binding_rows_for_scope(
             let compatibility_policy = match &binding {
                 ExternalBindingKind::CompilerIntrinsic { .. } => None,
                 ExternalBindingKind::Syscall { .. } => {
-                    match (native_target.object_format, native_target.architecture) {
-                        (target::ObjectFormat::Elf, target::Architecture::X86_64) => {
-                            Some(CallingPolicy::LinuxSyscallX86_64)
-                        }
-                        (target::ObjectFormat::Elf, target::Architecture::Aarch64) => {
-                            Some(CallingPolicy::LinuxSyscallAarch64)
-                        }
-                        _ => None,
-                    }
+                    CallingPolicy::native_syscall_for_target(native_target)
                 }
                 _ => Some(CallingPolicy::native_for_target(native_target)),
             };
