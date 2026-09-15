@@ -1,8 +1,12 @@
-use super::{
+use super::{LoweringError, checked_source, lower_machine};
+use checked_trees::types::PrimitiveType;
+use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-    IntegerValue, LoweringError, Operation, OperationKind, OperationResult, PrimitiveType,
-    StructuralAccess, StructuralPathSegment, StructuralTypeShape, Terminator, checked_source,
-    lower_machine,
+};
+use semantic_vocabulary::IntegerValue;
+use terminal_psi::{
+    Operation, OperationKind, OperationResult, StructuralAccess, StructuralPathSegment,
+    StructuralTypeShape, Terminator,
 };
 #[test]
 fn guarded_bounded_integer_field_increment_publishes_checked_terminal() {

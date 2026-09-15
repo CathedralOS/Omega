@@ -1,16 +1,21 @@
 //! Scalar-graph module assembly regressions.
-use super::{
-    CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
-    LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions, LoweringError,
-    ScalarType, SymbolHandle, TERMINAL_MACHINE_IDENTITY_STRIDE, Terminator, block_id,
-    build_scalar_graph_module, checked_source, contract_id, edge_id, lower_machine, machine_id,
-    value_id,
-};
+use super::{LoweringError, ScalarType, SymbolHandle, checked_source, lower_machine};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::machine_lowering::terminal_identities::{
+    TERMINAL_MACHINE_IDENTITY_STRIDE, block_id, contract_id, edge_id, machine_id, value_id,
+};
+use crate::proofs::content_conservation::{
+    LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions,
+};
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, PreparedScalarContract,
 };
+use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
+use checked_trees::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
+};
+use terminal_psi::Terminator;
 
 #[test]
 fn scalar_graph_replays_parameter_qualification_contracts_from_source() {

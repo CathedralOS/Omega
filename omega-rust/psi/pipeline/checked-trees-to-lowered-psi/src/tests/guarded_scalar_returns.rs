@@ -1,8 +1,11 @@
-use super::{
-    OperationKind, PreparedScalarQualifications, PrimitiveType, Terminator,
-    build_scalar_graph_module, checked_source, lower_machine, machine_id,
-    prepare_scalar_graph_machine, reconstruct_operation_obligations,
-};
+use super::{checked_source, lower_machine};
+use crate::machine_lowering::terminal_identities::machine_id;
+use crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_machine;
+use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
+use crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications;
+use checked_trees::types::PrimitiveType;
+use terminal_psi::{OperationKind, Terminator};
+use terminal_verifier::reconstruct_operation_obligations;
 #[test]
 fn unconditional_and_expression_getters_retain_the_same_borrowed_field() {
     for completion in ["self.value", "transition { _ -> (self.value) }"] {

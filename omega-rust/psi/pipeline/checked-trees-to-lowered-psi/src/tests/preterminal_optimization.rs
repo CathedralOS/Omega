@@ -1,12 +1,17 @@
 //! Pre-Terminal Psi optimization entrance regressions.
 use super::{
-    BTreeSet, ContractClause, DebugSite, DebugSubject, IntegerValue, LoweredPsi, ObligationId,
-    Operation, OperationId, OperationKind, OperationResult, Proposition, PsiOptimizationStageError,
-    ScalarType, TerminalMachineResult, Terminator, ValueDeclaration, ValueId, checked_source,
-    finalize_terminal_artifact, hard_root_checked_fixture, lower_machine, run_psi_optimization,
-    terminal_psi_identity,
+    ScalarType, TerminalMachineResult, checked_source, hard_root_checked_fixture, lower_machine,
 };
+use lowered_psi::LoweredPsi;
+use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
+use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
 use optimization::{PsiOptimization, PsiOptimizationSelections};
+use semantic_vocabulary::{IntegerValue, ObligationId, OperationId, Proposition, ValueId};
+use std::collections::BTreeSet;
+use terminal_codec::{DebugSite, DebugSubject, terminal_psi_identity};
+use terminal_psi::{
+    ContractClause, Operation, OperationKind, OperationResult, Terminator, ValueDeclaration,
+};
 
 #[test]
 fn empty_selection_executes_validated_identity_before_publication() {

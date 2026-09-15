@@ -1,13 +1,20 @@
 //! Structural Unit cleanup regression families.
 
 use super::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, Lexer, LoweringError,
-    OperationKind, PrimitiveType, ResolutionRequest, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeShape, Terminator, checked_source, lower_machine,
-    lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
+    CheckedTrees, Lexer, LoweringError, ResolutionRequest, checked_source, lower_machine,
     lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
-    terminal_scalar_type,
+};
+use crate::scalar_graph::scalar_graph_lowering::terminal_scalar_type;
+use crate::unit::unit_cleanup::{
+    lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
+};
+use checked_trees::types::PrimitiveType;
+use checked_trees::{
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
+};
+use terminal_psi::{
+    OperationKind, StructuralFieldType, StructuralPathSegment, StructuralTypeShape, Terminator,
 };
 fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
     let source = r#"

@@ -1,8 +1,11 @@
 use super::{
-    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-    Lexer, OperationKind, ResolutionRequest, StructuralPathSegment, checked_source, lower_machine,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
+    Lexer, ResolutionRequest, checked_source, lower_machine, lower_symbol_resolved_trees,
+    lower_typed_trees, parse_syntax_trees, resolve,
 };
+use checked_trees::{
+    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+};
+use terminal_psi::{OperationKind, StructuralPathSegment};
 #[test]
 fn source_indexed_primitive_storage_composes_with_boundary_and_successors() {
     let source = r#"

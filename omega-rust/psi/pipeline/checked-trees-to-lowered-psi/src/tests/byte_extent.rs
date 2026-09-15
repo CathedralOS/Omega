@@ -1,10 +1,12 @@
 //! The writer's strict-decrease obligation, exercised as an actual byte read.
 
-use super::{
-    IntegerValue, LoweredPsi, Operation, OperationKind, OperationResult, PrimitiveType,
-    ValueDeclaration, checked_source, lower_machine, obligation_id, operation_id,
-    terminal_scalar_type, value_id,
-};
+use super::{checked_source, lower_machine};
+use crate::machine_lowering::terminal_identities::{obligation_id, operation_id, value_id};
+use crate::scalar_graph::scalar_graph_lowering::terminal_scalar_type;
+use checked_trees::types::PrimitiveType;
+use lowered_psi::LoweredPsi;
+use semantic_vocabulary::IntegerValue;
+use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 mod rejections;
 
 const SOURCE: &str = r#"

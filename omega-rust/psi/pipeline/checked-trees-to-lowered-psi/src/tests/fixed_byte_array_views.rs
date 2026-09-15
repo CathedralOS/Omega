@@ -1,12 +1,11 @@
 //! Source-produced fixed-array loans retain initialized backing and exact extent.
-use super::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, StructuralPathSegment,
-    byte_sequence_write, checked_source, lower_machine,
-};
+use super::{byte_sequence_write, checked_source, lower_machine};
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionStatus, TerminalStructuralByteArrayValue,
     TerminalStructuralValue,
 };
+use terminal_psi::StructuralPathSegment;
 
 fn array_fixture(length: usize, field: bool) -> terminal_codec::CanonicalTerminalArtifact {
     let caller = if field {

@@ -1,13 +1,23 @@
 //! Attached Unit closure and transfer regression families.
 
 use super::{
+    LoweringError, PermissionClaimIdentity, checked_source, hard_root_checked_fixture,
+    lower_machine, unit_claim_at,
+};
+use crate::machine_lowering::machine_dispatch;
+use crate::machine_lowering::terminal_identities::{
+    boundary_machine_id, claim_id, edge_id, machine_id, place_id, service_id, structural_domain_id,
+};
+use crate::proofs::operation_proofs::finalize_operation_proofs;
+use checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, LoweringError, Multiplicity,
-    OperationKind, PermissionClaimIdentity, StructuralFieldType, StructuralMultiplicity,
-    StructuralPathSegment, StructuralPlaceKind, StructuralTypeShape, Terminator,
-    boundary_machine_id, checked_source, claim_id, edge_id, finalize_operation_proofs,
-    hard_root_checked_fixture, lower_machine, machine_dispatch, machine_id, place_id, service_id,
-    structural_domain_id, unit_claim_at,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
+};
+use language_semantics::Multiplicity;
+use semantic_vocabulary::StructuralPlaceKind;
+use terminal_psi::{
+    OperationKind, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralTypeShape, Terminator,
 };
 #[test]
 fn array_call_numeric_requirements_use_completed_argument_facts() {

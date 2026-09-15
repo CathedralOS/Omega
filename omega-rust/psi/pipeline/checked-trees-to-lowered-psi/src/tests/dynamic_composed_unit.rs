@@ -1,7 +1,7 @@
-use super::{
-    CheckedBooleanExpression, CheckedScalarExpression, LoweringError, Operation, OperationKind,
-    OperationResult, Terminator, ValueDeclaration, checked_source, lower_machine, value_id,
-};
+use super::{LoweringError, checked_source, lower_machine};
+use crate::machine_lowering::terminal_identities::value_id;
+use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueDeclaration};
 const DIRECT_DYNAMIC_SOURCE: &str = r#"
     trait Measure {
         machine measure(&self) -> bool;

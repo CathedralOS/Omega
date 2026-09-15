@@ -1,10 +1,9 @@
 //! Constructor subjects remain real established owners through observation.
-use super::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, OperationKind, OperationResult, PrimitiveType,
-    StructuralMultiplicity, Terminator, checked_source, lower_machine,
-};
-use checked_trees::CheckedScalarComputationKind;
+use super::{CheckedTrees, checked_source, lower_machine};
 use checked_trees::expression::ExpressionNode;
+use checked_trees::types::PrimitiveType;
+use checked_trees::{CheckedScalarComputationKind, CheckedUnitEffectOperationPlan};
+use terminal_psi::{OperationKind, OperationResult, StructuralMultiplicity, Terminator};
 
 const SOURCE: &str = r#"
     data Choice { case Empty; case Some(first: bool, second: bool); }

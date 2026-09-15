@@ -1,17 +1,26 @@
 //! Content conservation, identity reshuffle, and partition regressions.
 use super::{
     CheckedContentAlgebraIdentity, CheckedContentConservationTerm, CheckedContentPlaceRoot,
-    CheckedContentPlaceSegment, CheckedContentPlaceVersion, CheckedContentStructuralPlace, ClaimId,
-    ContentAlgebra, ContentAlgebraKind, ContentCaseSegment, ContentConservationEquation,
-    ContentConservationOwnerKind, ContentConservationPlan, ContentFieldSegment,
-    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, ContentPlaceSegment,
-    ContentPlaceVersion, ContentTerm, LoweringError, PermissionClaimIdentity,
-    PermissionEventSource, PlaceId, Proposition, RESULT_STRUCTURAL_PLACE_ID, SemanticDomainId,
-    StructuralPlaceDeclaration, StructuralPlaceKind, SymbolHandle, conservation_report_fingerprint,
-    lower_checked_crash_frontier, lower_content_conservation_plan,
-    lower_content_identity_reshuffles, lower_content_partition_compositions, source_projection,
+    CheckedContentPlaceSegment, CheckedContentPlaceVersion, CheckedContentStructuralPlace,
+    ContentFieldSegment, LoweringError, PermissionClaimIdentity, PermissionEventSource,
+    SemanticDomainId, SymbolHandle, source_projection,
 };
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
+use crate::proofs::content_conservation::{
+    RESULT_STRUCTURAL_PLACE_ID, lower_content_conservation_plan, lower_content_identity_reshuffles,
+    lower_content_partition_compositions,
+};
+use crate::proofs::crash_routes::lower_checked_crash_frontier;
+use checked_trees::{ContentIdentityReshuffleFact, ContentPartitionCompositionFact};
+use language_semantics::content::{
+    ContentCaseSegment, ContentConservationEquation, ContentConservationOwnerKind,
+    ContentConservationPlan, conservation_report_fingerprint,
+};
+use semantic_vocabulary::{
+    ClaimId, ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
+    ContentTerm, PlaceId, Proposition, StructuralPlaceKind,
+};
+use terminal_psi::StructuralPlaceDeclaration;
 
 fn source_plan_with_domain(semantic_domain: SemanticDomainId) -> ContentConservationPlan {
     let entry = source_projection(

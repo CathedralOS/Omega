@@ -1,11 +1,16 @@
 //! Source admission for whole bounded byte-field replacement.
 
 use super::{
-    Block, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralPathSegment, IntegerValue, Lexer, OperationKind, ResolutionRequest,
-    ScalarType, StructuralPathSegment, SuccessorEdge, Terminator, ValueDeclaration, block_id,
-    checked_source, edge_id, lower_machine, lower_symbol_resolved_trees, lower_typed_trees,
-    parse_syntax_trees, resolve, value_id,
+    Lexer, ResolutionRequest, ScalarType, checked_source, lower_machine,
+    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
+};
+use crate::machine_lowering::terminal_identities::{block_id, edge_id, value_id};
+use checked_trees::{
+    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+};
+use semantic_vocabulary::IntegerValue;
+use terminal_psi::{
+    Block, OperationKind, StructuralPathSegment, SuccessorEdge, Terminator, ValueDeclaration,
 };
 #[test]
 fn replaced_byte_field_length_reaches_canonical_interpretation() {

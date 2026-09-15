@@ -1,8 +1,9 @@
 use super::{
     Arc, CheckedTrees, Lexer, LoweringError, PathBuf, ResolutionRequest, SourceMap, SourceOrigin,
     lower_machine, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees_with_id,
-    resolve, select_terminal_machine,
+    resolve,
 };
+use crate::machine_lowering::machine_dispatch::select_terminal_machine;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const REACHABLE_PROOF_SCC: &str = r#"

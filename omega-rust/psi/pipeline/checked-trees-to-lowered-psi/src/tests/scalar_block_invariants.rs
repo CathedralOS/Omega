@@ -1,8 +1,11 @@
-use super::{
-    IntegerValue, LoweredPsi, OperationKind, ProofBundle, Proposition, ScalarTerm, ScalarType,
-    checked_source, finalize_operation_proofs, lower_machine, obligation_id,
-};
+use super::{ScalarType, checked_source, lower_machine};
+use crate::machine_lowering::terminal_identities::obligation_id;
+use crate::proofs::operation_proofs::finalize_operation_proofs;
+use lowered_psi::LoweredPsi;
 use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
+use terminal_psi::OperationKind;
+use terminal_verifier::ProofBundle;
 
 fn fixture() -> LoweredPsi {
     let checked = checked_source(

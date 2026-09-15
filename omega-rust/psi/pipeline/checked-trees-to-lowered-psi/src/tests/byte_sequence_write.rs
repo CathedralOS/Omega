@@ -1,9 +1,10 @@
 //! Exact indexed mutation of the supplied mutable byte view.
 
-use super::{
+use super::{checked_source, lower_machine};
+use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-    StructuralPathSegment, StructuralTypeShape, checked_source, lower_machine,
 };
+use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 pub(super) const PUT: &str = r#"
     machine put(out: &mut [u8], byte: u8) {
         transition out.len > 0 {
