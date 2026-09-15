@@ -58,7 +58,7 @@ fn machine_tail_match_is_a_value_dispatch_not_source_transitions() {
         Lexer::new("machine choose(value: i64) -> i64 { match value { 0 -> 7, _ -> value } }")
             .tokenize()
             .expect("tokens");
-    let trees = super::parse_syntax_trees(&tokens).expect("tail value dispatch");
+    let trees = crate::parser::parse_syntax_trees(&tokens).expect("tail value dispatch");
     assert_eq!(
         trees
             .expressions
@@ -73,7 +73,7 @@ fn machine_tail_match_is_a_value_dispatch_not_source_transitions() {
 fn nested_initializer_match_retains_expression_local_dispatch() {
     let tokens = Lexer::new("machine choose(value: i64) -> i64 { let result: i64 = match value { 0 -> match value { _ -> 7 }, _ -> value }; result }")
         .tokenize().expect("tokens");
-    let trees = super::parse_syntax_trees(&tokens).expect("nested initializer dispatch");
+    let trees = crate::parser::parse_syntax_trees(&tokens).expect("nested initializer dispatch");
     let machine = trees
         .root_items()
         .find_map(|item| match item {

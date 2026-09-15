@@ -1,4 +1,5 @@
-use super::{Lexer, parse_syntax_trees};
+use crate::parser::parse_syntax_trees;
+use source_files_to_tokens::Lexer;
 use syntax_trees::item::{DataMember, Item};
 
 #[test]
