@@ -1,6 +1,7 @@
 //! Private canonical byte cursor primitives for proof bundles.
 
-use super::{MAX_CONTENT_IDENTITY_BYTES, ProofCodecError};
+use super::ProofCodecError;
+use crate::sections::proof_bundle::proposition_codec::MAX_CONTENT_IDENTITY_BYTES;
 use semantic_vocabulary::PsiSemanticId;
 
 #[derive(Default)]
