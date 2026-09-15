@@ -32,11 +32,11 @@ pub(crate) struct AdapterRow {
 
 /// A selected requirement that declares local generic binders but cannot
 /// produce dispatch rows: either it declares no complete finite `where`
-/// family, or no tuple's checked provider specialization exists.
-/// Ineligibility is individual: the requirement supplies no dispatch row,
-/// sibling requirements still settle, and a call targeting it rejects below
-/// instead of silently dispatching every tuple to the unbound generic
-/// template.
+/// family, or the selected provider's checked specializations do not cover
+/// every declared tuple. Ineligibility is individual: the requirement
+/// supplies no dispatch row, sibling requirements still settle, and a call
+/// targeting it rejects below instead of silently dispatching every tuple to
+/// the unbound generic template.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GenericBoundaryRequirement {
     pub(crate) receiver_trait: symbols::SymbolHandle,
@@ -273,10 +273,11 @@ pub(crate) fn resolve_selected_adapter_row(
 }
 
 /// Realize one requirement's authored finite family as one dispatch row per
-/// roster tuple whose checked provider specialization exists. Tuples without
-/// a demanded specialization stay selectable only in name: a call selecting
-/// one rejects below, and a roster that realizes no row at all leaves the
-/// requirement dynamically ineligible.
+/// declared roster tuple. One selected conformance must cover the complete
+/// family: a tuple without a checked provider specialization would publish a
+/// dispatch table silently missing that declared case, so partial coverage
+/// leaves the whole requirement dynamically ineligible rather than settling
+/// the realized subset.
 #[allow(clippy::too_many_arguments)]
 fn resolve_family_adapter_row(
     typed: &TypedTrees,
@@ -462,16 +463,20 @@ fn resolve_family_adapter_row(
             family_tuple_display: tuple.display.clone(),
         }));
     }
-    if rows.is_empty() {
+    // A dynamic family publishes every declared roster tuple or none: the
+    // requirement, not the provider's realized subset, owns the roster, and
+    // an absent row would otherwise disappear silently from the table.
+    if !missing.is_empty() {
+        let coverage = if rows.is_empty() {
+            "no checked provider specialization exists for any of them".to_owned()
+        } else {
+            format!("the selected provider realizes only {} of them", rows.len())
+        };
         return Ok(ineligible(format!(
-            "finite generic requirement `{}` declares {} tuples but no checked provider specialization exists for any of them{}",
+            "finite generic requirement `{}` declares {} tuples but {coverage}; partial provider coverage cannot supply the dynamic family (missing: {})",
             method.requirement_identity,
             tuples.len(),
-            if missing.is_empty() {
-                String::new()
-            } else {
-                format!("; missing: {}", missing.join(", "))
-            },
+            missing.join(", "),
         )));
     }
     Ok(rows)

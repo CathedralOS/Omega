@@ -148,6 +148,86 @@ const FAMILY_WITHOUT_SPECIALIZATIONS: &str = r#"
     }
 "#;
 
+/// The provider realized (16) and (32) but never the declared (64): one
+/// selected conformance must cover the complete roster, so the whole family
+/// is ineligible rather than settling a table that silently drops (64).
+const PARTIAL_COVERAGE: &str = r#"
+    boundary trait Scanner {
+        machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32 || Width == 64;
+    }
+    data ScanProvider {}
+    machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
+        transition { _ -> (value as u64) }
+    }
+    machine ScanProvider::direct() -> u64 {
+        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
+    }
+    data Client { service: Scanner; }
+    machine Client::run(&mut self) -> u64 reaches Scanner {
+        transition { _ -> (self.service.scan<16>(7)) }
+    }
+"#;
+
+/// A three-tuple roster whose provider covers every declared tuple.
+const FAMILY_THREE_TUPLES: &str = r#"
+    boundary trait Scanner {
+        machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32 || Width == 64;
+    }
+    data ScanProvider {}
+    machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
+        transition { _ -> (value as u64) }
+    }
+    machine ScanProvider::direct() -> u64 {
+        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
+    }
+    data Client { service: Scanner; }
+    machine Client::run(&mut self) -> u64 reaches Scanner {
+        transition { _ -> (self.service.scan<16>(7) + self.service.scan<64>(8)) }
+    }
+"#;
+
+/// The same partial roster with no boundary call at all: ineligibility is
+/// per-requirement, so a conformance that is never dispatched dynamically
+/// still settles its nongeneric siblings without publishing family rows.
+const PARTIAL_COVERAGE_UNCALLED: &str = r#"
+    boundary trait Scanner {
+        machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32 || Width == 64;
+        machine ping(value: u32) -> u32;
+    }
+    data ScanProvider {}
+    machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
+        transition { _ -> (value as u64) }
+    }
+    machine ScanProvider::ping(value: u32) -> u32 satisfies Scanner::ping {
+        transition { _ -> (value) }
+    }
+    machine ScanProvider::direct() -> u64 {
+        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
+    }
+    data Client { service: Scanner; }
+    machine Client::run(&mut self) -> u32 reaches Scanner {
+        transition { _ -> (self.service.ping(2)) }
+    }
+"#;
+
+/// A settled Unit family requirement keys statement-position calls by the
+/// same canonical tuple as value calls.
+const STATEMENT_FAMILY: &str = r#"
+    boundary trait Watcher {
+        machine watch<const Width: u32>(value: u32) where Width == 8 || Width == 16;
+    }
+    data WatchProvider {}
+    machine WatchProvider::watch<const Width: u32>(value: u32) satisfies Watcher::watch {}
+    machine WatchProvider::demand() {
+        WatchProvider::watch<8>(1);
+        WatchProvider::watch<16>(2);
+    }
+    data Client { service: Watcher; }
+    machine Client::run(&mut self) reaches Watcher {
+        self.service.watch<16>(1);
+    }
+"#;
+
 fn family_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -367,5 +447,110 @@ fn family_without_demanded_specializations_stays_ineligible() {
                 .iter()
                 .all(|row| row.requirement != scan),
         "no dispatch row exists for the unsettled family"
+    );
+}
+
+#[test]
+fn partial_provider_coverage_rejects_the_whole_family() {
+    let (checked, plans) = family_fixture(PARTIAL_COVERAGE);
+    let selected = selected_plan(&plans, "Scanner");
+    let scan = requirement_symbol(&checked, "scan");
+    let original = Arc::new(checked);
+    let mut rejected = Arc::clone(&original);
+    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut rejected, &selected)
+        .expect_err("an unrealized roster tuple cannot silently leave the family table");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("partial provider coverage")
+            && diagnostic.message.contains("(64)")),
+        "{diagnostics:?}"
+    );
+    // Even the realized tuple's call rejects: roster membership alone never
+    // selects a row when the conformance cannot serve the whole family.
+    assert!(Arc::ptr_eq(&original, &rejected));
+    assert!(scan.is_valid());
+}
+
+#[test]
+fn complete_roster_settles_every_declared_tuple() {
+    let (checked, plans) = family_fixture(FAMILY_THREE_TUPLES);
+    let selected = selected_plan(&plans, "Scanner");
+    let scan = requirement_symbol(&checked, "scan");
+    let mut settled = Arc::new(checked);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect("a fully covered three-tuple roster settles");
+    let mut tuples = family_rows(&settled, scan)
+        .iter()
+        .map(|row| row.family_tuple.as_ref().to_vec())
+        .collect::<Vec<_>>();
+    tuples.sort();
+    tuples.dedup();
+    assert_eq!(
+        tuples,
+        vec![
+            vec!["named(integer-const(16))".to_owned()],
+            vec!["named(integer-const(32))".to_owned()],
+            vec!["named(integer-const(64))".to_owned()],
+        ],
+        "one row per declared tuple, each with its own specialization"
+    );
+    let mut states = family_rows(&settled, scan)
+        .iter()
+        .map(|row| row.realization_state)
+        .collect::<Vec<_>>();
+    states.sort_by_key(|state| state.arena_index());
+    states.dedup();
+    assert_eq!(states.len(), 3, "each tuple binds its own realization");
+}
+
+#[test]
+fn uncalled_partial_family_supplies_no_rows_but_siblings_settle() {
+    let (checked, plans) = family_fixture(PARTIAL_COVERAGE_UNCALLED);
+    let selected = selected_plan(&plans, "Scanner");
+    let scan = requirement_symbol(&checked, "scan");
+    let ping = requirement_symbol(&checked, "ping");
+    let mut settled = Arc::new(checked);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect("an uncalled ineligible family does not block its siblings");
+    assert!(
+        settled
+            .facts
+            .boundary_adapter_dispatch
+            .iter()
+            .all(|row| row.requirement != scan),
+        "partial coverage publishes no truncated family rows"
+    );
+    assert!(
+        settled
+            .facts
+            .boundary_adapter_dispatch
+            .iter()
+            .any(|row| row.requirement == ping),
+        "the nongeneric sibling keeps its exact row"
+    );
+}
+
+#[test]
+fn statement_calls_select_the_settled_tuple() {
+    let (checked, plans) = family_fixture(STATEMENT_FAMILY);
+    let selected = selected_plan(&plans, "Watcher");
+    let watch = requirement_symbol(&checked, "watch");
+    let mut settled = Arc::new(checked);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect("the statement-call family settles its declared roster");
+    let mut tuples = family_rows(&settled, watch)
+        .iter()
+        .map(|row| row.family_tuple.as_ref().to_vec())
+        .collect::<Vec<_>>();
+    tuples.sort();
+    tuples.dedup();
+    assert_eq!(
+        tuples,
+        vec![
+            vec!["named(integer-const(16))".to_owned()],
+            vec!["named(integer-const(8))".to_owned()],
+        ],
+        "statement calls see the same normalized roster as value calls"
     );
 }
