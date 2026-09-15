@@ -1,7 +1,6 @@
 //! Roster validation for compiler-private callback functions carried
 //! beside the semantic program functions of one object.
-
-use super::build_object_artifact_with_x86_feature_profile;
+use crate::object_artifact::construction::build_object_artifact_with_x86_feature_profile;
 use crate::{ObjectError, ObjectFunction};
 use machine_code::{CompilerPrivateMachineCodeFunction, MachineCodePlan};
 use target::NativeTarget;
