@@ -1,11 +1,11 @@
 [package]
-name = "source-assembly"
+name = "source-files-to-assembled-syntax"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "source_assembly"
+name = "source_files_to_assembled_syntax"
 path = "src/lib.rs"
 
 [dependencies]

@@ -40,7 +40,7 @@ pub(super) fn evaluate_build_and_continue(
     root_path: &Path,
     child: CheckedChildExecution<'_>,
     mut source_file_count: usize,
-    syntax: source_assembly::AssembledSyntax,
+    syntax: source_files_to_assembled_syntax::AssembledSyntax,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltCheckedProgram, BuildSourceCustody), Vec<Diagnostic>> {
     let CheckedChildExecution {
@@ -112,7 +112,7 @@ pub(super) fn evaluate_build_and_continue(
         let package_root = package_inputs
             .package_root(package_inputs.root())
             .expect("validated package inputs retain their root package");
-        let extension = source_assembly::retain_generated_syntax_extension(
+        let extension = source_files_to_assembled_syntax::retain_generated_syntax_extension(
             &base_sources,
             package_root,
             Some(package_inputs.root()),
@@ -282,7 +282,7 @@ impl AdmittedBuildCheckpoint {
 }
 
 fn lower_checked_frontend(
-    mut syntax: source_assembly::AssembledSyntax,
+    mut syntax: source_files_to_assembled_syntax::AssembledSyntax,
     target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
@@ -331,7 +331,7 @@ fn lower_checked_frontend(
 fn try_seeded_extension(
     base: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     base_sources: &Arc<source::SourceMap>,
-    extension: source_assembly::RetainedGeneratedSyntaxExtension,
+    extension: source_files_to_assembled_syntax::RetainedGeneratedSyntaxExtension,
     selected_target_machine_declarations:
         build_evaluation::target_machines::SelectedTargetMachineDeclarations,
     target_name: Option<&str>,

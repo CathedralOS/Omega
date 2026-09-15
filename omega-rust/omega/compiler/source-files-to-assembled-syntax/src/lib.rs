@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Project sources to one assembled syntax forest.
+//! Source files to one assembled syntax forest.
 //!
 //! Start at `source_assembly.rs`. This stage discovers the project's roots
 //! and imports, loads and lexes and parses every source with its package

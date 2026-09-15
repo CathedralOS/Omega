@@ -10,7 +10,7 @@ pub use checked_compilation::CheckedCompilation;
 use crate::pipeline::PackageCompilationInputs;
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
-use source_assembly::ImmutableSourceParseCheckpoint;
+use source_files_to_assembled_syntax::ImmutableSourceParseCheckpoint;
 use std::path::Path;
 
 /// Inputs for checked-Psi compilation, without native publication authority.
@@ -303,7 +303,7 @@ fn compile_assembled_checked_child(
     root_path: &Path,
     child: CheckedChildExecution<'_>,
     source_file_count: usize,
-    syntax: source_assembly::AssembledSyntax,
+    syntax: source_files_to_assembled_syntax::AssembledSyntax,
     mut timings: CompileTimings,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let selected_target_profile = child.selected_target_profile;
