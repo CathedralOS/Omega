@@ -173,7 +173,7 @@ fn source_prefix_classifier_stops_before_directory_removal() {
         vec![2, 4, 8, 12]
     );
     assert_eq!(
-        crate::source_input_replay_prefix_end(replay.attempts()),
+        crate::replay_eligibility::source_input_replay_prefix_end(replay.attempts()),
         Some(3)
     );
 }

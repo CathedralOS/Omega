@@ -255,7 +255,7 @@ fn native_query_chain_record_round_trips_full_and_minimal_chains() {
             expected_tags
         );
         assert_eq!(
-            crate::source_input_replay_prefix_end(replay.attempts()),
+            crate::replay_eligibility::source_input_replay_prefix_end(replay.attempts()),
             Some(attempt_count)
         );
         assert!(!replay.has_output_attempts());
