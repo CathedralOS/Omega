@@ -1,9 +1,9 @@
 //! Exact const-binder substitution in the existing structural identity grammar.
-
-use super::{
-    TypeIdentityContext, atom, compound, normalize_const_or_nominal_name,
-    normalize_index_expression,
-};
+use crate::typed_trees::type_system::type_identity::constraint_identity::atom;
+use crate::typed_trees::type_system::type_identity::constraint_identity::compound;
+use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityContext;
+use crate::typed_trees::type_system::type_identity::identity_context::normalize_const_or_nominal_name;
+use crate::typed_trees::type_system::type_identity::identity_context::normalize_index_expression;
 use crate::{
     TypedTrees,
     expression::ExpressionNode,
@@ -94,7 +94,7 @@ pub(super) fn range_endpoint(
     Some(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::ConstExpression(expression) => {
-                super::normalized_range_endpoint(program, *expression, end_inclusive, &nested)
+                crate::typed_trees::type_system::type_identity::constraint_identity::normalized_range_endpoint(program, *expression, end_inclusive, &nested)
             }
             TypeReferenceNode::Named { symbol, name } => {
                 if let Some(identity) = range_endpoint(program, *symbol, end_inclusive, &nested) {
@@ -105,7 +105,7 @@ pub(super) fn range_endpoint(
                         numerics::bignum::BigInt::from_i128(value),
                         end_inclusive,
                     );
-                    super::normalized_range_integer(&value, &nested)
+                    crate::typed_trees::type_system::type_identity::constraint_identity::normalized_range_integer(&value, &nested)
                 } else {
                     let identity = normalize_const_or_nominal_name(
                         program,
