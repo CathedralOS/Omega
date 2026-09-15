@@ -1,6 +1,21 @@
-use super::*;
+use super::constant_selection;
+use crate::pre_resolution::GenericDataRequest;
+use crate::pre_resolution::normalize_generic_data;
+use crate::preparation::generic_data::EvaluatedConst;
+use crate::preparation::generic_data::desugar_generic_data_instances;
+use crate::preparation::generic_data::evaluate_const_argument_expression;
+use crate::preparation::generic_data::validate_direct_const_arguments;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::Item;
+use syntax_trees::types::TypeReferenceHandle;
+use syntax_trees::types::TypeReferenceNode;
 use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 fn parse_sources(root: &str, module: &str, module_first: bool) -> SyntaxTrees {

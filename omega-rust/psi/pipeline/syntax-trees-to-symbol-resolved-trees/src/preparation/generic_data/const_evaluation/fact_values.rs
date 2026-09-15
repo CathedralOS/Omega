@@ -1,7 +1,10 @@
 //! Values used while discharging closed generic facts, not a proof IR.
 
+use crate::preparation::generic_data::checked_fact_integer;
+use crate::preparation::generic_data::const_integer_in_envelope;
+
+use super::super::{BinaryOperator, Diagnostic, ExpressionHandle, SyntaxTrees};
 use super::anonymous::AnonymousNumericValue;
-use super::*;
 use std::cmp::Ordering;
 
 pub(in crate::preparation::generic_data) enum ConstFactValue {

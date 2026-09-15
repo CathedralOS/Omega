@@ -1,6 +1,27 @@
 //! Member and type-reference substitution.
-
-use super::*;
+use crate::preparation::generic_data::ClosedArgumentIdentity;
+use crate::preparation::generic_data::EvaluatedConst;
+use crate::preparation::generic_data::constant_selection;
+use crate::preparation::generic_data::evaluate_const_argument_expression;
+use crate::preparation::generic_data::generic_const_integer_types;
+use crate::preparation::generic_data::selected_data_item;
+use arena::Handle;
+use arena::HandleSpan;
+use diagnostics::Diagnostic;
+use numerics::literals::IntegerLiteral;
+use numerics::literals::IntegerRadix;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::BinaryOperator;
+use syntax_trees::expression::ExpressionHandle;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::ProofFact;
+use syntax_trees::types::FixedArrayLength;
+use syntax_trees::types::TypeReferenceHandle;
+use syntax_trees::types::TypeReferenceNode;
 
 /// Clone a member with the type parameters substituted. Only reached for a base
 /// `base_is_fully_monomorphizable` accepted. A field that IS a parameter points

@@ -1,7 +1,9 @@
 //! Executable expression collection outside generic templates.
 
-use super::super::*;
-
+use super::super::{
+    ExpressionHandle, ExpressionNode, HandleSpan, HashSet, Identifier, Item, StatementNode,
+    SyntaxTrees,
+};
 pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
     syntax: &SyntaxTrees,
 ) -> HashSet<u32> {

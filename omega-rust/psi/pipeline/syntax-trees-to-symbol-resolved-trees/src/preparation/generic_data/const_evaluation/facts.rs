@@ -1,7 +1,15 @@
 //! Constant evaluation: facts.
+use super::super::{
+    Diagnostic, ExpressionHandle, ExpressionNode, HashMap, Item, ProofFact, SyntaxTrees,
+    TypeReferenceNode,
+};
+
+use crate::preparation::generic_data::ConstFactValue;
+use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
+use crate::preparation::generic_data::evaluate_const_fact_binary;
+use crate::preparation::generic_data::integer_literal_value;
 
 use super::anonymous::{evaluate_anonymous_numeric_expression, has_builtin_const_operator};
-use super::*;
 
 /// Evaluate a proof expression exactly when every operand is known at generic
 /// instantiation time. `None` means the fact still depends on a runtime field

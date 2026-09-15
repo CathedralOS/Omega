@@ -1,6 +1,20 @@
-use super::*;
+use super::constant_selection;
+use crate::pre_resolution::GenericDataRequest;
+use crate::pre_resolution::normalize_generic_data;
+use crate::preparation::generic_data::ClosedArgumentIdentity;
+use crate::preparation::generic_data::Instantiation;
+use crate::preparation::generic_data::closed_argument_identity;
+use crate::preparation::generic_data::concrete_machine_expression_handles;
+use crate::preparation::generic_data::expected_instance;
+use crate::preparation::generic_data::selected_constructor;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::Item;
+use syntax_trees::types::FixedArrayLength;
+use syntax_trees::types::TypeReferenceNode;
 use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 #[test]

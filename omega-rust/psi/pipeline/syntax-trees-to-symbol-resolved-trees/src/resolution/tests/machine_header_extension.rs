@@ -1,5 +1,15 @@
-use super::*;
+use crate::ExtensionRequest;
+use crate::ResolutionRequest;
+use crate::resolve;
+use crate::resolve_extension;
+use source::SourceMap;
+use source::SourceOrigin;
+use source::SourceResolutionStratum;
+use source_files_to_tokens::Lexer;
+use std::path::PathBuf;
+use std::sync::Arc;
 use symbols::SymbolKind;
+use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 #[test]
 fn retained_extension_preserves_machine_children_and_appends_selected_inherited_slots() {

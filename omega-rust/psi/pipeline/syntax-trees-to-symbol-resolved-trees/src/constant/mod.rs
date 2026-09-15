@@ -1408,7 +1408,11 @@ pub(crate) fn finalize_operator_obligations(
 
 #[cfg(test)]
 mod module_tests {
-    use super::*;
+    use super::{
+        AuthoredDeclarationSelectionKind, Diagnostic, ExpressionHandle, Item, SymbolKind,
+        SymbolResolvedTrees, SyntaxTrees,
+    };
+    use crate::constant::public_declaration_value_encoding;
     use source::SourceId;
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees::expression::ExpressionNode;

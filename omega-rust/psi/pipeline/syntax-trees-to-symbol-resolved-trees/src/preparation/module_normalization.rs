@@ -230,7 +230,7 @@ fn scalar_literal_tree(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Item, SyntaxTrees};
     use source::SourceId;
     use source_files_to_tokens::Lexer;
     use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;

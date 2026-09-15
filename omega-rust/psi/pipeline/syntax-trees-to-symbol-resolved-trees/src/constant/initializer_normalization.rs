@@ -534,7 +534,17 @@ pub(crate) fn finalize(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ConstArgumentOrigin, SourceSpan, finalize_operator_obligations};
+    use crate::constant::initializer_normalization::Exposure;
+    use crate::constant::initializer_normalization::Intrinsic;
+    use crate::constant::initializer_normalization::Kind;
+    use crate::constant::initializer_normalization::LateBinding;
+    use crate::constant::initializer_normalization::PendingInitializer;
+    use crate::constant::initializer_normalization::Target;
+    use crate::constant::initializer_normalization::append_retained_custody;
+    use symbol_resolved_trees::SymbolResolvedTrees;
+    use syntax_trees::SyntaxTrees;
+    use syntax_trees::item::ConstDefinition;
     use syntax_trees::{
         expression::ExpressionNode,
         item::{ConstInitializerNormalization, Item},

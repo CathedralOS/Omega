@@ -1,6 +1,9 @@
-use super::*;
+use crate::ResolutionRequest;
+use crate::resolve;
+use source_files_to_tokens::Lexer;
 use symbol_resolved_trees::domain::ProofFact;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
+use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn qualified_operator_calls_do_not_select_same_named_free_machines() {

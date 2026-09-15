@@ -1,6 +1,8 @@
 //! Value captures for an arm-local return call, without moving place access.
-
-use super::*;
+use crate::resolution::lowerer::Lowerer;
+use symbol_resolved_trees::expression::ExpressionHandle;
+use symbol_resolved_trees::expression::ExpressionNode;
+use symbol_resolved_trees::types::TypeReference;
 
 pub(super) fn capture(
     lowerer: &Lowerer,

@@ -20,17 +20,7 @@ use std::path::{Path, PathBuf};
 
 /// Exact no-growth ratchets: (crate directory, files carrying a glob
 /// self-import under its `src/`).
-const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
-    ("omega-rust/omega/packages/review/evidence", 90),
-    (
-        "omega-rust/omega/semantics/optimization-unit-semantics",
-        158,
-    ),
-    (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
-        37,
-    ),
-];
+const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

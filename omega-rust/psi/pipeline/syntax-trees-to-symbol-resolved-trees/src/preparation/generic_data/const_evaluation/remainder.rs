@@ -1,8 +1,9 @@
 //! Formation checks before closed const arguments or facts lose their source
 //! operands. A destination's const parameter type cannot type anonymous `%`.
 
+use super::super::{BinaryOperator, SyntaxTrees};
+
 use super::anonymous::{anonymous_numeric_expression, has_no_authored_spelling};
-use super::*;
 use syntax_trees::expression::TableBinaryExpression;
 use syntax_trees::operator_spelling::OperatorSpelling;
 

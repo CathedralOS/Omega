@@ -7,7 +7,7 @@
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
-use numerics::literals::{IntegerLiteral, IntegerRadix};
+use numerics::literals::IntegerLiteral;
 use std::collections::{HashMap, HashSet};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};

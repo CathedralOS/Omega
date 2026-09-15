@@ -1,6 +1,11 @@
 //! Expected types from local declarations and assignments.
-
-use super::super::*;
+use super::super::{
+    DataMember, ExpressionNode, HashMap, Item, StatementNode, SyntaxTrees, TypeReferenceHandle,
+};
+use crate::preparation::generic_data::ConstructorFrontier;
+use crate::preparation::generic_data::Instantiation;
+use crate::preparation::generic_data::constant_selection;
+use crate::preparation::generic_data::relabel_data_literal_for_expected_type;
 
 /// An assignment target is another explicit destination type. Relabel a bare
 /// generic literal only when that type is available directly from a local or

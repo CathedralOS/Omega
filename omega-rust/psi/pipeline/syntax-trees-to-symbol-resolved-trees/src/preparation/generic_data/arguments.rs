@@ -1,6 +1,18 @@
 //! Closed argument identities and lifetime-bearing type substitution.
-
-use super::*;
+use crate::preparation::generic_data::ClosedArgumentIdentity;
+use crate::preparation::generic_data::ClosedConstraintIdentity;
+use crate::preparation::generic_data::GenericData;
+use crate::preparation::generic_data::constant_selection;
+use crate::preparation::generic_data::selected_data_item;
+use arena::HandleSpan;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::Item;
+use syntax_trees::item::TypeParameterKind;
+use syntax_trees::types::FixedArrayLength;
+use syntax_trees::types::TypeConstraintNode;
+use syntax_trees::types::TypeReferenceHandle;
+use syntax_trees::types::TypeReferenceNode;
 
 /// Diagnostic names for admitted closed arguments, not application identity.
 /// Range shells require structured observations from typed numeric evaluation;

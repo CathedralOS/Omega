@@ -1,7 +1,5 @@
 //! Exact source-constant evaluation used by declaration retention and synthesis.
 
-use super::*;
-
 mod anonymous;
 mod arguments;
 mod domains;

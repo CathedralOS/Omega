@@ -1,6 +1,17 @@
 //! Eligible data shapes, recursion and substitutable types.
-
-use super::*;
+use crate::preparation::generic_data::GenericData;
+use crate::preparation::generic_data::GenericDataShape;
+use crate::preparation::generic_data::constant_selection;
+use crate::preparation::generic_data::selected_generic_data;
+use crate::preparation::generic_data::type_reference_mentions_parameter;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
+use syntax_trees::item::DataMember;
+use syntax_trees::types::FixedArrayLength;
+use syntax_trees::types::TypeReferenceHandle;
+use syntax_trees::types::TypeReferenceNode;
 
 /// Whether every field of a record or sum can be substituted soundly. A
 /// field may be exactly the parameter, a concrete Named, a parameter-free

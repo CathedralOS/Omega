@@ -1,6 +1,15 @@
 //! Constructor relabeling against an exact expected type.
-
-use super::super::*;
+use super::super::{
+    DataMember, ExpressionHandle, ExpressionNode, HandleSpan, Identifier, Item, SyntaxTrees,
+    TypeReferenceHandle, TypeReferenceNode,
+};
+use crate::preparation::generic_data::ClosedArgumentIdentity;
+use crate::preparation::generic_data::ConstructorFrontier;
+use crate::preparation::generic_data::Instantiation;
+use crate::preparation::generic_data::closed_argument_identity;
+use crate::preparation::generic_data::closed_sum_path;
+use crate::preparation::generic_data::constant_selection;
+use crate::preparation::generic_data::selected_data_item;
 
 /// Copied type references retain their original application. Reuse that exact
 /// template/argument identity rather than indexing generated display spellings.

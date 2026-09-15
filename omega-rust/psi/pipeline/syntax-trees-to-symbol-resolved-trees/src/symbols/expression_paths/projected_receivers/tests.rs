@@ -1,6 +1,11 @@
-use super::*;
+use crate::symbols::expression_paths::projected_receivers::call_target;
+use crate::symbols::scope::MachineScope;
 use crate::{ResolutionRequest, resolve};
 use source_files_to_tokens::Lexer;
+use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::expression::ExpressionNode;
+use symbol_resolved_trees::expression::TableCallExpression;
+use symbols::SymbolHandle;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 mod selection;

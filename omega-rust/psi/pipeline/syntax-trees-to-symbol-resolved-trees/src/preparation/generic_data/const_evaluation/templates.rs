@@ -1,6 +1,14 @@
 //! Constant evaluation: templates.
+use super::super::{
+    DataMember, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier, IntegerLiteral, Item,
+    StatementNode, SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle,
+    TypeReferenceNode,
+};
 
-use super::*;
+use crate::preparation::generic_data::EvaluatedConst;
+use crate::preparation::generic_data::concrete_machine_expression_handles;
+use crate::preparation::generic_data::evaluate_const_argument_expression;
+use crate::preparation::generic_data::generic_const_integer_types;
 
 pub(in crate::preparation::generic_data) fn replace_const_expression_names_from(
     syntax: &mut SyntaxTrees,
@@ -359,7 +367,7 @@ fn collect_owned_type_reference_positions(
     if !include_machines {
         return positions;
     }
-    let concrete_expressions = super::concrete_machine_expression_handles(syntax);
+    let concrete_expressions = concrete_machine_expression_handles(syntax);
     for (handle, expression) in syntax.expressions.iter_expressions() {
         if concrete_expressions.contains(&handle.arena_index())
             && let ExpressionNode::Cast(cast) = expression
@@ -411,7 +419,7 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
             }
         }
     }
-    let concrete_expressions = super::concrete_machine_expression_handles(syntax);
+    let concrete_expressions = concrete_machine_expression_handles(syntax);
     for (handle, expression) in syntax.expressions.iter_expressions() {
         if concrete_expressions.contains(&handle.arena_index())
             && let ExpressionNode::Cast(cast) = expression
