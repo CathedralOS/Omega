@@ -702,7 +702,8 @@ fn provider_service_calling_plan_reports_retain_strong_commitments() {
     let provider_path =
         root.join("omega-rust/omega/representations/effects/src/capabilities/provider_plan.rs");
     let provider = fs::read_to_string(&provider_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", provider_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", provider_path.display()))
+        + &module_tree_source(&provider_path.with_extension(""));
     assert!(provider.contains("pub calling_plan_report_fingerprint: Option<u64>"));
     assert!(
         provider.contains("pub calling_plan_commitment: Option<BoundaryCallingPlanCommitment>")
