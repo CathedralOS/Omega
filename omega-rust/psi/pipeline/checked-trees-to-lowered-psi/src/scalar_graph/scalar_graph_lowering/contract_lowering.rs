@@ -1,7 +1,7 @@
 //! Lowering closed scalar contracts and content evidence.
 
+use crate::emission::scalar_types::integer_value;
 use crate::scalar_graph::scalar_graph_lowering::known_evaluation::KnownDirectScalar;
-use crate::scalar_graph::scalar_graph_lowering::scalar_types::integer_value;
 use crate::scalar_graph::{
     CheckedTrees, ClosedScalarContractValue, ClosedScalarValueContractPlan, IeeeFloatFormat,
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions, LoweringError,

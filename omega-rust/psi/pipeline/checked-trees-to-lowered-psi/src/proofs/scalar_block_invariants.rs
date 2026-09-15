@@ -16,7 +16,7 @@ use semantic_vocabulary::{ObligationId, Proposition};
 use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
 use terminal_verifier::ReconstructedTerminalObligationOwner;
 
-use crate::machine_lowering::lowering_error::LoweringError;
+use crate::lowering_error::LoweringError;
 use crate::proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 use lowered_psi::LoweredPsi;
 

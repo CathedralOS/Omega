@@ -3,10 +3,10 @@
 use super::boolean::{LoweredBooleanReturnExpression, emit_boolean_expression};
 use super::buffer::OperationBuffer;
 use super::integer::LoweredIntegerBinaryKind;
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
-use crate::machine_lowering::terminal_identities::obligation_id;
-use crate::machine_lowering::terminal_identities::value_id;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
+use crate::terminal_identities::obligation_id;
+use crate::terminal_identities::value_id;
 use semantic_vocabulary::{
     IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, PlaceId, QualifiedScalarType,
     ScalarType, StructuralFieldId, ValueId,

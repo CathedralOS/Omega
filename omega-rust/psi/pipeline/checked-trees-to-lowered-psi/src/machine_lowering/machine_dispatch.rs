@@ -4,7 +4,7 @@ use checked_trees::{
     CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
 };
 
-use crate::machine_lowering::lowering_error::LoweringError;
+use crate::lowering_error::LoweringError;
 use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::returns::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::returns::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;

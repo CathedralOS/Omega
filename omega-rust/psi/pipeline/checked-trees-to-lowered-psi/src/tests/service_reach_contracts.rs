@@ -5,7 +5,7 @@ mod bounded_boundaries_and_public_wrappers;
 mod generic_callback_schemas;
 mod nominal_callbacks_and_reach;
 
-use crate::machine_lowering::terminal_identities::service_id;
+use crate::terminal_identities::service_id;
 use crate::tests::{SymbolHandle, TerminalModule, checked_source};
 use language_semantics::{ServiceReachId, ServiceReachRowId, ServiceReachSummary};
 use semantic_vocabulary::ServiceId;

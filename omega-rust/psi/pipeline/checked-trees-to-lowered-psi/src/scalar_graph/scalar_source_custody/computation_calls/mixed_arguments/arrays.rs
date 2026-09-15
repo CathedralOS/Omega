@@ -9,8 +9,8 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 
 pub(super) fn rejoin(
     checked: &CheckedTrees,

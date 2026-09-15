@@ -10,7 +10,7 @@
 //! carry; matching literal endpoints alone never supplies that evidence.
 //! Array elements and case fields share this receiving check.
 
-use crate::machine_lowering::lowering_error::LoweringError;
+use crate::lowering_error::LoweringError;
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
@@ -859,7 +859,7 @@ impl Context<'_> {
             return false;
         }
         let Ok(semantic_vocabulary::ScalarType::Integer(target)) =
-            crate::scalar_graph::scalar_graph_lowering::terminal_scalar_type(primitive)
+            crate::emission::scalar_types::terminal_scalar_type(primitive)
         else {
             return false;
         };

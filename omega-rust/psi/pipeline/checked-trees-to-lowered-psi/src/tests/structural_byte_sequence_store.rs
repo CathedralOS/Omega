@@ -4,7 +4,7 @@ use super::{
     Lexer, ResolutionRequest, ScalarType, checked_source, lower_machine,
     lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
-use crate::machine_lowering::terminal_identities::{block_id, edge_id, value_id};
+use crate::terminal_identities::{block_id, edge_id, value_id};
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };

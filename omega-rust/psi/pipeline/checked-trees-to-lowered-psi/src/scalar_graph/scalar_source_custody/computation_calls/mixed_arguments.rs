@@ -9,8 +9,8 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 use super::{borrow_rows, owned_arguments, primitive_arguments, shared_nominal_arguments};
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 
 pub(super) mod access_occurrences;
 mod arrays;

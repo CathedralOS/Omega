@@ -93,7 +93,7 @@ pub(super) fn reconstruct(
         return None;
     }
     let ScalarType::Integer(integer) =
-        crate::scalar_graph::scalar_graph_lowering::integer_scalar_type(primitive).ok()?
+        crate::emission::scalar_types::integer_scalar_type(primitive).ok()?
     else {
         return None;
     };

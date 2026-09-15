@@ -17,9 +17,9 @@ use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, TerminalModule, ValueDeclaration,
 };
 
-use crate::machine_lowering::lowering_error::{LoweringError, unsupported};
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::{content_conservation, evidence_lowering};
-use crate::scalar_graph::scalar_graph_lowering::terminal_scalar_type;
 use crate::unit::attached_unit::checked_unit_boundary_identity;
 
 pub(crate) mod closed_reach_applications;

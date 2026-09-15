@@ -16,14 +16,14 @@ use super::{
     lower_checked_crash_route_buckets, merge_content_place_declaration, obligation_id,
     scalar_source_block, staged_short_circuit_bindings_terminator, unsupported, value_id,
 };
+use crate::emission::boolean_control::{
+    LoweredBooleanDecision, LoweredBooleanDecisionExit, PendingNestedBlockGroup,
+};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::boolean_control::{
-    LoweredBooleanDecision, LoweredBooleanDecisionExit, PendingNestedBlockGroup,
-};
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
     PreparedScalarContract,

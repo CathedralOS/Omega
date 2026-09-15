@@ -1,7 +1,7 @@
 //! Authored roots and formal-to-explicit argument mapping for retained calls.
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 use checked_trees::CheckedTrees;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::signature::StateParameter;

@@ -4,7 +4,7 @@ use proof_admission::{AdmissionProfile, verify_obligation_with_machine_parameter
 use terminal_psi::{ProofBundle, TerminalModule};
 use terminal_verifier::ReconstructedTerminalObligationSet;
 
-use crate::machine_lowering::lowering_error::LoweringError;
+use crate::lowering_error::LoweringError;
 
 pub(super) fn replays(
     module: &TerminalModule,

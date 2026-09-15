@@ -3,8 +3,8 @@
 //! whole affine moves preserve the original provenance. Replay traces the authored
 //! initializer chain separately from checking each place's establishment and transfer.
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use checked_trees::statement::StatementNode;
 use checked_trees::types::PrimitiveType;

@@ -1,5 +1,5 @@
 use super::{checked_public_reach_wrapper, reach_fixture, service_names, summary};
-use crate::machine_lowering::terminal_identities::service_id;
+use crate::terminal_identities::service_id;
 use crate::tests::{
     Lexer, LoweringError, ResolutionRequest, checked_source, lower_machine,
     lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,

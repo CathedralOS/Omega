@@ -7,7 +7,7 @@ use super::{
     two_shared_reborrow_restored_call_source_with_observations,
 };
 use crate::lower_machine;
-use crate::machine_lowering::lowering_error::LoweringError;
+use crate::lowering_error::LoweringError;
 use checked_trees::CheckedUnitEffectOperationPlan;
 
 #[test]

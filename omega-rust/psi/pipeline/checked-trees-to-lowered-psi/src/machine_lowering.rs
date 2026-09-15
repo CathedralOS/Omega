@@ -9,9 +9,7 @@
 //! narrower callback-body entrance. Unsupported source constructs fail closed.
 
 pub(crate) mod debug_map;
-pub(crate) mod lowering_error;
 pub(crate) mod machine_dispatch;
-pub(crate) mod terminal_identities;
 
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
@@ -19,8 +17,8 @@ use checked_trees::{
 };
 use lowered_psi::{CallbackTerminalLoweringReceipt, LoweredCallbackPsi, LoweredPsi};
 
+use crate::lowering_error::{LoweringError, unsupported};
 use crate::machine_lowering::debug_map::build_debug_map;
-use crate::machine_lowering::lowering_error::{LoweringError, unsupported};
 use crate::machine_lowering::machine_dispatch::{
     ConformancePublication, LoweredSelectedMachine, lower_selected_machine,
     select_terminal_machine, select_terminal_machine_by_symbol,

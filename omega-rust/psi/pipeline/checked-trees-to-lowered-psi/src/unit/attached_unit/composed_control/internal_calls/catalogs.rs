@@ -8,7 +8,8 @@ use super::super::super::{
 use super::super::{CheckedTrees, LoweringError};
 
 use crate::unit::attached_unit::bodies::UnitBody;
-use crate::unit::attached_unit::{lower_shared_unit_closure, shared_closure::ExternalUnitRoots};
+use crate::unit::attached_unit::lower_shared_unit_closure;
+use crate::unit::attached_unit::shared_closure::ExternalUnitRoots;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::unit::attached_unit::composed_control) fn lower(

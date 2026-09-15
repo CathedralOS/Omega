@@ -5,23 +5,13 @@ use super::{
     CheckedScalarMachineGraph, CheckedTrees, LoweringError, PlaceId, ScalarType, source_custody,
     terminal_scalar_type, unsupported,
 };
+use crate::emission::store_destination::StoreDestination;
 pub(crate) struct PrimitiveLocal {
     pub symbol: symbols::SymbolHandle,
     pub statement_ordinal: u32,
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
     pub scalar_type: ScalarType,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StoreDestination {
-    Initialize {
-        place: PlaceId,
-        structural_type: StructuralTypeId,
-    },
-    Assign {
-        place: PlaceId,
-    },
 }
 
 pub(crate) fn allocate(

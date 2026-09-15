@@ -2,9 +2,6 @@
 use super::{LoweringError, ScalarType, SymbolHandle, checked_source, lower_machine};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::machine_lowering::terminal_identities::{
-    TERMINAL_MACHINE_IDENTITY_STRIDE, block_id, contract_id, edge_id, machine_id, value_id,
-};
 use crate::proofs::content_conservation::{
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions,
 };
@@ -12,6 +9,9 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, PreparedScalarContract,
 };
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
+use crate::terminal_identities::{
+    TERMINAL_MACHINE_IDENTITY_STRIDE, block_id, contract_id, edge_id, machine_id, value_id,
+};
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
 };

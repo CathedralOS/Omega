@@ -1,8 +1,8 @@
 use super::{checked_source, lower_machine};
-use crate::machine_lowering::terminal_identities::machine_id;
 use crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_machine;
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications;
+use crate::terminal_identities::machine_id;
 use checked_trees::types::PrimitiveType;
 use terminal_psi::{OperationKind, Terminator};
 use terminal_verifier::reconstruct_operation_obligations;

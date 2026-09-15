@@ -7,7 +7,7 @@ use super::{
 use crate::machine_lowering::machine_dispatch::{
     ConformancePublication, lower_selected_machine, select_terminal_machine,
 };
-use crate::machine_lowering::terminal_identities::{block_id, edge_id, place_id, value_id};
+use crate::terminal_identities::{block_id, edge_id, place_id, value_id};
 use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
 use checked_trees::types::PrimitiveType;
 use checked_trees::{

@@ -1,7 +1,7 @@
 //! Rebase callee crash paths onto the exact caller structural argument source.
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 use crate::unit::attached_unit::primitive_locals::PrimitiveLocal;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralPlaceKind};
 use terminal_psi::{

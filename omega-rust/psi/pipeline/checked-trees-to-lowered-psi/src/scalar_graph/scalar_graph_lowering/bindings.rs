@@ -53,7 +53,7 @@ struct PendingComputation {
     destination: symbols::SymbolHandle,
     result_type: QualifiedScalarType,
     value: PendingValue,
-    store: Option<primitive_locals::StoreDestination>,
+    store: Option<crate::emission::store_destination::StoreDestination>,
 }
 
 enum PendingValue {

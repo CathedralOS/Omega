@@ -25,7 +25,7 @@ use terminal_verifier::{
     reconstruct_proof_recursive_component_obligations,
 };
 
-use crate::machine_lowering::lowering_error::LoweringError;
+use crate::lowering_error::LoweringError;
 
 const CERTIFICATE_IDENTITY_DOMAIN: &[u8] = b"psi.source-proof-recursion.certificate.v1\0";
 const ROUTE_IDENTITY_DOMAIN: &[u8] = b"psi.source-proof-recursion.route.v1\0";

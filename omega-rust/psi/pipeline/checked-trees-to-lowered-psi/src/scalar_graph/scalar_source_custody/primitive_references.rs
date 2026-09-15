@@ -12,9 +12,9 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
-use crate::scalar_graph::scalar_graph_lowering::terminal_scalar_type;
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 
 pub(super) fn parameter_type(
     checked: &CheckedTrees,

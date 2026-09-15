@@ -5,9 +5,9 @@
 //! evaluates compile-known graphs and direct expressions,
 //! `call_lowering.rs` lowers scalar calls and successors,
 //! `expression_lowering.rs` lowers scalar and boolean expressions,
-//! `graph_validation.rs` validates parameter types and short circuits,
-//! `contract_lowering.rs` lowers closed scalar contracts and
-//! `scalar_types.rs` maps primitives to scalar types; the remaining files
+//! `graph_validation.rs` checks graph cycles and stages short-circuit bindings,
+//! `contract_lowering.rs` lowers closed scalar contracts. Shared primitive types
+//! and lowered-expression checks belong to emission; the remaining files
 //! carry bindings, field stores, guards, cycles and locals.
 
 mod bindings;
@@ -25,10 +25,13 @@ pub(crate) mod prepared_graph;
 pub(crate) mod primitive_locals;
 #[cfg(test)]
 mod primitive_read_tests;
-mod scalar_types;
 pub(crate) mod structural_values;
 pub(crate) mod unit_operations;
 
+use crate::emission::expression_validation::{
+    validate_boolean_parameter_types, validate_direct_parameter_types,
+};
+use crate::emission::scalar_types::terminal_scalar_type;
 pub(crate) use call_lowering::lower_scalar_call;
 #[cfg(test)]
 pub(crate) use expression_lowering::lower_checked_boolean_expression;
@@ -39,15 +42,8 @@ pub(crate) use expression_lowering::{
 pub(crate) use graph_preparation::{
     prepare_scalar_graph_in_namespace, prepare_scalar_graph_machine,
 };
-pub(crate) use graph_validation::{
-    contains_short_circuit, direct_expression_contains_short_circuit,
-    staged_short_circuit_bindings_terminator, validate_boolean_parameter_types,
-    validate_direct_parameter_types,
-};
+pub(crate) use graph_validation::staged_short_circuit_bindings_terminator;
 pub(crate) use known_evaluation::KnownDirectScalar;
-pub(crate) use scalar_types::{
-    integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
-};
 
 use super::{
     CheckedScalarBranchDestination, CheckedScalarExpressionRole, CheckedScalarMachineGraph,

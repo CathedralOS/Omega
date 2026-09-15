@@ -1,8 +1,8 @@
 //! Mutable byte operands retain their authored field, array, or borrowed-view root.
 
 use super::{authored, literal_arguments, projected_receivers};
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 use checked_trees::CheckedTrees;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::types::{PrimitiveType, TypeReferenceNode};

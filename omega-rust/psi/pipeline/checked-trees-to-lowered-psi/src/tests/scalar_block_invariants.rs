@@ -1,6 +1,6 @@
 use super::{ScalarType, checked_source, lower_machine};
-use crate::machine_lowering::terminal_identities::obligation_id;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
+use crate::terminal_identities::obligation_id;
 use lowered_psi::LoweredPsi;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};

@@ -20,14 +20,15 @@ use terminal_psi::{
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, ValueDeclaration,
 };
 
-use crate::emission::operation_emission::emit_direct_expression;
-use crate::machine_lowering::lowering_error::{LoweringError, unsupported};
-use crate::machine_lowering::terminal_identities::{
-    allocate_dense, obligation_id, place_id, structural_type_id, value_id,
+use crate::emission::expression_validation::{
+    direct_expression_contains_short_circuit, validate_direct_parameter_types,
 };
-use crate::scalar_graph::scalar_graph_lowering::{
-    direct_expression_contains_short_circuit, lower_checked_scalar_expression,
-    terminal_scalar_type, validate_direct_parameter_types,
+use crate::emission::operation_emission::emit_direct_expression;
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::lowering_error::{LoweringError, unsupported};
+use crate::scalar_graph::scalar_graph_lowering::lower_checked_scalar_expression;
+use crate::terminal_identities::{
+    allocate_dense, obligation_id, place_id, structural_type_id, value_id,
 };
 
 pub(crate) mod byte_sequence_write;
@@ -38,3 +39,10 @@ pub(crate) mod structural_byte_sequence_index_store;
 pub(crate) mod structural_byte_sequence_store;
 pub(crate) mod structural_scalar_store;
 pub(crate) mod structural_scalar_store_source;
+
+pub(crate) mod expression_validation;
+pub(crate) mod scalar_types;
+pub(crate) mod store_destination;
+
+pub(crate) mod boolean_control;
+pub(crate) mod selected_comparison;
