@@ -2541,7 +2541,8 @@ fn component_era_artifact_occurrence_joins_require_strong_installation_evidence(
         "omega-rust/omega/backend/runtime/executable-installation/src/executable_installation.rs",
     );
     let installation = std::fs::read_to_string(&installation_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()))
+        + &recursive_production_rust_source(&installation_path.with_extension(""));
     let effects_path = root.join(
         "omega-rust/omega/representations/effects/src/component_eras/component_era_entry_ledger.rs",
     );
@@ -3395,7 +3396,8 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
         "omega-rust/omega/backend/runtime/executable-installation/src/executable_installation.rs",
     );
     let installation = std::fs::read_to_string(&installation_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()))
+        + &recursive_production_rust_source(&installation_path.with_extension(""));
     for domain in [
         "omega.imported-contract-set.sha256.v1\\0",
         "omega.declared-machine-footprint.sha256.v1\\0",

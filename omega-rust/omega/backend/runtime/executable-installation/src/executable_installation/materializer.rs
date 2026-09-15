@@ -2,10 +2,10 @@ use sha2::Digest;
 
 use super::{
     AdmissionReceiptId, AdmittedArtifact, Architecture, ArtifactContentDigest, ArtifactId,
-    ArtifactRelocationKind, CodePlacement, CodePlacementEvidence, CodePlacementId,
-    DecodedArtifactRelocation, FinalBytesDigest, InstallationDiagnostic, PlacementPlanId,
-    RelocationTarget, Sha256,
+    ArtifactRelocationKind, CodePlacement, CodePlacementId, DecodedArtifactRelocation,
+    FinalBytesDigest, InstallationDiagnostic, PlacementPlanId, RelocationTarget, Sha256,
 };
+use crate::executable_installation::code_placement::CodePlacementEvidence;
 /// Inert provider-side result of resolving one admitted artifact at one exact
 /// placement. The bytes are not executable authority; only the installation
 /// ladder can consume the corresponding placement and establish execution.

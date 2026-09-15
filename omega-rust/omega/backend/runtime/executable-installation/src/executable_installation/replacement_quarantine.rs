@@ -1,7 +1,8 @@
 use super::{
-    AdmittedArtifact, InstallationDiagnostic, InstalledCode, InstalledCodeContext,
-    InstalledCodeEvidence, InstalledCodeId, MappingQuarantineId,
+    AdmittedArtifact, InstallationDiagnostic, InstalledCode, InstalledCodeContext, InstalledCodeId,
+    MappingQuarantineId,
 };
+use crate::executable_installation::installation::InstalledCodeEvidence;
 
 /// Attributed reason an installed mapping cannot be reclaimed for ordinary
 /// reuse after replacement routing has moved elsewhere.

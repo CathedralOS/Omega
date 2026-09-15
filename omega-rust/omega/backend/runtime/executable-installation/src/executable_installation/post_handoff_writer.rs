@@ -6,8 +6,9 @@
 
 use super::{
     ArtifactId, DestinationPreparationReceiptId, InstallationDiagnostic, InstalledCode,
-    InstalledCodeEvidence, InstalledCodeId, NonAuthoritativeWriterContextFingerprint64,
+    InstalledCodeId, NonAuthoritativeWriterContextFingerprint64,
 };
+use crate::executable_installation::installation::InstalledCodeEvidence;
 use extents::{ExtentRights, MappedExtent, MappingReceiptContext};
 use layout_plans::{
     MaterializationDiagnostic, POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PlacementSite,

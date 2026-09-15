@@ -6,8 +6,9 @@ use super::{
     InstallationDiagnostic, MachineContractSetId, MachineFootprintId,
     NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
     PlacementConstraints, PlacementPlanId, ProofPayloadDigest, RelocationSetId, RelocationTarget,
-    RetainedContainerProof, Sha256, admit_executable,
+    Sha256, admit_executable,
 };
+use crate::executable_installation::artifacts::RetainedContainerProof;
 pub const OMEGA_EXECUTABLE_CONTAINER_V1_MARKER: u16 = u16::from_le_bytes(*b"OX");
 pub const OMEGA_EXECUTABLE_CONTAINER_V2_MARKER: u16 = u16::from_le_bytes(*b"O2");
 pub const OMEGA_EXECUTABLE_CONTAINER_MARKER: u16 = OMEGA_EXECUTABLE_CONTAINER_V2_MARKER;
@@ -596,7 +597,7 @@ pub fn non_authoritative_decoded_container_fingerprint(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn derive_artifact_content_commitments(
+pub(crate) fn derive_artifact_content_commitments(
     architecture: Architecture,
     code: &[u8],
     contracts: MachineContractSetId,

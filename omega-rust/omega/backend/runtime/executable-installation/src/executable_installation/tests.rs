@@ -1,19 +1,20 @@
 use super::{
-    AddressSpaceId, AdmissionReceiptId, Architecture, ArtifactAdmissionEvidence,
-    ArtifactRelocationKind, CodePlacementAuthority, CodePlacementId, DecodedArtifactRelocation,
-    EntrySetId, ExtentProvenanceId, ExtentRights, FinalValidationCertificate, FinalValidationId,
-    InstallAuthority, InstallationAudience, InstallationReceipt, InstallationScopeId,
-    InstalledCodeId, MachineFootprintId, MappingQuarantineCause, MappingQuarantineId,
-    MappingQuarantineReceipt, MaterializationReceipt, PlacementConstraints, PlacementSite,
-    RelocationTarget, RetirementAuthority, RetirementFactDigest, RetirementReceipt, WxEnforcement,
-    admit_executable, install_validated, materialize_admitted_artifact, materialize_and_freeze,
-    normalized_proof_payload_digest, quarantine_installed, retire_installed,
-    validate_final_placement,
+    AdmissionReceiptId, Architecture, ArtifactAdmissionEvidence, ArtifactRelocationKind,
+    CodePlacementAuthority, CodePlacementId, DecodedArtifactRelocation, EntrySetId,
+    FinalValidationCertificate, FinalValidationId, InstallAuthority, InstallationAudience,
+    InstallationReceipt, InstallationScopeId, InstalledCodeId, MachineFootprintId,
+    MappingQuarantineCause, MappingQuarantineId, MappingQuarantineReceipt, MaterializationReceipt,
+    PlacementConstraints, RelocationTarget, RetirementAuthority, RetirementFactDigest,
+    RetirementReceipt, WxEnforcement, admit_executable, install_validated,
+    materialize_admitted_artifact, materialize_and_freeze, normalized_proof_payload_digest,
+    quarantine_installed, retire_installed, validate_final_placement,
 };
 use extents::{ExtentLineageId, ExtentRootGrant, MappingEraId};
 use layout_plans::{ArtifactInstallationScopeId, PlacementPhase};
 
 use super::test_support::*;
+use extents::{AddressSpaceId, ExtentProvenanceId, ExtentRights};
+use layout_plans::PlacementSite;
 
 #[test]
 fn canonical_materializer_patches_x86_relative_targets_and_binds_the_receipt() {
@@ -255,7 +256,16 @@ fn artifact_content_digest_is_derived_from_exact_semantics() {
 
 #[test]
 fn local_fnv_sites_are_explicitly_non_authoritative() {
-    let root = include_str!("../executable_installation.rs");
+    let root_source = [
+        include_str!("../executable_installation.rs"),
+        include_str!("authority_digests.rs"),
+        include_str!("artifacts.rs"),
+        include_str!("code_placement.rs"),
+        include_str!("installation.rs"),
+        include_str!("retirement.rs"),
+    ]
+    .concat();
+    let root = root_source.as_str();
     let writer = include_str!("post_handoff_writer.rs");
     let container = include_str!("container.rs");
     let container_bytes = include_str!("container_bytes.rs");
