@@ -54,9 +54,11 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
     borrow_call: &BorrowCallFact,
     cache: &StateMutationSummaryCache,
     namespace: WritePlaceNamespace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let target_state = find_state(program, borrow_call.target_symbol)?;
-    let summary_places = state_mutation_summary_places(program, borrow, cache, target_state)?;
+    let summary_places =
+        state_mutation_summary_places(program, borrow, cache, target_state, call_frames)?;
 
     let mut instantiated = Vec::new();
     for summary_place in summary_places {
@@ -67,6 +69,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
             borrow_call,
             summary_place,
             namespace,
+            call_frames,
         )?;
         for place in places {
             if !instantiated.contains(&place) {
@@ -83,10 +86,11 @@ fn state_mutation_summary_places<'cache>(
     borrow: &BorrowFacts,
     cache: &'cache StateMutationSummaryCache,
     state: &typed_trees::state::State,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<&'cache [CanonicalPlace]> {
     cache
         .states
-        .get_or_init(|| build_state_mutation_summaries(program, borrow))
+        .get_or_init(|| build_state_mutation_summaries(program, borrow, call_frames))
         .iter()
         .find(|entry| entry.state_symbol == state.symbol)
         .filter(|entry| entry.complete)
@@ -96,12 +100,16 @@ fn state_mutation_summary_places<'cache>(
 fn build_state_mutation_summaries(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<StateMutationSummary> {
     #[cfg(test)]
     SUMMARY_BUILDS.set(SUMMARY_BUILDS.get() + 1);
     let mut states = Vec::new();
     let mut inferred_completeness = Vec::new();
-    if let Some(resolver) = validation::CallFrameResolver::new(program) {
+    let mut owned_frames = None;
+    if let Some(resolver) =
+        crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+    {
         for machine in program.machines() {
             for (state, frame) in program
                 .machine_states(machine)
@@ -117,7 +125,7 @@ fn build_state_mutation_summaries(
         let Some(state) = find_state(program, borrow_state.state_symbol) else {
             continue;
         };
-        let direct_writes = collect_state_mutation_summary_places(program, state);
+        let direct_writes = collect_state_mutation_summary_places(program, state, call_frames);
         let direct_complete = direct_writes.is_some();
         let writes = direct_writes.unwrap_or_default();
         states.push(StateMutationSummary {
@@ -132,7 +140,7 @@ fn build_state_mutation_summaries(
         });
     }
 
-    propagate_state_mutation_summaries(program, borrow, &mut states);
+    propagate_state_mutation_summaries(program, borrow, &mut states, call_frames);
     states
 }
 
@@ -140,6 +148,7 @@ fn propagate_state_mutation_summaries(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     states: &mut [StateMutationSummary],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     // These are invocation-local dense summary positions, not durable symbol
     // identities. Resolve each dependency once while retaining authored call order.
@@ -208,6 +217,7 @@ fn propagate_state_mutation_summaries(
                         call,
                         write,
                         WritePlaceNamespace::Storage,
+                        call_frames,
                     ) else {
                         complete = false;
                         break;
@@ -333,6 +343,7 @@ fn state_summary_exposes_place(
 fn collect_state_mutation_summary_places(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let machine_symbol = program
         .machines()
@@ -365,6 +376,7 @@ fn collect_state_mutation_summary_places(
                 state.symbol,
                 statement_index,
                 receiver,
+                call_frames,
             )?;
             for place in places {
                 if state_summary_exposes_place(program, state, &place) && !writes.contains(&place) {
@@ -382,6 +394,7 @@ fn collect_state_mutation_summary_places(
             state.symbol,
             statement_index,
             statement,
+            call_frames,
         )?;
         for place in places {
             if state_summary_exposes_place(program, state, &place) && !writes.contains(&place) {
@@ -400,6 +413,7 @@ fn instantiate_call_relative_places(
     borrow_call: &BorrowCallFact,
     relative_place: &CanonicalPlace,
     namespace: WritePlaceNamespace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let facts::PlaceRoot::Symbol(parameter_symbol) = relative_place.root else {
         return None;
@@ -497,7 +511,7 @@ fn instantiate_call_relative_places(
                     caller_machine_symbol,
                     caller_state_symbol,
                     borrow_call,
-                    validation::CallFrameResolver::new(program).as_ref(),
+                    call_frames,
                 )
             }
             WritePlaceNamespace::Storage => rebase_local_write_places(
@@ -505,6 +519,7 @@ fn instantiate_call_relative_places(
                 caller_state_symbol,
                 borrow_call.statement_index,
                 instantiated,
+                call_frames,
             ),
         };
     }
@@ -563,7 +578,8 @@ mod cache_tests {
                     &program,
                     &borrows,
                     &StateMutationSummaryCache::default(),
-                    state
+                    state,
+                    None
                 )
                 .is_none(),
                 "{method} is an ordinary declaration, not completeness authority"
@@ -578,11 +594,12 @@ mod cache_tests {
         let borrows = crate::build_borrow_facts(&program);
         let state = &program.machine_states(&program.machines()[0])[0];
         let cache = StateMutationSummaryCache::default();
-        let places = state_mutation_summary_places(&program, &borrows, &cache, state).unwrap();
+        let places =
+            state_mutation_summary_places(&program, &borrows, &cache, state, None).unwrap();
         assert_eq!(places.len(), 1);
         assert_eq!(
             places,
-            collect_state_mutation_summary_places(&program, state).unwrap()
+            collect_state_mutation_summary_places(&program, state, None).unwrap()
         );
         assert!(
             !places[0].segments.is_empty(),
@@ -644,7 +661,7 @@ mod cache_tests {
             let resolver = validation::CallFrameResolver::new(&program).unwrap();
             let frame = &resolver.inferred_machine_state_write_frames(target_machine)[0];
             let cache = StateMutationSummaryCache::default();
-            let summary = state_mutation_summary_places(&program, &borrow, &cache, target);
+            let summary = state_mutation_summary_places(&program, &borrow, &cache, target, None);
             let places = super::super::call_mutated_places(
                 &program,
                 machine.symbol,
@@ -715,6 +732,7 @@ mod cache_tests {
                             call,
                             write,
                             WritePlaceNamespace::Storage,
+                            None,
                         ) else {
                             complete = false;
                             break;
@@ -755,7 +773,7 @@ mod cache_tests {
             .map(|state| StateMutationSummary {
                 state_symbol: state.symbol,
                 complete: true,
-                writes: collect_state_mutation_summary_places(program, state).unwrap(),
+                writes: collect_state_mutation_summary_places(program, state, None).unwrap(),
             })
             .collect()
     }
@@ -775,7 +793,7 @@ mod cache_tests {
         let mut expected = actual.clone();
         full_sweep_reference(&program, &borrows, &mut expected);
         SUMMARY_VISITS.set(0);
-        propagate_state_mutation_summaries(&program, &borrows, &mut actual);
+        propagate_state_mutation_summaries(&program, &borrows, &mut actual, None);
         assert_eq!(actual, expected);
         assert_eq!(
             SUMMARY_VISITS.get(),
@@ -809,7 +827,7 @@ mod cache_tests {
             actual[2].complete = !opaque_leaf;
             let mut expected = actual.clone();
             full_sweep_reference(&program, &borrows, &mut expected);
-            propagate_state_mutation_summaries(&program, &borrows, &mut actual);
+            propagate_state_mutation_summaries(&program, &borrows, &mut actual, None);
             assert_eq!(actual, expected);
             assert_eq!(actual[0].complete, !opaque_leaf);
             assert_eq!(actual[1].complete, !opaque_leaf);
@@ -842,9 +860,11 @@ mod cache_tests {
         let first = std::borrow::Cow::Borrowed(&cache);
         let second = first.clone();
         assert!(cache.states.get().is_none());
-        let expected = state_mutation_summary_places(&program, &borrows, &first, state).unwrap();
+        let expected =
+            state_mutation_summary_places(&program, &borrows, &first, state, None).unwrap();
         assert!(!expected.is_empty(), "fixture must retain a real write");
-        let observed = state_mutation_summary_places(&program, &borrows, &second, state).unwrap();
+        let observed =
+            state_mutation_summary_places(&program, &borrows, &second, state, None).unwrap();
         assert!(
             std::ptr::eq(expected, observed),
             "branch queries borrow the same initialized table"
@@ -856,7 +876,7 @@ mod cache_tests {
         );
         assert_eq!(
             expected,
-            state_mutation_summary_places(&program, &borrows, &independent, state).unwrap()
+            state_mutation_summary_places(&program, &borrows, &independent, state, None).unwrap()
         );
     }
 }

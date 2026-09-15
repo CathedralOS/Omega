@@ -7,7 +7,9 @@ mod slice;
 mod struct_view;
 mod write_preservation;
 
+#[cfg(test)]
 pub(crate) use entry_requirements::proves_ranked_entry_requirement;
+pub(crate) use entry_requirements::proves_ranked_entry_requirement_with_call_frames;
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::ranking::{
@@ -100,9 +102,18 @@ pub(crate) struct ProvenNatCountdownEdge {
 /// evidence. `Some([])` means acyclic. `None` means a cycle exists but is not
 /// the single-state, directly guarded unsigned countdown admitted by this
 /// checked-plan milestone.
+#[cfg(test)]
 pub(crate) fn proven_nat_countdown_sccs(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
+) -> Option<Vec<ProvenNatCountdownScc>> {
+    proven_nat_countdown_sccs_with_call_frames(program, machine, None)
+}
+
+pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProvenNatCountdownScc>> {
     let adjacency = graph::machine_adjacency(program, machine);
     let cyclic_components = graph::strongly_connected_components(&adjacency)
@@ -113,7 +124,7 @@ pub(crate) fn proven_nat_countdown_sccs(
         return Some(Vec::new());
     }
     if !matches!(
-        machine_decrease_outcome(program, machine),
+        machine_decrease_outcome(program, machine, call_frames),
         DecreaseOutcome::Proven
     ) {
         return None;
@@ -240,16 +251,17 @@ fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128
 
 /// Retain the existing slice-length judgment's exact subjects for shared
 /// state-graph production. This does not establish Terminal ranking authority.
-pub(crate) fn proven_slice_length_ranks(
+pub(crate) fn proven_slice_length_ranks_with_call_frames(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     if witness.view_path != "Slice::Length"
         || !witness.view_arguments.is_empty()
         || witness.rank_range.is_some()
         || !matches!(
-            machine_decrease_outcome(program, machine),
+            machine_decrease_outcome(program, machine, call_frames),
             DecreaseOutcome::Proven
         )
     {
@@ -287,13 +299,14 @@ pub(crate) fn proven_slice_length_ranks(
 
 /// Preserve an already-proven natural measure on the shared executable state
 /// graph. This records its subject, not a fixed-work bound or Terminal proof.
-pub(crate) fn proven_state_natural_ranks(
+pub(crate) fn proven_state_natural_ranks_with_call_frames(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     if witness.ranking_view == language_semantics::RankingViewId::SLICE_LENGTH {
-        return proven_slice_length_ranks(program, machine);
+        return proven_slice_length_ranks_with_call_frames(program, machine, call_frames);
     }
     if witness.ranking_view != language_semantics::RankingViewId::NAT_DESCENDING
         || !witness.view_arguments.is_empty()
@@ -301,7 +314,7 @@ pub(crate) fn proven_state_natural_ranks(
     {
         return None;
     }
-    let components = proven_nat_countdown_sccs(program, machine)?;
+    let components = proven_nat_countdown_sccs_with_call_frames(program, machine, call_frames)?;
     let mut ranks = Vec::new();
     for component in components {
         let state = program
@@ -327,6 +340,7 @@ pub(crate) fn proven_state_natural_ranks(
 pub(super) fn machine_decrease_outcome(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> DecreaseOutcome {
     let states = program.machine_states(machine);
     // The ranking clause is declared on the machine signature, so its names
@@ -406,7 +420,7 @@ pub(super) fn machine_decrease_outcome(
     }
 
     if let Some(range) = witness.rank_range.as_ref() {
-        match ranges::check(program, machine, range, &order, measure) {
+        match ranges::check(program, machine, range, &order, measure, call_frames) {
             Ok(proof) if proof.strict_decrease_proven => return DecreaseOutcome::Proven,
             Ok(_) => {}
             Err(message) => return DecreaseOutcome::Rejected(message),
@@ -429,6 +443,7 @@ pub(super) fn machine_decrease_outcome(
                     measure,
                     &order,
                     orientation,
+                    call_frames,
                 )
             })
     };
@@ -441,7 +456,7 @@ pub(super) fn machine_decrease_outcome(
     // prove its actual step. Keep this fallback after the ordinary fast path,
     // and retain the relational owner's entry, pinning, and every-edge gates.
     if witness.rank_range.is_some()
-        && ranges::proves_relational_decrease(program, machine, &order, measure)
+        && ranges::proves_relational_decrease(program, machine, &order, measure, call_frames)
     {
         return DecreaseOutcome::Proven;
     }
@@ -544,6 +559,7 @@ fn component_has_proven_decrease(
     measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let states = program.machine_states(machine);
     let edges = graph::cyclic_edges(adjacency, component);
@@ -570,6 +586,7 @@ fn component_has_proven_decrease(
                     measure,
                     order,
                     orientation,
+                    call_frames,
                 )
             })
         });
@@ -639,6 +656,7 @@ fn state_has_proven_supported_self_loop(
     measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     // Slice-length, struct-view and lexicographic orders rank a single
     // decreasing value; only the nat provers understand the two-subject
@@ -670,6 +688,7 @@ fn state_has_proven_supported_self_loop(
             field,
             *field_symbol,
             *owner,
+            call_frames,
         ),
         (RankingOrder::Lexicographic(fields), DecreaseMeasure::Single(decreases)) => {
             lexicographic::state_has_proven_self_loop(program, state, decreases, fields)

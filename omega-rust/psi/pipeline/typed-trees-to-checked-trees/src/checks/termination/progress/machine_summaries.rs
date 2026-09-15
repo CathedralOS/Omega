@@ -18,9 +18,14 @@ pub(crate) fn derive_machine_summary(
     semantic: &facts::FactPlan,
     machine: &typed_trees::machine::Machine,
     summaries: &[CheckedProgressSummary],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedProgressSummary> {
-    if !crate::checks::termination::infer_machine_checked_summary(program, machine)
-        .promises_termination()
+    if !crate::checks::termination::infer_machine_checked_summary_with_call_frames(
+        program,
+        machine,
+        call_frames,
+    )
+    .promises_termination()
     {
         return Some(no_guarantee(machine.symbol));
     }
@@ -129,8 +134,10 @@ pub(crate) fn derive_machine_summary(
                     state_flow,
                     call,
                     entry_instance.subject,
+                    call_frames,
                 )?;
-                let instances = lineage::resolve(program, flow, machine, entry_instance)?;
+                let instances =
+                    lineage::resolve(program, flow, machine, entry_instance, call_frames)?;
                 for instance in instances {
                     if !entry_parameter_roots.contains(&instance.subject.root) {
                         // Arbitrary local values still cannot become caller

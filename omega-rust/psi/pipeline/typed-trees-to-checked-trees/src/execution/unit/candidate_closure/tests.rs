@@ -118,6 +118,7 @@ fn complete_unit_body_owns_overlap_before_dependency_closure() {
         },
         &mut shapes,
         &effects.boundary_machines,
+        None,
     );
     assert!(
         graphs.iter().any(|plan| plan.machine == caller.symbol),

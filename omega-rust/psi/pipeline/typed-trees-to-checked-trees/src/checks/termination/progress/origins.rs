@@ -20,6 +20,7 @@ pub(super) fn at_call(
     state: &FlowStateFact,
     call: &FlowCallFact,
     subject: ProgressSubject,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressSubject> {
     let mut place = CanonicalPlace {
         root: PlaceRoot::Symbol(subject.root),
@@ -40,6 +41,7 @@ pub(super) fn at_call(
         state,
         call,
         place,
+        call_frames,
         |state, statement_index, call, relative| {
             call_result_value_place(program, state, statement_index, call, relative, 16)
         },

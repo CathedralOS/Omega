@@ -75,6 +75,7 @@ impl RangeFacts<'_> {
             state.symbol,
             self.statement_index,
             reads[0].clone(),
+            self.checked_calls.and_then(|context| context.call_frames()),
         )?;
         let mut length = None;
         for row in &self.expression_dependencies {
@@ -93,6 +94,7 @@ impl RangeFacts<'_> {
                     state.symbol,
                     self.statement_index,
                     place.clone(),
+                    self.checked_calls.and_then(|context| context.call_frames()),
                 )
                 .map(|place| vec![place])
             });
@@ -126,6 +128,7 @@ impl RangeFacts<'_> {
                     state.symbol,
                     self.statement_index,
                     place.clone(),
+                    self.checked_calls.and_then(|context| context.call_frames()),
                 )?;
                 (row.machine == machine.symbol
                     && row.state == state.symbol

@@ -20,6 +20,7 @@ pub(crate) fn check_flow_call_borrows(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let retained_diagnostics = validate_checked_borrow_compatibility_certificates(program, facts);
     if !retained_diagnostics.is_empty() {
@@ -39,7 +40,7 @@ pub(crate) fn check_flow_call_borrows(
 
     check_view_return_elision(program, &mut diagnostics);
     check_view_return_escape(program, facts, &mut diagnostics);
-    check_persistent_borrow_assignments(program, &mut diagnostics);
+    check_persistent_borrow_assignments(program, call_frames, &mut diagnostics);
 
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(borrow_state) = matching_borrow_state(facts, state_flow) else {

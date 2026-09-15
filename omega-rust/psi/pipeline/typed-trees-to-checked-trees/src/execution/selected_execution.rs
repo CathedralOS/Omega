@@ -45,6 +45,7 @@ pub fn rebuild_checked_terminal_plans_with_selected_execution(
     operator_applications: &[SelectedOperatorApplication],
     ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let call_frames = validation::CallFrameResolver::new(&program.typed);
     let ExecutionPlans {
         boundary_returns,
         unit_effects,
@@ -56,6 +57,7 @@ pub fn rebuild_checked_terminal_plans_with_selected_execution(
         Some(&program.facts.flow.terminal_structural_scalar_returns),
         operator_applications,
         ieee_float_fma_applications,
+        call_frames.as_ref(),
     );
     if !cleanup_diagnostics.is_empty() {
         return Err(cleanup_diagnostics);

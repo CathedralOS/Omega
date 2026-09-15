@@ -76,11 +76,13 @@ impl ContractExpressionEvaluator<'_, '_> {
                 _ => None,
             });
         let local = locals.next()?;
-        if local.is_mutable
-            || locals.next().is_some()
-            || !validation::CallFrameResolver::new(self.program)?
-                .expression_reference_bindings_are_stable(self.caller_machine, expression)
-        {
+        let mut owned_frames = None;
+        let bindings_stable =
+            crate::flow::shared_call_frames_or(self.call_frames, self.program, &mut owned_frames)
+                .is_some_and(|frames| {
+                    frames.expression_reference_bindings_are_stable(self.caller_machine, expression)
+                });
+        if local.is_mutable || locals.next().is_some() || !bindings_stable {
             return None;
         }
         let ExpressionNode::Call(call) = self

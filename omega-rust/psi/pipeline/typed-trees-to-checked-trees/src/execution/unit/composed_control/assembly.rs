@@ -19,25 +19,35 @@ pub(in crate::execution::terminal_unit) fn build_all(
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<CheckedComposedUnitControlMachinePlan> {
     program
         .machines()
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| {
-            closed_sum::build(program, facts, scalar_callees, shapes, boundaries, machine)
-                .or_else(|| build(program, facts, shapes, boundaries, machine))
-                .or_else(|| prefixed_control::build(program, facts, shapes, boundaries, machine))
-                .or_else(|| nested_control::build(program, facts, shapes, boundaries, machine))
-                .or_else(|| {
-                    super::super::state_graph::build(
-                        program,
-                        facts,
-                        scalar_callees,
-                        shapes,
-                        machine,
-                    )
-                })
+            closed_sum::build(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                boundaries,
+                machine,
+                call_frames,
+            )
+            .or_else(|| build(program, facts, shapes, boundaries, machine))
+            .or_else(|| prefixed_control::build(program, facts, shapes, boundaries, machine))
+            .or_else(|| nested_control::build(program, facts, shapes, boundaries, machine))
+            .or_else(|| {
+                super::super::state_graph::build(
+                    program,
+                    facts,
+                    scalar_callees,
+                    shapes,
+                    machine,
+                    call_frames,
+                )
+            })
         })
         .collect()
 }

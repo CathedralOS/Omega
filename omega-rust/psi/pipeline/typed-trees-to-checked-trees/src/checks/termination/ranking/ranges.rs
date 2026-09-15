@@ -13,8 +13,9 @@ pub(super) fn proves_entry_requirements(
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    relational::prove_with_entry_requirements(program, machine, measure, order, true)
+    relational::prove_with_entry_requirements(program, machine, measure, order, true, call_frames)
 }
 
 pub(super) struct RangeProof {
@@ -29,13 +30,14 @@ pub(super) fn check(
     range: &language_semantics::RankRange,
     order: &RankingOrder,
     measure: DecreaseMeasure,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<RangeProof, String> {
-    if proves_range(program, machine, order, measure) == Some(true) {
+    if proves_range(program, machine, order, measure, call_frames) == Some(true) {
         return Ok(RangeProof {
             strict_decrease_proven: false,
         });
     }
-    if relational::prove(program, machine, measure, order) {
+    if relational::prove(program, machine, measure, order, call_frames) {
         return Ok(RangeProof {
             strict_decrease_proven: true,
         });
@@ -74,8 +76,9 @@ pub(super) fn proves_relational_decrease(
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    relational::prove(program, machine, measure, order)
+    relational::prove(program, machine, measure, order, call_frames)
 }
 
 fn proves_range(
@@ -83,6 +86,7 @@ fn proves_range(
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
     // Source custody, not normalized display strings, selects the endpoints.
     let custody = program.ranking_expression_custody_for(machine.symbol)?;
@@ -134,8 +138,8 @@ fn proves_range(
     if rank.low < 0 {
         return None;
     }
-    let floor = endpoint_bounds(program, machine, range.start, pinned_bound)?;
-    let ceiling = endpoint_bounds(program, machine, range.end, pinned_bound)?;
+    let floor = endpoint_bounds(program, machine, range.start, pinned_bound, call_frames)?;
+    let ceiling = endpoint_bounds(program, machine, range.end, pinned_bound, call_frames)?;
     let floor_proven = floor.high <= rank.low;
     let ceiling_proven = if range.end_inclusive {
         rank.high <= ceiling.low
@@ -160,6 +164,7 @@ fn endpoint_bounds(
     machine: &Machine,
     expression: ExpressionHandle,
     pinned_bound: Option<(ExpressionHandle, i128, i128)>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Bounds> {
     // The IncreasingTo edge proof already pins this exact bound. Other scalar
     // endpoints need their own occurrence and write-preservation judgment.
@@ -168,7 +173,7 @@ fn endpoint_bounds(
     {
         return bounds(program, machine, expression);
     }
-    endpoints::pinned_expression_bounds(program, machine, expression)
+    endpoints::pinned_expression_bounds(program, machine, expression, call_frames)
 }
 
 fn same_parameter(program: &TypedTrees, left: ExpressionHandle, right: ExpressionHandle) -> bool {

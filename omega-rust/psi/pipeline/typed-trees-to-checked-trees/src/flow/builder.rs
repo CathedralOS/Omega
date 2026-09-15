@@ -45,6 +45,7 @@ pub(crate) fn build_flow_facts(
         &Default::default(),
         &[],
         &state_mutation_summary_cache,
+        None,
     )
 }
 
@@ -61,6 +62,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     state_mutation_summary_cache: &StateMutationSummaryCache,
+    shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> FlowFacts {
     #[cfg(test)]
     if tests::WHOLE_PASS_REFERENCE.get() {
@@ -97,7 +99,11 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     // incoming value facts. Prefix origins still resolve at each exact site.
     // Direct assignments also use prefix alias closure when there are no calls.
     // Borrow the same immutable resolver for both statement and call writes.
-    let call_frames = validation::CallFrameResolver::new(program);
+    // A caller that already classified frames for this immutable program passes
+    // it in; standalone callers still build a local resolver here.
+    let mut owned_frames = None;
+    let call_frames =
+        crate::flow::shared_call_frames_or(shared_call_frames, program, &mut owned_frames);
     // These summaries use only program and borrow facts, neither of which
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy; the check pass owns the table so later consumers reuse it rather
@@ -109,7 +115,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         scalar_expressions,
         operators,
         exact_integer_casts,
-        call_frames.as_ref(),
+        call_frames,
         state_mutation_summary_cache,
     );
     let mut complete_pass = true;

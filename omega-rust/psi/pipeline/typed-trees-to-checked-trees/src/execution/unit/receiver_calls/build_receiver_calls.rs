@@ -31,6 +31,7 @@ pub(super) fn reconcile(
     composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
     selected_operators: &[crate::SelectedOperatorApplication],
     selected_float_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     // Receiver retention grows along the already-checked call graph. Rebuild
     // a caller with the ordinary planner rather than shifting its parameter
@@ -143,6 +144,7 @@ pub(super) fn reconcile(
                 selected_operators,
                 selected_float_applications,
                 true,
+                call_frames,
             ) else {
                 return false;
             };

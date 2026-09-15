@@ -47,6 +47,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     call_flow: &FlowCallFact,
     entry_contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(call_site) = crate::find_call_site(
         program,
@@ -103,6 +104,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
             call_flow.target_symbol,
             target_parameters,
             expression,
+            call_frames,
         )
 }
 

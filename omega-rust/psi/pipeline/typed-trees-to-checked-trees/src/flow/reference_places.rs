@@ -140,6 +140,7 @@ fn preserve_call_prefix_storage(
             call.statement_index,
             places,
             &frame,
+            frames,
         )?;
     }
     Some(())
@@ -152,6 +153,7 @@ fn preserve_frame(
     statement_index: usize,
     places: &[CanonicalPlace],
     frame: &facts::NormalizedWriteFrame,
+    call_frames: &validation::CallFrameResolver<'_>,
 ) -> Option<()> {
     let writes = frame_storage_writes(
         program,
@@ -159,6 +161,7 @@ fn preserve_frame(
         state.state_symbol,
         statement_index,
         frame,
+        Some(call_frames),
     )?;
     if places.iter().any(|place| {
         writes.iter().any(|write| {

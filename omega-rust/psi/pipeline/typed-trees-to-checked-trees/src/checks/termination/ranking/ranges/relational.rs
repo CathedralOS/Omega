@@ -13,8 +13,9 @@ pub(super) fn prove(
     machine: &typed_trees::machine::Machine,
     measure: DecreaseMeasure,
     order: &RankingOrder,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    prove_with_entry_requirements(program, machine, measure, order, false)
+    prove_with_entry_requirements(program, machine, measure, order, false, call_frames)
 }
 
 pub(super) fn prove_with_entry_requirements(
@@ -23,6 +24,7 @@ pub(super) fn prove_with_entry_requirements(
     measure: DecreaseMeasure,
     order: &RankingOrder,
     require_entry_invariant: bool,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(range) = program
         .ranking_expression_custody_for(machine.symbol)
@@ -79,7 +81,8 @@ pub(super) fn prove_with_entry_requirements(
     if !validation::prove_ranking_range_entry(program, machine, root, range, measure) {
         return false;
     }
-    let frames = validation::CallFrameResolver::new(program);
+    let mut owned_frames = None;
+    let frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
     // A whole graph uses one inductive premise set. A failed edge cannot borrow
     // stronger assumptions from a different, incompletely proved attempt.
     [
@@ -91,7 +94,7 @@ pub(super) fn prove_with_entry_requirements(
         !require_entry_invariant
             || matches!(premises, validation::RankingRangePremises::EntryInvariant)
     })
-    .any(|premises| prove_edges(program, machine, range, measure, frames.as_ref(), premises))
+    .any(|premises| prove_edges(program, machine, range, measure, frames, premises))
 }
 
 fn prove_edges<'program>(

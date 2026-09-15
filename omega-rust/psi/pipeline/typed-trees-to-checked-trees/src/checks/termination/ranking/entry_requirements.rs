@@ -7,18 +7,29 @@ use crate::checks::termination::ranking::OrderResolution;
 use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::ranges;
 
+#[cfg(test)]
 pub(crate) fn proves_ranked_entry_requirement(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     goal: ExpressionHandle,
 ) -> bool {
-    prove(program, machine, goal).unwrap_or(false)
+    prove(program, machine, goal, None).unwrap_or(false)
+}
+
+pub(crate) fn proves_ranked_entry_requirement_with_call_frames(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    goal: ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    prove(program, machine, goal, call_frames).unwrap_or(false)
 }
 
 fn prove(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     goal: ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
     if !validation::arithmetic_entry_requirement_is_covered(program, machine, goal) {
         return None;
@@ -53,6 +64,10 @@ fn prove(
     // entry membership and re-establishes its entry premises on EVERY arrival.
     // RankInvariant alone would not prove the extra required comparison.
     Some(ranges::proves_entry_requirements(
-        program, machine, &order, measure,
+        program,
+        machine,
+        &order,
+        measure,
+        call_frames,
     ))
 }

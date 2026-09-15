@@ -30,6 +30,7 @@ pub(super) fn build(
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
     machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
     let [entry, first_leaf, second_leaf] = program.machine_states(machine) else {
         return None;
@@ -329,6 +330,7 @@ pub(super) fn build(
                 state,
                 &binders,
                 &entry_attachment,
+                call_frames,
             )
         })
         .collect::<Option<Vec<_>>>()?;
@@ -412,6 +414,7 @@ fn build_leaf(
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     expected_attachment: &str,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedComposedUnitControlStatePlan> {
     let scalar_parameters = leaf_signature(
         program,
@@ -462,6 +465,7 @@ fn build_leaf(
         &calls,
         &[],
         0,
+        call_frames,
     )?;
     for operation in &sequence.operations {
         match operation {

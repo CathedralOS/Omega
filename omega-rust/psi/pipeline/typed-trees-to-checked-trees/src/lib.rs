@@ -25,11 +25,18 @@ mod execution {
     pub(crate) mod terminal_unit;
     pub(crate) use terminal_cleanup::build_checked_structural_control_cleanup_plans;
     pub(crate) use terminal_debug::build_checked_terminal_debug_plans;
+    #[cfg(test)]
     pub(crate) use terminal_scalar::{
-        build_checked_scalar_graph_plans, build_checked_terminal_machine_selections,
-        finalize_checked_scalar_graph_plans, finalize_scalar_unit_operations,
+        build_checked_scalar_graph_plans, finalize_checked_scalar_graph_plans,
+    };
+    pub(crate) use terminal_scalar::{
+        build_checked_scalar_graph_plans_with_call_frames,
+        build_checked_terminal_machine_selections,
+        finalize_checked_scalar_graph_plans_with_call_frames, finalize_scalar_unit_operations,
     };
     pub(crate) use terminal_unit::ScalarCalleePlans;
+    #[cfg(test)]
+    pub(crate) use terminal_unit::build_checked_unit_effect_plans;
     pub(crate) use terminal_unit::calls::projected_argument_path;
     pub(crate) use terminal_unit::control::build_checked_structural_unit_control_plans;
     pub(crate) use terminal_unit::returns::{
@@ -44,7 +51,8 @@ mod execution {
     pub(crate) use terminal_unit::types::byte_sequence_carrier;
     pub(crate) use terminal_unit::{
         build_checked_nominal_affine_unit_cleanup_plans,
-        build_checked_partial_affine_unit_cleanup_plans, build_checked_unit_effect_plans,
+        build_checked_partial_affine_unit_cleanup_plans,
+        build_checked_unit_effect_plans_with_call_frames,
     };
     #[cfg(test)]
     pub(crate) fn exact_two_field_record_projection_for_test(

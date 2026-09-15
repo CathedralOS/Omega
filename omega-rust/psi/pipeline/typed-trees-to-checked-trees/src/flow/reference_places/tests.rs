@@ -60,6 +60,7 @@ fn operand_frames_must_preserve_both_binding_and_referent() {
     };
     let index = statements.len() - 1;
     let binding_write = NormalizedWriteFrame::complete(vec!["borrowed".to_owned()]);
+    let frames = validation::CallFrameResolver::new(&program).expect("typed program resolves");
     // The old referent alone is disjoint from replacing the local binding.
     assert_eq!(
         preserve_frame(
@@ -68,7 +69,8 @@ fn operand_frames_must_preserve_both_binding_and_referent() {
             &state,
             index,
             std::slice::from_ref(&referent),
-            &binding_write
+            &binding_write,
+            &frames,
         ),
         Some(())
     );
@@ -79,7 +81,7 @@ fn operand_frames_must_preserve_both_binding_and_referent() {
         NormalizedWriteFrame::opaque(),
     ] {
         assert_eq!(
-            preserve_frame(&program, machine, &state, index, &places, &frame),
+            preserve_frame(&program, machine, &state, index, &places, &frame, &frames),
             None
         );
     }
@@ -90,7 +92,8 @@ fn operand_frames_must_preserve_both_binding_and_referent() {
             &state,
             index,
             &places,
-            &NormalizedWriteFrame::complete(vec!["context.counter".to_owned()])
+            &NormalizedWriteFrame::complete(vec!["context.counter".to_owned()]),
+            &frames,
         ),
         Some(())
     );

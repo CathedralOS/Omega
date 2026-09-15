@@ -113,6 +113,7 @@ fn call_write_places(
         borrow_call,
         state_mutation_summaries,
         namespace,
+        call_frames,
     );
     let use_mutable_argument_fallback = summarized_places.is_none();
     let known_target_summary = summarized_places.is_some();
@@ -220,6 +221,7 @@ fn call_write_places(
                 caller_state_symbol,
                 borrow_call.statement_index,
                 place,
+                call_frames,
             )?;
             for canonical in canonical_places {
                 if !storage.contains(&canonical) {
@@ -273,6 +275,7 @@ fn shared_call_storage_places(
             caller_state_symbol,
             borrow_call.statement_index,
             source,
+            call_frames,
         )? {
             if !places.contains(&place) {
                 places.push(place);
@@ -341,7 +344,13 @@ pub(crate) fn statement_storage_writes(
             statement_index,
             binding.receiver,
         )?;
-        local_origins::rebase_local_write_places(program, state_symbol, statement_index, place)?
+        local_origins::rebase_local_write_places(
+            program,
+            state_symbol,
+            statement_index,
+            place,
+            call_frames,
+        )?
     } else {
         local_origins::assignment_storage_places(
             program,
@@ -349,6 +358,7 @@ pub(crate) fn statement_storage_writes(
             state_symbol,
             statement_index,
             statement,
+            call_frames,
         )?
     };
     local_origins::close_storage_places_over_aliases_with_resolver(
@@ -369,6 +379,7 @@ pub(crate) fn frame_storage_writes(
     state_symbol: SymbolHandle,
     statement_index: usize,
     frame: &facts::NormalizedWriteFrame,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let state = find_state(program, state_symbol)?;
     let mut places = Vec::new();
@@ -379,18 +390,20 @@ pub(crate) fn frame_storage_writes(
             state_symbol,
             statement_index,
             source,
+            call_frames,
         )? {
             if !places.contains(&place) {
                 places.push(place);
             }
         }
     }
-    local_origins::close_storage_places_over_aliases(
+    local_origins::close_storage_places_over_aliases_with_resolver(
         program,
         machine_symbol,
         state_symbol,
         statement_index,
         places,
+        call_frames,
     )
 }
 

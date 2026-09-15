@@ -18,10 +18,18 @@ pub(crate) fn value_origin_at_call(
     state: &FlowStateFact,
     call: &FlowCallFact,
     place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CanonicalPlace> {
-    value_origin_at_call_resolving(program, flow, machine, state, call, place, |_, _, _, _| {
-        None
-    })
+    value_origin_at_call_resolving(
+        program,
+        flow,
+        machine,
+        state,
+        call,
+        place,
+        call_frames,
+        |_, _, _, _| None,
+    )
 }
 
 /// The shared backward origin trace with one extra producer a domain may
@@ -36,13 +44,15 @@ pub(crate) fn value_origin_at_call_resolving<Resolve>(
     state: &FlowStateFact,
     call: &FlowCallFact,
     mut place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     resolve: Resolve,
 ) -> Option<CanonicalPlace>
 where
     Resolve:
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
-    let frames = validation::CallFrameResolver::new(program)?;
+    let mut owned_frames = None;
+    let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     place =
         flow::local_reference_storage_at_call(program, &frames, machine, flow, state, call, place)?;
     let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
@@ -65,6 +75,7 @@ where
                         index,
                         &place,
                         &frames.statement_value_write_frame(machine, statement),
+                        frames,
                     )?;
                     continue;
                 }
@@ -144,6 +155,7 @@ where
                     index,
                     &place,
                     &frames.may_write_frame(machine, call),
+                    frames,
                 )?;
             }
             _ => {}
@@ -155,6 +167,7 @@ where
             index,
             &place,
             &frames.statement_value_write_frame(machine, statement),
+            frames,
         )?;
     }
     Some(place)
@@ -258,6 +271,7 @@ fn preserve_frame(
     statement_index: usize,
     place: &CanonicalPlace,
     frame: &facts::NormalizedWriteFrame,
+    call_frames: &validation::CallFrameResolver<'_>,
 ) -> Option<()> {
     let writes = flow::frame_storage_writes(
         program,
@@ -265,6 +279,7 @@ fn preserve_frame(
         state.state_symbol,
         statement_index,
         frame,
+        Some(call_frames),
     )?;
     (!writes.iter().any(|write| overlaps(program, place, write))).then_some(())
 }

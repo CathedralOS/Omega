@@ -395,12 +395,31 @@ pub(super) fn exact_two_field_record_projection(
 /// carry checking have recorded their authoritative facts. Unsupported shapes
 /// are omitted as a closed unit; callers therefore cannot accidentally lower a
 /// root whose transitive helper or boundary settlement was only partly known.
+#[cfg(test)]
 pub(crate) fn build_checked_unit_effect_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     selected_operator_applications: &[crate::SelectedOperatorApplication],
     selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
+) -> CheckedUnitEffectPlans {
+    build_checked_unit_effect_plans_with_call_frames(
+        program,
+        facts,
+        scalar_callees,
+        selected_operator_applications,
+        selected_ieee_float_fma_applications,
+        None,
+    )
+}
+
+pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
+    selected_operator_applications: &[crate::SelectedOperatorApplication],
+    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CheckedUnitEffectPlans {
     let mut shapes = ShapeCollector::new(program);
     let mut boundary_machines = program
@@ -431,6 +450,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 machine,
                 selected_operator_applications,
                 selected_ieee_float_fma_applications,
+                call_frames,
             )
         })
         .collect::<Vec<_>>();
@@ -440,6 +460,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         scalar_callees,
         &mut shapes,
         &boundary_machines,
+        call_frames,
     );
     receiver_calls::reconcile(
         program,
@@ -450,6 +471,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         &mut composed_machines,
         selected_operator_applications,
         selected_ieee_float_fma_applications,
+        call_frames,
     );
     // Prefer a complete general state graph when both builders describe the
     // same structural-result body, including a returned parameter or call.

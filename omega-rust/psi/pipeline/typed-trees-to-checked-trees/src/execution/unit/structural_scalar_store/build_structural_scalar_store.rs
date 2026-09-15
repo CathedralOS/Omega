@@ -206,6 +206,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statement_start: usize,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     if !statements
@@ -230,7 +231,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
             return None;
         }
     };
-    if !frame::matches(program, machine, state, frame) {
+    if !frame::matches(program, machine, state, frame, call_frames) {
         return None;
     }
     statements

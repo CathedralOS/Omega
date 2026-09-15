@@ -77,7 +77,8 @@ fn only_demanded_field_dependencies_are_discovered() {
         .collect::<Vec<_>>();
     assert_eq!(subjects.len(), 2);
     for demand in &subjects {
-        let lineage = StateParameterLineage::derive(&program, &program.facts.flow, machine, demand);
+        let lineage =
+            StateParameterLineage::derive(&program, &program.facts.flow, machine, demand, None);
         // No whole Context, unused Tree descendant, fuel, or recursively
         // projected Node gets a key. Either demand discovers both cycle edges.
         assert_eq!(lineage.values.len(), 2, "{:?}", lineage.values);
@@ -113,7 +114,7 @@ fn recursive_referent_demands_share_one_finite_partition() {
             Some(partition.clone())
         );
         let lineage =
-            StateParameterLineage::derive(&program, &program.facts.flow, machine, &demand);
+            StateParameterLineage::derive(&program, &program.facts.flow, machine, &demand, None);
         assert_eq!(lineage.values.len(), 2);
         assert_eq!(
             resolve_subject_lineage(&lineage.values, demand),

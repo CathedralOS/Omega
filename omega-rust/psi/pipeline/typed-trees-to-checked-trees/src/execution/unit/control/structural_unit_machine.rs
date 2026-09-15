@@ -24,13 +24,18 @@ pub(crate) fn build_structural_unit_control_machine(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedStructuralUnitControlMachinePlan> {
     let states = program.machine_states(machine);
     if states.len() < 2 {
         return None;
     }
     let proven_ranked_sccs =
-        crate::checks::termination::proven_nat_countdown_sccs(program, machine)?;
+        crate::checks::termination::proven_nat_countdown_sccs_with_call_frames(
+            program,
+            machine,
+            call_frames,
+        )?;
     let proven_ranked_scc = match proven_ranked_sccs.as_slice() {
         [] => None,
         [component] => Some(component),

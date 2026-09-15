@@ -21,6 +21,12 @@ impl RangeFacts<'_> {
         // never resurrect facts invalidated by an effectful RHS.
         let extent = self.mutable_byte_view_extent(program, machine, state, assignment.target);
         let target = program.expression_table.display_name(assignment.target);
+        let mut owned_frames = None;
+        let shared_frames = crate::flow::shared_call_frames_or(
+            self.checked_calls.and_then(|context| context.call_frames()),
+            program,
+            &mut owned_frames,
+        );
         let writes = (!self.expression_dependencies.is_empty())
             .then(|| {
                 crate::flow::statement_storage_writes(
@@ -29,7 +35,7 @@ impl RangeFacts<'_> {
                     state.symbol,
                     self.statement_index,
                     statement,
-                    validation::CallFrameResolver::new(program).as_ref(),
+                    shared_frames,
                 )
             })
             .flatten();
@@ -122,6 +128,12 @@ impl RangeFacts<'_> {
             .filter(|_| !self.expression_dependencies.is_empty())
             .and(site)
             .and_then(|site| self.structured_call_writes(program, machine, state, site));
+        let mut owned_frames = None;
+        let shared_frames = crate::flow::shared_call_frames_or(
+            self.checked_calls.and_then(|context| context.call_frames()),
+            program,
+            &mut owned_frames,
+        );
         let writes = structured.or_else(|| {
             paths
                 .filter(|_| !self.expression_dependencies.is_empty())
@@ -132,6 +144,7 @@ impl RangeFacts<'_> {
                         state.symbol,
                         self.statement_index,
                         &facts::NormalizedWriteFrame::complete(paths.to_vec()),
+                        shared_frames,
                     )
                 })
         });

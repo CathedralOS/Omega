@@ -49,6 +49,7 @@ fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {
         &parameters,
         &[],
         0,
+        None,
     )
     .expect("array byte field stores");
     assert_eq!(stores.len(), 1);
@@ -143,6 +144,7 @@ fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
         &parameters,
         &[],
         0,
+        None,
     )
     .unwrap();
     assert!(matches!(
@@ -179,7 +181,8 @@ fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
                 state,
                 &parameters,
                 &[],
-                0
+                0,
+                None,
             )
             .is_none()
         );
@@ -238,7 +241,7 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
         .unwrap()
         .frame;
     assert!(
-        frame::matches(program, machine, state, frame),
+        frame::matches(program, machine, state, frame, None),
         "assignment frame does not match exact authored record.enabled store: {frame:?}"
     );
     assert!(
@@ -261,6 +264,7 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
         &structural_parameters,
         &[],
         0,
+        None,
     )
     .expect("exact ordered scalar field store sequence");
     assert_eq!(stores.len(), 1);
@@ -275,6 +279,7 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
         machine,
         &[],
         &[],
+        None,
     )
     .expect("store plus crashing scalar argument call retains Unit machine plan");
     assert!(matches!(
@@ -339,6 +344,7 @@ fn ordered_stores_replay_successor_writes_and_reject_modified_frames() {
         &parameters,
         &[],
         0,
+        None,
     )
     .expect("entry store retains the complete successor frame");
     assert_eq!(
@@ -373,6 +379,7 @@ fn ordered_stores_replay_successor_writes_and_reject_modified_frames() {
                 &parameters,
                 &[],
                 0,
+                None,
             )
             .is_none(),
             "missing, extra, or opaque successor writes cannot authorize stores"

@@ -36,16 +36,26 @@ pub(crate) struct CheckedProgressSummary {
     pub(crate) build_bound_demands: Vec<BuildBoundProgressDemand>,
 }
 
+#[cfg(test)]
 pub(crate) fn analyze_checked_progress(
     program: &typed_trees::TypedTrees,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
 ) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
+    analyze_checked_progress_with_call_frames(program, flow, semantic, None)
+}
+
+pub(crate) fn analyze_checked_progress_with_call_frames(
+    program: &typed_trees::TypedTrees,
+    flow: &FlowFacts,
+    semantic: &facts::FactPlan,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
     let correspondence_diagnostics = validate_qualification_correspondences(program, semantic);
     if !correspondence_diagnostics.is_empty() {
         return Err(correspondence_diagnostics);
     }
-    let summaries = components::derive_summaries(program, flow, semantic);
+    let summaries = components::derive_summaries(program, flow, semantic, call_frames);
 
     let mut diagnostics = Vec::new();
     for machine in program
@@ -56,7 +66,9 @@ pub(crate) fn analyze_checked_progress(
         // Ranking diagnostics own local control-flow failure and can name the
         // missing or invalid witness precisely. Progress coverage begins only
         // after that independent obligation succeeds.
-        if !super::infer_machine_checked_summary(program, machine).promises_termination() {
+        if !super::infer_machine_checked_summary_with_call_frames(program, machine, call_frames)
+            .promises_termination()
+        {
             continue;
         }
         let Some(checked) = summaries

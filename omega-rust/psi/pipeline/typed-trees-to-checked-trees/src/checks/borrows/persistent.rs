@@ -36,8 +36,15 @@ struct StateTransitionEdge {
 
 pub(super) fn check_persistent_borrow_assignments(
     program: &typed_trees::TypedTrees,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // One resolver serves every machine in the pass; the program is immutable
+    // for the whole check window. A caller without a shared resolver still
+    // gets the private construction this pass performed per machine before.
+    let mut owned_call_frames = None;
+    let call_frames =
+        crate::flow::shared_call_frames_or(call_frames, program, &mut owned_call_frames);
     for machine in program.machines() {
         let persistent = persistent_storage(program, machine);
         if persistent.is_empty() {
@@ -45,13 +52,12 @@ pub(super) fn check_persistent_borrow_assignments(
         }
 
         let states = program.machine_states(machine);
-        let call_frames = validation::CallFrameResolver::new(program);
         let entry_paths = static_persistent_paths_at_state_entries(
             program,
             machine,
             &persistent,
             states,
-            call_frames.as_ref(),
+            call_frames,
         );
         for (state, entry_paths) in states.iter().zip(entry_paths) {
             let (_, state_diagnostics) = analyze_persistent_state(
@@ -60,7 +66,7 @@ pub(super) fn check_persistent_borrow_assignments(
                 state,
                 &persistent,
                 &entry_paths,
-                call_frames.as_ref(),
+                call_frames,
                 true,
             );
             diagnostics.extend(state_diagnostics);

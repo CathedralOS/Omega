@@ -6,8 +6,11 @@ pub(super) fn matches(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     frame: &facts::NormalizedWriteFrame,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(resolver) = validation::CallFrameResolver::new(program) else {
+    let mut owned = None;
+    let Some(resolver) = crate::flow::shared_call_frames_or(call_frames, program, &mut owned)
+    else {
         return false;
     };
     // A state's summary includes every reachable successor. Comparing it to

@@ -18,6 +18,7 @@ pub(super) fn collect(
     flow: &FlowFacts,
     machine: &typed_trees::machine::Machine,
     subjects: &[ProgressSubject],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<ParameterTransfer> {
     let mut transfers = Vec::new();
     for (_, state) in flow
@@ -51,7 +52,13 @@ pub(super) fn collect(
                             .projections
                             .extend_from_slice(&destination.projections);
                         crate::checks::termination::progress::origins::at_call(
-                            program, flow, machine, state, call, subject,
+                            program,
+                            flow,
+                            machine,
+                            state,
+                            call,
+                            subject,
+                            call_frames,
                         )
                     }),
                 });
