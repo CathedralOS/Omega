@@ -11,6 +11,7 @@ mod copy_propagation;
 mod dead_scalar_elimination;
 mod global_value_numbering;
 mod model;
+mod proof_check_elision;
 mod ranked;
 mod retained;
 mod sparse_conditional_constant_propagation;
@@ -27,8 +28,9 @@ use validation::validate_carrier;
 /// unsealed Psi product.
 ///
 /// The empty selection deliberately validates both sides of the identity
-/// transformation. Selected passes execute in canonical order; unported passes
-/// fail closed instead of being recorded as executed identities.
+/// transformation. Selected passes execute in canonical order; the catalog is
+/// exhaustive, so a future selection added without an implementation fails to
+/// compile rather than being recorded as an executed identity.
 pub fn run_psi_optimization(
     mut lowered: LoweredPsi,
     selections: PsiOptimizationSelections,
@@ -51,10 +53,8 @@ pub fn run_psi_optimization(
             PsiOptimization::DeadPureScalarElimination => {
                 lowered = dead_scalar_elimination::eliminate(lowered)?;
             }
-            unsupported => {
-                return Err(PsiOptimizationStageError::UnsupportedSelection(
-                    *unsupported,
-                ));
+            PsiOptimization::ProofCheckElision => {
+                lowered = proof_check_elision::elide(lowered)?;
             }
         }
     }

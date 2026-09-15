@@ -43,26 +43,21 @@ fn empty_selection_executes_validated_identity_before_publication() {
 }
 
 #[test]
-fn every_unported_nonempty_selection_fails_closed() {
+fn every_nonempty_selection_executes_before_publication() {
+    // The selection catalog is fully ported: every named rule executes over a
+    // real lowered module and records itself in the execution it returns.
     let lowered =
         lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
 
     for optimization in PsiOptimization::ALL {
-        if matches!(
-            optimization,
-            PsiOptimization::CopyPropagation
-                | PsiOptimization::GlobalValueNumbering
-                | PsiOptimization::DeadPureScalarElimination
-                | PsiOptimization::SparseConditionalConstantPropagation
-        ) {
-            continue;
-        }
         let selections = PsiOptimizationSelections::new([optimization]).unwrap();
-        assert!(matches!(
-            run_psi_optimization(lowered.clone(), selections),
-            Err(PsiOptimizationStageError::UnsupportedSelection(actual))
-                if actual == optimization
-        ));
+        let optimized = run_psi_optimization(lowered.clone(), selections)
+            .unwrap_or_else(|error| panic!("{optimization:?} must execute: {error:?}"));
+        assert_eq!(
+            optimized.execution().selections().as_slice(),
+            &[optimization],
+            "{optimization:?} must be the recorded selection"
+        );
     }
 }
 

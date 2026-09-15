@@ -1524,7 +1524,7 @@ fn terminal_production_request_preserves_configuration_across_evidence_products(
 }
 
 #[test]
-fn terminal_production_request_returns_nonclone_callback_custody_after_optimization_rejection() {
+fn terminal_production_request_returns_nonclone_callback_custody_after_production_rejection() {
     #[derive(Debug)]
     struct CallbackCustody(Box<[u64; 2]>);
 
@@ -1533,22 +1533,18 @@ fn terminal_production_request_returns_nonclone_callback_custody_after_optimizat
     let allocation = custody.0.as_ptr();
     let request = terminal_production::TerminalProductionRequest {
         checked: &checked,
-        machine: terminal_production::TerminalMachineSelection::Name("Main::launch"),
+        machine: terminal_production::TerminalMachineSelection::Name("Main::missing"),
         optimization_selections: optimization::PsiOptimizationSelections::new([
             optimization::PsiOptimization::ControlFlowCleanup,
         ])
-        .expect("unique unsupported selection"),
+        .expect("unique selection"),
     };
     let rejected = request
         .produce_with_callback_custody(custody)
-        .expect_err("unsupported optimization rejects after successful lowering");
+        .expect_err("an unknown machine rejects production before lowering completes");
     assert!(matches!(
         rejected.error(),
-        TerminalArtifactProductionError::Optimization(
-            PsiOptimizationStageError::UnsupportedSelection(
-                optimization::PsiOptimization::ControlFlowCleanup
-            )
-        )
+        TerminalArtifactProductionError::Lowering(_)
     ));
     let (_, custody) = rejected.into_parts();
     assert_eq!(custody.0.as_ptr(), allocation);

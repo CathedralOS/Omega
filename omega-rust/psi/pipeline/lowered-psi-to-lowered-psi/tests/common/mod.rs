@@ -11,15 +11,16 @@
 
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    ScalarType, ValueId,
+    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{
     Block, DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
-    DebugSourceSpan, DebugSubject, MachineContract, Operation, OperationKind, OperationResult,
-    ProofBundle, SuccessorEdge, TerminalBlockNaturalRank, TerminalDebugMap, TerminalMachine,
-    TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
-    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
+    DebugSourceSpan, DebugSubject, EvidenceRoute, MachineContract, ObligationEvidence, Operation,
+    OperationKind, OperationResult, PrimitiveJudgment, ProofBundle, SuccessorEdge,
+    TerminalBlockNaturalRank, TerminalDebugMap, TerminalMachine, TerminalMachineResult,
+    TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+    TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
 };
 
 pub fn i32_type() -> ScalarType {
@@ -253,6 +254,10 @@ pub fn machine_id(ordinal: u64) -> MachineId {
 
 pub fn operation_id(ordinal: u64) -> OperationId {
     OperationId::new(ordinal).unwrap()
+}
+
+pub fn obligation(ordinal: u64) -> ObligationId {
+    ObligationId::new(ordinal).unwrap()
 }
 
 pub fn value(ordinal: u64) -> ValueId {
@@ -873,5 +878,148 @@ pub fn ranked_cycle_fixture() -> LoweredPsi {
     )]);
     lowered.semantic_module.machines[0].ranked_scc =
         Some(natural_self_loop(member, v10, edge(6), v41));
+    lowered
+}
+
+/// Proof-check-elision fixture. One machine, one block:
+///
+/// ```text
+/// b1 (entry): v10 = 0; v17 = 7;
+///             v11 = exact_sub(v1, v1, o1);    // self-subtraction → literal 0
+///             v12 = exact_sub(v1, v10, o2);   // literal-zero subtrahend → wrapping sub
+///             v13 = exact_mul(v10, v1, o3);   // literal-zero multiplicand → literal 0
+///             v14 = exact_add(v1, v1, o4);    // symbolic goal → unchanged
+///             v15 = exact_sub(v1, v2, o5);    // distinct symbolic operands → unchanged
+///             v16 = wrapping_div(v1, v17, o6) // nonzero literal divisor, but no
+///                                             // goal-free divide exists → unchanged
+///             return v14
+/// ```
+///
+/// The bundle answers every declared obligation so the consumed rows `o1`,
+/// `o2`, and `o3` are observed leaving the evidence section.
+pub fn proof_check_fixture() -> LoweredPsi {
+    let b1 = block_id(1);
+    let (v1, v2) = (value(1), value(2));
+    let (v10, v17) = (value(10), value(17));
+    let mut lowered = lowered(vec![machine(
+        1,
+        vec![i32(1), i32(2)],
+        TerminalMachineResult::Scalar(i32(9)),
+        b1,
+        vec![block(
+            1,
+            Vec::new(),
+            vec![
+                integer_constant(10, i32(10), 0),
+                integer_constant(17, i32(17), 7),
+                operation(
+                    11,
+                    i32(11),
+                    OperationKind::ExactIntegerSubtract {
+                        left: v1,
+                        right: v1,
+                        obligation: obligation(1),
+                    },
+                ),
+                operation(
+                    12,
+                    i32(12),
+                    OperationKind::ExactIntegerSubtract {
+                        left: v1,
+                        right: v10,
+                        obligation: obligation(2),
+                    },
+                ),
+                operation(
+                    13,
+                    i32(13),
+                    OperationKind::ExactIntegerMultiply {
+                        left: v10,
+                        right: v1,
+                        obligation: obligation(3),
+                    },
+                ),
+                operation(
+                    14,
+                    i32(14),
+                    OperationKind::ExactIntegerAdd {
+                        left: v1,
+                        right: v1,
+                        obligation: obligation(4),
+                    },
+                ),
+                operation(
+                    15,
+                    i32(15),
+                    OperationKind::ExactIntegerSubtract {
+                        left: v1,
+                        right: v2,
+                        obligation: obligation(5),
+                    },
+                ),
+                operation(
+                    16,
+                    i32(16),
+                    OperationKind::WrappingIntegerDivide {
+                        left: v1,
+                        right: v17,
+                        obligation: obligation(6),
+                    },
+                ),
+            ],
+            return_value(8, value(14)),
+        )],
+    )]);
+    for ordinal in 1..=6 {
+        lowered.proof_bundle.evidence.push(ObligationEvidence {
+            obligation: obligation(ordinal),
+            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
+        });
+    }
+    lowered
+}
+
+/// Proof-check-elision negative fixture: every proof-bearing leaf keeps a
+/// symbolic goal, so the rule publishes a validated identity.
+pub fn undischarged_proof_check_fixture() -> LoweredPsi {
+    let b1 = block_id(1);
+    let (v1, v2) = (value(1), value(2));
+    let mut lowered = lowered(vec![machine(
+        1,
+        vec![i32(1), i32(2)],
+        TerminalMachineResult::Scalar(i32(9)),
+        b1,
+        vec![block(
+            1,
+            Vec::new(),
+            vec![
+                operation(
+                    14,
+                    i32(14),
+                    OperationKind::ExactIntegerAdd {
+                        left: v1,
+                        right: v1,
+                        obligation: obligation(4),
+                    },
+                ),
+                operation(
+                    15,
+                    i32(15),
+                    OperationKind::ExactIntegerSubtract {
+                        left: v1,
+                        right: v2,
+                        obligation: obligation(5),
+                    },
+                ),
+            ],
+            return_value(8, value(14)),
+        )],
+    )]);
+    for ordinal in 4..=5 {
+        lowered.proof_bundle.evidence.push(ObligationEvidence {
+            obligation: obligation(ordinal),
+            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
+        });
+    }
     lowered
 }
