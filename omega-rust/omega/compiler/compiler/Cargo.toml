@@ -50,6 +50,7 @@ backend-plan = { path = "../../backend/plans/backend-plan" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 artifacts = { path = "../../tooling/artifacts" }
 assembled-syntax-to-checked-compilation = { path = "../../pipeline/assembled-syntax-to-checked-compilation" }
+checked-compilation-to-terminal-artifact = { path = "../../pipeline/checked-compilation-to-terminal-artifact" }
 source-files-to-assembled-syntax = { path = "../../pipeline/source-files-to-assembled-syntax" }
 bounded-process = { path = "../../tooling/bounded-process", optional = true }
 checked-trees = { path = "../../../psi/representations/checked-trees" }

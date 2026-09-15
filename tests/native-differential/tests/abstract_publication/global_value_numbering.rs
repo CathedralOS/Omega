@@ -109,11 +109,7 @@ fn compatible_policy_gvn_projects_and_lowers_with_exact_fact_custody() {
             optimized.pass_manifests()[0].decisions()[0].consumed_facts(),
             &[optimization_core::OptimizationFactReference::AcceptedObligation(redundant_fact)]
         );
-        let lowered = lower_optimized_to_target_operations(
-            optimized,
-            OptimizedTargetLoweringRequest::new(target),
-        )
-        .unwrap();
+        let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.target_operations().functions.len(), 1);
     }
@@ -277,11 +273,7 @@ fn compatible_policy_phi_gvn_and_wrapping_shift_identities_project_and_lower() {
                 .collect::<BTreeSet<_>>(),
             BTreeSet::from([ValueId::new(1_457).unwrap(), ValueId::new(1_458).unwrap(),])
         );
-        let lowered = lower_optimized_to_target_operations(
-            optimized,
-            OptimizedTargetLoweringRequest::new(target),
-        )
-        .unwrap();
+        let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
         assert_eq!(lowered.target(), target);
         assert_eq!(
             lowered.optimized().transformation_ledger().records().len(),

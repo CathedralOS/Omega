@@ -752,10 +752,12 @@ fn standalone_source_profile_analysis_stays_retired() {
 }
 
 fn compiler_product_coordinator_source(root: &std::path::Path) -> String {
-    let source = root.join("omega-rust/omega/compiler/compiler/src");
-    ["compiler.rs", "compiler/native/input_reuse.rs"]
-        .map(|path| std::fs::read_to_string(source.join(path)).expect("read product coordinator"))
-        .join("\n")
+    [
+        "omega-rust/omega/compiler/compiler/src/compiler.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_product/input_reuse.rs",
+    ]
+    .map(|path| std::fs::read_to_string(root.join(path)).expect("read product coordinator"))
+    .join("\n")
 }
 
 #[test]
@@ -817,8 +819,11 @@ fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
         !checked.contains("pub fn compile_to_checked_"),
         "package, sponsor, replay and staging choices belong in CheckedCompileRequest"
     );
-    let native = std::fs::read_to_string(root.join("compiler/terminal_native_realization.rs"))
-        .expect("read retained native entrance");
+    let native = std::fs::read_to_string(
+        workspace_root()
+            .join("omega-rust/omega/compiler/native-realization/src/retained_native_product.rs"),
+    )
+    .expect("read retained native entrance");
     assert!(native.contains("pub struct RetainedNativeRealizationRequest"));
     assert!(native.contains("pub fn realize_retained_native_artifact("));
     assert!(
@@ -1348,8 +1353,10 @@ fn compiler_product_stops_delegate_component_progress_admission() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
     let driver = compiler_product_coordinator_source(&root);
-    let native_admission = std::fs::read_to_string(compiler.join("compiler/native/admission.rs"))
-        .expect("read native optimization admission owner");
+    let native_admission = std::fs::read_to_string(
+        root.join("omega-rust/omega/compiler/native-realization/src/native_product/admission.rs"),
+    )
+    .expect("read native optimization admission owner");
     let reporting = recursive_rust_source(&compiler.join("pipeline/reporting"));
 
     assert_eq!(
@@ -1376,21 +1383,22 @@ fn production_subject_projection_is_report_owned() {
     let root = workspace_root();
     let compiler = root.join("omega-rust/omega/compiler/compiler/src");
     let driver = compiler_product_coordinator_source(&root);
-    let native_optimization = std::fs::read_to_string(compiler.join("compiler/native.rs"))
-        .expect("read native optimization join");
-    let terminal = std::fs::read_to_string(compiler.join("compiler/terminal_product.rs"))
+    let native_optimization = std::fs::read_to_string(
+        root.join("omega-rust/omega/compiler/native-realization/src/native_product.rs"),
+    )
+    .expect("read native optimization join");
+    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs"))
         .expect("read Terminal product owner");
     let product_stops = format!("{driver}\n{native_optimization}\n{terminal}");
-    let projection =
-        std::fs::read_to_string(compiler.join("pipeline/reporting/production_subject.rs"))
-            .expect("read production-subject report projection");
+    let projection = std::fs::read_to_string(
+        root.join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/checked_compilation/production_subject.rs"),
+    )
+    .expect("read production-subject projection");
 
     assert_eq!(
-        product_stops
-            .matches("reporting::project_production_subject(")
-            .count(),
+        product_stops.matches(".production_subject()?").count(),
         2,
-        "Terminal and native product stops must consume the report-owned projection"
+        "Terminal and native product stops must consume the checked-owned projection"
     );
     for forbidden in [
         "package_compilation_subject()",
@@ -1413,11 +1421,15 @@ fn production_subject_projection_is_report_owned() {
 #[test]
 fn optimization_rollback_settlement_is_owner_complete() {
     let root = workspace_root();
-    let compiler = root.join("omega-rust/omega/compiler/compiler/src/compiler");
     let native_join = format!(
         "{}\n{}",
-        std::fs::read_to_string(compiler.join("native.rs")).expect("read native coordinator"),
-        recursive_rust_source(&compiler.join("native"))
+        std::fs::read_to_string(
+            root.join("omega-rust/omega/compiler/native-realization/src/native_product.rs")
+        )
+        .expect("read native coordinator"),
+        recursive_rust_source(
+            &root.join("omega-rust/omega/compiler/native-realization/src/native_product")
+        )
     );
     let owner = std::fs::read_to_string(root.join(
         "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs",
@@ -2074,15 +2086,15 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     assert!(!lowering.contains("mod preterminal_optimization"));
     assert!(!lowering.contains("CanonicalTerminalArtifact::from_parts("));
 
-    let compiler_terminal_path =
-        root.join("omega-rust/omega/compiler/compiler/src/compiler/terminal_product.rs");
-    let compiler_terminal =
-        std::fs::read_to_string(&compiler_terminal_path).unwrap_or_else(|error| {
-            panic!(
-                "failed to read {}: {error}",
-                compiler_terminal_path.display()
-            )
-        });
+    let compiler_terminal = [
+        "omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs",
+        "omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs",
+    ]
+    .map(|path| {
+        std::fs::read_to_string(root.join(path))
+            .unwrap_or_else(|error| panic!("failed to read {path}: {error}"))
+    })
+    .join("\n");
     let compilation_report_path =
         root.join("omega-rust/omega/compiler/compilation-report/src/terminal_product.rs");
     let compilation_report =
@@ -2093,7 +2105,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let retained_realization_path =
-        root.join("omega-rust/omega/compiler/compiler/src/compiler/terminal_native_realization.rs");
+        root.join("omega-rust/omega/compiler/native-realization/src/retained_native_product.rs");
     let retained_realization =
         std::fs::read_to_string(&retained_realization_path).unwrap_or_else(|error| {
             panic!(
@@ -2102,7 +2114,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let compiler_native_path =
-        root.join("omega-rust/omega/compiler/compiler/src/compiler/native/prepared.rs");
+        root.join("omega-rust/omega/compiler/native-realization/src/native_product/prepared.rs");
     let compiler_native = std::fs::read_to_string(&compiler_native_path).unwrap_or_else(|error| {
         panic!("failed to read {}: {error}", compiler_native_path.display())
     });
@@ -2728,13 +2740,19 @@ fn optimization_projection_stops_before_target_realization() {
 #[test]
 fn retained_native_product_enters_only_terminal_realization() {
     let root = workspace_root();
-    let compiler = root.join("omega-rust/omega/compiler/compiler/src/compiler");
     let driver = compiler_product_coordinator_source(&root);
     let native = format!(
         "{}\n{}",
-        std::fs::read_to_string(compiler.join("native.rs")).expect("read native coordinator"),
-        recursive_rust_source(&compiler.join("native"))
+        std::fs::read_to_string(
+            root.join("omega-rust/omega/compiler/native-realization/src/native_product.rs")
+        )
+        .expect("read native coordinator"),
+        recursive_rust_source(
+            &root.join("omega-rust/omega/compiler/native-realization/src/native_product")
+        )
     );
+    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs"))
+        .expect("read Terminal product owner");
     let legacy_driver_path =
         root.join("omega-rust/omega/compiler/compiler/src/pipeline/compatibility/harness.rs");
     let request_path = root.join("omega-rust/omega/compiler/compiler/src/compiler/request.rs");
@@ -2746,7 +2764,7 @@ fn retained_native_product_enters_only_terminal_realization() {
             "source?.check(&options.root_path,options.target_name.as_deref(),options.build_dir(),target.package_inputs(),&target.configuration.optimization_rollback,)?"
         )
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
-            && driver.contains("native::prepare(target, checked)")
+            && driver.contains("prepare_native_product(target.into_native_product_request(), checked)")
             && driver.contains("native_inputs.realize(terminal)?")
             && native.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"
@@ -2768,8 +2786,12 @@ fn retained_native_product_enters_only_terminal_realization() {
         !legacy_driver_path.exists(),
         "the StateGraph compatibility compiler must stay deleted"
     );
+    assert!(
+        terminal.contains(".produce_program_entry(") && !native.contains(".produce_program_entry("),
+        "the program-entry Terminal artifact is produced by the Terminal stage, not by native realization"
+    );
     for required in [
-        "produce_program_entry(",
+        "produce_program_entry_terminal_artifact(",
         "validate_native_program_entry_settlement(",
         "realize_native_artifact(",
         "checked_scope: Some(&checked_boundary_operator_scope)",

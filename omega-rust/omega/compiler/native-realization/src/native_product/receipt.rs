@@ -1,5 +1,7 @@
-use crate::CheckedCompilation;
-use crate::{CompileOutputKind, CompileReport};
+//! The checked/native invocation join a native report is returned through.
+
+use assembled_syntax_to_checked_compilation::CheckedCompilation;
+use compilation_report::{CompileOutputKind, CompileReport};
 
 /// One native production report paired with the exact checked compilation
 /// consumed by that same compiler invocation.

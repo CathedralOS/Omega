@@ -339,6 +339,19 @@ impl ValidatedTargetCompilation {
     pub(super) fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.package_inputs.as_ref()
     }
+
+    /// Release this target's native product request; the shared invocation
+    /// keeps only what native production needs.
+    pub(super) fn into_native_product_request(self) -> native_realization::NativeProductRequest {
+        native_realization::NativeProductRequest {
+            root_path: self.options.root_path,
+            terminal_admission_profile: self.configuration.terminal_admission_profile,
+            terminal_authority_permission_policy: self
+                .configuration
+                .terminal_authority_permission_policy,
+            optimization_rollback: self.configuration.optimization_rollback,
+        }
+    }
 }
 
 #[cfg(test)]

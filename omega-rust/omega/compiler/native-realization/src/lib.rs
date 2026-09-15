@@ -7,12 +7,19 @@
 //! publication. It is not another program stage: the Omega program route
 //! begins at `terminal-psi-to-abstract-operations`. Target setup is supplied by
 //! backend owners. Component policy and installation remain outside this owner.
+//!
+//! Two entrances start from a compiler product rather than a bare artifact:
+//! `native_product` admits one checked compilation and realizes its
+//! program-entry Terminal artifact, and `retained_native_product` re-enters a
+//! retained Terminal product with source-evaluated imports.
 
 mod entry_settlement;
 mod native_pipeline;
+mod native_product;
 mod native_realization;
 mod optimized_semantic_wrapper_encoding;
 mod optimized_semantic_wrapper_object;
+mod retained_native_product;
 
 pub use abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
 pub use entry_settlement::{
@@ -40,6 +47,11 @@ pub use native_pipeline::{
     optimization_pipeline_report_from_object_artifact,
     optimization_pipeline_report_from_ordinary_callable_entry, optimize_artifact_sections,
     optimize_verified_abstract_input, stage_optimized_verified_physical_pipeline,
+};
+#[cfg(any(test, feature = "test-support"))]
+pub use native_product::NativeInputReuseKey;
+pub use native_product::{
+    NativeInputReuse, NativeProductRequest, PreparedNativeCompilation, prepare_native_product,
 };
 pub use native_realization::terminal_authority_permissions::{
     validate_package_terminal_authority_permissions,
@@ -95,6 +107,10 @@ pub use optimized_semantic_wrapper_object::{
     stage_validated_optimized_program_storage_semantic_wrapper_object,
     validate_installed_program_storage_continuation_evidence,
     validate_optimized_program_storage_semantic_wrapper_object,
+};
+pub use retained_native_product::{
+    RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
+    realize_retained_native_artifact,
 };
 
 #[cfg(test)]

@@ -19,11 +19,8 @@ fn proof_certified_exact_fold_projects_and_remains_target_lowerable() {
         }
     ));
     assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
-    let target = lower_optimized_to_target_operations(
-        optimized,
-        OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
-    )
-    .unwrap();
+    let target =
+        lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
     assert_eq!(target.target(), NativeTarget::linux_x64());
     assert_eq!(target.optimized().commits().len(), 1);
     assert_eq!(target.target_operations().functions.len(), 1);

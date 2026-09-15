@@ -6,6 +6,50 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[path = "../../tests/fixture_rosters/compiler_library.rs"]
 mod fixture_roster;
 
+#[test]
+fn native_input_reuse_key_distinguishes_two_nonempty_optimization_suites() {
+    use optimization_core::{Optimization, OptimizationSelections};
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("repository root");
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: repository
+                .join("tests/omega/pass/optimizer/no_selection_empty_entry/main.omg"),
+            target_name: Some("linux_x86_64".to_owned()),
+            build_dir: None,
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("produce an exact Terminal identity");
+    let identity = report
+        .retained_native_artifact()
+        .unwrap()
+        .psi_artifact()
+        .manifest()
+        .identity();
+    let key = |optimization| {
+        native_realization::NativeInputReuseKey::from_parts(
+            identity,
+            proof_admission::AdmissionProfile::default(),
+            OptimizationSelections::new([optimization])
+                .unwrap()
+                .project_post_terminal()
+                .selections()
+                .clone(),
+        )
+    };
+    let first = key(Optimization::SelectedIncomingU12ExactAddImmediate);
+    let second = key(Optimization::SelectedIncomingU12ExactSubtractImmediate);
+    assert!(!first.post_terminal_optimizations().is_empty());
+    assert!(!second.post_terminal_optimizations().is_empty());
+    assert!(first != second);
+    assert!(first == key(Optimization::SelectedIncomingU12ExactAddImmediate));
+}
+
 static NEXT_MULTI_TARGET_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 struct MultiTargetFixture {

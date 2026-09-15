@@ -40,27 +40,7 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-### Q1. An Omega-side Terminal product stage
-
-Context: `omega/compiler/compiler/src/compiler/terminal_product*` (1.7k
-lines) builds the retained Terminal artifact from a checked compilation:
-boundary application projection, callback thunks, compiler-intrinsic
-settlement, float-comparison custody, and the report. The Psi crate
-`terminal-production` owns the Psi part; the Omega part has no crate, so the
-coordinator hosts it. `terminal_native_realization.rs` (480 lines) is the
-retained-native re-entry over the same product.
-
-Problem: the coordinator hosts a stage that has no crate. The compiler should call one product entry per requested
-product and receive a report.
-
-Proposal: `omega/pipeline/checked-compilation-to-terminal-artifact`, consuming the sealed checked compilation from
-`assembled-syntax-to-checked-compilation` and returning the retained artifact and its report. Native glue
-(`compiler/native*`) then moves into `native-realization`.
-
-Alternates: put the Omega part into Psi's `terminal-production` (impossible:
-Psi cannot depend on Omega providers and packages); leave in the compiler
-(status quo); merge with Q1 into one "checked to products" crate (rejected:
-two products with different authority, and native already has its crate).
+None.
 
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
