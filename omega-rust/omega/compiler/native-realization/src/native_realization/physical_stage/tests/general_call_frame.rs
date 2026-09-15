@@ -22,7 +22,7 @@ const CALLEE_BASE: u64 = 42_000;
 /// the first and second results stay live across the second and third calls.
 /// Every live-across-call value can only occupy callee-saved storage, so the
 /// caller's frame carries real preservation slots on every target.
-fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
+pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
     let u64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let value = |id: u64| ValueDeclaration {
         qualifications: Default::default(),

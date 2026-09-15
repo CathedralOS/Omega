@@ -42,7 +42,8 @@ fn fixture() -> (
         policy: machine_code::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
         functions: vec![FunctionTargetFrameLayout {
             machine, contains_call: false, stack_pointer: register_model::RegisterViewId(0),
-            pre_call_stack_alignment: 16, frame_size_bytes: 16, abi_stack_alignment_bytes: 16,
+            pre_call_stack_alignment: 16, frame_size_bytes: 16, red_zone_resident_bytes: 0,
+            abi_stack_alignment_bytes: 16,
             outgoing_abi_area: machine_code::OutgoingAbiFrameArea { byte_size: 0, shadow_bytes: 0 },
             local_storage_slots: vec![machine_code::LocalStorageFrameSlot {
                 id, frame_offset_bytes: 0, size_bytes: 16, alignment_bytes: 8,
@@ -439,6 +440,117 @@ fn pointer_address_replay_binds_base_offset_and_store_width_without_a_frame() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn red_zone_resident_slots_resolve_below_the_unadjusted_stack_pointer() {
+    let (mut function, mut frame, mut instruction) = fixture();
+    let slot = LocalStorageSlotId::Spill {
+        register: selected_instructions::VirtualRegisterId(7),
+    };
+    function.local_storage_slots[0].id = slot;
+    function.local_storage_slots[0].byte_size = 8;
+    frame.functions[0].local_storage_slots[0].id = slot;
+    frame.functions[0].local_storage_slots[0].size_bytes = 8;
+    // The whole addressed extent lives below the unadjusted entry RSP: the
+    // prologue commits nothing and the return address sits at RSP+0.
+    frame.functions[0].frame_size_bytes = 8;
+    frame.functions[0].red_zone_resident_bytes = 8;
+    frame.functions[0].return_address =
+        machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+            post_prologue_offset_bytes: 0,
+            size_bytes: 8,
+        };
+    for (address, expected) in [
+        (
+            Address::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            -8,
+        ),
+        (
+            Address::FrameAddress {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 4,
+            },
+            -4,
+        ),
+        (
+            Address::FrameAddress {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 8,
+            },
+            0,
+        ),
+    ] {
+        instruction.address = Some(address);
+        let resolved = resolve(&function, Some(&frame), &instruction)
+            .unwrap()
+            .unwrap();
+        assert_eq!(resolved.displacement, expected);
+        validate_address(&function, Some(&frame), &instruction, Some(resolved)).unwrap();
+        for displacement in [expected - 8, expected + 8] {
+            assert!(
+                validate_address(
+                    &function,
+                    Some(&frame),
+                    &instruction,
+                    Some(ResolvedPhysicalAddress {
+                        displacement,
+                        ..resolved
+                    })
+                )
+                .is_err()
+            );
+        }
+    }
+    // Incoming storage is based on the committed extent plus the caller-frame
+    // return address, so residency never shifts it below RSP.
+    let incoming = Address::FrameAddress {
+        slot: FrameStorageSlotId::Incoming {
+            parameter_index: 8,
+            abi_stack_byte_offset: 32,
+        },
+        byte_offset: 0,
+    };
+    instruction.address = Some(incoming);
+    let resolved = resolve(&function, Some(&frame), &instruction)
+        .unwrap()
+        .unwrap();
+    assert_eq!(resolved.displacement, 8 + 32);
+    validate_address(&function, Some(&frame), &instruction, Some(resolved)).unwrap();
+    // Hosted boundary/structural access has no below-RSP form: residency on a
+    // frame carrying it is rejected rather than silently sign-extended.
+    let boundary = LocalStorageSlotId::Boundary {
+        operation: OperationId::new(3).unwrap(),
+    };
+    function.local_storage_slots[0].id = boundary;
+    function.local_storage_slots[0].byte_size = 1;
+    function.local_storage_slots[0].alignment = 1;
+    frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
+        id: boundary,
+        frame_offset_bytes: 0,
+        size_bytes: 1,
+        alignment_bytes: 1,
+    };
+    instruction.address = Some(Address::HostedWriteByteI32 { slot: boundary });
+    assert!(resolve(&function, Some(&frame), &instruction).is_err());
+    assert!(
+        validate_address(
+            &function,
+            Some(&frame),
+            &instruction,
+            Some(ResolvedPhysicalAddress {
+                symbolic: instruction.address.unwrap(),
+                displacement: -16
+            })
+        )
+        .is_err()
+    );
+    // Resident bytes can never exceed the addressed extent.
+    frame.functions[0].red_zone_resident_bytes = 24;
+    assert!(resolve(&function, Some(&frame), &instruction).is_err());
 }
 
 #[test]

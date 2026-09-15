@@ -79,8 +79,10 @@ fn request(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<u8, Aarch64SelectedFormEncodingError> {
+    // Hosted boundary storage is committed caller frame space: its
+    // displacement is always a nonnegative unsigned-immediate offset.
     if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
         || physical.model() != &crate::aarch64_physical_register_model()
         || !matches!(
@@ -94,7 +96,7 @@ fn request(
                 family: MachineAlternativeFamily::HostedWriteByteI32,
                 variant: 0,
             })
-        || displacement > 4095
+        || !(0..=4095).contains(&displacement)
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -111,9 +113,11 @@ pub fn encode_aarch64_selected_hosted_write_byte_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let register = request(target, physical, kind, alternative, operands, displacement)?;
+    let displacement = u32::try_from(displacement)
+        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
     let mut words = vec![
         0x3900_03e0 | (displacement << 10) | u32::from(register),
         0xd280_0020,
@@ -152,7 +156,7 @@ pub fn encode_aarch64_selected_hosted_write_byte_form(
         kind,
         alternative,
         operands,
-        displacement,
+        i64::from(displacement),
         &bytes,
     )
 }
@@ -163,11 +167,13 @@ pub fn validate_aarch64_selected_hosted_write_byte_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let register = request(target, physical, kind, alternative, operands, displacement)?;
-    if decode(target, bytes) != Some((register, displacement)) {
+    if decode(target, bytes).map(|(register, offset)| (register, i64::from(offset)))
+        != Some((register, displacement))
+    {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(ValidatedAarch64SelectedFormEncoding {

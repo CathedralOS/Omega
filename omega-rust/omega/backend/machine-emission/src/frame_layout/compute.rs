@@ -195,7 +195,7 @@ fn function_layout(
     let used_area_bytes = callee_save_area_bytes
         .checked_add(preservation_offset)
         .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
-    let (stack_pointer, frame_size_bytes, return_address) =
+    let (stack_pointer, frame_size_bytes, red_zone_resident_bytes, return_address) =
         match (environment.target().architecture, abi) {
             (
                 Architecture::X86_64,
@@ -219,11 +219,40 @@ fn function_layout(
                 } else {
                     align_up(used_area_bytes, 8)?
                 };
+                // A System V leaf whose whole storage extent fits inside the
+                // red zone commits nothing: every byte stays below the
+                // unadjusted entry RSP. Residency is admitted only when all
+                // activation storage is allocator spill slots, so no hosted
+                // or structural access can observe a below-RSP coordinate
+                // through a channel that cannot express one.
+                let red_zone_capacity = u64::from(
+                    register_environment::selected_abi_preservation(environment)
+                        .map_err(|_| TargetFrameLayoutError::UnsupportedTarget)?
+                        .convention
+                        .red_zone_bytes,
+                );
+                let red_zone_resident = if convention
+                    == FrameAbiPreservationConvention::SystemVAMD64
+                    && !contains_call
+                    && callee_save_slots.is_empty()
+                    && frame_size != 0
+                    && frame_size <= red_zone_capacity
+                    && local_storage.iter().all(|slot| {
+                        matches!(
+                            slot.id,
+                            selected_instructions::LocalStorageSlotId::Spill { .. }
+                        )
+                    }) {
+                    frame_size
+                } else {
+                    0
+                };
                 (
                     stack_pointer,
                     frame_size,
+                    red_zone_resident,
                     ReturnAddressFrameCustody::CallerActivationStack {
-                        post_prologue_offset_bytes: frame_size,
+                        post_prologue_offset_bytes: frame_size - red_zone_resident,
                         size_bytes: 8,
                     },
                 )
@@ -255,6 +284,7 @@ fn function_layout(
                     (
                         stack_pointer,
                         align_up(used, 16)?,
+                        0,
                         ReturnAddressFrameCustody::SavedLinkRegister {
                             view: link,
                             frame_offset_bytes: link_offset,
@@ -265,6 +295,7 @@ fn function_layout(
                     (
                         stack_pointer,
                         align_up(used_area_bytes, 16)?,
+                        0,
                         ReturnAddressFrameCustody::LiveLinkRegister { view: link },
                     )
                 }
@@ -272,7 +303,12 @@ fn function_layout(
             _ => return Err(TargetFrameLayoutError::UnsupportedTarget),
         };
 
-    let stack_probe = probe_plan(environment.target(), frame_size_bytes)?;
+    // Only the committed extent needs stack-commit probing; red-zone-resident
+    // bytes are already below the unadjusted stack pointer.
+    let stack_probe = probe_plan(
+        environment.target(),
+        frame_size_bytes - red_zone_resident_bytes,
+    )?;
 
     Ok(FunctionTargetFrameLayout {
         machine,
@@ -280,6 +316,7 @@ fn function_layout(
         stack_pointer,
         pre_call_stack_alignment: 16,
         frame_size_bytes,
+        red_zone_resident_bytes,
         abi_stack_alignment_bytes: 16,
         outgoing_abi_area,
         local_storage_slots,

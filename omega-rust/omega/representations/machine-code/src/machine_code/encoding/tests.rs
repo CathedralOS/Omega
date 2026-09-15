@@ -116,13 +116,13 @@ fn read_byte_identity_binds_structural_home_and_distinguishes_write_effects() {
 }
 
 #[test]
-fn current_encoding_binds_the_version_20_ordinary_instruction_schema() {
+fn current_encoding_binds_the_version_21_ordinary_instruction_schema() {
     let mut program = deferred_program();
-    // V20 adds exact packed memory selected forms and address payloads.
+    // V21 signs resolved address displacements for red-zone-resident frames.
     // This deferred-branch payload is unchanged; its schema domain still changes.
     // Assemble the canonical bytes independently of the production encoder.
     use sha2::{Digest, Sha256};
-    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v20".to_vec();
+    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v21".to_vec();
     canonical.extend_from_slice(&[1; 32]); // Selected identity.
     canonical.extend_from_slice(&[2; 32]); // Physical identity.
     canonical.push(0); // No post-allocation rewrite custody.
@@ -136,8 +136,8 @@ fn current_encoding_binds_the_version_20_ordinary_instruction_schema() {
     }
     assert_eq!(canonical.len(), 187);
     let expected = [
-        102, 251, 57, 62, 145, 173, 123, 114, 4, 118, 50, 160, 118, 45, 162, 26, 187, 195, 13, 146,
-        86, 56, 58, 84, 0, 223, 45, 157, 52, 254, 163, 218,
+        125, 214, 39, 72, 88, 119, 92, 28, 12, 132, 27, 41, 130, 113, 128, 112, 56, 106, 133, 238,
+        77, 71, 63, 40, 58, 52, 0, 26, 185, 248, 36, 221,
     ];
     assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
     assert_eq!(program.recomputed_identity().bytes(), expected);

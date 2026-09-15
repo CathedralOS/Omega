@@ -8,6 +8,7 @@ mod conditional;
 mod conditional_fixture;
 mod general_call_frame;
 mod ordered_calls;
+mod red_zone_resident_frame;
 mod runtime_rematerialization_pressure;
 mod runtime_spill_pressure;
 mod stack_probe_commit;

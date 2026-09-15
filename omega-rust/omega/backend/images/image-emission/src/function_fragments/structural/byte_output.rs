@@ -61,7 +61,11 @@ pub(super) fn settlement(
         .iter()
         .find(|candidate| candidate.id == slot)
         .ok_or(Error::Mismatch("byte output scratch slot"))?;
-    if scratch.frame_offset_bytes != u64::from(offset)
+    // The decoded displacement is an RSP-relative byte offset; it equals the
+    // frame-space offset only for a committed frame. A red-zone-resident frame
+    // cannot carry hosted storage at all.
+    if frame.red_zone_resident_bytes != 0
+        || scratch.frame_offset_bytes != u64::from(offset)
         || scratch.size_bytes != 1
         || scratch.alignment_bytes != 1
         || u64::from(offset) >= frame.frame_size_bytes
@@ -207,6 +211,7 @@ pub(super) fn validate(
         || source_value != value
         || instruction != row.id
         || !matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
+        || frame.red_zone_resident_bytes != 0
         || scratch_byte_offset != scratch.frame_offset_bytes
         || scratch.size_bytes != 1
         || scratch.alignment_bytes != 1

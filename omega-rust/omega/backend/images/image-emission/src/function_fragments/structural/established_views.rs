@@ -154,7 +154,10 @@ fn local_location(
         .iter()
         .filter(|candidate| candidate.id == slot);
     let local = slots.next().ok_or_else(invalid)?;
-    if slots.next().is_some()
+    // The frame-space offset is published as a stack location: only a
+    // committed frame can carry the structural storage this view describes.
+    if frame.red_zone_resident_bytes != 0
+        || slots.next().is_some()
         || local.size_bytes != byte_size
         || local.alignment_bytes != 8
         || local.frame_offset_bytes % 8 != 0

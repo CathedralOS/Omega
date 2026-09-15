@@ -85,7 +85,16 @@ pub struct FunctionTargetFrameLayout {
     pub contains_call: bool,
     pub stack_pointer: RegisterViewId,
     pub pre_call_stack_alignment: u16,
+    /// Addressed frame extent in bytes. Slot offsets are measured upward from
+    /// the lowest addressed byte; the committed extent is
+    /// `frame_size_bytes - red_zone_resident_bytes`.
     pub frame_size_bytes: u64,
+    /// Bytes of the addressed extent that live below the unadjusted entry
+    /// stack pointer, inside the ABI red zone. Either zero (a committed
+    /// frame) or equal to `frame_size_bytes` (the whole extent is
+    /// red-zone-resident and the prologue commits nothing). Nonzero only on
+    /// leaf functions under conventions that guarantee a red zone.
+    pub red_zone_resident_bytes: u64,
     pub abi_stack_alignment_bytes: u16,
     pub outgoing_abi_area: OutgoingAbiFrameArea,
     pub local_storage_slots: Vec<LocalStorageFrameSlot>,

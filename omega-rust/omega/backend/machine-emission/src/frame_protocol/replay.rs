@@ -35,6 +35,17 @@ pub(super) fn validate_bytes(
         }
         // ISA encoding is the shared primitive. The submitted row, role,
         // offsets, lengths, ordering and exact arena extent are checked here.
+        // The commit schedule covers only the non-red-zone extent, and a
+        // resident frame can never carry preservation storage or a call.
+        let committed_bytes = function
+            .frame_size_bytes
+            .checked_sub(function.red_zone_resident_bytes)
+            .ok_or(Error::NonCanonicalEncoding)?;
+        if function.red_zone_resident_bytes != 0
+            && (function.contains_call || !function.callee_save_slots.is_empty())
+        {
+            return Err(Error::NonCanonicalEncoding);
+        }
         let (prologue, epilogue) = match environment.target().architecture {
             Architecture::X86_64 => {
                 if !matches!(
@@ -54,7 +65,7 @@ pub(super) fn validate_bytes(
                     .collect::<Vec<_>>();
                 isa_x86_64::encode_system_v_amd64_frame_protocol(
                     environment.physical(),
-                    function.frame_size_bytes,
+                    committed_bytes,
                     isa_x86_64::X86_64StackProbe {
                         interval_bytes: function.stack_probe.interval_bytes,
                         touches: function.stack_probe.touches,
@@ -92,7 +103,7 @@ pub(super) fn validate_bytes(
                 }
                 isa_aarch64::encode_aapcs64_frame_protocol(
                     environment.physical(),
-                    function.frame_size_bytes,
+                    committed_bytes,
                     isa_aarch64::Aarch64StackProbe {
                         interval_bytes: function.stack_probe.interval_bytes,
                         touches: function.stack_probe.touches,

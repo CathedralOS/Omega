@@ -42,6 +42,11 @@ pub(in crate::function_fragments::structural) fn location(
         operation,
         place: argument.place,
     };
+    // The returned stack location is an RSP-relative byte offset: only a
+    // committed frame can carry the structural storage it names.
+    if frame.red_zone_resident_bytes != 0 {
+        return Err(invalid());
+    }
     frame_location(
         &frame.local_storage_slots,
         frame.frame_size_bytes,

@@ -16,7 +16,7 @@ use super::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v20";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v21";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,

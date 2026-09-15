@@ -90,7 +90,7 @@ fn pointer_stores_and_offsets_replay_every_bit_and_operand() {
                         kind,
                         MachineAlternativeFamily::Store,
                         &operands,
-                        byte_offset,
+                        i64::from(byte_offset),
                     );
                 }
             }
@@ -100,7 +100,7 @@ fn pointer_stores_and_offsets_replay_every_bit_and_operand() {
                     SelectedInstructionKind::AddressOffset { byte_offset },
                     MachineAlternativeFamily::AddressOffset,
                     &operands,
-                    byte_offset,
+                    i64::from(byte_offset),
                 );
             }
         }
@@ -112,7 +112,7 @@ fn check_replay(
     kind: SelectedInstructionKind,
     family: MachineAlternativeFamily,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) {
     let alternative = MachineAlternativeKey { family, variant: 0 };
     let encoded =
@@ -230,7 +230,7 @@ fn pointer_stores_reject_unsupported_widths_and_offsets() {
                 },
                 alternative,
                 &operands,
-                byte_offset
+                i64::from(byte_offset)
             )
             .is_err()
         );

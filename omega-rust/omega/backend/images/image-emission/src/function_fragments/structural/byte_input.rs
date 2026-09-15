@@ -136,7 +136,11 @@ pub(super) fn settlement(
         .iter()
         .find(|candidate| candidate.id == slot)
         .ok_or_else(invalid)?;
-    if home.frame_offset_bytes != u64::from(offset)
+    // The decoded displacement is an RSP-relative byte offset; it equals the
+    // frame-space offset only for a committed frame. A red-zone-resident frame
+    // cannot carry hosted storage at all.
+    if frame.red_zone_resident_bytes != 0
+        || home.frame_offset_bytes != u64::from(offset)
         || home.size_bytes != u32::from(layout.shape.byte_size)
         || home.alignment_bytes != layout.shape.alignment
         || home
@@ -268,6 +272,7 @@ pub(super) fn validate(
         || produced.defining_operation != *operation
         || produced.result != *result
         || produced.layout != *layout
+        || frame.red_zone_resident_bytes != 0
         || u64::from(produced.home_byte_offset) != home.frame_offset_bytes
         || home.size_bytes != u32::from(layout.shape.byte_size)
         || home.alignment_bytes != layout.shape.alignment

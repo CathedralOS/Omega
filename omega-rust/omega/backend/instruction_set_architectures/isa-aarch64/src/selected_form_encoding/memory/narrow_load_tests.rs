@@ -17,16 +17,13 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
             MachineAlternativeFamily::Load16
         };
         let alternative = MachineAlternativeKey { family, variant: 0 };
-        for displacement in [0, u32::from(width), 4095 * u32::from(width)] {
+        for byte_offset in [0, u32::from(width), 4095 * u32::from(width)] {
             let kind = if width == 1 {
-                SelectedInstructionKind::Load8 {
-                    byte_offset: displacement,
-                }
+                SelectedInstructionKind::Load8 { byte_offset }
             } else {
-                SelectedInstructionKind::Load16 {
-                    byte_offset: displacement,
-                }
+                SelectedInstructionKind::Load16 { byte_offset }
             };
+            let displacement = i64::from(byte_offset);
             for base_name in ["x0", "x1", "x15", "x28"] {
                 let base = physical.model().view_named(base_name).unwrap().id;
                 let destination = physical.model().view_named("x2").unwrap().id;
@@ -108,19 +105,15 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                         kind,
                         alternative,
                         &operands,
-                        displacement + u32::from(width),
+                        displacement + i64::from(width),
                         encoded.bytes()
                     )
                     .is_err()
                 );
                 let changed_kind = if width == 1 {
-                    SelectedInstructionKind::Load16 {
-                        byte_offset: displacement,
-                    }
+                    SelectedInstructionKind::Load16 { byte_offset }
                 } else {
-                    SelectedInstructionKind::Load8 {
-                        byte_offset: displacement,
-                    }
+                    SelectedInstructionKind::Load8 { byte_offset }
                 };
                 assert!(
                     validate_aarch64_selected_memory_form(
@@ -243,19 +236,17 @@ fn narrow_loads_have_zero_extending_opcodes_and_reject_invalid_addresses() {
             }
         }
     }
-    for displacement in [1, 8192] {
+    for byte_offset in [1, 8192] {
         assert!(
             encode_aarch64_selected_memory_form(
                 &physical,
-                SelectedInstructionKind::Load16 {
-                    byte_offset: displacement
-                },
+                SelectedInstructionKind::Load16 { byte_offset },
                 MachineAlternativeKey {
                     family: MachineAlternativeFamily::Load16,
                     variant: 0
                 },
                 &operands,
-                displacement
+                i64::from(byte_offset)
             )
             .is_err()
         );

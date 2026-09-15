@@ -73,5 +73,8 @@ pub struct SelectedFormEncodingCounts {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedPhysicalAddress {
     pub symbolic: physical_instructions::PhysicalAddressOperation,
-    pub displacement: u32,
+    /// Signed byte displacement from the operand base. Negative values are
+    /// admitted only for frame slots resident below the unadjusted entry
+    /// stack pointer inside the ABI red zone.
+    pub displacement: i64,
 }

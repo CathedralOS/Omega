@@ -65,8 +65,10 @@ fn request(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<(), X86_64SelectedFormEncodingError> {
+    // Hosted structural storage is committed caller frame space: its
+    // displacement is always a nonnegative offset.
     if physical.model() != &crate::x86_64_physical_register_model()
         || !matches!(
             kind,
@@ -80,7 +82,8 @@ fn request(
                 variant: 0,
             })
         || !operands.is_empty()
-        || !displacement.is_multiple_of(4)
+        || displacement < 0
+        || displacement % 4 != 0
         || displacement > 2147483640
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
@@ -94,9 +97,11 @@ pub fn encode_x86_64_selected_hosted_read_byte_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     request(physical, kind, alternative, operands, displacement)?;
+    let displacement = u32::try_from(displacement)
+        .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
     let bytes = crate::encode_linux_read_byte_to_stack(displacement, displacement + 4)
         .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
     validate_x86_64_selected_hosted_read_byte_form(
@@ -104,7 +109,7 @@ pub fn encode_x86_64_selected_hosted_read_byte_form(
         kind,
         alternative,
         operands,
-        displacement,
+        i64::from(displacement),
         &bytes,
     )
 }
@@ -115,11 +120,11 @@ pub fn validate_x86_64_selected_hosted_read_byte_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     request(physical, kind, alternative, operands, displacement)?;
-    if decode_x86_64_selected_hosted_read_byte(bytes) != Some(displacement) {
+    if decode_x86_64_selected_hosted_read_byte(bytes).map(i64::from) != Some(displacement) {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(ValidatedX86_64SelectedFormEncoding {
@@ -194,7 +199,7 @@ mod tests {
                 kind,
                 alternative,
                 &[],
-                displacement,
+                i64::from(displacement),
             )
             .unwrap();
             assert_eq!(
@@ -217,7 +222,7 @@ mod tests {
                         kind,
                         alternative,
                         &[],
-                        displacement,
+                        i64::from(displacement),
                         &changed
                     )
                     .is_err(),
@@ -236,7 +241,7 @@ mod tests {
                         kind,
                         alternative,
                         &[],
-                        invalid_offset
+                        i64::from(invalid_offset)
                     )
                     .is_err()
                 );
@@ -247,7 +252,7 @@ mod tests {
                     kind,
                     alternative,
                     &[],
-                    displacement ^ 4,
+                    i64::from(displacement ^ 4),
                     encoded.bytes()
                 )
                 .is_err()
@@ -261,7 +266,7 @@ mod tests {
                     boundary,
                     alternative,
                     &[],
-                    displacement
+                    i64::from(displacement)
                 )
                 .is_err()
             );
@@ -272,7 +277,7 @@ mod tests {
                     kind,
                     alternative,
                     &source,
-                    displacement
+                    i64::from(displacement)
                 )
                 .is_err()
             );
@@ -286,7 +291,7 @@ mod tests {
                     kind,
                     wrong,
                     &[],
-                    displacement
+                    i64::from(displacement)
                 )
                 .is_err()
             );
@@ -296,7 +301,7 @@ mod tests {
                     kind,
                     alternative,
                     &[],
-                    displacement,
+                    i64::from(displacement),
                     &encoded.bytes()[1..]
                 )
                 .is_err()

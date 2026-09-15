@@ -313,6 +313,190 @@ fn large_frames_commit_through_an_exact_probe_roster() {
 }
 
 #[test]
+fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
+    let environment = register_environment::baseline_target_register_environment(
+        target::NativeTarget::linux_x64(),
+    )
+    .unwrap();
+    let spill = |register: u32| selected_instructions::SelectedLocalStorageSlot {
+        id: selected_instructions::LocalStorageSlotId::Spill {
+            register: selected_instructions::VirtualRegisterId(register),
+        },
+        byte_size: 8,
+        alignment: 8,
+    };
+    for slots in [
+        vec![spill(0)],
+        vec![spill(0), spill(1), spill(2)],
+        // Sixteen eight-byte slots sit exactly on the 128-byte red-zone
+        // boundary: the entire addressed extent stays resident.
+        (0..16).map(spill).collect::<Vec<_>>(),
+    ] {
+        let extent = u64::try_from(slots.len()).unwrap() * 8;
+        let layout = function_layout(
+            &environment,
+            FrameAbiPreservationConvention::SystemVAMD64,
+            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+            semantic_vocabulary::MachineId::new(1).unwrap(),
+            false,
+            &[],
+            &slots,
+            0,
+            Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(layout.frame_size_bytes, extent);
+        assert_eq!(layout.red_zone_resident_bytes, extent);
+        assert_eq!(
+            layout.return_address,
+            ReturnAddressFrameCustody::CallerActivationStack {
+                post_prologue_offset_bytes: 0,
+                size_bytes: 8,
+            }
+        );
+        assert_eq!(layout.stack_probe.touches, 0);
+    }
+    // One slot past the boundary commits the whole frame again.
+    let over: Vec<_> = (0..17).map(spill).collect();
+    let layout = function_layout(
+        &environment,
+        FrameAbiPreservationConvention::SystemVAMD64,
+        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+        semantic_vocabulary::MachineId::new(1).unwrap(),
+        false,
+        &[],
+        &over,
+        0,
+        Vec::new(),
+    )
+    .unwrap();
+    assert_eq!(layout.red_zone_resident_bytes, 0);
+    assert_eq!(layout.frame_size_bytes, 136);
+    assert_eq!(
+        layout.return_address,
+        ReturnAddressFrameCustody::CallerActivationStack {
+            post_prologue_offset_bytes: 136,
+            size_bytes: 8,
+        }
+    );
+}
+
+#[test]
+fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
+    let spill = |register: u32| selected_instructions::SelectedLocalStorageSlot {
+        id: selected_instructions::LocalStorageSlotId::Spill {
+            register: selected_instructions::VirtualRegisterId(register),
+        },
+        byte_size: 8,
+        alignment: 8,
+    };
+    let structural = selected_instructions::SelectedLocalStorageSlot {
+        id: selected_instructions::LocalStorageSlotId::Structural {
+            operation: semantic_vocabulary::OperationId::new(7).unwrap(),
+            place: semantic_vocabulary::PlaceId::new(11).unwrap(),
+        },
+        byte_size: 8,
+        alignment: 8,
+    };
+    let sysv = register_environment::baseline_target_register_environment(
+        target::NativeTarget::linux_x64(),
+    )
+    .unwrap();
+    // A call, a hosted/structural slot, or any preservation storage each
+    // independently force an ordinary committed frame.
+    for (contains_call, locals, save_area, saves) in [
+        (true, vec![spill(0)], 0, Vec::new()),
+        (false, vec![structural.clone()], 0, Vec::new()),
+        (false, vec![spill(0), structural.clone()], 0, Vec::new()),
+        (
+            false,
+            vec![spill(0)],
+            8,
+            vec![CalleeSaveFrameSlot {
+                abstract_slot: machine_code::NonAuthoritativeCalleeSaveSlotId(0),
+                storage_view: sysv.physical().model().view_named("rbx").unwrap().id,
+                frame_offset_bytes: 0,
+                size_bytes: 8,
+                alignment_bytes: 8,
+            }],
+        ),
+    ] {
+        let layout = function_layout(
+            &sysv,
+            FrameAbiPreservationConvention::SystemVAMD64,
+            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+            semantic_vocabulary::MachineId::new(1).unwrap(),
+            contains_call,
+            &[],
+            &locals,
+            save_area,
+            saves,
+        )
+        .unwrap();
+        assert_eq!(layout.red_zone_resident_bytes, 0, "{locals:?}");
+        assert!(layout.frame_size_bytes != 0);
+        assert_eq!(
+            layout.return_address,
+            ReturnAddressFrameCustody::CallerActivationStack {
+                post_prologue_offset_bytes: layout.frame_size_bytes,
+                size_bytes: 8,
+            }
+        );
+    }
+    // No other admitted ABI has a usable red zone.
+    for (target, abi) in [
+        (
+            target::NativeTarget::windows_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+        ),
+        (
+            target::NativeTarget::uefi_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+        ),
+        (
+            target::NativeTarget::linux_arm64(),
+            FrameAbiPreservationConvention::Aapcs64,
+        ),
+        (
+            target::NativeTarget::macos_arm64(),
+            FrameAbiPreservationConvention::DarwinAapcs64,
+        ),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let layout = function_layout(
+            &environment,
+            abi,
+            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+            semantic_vocabulary::MachineId::new(1).unwrap(),
+            false,
+            &[],
+            &[spill(0)],
+            0,
+            Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(layout.red_zone_resident_bytes, 0, "{target:?}");
+        assert!(layout.frame_size_bytes != 0, "{target:?}");
+    }
+    // An empty leaf frame commits nothing and has nothing resident.
+    let empty = function_layout(
+        &sysv,
+        FrameAbiPreservationConvention::SystemVAMD64,
+        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+        semantic_vocabulary::MachineId::new(1).unwrap(),
+        false,
+        &[],
+        &[],
+        0,
+        Vec::new(),
+    )
+    .unwrap();
+    assert_eq!(empty.frame_size_bytes, 0);
+    assert_eq!(empty.red_zone_resident_bytes, 0);
+}
+
+#[test]
 fn windows_frames_separate_shadow_space_from_preservation_storage() {
     let environment = register_environment::baseline_target_register_environment(
         target::NativeTarget::windows_x64(),

@@ -65,8 +65,10 @@ fn request(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<u8, X86_64SelectedFormEncodingError> {
+    // Hosted boundary storage is committed caller frame space: its
+    // displacement is always a nonnegative offset below the incoming args.
     if physical.model() != &crate::x86_64_physical_register_model()
         || !matches!(
             kind,
@@ -79,7 +81,7 @@ fn request(
                 family: MachineAlternativeFamily::HostedWriteByteI32,
                 variant: 0,
             })
-        || displacement > i32::MAX as u32
+        || !(0..=i64::from(i32::MAX)).contains(&displacement)
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -95,9 +97,11 @@ pub fn encode_x86_64_selected_hosted_write_byte_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     let register = request(physical, kind, alternative, operands, displacement)?;
+    let displacement = i32::try_from(displacement)
+        .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
     let mut bytes = vec![
         0x40 | ((register >> 3) << 2),
         0x88,
@@ -115,7 +119,7 @@ pub fn encode_x86_64_selected_hosted_write_byte_form(
         kind,
         alternative,
         operands,
-        displacement,
+        i64::from(displacement),
         &bytes,
     )
 }
@@ -125,11 +129,13 @@ pub fn validate_x86_64_selected_hosted_write_byte_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     let register = request(physical, kind, alternative, operands, displacement)?;
-    if decode(bytes) != Some((register, displacement)) {
+    if decode(bytes).map(|(register, offset)| (register, i64::from(offset)))
+        != Some((register, displacement))
+    {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(ValidatedX86_64SelectedFormEncoding {

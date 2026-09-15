@@ -5467,7 +5467,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     predecessor_payload[8..10].copy_from_slice(&95_u16.to_le_bytes());
     assert_eq!(
         independent_fingerprint(&predecessor_payload),
-        "d09ebbb7d6ea88e268c8336e9c41d7c82ab2068edbdfb8cef5a2418e74b8a6b7"
+        "73c29b1d33c492230c54795da1ff2f9dc0054ddf44c4a2f3e21c6e630b368376"
     );
     assert_eq!(
         decode_installation_record(&predecessor_payload),
@@ -5475,13 +5475,13 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(
         independent_fingerprint(&bytes),
-        "d289ec57299e77c36a06adb8a2f78117fd49ae51aca38163d6c340e31713a5ec"
+        "628df2e366c243ebcdb9c4d2166f0a1c56bbb8da23edabffce1417401d122062"
     );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "d289ec57299e77c36a06adb8a2f78117fd49ae51aca38163d6c340e31713a5ec"
+        "628df2e366c243ebcdb9c4d2166f0a1c56bbb8da23edabffce1417401d122062"
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a
