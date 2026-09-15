@@ -14,11 +14,9 @@ use abstract_operations::{AbstractOperationPlan, AbstractOperationPlanWithPlaced
 use retention::retain_verified_optimization_input;
 
 /// Canonical artifact sections. An offered ledger must replay exactly before
-/// proof decoding; absence does not bypass ordinary verification. Ordinary
-/// and native admission require a subject-sealed proof section naming this
-/// module's reconstructed identity; only the optimizer admission still
-/// accepts an unsealed bundle during the SUBJECT-QUALIFIED-ARTIFACT-PROOFS
-/// transition.
+/// proof decoding; absence does not bypass ordinary verification. Every
+/// admission — ordinary, optimizer, and native — requires a subject-sealed
+/// proof section naming this module's reconstructed identity.
 #[derive(Clone, Copy)]
 pub struct ArtifactSections<'artifact> {
     pub semantic_bytes: &'artifact [u8],
@@ -72,14 +70,13 @@ pub fn lower_artifact(
 }
 
 /// Admit optimizer authority, which cannot be promoted to native authority.
-/// The optimizer admission still accepts an unsealed proof bundle while its
-/// bare-bundle test producers migrate; the ordinary and native admissions
-/// already require the sealed section.
+/// Like every admission boundary, it requires the subject-sealed proof
+/// section.
 pub fn lower_artifact_for_optimization(
     sections: ArtifactSections<'_>,
     profile: &proof_admission::AdmissionProfile,
 ) -> Result<AdmittedOptimizationArtifact, ArtifactLoweringError> {
-    let (module, proof) = prepare_artifact_for_optimization(sections)?;
+    let (module, proof) = prepare_artifact(sections)?;
     let verified = terminal_verifier::verify_module_for_optimization(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     Ok(AdmittedOptimizationArtifact {
@@ -115,26 +112,14 @@ fn prepare_artifact_sections(
     Ok(module)
 }
 
-/// Ordinary and native admission require the subject-sealed proof section:
-/// the seal must name this module's reconstructed identity, so a bare proof
-/// bundle or a section sealed to another subject is rejected here.
+/// Every admission requires the subject-sealed proof section: the seal must
+/// name this module's reconstructed identity, so a bare proof bundle or a
+/// section sealed to another subject is rejected here.
 fn prepare_artifact(
     sections: ArtifactSections<'_>,
 ) -> Result<(terminal_psi::TerminalModule, terminal_verifier::ProofBundle), ArtifactLoweringError> {
     let module = prepare_artifact_sections(sections)?;
     let proof = terminal_codec::decode_proof_section_for(&module, sections.proof_bytes)
-        .map_err(ArtifactLoweringError::ProofDecode)?;
-    Ok((module, proof))
-}
-
-/// The optimizer admission is the last transitional consumer: it still
-/// decodes an unsealed bundle because bare-bundle test producers remain in
-/// `native-realization`'s physical-stage tests.
-fn prepare_artifact_for_optimization(
-    sections: ArtifactSections<'_>,
-) -> Result<(terminal_psi::TerminalModule, terminal_verifier::ProofBundle), ArtifactLoweringError> {
-    let module = prepare_artifact_sections(sections)?;
-    let proof = terminal_codec::decode_proof_bundle_for(&module, sections.proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)?;
     Ok((module, proof))
 }

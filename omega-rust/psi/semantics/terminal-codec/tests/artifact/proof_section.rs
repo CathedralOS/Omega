@@ -11,9 +11,9 @@ use terminal_codec::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactError, PccReceiverPolicy,
     PccVerificationOutcome, ProofCodecError, admission_profile_identity,
     build_identity_optimization_execution_record, build_psi_proof_sidecar, decode_proof_bundle,
-    decode_proof_bundle_for, decode_proof_section, decode_proof_section_for, encode_module,
-    encode_proof_bundle, encode_proof_section, encode_psi_optimization_execution_record,
-    terminal_psi_identity, verify_psi_proof_sidecar, verify_terminal_artifact_proof,
+    decode_proof_section, decode_proof_section_for, encode_module, encode_proof_bundle,
+    encode_proof_section, encode_psi_optimization_execution_record, terminal_psi_identity,
+    verify_psi_proof_sidecar, verify_terminal_artifact_proof,
 };
 use terminal_verifier::verify_module;
 
@@ -41,10 +41,6 @@ fn sealed_proof_section_round_trips_and_exposes_the_reconstructed_subject() {
         decode_proof_section_for(&module, &section).expect("own subject"),
         bundle
     );
-    assert_eq!(
-        decode_proof_bundle_for(&module, &section).expect("own subject"),
-        bundle
-    );
 }
 
 #[test]
@@ -68,14 +64,17 @@ fn sealed_proof_section_rejects_replay_for_another_subject_with_coinciding_coord
         reconstructed: foreign_subject,
     });
     assert_eq!(decode_proof_section_for(&foreign, &sealed), mismatch);
-    assert_eq!(decode_proof_bundle_for(&foreign, &sealed), mismatch);
 
     // Legacy in-process decode still yields the bundle but discards the seal.
     assert_eq!(decode_proof_bundle(&sealed).unwrap(), bundle);
 
-    // An unsealed bundle remains admissible at transitional boundaries.
+    // An unsealed bundle is not a proof section: the subject-paired decode
+    // rejects it before any module comparison.
     let bare = encode_proof_bundle(&bundle).unwrap();
-    assert_eq!(decode_proof_bundle_for(&foreign, &bare).unwrap(), bundle);
+    assert!(matches!(
+        decode_proof_section_for(&foreign, &bare),
+        Err(ProofCodecError::InvalidMagic)
+    ));
 }
 
 #[test]
