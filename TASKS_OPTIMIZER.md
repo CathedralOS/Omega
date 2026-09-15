@@ -487,11 +487,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   unsigned immediate bound to `CompareI64Immediate` — or `CompareI64Zero`
   for a literal of zero — keeping the compare's identity, position, and
   published flag surface while retaining the materialization for other
-  readers, each under replayed restore-by-content validation (crate
-  `nextest`: 211 pass). Remaining: copy removal, address folding,
-  scheduling, left-operand literal folding (immediate forms fix the literal
-  as the subtrahend), and producers whose contracts do not fix the high
-  bits (`ZeroExtendU32` output, packed loads, FP bit transfers).
+  readers — and `rewrites/copy_removal` removes a `CopyI64` whose
+  destination's only mentions are plain `Use` operands later in the same
+  block, rebinding each to the source and dropping the destination roster
+  row, admitting a source redefinition on the last use's own instruction
+  but none inside the open interval, each under replayed
+  restore-by-content validation (crate `nextest`: 242 pass). Remaining:
+  address folding, scheduling, left-operand literal folding (immediate
+  forms fix the literal as the subtrahend), and producers whose contracts
+  do not fix the high bits (`ZeroExtendU32` output, packed loads, FP bit
+  transfers).
 
 ## Proof-, ownership-, and state-aware optimization
 
