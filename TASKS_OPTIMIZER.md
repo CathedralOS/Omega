@@ -419,10 +419,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `ldr xzr, [sp]` touch of each newly entered page, and `FrameAddress`
   forms every displacement a committable frame resolves through the same
   add pair (both Darwin's 16 KiB unprobed granule and Linux's 4 KiB
-  probed granule publish). Acceptance: every admitted frame policy
+  probed granule publish). The red-zone policy is landed: a leaf whose
+  fixed-register divide pressure recovers through runtime spill keeps its
+  whole addressed extent resident below the unadjusted entry stack pointer
+  on System V AMD64 — empty prologue and epilogue spans, signed
+  below-RSP displacements replayed row by row against the validated
+  geometry — while the same program stays an ordinary committed frame on
+  every other admitted ABI, a suppressed or invented resident extent
+  replays false, and the artifact still publishes as an ordinary callable
+  on all four targets
+  (`red_zone_resident_frame::resident_leaf_spill_frame_publishes_through_ordinary_callable_entry`).
+  Acceptance: every admitted frame policy
   replays its exact physical accesses through callable publication;
   requirements artifacts remain non-authoritative until that replay
-  succeeds. Remaining: red-zone policy, unwind information,
+  succeeds. Remaining: unwind information,
   stable-address loans, and dynamic-allocation constraints; general
   calls still need target-owned frame, callee-save, link-register, and
   call-site alignment plans beyond the landed callee-save frames.
