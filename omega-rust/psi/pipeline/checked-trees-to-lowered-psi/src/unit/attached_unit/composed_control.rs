@@ -14,7 +14,7 @@ mod prefixed_control;
 mod routing;
 mod scalar_calls;
 mod state_graph;
-pub(crate) use crate::machine_lowering::machine_dispatch::SourceMappedLowered;
+pub(crate) use crate::producer_result::SourceMappedLowered;
 pub(super) use callable::admit as admit_callable;
 pub(crate) use catalogs::ComposedCatalogs;
 

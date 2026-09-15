@@ -12,7 +12,8 @@ pub(crate) fn with_result_range(
     result_position: usize,
     plan: &ClosedScalarValueContractPlan,
 ) -> Result<ClosedScalarValueContractPlan, LoweringError> {
-    let (_, source) = crate::scalar_graph::scalar_source_custody::authored_state(checked, state)?;
+    let (_, source) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
     if !matches!(
         checked
             .type_reference_table

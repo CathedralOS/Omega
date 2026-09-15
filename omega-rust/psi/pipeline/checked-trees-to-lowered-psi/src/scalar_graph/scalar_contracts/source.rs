@@ -72,13 +72,13 @@ pub(crate) fn validate_guarantees(
         };
         namespace::validate(&predicate)?;
         let scalar = CheckedScalarExpression::Boolean(Box::new(predicate));
-        crate::scalar_graph::scalar_source_custody::validate_normal_result_read_expression(
+        crate::expression_preparation::source_custody::validate_normal_result_read_expression(
             checked,
             state.symbol,
             *expression,
             &scalar,
         )?;
-        crate::scalar_graph::scalar_source_custody::value_correspondence::validate(
+        crate::expression_preparation::source_custody::value_correspondence::validate(
             checked,
             state.symbol,
             0,

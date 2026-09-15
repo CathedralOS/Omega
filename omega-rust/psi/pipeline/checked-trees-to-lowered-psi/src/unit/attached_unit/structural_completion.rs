@@ -227,7 +227,7 @@ pub(super) fn validate(
                 // and exact transfer using the shared place validator; a
                 // Named-only record test would exclude fixed arrays and closed
                 // generic applications with the same ownership obligations.
-                super::structural_values::source_custody::validate_owned_place(
+                crate::expression_preparation::source_custody::structural::validate_owned_place(
                     checked,
                     machine.machine,
                     machine.state,

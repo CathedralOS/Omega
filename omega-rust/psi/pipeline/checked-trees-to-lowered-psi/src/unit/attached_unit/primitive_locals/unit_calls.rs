@@ -39,7 +39,7 @@ pub(in crate::unit::attached_unit) fn validate(
         *coordinate,
     )?;
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     if machine.symbol != caller.machine
         || authored.target_machine != *target_machine
         || authored.target_state != *target_state

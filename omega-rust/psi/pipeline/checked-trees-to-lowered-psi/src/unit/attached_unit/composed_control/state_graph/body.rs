@@ -119,7 +119,7 @@ pub(super) fn validate(
                 },
                 StatementNode::LocalData(_) | StatementNode::Expression(_),
             ) if result.statement_index as usize == ordinal => {
-                crate::unit::attached_unit::structural_values::source_custody::validate(
+                crate::expression_preparation::source_custody::structural::validate(
                     checked,
                     machine,
                     state.state,
@@ -150,7 +150,7 @@ pub(super) fn validate(
                         if retained != value {
                             return unsupported("Unit graph scalar local value changed");
                         }
-                        crate::scalar_graph::scalar_source_custody::validate_pure(
+                        crate::expression_preparation::source_custody::validate_pure(
                             checked,
                             binding,
                             terminal_scalar_type(result.primitive_type)?,
@@ -176,7 +176,7 @@ pub(super) fn validate(
                         {
                             return unsupported("Unit graph scalar local computation changed");
                         }
-                        crate::scalar_graph::scalar_source_custody::validate_computation_calls(
+                        crate::expression_preparation::source_custody::validate_computation_calls(
                             checked,
                             machine,
                             state.state,

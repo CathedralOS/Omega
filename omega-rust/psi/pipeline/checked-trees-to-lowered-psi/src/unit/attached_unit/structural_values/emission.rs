@@ -9,10 +9,11 @@ use super::super::{
     StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense, argument_evaluation,
     edge_id, lookup_type_id, lower_structural_path, place_id, unsupported, value_id,
 };
-use super::{CheckedTrees, source_custody};
+use super::CheckedTrees;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
+use crate::expression_preparation::source_custody::structural as source_custody;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
 pub(super) type StructuralCallEmitter<'a> = dyn FnMut(
@@ -62,7 +63,7 @@ pub(crate) fn emit(
         }
     };
     let authored_state =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state)?.1;
+        crate::expression_preparation::source_custody::authored_state(checked, state)?.1;
     let sources = checked
         .facts
         .flow
@@ -297,7 +298,7 @@ fn prepare_owners(
         }
     }
     let statements = checked.statement_table.statements(
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state)?
+        crate::expression_preparation::source_custody::authored_state(checked, state)?
             .1
             .statement_nodes,
     );
@@ -361,7 +362,7 @@ fn prepare_owners(
     // places are real signature places and their residual slots die on the
     // receipt's actual death edge like any local source.
     let source_parameters = checked.state_parameters(
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state)?.1,
+        crate::expression_preparation::source_custody::authored_state(checked, state)?.1,
     );
     if let Some((_, receipt)) = checked
         .facts
@@ -655,7 +656,7 @@ impl Emission<'_, '_, '_> {
                     if let Some(place) = self.parameter_source(&argument)? {
                         return Ok(place);
                     }
-                    return crate::scalar_graph::scalar_bindings::ScalarBindings::new(
+                    return crate::expression_preparation::bindings::ScalarBindings::new(
                         self.values.len(),
                     )
                     .with_structural_parameters(&self.evaluation.structural_parameters)
@@ -719,7 +720,7 @@ impl Emission<'_, '_, '_> {
                     self.structural_types,
                     place,
                 )?;
-                let fields = crate::scalar_graph::scalar_computations::cases::fields(
+                let fields = crate::expression_preparation::computation_graph::fields(
                     self.checked,
                     &construction,
                 )?
@@ -1119,8 +1120,10 @@ impl Emission<'_, '_, '_> {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<Option<PlaceId>, LoweringError> {
-        let (_, authored) =
-            crate::scalar_graph::scalar_source_custody::authored_state(self.checked, self.state)?;
+        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            self.state,
+        )?;
         let parameters = self.checked.state_parameters(authored);
         let (position, parameter) = match &argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
@@ -1466,9 +1469,12 @@ impl Emission<'_, '_, '_> {
 
     fn rebind_local_cases(&mut self) -> Result<(), LoweringError> {
         let statements = self.checked.statement_table.statements(
-            crate::scalar_graph::scalar_source_custody::authored_state(self.checked, self.state)?
-                .1
-                .statement_nodes,
+            crate::expression_preparation::source_custody::authored_state(
+                self.checked,
+                self.state,
+            )?
+            .1
+            .statement_nodes,
         );
         let mut cases = Vec::new();
         for (symbol, argument) in &self.evaluation.structural_locals {
@@ -1488,7 +1494,7 @@ impl Emission<'_, '_, '_> {
                     && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
             }) {
                 cases.push(
-                    crate::scalar_graph::scalar_bindings::structural_cases::LocalCaseBinding::new(
+                    crate::expression_preparation::bindings::structural_cases::LocalCaseBinding::new(
                         self.checked,
                         *symbol,
                         local.type_reference,

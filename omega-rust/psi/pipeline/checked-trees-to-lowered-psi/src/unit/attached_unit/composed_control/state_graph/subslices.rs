@@ -23,7 +23,7 @@ pub(super) fn validate(
     expression: ExpressionHandle,
 ) -> Result<(), LoweringError> {
     let (machine, authored) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
     let parameter = checked
         .state_parameters(authored)
         .get(source_position as usize)
@@ -94,7 +94,7 @@ pub(super) fn validate(
         {
             return unsupported("state subslice endpoint binding changed");
         }
-        crate::scalar_graph::scalar_source_custody::validate_pure(
+        crate::expression_preparation::source_custody::validate_pure(
             checked,
             binding,
             terminal_scalar_type(PrimitiveType::U64)?,
@@ -111,7 +111,7 @@ pub(super) fn emit(
     expression: ExpressionHandle,
     source: &StructuralParameterDeclaration,
     destination: PlaceId,
-    bindings: &crate::scalar_graph::scalar_bindings::ScalarBindings,
+    bindings: &crate::expression_preparation::bindings::ScalarBindings,
     values: &[ValueDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,

@@ -15,7 +15,6 @@ pub(crate) mod branch_destinations;
 mod call_lowering;
 mod contract_lowering;
 pub(crate) mod cycles;
-mod expression_lowering;
 mod field_stores;
 mod graph_preparation;
 mod graph_validation;
@@ -33,12 +32,7 @@ use crate::emission::expression_validation::{
 };
 use crate::emission::scalar_types::terminal_scalar_type;
 pub(crate) use call_lowering::lower_scalar_call;
-#[cfg(test)]
-pub(crate) use expression_lowering::lower_checked_boolean_expression;
-pub(crate) use expression_lowering::{
-    lower_checked_scalar_expression, lower_checked_scalar_expression_at,
-    lower_checked_scalar_expression_with_parameters,
-};
+
 pub(crate) use graph_preparation::{
     prepare_scalar_graph_in_namespace, prepare_scalar_graph_machine,
 };
@@ -53,18 +47,18 @@ use super::{
     StructuralPathSegment, StructuralTypeDeclaration, build_scalar_graph_module,
     finalize_operation_proofs, lower_checked_crash_exit, machine_id, scalar_carriers, unsupported,
 };
-use crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications;
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 
-use crate::scalar_graph::scalar_bindings as storage;
+use crate::expression_preparation::bindings as storage;
+use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
 use crate::scalar_graph::scalar_graph_lowering::graph_preparation::prepare_standalone_scalar_graph_machine;
-use crate::scalar_graph::scalar_source_custody as source_custody;
 
 pub(crate) fn checked_scalar_computation_call_targets(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
-    computations::call_targets(checked, machine)
+    crate::expression_preparation::computation_graph::call_targets(checked, machine)
 }
 
 pub(crate) fn lower_scalar_graph_machine(

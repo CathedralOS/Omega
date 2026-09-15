@@ -12,7 +12,7 @@ use super::super::{
     UnitBody, checked_unit_target_reach_matches, primitive_locals, provider_attachments,
     reference_results, retain_exact_checked_flow_call, retain_exact_flow_call,
     retain_exact_unit_boundary, scalar_arrays, scalar_structural_calls, structural_calls,
-    structural_values, unique_unit_boundary,
+    unique_unit_boundary,
 };
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedBoundaryMachinePlan;
@@ -44,7 +44,7 @@ pub(super) fn validate<'a>(
         structural_calls::validate_custody(checked, machine.machine, machine.state, operation)?;
         match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                structural_values::source_custody::validate(
+                crate::expression_preparation::source_custody::structural::validate(
                     checked,
                     machine.machine,
                     machine.state,

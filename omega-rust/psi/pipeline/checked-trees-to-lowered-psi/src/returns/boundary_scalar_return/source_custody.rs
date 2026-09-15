@@ -13,7 +13,7 @@ pub(super) fn validate(
 ) -> Result<(), LoweringError> {
     let program = &checked.typed;
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     let mut attachments = program
         .data_definitions()
         .iter()
@@ -188,7 +188,7 @@ pub(super) fn validate(
         .ok_or(LoweringError::Unsupported(
             "boundary scalar return has no unique source-bound value",
         ))?;
-    crate::scalar_graph::scalar_source_custody::validate_pure(
+    crate::expression_preparation::source_custody::validate_pure(
         checked,
         binding,
         terminal_scalar_type(plan.result_type)?,

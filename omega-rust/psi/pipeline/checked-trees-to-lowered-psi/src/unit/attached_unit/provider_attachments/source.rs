@@ -44,7 +44,7 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
         return Ok(());
     };
     let (owner, source) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
     if owner.symbol != machine {
         return unsupported("provider call lost its authored machine");
     }

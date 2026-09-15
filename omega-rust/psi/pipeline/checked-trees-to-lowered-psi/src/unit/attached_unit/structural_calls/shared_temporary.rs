@@ -16,7 +16,7 @@ pub(super) fn validate(
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Result<(), LoweringError> {
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let Some(StatementNode::Call(call)) = checked
         .statement_table
         .statements(state.statement_nodes)

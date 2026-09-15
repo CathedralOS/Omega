@@ -29,10 +29,12 @@ fn prepare_shared_qualifications(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     values: &[ValueDeclaration],
-) -> Result<crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications, LoweringError>
-{
+) -> Result<
+    crate::expression_preparation::qualifications::PreparedScalarQualifications,
+    LoweringError,
+> {
     let qualifications =
-        crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications::prepare(
+        crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
             checked,
             &[machine],
         )?;
@@ -51,18 +53,19 @@ pub(crate) struct Evaluation {
     pub(crate) selection_cleanups: Vec<SelectionCleanup>,
     pub(crate) structural_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
     pub(crate) local_cases:
-        Vec<crate::scalar_graph::scalar_bindings::structural_cases::LocalCaseBinding>,
+        Vec<crate::expression_preparation::bindings::structural_cases::LocalCaseBinding>,
     pub(crate) arrays: Vec<crate::scalar_graph::scalar_computations::arrays::Slot>,
     pub(crate) cases: Vec<crate::scalar_graph::scalar_computations::cases::Slot>,
     pub(crate) record_fields: Vec<crate::scalar_graph::scalar_computations::fields::Binding>,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// State-local storage has its own namespace; it is not an immutable slot.
     /// Other callers retain the ordinary dense source-prefix mapping.
-    pub scalar_bindings: Option<crate::scalar_graph::scalar_bindings::ScalarBindings>,
+    pub scalar_bindings: Option<crate::expression_preparation::bindings::ScalarBindings>,
     pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
-    pub structural_fields: Vec<crate::scalar_graph::scalar_bindings::StructuralScalarFieldBinding>,
+    pub structural_fields:
+        Vec<crate::expression_preparation::bindings::StructuralScalarFieldBinding>,
     pub structural_cases:
-        Vec<crate::scalar_graph::scalar_bindings::structural_cases::StructuralCaseBinding>,
+        Vec<crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding>,
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
@@ -191,7 +194,7 @@ impl Evaluation {
             return unsupported("structural value binding was established twice");
         }
         let (_, source) =
-            crate::scalar_graph::scalar_source_custody::authored_state(checked, state)?;
+            crate::expression_preparation::source_custody::authored_state(checked, state)?;
         let local = match checked
             .statement_table
             .statements(source.statement_nodes)
@@ -225,7 +228,7 @@ impl Evaluation {
             local_symbol = local.symbol;
             if matches!(declaration.shape, StructuralTypeShape::Sum { .. }) {
                 self.local_cases.push(
-                    crate::scalar_graph::scalar_bindings::structural_cases::LocalCaseBinding::new(
+                    crate::expression_preparation::bindings::structural_cases::LocalCaseBinding::new(
                         checked,
                         local.symbol,
                         local.type_reference,
@@ -595,7 +598,7 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| {
-                crate::scalar_graph::scalar_bindings::ScalarBindings::new(source_value_count)
+                crate::expression_preparation::bindings::ScalarBindings::new(source_value_count)
             })
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
@@ -751,7 +754,7 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| {
-                crate::scalar_graph::scalar_bindings::ScalarBindings::new(values.len())
+                crate::expression_preparation::bindings::ScalarBindings::new(values.len())
             })
             .with_primitive_storage(&self.primitive_storage)
             .with_structural_parameters(&self.structural_parameters)

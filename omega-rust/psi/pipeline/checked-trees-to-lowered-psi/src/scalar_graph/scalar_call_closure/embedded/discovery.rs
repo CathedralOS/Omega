@@ -121,7 +121,9 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
         };
         let mut computed = source_checked_computation_targets(checked, machine)?;
         let mut computed_structural =
-            crate::scalar_graph::scalar_computations::structural_call_targets(checked, machine)?;
+            crate::expression_preparation::computation_graph::structural_call_targets(
+                checked, machine,
+            )?;
         if let crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::Operations(
             plan,
         ) = callee
@@ -204,7 +206,7 @@ fn source_checked_computation_targets(
         {
             return unsupported("embedded computation has no unique live source root");
         }
-        let source = crate::scalar_graph::scalar_source_custody::locate(
+        let source = crate::expression_preparation::source_custody::locate(
             checked,
             root.state,
             root.statement_ordinal,
@@ -217,7 +219,7 @@ fn source_checked_computation_targets(
         {
             return unsupported("embedded computation disagrees with its authored source root");
         }
-        crate::scalar_graph::scalar_source_custody::validate_computation_calls(
+        crate::expression_preparation::source_custody::validate_computation_calls(
             checked,
             machine,
             root.state,
@@ -226,5 +228,5 @@ fn source_checked_computation_targets(
             source.expression,
         )?;
     }
-    crate::scalar_graph::scalar_computations::call_targets(checked, machine)
+    crate::expression_preparation::computation_graph::call_targets(checked, machine)
 }

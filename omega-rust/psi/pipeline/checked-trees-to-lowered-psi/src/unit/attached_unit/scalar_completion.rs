@@ -26,7 +26,7 @@ pub(super) fn validate(
         return unsupported("ordinary completion has both scalar and structural results");
     }
     let (source, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, machine.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
     let statements = checked
         .typed
         .statement_table

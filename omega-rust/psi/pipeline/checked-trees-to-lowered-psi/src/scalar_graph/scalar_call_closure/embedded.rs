@@ -155,7 +155,7 @@ impl EmbeddedScalarCalls {
             return unsupported("embedded scalar helper overlaps an excluded source owner");
         }
         let qualifications =
-            crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications::prepare(
+            crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
                 checked, &closure,
             )?;
         if !qualifications.catalog().domains.is_empty() {
@@ -213,7 +213,8 @@ pub(crate) fn computation_targets(
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let nodes = &checked.facts.values.scalar_computations.nodes;
     let mut targets = Vec::new();
-    for handle in crate::scalar_graph::scalar_computations::reachable_nodes(checked, roots)? {
+    for handle in crate::expression_preparation::computation_graph::reachable_nodes(checked, roots)?
+    {
         if let CheckedScalarComputationKind::Call { target_machine, .. } = nodes.get(handle).kind
             && !targets.contains(&target_machine)
         {

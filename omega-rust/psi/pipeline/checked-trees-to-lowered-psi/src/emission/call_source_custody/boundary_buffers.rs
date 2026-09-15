@@ -42,7 +42,7 @@ pub(super) fn validate(
         _ => return Ok(()),
     };
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let signature = authored::target_signature(checked, machine.symbol, call.source_target)?;
     let is_mutable_byte_view = |parameter: &checked_trees::signature::StateParameter| {
         let TypeReferenceNode::Reference {

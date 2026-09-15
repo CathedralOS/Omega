@@ -28,6 +28,8 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
+use crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call;
 use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
@@ -90,8 +92,8 @@ pub(crate) use parameters::lower_contract_service_ceiling;
 pub(crate) use parameters::{
     checked_scalar_source_parameters, literal_argument_places,
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
-    lower_structural_arguments, lower_structural_path, lower_unit_parameters,
-    structural_carrier_type, validate_transfer_shape,
+    lower_structural_arguments, lower_unit_parameters, structural_carrier_type,
+    validate_transfer_shape,
 };
 pub(crate) use provider_attachments::lower_provider_attachment_places;
 use provider_attachments::validate_provider_attachment_requirements;
@@ -134,65 +136,6 @@ fn retain_exact_checked_flow_call(
     target: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
     retain_exact_flow_call(checked, machine.machine, machine.state, coordinate, target).map(|_| ())
-}
-
-pub(crate) fn retain_exact_flow_call(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    source_state: symbols::SymbolHandle,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    target: symbols::SymbolHandle,
-) -> Result<&checked_trees::FlowCallFact, LoweringError> {
-    let mut states = checked
-        .facts
-        .flow
-        .control
-        .states
-        .iter()
-        .filter_map(|(_, state)| {
-            (state.machine_symbol == machine && state.state_symbol == source_state).then_some(state)
-        });
-    let Some(state) = states.next() else {
-        return unsupported("Unit scalar call is missing its original checked flow state");
-    };
-    if states.next().is_some() {
-        return unsupported("Unit scalar call has duplicate original checked flow states");
-    }
-    let statement_index = usize::try_from(coordinate.statement_index).map_err(|_| {
-        LoweringError::Unsupported("Unit scalar call statement coordinate exceeds usize")
-    })?;
-    let call_ordinal = usize::try_from(coordinate.call_ordinal).map_err(|_| {
-        LoweringError::Unsupported("Unit scalar call ordinal coordinate exceeds usize")
-    })?;
-    let authored = crate::emission::call_source_custody::authored::locate_source(
-        checked,
-        source_state,
-        coordinate,
-    )?;
-    if authored.target_state != target {
-        return unsupported("Unit result call disagrees with its authored resolved target");
-    }
-    let mut exact_calls = checked
-        .facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
-        .iter()
-        .filter(|call| {
-            call.statement_index == statement_index && call.call_ordinal == call_ordinal
-        });
-    // Flow retains the authored callable parameter, while the operation names
-    // its resolved boundary requirement. Rejoin both identities through source.
-    let exact = exact_calls.next().ok_or(LoweringError::Unsupported(
-        "Unit call has no original checked flow occurrence",
-    ))?;
-    if exact.target_symbol != authored.source_target || exact_calls.next().is_some() {
-        return unsupported(
-            "Unit scalar call coordinate and target do not rejoin its original checked flow call",
-        );
-    }
-    Ok(exact)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -263,12 +206,9 @@ pub(crate) fn retain_exact_unit_boundary<'plans>(
 pub(crate) fn lower_unit_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
-) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     let closure = lower_shared_unit_closure(checked, entry, &[entry], None)?;
-    crate::machine_lowering::machine_dispatch::SourceMappedLowered::new(
-        closure.lowered,
-        closure.machine_ids,
-    )
+    crate::producer_result::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
 }
 
 /// Nominal cleanup assembles the final caller and cleanup contracts itself,
@@ -317,7 +257,7 @@ enum RuntimeRequirementOwner {
 pub(crate) fn lower_scalar_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
-) -> Result<crate::machine_lowering::machine_dispatch::SourceMappedLowered, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     let mut closure = assemble_unit_closure(
         checked,
         entry,
@@ -327,10 +267,7 @@ pub(crate) fn lower_scalar_effect_closure(
         true,
     )?;
     finalize_operation_proofs(&mut closure.lowered)?;
-    crate::machine_lowering::machine_dispatch::SourceMappedLowered::new(
-        closure.lowered,
-        closure.machine_ids,
-    )
+    crate::producer_result::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
 }
 
 fn assemble_unit_closure(
@@ -961,7 +898,7 @@ fn assemble_unit_closure(
             .map(|(source, parameter)| (source.position, parameter.clone()))
             .collect();
         evaluation.primitive_storage =
-            crate::scalar_graph::scalar_source_custody::primitive_references::bindings(
+            crate::expression_preparation::source_custody::primitive_references::bindings(
                 checked,
                 plan.state,
                 &evaluation.structural_parameters,
@@ -969,12 +906,12 @@ fn assemble_unit_closure(
             )?;
         let mut staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
         evaluation.structural_fields =
-            crate::scalar_graph::scalar_bindings::StructuralScalarFieldBinding::collect(
+            crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
                 &evaluation.structural_parameters,
                 &structural_types,
             );
         evaluation.structural_cases =
-            crate::scalar_graph::scalar_bindings::structural_cases::StructuralCaseBinding::collect(
+            crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding::collect(
                 &evaluation.structural_parameters,
                 &structural_types,
             );
@@ -1247,7 +1184,7 @@ fn assemble_unit_closure(
                     {
                         return unsupported("primitive local is established more than once");
                     }
-                    let value = crate::scalar_graph::scalar_bindings::ScalarBindings::new(
+                    let value = crate::expression_preparation::bindings::ScalarBindings::new(
                         source_value_count,
                     )
                     .with_primitive_storage(&evaluation.primitive_storage)
@@ -2761,7 +2698,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                     )?
                 }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-                    let bindings = crate::scalar_graph::scalar_bindings::ScalarBindings::new(
+                    let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
                         scalar_result_values.len(),
                     )
                     .with_primitive_storage(&evaluation.primitive_storage)
@@ -2795,7 +2732,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                     )?
                 }
                 CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
-                    let bindings = crate::scalar_graph::scalar_bindings::ScalarBindings::new(
+                    let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
                         scalar_result_values.len(),
                     )
                     .with_primitive_storage(&evaluation.primitive_storage)
@@ -3098,7 +3035,7 @@ qualifications: Default::default(), id: emit_direct_expression(&argument, &scala
                                     &[],
                                 )?;
                                 Ok(terminal_psi::StructuralReferenceResultSource {
-                                    path: parameters::lower_structural_path(&reference.path),
+                                    path: lower_structural_path(&reference.path),
                                     source: arguments[0].clone(),
                                 })
                             })

@@ -15,7 +15,7 @@ pub(super) fn validate(
     if !plans.nodes.is_valid(root) {
         return unsupported("scalar computation has no live root");
     }
-    let source = crate::scalar_graph::scalar_source_custody::locate(
+    let source = crate::expression_preparation::source_custody::locate(
         checked,
         site.state,
         site.statement,
@@ -31,7 +31,7 @@ pub(super) fn validate(
     } else {
         symbols::SymbolHandle::invalid()
     };
-    crate::scalar_graph::scalar_source_custody::validate_computation_calls(
+    crate::expression_preparation::source_custody::validate_computation_calls(
         checked,
         machine,
         site.state,

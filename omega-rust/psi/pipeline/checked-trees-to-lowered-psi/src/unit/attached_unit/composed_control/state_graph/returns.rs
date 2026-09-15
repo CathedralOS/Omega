@@ -95,7 +95,7 @@ pub(super) fn validate_case(
         return unsupported("case result is not a nominal sum");
     };
     let expression =
-        crate::scalar_graph::scalar_source_custody::guarded_exits::completion_expression(
+        crate::expression_preparation::source_custody::guarded_exits::completion_expression(
             checked, source, ordinal,
         )?;
     let (case_symbol, authored) = match checked.expression_table.expression(expression) {
@@ -186,7 +186,7 @@ pub(super) fn validate_case(
         {
             return unsupported("case return field expression disagrees with source");
         }
-        crate::scalar_graph::scalar_source_custody::validate_pure(
+        crate::expression_preparation::source_custody::validate_pure(
             checked,
             binding,
             terminal_scalar_type(field.primitive_type)?,
@@ -277,7 +277,7 @@ pub(super) fn validate_structural(
                     operation,
                     CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 ) {
-                    crate::unit::attached_unit::structural_values::source_custody::validate(
+                    crate::expression_preparation::source_custody::structural::validate(
                         checked,
                         plan.machine,
                         state.state,
@@ -369,7 +369,7 @@ pub(super) fn emit(
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     result: &TerminalMachineResult,
-    bindings: &crate::scalar_graph::scalar_bindings::ScalarBindings,
+    bindings: &crate::expression_preparation::bindings::ScalarBindings,
     catalogs: &mut catalogs::ComposedCatalogs,
     values: &[ValueDeclaration],
     next_value: &mut u64,
@@ -399,7 +399,7 @@ pub(super) fn emit_case(
     state: &CheckedComposedUnitControlStatePlan,
     construction: &checked_trees::CheckedStructuralCaseReturnPlan,
     result: &TerminalMachineResult,
-    bindings: &crate::scalar_graph::scalar_bindings::ScalarBindings,
+    bindings: &crate::expression_preparation::bindings::ScalarBindings,
     catalogs: &mut catalogs::ComposedCatalogs,
     values: &[ValueDeclaration],
     next_value: &mut u64,

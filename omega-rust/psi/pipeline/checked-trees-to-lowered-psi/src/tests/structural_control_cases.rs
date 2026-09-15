@@ -4,9 +4,8 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, SymbolHandle,
     checked_source, hard_root_checked_fixture, lower_machine,
 };
-use crate::machine_lowering::machine_dispatch::{
-    ConformancePublication, lower_selected_machine, select_terminal_machine,
-};
+use crate::machine_lowering::machine_dispatch::{lower_selected_machine, select_terminal_machine};
+use crate::producer_result::{ConformancePublication, OperandProofCompletion};
 use crate::terminal_identities::{block_id, edge_id, place_id, value_id};
 use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
 use checked_trees::types::PrimitiveType;
@@ -783,7 +782,7 @@ fn static_requirement_evidence_does_not_preempt_exact_structural_unit_control() 
         .expect("retained structural control wins before attached-Unit fallback");
 
     assert_eq!(routed.source_machines, [root]);
-    assert!(!routed.completion.finalize_operands);
+    assert_eq!(routed.completion.operands, OperandProofCompletion::Validate);
     assert!(matches!(
         routed.completion.conformances,
         ConformancePublication::Reconstruct

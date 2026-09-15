@@ -181,11 +181,11 @@ pub(crate) fn normalize_shared_boolean_comparison_leaves(
 
 #[cfg(test)]
 mod tests {
-    use super::super::IntegerSign;
     use super::{
         BTreeSet, IntegerType, LoweredDirectExpression, LoweredIntegerBinaryKind, ScalarType,
         SharedBooleanRuntimeInput, shared_integer_runtime_parameters,
     };
+    use semantic_vocabulary::IntegerSign;
 
     fn integer_type() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap())

@@ -46,7 +46,7 @@ impl Evaluation {
             .ok_or(LoweringError::Unsupported(
                 "guard has no retained source value",
             ))?;
-        crate::scalar_graph::scalar_source_custody::validate_pure(
+        crate::expression_preparation::source_custody::validate_pure(
             checked,
             binding,
             ScalarType::Boolean,
@@ -56,7 +56,7 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| {
-                crate::scalar_graph::scalar_bindings::ScalarBindings::new(values.len())
+                crate::expression_preparation::bindings::ScalarBindings::new(values.len())
             })
             .with_primitive_storage(&self.primitive_storage)
             .with_local_cases(&self.local_cases)
@@ -165,14 +165,14 @@ impl Evaluation {
             return unsupported("scalar source prefix exceeds its retained values");
         }
         let source =
-            crate::scalar_graph::scalar_source_custody::locate(checked, state, statement, role)?;
+            crate::expression_preparation::source_custody::locate(checked, state, statement, role)?;
         let scalar_type = terminal_scalar_type(source.primitive_type)?;
         if matches!(
             role,
             CheckedScalarExpressionRole::ReturnCaseField { .. }
                 | CheckedScalarExpressionRole::StructuralValueField { .. }
         ) {
-            crate::scalar_graph::scalar_source_custody::value_correspondence::validate(
+            crate::expression_preparation::source_custody::value_correspondence::validate(
                 checked,
                 state,
                 statement,
@@ -194,7 +194,7 @@ impl Evaluation {
                 if retained != value {
                     return unsupported("scalar value differs from its retained source binding");
                 }
-                crate::scalar_graph::scalar_source_custody::validate_pure(
+                crate::expression_preparation::source_custody::validate_pure(
                     checked,
                     binding,
                     scalar_type,
@@ -225,7 +225,7 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| {
-                crate::scalar_graph::scalar_bindings::ScalarBindings::new(source_value_count)
+                crate::expression_preparation::bindings::ScalarBindings::new(source_value_count)
             })
             .with_primitive_storage(&self.primitive_storage)
             .with_local_cases(&self.local_cases)

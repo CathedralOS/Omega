@@ -19,7 +19,7 @@ pub(crate) fn validate_store_and_initializer_calls(
 ) -> Result<(), LoweringError> {
     use checked_trees::statement::StatementNode;
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let has_stores = statements
         .iter()
@@ -119,7 +119,7 @@ pub(crate) fn validate_store_and_initializer_calls(
             // A local initializer's computation owns its outer call as well as
             // nested operands. Requiring a second ScalarCall would execute it
             // twice; replay the existing computation's complete call roster.
-            crate::scalar_graph::scalar_source_custody::validate_computation_calls(
+            crate::expression_preparation::source_custody::validate_computation_calls(
                 checked,
                 plan.machine,
                 plan.state,
@@ -219,8 +219,10 @@ pub(crate) fn validate_operation(
                 return unsupported("discarded scalar result changed its authored signature");
             }
         } else {
-            let (_, state) =
-                crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+            let (_, state) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                caller_state,
+            )?;
             let statements = checked
                 .typed
                 .statement_table
@@ -238,7 +240,7 @@ pub(crate) fn validate_operation(
                     binding_ordinal: result.binding_ordinal,
                 }
             };
-            let source = crate::scalar_graph::scalar_source_custody::locate(
+            let source = crate::expression_preparation::source_custody::locate(
                 checked,
                 caller_state,
                 result.statement_index,
@@ -387,7 +389,7 @@ pub(crate) fn validate_operation(
                 {
                     return unsupported("call scalar operand disagrees with its authored argument");
                 }
-                crate::scalar_graph::scalar_source_custody::validate_pure(
+                crate::expression_preparation::source_custody::validate_pure(
                     checked,
                     binding,
                     terminal_scalar_type(*primitive_type)?,
@@ -410,7 +412,7 @@ pub(crate) fn validate_operation(
                 if node.authored_root != *expression || node.primitive_type != *primitive_type {
                     return unsupported("call computation disagrees with its authored argument");
                 }
-                crate::scalar_graph::scalar_source_custody::validate_computation_calls(
+                crate::expression_preparation::source_custody::validate_computation_calls(
                     checked,
                     caller_machine,
                     caller_state,
@@ -469,7 +471,7 @@ fn validate_owned_parameter_arguments(
         return Ok(());
     }
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller_state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let target = authored::target_signature(checked, machine.symbol, call.source_target)?;
     let positions =
         literal_arguments::structural_positions(checked, &target, structural_arguments.len())?;

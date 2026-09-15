@@ -65,8 +65,8 @@ use terminal_verifier::{
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
 };
+use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::scalar_graph::scalar_graph_lowering::lower_checked_scalar_expression;
 use crate::terminal_identities::{
     dense_identity, lookup_claim_id, machine_id, obligation_id, proposition_id, value_id,
 };

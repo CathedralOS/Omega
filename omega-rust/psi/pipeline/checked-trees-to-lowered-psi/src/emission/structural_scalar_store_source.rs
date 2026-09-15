@@ -13,7 +13,7 @@ pub(crate) fn validate(
 ) -> Result<(), LoweringError> {
     crate::unit::attached_unit::primitive_locals::validate_roster(checked, plan)?;
     let (machine, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     if machine.symbol != plan.machine {
         return unsupported("structural scalar store has a different authored machine");
     }
@@ -402,7 +402,7 @@ pub(crate) fn validate_assignment(
     store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
 ) -> Result<(), LoweringError> {
     let (owner, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state_symbol)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     if owner.symbol != machine || statement_index != store.statement_index {
         return unsupported("structural scalar store has a different authored machine");
     }
@@ -484,7 +484,7 @@ pub(crate) fn validate_assignment(
         .ok_or(LoweringError::Unsupported(
             "structural scalar store RHS has no retained primitive carrier",
         ))?;
-    crate::scalar_graph::scalar_source_custody::validate_pure(
+    crate::expression_preparation::source_custody::validate_pure(
         checked,
         binding,
         terminal_scalar_type(primitive_type)?,
@@ -559,7 +559,7 @@ pub(crate) fn computation_root(
     if root.machine != machine || root.root != handle || !plans.nodes.is_valid(handle) {
         return unsupported("field assignment computation root has different custody");
     }
-    let source = crate::scalar_graph::scalar_source_custody::locate(
+    let source = crate::expression_preparation::source_custody::locate(
         checked,
         state,
         store.statement_index,
@@ -574,7 +574,7 @@ pub(crate) fn computation_root(
     {
         return unsupported("field assignment computation differs from its authored RHS");
     }
-    crate::scalar_graph::scalar_source_custody::validate_computation_calls(
+    crate::expression_preparation::source_custody::validate_computation_calls(
         checked,
         machine,
         state,

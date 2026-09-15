@@ -16,17 +16,14 @@ use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::expression_preparation::computation_graph::fields;
+use crate::expression_preparation::source_custody::case_sources as source;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
 use checked_trees::data::DataMember;
-use checked_trees::{
-    CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
-    CheckedScalarComputationStructuralArgument,
-};
+use checked_trees::{CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
-
-pub(crate) mod source;
 
 #[derive(Clone)]
 pub(crate) struct Slot {
@@ -46,34 +43,6 @@ pub(crate) struct Construction {
     pub(super) multiplicity: StructuralMultiplicity,
     pub(super) case: StructuralCaseId,
     pub(super) fields: Vec<(StructuralFieldId, LoweredDirectExpression)>,
-}
-
-pub(crate) fn fields<'a>(
-    checked: &'a CheckedTrees,
-    subject: &CheckedScalarCaseConstruction,
-) -> Result<&'a [CheckedScalarCaseComputationField], LoweringError> {
-    checked
-        .facts
-        .values
-        .scalar_computations
-        .case_fields
-        .span(subject.fields)
-        .ok_or(LoweringError::Unsupported(
-            "computed case has a stale field span",
-        ))
-}
-
-pub(crate) fn operand_fields<'a>(
-    checked: &'a CheckedTrees,
-    subject: &CheckedScalarComputationStructuralArgument,
-) -> Result<&'a [CheckedScalarCaseComputationField], LoweringError> {
-    match subject {
-        CheckedScalarComputationStructuralArgument::Case(subject) => fields(checked, subject),
-        CheckedScalarComputationStructuralArgument::Place(_) => Ok(&[]),
-        CheckedScalarComputationStructuralArgument::Array { .. } => {
-            unsupported("case membership cannot observe an array")
-        }
-    }
 }
 
 pub(crate) fn prepare(

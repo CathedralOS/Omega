@@ -69,7 +69,7 @@ pub(crate) fn validate_cleanup(
         return unsupported("call cleanup does not immediately follow its consumer");
     };
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let record_cleanup =
         !affine_discards.is_empty()
             && affine_discards.iter().all(|discard| {
@@ -195,8 +195,10 @@ pub(crate) fn validate_cleanup(
             shared_temporary::validate(checked, caller, producer, *coordinate, expression)
         }
         CheckedStructuralAccess::Owned if !argument.path.is_empty() => {
-            let (_, state) =
-                crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+            let (_, state) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                caller.state,
+            )?;
             if !matches!(
                 checked
                     .statement_table

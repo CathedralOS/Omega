@@ -19,7 +19,7 @@ pub(crate) fn validate_assignment(
     write: &CheckedByteSequenceWritePlan,
 ) -> Result<(), LoweringError> {
     let (owner, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state_symbol)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(assignment.target)
     else {
         return unsupported("byte-view write lost its authored index");
@@ -96,7 +96,7 @@ pub(crate) fn validate_assignment(
         if binding.expression != authored || expression != retained {
             return unsupported("byte-view write substituted an authored operand");
         }
-        crate::scalar_graph::scalar_source_custody::validate_pure(
+        crate::expression_preparation::source_custody::validate_pure(
             checked,
             binding,
             terminal_scalar_type(primitive)?,

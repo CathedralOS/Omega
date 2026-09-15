@@ -1,30 +1,27 @@
 //! Scalar-graph machine lowering.
 //!
 //! Owns scalar-graph preparation and partial evaluation, the reachable scalar
-//! call closure, terminal module assembly, and the subordinate lanes that
-//! resolve bindings, expand computations, convert contracts, rejoin source
-//! custody, and lower short-circuit Boolean control.
+//! call closure, terminal module assembly, computation expansion and contracts.
+//! Shared expression preparation and emission are consumed from their owners.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
-    CheckedBooleanExpression, CheckedBoundaryScalarReturnMachinePlan, CheckedIntegerBinaryKind,
-    CheckedIntegerComparisonKind, CheckedScalarBindingValue, CheckedScalarBranchDestination,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedStructuralScalarReturnMachinePlan,
+    CheckedBooleanExpression, CheckedBoundaryScalarReturnMachinePlan, CheckedIntegerComparisonKind,
+    CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
+    CheckedScalarSuccessor, CheckedStructuralScalarReturnMachinePlan,
     CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    ClosedScalarContractValue, ClosedScalarValueContractPlan,
+    CheckedUnitStructuralParameterPlan, ClosedScalarContractValue, ClosedScalarValueContractPlan,
 };
 use language_semantics::{Multiplicity, PermissionClaimIdentity};
 use lowered_psi::LoweredPsi;
-use numerics::arithmetic::ArithmeticDomain;
 use proof_admission::{EvidenceRoute, PrimitiveJudgment};
 use semantic_vocabulary::{
-    BlockId, ClaimId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId,
-    Proposition, QualifiedScalarType, ScalarTerm, ScalarType, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId,
+    BlockId, ClaimId, IeeeFloatFormat, IntegerType, IntegerValue, MachineId, PlaceId, Proposition,
+    QualifiedScalarType, ScalarTerm, ScalarType, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId,
 };
 use terminal_psi::{
     Block, ContentPartitionComposition, ContractClause, MachineContract, Operation, OperationKind,
@@ -51,6 +48,7 @@ use crate::emission::operation_emission::{
     emit_staged_scalar_call_binding,
 };
 use crate::emission::scalar_types::terminal_scalar_type;
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::content_conservation::{
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions,
@@ -66,22 +64,18 @@ use crate::scalar_graph::scalar_graph_lowering::{
     KnownDirectScalar, prepare_scalar_graph_machine, staged_short_circuit_bindings_terminator,
 };
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
-use crate::scalar_graph::scalar_qualifications::PreparedScalarQualifications;
 use crate::terminal_identities::{
     TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
     contract_id, dense_identity, edge_id, lookup_machine_id, lookup_type_id, machine_id,
     obligation_id, place_id, value_id,
 };
 
-pub(crate) mod scalar_bindings;
 pub(crate) mod scalar_call_closure;
 pub(crate) mod scalar_computations;
 pub(crate) mod scalar_contracts;
 pub(crate) mod scalar_graph_effects;
 pub(crate) mod scalar_graph_lowering;
 pub(crate) mod scalar_graph_module;
-pub(crate) mod scalar_qualifications;
-pub(crate) mod scalar_source_custody;
 pub(crate) mod shared_runtime_parameters;
 
 pub(crate) fn scalar_carriers(types: &[QualifiedScalarType]) -> Vec<ScalarType> {

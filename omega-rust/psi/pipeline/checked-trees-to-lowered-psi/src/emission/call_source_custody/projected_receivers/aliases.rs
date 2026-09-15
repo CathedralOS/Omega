@@ -30,7 +30,7 @@ pub(super) fn parameter_source(
     formation: bool,
 ) -> Result<Option<super::ReceiverSource>, LoweringError> {
     let (authored_machine, authored_state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
     if authored_machine.symbol != machine {
         return unsupported("receiver alias state belongs to another machine");
     }

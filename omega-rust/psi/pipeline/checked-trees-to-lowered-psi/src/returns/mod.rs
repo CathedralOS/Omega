@@ -49,6 +49,8 @@ use crate::emission::expression_validation::{
 };
 use crate::emission::operation_emission::emit_direct_expression;
 use crate::emission::scalar_types::{integer_value, terminal_scalar_type};
+use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
+use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_at;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::content_conservation;
 use crate::proofs::content_conservation::{
@@ -64,7 +66,6 @@ use crate::returns::structural_types::{
     lower_mixed_cases, lower_mixed_fields, lower_structural_type_plans,
     retain_additional_structural_types, terminal_byte_sequence_carrier,
 };
-use crate::scalar_graph::scalar_graph_lowering::lower_checked_scalar_expression_at;
 use crate::scalar_graph::shared_runtime_parameters::{
     normalize_shared_boolean_comparison_leaves, resolve_shared_boolean_member_fields,
     shared_boolean_runtime_parameters, valid_shared_boolean_runtime_inputs,
@@ -80,7 +81,7 @@ use crate::unit::attached_unit::{
     collect_installation_machine_contract_services, collect_published_contract_services,
     collect_service_summary, lower_installation_machine_service_ceiling,
     lower_published_service_ceiling, lower_root_service_reach, lower_structural_arguments,
-    lower_structural_path, lower_unit_parameters, validate_transfer_shape,
+    lower_unit_parameters, validate_transfer_shape,
 };
 use crate::unit::unit_cleanup::lower_nominal_affine_unit_cleanup_machine;
 

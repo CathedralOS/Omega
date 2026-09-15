@@ -57,7 +57,7 @@ pub(crate) fn validate_scalar_source(
             ))?;
             validate_scalar_namespace(predicate)?;
             let scalar = CheckedScalarExpression::Boolean(Box::new(predicate.clone()));
-            crate::scalar_graph::scalar_source_custody::validate_entry_read_expression(
+            crate::expression_preparation::source_custody::validate_entry_read_expression(
                 checked,
                 state.symbol,
                 *expression,
@@ -241,7 +241,7 @@ fn validate_value(
     primitive: PrimitiveType,
     value: CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
-    crate::scalar_graph::scalar_source_custody::value_correspondence::validate(
+    crate::expression_preparation::source_custody::value_correspondence::validate(
         checked,
         state,
         0,

@@ -197,7 +197,7 @@ pub(super) fn validate(
         return unsupported("ordinary structural call source is not a whole owned affine value");
     }
     let (source_machine, source_state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, caller.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked,
         caller.state,

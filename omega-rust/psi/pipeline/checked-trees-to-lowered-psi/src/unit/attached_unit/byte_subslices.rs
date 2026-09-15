@@ -127,7 +127,7 @@ pub(super) fn emit(
         .get(*parameter_index as usize)
         .ok_or(LoweringError::Unsupported("subslice source plan is absent"))?;
     let (_, state) =
-        crate::scalar_graph::scalar_source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
     let source_symbol = checked
         .state_parameters(state)
         .get(source_parameter.position as usize)
@@ -151,7 +151,7 @@ pub(super) fn emit(
     {
         return unsupported("subslice source or result changed immutable byte-view custody");
     }
-    let bindings = crate::scalar_graph::scalar_bindings::ScalarBindings::new(values.len())
+    let bindings = crate::expression_preparation::bindings::ScalarBindings::new(values.len())
         .with_structural_parameters(structural_parameters);
     let count_type = terminal_scalar_type(PrimitiveType::U64)?;
     let argument_ordinal = u32::try_from(ordinal)

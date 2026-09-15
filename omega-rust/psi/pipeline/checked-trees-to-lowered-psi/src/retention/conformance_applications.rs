@@ -465,7 +465,11 @@ mod tests {
         let mut lowered =
             crate::machine_lowering::machine_dispatch::lower_selected_machine(&checked, selection)
                 .expect("dynamic root and ordinary callee lower");
-        let owners = lowered.exact_sources.expect("exact dynamic source owners");
+        let owners = lowered
+            .source_mapping
+            .exact_owners()
+            .expect("exact dynamic source owners")
+            .to_vec();
         // This fixture enters below ordinary publication's custody passes.
         // Include the fixed-only reach application before comparing products.
         crate::retention::closed_reach_applications::retain_closed_reach_applications(
