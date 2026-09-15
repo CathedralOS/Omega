@@ -1,10 +1,10 @@
 use super::{
-    ExpressionNode, Identifier, Lexer, OperatorSpelling, ResolutionRequest, StateParameter,
-    SymbolHandle, TypeReferenceNode, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+    Identifier, Lexer, OperatorSpelling, ResolutionRequest, StateParameter, SymbolHandle,
+    TypeReferenceNode, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
 use crate::lower_typed_trees;
-use crate::tests::operators::checked_program_from_source;
-use crate::tests::operators::operator_with_spelling;
+use crate::tests::operators::{checked_program_from_source, operator_with_spelling};
+use typed_trees::expression::ExpressionNode;
 
 mod const_arguments;
 mod property_bounds;
