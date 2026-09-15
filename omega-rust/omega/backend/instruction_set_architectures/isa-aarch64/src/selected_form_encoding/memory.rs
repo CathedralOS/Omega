@@ -1,11 +1,20 @@
 //! Unsigned-offset LDR with independently decoded pointer-read evidence.
 use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
-    ValidatedPhysicalRegisterModel, aarch64_physical_register_model, resolve_registers,
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    ValidatedAarch64SelectedFormEncoding,
 };
+use crate::aarch64_physical_register_model;
+use crate::selected_form_encoding::selected_forms::resolve_registers;
+use register_model::RegisterViewId;
+use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::MachineAlternativeFamily;
+use selected_instructions::MachineAlternativeKey;
+use selected_instructions::MachineEncodedControlEffect;
+use selected_instructions::MachineEncodedEffects;
+use selected_instructions::MachineEncodedMemoryEffect;
+use selected_instructions::MachineEncodedStackEffect;
+use selected_instructions::MachineEncodedTrapBehavior;
+use selected_instructions::SelectedInstructionKind;
 mod frame;
 mod indexed;
 #[cfg(test)]
@@ -190,11 +199,11 @@ fn load_width(kind: SelectedInstructionKind) -> Result<u32, Aarch64SelectedFormE
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
-        aarch64_physical_register_model, encode_aarch64_selected_memory_form,
-        validate_aarch64_selected_memory_form,
-    };
+    use super::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
+    use crate::aarch64_physical_register_model;
+    use selected_instructions::MachineAlternativeFamily;
+    use selected_instructions::MachineAlternativeKey;
+    use selected_instructions::SelectedInstructionKind;
 
     #[test]
     fn pointer_load_replays_opcode_registers_and_scaled_offset() {

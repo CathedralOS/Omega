@@ -1,10 +1,13 @@
 //! Exact hosted exit: normalize the low i32 carrier, invoke the kernel, trap if it returns.
 use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, RegisterViewId,
-    ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel, resolve_registers,
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    ValidatedAarch64SelectedFormEncoding,
 };
+use crate::selected_form_encoding::selected_forms::resolve_registers;
 use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
+use register_model::RegisterViewId;
+use register_model::ValidatedPhysicalRegisterModel;
 use target::NativeTarget;
 
 pub(crate) fn effects(

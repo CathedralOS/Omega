@@ -1,12 +1,18 @@
 //! Ordinary unconditional B immediate control.
 
 use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
-    aarch64_physical_register_model,
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    ValidatedAarch64SelectedFormEncoding,
 };
+use crate::aarch64_physical_register_model;
+use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::MachineAlternativeFamily;
+use selected_instructions::MachineAlternativeKey;
+use selected_instructions::MachineEncodedControlEffect;
+use selected_instructions::MachineEncodedEffects;
+use selected_instructions::MachineEncodedMemoryEffect;
+use selected_instructions::MachineEncodedStackEffect;
+use selected_instructions::MachineEncodedTrapBehavior;
 pub fn encode_aarch64_selected_jump_form(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -77,11 +83,11 @@ pub fn validate_aarch64_selected_jump_form(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-        aarch64_physical_register_model, encode_aarch64_selected_jump_form,
-        validate_aarch64_selected_jump_form,
-    };
+    use super::{encode_aarch64_selected_jump_form, validate_aarch64_selected_jump_form};
+    use crate::aarch64_physical_register_model;
+    use selected_instructions::MachineAlternativeFamily;
+    use selected_instructions::MachineAlternativeKey;
+    use selected_instructions::MachineEncodedControlEffect;
     #[test]
     fn jump_round_trip_rejects_wrong_target_and_opcode() {
         let physical =
