@@ -5,8 +5,6 @@ use super::{
 };
 use std::collections::BTreeMap;
 
-use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
-use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
 use crate::terminal_interpreter::execution::ExecutableMachine;
 use crate::terminal_interpreter::execution::LiveClaim;
 use crate::terminal_interpreter::{TerminalExecutionStatus, TerminalScalarCaseValue};
@@ -167,7 +165,7 @@ fn execution() -> (TerminalExecution, Operation) {
         scalar_array_values: BTreeMap::new(),
         byte_sequence_values: BTreeMap::from([(
             place(1),
-            crate::terminal_interpreter::ByteSequenceBinding::Immutable(crate::terminal_interpreter::ByteSequenceView::new(vec![
+            crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding::Immutable(crate::terminal_interpreter::byte_sequence_view::ByteSequenceView::new(vec![
                 0, 128, 255, 7,
             ])),
         )]),

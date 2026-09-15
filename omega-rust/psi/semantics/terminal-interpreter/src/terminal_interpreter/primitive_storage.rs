@@ -30,7 +30,7 @@ enum PrimitiveStorage {
     },
 }
 
-pub(super) struct LocalStructuralIdentities {
+pub(crate) struct LocalStructuralIdentities {
     reserved: BTreeSet<u64>,
     next: Option<u64>,
 }

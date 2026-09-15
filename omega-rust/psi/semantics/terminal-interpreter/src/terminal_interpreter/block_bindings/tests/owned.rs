@@ -6,7 +6,6 @@ use super::{
     TerminalFuelMeter, TerminalInterpretError, TerminalMachineResult, TerminalScalarValue,
     TerminalStructuralValue, Terminator, ValueDeclaration, ValueId, execution, successor,
 };
-use crate::terminal_interpreter::execution::LiveClaim;
 use crate::terminal_interpreter::values::StructuralRuntimePlace;
 use crate::terminal_interpreter::values::StructuralScalarRuntimeField;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, StructuralFieldId};

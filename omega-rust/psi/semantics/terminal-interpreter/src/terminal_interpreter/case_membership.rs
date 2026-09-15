@@ -18,7 +18,7 @@ pub struct TerminalStructuralCaseValue {
 
 /// Runtime contents retain nominal type independently of the observing view.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct StructuralCaseContents {
+pub(crate) struct StructuralCaseContents {
     structural_type: StructuralTypeId,
     case: StructuralCaseId,
 }
