@@ -2,8 +2,9 @@
 
 use super::{
     OperatorSpelling, SpelledOperator, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    operator_matches_operands_with_indexed_collection, resolve_spelling,
+    resolve_spelling,
 };
+use crate::typed_trees::declarations::operator::spellings::operator_matches_operands_with_indexed_collection;
 /// Resolve `[]` / `[..]` with an implicit shared collection view in the first
 /// operand. Element bindings and every other operand use the ordinary matcher;
 /// root/domain candidates and ambiguity are retained without ranking.

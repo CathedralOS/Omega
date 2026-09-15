@@ -4,10 +4,10 @@ use symbols::{SymbolHandle, SymbolKind};
 use crate::TypedTrees;
 use crate::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-use super::{
-    OperatorConstBinding, OperatorDefinition, declared_domain_constraints_match,
-    normalized_operand_parameters, type_reference_matches_with_policy,
-};
+use super::{OperatorConstBinding, OperatorDefinition};
+use crate::typed_trees::declarations::operator::operand_signatures::normalized_operand_parameters;
+use crate::typed_trees::declarations::operator::spellings::declared_domain_constraints_match;
+use crate::typed_trees::declarations::operator::type_matching::type_reference_matches_with_policy;
 
 /// One declaration-ordered, closed operator telescope argument inferred from
 /// the exact operand tuple. Const identity deliberately excludes display text;
