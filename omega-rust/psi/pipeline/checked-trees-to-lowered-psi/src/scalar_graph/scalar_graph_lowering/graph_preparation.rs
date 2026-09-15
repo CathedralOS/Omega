@@ -1,23 +1,22 @@
 //! Preparing a scalar-graph machine under its contract mode.
 
 use super::primitive_locals;
+use crate::emission::expression_validation::validate_direct_parameter_types;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::scalar_types::terminal_scalar_type;
 use crate::scalar_graph::scalar_computations as computations;
 use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_scalar_graph_successor;
 use crate::scalar_graph::scalar_graph_lowering::contract_lowering::{
     closed_scalar_contract_plan, exact_direct_result_float_meaning_reflexivity_contract,
     lower_content_evidence, validate_closed_scalar_contract, validate_empty_scalar_contract_source,
 };
-use crate::scalar_graph::scalar_graph_lowering::graph_validation::{
-    validate_direct_parameter_types, validate_scalar_graph,
-};
+use crate::scalar_graph::scalar_graph_lowering::graph_validation::validate_scalar_graph;
 use crate::scalar_graph::scalar_graph_lowering::known_evaluation::evaluate_known_scalar_graph;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, PreparedScalarContract,
     PreparedScalarMachine,
 };
-use crate::scalar_graph::scalar_graph_lowering::scalar_types::terminal_scalar_type;
 use crate::scalar_graph::scalar_graph_lowering::{
     bindings, branch_destinations, cycles, guards, structural_values,
 };

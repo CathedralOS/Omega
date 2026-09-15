@@ -7,7 +7,7 @@ use terminal_codec::{
 };
 use terminal_psi::TerminalModule;
 
-use crate::machine_lowering::lowering_error::LoweringError;
+use crate::lowering_error::LoweringError;
 
 pub(crate) fn build_debug_map(
     plan: &CheckedTerminalMachineDebugPlan,

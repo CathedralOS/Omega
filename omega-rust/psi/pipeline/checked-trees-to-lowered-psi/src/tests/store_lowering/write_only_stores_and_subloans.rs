@@ -1,5 +1,5 @@
 use crate::lower_machine;
-use crate::machine_lowering::terminal_identities::service_id;
+use crate::terminal_identities::service_id;
 use crate::tests::{checked_source, checked_write_line_literal};
 use crate::unit::attached_unit::lower_root_service_reach;
 use semantic_vocabulary::{IntegerValue, ScalarType, StructuralPlaceKind, ValueId};

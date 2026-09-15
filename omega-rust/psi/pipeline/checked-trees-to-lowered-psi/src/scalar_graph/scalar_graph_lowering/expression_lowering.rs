@@ -5,7 +5,7 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::{
     LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
 };
-use crate::scalar_graph::scalar_graph_lowering::scalar_types::{
+use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_value, terminal_scalar_type,
 };
 use crate::scalar_graph::scalar_source_custody as source_custody;

@@ -9,12 +9,10 @@ pub(crate) mod calls;
 pub(crate) mod expressions;
 pub(crate) mod integer;
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
-use crate::machine_lowering::terminal_identities::value_id;
-use crate::scalar_graph::scalar_computations;
-use crate::scalar_graph::scalar_graph_lowering;
-use crate::scalar_graph::scalar_graph_lowering::direct_expression_contains_short_circuit;
+use crate::emission::expression_validation::direct_expression_contains_short_circuit;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
+use crate::terminal_identities::value_id;
 pub(crate) use boolean::emit_boolean_expression;
 use buffer::OperationBuffer;
 pub(crate) use calls::emit_staged_scalar_call_binding;
@@ -30,7 +28,7 @@ use terminal_psi::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarBinding {
     SelectedComparison {
-        occurrence: scalar_computations::comparisons::SelectedComparison,
+        occurrence: crate::emission::selected_comparison::SelectedComparison,
         source_machine: symbols::SymbolHandle,
         left: LoweredDirectExpression,
         right: LoweredDirectExpression,
@@ -40,7 +38,7 @@ pub(crate) enum LoweredScalarBinding {
     /// Retain the evaluated RHS while committing its separate Unit store effect.
     StoredValue {
         value: LoweredDirectExpression,
-        destination: scalar_graph_lowering::primitive_locals::StoreDestination,
+        destination: crate::emission::store_destination::StoreDestination,
     },
 }
 
@@ -129,7 +127,7 @@ pub(crate) fn emit_scalar_binding(
             Ok(id)
         }
         LoweredScalarBinding::StoredValue { value, destination } => {
-            use crate::scalar_graph::scalar_graph_lowering::primitive_locals::StoreDestination;
+            use crate::emission::store_destination::StoreDestination;
             if direct_expression_contains_short_circuit(value) {
                 return unsupported("primitive store requires a completed scalar value");
             }

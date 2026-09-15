@@ -5,7 +5,7 @@ use super::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 #[cfg(test)]
 use crate::machine_lowering::lower_machine;
 #[cfg(test)]
-use crate::machine_lowering::terminal_identities::obligation_id;
+use crate::terminal_identities::obligation_id;
 use lowered_psi::LoweredPsi;
 use proof_admission::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,

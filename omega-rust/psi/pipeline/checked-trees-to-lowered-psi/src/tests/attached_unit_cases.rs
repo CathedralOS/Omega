@@ -5,10 +5,10 @@ use super::{
     lower_machine, unit_claim_at,
 };
 use crate::machine_lowering::machine_dispatch;
-use crate::machine_lowering::terminal_identities::{
+use crate::proofs::operation_proofs::finalize_operation_proofs;
+use crate::terminal_identities::{
     boundary_machine_id, claim_id, edge_id, machine_id, place_id, service_id, structural_domain_id,
 };
-use crate::proofs::operation_proofs::finalize_operation_proofs;
 use checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,

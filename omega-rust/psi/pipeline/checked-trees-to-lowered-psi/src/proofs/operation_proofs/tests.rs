@@ -4,7 +4,7 @@ use super::{
     Proposition, finalize_operation_proofs, finalize_operation_proofs_inner, lower_machine,
     obligation_id, produce_checked_canonical_integer_proof,
 };
-use crate::machine_lowering::terminal_identities::block_id;
+use crate::terminal_identities::block_id;
 
 fn fixture(obligation_count: usize) -> LoweredPsi {
     let mut lowered = lower_source("machine root(value: u64) -> u64 { value }");

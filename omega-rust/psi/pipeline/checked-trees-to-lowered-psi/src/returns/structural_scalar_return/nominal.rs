@@ -28,10 +28,10 @@ use super::{
     terminal_scalar_type, unsupported, validate_boolean_decision_parameter_types,
     validate_boolean_parameter_types, validate_direct_parameter_types, value_id,
 };
+use crate::emission::boolean_control::LoweredBooleanDecisionExit;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::boolean_control::LoweredBooleanDecisionExit;
 
 /// Reuse the already ratified bounded nominal-Unit closure construction, then
 /// replace only its synthetic entry body with the checked scalar computation.

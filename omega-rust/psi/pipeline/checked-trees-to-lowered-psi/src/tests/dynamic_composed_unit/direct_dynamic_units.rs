@@ -7,7 +7,7 @@ use super::{
     MULTI_HOP_DYNAMIC_UNIT_SOURCE, REBOUND_DYNAMIC_UNIT_SOURCE,
     assert_dynamic_unit_artifact_executes, unsupported_message,
 };
-use crate::machine_lowering::terminal_identities::value_id;
+use crate::terminal_identities::value_id;
 use crate::tests::{checked_source, lower_machine};
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueDeclaration};
 

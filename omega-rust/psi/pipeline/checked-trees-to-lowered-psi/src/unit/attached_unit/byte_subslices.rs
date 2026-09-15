@@ -174,7 +174,7 @@ pub(super) fn emit(
             if lowered.scalar_type() != count_type {
                 return unsupported("subslice endpoints must retain u64 values");
             }
-            crate::scalar_graph::scalar_graph_lowering::validate_direct_parameter_types(
+            crate::emission::expression_validation::validate_direct_parameter_types(
                 &lowered,
                 &values
                     .iter()

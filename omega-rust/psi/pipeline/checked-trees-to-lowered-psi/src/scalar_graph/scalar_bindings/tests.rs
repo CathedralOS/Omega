@@ -9,9 +9,9 @@ use super::{
     PlaceId, ScalarBindings, ScalarType, StructuralAccess, StructuralArgument,
     terminal_scalar_type,
 };
+use crate::emission::boolean_control::LoweredBooleanDecisionExit;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::boolean_control::LoweredBooleanDecisionExit;
 use crate::scalar_graph::scalar_graph_lowering::{
     lower_checked_boolean_expression, lower_checked_scalar_expression,
 };

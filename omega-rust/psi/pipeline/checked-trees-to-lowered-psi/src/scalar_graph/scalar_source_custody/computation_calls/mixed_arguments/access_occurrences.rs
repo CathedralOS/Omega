@@ -3,8 +3,8 @@
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CheckedTrees};
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 
 /// Each result is the first access-row position of an authored formal actual.
 /// Scalar actuals may contribute zero, one, or several observation rows.

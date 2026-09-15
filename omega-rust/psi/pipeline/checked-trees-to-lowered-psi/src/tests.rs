@@ -44,7 +44,7 @@ mod structural_scalar_store;
 mod unit_cleanup;
 
 use crate::lower_machine;
-use crate::machine_lowering::lowering_error::LoweringError;
+use crate::lowering_error::LoweringError;
 use crate::retention::reborrow_root_handoff;
 use checked_trees::{CheckedScalarExpressionRole, CheckedTrees};
 use language_semantics::content::ContentFieldSegment;

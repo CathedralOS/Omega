@@ -18,9 +18,9 @@ use super::{
     AdmittedGraph, CheckedComposedUnitControlMachinePlan, CheckedStructuralControlSuccessorPlan,
     case_emission, edges, ranking, result_custody, returns, scalars, subslices, successors,
 };
+use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::scalar_graph::boolean_control::LoweredBooleanDecision;
 
 pub(in crate::unit::attached_unit::composed_control) fn emit(
     checked: &CheckedTrees,
@@ -755,19 +755,17 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                             },
                         });
                     }
-                    let decision =
-                        crate::scalar_graph::boolean_control::lower_boolean_control_decision(
-                            expression,
-                            LoweredBooleanDecision::Value(
-                                LoweredBooleanReturnExpression::Constant { value: true },
-                            ),
-                            LoweredBooleanDecision::Value(
-                                LoweredBooleanReturnExpression::Constant { value: false },
-                            ),
-                        );
-                    let tests = crate::scalar_graph::boolean_control::boolean_decision_test_count(
-                        &decision,
+                    let decision = crate::emission::boolean_control::lower_boolean_control_decision(
+                        expression,
+                        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                            value: true,
+                        }),
+                        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                            value: false,
+                        }),
                     );
+                    let tests =
+                        crate::emission::boolean_control::boolean_decision_test_count(&decision);
                     let decision_block = block_id(next_block);
                     next_block = next_block
                         .checked_add(u64::try_from(tests).map_err(|_| {
@@ -777,15 +775,15 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                             "guard decision identities overflow",
                         ))?;
                     let (root, nested) =
-                        crate::scalar_graph::boolean_control::emit_inlined_boolean_guard_blocks(
+                        crate::emission::boolean_control::emit_inlined_boolean_guard_blocks(
                             &decision,
                             &values,
                             Vec::new(),
-                            &crate::scalar_graph::boolean_control::LoweredBooleanDecisionTarget {
+                            &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
                                 block: true_block,
                                 arguments: Vec::new(),
                             },
-                            &crate::scalar_graph::boolean_control::LoweredBooleanDecisionTarget {
+                            &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
                                 block: false_block,
                                 arguments: Vec::new(),
                             },

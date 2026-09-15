@@ -21,8 +21,8 @@ use terminal_psi::{
     ServiceDeclaration, TerminalModule,
 };
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 
 pub(crate) fn retain_closed_reach_applications(
     checked: &CheckedTrees,
@@ -646,7 +646,7 @@ fn retain_services(
                 .ok_or(LoweringError::Unsupported(
                     "closed reach service identities are exhausted",
                 ))?;
-            let id = crate::machine_lowering::terminal_identities::service_id(next);
+            let id = crate::terminal_identities::service_id(next);
             module.services.push(ServiceDeclaration {
                 id,
                 identity: definition.name.clone(),

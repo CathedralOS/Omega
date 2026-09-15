@@ -2,11 +2,11 @@ use super::{assert_source_direct_float_result, checked_float_projection_source, 
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
 use crate::lower_machine;
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::terminal_identities::{operation_id, service_id, value_id};
+use crate::lowering_error::LoweringError;
 use crate::proofs::crash_routes::checked_boolean_proposition;
 use crate::retention::conformance_applications::lower_closed_conformance_applications;
 use crate::scalar_graph::shared_runtime_parameters::normalize_shared_boolean_comparison_leaves;
+use crate::terminal_identities::{operation_id, service_id, value_id};
 use crate::unit::attached_unit::lower_root_service_reach;
 use checked_trees::CheckedBooleanExpression;
 use numerics::arithmetic::ArithmeticDomain;

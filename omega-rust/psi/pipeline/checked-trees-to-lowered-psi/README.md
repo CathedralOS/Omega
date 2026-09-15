@@ -5,7 +5,7 @@ machine, lowers its source closure, retains source custody and evidence, checks
 the completed module, and attaches debug companions. Its result is unsealed Psi;
 optimization and portable publication belong to the following stages.
 
-[Machine selection](src/machine_dispatch.rs) owns plan precedence. Each selected
+[Machine selection](src/machine_lowering/machine_dispatch.rs) owns plan precedence. Each selected
 producer supplies its source closure and the work still required before
 returning: conformance publication, operand proof completion, and debug
 eligibility. The coordinator does not classify the source shape again.
@@ -18,23 +18,23 @@ rejecting when the required exact owner is unavailable.
 The plan families beneath the coordinator are concept-owned modules beside
 `lib.rs`; each root file names the work its directory owns:
 
-- [`unit`](src/unit.rs): attached, dynamic composed, structural-control and
+- [`unit`](src/unit/mod.rs): attached, dynamic composed, structural-control and
   cleanup Unit machines, plus the runtime requirements they derive.
-- [`returns`](src/returns.rs): affine, boundary-scalar, payloadless and
+- [`returns`](src/returns/mod.rs): affine, boundary-scalar, payloadless and
   structural return machines, with the structural types they publish.
-- [`scalar_graph`](src/scalar_graph.rs): scalar-graph preparation, bindings,
+- [`scalar_graph`](src/scalar_graph/mod.rs): scalar-graph preparation, bindings,
   computations, call closure, source custody and module assembly.
-- [`emission`](src/emission.rs): operation and store emission shared by Unit
+- [`emission`](src/emission/mod.rs): operation and store emission shared by Unit
   and scalar bodies, with the call-operand source custody it replays.
-- [`retention`](src/retention.rs): checked custody installed on the assembled
+- [`retention`](src/retention/mod.rs): checked custody installed on the assembled
   module: reach and conformance applications, reborrow handoffs, retained
   borrows, suspension plans and placed view inputs.
-- [`proofs`](src/proofs.rs): propositions, contracts, certificates and
+- [`proofs`](src/proofs/mod.rs): propositions, contracts, certificates and
   evidence artifacts.
 
 [`lowering_error`](src/lowering_error.rs) and
 [`terminal_identities`](src/terminal_identities.rs) carry the failure and
-identity vocabulary every producer shares; [`debug_map`](src/debug_map.rs)
+identity vocabulary every producer shares; [`debug_map`](src/machine_lowering/debug_map.rs)
 presents the Terminal debug companion.
 
 The subordinate owners follow the work:
@@ -75,8 +75,18 @@ with [Boolean](src/emission/operation_emission/boolean.rs) and
 [integer](src/emission/operation_emission/integer.rs) operations beside it.
 The invocation-owned [buffer](src/emission/operation_emission/buffer.rs)
 retains operation identities and source-occurrence companions. Short-circuit
-expressions become blocks in [Boolean control](src/scalar_graph/boolean_control.rs);
+expressions become blocks in [Boolean control](src/emission/boolean_control.rs);
 they are not eagerly evaluated by the leaf emitter.
+
+Emission also owns [primitive scalar types](src/emission/scalar_types.rs),
+[store destinations](src/emission/store_destination.rs),
+[selected-comparison metadata](src/emission/selected_comparison.rs), and
+[lowered-expression validation](src/emission/expression_validation.rs).
+Unit, return and scalar-graph producers consume these shared operations directly.
+Graph cycle checks and branch staging remain in scalar-graph preparation; local
+place allocation stays there too. Source-bound expression preparation still
+depends on scalar bindings and source-custody reconstruction; that dependency is
+not removed by relocating the emitted-value vocabulary.
 
 Working plans live with these operations, not in the pipeline root's namespace.
 Content result records remain with [content lowering](src/proofs/content_conservation.rs).

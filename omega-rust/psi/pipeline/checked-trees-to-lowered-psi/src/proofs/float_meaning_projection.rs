@@ -14,8 +14,8 @@ use terminal_psi::{
     ProofValueDeclaration, ProofValueId, TerminalMachine, TerminalMachineResult,
 };
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::scalar_graph::scalar_graph_lowering::terminal_scalar_type;
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::lowering_error::LoweringError;
 
 pub fn lower_float_meaning_equality(
     checked: CheckedFloatMeaningEqualityProposition,
@@ -856,7 +856,7 @@ mod tests {
                 ),
             ],
             contract: terminal_psi::MachineContract {
-                id: crate::machine_lowering::terminal_identities::contract_id(1),
+                id: crate::terminal_identities::contract_id(1),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),

@@ -18,9 +18,9 @@ use super::{
     terminal_scalar_type, unsupported, validate_boolean_parameter_types,
     validate_direct_parameter_types, value_id,
 };
+use crate::emission::boolean_control::LoweredBooleanDecisionExit;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::boolean_control::LoweredBooleanDecisionExit;
 
 mod effects;
 mod expressions;

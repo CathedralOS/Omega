@@ -1,8 +1,8 @@
 //! Canonical proof production for a measured source-produced literal.
 
 use super::{LoweringError, checked_source, lower_machine};
-use crate::machine_lowering::terminal_identities::{obligation_id, operation_id, value_id};
-use crate::scalar_graph::scalar_graph_lowering::terminal_scalar_type;
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::terminal_identities::{obligation_id, operation_id, value_id};
 use checked_trees::types::PrimitiveType;
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::IntegerValue;

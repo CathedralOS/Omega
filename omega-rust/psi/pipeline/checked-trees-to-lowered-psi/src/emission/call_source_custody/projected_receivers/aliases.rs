@@ -3,8 +3,8 @@
 //! This binds erased names to their exact loans. The separate root-handoff
 //! receiving pass retains complete lineage; neither pass grants restored use.
 
-use crate::machine_lowering::lowering_error::LoweringError;
-use crate::machine_lowering::lowering_error::unsupported;
+use crate::lowering_error::LoweringError;
+use crate::lowering_error::unsupported;
 use arena::Handle;
 use checked_trees::CheckedTrees;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};

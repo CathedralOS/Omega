@@ -3,7 +3,7 @@
 use super::{
     CheckedTrees, LoweringError, ScalarType, TerminalMachineResult, checked_source, lower_machine,
 };
-use crate::machine_lowering::terminal_identities::{block_id, place_id, value_id};
+use crate::terminal_identities::{block_id, place_id, value_id};
 use checked_trees::types::PrimitiveType;
 use checked_trees::{CheckedScalarExpression, CheckedStructuralScalarReturnCleanupAction};
 use terminal_psi::{

@@ -5,9 +5,9 @@ use super::{
     LoweringError, ScalarType, contains_short_circuit, lower_boolean_value_decision,
     validate_boolean_parameter_types,
 };
+use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::boolean_control::LoweredBooleanDecision;
 
 pub(super) fn is_structural_scalar_return_expression(
     expression: &LoweredDirectExpression,

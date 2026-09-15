@@ -1,12 +1,15 @@
 //! Short-circuit Boolean decision lowering and terminal control emission.
-use super::{
-    Block, BlockId, LoweringError, QualifiedScalarType, SuccessorEdge, Terminator,
-    ValueDeclaration, ValueId, block_id, contains_short_circuit,
-    direct_expression_contains_short_circuit, edge_id, emit_boolean_expression, value_id,
+use crate::emission::expression_validation::{
+    contains_short_circuit, direct_expression_contains_short_circuit,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::emission::operation_emission::boolean::emit_boolean_expression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::lowering_error::LoweringError;
+use crate::terminal_identities::{block_id, edge_id, value_id};
+use semantic_vocabulary::{BlockId, QualifiedScalarType, ValueId};
+use terminal_psi::{Block, SuccessorEdge, Terminator, ValueDeclaration};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredBooleanDecision {
