@@ -1,4 +1,5 @@
-use super::*;
+use super::super::compile_resolved_package_candidate_for_check;
+use super::{Project, TARGET, assert_empty_directory};
 use package_compilation::AcceptedSemanticBindingRole;
 
 #[test]

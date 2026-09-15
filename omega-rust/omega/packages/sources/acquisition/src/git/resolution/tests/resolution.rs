@@ -1,5 +1,11 @@
-use super::*;
-
+use super::{
+    GitCommitId, GitObjectIdAlgorithm, GitSourceRequest, GitTransportProfile, GitTreeId,
+    ImmutableSourceResolution, LocalSourceLimits, PendingResolvedGitSource, SourceResolveError,
+    add_empty_tree_commit, create_git_source, create_git_source_with_format, local_git_request,
+    make_tree_owner_writable, parse_git_remote_object_format, resolve_git_source, run_test_git,
+    temp_root, validate_pending_git_request, validate_pending_git_source_custody,
+    verify_pending_git_snapshot,
+};
 #[test]
 fn git_source_resolves_exact_commit_and_local_identity() {
     let (repo, commit) = create_git_source("git");

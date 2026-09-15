@@ -1,4 +1,12 @@
-use super::*;
+use super::super::super::{
+    PackageRootSourceRequest, PackageSourceClosureLimits, PathBuf, ResolveDependencySourceError,
+};
+use std::fmt::Write;
+
+use super::{
+    BTreeMap, GitAcquisitionCache, GitSourceRequest, LocalSourceLimits, SourceCacheLane,
+    SourceResolverStorage, register_git_repository, run_test_git, temp_root, write_package,
+};
 use crate::resolution::graph::resolve::dependencies::resolve_registered_package_closure;
 use crate::resolution::source::{GitPackageSourceRequest, ResolvedPackageSource};
 use package_source::ResolvedGitSource;

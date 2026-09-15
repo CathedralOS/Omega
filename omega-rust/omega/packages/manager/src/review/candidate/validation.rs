@@ -202,7 +202,10 @@ fn validate_review_closure_records<'review, S: SourceRecord, R: ReviewRecord>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ImmutableSourceResolution, PackageKey, ReviewOnlyClosureValidationError,
+        ReviewOnlySetValidationError, ReviewRecord, SourceRecord, validate_review_closure_records,
+    };
     use crate::declarations::PackageName;
     use package_source::{GitCommitId, GitTreeId, SourceLineage};
 

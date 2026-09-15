@@ -1,4 +1,7 @@
-use super::*;
+use super::super::{
+    GitWorkspaceDeclaration, GitWorkspaceProjectionPlanner, GitWorkspaceSelection,
+    SourceRelativePath,
+};
 
 #[derive(Default)]
 pub(super) struct Planner {

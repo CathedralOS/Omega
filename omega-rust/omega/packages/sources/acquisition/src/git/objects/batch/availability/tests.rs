@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    ExactGitObjectAvailability, ExactGitObjectKind, GitExecutor, OPERATION, SourceResolveError,
+    VerifiedGitRepository, probe_exact_git_object, protocol,
+};
 use crate::git::executable::budget::GitCapturedOutputBudget;
 use crate::git::executable::executor::test_system_git_executor;
 use crate::git::request::GitExecutionTransport;

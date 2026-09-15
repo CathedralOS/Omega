@@ -320,7 +320,7 @@ fn prepare_with_options_and_storage(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{PathBuf, prepare_local_project};
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 

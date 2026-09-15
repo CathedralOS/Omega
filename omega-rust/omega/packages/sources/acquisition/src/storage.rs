@@ -364,7 +364,7 @@ fn absolute_path_from_environment(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{PathBuf, SourceResolverStorage};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn isolated_base(name: &str) -> PathBuf {

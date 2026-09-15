@@ -1,4 +1,7 @@
-use super::super::*;
+use super::super::{
+    DependencyRequestPath, DependencyRequestPathStep, DependencyRequestPaths,
+    PackageRootSourceRequest, ResolvedPackageSourceClosure, resolve_package_source_closure,
+};
 use super::support::*;
 use crate::resolution::source::{ResolvedPackageSource, resolve_workspace_member_package_source};
 use package_source::{LocalSourceLimits, SourceLineage, SourceRelativePath};

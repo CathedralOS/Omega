@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits, Path, SourceContentDigest,
+    recover_cached_local_source_in_lane, recover_with_entry_limit,
+};
 use crate::SourceResolverStorage;
 use crate::local::operations::resolve_local_source_snapshot_with_storage;
 use crate::snapshot::permissions::make_tree_owner_writable;

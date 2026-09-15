@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    GitWorkspaceMemberBuild, GitWorkspaceSelectionError, GitWorkspaceSelectionLimit,
+    MAX_BUILD_DECLARATION_BYTES, PackageName, WorkspaceMemberPath, discover_git_workspace,
+    plan_git_workspace_selection,
+};
 use crate::declarations::{BuildDeclarationKind, DependencyProjectionError};
 
 fn package_name(value: &str) -> PackageName {

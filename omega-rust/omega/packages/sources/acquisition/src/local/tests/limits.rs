@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{LocalSourceLimits, SourceResolveError, resolve_local_source, temp_root};
 #[test]
 fn local_source_limits_reject_too_many_files() {
     let root = temp_root("files");

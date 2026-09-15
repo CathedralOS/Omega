@@ -1,4 +1,6 @@
-use super::super::*;
+use super::super::{
+    CanonicalSourceClosureSubject, PackageCommandKind, PendingPackageChange, TargetProfile,
+};
 use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution};
 
 pub(super) fn pending() -> PendingPackageChange {

@@ -1,6 +1,7 @@
 use super::super::cache::{GitAcquisitionCache, SourceCacheLane};
 use super::super::dependencies::register_git_repository;
-use super::*;
+use super::super::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
+use super::{run_test_git, temp_root, write_package};
 use std::collections::BTreeMap;
 
 mod registration;

@@ -1,4 +1,16 @@
-use super::*;
+use super::super::{
+    ExternalSourceContext, GitResolutionOptions, LocalSourceLimits, PackageRootSourceRequest,
+    PackageSourceClosureLimits, PackageSourceClosureResolutionError, PathBuf,
+    ResolveDependencySourceError, ResolveExternalLocalPackageClosureError, SourceLineage,
+    SourceRelativePath, SourceResolverStorage, resolve_external_local_project_closure_with_options,
+    resolve_external_local_project_closure_with_storage,
+    resolve_staged_external_local_project_closure_with_options,
+    resolve_staged_external_local_project_closure_with_storage,
+};
+use super::{
+    PackageSourceClosureLimitKind, compile_resolved_package_reviews, temp_root, write_application,
+    write_package,
+};
 use crate::declarations::BuildDeclarationKind;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,

@@ -1,4 +1,8 @@
-use super::*;
+use super::super::super::Path;
+use super::{
+    ExternalSourceContext, LOCAL_PROJECT_CONTEXT, LocalSourceLimits, PackageRootSourceRequest,
+    Project, TargetProfile, fs, prepare_with_storage,
+};
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::resolution::graph::reconcile::resolve_package_source_closure;
 use crate::resolution::source::{

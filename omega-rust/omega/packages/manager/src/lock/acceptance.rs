@@ -111,7 +111,10 @@ impl PackageAcceptanceRow {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        PackageAcceptanceRow, PackageKeyIdentity, PackagePolicyAcceptance, PackagePolicyRowKind,
+        TargetProfile,
+    };
     use crate::lock::text::acceptance;
 
     fn sample() -> PackagePolicyAcceptance {

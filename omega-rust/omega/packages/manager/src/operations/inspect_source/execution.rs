@@ -133,7 +133,12 @@ pub fn inspect_package_source_locator(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        LocalSourceLimits, PackageSourceInspectionError, PackageSourceRequest,
+        PackageSourceRequestParseError, Path, PathBuf, SourceAdapter, SourceResolverStorage,
+        inspect_package_source, inspect_package_source_in_cache, inspect_package_source_locator,
+        inspect_package_source_locator_in_cache,
+    };
     use package_source::GitSourceRequest;
     use std::ffi::OsStr;
     use std::process::Command;

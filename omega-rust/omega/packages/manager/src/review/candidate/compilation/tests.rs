@@ -1,5 +1,11 @@
 use super::super::PackageSourceVerificationPhase;
-use super::*;
+use super::{
+    CandidateSourcePreparation, CompileResolvedPackageReviewsError, SemanticBindingReview,
+    TargetEntryDiscovery, candidate_semantic_binding_inputs, compile_pass,
+    compile_resolved_package_candidate_for_check,
+    compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
+    compile_resolved_package_reviews_reusing,
+};
 use crate::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
 };

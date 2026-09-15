@@ -1,6 +1,8 @@
+use super::{
+    CanonicalSourceClosureSubjectLimits, MAX_BUILD_DECLARATION_BYTES, MAXIMUM_TEXT_BYTES,
+    PackageCommandKind, PendingPackageChange, TargetProfile, Writer, write_digest,
+};
 mod fixture;
-
-use super::*;
 use fixture::{pending, source};
 
 #[test]

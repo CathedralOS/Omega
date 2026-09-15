@@ -1,4 +1,4 @@
-use super::super::*;
+use super::super::{PackageSourceClosureConflictCandidate, resolve_package_source_closure};
 use super::support::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};

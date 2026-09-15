@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    Diagnostic, MAXIMUM_DIAGNOSTICS, MAXIMUM_MESSAGE_BYTES, MAXIMUM_PACKAGE_NAME_BYTES, PackageKey,
+};
 use crate::declarations::PackageName;
 use crate::review::candidate::CompileResolvedPackageReviewsError;
 use package_source::SourceLineage;

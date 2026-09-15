@@ -1,5 +1,9 @@
-use super::*;
-
+use super::super::{
+    ExternalSourceContext, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
+    SourceLineage, SourceResolverStorage, resolve_external_local_package_closure,
+    resolve_external_local_project_closure_with_storage,
+};
+use super::{temp_root, write_package};
 #[test]
 fn resolves_external_local_closure_across_directory_boundaries_in_one_context() {
     let sources = temp_root("external-sources");

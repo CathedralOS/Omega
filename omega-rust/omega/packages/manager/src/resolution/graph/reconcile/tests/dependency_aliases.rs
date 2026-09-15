@@ -1,4 +1,4 @@
-use super::super::*;
+use super::super::{PackageSourceClosureResolutionError, resolve_package_source_closure};
 use super::support::*;
 use crate::declarations::dependencies::read::DependencyAliasError;
 use std::collections::BTreeMap;

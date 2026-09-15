@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    LocalSourceLimits, SourceResolveError, create_git_source, local_git_request,
+    make_tree_owner_writable, resolve_git_source, run_test_git, run_test_git_with_input, temp_root,
+};
 #[test]
 fn exact_git_revision_reuses_authenticated_objects_without_transport() {
     let (repo, commit) = create_git_source("git-exact-offline-reuse");

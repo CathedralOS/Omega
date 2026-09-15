@@ -205,9 +205,8 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
 
 #[cfg(test)]
 mod tests {
+    use super::PathBuf;
     mod accepted_lock;
-
-    use super::*;
     use crate::review::ReviewOnlyRootPolicyDisposition;
     use std::sync::atomic::{AtomicU64, Ordering};
 

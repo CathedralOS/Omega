@@ -54,7 +54,7 @@ fn reserve(current: usize, additional: usize) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES, reserve};
 
     #[test]
     fn canonical_policy_budget_is_aggregate_exact_and_overflow_safe() {

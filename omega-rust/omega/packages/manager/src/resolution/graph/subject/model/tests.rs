@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
+    CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
+    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
+    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, SOURCE_CLOSURE_SUBJECT_MAGIC,
+};
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey, PackageName};

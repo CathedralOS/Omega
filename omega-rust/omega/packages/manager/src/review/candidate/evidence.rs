@@ -65,7 +65,7 @@ impl PackageReviewEvidence for CompilerIssuedPackageReview {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{PackageReviewEvidence, SemanticBindingReview};
     use crate::resolution::graph::{
         PackageSourceClosureLimits, resolve_external_local_package_closure,
     };

@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    LocalSourceLimits, SourceResolveError, parse_git_tree_entries, temp_root,
+    validate_git_symlink_target,
+};
 #[test]
 fn git_tree_rejects_traversal_metadata_and_nonportable_paths_before_materialization() {
     let repository = temp_root("git-tree-path-validation");

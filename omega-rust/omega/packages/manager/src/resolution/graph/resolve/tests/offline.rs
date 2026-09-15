@@ -1,6 +1,9 @@
 //! Invocation-wide offline policy through real graph traversal and counted SSH transport.
-
-use super::*;
+use super::super::{
+    GitDependencyPins, GitResolutionOptions, PackageSourceClosureResolutionError,
+    ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
+};
+use super::write_package;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
     ResolvedPackageSourceClosure,

@@ -1,11 +1,12 @@
 #![cfg(unix)]
 
 use super::super::GitCommandCapture;
+use super::super::run_git_output;
 use super::{
     GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE, GitExecutionTransport,
     GitExecutor, LocalSourceLimits, ResolverExecutionPhase, SOURCE_BYTE_ABSOLUTE_LIMIT,
-    SourceResolveError, git_resolution_captured_output_ceiling, run_git_output, sealed_git_command,
-    temp_root, test_system_git_executor,
+    SourceResolveError, git_resolution_captured_output_ceiling, sealed_git_command, temp_root,
+    test_system_git_executor,
 };
 use std::ffi::OsStr;
 use std::path::Path;

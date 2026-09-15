@@ -1,7 +1,11 @@
 //! Real repository movement through the candidate graph, with local test transport.
 
 use super::super::cache::{GitAcquisitionCache, SourceCacheLane};
-use super::*;
+use super::super::{
+    ExternalSourceContext, GitSourceRequest, LocalSourceLimits, PackageRootSourceRequest, PathBuf,
+    SourceRelativePath, SourceResolverStorage,
+};
+use super::{run_test_git, temp_root, write_application, write_package};
 use crate::declarations::{DependencySourceRequest, PackageKey};
 use crate::resolution::graph::reconcile::resolve_package_source_closure;
 use crate::resolution::graph::{

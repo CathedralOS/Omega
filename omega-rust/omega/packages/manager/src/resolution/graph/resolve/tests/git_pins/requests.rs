@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, Fixture,
+    GitAcquisitionCache, GitDependencyPins, GitExactRevisionAcquisition, PackageSelection,
+    ResolvedPackageSource, SourceResolverStorage, commit, resolve, test_git_head,
+};
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::resolution::graph::reconcile::resolve_package_source_closure;
 use crate::resolution::graph::{PackageRootSourceRequest, ResolvedPackageSourceClosure};

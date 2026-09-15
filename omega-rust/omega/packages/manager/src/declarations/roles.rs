@@ -110,7 +110,10 @@ fn convert_project_name(name: shared::ProjectName) -> PackageName {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BuildDeclaration, BuildDeclarationError, BuildDeclarationKind, PackageDeclaration,
+        PackageName, convert_shared_declaration, shared,
+    };
 
     fn extract_from_source(source: &str) -> Result<BuildDeclaration, BuildDeclarationError> {
         shared::project_build_declaration_from_source(source).map(convert_shared_declaration)
