@@ -942,6 +942,21 @@ Owners include
   arm64 by `mbx nextest run -p external-roots --lib` (130/130), including
   `epoch_cohort_cannot_seal_before_the_eligible_set_is_derived` and
   `program_local_root_schemas_derive_exact_installed_slots_without_minting`.
+  `eb54b70350` adds
+  `ProgramLocalRootInstallationLedger::reconstruct_aggregate_capacity`,
+  which replays the complete live established membership of one aggregate
+  schema group in one sealed epoch cohort of one installed artifact instance
+  and composes the members' evaluated per-occurrence capacities into the
+  exact counted sum or separated interval set — accounting evidence only,
+  no minting or row-equality authority. Empty, repeated, cross-schema,
+  cross-cohort, stale-epoch, foreign-lifecycle, and foreign-installation
+  rosters all reject, as does an interval member set whose ranges overlap.
+  Witnessed on Linux x86-64 by `cargo nextest run -p external-roots --lib`
+  (210/210), including
+  `aggregate_capacity_reconstruction_sums_the_live_group_for_one_epoch`,
+  `aggregate_capacity_reconstruction_composes_the_interval_member_set`,
+  and
+  `aggregate_capacity_reconstruction_rejects_mixed_schemas_cohorts_and_installations`.
   Remaining: connect that ledger to actual installed backing, receiver
   partitions, activation loans and completion for the same occurrence/epoch.
   The ordinary macOS `cli_mvp` receiver bridge already executes under its
