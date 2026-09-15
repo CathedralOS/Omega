@@ -1,7 +1,8 @@
 //! Target-origin admission for the payload-free hosted byte-output candidate.
 
-use super::{
-    ProviderBinding, SelectedTargetMachineOrigin,
+use super::ProviderBinding;
+use crate::provider_planning::provenance_replay::{
+    SelectedTargetMachineOrigin,
     derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins,
     derive_satisfies_plans_with_provenance, validate_derived_provider_plan_candidates,
 };
