@@ -647,12 +647,12 @@ impl From<NativePhysicalChildParts> for NativePhysicalChild {
     }
 }
 
-pub(super) fn native_byte_span(offset: usize, byte_count: usize) -> NativeByteSpan {
+pub(crate) fn native_byte_span(offset: usize, byte_count: usize) -> NativeByteSpan {
     NativeByteSpan::from_replayed_parts(offset, byte_count)
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn normalized_foreign_call_relocation(
+pub(crate) fn normalized_foreign_call_relocation(
     locator_identity: [u8; 32],
     boundary_plan_identity: [u8; 32],
     object_symbol: object_file::ObjectSymbolHandle,
