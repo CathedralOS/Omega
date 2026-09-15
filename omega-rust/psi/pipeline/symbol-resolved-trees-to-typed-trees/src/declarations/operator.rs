@@ -1,5 +1,5 @@
-use crate::data::lower_type_parameters;
-use crate::domain::lower_proof_facts;
+use crate::declarations::data::lower_type_parameters;
+use crate::declarations::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
@@ -16,7 +16,7 @@ pub(crate) fn lower_operator_definition(
         lifetime_parameters: operator
             .lifetime_parameters
             .iter()
-            .map(crate::name::lower_name)
+            .map(crate::lowerer::name::lower_name)
             .collect(),
         type_parameters: Default::default(),
         parameters: Default::default(),
@@ -32,9 +32,10 @@ pub(crate) fn lower_operator_definition(
     };
 
     for member in lowerer.source_trees.operator_path_members(operator.name) {
-        lowerer
-            .typed_trees
-            .push_operator_path_member(&mut typed_operator, crate::name::lower_name(member));
+        lowerer.typed_trees.push_operator_path_member(
+            &mut typed_operator,
+            crate::lowerer::name::lower_name(member),
+        );
     }
 
     typed_operator.type_parameters = lower_type_parameters(lowerer, operator.type_parameters)?;
@@ -45,7 +46,7 @@ pub(crate) fn lower_operator_definition(
             &mut typed_operator,
             typed_trees::signature::StateParameter {
                 symbol: parameter.symbol,
-                name: crate::name::lower_name(&parameter.name),
+                name: crate::lowerer::name::lower_name(&parameter.name),
                 type_reference,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
@@ -87,7 +88,7 @@ pub(crate) fn lower_operator_definition(
                     },
                 },
                 keyword_source_span: contract.keyword_source_span,
-                binding: contract.binding.as_ref().map(crate::name::lower_name),
+                binding: contract.binding.as_ref().map(crate::lowerer::name::lower_name),
                 facts,
                 token_count: contract.token_count,
             },

@@ -36,7 +36,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 typed::types::TypeReferenceNode::Reference {
                     referee,
                     access: *access,
-                    lifetime: lifetime.as_ref().map(crate::name::lower_name),
+                    lifetime: lifetime.as_ref().map(crate::lowerer::name::lower_name),
                 },
             ))
         }
@@ -134,16 +134,16 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 .type_reference_table
                 .insert(typed::types::TypeReferenceNode::Generic {
                     base_symbol: *base_symbol,
-                    base_name: crate::name::lower_name(base_name),
+                    base_name: crate::lowerer::name::lower_name(base_name),
                     lifetime_arguments: lifetime_arguments
                         .iter()
-                        .map(crate::name::lower_name)
+                        .map(crate::lowerer::name::lower_name)
                         .collect(),
                     arguments: lowered_arguments,
                 }))
         }
         resolved::types::TypeReferenceNode::ConstExpression(expression) => {
-            let expression = crate::expression::lower_expression_handle_from_table(
+            let expression = crate::expressions::expression::lower_expression_handle_from_table(
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
                 *expression,
@@ -182,10 +182,14 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::DynamicTrait {
                     symbol: *symbol,
-                    name: crate::name::lower_name(name),
+                    name: crate::lowerer::name::lower_name(name),
                     conformance: *conformance,
-                    conformance_carrier: conformance_carrier.as_ref().map(crate::name::lower_name),
-                    conformance_name: conformance_name.as_ref().map(crate::name::lower_name),
+                    conformance_carrier: conformance_carrier
+                        .as_ref()
+                        .map(crate::lowerer::name::lower_name),
+                    conformance_name: conformance_name
+                        .as_ref()
+                        .map(crate::lowerer::name::lower_name),
                 },
             ))
         }
@@ -202,7 +206,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 .type_reference_table
                 .insert(typed::types::TypeReferenceNode::Named {
                     symbol: *symbol,
-                    name: crate::name::lower_name(name),
+                    name: crate::lowerer::name::lower_name(name),
                 }))
         }
         resolved::types::TypeReferenceNode::SelfType { symbol } => Ok(typed_trees

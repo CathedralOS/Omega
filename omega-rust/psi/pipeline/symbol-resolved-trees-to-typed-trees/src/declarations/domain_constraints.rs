@@ -202,7 +202,7 @@ fn normalize_constraint_span(
             .iter()
             .find(|candidate| candidate.symbol == domain.symbol)
             .expect("typed alias declaration must have a resolved source");
-        for atom in crate::domain::expand_domain_reference(
+        for atom in crate::declarations::domain::expand_domain_reference(
             source,
             domain.symbol,
             vec![source_domain.name.clone()],
@@ -210,7 +210,7 @@ fn normalize_constraint_span(
             let name = if atom.symbol.is_valid() {
                 atom.path
                     .last()
-                    .map(crate::name::lower_name)
+                    .map(crate::lowerer::name::lower_name)
                     .unwrap_or_else(|| Identifier::generated(""))
             } else {
                 Identifier::generated(

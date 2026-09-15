@@ -1,14 +1,16 @@
-use crate::data::lower_data_definition;
-use crate::domain::lower_domain_definition;
-use crate::domain_constraints::normalize_domain_constraints;
-use crate::machine::lower_machine;
-use crate::operator::lower_operator_definition;
-use crate::qualification_casts::normalize_qualification_casts;
-use crate::trait_definition::lower_trait_definition;
+use crate::declarations::data::lower_data_definition;
+use crate::declarations::domain::lower_domain_definition;
+use crate::declarations::domain_constraints::normalize_domain_constraints;
+use crate::declarations::machine::lower_machine;
+use crate::declarations::operator::lower_operator_definition;
+use crate::declarations::trait_definition::lower_trait_definition;
+use crate::expressions::qualification_casts::normalize_qualification_casts;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees::TypedTrees;
 
+pub(crate) mod name;
+pub(crate) mod progress;
 pub(crate) mod seeded_continuation;
 
 pub fn lower_symbol_resolved_trees(
@@ -17,17 +19,19 @@ pub fn lower_symbol_resolved_trees(
     // Decision 11: user-written `==` against bare payload-bearing case names
     // must be rejected BEFORE membership lowering synthesizes its internal
     // tag-equality compares, which are deliberately the same typed shape.
-    crate::equality::validate_equality_operands(symbol_resolved_trees)?;
+    crate::expressions::equality::validate_equality_operands(symbol_resolved_trees)?;
 
     // Equatable conformance prerequisites error at the conformance item,
     // before any `==` site tries to expand against a malformed type.
-    crate::equatable::validate_equatable_conformances(symbol_resolved_trees)?;
+    crate::expressions::equatable::validate_equatable_conformances(symbol_resolved_trees)?;
 
     // Exhaustiveness counting over case domains also needs the resolved
     // trees: membership is still a distinct node here, so case arms and
     // domain arms are recognizable before lowering erases them into tag
     // compares and classifier expansions.
-    crate::exhaustiveness::validate_case_dispatch_exhaustiveness(symbol_resolved_trees)?;
+    crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness(
+        symbol_resolved_trees,
+    )?;
 
     let mut lowerer = Lowerer {
         typed_trees: TypedTrees::default(),
@@ -61,8 +65,8 @@ pub fn lower_symbol_resolved_trees(
             state_symbol: forwarding.state_symbol,
             statement_index: forwarding.statement_index,
             source_statement_index: forwarding.statement_index,
-            target: crate::name::lower_name(&forwarding.target),
-            source: crate::name::lower_name(&forwarding.source),
+            target: crate::lowerer::name::lower_name(&forwarding.target),
+            source: crate::lowerer::name::lower_name(&forwarding.source),
             source_conformance: forwarding.source_conformance,
         })
         .collect();
@@ -84,7 +88,9 @@ pub fn lower_symbol_resolved_trees(
     for proposition in &symbol_resolved_trees.propositions {
         let proposition = lowerer.with_type_reference_exposure(
             declaration_exposure(proposition.is_public),
-            |lowerer| crate::proposition::lower_proposition_definition(lowerer, proposition),
+            |lowerer| {
+                crate::expressions::proposition::lower_proposition_definition(lowerer, proposition)
+            },
         )?;
         lowerer.typed_trees.push_proposition(proposition);
     }
@@ -94,7 +100,8 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for measure in &symbol_resolved_trees.measures {
-        let measure = crate::measure::lower_measure_definition(&mut lowerer, measure)?;
+        let measure =
+            crate::declarations::measure::lower_measure_definition(&mut lowerer, measure)?;
         lowerer.typed_trees.push_measure(measure);
     }
 
@@ -184,25 +191,25 @@ pub fn lower_symbol_resolved_trees(
             lifetime_parameters: conformance
                 .lifetime_parameters
                 .iter()
-                .map(crate::name::lower_name)
+                .map(crate::lowerer::name::lower_name)
                 .collect(),
             type_parameters: arena::HandleSpan::empty(),
             subject: match &conformance.subject {
                 symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
                     type_name,
                 ) => typed_trees::trait_definition::ConformanceSubject::Carrier(
-                    crate::name::lower_name(type_name),
+                    crate::lowerer::name::lower_name(type_name),
                 ),
                 symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
                     typed_trees::trait_definition::ConformanceSubject::Subjectless
                 }
             },
             carrier_symbol: conformance.carrier_symbol,
-            trait_name: crate::name::lower_name(&conformance.trait_name),
+            trait_name: crate::lowerer::name::lower_name(&conformance.trait_name),
             trait_symbol: conformance.trait_symbol,
             trait_lifetime_arguments,
             arguments,
-            alias: conformance.alias.as_ref().map(crate::name::lower_name),
+            alias: conformance.alias.as_ref().map(crate::lowerer::name::lower_name),
             implementation: match &conformance.implementation {
                 symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
                     typed_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
@@ -213,12 +220,12 @@ pub fn lower_symbol_resolved_trees(
                             .iter()
                             .map(|row| typed_trees::trait_definition::ConformanceRow {
                                 declaring_trait: row.declaring_trait,
-                                declaring_trait_name: crate::name::lower_name(&row.declaring_trait_name),
+                                declaring_trait_name: crate::lowerer::name::lower_name(&row.declaring_trait_name),
                                 requirement: row.requirement,
-                                requirement_name: crate::name::lower_name(&row.requirement_name),
+                                requirement_name: crate::lowerer::name::lower_name(&row.requirement_name),
                                 realization_machine: row.realization_machine,
                                 realization_state: row.realization_state,
-                                realization_name: crate::name::lower_name(&row.realization_name),
+                                realization_name: crate::lowerer::name::lower_name(&row.realization_name),
                                 source: match row.source {
                                     symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline => typed_trees::trait_definition::ConformanceRowSource::Inline,
                                     symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference => typed_trees::trait_definition::ConformanceRowSource::Reference,
@@ -230,9 +237,9 @@ pub fn lower_symbol_resolved_trees(
                 }
             },
         };
-        conformance.type_parameters = lowerer
-            .with_type_reference_exposure(conformance_exposure, |lowerer| {
-                crate::data::lower_type_parameters(lowerer, source_type_parameters)
+        conformance.type_parameters =
+            lowerer.with_type_reference_exposure(conformance_exposure, |lowerer| {
+                crate::declarations::data::lower_type_parameters(lowerer, source_type_parameters)
             })?;
         // Inline/default realization machines close over the conformance
         // name's telescope. Publish that telescope as the machine template's
@@ -268,7 +275,7 @@ pub fn lower_symbol_resolved_trees(
     for wire_schema in &symbol_resolved_trees.wire_schemas {
         let wire_schema = lowerer.with_type_reference_exposure(
             declaration_exposure(wire_schema.is_public),
-            |lowerer| crate::wire::lower_wire_schema(lowerer, wire_schema),
+            |lowerer| crate::declarations::wire::lower_wire_schema(lowerer, wire_schema),
         )?;
         lowerer.typed_trees.push_wire_schema(wire_schema);
     }
@@ -354,7 +361,7 @@ pub(crate) struct Lowerer<'source> {
     pub(crate) source_trees: &'source SymbolResolvedTrees,
     /// The value-typing scope of the state body currently being lowered;
     /// `==` expansion uses it to find an operand's data type.
-    pub(crate) equality_scope: Option<crate::equatable::EqualityScope>,
+    pub(crate) equality_scope: Option<crate::expressions::equatable::EqualityScope>,
     /// None lowers a compiler-derived type without inventing an authored
     /// occurrence. Original generic applications retain their own exposure.
     pub(crate) type_reference_exposure:
@@ -453,7 +460,7 @@ impl Lowerer<'_> {
                 ));
             }
             let materialized_initializer =
-                crate::expression::lower_expression_handle(self, materialized)?;
+                crate::expressions::expression::lower_expression_handle(self, materialized)?;
             self.typed_trees
                 .tables
                 .const_declarations
@@ -462,7 +469,8 @@ impl Lowerer<'_> {
             if !original.is_valid() {
                 continue;
             }
-            let authored_initializer = crate::expression::lower_expression_handle(self, original)?;
+            let authored_initializer =
+                crate::expressions::expression::lower_expression_handle(self, original)?;
             let declaration = self.typed_trees.tables.const_declarations.get_mut(handle);
             declaration.authored_initializer = authored_initializer;
         }
@@ -484,8 +492,8 @@ impl Lowerer<'_> {
 
     pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
         self.typed_trees.symbols = self.source_trees.symbols.clone();
-        crate::machine::settle_satisfied_declarations(&mut self.typed_trees)?;
-        crate::progress::normalize_progress_premises(&mut self.typed_trees)?;
+        crate::declarations::machine::settle_satisfied_declarations(&mut self.typed_trees)?;
+        crate::lowerer::progress::normalize_progress_premises(&mut self.typed_trees)?;
         let TypedTrees {
             roots,
             tables,
@@ -536,7 +544,9 @@ impl Lowerer<'_> {
         trees.ranking_expression_custody = ranking_expression_custody;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
         normalize_qualification_casts(self.source_trees, &mut trees)?;
-        crate::fixed_byte_array_literals::land_exact_fixed_byte_array_literals(&mut trees)?;
+        crate::expressions::fixed_byte_array_literals::land_exact_fixed_byte_array_literals(
+            &mut trees,
+        )?;
         crate::type_reference::validate_range_arguments(self.source_trees, &trees)?;
         Ok(trees)
     }

@@ -3,7 +3,7 @@
 //! their projections need the same field identity before checked scalar replay.
 
 use super::lowerer::ExpressionTableLowerer;
-use crate::call_results::peel;
+use crate::expressions::call_results::peel;
 use crate::lowerer::{exact_field_symbol, exact_top_level_data_symbol};
 use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};

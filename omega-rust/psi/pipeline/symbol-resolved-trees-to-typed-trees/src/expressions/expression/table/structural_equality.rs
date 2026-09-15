@@ -26,12 +26,12 @@
 //! equal, per the structural_predicates.md equality table.
 
 use super::lowerer::ExpressionTableLowerer;
-use crate::equatable::{
+use crate::expressions::equatable::{
     DataEqualityShape, FieldEquality, data_definition_by_name, data_equality_shape,
     equatable_conformance_declared, field_equality, synthesized_equals_state_symbol,
     value_type_base_name, written_equals_state_symbol,
 };
-use crate::name::lower_name;
+use crate::lowerer::name::lower_name;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use resolved::data::{DataDefinition, DataField, DataMember, DataVariant};
@@ -181,7 +181,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         // subject against `Player::Alive`), not a value: the existing tag /
         // domain machinery owns that compare. User-written bare
         // payload-bearing case names were already rejected by the resolved
-        // pre-pass (`crate::equality`).
+        // pre-pass (`crate::expressions::equality`).
         if self.classifier_reference_operand(binary.left)
             || self.classifier_reference_operand(binary.right)
         {
@@ -268,7 +268,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             // and the resolved-level pre-pass already stood down for exactly
             // this shape.
             if self.fact_position
-                && crate::equality::data_is_directly_recursive(program, &type_name)
+                && crate::expressions::equality::data_is_directly_recursive(program, &type_name)
             {
                 return Ok(None);
             }

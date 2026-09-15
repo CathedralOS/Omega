@@ -24,7 +24,7 @@
 //! guards, and non-complementary value compares -- relies on facts the counter
 //! cannot decide, so a run that needs them must close with `_`.
 //!
-//! This pass runs on the RESOLVED trees, like `crate::equality`, and for the
+//! This pass runs on the RESOLVED trees, like `crate::expressions::equality`, and for the
 //! same reason: `in` is still a distinct `Membership` node here (typed
 //! lowering expands case membership into tag compares and declared-domain
 //! membership into fact expansions, after which case arms and
@@ -734,7 +734,7 @@ fn classify_membership_leaf(
 ) -> LeafContribution {
     // A resolved domain symbol names a DECLARED domain; the bare `Type::Case`
     // path is the implicit case domain. Same precedence as the executable
-    // membership lowering (`crate::expression::domain_membership`).
+    // membership lowering (`crate::expressions::expression::domain_membership`).
     if membership.domain_symbol.is_valid() {
         return classify_declared_domain(program, membership.domain_symbol);
     }

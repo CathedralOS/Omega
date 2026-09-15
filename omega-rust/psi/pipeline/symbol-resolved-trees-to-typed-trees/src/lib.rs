@@ -2,34 +2,19 @@
 
 //! Attaches type and signature meaning to Psi symbol-resolved source trees.
 //!
-//! [`lower_symbol_resolved_trees`] owns complete typing: validate resolved meaning,
-//! lower declarations in dependency order, retain initializer custody, then settle
-//! and normalize typed trees. The `lowerer` module shows that ordinary route.
-//! Its `seeded_continuation` child owns append-only admission and transactional
-//! recovery; both routes use the same declaration lowering operations.
+//! Start at `lowerer.rs`: [`lower_symbol_resolved_trees`] owns complete typing.
+//! It validates resolved meaning, lowers declarations in dependency order,
+//! retains initializer custody, then settles and normalizes typed trees. Its
+//! `seeded_continuation` child owns append-only admission and transactional
+//! recovery; both routes use the same lowering operations. `declarations`
+//! types each declaration form, `expressions` types expressions and
+//! statements, and `type_reference` resolves type references and their
+//! constraints.
 
-mod call_results;
-mod data;
-mod domain;
-mod domain_constraints;
-mod equality;
-mod equatable;
-mod exhaustiveness;
-mod expression;
-mod fixed_byte_array_literals;
+mod declarations;
+mod expressions;
 mod lowerer;
-mod machine;
-mod measure;
-mod name;
-mod operator;
-mod progress;
-mod proposition;
-mod qualification_casts;
-mod state;
-mod statement;
-mod trait_definition;
 mod type_reference;
-mod wire;
 
 pub use lowerer::seeded_continuation::{
     SeededContinuationError, SeededTypingBase, lower_seeded_extension,

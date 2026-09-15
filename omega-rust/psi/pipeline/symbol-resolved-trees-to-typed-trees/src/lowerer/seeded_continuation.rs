@@ -4,8 +4,8 @@ use super::{
     Lowerer, exact_field_symbol, exact_top_level_data_symbol, lower_authored_service_reach_row,
     lower_symbol_resolved_trees,
 };
-use crate::domain_constraints::normalize_domain_constraints_from;
-use crate::qualification_casts::normalize_qualification_casts_from;
+use crate::declarations::domain_constraints::normalize_domain_constraints_from;
+use crate::expressions::qualification_casts::normalize_qualification_casts_from;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees::TypedTrees;
@@ -185,7 +185,7 @@ pub fn lower_seeded_extension(
             return Err((retained, SeededContinuationError::Lowering(error)));
         }
     }
-    if let Err(error) = crate::machine::settle_satisfied_declarations_from(
+    if let Err(error) = crate::declarations::machine::settle_satisfied_declarations_from(
         &mut lowerer.typed_trees,
         typed_machine_frontier,
     ) {
@@ -194,7 +194,7 @@ pub fn lower_seeded_extension(
     if let Err(error) = lowerer.lower_const_initializer_evidence(const_frontier) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
-    if let Err(error) = crate::progress::normalize_progress_premises_from(
+    if let Err(error) = crate::lowerer::progress::normalize_progress_premises_from(
         &mut lowerer.typed_trees,
         typed_machine_frontier,
     ) {
@@ -212,11 +212,13 @@ pub fn lower_seeded_extension(
     {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
-    if let Err(error) = crate::fixed_byte_array_literals::land_exact_fixed_byte_array_literals_from(
-        &mut lowerer.typed_trees,
-        expression_frontier,
-        typed_machine_frontier,
-    ) {
+    if let Err(error) =
+        crate::expressions::fixed_byte_array_literals::land_exact_fixed_byte_array_literals_from(
+            &mut lowerer.typed_trees,
+            expression_frontier,
+            typed_machine_frontier,
+        )
+    {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
     if let Err(error) =

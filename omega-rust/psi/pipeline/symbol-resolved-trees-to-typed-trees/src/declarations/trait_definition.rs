@@ -1,6 +1,6 @@
-use crate::data::lower_type_parameters;
+use crate::declarations::data::lower_type_parameters;
+use crate::declarations::state::lower_state_signature;
 use crate::lowerer::Lowerer;
-use crate::state::lower_state_signature;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -13,11 +13,11 @@ pub(crate) fn lower_trait_definition(
         symbol: trait_definition.symbol,
         is_boundary: trait_definition.is_boundary,
         is_public: trait_definition.is_public,
-        name: crate::name::lower_name(&trait_definition.name),
+        name: crate::lowerer::name::lower_name(&trait_definition.name),
         lifetime_parameters: trait_definition
             .lifetime_parameters
             .iter()
-            .map(crate::name::lower_name)
+            .map(crate::lowerer::name::lower_name)
             .collect(),
         type_parameters: arena::HandleSpan::empty(),
         conformance_bounds: Vec::new(),
@@ -38,16 +38,19 @@ pub(crate) fn lower_trait_definition(
             .conformance_bounds
             .push(typed::machine::GenericConformanceBound {
                 binder: bound.binder,
-                binder_name: bound.binder_name.as_ref().map(crate::name::lower_name),
+                binder_name: bound
+                    .binder_name
+                    .as_ref()
+                    .map(crate::lowerer::name::lower_name),
                 subject: bound.subject,
-                subject_name: crate::name::lower_name(&bound.subject_name),
+                subject_name: crate::lowerer::name::lower_name(&bound.subject_name),
                 carrier: bound.carrier,
-                carrier_name: crate::name::lower_name(&bound.carrier_name),
+                carrier_name: crate::lowerer::name::lower_name(&bound.carrier_name),
                 arguments,
                 selected_conformance: bound
                     .selected_conformance
                     .as_ref()
-                    .map(crate::expression::lower_static_machine_argument),
+                    .map(crate::expressions::expression::lower_static_machine_argument),
             });
     }
 
@@ -80,11 +83,11 @@ pub(crate) fn lower_trait_definition(
             &mut typed_trait,
             typed::trait_definition::TraitRequirement {
                 symbol: requirement.symbol,
-                name: crate::name::lower_name(&requirement.name),
+                name: crate::lowerer::name::lower_name(&requirement.name),
                 lifetime_arguments: requirement
                     .lifetime_arguments
                     .iter()
-                    .map(crate::name::lower_name)
+                    .map(crate::lowerer::name::lower_name)
                     .collect(),
                 arguments,
                 source_span: requirement.name.source_span(),

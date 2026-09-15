@@ -27,13 +27,13 @@ fn lower_data_definition_contents(
 ) -> Result<typed::data::DataDefinition, Diagnostic> {
     let mut typed_data_definition = typed::data::DataDefinition {
         symbol: data_definition.symbol,
-        name: crate::name::lower_name(&data_definition.name),
+        name: crate::lowerer::name::lower_name(&data_definition.name),
         is_public: data_definition.is_public,
         supply_mode: data_definition.supply_mode,
         lifetime_parameters: data_definition
             .lifetime_parameters
             .iter()
-            .map(crate::name::lower_name)
+            .map(crate::lowerer::name::lower_name)
             .collect(),
         type_parameters: arena::HandleSpan::empty(),
         generic_instance: data_definition
@@ -78,7 +78,7 @@ fn lower_data_definition_contents(
                     relation: quotient
                         .relation
                         .iter()
-                        .map(crate::name::lower_name)
+                        .map(crate::lowerer::name::lower_name)
                         .collect(),
                     relation_symbol: quotient.relation_symbol,
                     equivalence: quotient
@@ -95,16 +95,16 @@ fn lower_data_definition_contents(
                                 relation: selection
                                     .relation
                                     .iter()
-                                    .map(crate::name::lower_name)
+                                    .map(crate::lowerer::name::lower_name)
                                     .collect(),
                                 relation_symbol: selection.relation_symbol,
-                                trait_name: crate::name::lower_name(&selection.trait_name),
+                                trait_name: crate::lowerer::name::lower_name(&selection.trait_name),
                                 trait_symbol: selection.trait_symbol,
                                 trait_arguments: lowerer
                                     .typed_trees
                                     .type_reference_table
                                     .insert_type_reference_handles(trait_arguments),
-                                conformance_name: crate::name::lower_name(
+                                conformance_name: crate::lowerer::name::lower_name(
                                     &selection.conformance_name,
                                 ),
                                 conformance_symbol: selection.conformance_symbol,
@@ -116,7 +116,7 @@ fn lower_data_definition_contents(
             .transpose()?,
         // R2 rung 2 slice 2: copied (re-lowered) from the resolved record;
         // inert until rung 3's atomic consumer.
-        where_facts: crate::domain::lower_proof_facts(lowerer, data_definition.where_facts)?,
+        where_facts: crate::declarations::domain::lower_proof_facts(lowerer, data_definition.where_facts)?,
         zero_gated: data_definition.zero_gated,
         retired_identities: data_definition.retired_identities.clone(),
         members: arena::HandleSpan::empty(),
@@ -160,7 +160,7 @@ fn lower_type_parameter(
 ) -> Result<typed::data::TypeParameter, Diagnostic> {
     Ok(typed::data::TypeParameter {
         symbol: parameter.symbol,
-        name: crate::name::lower_name(&parameter.name),
+        name: crate::lowerer::name::lower_name(&parameter.name),
         kind: lower_type_parameter_kind(lowerer, &parameter.kind)?,
         bounds: typed::data::DataProperties {
             carry: parameter.bounds.carry,
@@ -192,7 +192,7 @@ pub(crate) fn lower_type_parameter_kind(
                 }
                 resolved::data::MachineParameterContract::Structural(signature) => {
                     typed::data::MachineParameterContract::Structural(
-                        crate::state::lower_state_signature(lowerer, signature)?,
+                        crate::declarations::state::lower_state_signature(lowerer, signature)?,
                     )
                 }
                 resolved::data::MachineParameterContract::AuthoredNominal { .. } => {
@@ -241,7 +241,8 @@ pub(crate) fn lower_type_parameter_kind(
         resolved::data::TypeParameterKind::Proposition { contract } => {
             let mut parameters = arena::HandleSpan::empty();
             for parameter in lowerer.source_trees.state_parameters(contract.parameters) {
-                let parameter = crate::state::lower_state_parameter(lowerer, parameter)?;
+                let parameter =
+                    crate::declarations::state::lower_state_parameter(lowerer, parameter)?;
                 lowerer
                     .typed_trees
                     .state_parameters
@@ -249,7 +250,7 @@ pub(crate) fn lower_type_parameter_kind(
             }
             Ok(typed::data::TypeParameterKind::Proposition {
                 contract: typed::data::PropositionParameterSignature {
-                    name: crate::name::lower_name(&contract.name),
+                    name: crate::lowerer::name::lower_name(&contract.name),
                     parameters,
                 },
             })
@@ -266,7 +267,7 @@ fn lower_data_member(
             Ok(typed::data::DataMember::Field(typed::data::DataField {
                 identity: field.identity,
                 symbol: field.symbol,
-                name: crate::name::lower_name(&field.name),
+                name: crate::lowerer::name::lower_name(&field.name),
                 relevance: field.relevance,
                 type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
             }))
@@ -275,9 +276,12 @@ fn lower_data_member(
             let mut typed_variant = typed::data::DataVariant {
                 identity: variant.identity,
                 symbol: variant.symbol,
-                name: crate::name::lower_name(&variant.name),
+                name: crate::lowerer::name::lower_name(&variant.name),
                 payload: arena::HandleSpan::empty(),
-                where_facts: crate::domain::lower_proof_facts(lowerer, variant.where_facts)?,
+                where_facts: crate::declarations::domain::lower_proof_facts(
+                    lowerer,
+                    variant.where_facts,
+                )?,
                 retired_payload_identities: variant.retired_payload_identities.clone(),
             };
             let payload_fields = lowerer
@@ -288,7 +292,7 @@ fn lower_data_member(
                 let lowered = typed::data::DataField {
                     identity: field.identity,
                     symbol: field.symbol,
-                    name: crate::name::lower_name(&field.name),
+                    name: crate::lowerer::name::lower_name(&field.name),
                     relevance: field.relevance,
                     type_reference: lower_type_reference_into_table(
                         lowerer,

@@ -79,8 +79,10 @@ pub(super) fn infer_hoist_temp_type(
             let target_symbol = call.target_symbol;
             let target_name = call.target.as_str().to_string();
             let mut machine_substitutions = Vec::new();
-            let declared_state =
-                crate::call_results::declared_call_state(lowerer.source_trees, target_symbol);
+            let declared_state = crate::expressions::call_results::declared_call_state(
+                lowerer.source_trees,
+                target_symbol,
+            );
             let declared_return = declared_state
                     .and_then(|candidate| candidate.storage.return_type.clone())
                     .or_else(|| {
@@ -125,7 +127,7 @@ pub(super) fn infer_hoist_temp_type(
                                                             (
                                                                 parameter.symbol,
                                                                 argument.symbol,
-                                                                crate::name::lower_name(name),
+                                                                crate::lowerer::name::lower_name(name),
                                                             )
                                                         })
                                                     }),

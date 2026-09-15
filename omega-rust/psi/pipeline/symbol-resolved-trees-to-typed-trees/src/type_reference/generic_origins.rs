@@ -483,12 +483,18 @@ impl Equality<'_, '_> {
     ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
         let expressions = &self.source.tables.bodies.expressions;
         let typed = self.typed.as_deref_mut()?;
-        let minimum =
-            crate::expression::lower_expression_handle_from_table(expressions, typed, minimum)
-                .ok()?;
-        let maximum =
-            crate::expression::lower_expression_handle_from_table(expressions, typed, maximum)
-                .ok()?;
+        let minimum = crate::expressions::expression::lower_expression_handle_from_table(
+            expressions,
+            typed,
+            minimum,
+        )
+        .ok()?;
+        let maximum = crate::expressions::expression::lower_expression_handle_from_table(
+            expressions,
+            typed,
+            maximum,
+        )
+        .ok()?;
         Some((
             typed.closed_integer_expression_value(minimum)?,
             typed.closed_integer_range_endpoint(maximum, end_inclusive)?,
