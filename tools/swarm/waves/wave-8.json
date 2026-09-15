@@ -331,6 +331,17 @@
       ],
       "suggested_first_slice": "Backfill for the landed target-matrices slot. Close cli_mvp and print_squares through checked semantics AND native execution — the item names the focused probe: OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp (then print_squares) cargo nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'. Fix what the probe exposes inside owned paths; if the defect lives elsewhere (compiler, runtime crates), report blocked rather than claiming it.",
       "backfill_for": "target-matrices"
+    },
+    {
+      "name": "callback-private-retry",
+      "board": "TASKS.md",
+      "item": "CALLBACK-PRIVATE-MATERIALIZATION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit"
+      ],
+      "suggested_first_slice": "Retry of the blocked w8 slot — its recorded evidence is exact: admit each Machine{Nominal} signature type parameter joined to a nominal_machine_use at the exact site (ordinal plus satisfaction row) without requiring an ABI native callback parameter — the PrivateCallbackSlot conformance supplies the destination. The blocker was admitted_native_callback_telescope in flow/terminal_unit/calls.rs; NOMINAL-FIELD-FLOW's claim on flow/ has expired, so the seam is free. Reuse the blocked session's instrumented gate: only the telescope condition fired — receiver routing, presentation, mutability, result checks all admit.",
+      "backfill_for": "target-semantic-applications"
     }
   ]
 }
