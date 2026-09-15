@@ -1,5 +1,5 @@
 //! Exact signed negative-one right-shift tests.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule;
 use super::super::{

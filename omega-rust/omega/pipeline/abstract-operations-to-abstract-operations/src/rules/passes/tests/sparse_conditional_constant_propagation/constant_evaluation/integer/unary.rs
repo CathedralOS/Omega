@@ -1,5 +1,5 @@
 //! Exact cast, widen, and bitwise-not constant evaluation.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::super::{
     ExactIntegerAddConstantsRule, ExactIntegerCastConstantsRule, IntegerBitwiseNotConstantsRule,

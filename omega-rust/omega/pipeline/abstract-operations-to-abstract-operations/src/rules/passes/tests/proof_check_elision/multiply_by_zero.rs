@@ -1,5 +1,5 @@
 //! Exact multiplication-by-zero tests.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;
 use super::super::{

@@ -1,5 +1,5 @@
 //! Dead scalar literal elimination semantics and custody.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::DeadScalarLiteralEliminationRule;
 use super::super::{

@@ -1,5 +1,5 @@
 //! Obligation-free wrapping identity partitions and canonical tie behavior.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::WrappingNeutralArithmeticIdentityRule;
 use super::super::super::{

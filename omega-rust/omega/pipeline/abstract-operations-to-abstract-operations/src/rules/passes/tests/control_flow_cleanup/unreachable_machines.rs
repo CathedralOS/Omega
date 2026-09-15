@@ -1,5 +1,5 @@
 //! Whole-machine reachability pruning and root discovery.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::UnreachablePrivateMachinePruneRule;
 use super::super::{

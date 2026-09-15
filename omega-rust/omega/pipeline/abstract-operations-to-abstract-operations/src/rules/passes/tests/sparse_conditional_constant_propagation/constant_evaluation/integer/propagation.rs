@@ -1,5 +1,5 @@
 //! Registry dispatch and propagated-fact constant evaluation.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::super::IntegerBitwiseNotConstantsRule;
 use super::super::super::super::{

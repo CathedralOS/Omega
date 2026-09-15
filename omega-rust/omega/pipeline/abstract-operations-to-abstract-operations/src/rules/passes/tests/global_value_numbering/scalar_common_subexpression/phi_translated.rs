@@ -1,5 +1,5 @@
 //! Phi-translated leader construction and validation.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::{
     PhiTranslatedObligationFreeScalarGvnRule,

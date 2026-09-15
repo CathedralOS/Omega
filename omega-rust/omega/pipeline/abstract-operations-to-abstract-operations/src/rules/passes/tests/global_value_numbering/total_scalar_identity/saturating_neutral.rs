@@ -1,5 +1,5 @@
 //! Saturating neutral-arithmetic identity custody.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::SaturatingNeutralArithmeticIdentityRule;
 use super::super::super::{

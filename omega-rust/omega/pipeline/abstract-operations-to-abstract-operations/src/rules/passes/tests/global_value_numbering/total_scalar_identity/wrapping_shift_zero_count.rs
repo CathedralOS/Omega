@@ -1,5 +1,5 @@
 //! Wrapping shift-by-zero-count semantic and replay coverage.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::WrappingShiftZeroCountIdentityRule;
 use super::super::super::{

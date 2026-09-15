@@ -1,5 +1,5 @@
 //! Saturating multiply-zero annihilation and overlap custody.
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::{
     SaturatingMultiplyZeroAnnihilationRule, SaturatingNeutralArithmeticIdentityRule,

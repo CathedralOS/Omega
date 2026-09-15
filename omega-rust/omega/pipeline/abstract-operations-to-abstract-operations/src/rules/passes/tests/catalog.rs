@@ -33,7 +33,7 @@ use super::{
     randomized_built_in_registries, registry_for_optimization,
 };
 use crate::PsiPassTargetApplicability;
-use crate::rule_registry::PsiOptimizationRule;
+use crate::rules::registry::PsiOptimizationRule;
 
 #[test]
 fn ordered_catalog_covers_every_declared_psi_optimization_once() {
