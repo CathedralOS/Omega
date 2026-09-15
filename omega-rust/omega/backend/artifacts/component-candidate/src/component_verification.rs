@@ -369,8 +369,12 @@ pub fn verify_component(
             expected: Box::new(request.expected_subject),
         });
     }
-    let _proof_bundle = terminal_codec::decode_proof_bundle_for(&module, artifact.proof_bytes())
-        .map_err(|error| ComponentVerificationRejection::ProofSection(error.to_string()))?;
+    // The component artifact's proof section must be sealed to this exact
+    // module: a bare bundle or a section sealed to another subject cannot
+    // underwrite this component's description.
+    let _proof_bundle =
+        terminal_codec::decode_proof_section_for(&module, artifact.proof_bytes())
+            .map_err(|error| ComponentVerificationRejection::ProofSection(error.to_string()))?;
     if description.frontier != DescriptionFrontier::TerminalArtifactClosure {
         return Err(ComponentVerificationRejection::EarlyFrontier(
             description.frontier,

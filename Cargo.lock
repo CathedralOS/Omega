@@ -2309,6 +2309,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-target-operations",
+ "checked-trees",
  "checked-trees-to-lowered-psi",
  "installation-evidence",
  "optimization-unit",
