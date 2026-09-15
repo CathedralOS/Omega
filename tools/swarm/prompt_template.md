@@ -52,8 +52,10 @@ Publish only through `python3 tools/landing.py` with
 immediately before `enqueue`. After `claim`, rerun the checks whose inputs
 changed. On lease expiry, `release` and rejoin; never bypass the reservation.
 `landing.py` requires full lowercase 40-character SHAs for `--base` and
-`--candidate`; an expired head leaves your commit intact — re-enqueue it
-after the queue clears.
+`--candidate`; `publish` takes `--claim <ticket>`, and its `--base` must
+equal the reserved base the claim printed (main may move between `enqueue`
+and `claim` — rebase onto the reserved base); an expired head leaves your
+commit intact — re-enqueue it after the queue clears.
 Keep checkpoints bounded, but retain the assigned customer through producer and
 consumer repairs. Rerun its outer command after relevant changes; helper tests
 alone do not complete the assignment or justify claiming native execution.

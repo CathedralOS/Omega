@@ -79,7 +79,10 @@ Publish only through `python3 tools/landing.py` with
 `origin/main` and validate immediately before claiming the head. On lease
 expiry, release the ticket and rejoin the queue; never bypass the
 reservation. `landing.py` requires full lowercase 40-character SHAs for
-`--base` and `--candidate`; an expired head leaves your commit intact —
+`--base` and `--candidate`; `publish` takes `--claim <ticket>`, and its
+`--base` must equal the reserved base the claim printed (main may move
+between `enqueue` and `claim` — rebase onto the reserved base, not the
+base you enqueued with); an expired head leaves your commit intact —
 re-enqueue it after the queue clears.
 
 ## Report
