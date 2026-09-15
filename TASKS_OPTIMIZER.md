@@ -236,7 +236,35 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and result signature fields, affine-lane claims, trivial locals and
   discards, code offset, and byte count are rejected at encoding as
   non-canonical, as are a machine-descending swap and a duplicated row,
-  while a dropped row is rejected by replay.
+  while a dropped row is rejected by replay. Landed: installed attached-Unit
+  scalar-call rows (`image-emission/tests/internal_unit_scalar_calls.rs`,
+  `installation_internal_unit_scalar_call_row_rejects_every_one_field_substitution`,
+  `951c09bb9c`) — the call's `operation_ordinal`, in-span `byte_count`, the
+  nested argument and result `code_offset`/`byte_count` intervals, and a
+  `Home` argument source naming an earlier producer are independently
+  representable and rejected by replay, as are dropped rows; machine, text
+  offset, owner, target, call-plan parameters/result/stack alignment, every
+  result-home field, the result source, out-of-span or zero intervals,
+  constant or out-of-order ordinals, argument parameter index, destination
+  and source substitutions, extra or dropped arguments, and duplicated or
+  swapped rows are rejected at encoding as non-canonical. Landed: sealed
+  optimized-object artifact records, manifests, and custody receipts
+  (`compiler/tests/object_artifact_custody.rs`,
+  `optimized_object_artifact_custody_rejects_every_one_field_substitution`)
+  — every artifact-record field (terminal-artifact, semantic, obligation,
+  and proof digests, the debug section, selections, all four target axes,
+  semantic entry, the six manifest identities, object and container
+  identities, and all four statistics) and every manifest field (artifact,
+  terminal-artifact, semantic, selections, all four target axes, semantic
+  entry, container-manifest, object, container, and all four statistics)
+  is independently representable under an honestly recomputed containing
+  identity and rejected by independent replay against the retained terminal
+  artifact and relocation-free object container; each of the six
+  custody-receipt fields is rejected by replay; foreign or stale containing
+  identities, the closed stage and unavailable markers, unknown vocabulary,
+  architecture, object-format, and optional-section tags, a zero machine
+  identity, and trailing or truncated envelopes are rejected at canonical
+  decoding.
 
 ## Psi optimization and loops
 
