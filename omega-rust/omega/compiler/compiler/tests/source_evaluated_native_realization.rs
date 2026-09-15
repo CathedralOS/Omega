@@ -164,7 +164,7 @@ macos_arm64 machine ping_binding() -> Binding<26, 7, 0> {
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
 data Main { process: Process; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Process {
     self.process.ping();
 }
 "#,
@@ -200,7 +200,7 @@ windows_x86_64 machine ping_binding() -> Binding<12, 24, 0> {
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
 data Main { process: Process; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Process {
     let fused: f32 = F32::fused_multiply_add(
         1.00000011920928955078125f32,
         0.99999988079071044921875f32,
@@ -257,7 +257,7 @@ machine sleep_leaf(milliseconds: u32)
     via sleep_binding();
 
 data Main { process: Process; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Process {
     let current: u32 = self.process.current_id();
     self.process.sleep(current);
 }
@@ -296,7 +296,7 @@ linux_x86_64 machine ping_binding() -> Binding<9, 6, 11> {{
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
 data Main {{ process: Process; }}
-machine Main::main(&mut self) {{
+machine Main::main(&mut self) reaches Process {{
     {marker}
     self.process.ping();
 }}
@@ -341,7 +341,7 @@ macos_arm64 machine wait_binding() -> Binding<26, 6, 0> {
 machine wait_leaf(seconds: u32) satisfies Delay::wait via wait_binding();
 
 data Main { delay: Delay; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Delay {
     self.delay.wait(3);
 }
 "#,
@@ -382,7 +382,7 @@ machine process_id_leaf() -> i32
     via process_id_binding();
 
 data Main { process: Process; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Process {
     let observed_pid: i32 = self.process.process_id();
 }
 "#,
@@ -536,7 +536,7 @@ windows_x86_64 machine exit_binding() -> Binding<12, 11, 0> {{
 machine find_close_leaf(handle: i64) -> i32 satisfies WindowsCalls::find_close via find_close_binding();
 machine exit_leaf(code: i32) satisfies WindowsCalls::exit via exit_binding();
 data Main {{ windows: WindowsCalls; }}
-machine Main::main(&mut self) {{
+machine Main::main(&mut self) reaches WindowsCalls {{
     let result: i32 = self.windows.find_close(0);
     self.windows.exit(result);
 }}
@@ -1116,17 +1116,6 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
 #[test]
 fn rejected_native_reentry_returns_the_exact_dynamic_interpreter() {
     let fixture = Fixture::new_linux_named("linux-reentry-recovery", false);
-    let source = fs::read_to_string(&fixture.main).expect("read the native re-entry fixture");
-    let declaration = "machine Main::main(&mut self) {";
-    assert_eq!(source.matches(declaration).count(), 1);
-    fs::write(
-        &fixture.main,
-        source.replace(
-            declaration,
-            "machine Main::main(&mut self) reaches Process {",
-        ),
-    )
-    .expect("declare the fixture's direct boundary reach");
     let retained = fixture.compile_terminal();
     let policy = terminal_authority_policy(&retained);
     let permission_policy = terminal_authority_permission_policy(&retained);

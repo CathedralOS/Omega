@@ -2333,6 +2333,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             proposal.application_name().map(str::to_owned),
             proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
+            proposal.checked_program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
             proposal.package_terminal_authority_permissions().to_vec(),
@@ -2358,7 +2359,8 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         proposal.program_entry().source_signature(),
         calling_plans,
         proposal.program_entry().fused_service_establishments(),
-    );
+    )
+    .with_checked_entry(proposal.checked_program_entry());
     let compiler_builtins = proposal
         .compiler_builtins()
         .iter()
@@ -2440,7 +2442,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
     );
     assert!(matches!(
         native.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let replayed = native_realization::NativeArtifact::from_replayed_parts(native.into_parts())
         .expect("reloaded D32 artifact should replay from retained custody");
