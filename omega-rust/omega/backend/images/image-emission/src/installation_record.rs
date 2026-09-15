@@ -378,6 +378,13 @@ impl InstallationRecord {
     }
 
     #[cfg(any(test, feature = "test-support"))]
+    pub fn selected_provider_plans_mut_for_test(
+        &mut self,
+    ) -> &mut Vec<SelectedProviderPlanReportIdentity> {
+        &mut self.selected_provider_plans
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
     pub fn component_progress_mut_for_test(&mut self) -> &mut Option<InstalledComponentProgress> {
         &mut self.component_progress
     }
