@@ -189,7 +189,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        terminal_codec::encode_proof_section(&module, &ProofBundle::default()).unwrap(),
     )
 }
 
@@ -320,7 +320,7 @@ fn loop_carried_spill_frame_replays_private_accesses_through_callable_publicatio
             .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
         let (semantic, proof) = artifact();
         let module = terminal_codec::decode_module(&semantic).unwrap();
-        let proof = terminal_codec::decode_proof_bundle(&proof).unwrap();
+        let proof = terminal_codec::decode_proof_section_for(&module, &proof).unwrap();
         let optimization =
             terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
         let terminal = terminal_codec::CanonicalTerminalArtifact::from_parts(

@@ -189,6 +189,6 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
     };
     (
         terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        terminal_codec::encode_proof_section(&module, &ProofBundle::default()).unwrap(),
     )
 }

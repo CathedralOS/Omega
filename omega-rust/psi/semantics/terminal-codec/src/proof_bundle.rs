@@ -130,8 +130,8 @@ pub fn decode_proof_section(
 
 /// Decode a sealed proof section and require its claimed subject to equal the
 /// identity reconstructed from this exact module. Unsealed proof bundles are
-/// rejected here; see [`decode_proof_bundle_for`] for the transitional
-/// admission decode that still accepts them.
+/// rejected here: every boundary that pairs a proof with a module uses this
+/// subject-checking decode.
 pub fn decode_proof_section_for(
     module: &TerminalModule,
     bytes: &[u8],
@@ -148,30 +148,12 @@ pub fn decode_proof_section_for(
     Ok(bundle)
 }
 
-/// Admission decode for a proof section paired with this exact module. A
-/// sealed section must name the module's reconstructed identity, so a sealed
-/// proof cannot be replayed for another subject even when compact obligation
-/// coordinates coincide. An unsealed bundle is still decoded here, but only
-/// the optimizer artifact admission retains this transitional decode; the
-/// ordinary, native, provider-installation, and component-verification
-/// boundaries all require the sealed section via [`decode_proof_section_for`].
-pub fn decode_proof_bundle_for(
-    module: &TerminalModule,
-    bytes: &[u8],
-) -> Result<ProofBundle, ProofCodecError> {
-    if bytes.starts_with(SECTION_MAGIC) {
-        decode_proof_section_for(module, bytes)
-    } else {
-        decode_proof_bundle(bytes)
-    }
-}
-
 pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError> {
     if bytes.starts_with(SECTION_MAGIC) {
         // A sealed proof section decodes to its bundle here; the subject
         // claim is intentionally not inspected. Boundaries that pair a proof
-        // section with a module must use decode_proof_bundle_for or
-        // decode_proof_section_for so the seal is enforced.
+        // section with a module must use decode_proof_section_for so the seal
+        // is enforced.
         return decode_proof_section(bytes).map(|(_, bundle)| bundle);
     }
     let mut reader = Reader::new(bytes);

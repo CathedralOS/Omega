@@ -1,6 +1,6 @@
-//! Ordinary and native artifact admission require a proof section sealed to
-//! the exact admitted module; the optimizer admission is the sole
-//! transitional boundary still accepting an unsealed bundle.
+//! Every artifact admission — ordinary, optimizer, and native — requires a
+//! proof section sealed to the exact admitted module; unsealed bundles are
+//! rejected at all three boundaries.
 
 use proof_admission::AdmissionProfile;
 use terminal_codec::{ProofCodecError, encode_module, encode_proof_bundle, encode_proof_section};
@@ -44,21 +44,26 @@ fn artifact_sections<'artifact>(
 }
 
 #[test]
-fn ordinary_and_native_admission_reject_an_unsealed_proof_bundle() {
+fn every_admission_rejects_an_unsealed_proof_bundle() {
     let checked = checked_source();
     let lowered =
         checked_trees_to_lowered_psi::lower_machine(&checked, "enter").expect("Terminal producer");
     let semantic_bytes = encode_module(&lowered.semantic_module).expect("canonical semantics");
     // A bare proof bundle still verifies in process but carries no subject
-    // seal, so the sealed boundaries must refuse it outright.
+    // seal, so every admission boundary must refuse it outright.
     let bare_proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("bare bundle");
     let profile = AdmissionProfile::default();
     terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
         .expect("the bare bundle still verifies in process");
 
-    for entrance in ["ordinary", "native"] {
+    for entrance in ["ordinary", "optimizer", "native"] {
         let result = match entrance {
             "ordinary" => lower_artifact(
+                artifact_sections(&semantic_bytes, &bare_proof_bytes),
+                &profile,
+            )
+            .map(|_| ()),
+            "optimizer" => lower_artifact_for_optimization(
                 artifact_sections(&semantic_bytes, &bare_proof_bytes),
                 &profile,
             )
@@ -74,15 +79,6 @@ fn ordinary_and_native_admission_reject_an_unsealed_proof_bundle() {
             "{entrance} admission must reject an unsealed proof bundle"
         );
     }
-
-    // The optimizer admission is the remaining transitional consumer: it
-    // still decodes an unsealed bundle while its bare-bundle test producers
-    // migrate.
-    lower_artifact_for_optimization(
-        artifact_sections(&semantic_bytes, &bare_proof_bytes),
-        &profile,
-    )
-    .expect("optimizer admission remains transitional");
 }
 
 #[test]
