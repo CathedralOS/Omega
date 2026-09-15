@@ -1257,6 +1257,261 @@ fn product_schema_query_rejects_an_ambiguous_declaration() {
 }
 
 #[test]
+fn owner_selected_product_provider_inspects_through_foreign_helper() {
+    // The owner selects its own private provider declaration through the
+    // compiler-owned `product.provider` query and hands the restricted
+    // description to a helper in another package. The helper inspects it
+    // through `path()` without holding any product namespace of its own. A
+    // clean compile plus the emitted log line also witnesses non-execution:
+    // had the declared `BuildProduct::provider` body run, the returned
+    // authored `ProductProviderRef {}` would carry no description and
+    // `path()` would trap.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine configure(builder: &mut Build, provider: &ProductProviderRef) { builder.log.write_line(provider.path()); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "boundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); setup::configure(builder, &provider); builder.product.provider(\"AudioProvider\"); provider.path(); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let checked = compile_to_checked(request).expect(
+        "an owner-selected product provider inspects through a helper without executing the declaration",
+    );
+    let observation = checked
+        .build_observation_summary()
+        .expect("provider inspection retains a build observation");
+    assert_eq!(observation.build_log(), b"AudioProvider\n");
+}
+
+#[test]
+fn product_provider_query_is_scoped_to_the_query_occurrences_package() {
+    // The helper performs the query itself: `AudioProvider` exists only in
+    // the owner's package, so the borrowed Build cannot reach it. Selection
+    // authority belongs to the query occurrence's package, not the caller's.
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup; pub machine configure(builder: &mut Build) { let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); builder.log.write_line(provider.path()); }",
+    ).expect("helper source");
+    let project = TempProject::with_main(
+        "boundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+    );
+    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+    let diagnostics = compile_to_checked(request)
+        .expect_err("a foreign helper cannot select the caller's private product provider")
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        diagnostics
+            .contains("not a provider declaration visible from this build occurrence's package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn forged_product_provider_description_is_rejected() {
+    // An authored `ProductProviderRef {}` has the static type but carries no
+    // compiler-issued description payload, so inspection refuses it at
+    // evaluation rather than trusting the shape.
+    let project = TempProject::new(&application_build(
+        "    let forged: ProductProviderRef = ProductProviderRef {};\n    builder.log.write_line(forged.path());",
+    ));
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("an authored ProductProviderRef value is not a product provider description")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("requires a compiler-issued ProductProviderRef"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_provider_query_rejects_a_non_facet_receiver() {
+    // An authored `BuildProduct` lookalike resolves the toolchain machine by
+    // member lookup but carries no facet marker: selection authority lives on
+    // the compiler-issued `Build.product` value only.
+    let project = TempProject::with_main(
+        "boundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
+        "machine build(builder: &mut Build) { builder.application(\"lookalike-facet\"); let product: BuildProduct = BuildProduct {}; let provider: ProductProviderRef = product.provider(\"AudioProvider\"); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("an authored BuildProduct value cannot perform the provider query")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("requires the compiler-issued Build.product facet"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_provider_query_requires_a_provider_declaration() {
+    // `PlainConfig` names data with no `satisfies` machines and `launch`
+    // names a machine: a provider operand selects only authored provider
+    // declarations in the occurrence's package, never plain data or entries.
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }\ndata PlainConfig { value: u8; }",
+        "machine build(builder: &mut Build) { builder.application(\"provider-miss\"); let provider: ProductProviderRef = builder.product.provider(\"PlainConfig\"); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("a plain data declaration cannot stand in for a product provider")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("names no provider declaration in this build occurrence's package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }",
+        "machine build(builder: &mut Build) { builder.application(\"provider-miss\"); let provider: ProductProviderRef = builder.product.provider(\"launch\"); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("a machine name cannot stand in for a product provider")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("names no provider declaration in this build occurrence's package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_provider_cannot_stand_in_for_an_entry_description() {
+    // The description kinds are distinct: `roots.bind` consumes only the
+    // entry marker, so a provider description is refused wherever an entry
+    // description is required.
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }\nboundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
+        "machine build(builder: &mut Build) { builder.application(\"provider-not-entry\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); builder.roots.bind(windows_x86_64::ProgramEntry, provider); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("a product provider description cannot stand in as a root binding operand")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("not a compiler-issued product entry description")
+            || diagnostics.contains("ProductEntryRef"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_provider_query_rejects_an_ambiguous_declaration() {
+    // Two same-named provider declarations in the query occurrence's own
+    // package cannot mint one description: the query admits exactly one
+    // candidate.
+    let project = TempProject::with_main(
+        "use other;\nboundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
+        "machine build(builder: &mut Build) { builder.application(\"provider-ambiguous\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); }",
+    );
+    fs::write(
+        project.0.join("other.omg"),
+        "module other;\nboundary trait OtherPick {\n    machine choose() -> i32;\n}\npub data AudioProvider { }\npub machine AudioProvider::choose() -> i32 satisfies OtherPick::choose {\n    transition { _ -> (1) }\n}",
+    )
+    .expect("ambiguous sibling source");
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("an ambiguous product provider name is refused")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("is ambiguous within its package"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn product_provider_description_is_not_a_static_provider_argument() {
+    // `select_provider` still takes its exact static slot and provider type
+    // paths; a retained description place cannot substitute for the provider
+    // type argument, and the one-type-argument spelling never reaches
+    // evaluation.
+    let project = TempProject::with_main(
+        "boundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
+        "machine build(builder: &mut Build) { builder.application(\"provider-operand\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); builder.select_provider<Pick>(provider); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("a product provider description is not a select_provider type argument")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains("`select_provider` requires exactly two plain type paths"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn delegated_root_binding_rejects_a_computed_description_result() {
+    // The delegated `roots.bind` operand admits only a retained
+    // `ProductEntryRef` place: a call result spelling stays fenced until
+    // ordinary call-result authority can carry it.
+    let project = TempProject::with_main(
+        "machine launch() { let marker: u8 = 0; }\nmachine choose_entry() -> ProductEntryRef {\n    transition { _ -> (ProductEntryRef {}) }\n}",
+        "machine build(builder: &mut Build) { builder.application(\"computed-operand\"); builder.roots.bind(windows_x86_64::ProgramEntry, choose_entry()); }",
+    );
+    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("a computed call result cannot serve as the root binding operand")
+    .into_iter()
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(
+        diagnostics.contains(
+            "root-slot binding requires exactly one slot path and one implementation path"
+        ) || diagnostics.contains("computed description results are not implemented"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
 fn root_build_aliases_cannot_mutate_target_or_replace_the_activation() {
     for (operation, expected) in [
         (
