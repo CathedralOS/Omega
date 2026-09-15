@@ -48,7 +48,8 @@ pub(crate) fn check_machine_termination(
             continue;
         }
 
-        if !graph::machine_has_cycle(program, machine)
+        let has_local_cycle = graph::machine_has_cycle(program, machine);
+        if !has_local_cycle
             && !machine
                 .termination_plan
                 .implementation_witness
@@ -68,14 +69,21 @@ pub(crate) fn check_machine_termination(
             continue;
         }
 
-        // The whole-component judgment already proves these members' ranges
-        // and every internal call. It admits only single-entry bodies without
-        // local-state loops; do not reinterpret its clamped call ranks through
-        // the separate local-state induction rule. External progress and
-        // ordinary contracts remain obligations of their existing checks.
-        if ranked_call_components
-            .iter()
-            .any(|members| members.contains(&machine.symbol))
+        // The whole-component judgment proves these members' cross-machine
+        // call edges and transported ranges, but it never inspects an internal
+        // state arrival: it trusts each member's own ranking judgment for the
+        // local graph. That trust only holds while the member has no
+        // local-state cycle, so a member that can still loop internally --
+        // through a subordinate-state backedge, an implicit self transition,
+        // or a call naming this machine's entry -- must answer to the
+        // local-state induction rule for exactly those intra-machine edges.
+        // Clamped call ranks on cross-machine edges stay component-owned, and
+        // external progress and ordinary contracts remain obligations of
+        // their existing checks.
+        if !has_local_cycle
+            && ranked_call_components
+                .iter()
+                .any(|members| members.contains(&machine.symbol))
         {
             continue;
         }

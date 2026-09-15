@@ -1,0 +1,27 @@
+// PASS CANARY. A component member may keep its own strictly decreasing
+// internal loop beside a weak cross-machine call edge: `hold` descends
+// `pending - 1` on its local backedge while `hold -> step(pending)` forwards
+// the carried entry role `remaining` non-increasingly, and the strict
+// `step -> count(n - 1)` edge completes every component cycle's descent.
+
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(5) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining > 0 { true -> hold(remaining) false -> remaining }
+
+    state hold(pending: u32 [0..=9]) {
+        transition pending > 1 { true -> hold(pending - 1) false -> self.step(pending) }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 { true -> self.count(n - 1) false -> n }
+}

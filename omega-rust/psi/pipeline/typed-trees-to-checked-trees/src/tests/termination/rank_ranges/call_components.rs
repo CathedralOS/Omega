@@ -33,6 +33,9 @@ fn reject(source: &str) {
         diagnostics.iter().any(
             |diagnostic| diagnostic.message.contains("machine call cycle")
                 || diagnostic.message.contains("cannot prove rank range")
+                || diagnostic
+                    .message
+                    .contains("cannot prove the `terminates by` ranking")
         ),
         "{source}\n{diagnostics:#?}"
     );
@@ -385,6 +388,47 @@ fn mixed_call_range_endpoint_inputs_accept_checked_arithmetic_identity() {
             "ceiling + 0, remaining, floor)"
         )
     ));
+}
+
+const STATEFUL: &str = r#"
+data Main {}
+machine Main::count(&mut self, remaining: u32 [0..=9])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining > 0 { true -> hold(remaining) false -> remaining }
+    state hold(pending: u32 [0..=9]) {
+        transition pending > 1 { true -> hold(pending - 1) false -> self.step(pending) }
+    }
+}
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 { true -> self.count(n - 1) false -> n }
+}
+"#;
+
+#[test]
+fn component_members_keep_internal_cycles_under_the_local_ranking_rule() {
+    // The whole-component judgment witnesses cross-machine call edges only;
+    // every internal arrival still answers to the member's own ranking
+    // judgment. A strictly decreasing internal loop beside the weak
+    // `hold -> step` call edge is admitted.
+    prove(STATEFUL);
+    // A member that can loop internally without descent is rejected even
+    // though the component's call edges are well-formed: `hold(pending)`
+    // arrives with the rank unchanged, and `self.count(pending)` re-enters
+    // the entry without descent.
+    reject(&STATEFUL.replace("hold(pending - 1)", "hold(pending)"));
+    reject(&STATEFUL.replace(
+        "false -> self.step(pending)",
+        "false -> self.count(pending)",
+    ));
+    // An unranged member is held to the same local rule: its internal loop
+    // cannot borrow the component's transported entry telescope, so even the
+    // decreasing arrival stays unproven, matching the standalone judgment.
+    let unranged = STATEFUL.replace(" in 0..=9", "");
+    reject(&unranged);
+    reject(&unranged.replace("hold(pending - 1)", "hold(pending)"));
 }
 
 #[test]

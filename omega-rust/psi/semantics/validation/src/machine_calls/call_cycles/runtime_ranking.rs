@@ -112,11 +112,13 @@ pub(super) fn check_component(
         let Some(entry) = states.first() else {
             return Err("a member has no checked entry state");
         };
-        // Internal arrivals are witnessed by the member's own ranking
-        // judgment, but a call issued from a subordinate state still answers
-        // to this shared hypothesis. The member's discovered telescope names
-        // the entry role each site formal carries, so authored subjects and
-        // endpoints normalize to the atom the site actually holds.
+        // Internal arrivals are owned by the member's own ranking judgment,
+        // which the checked stage applies to every member whose local state
+        // graph can still cycle. A call issued from a subordinate state still
+        // answers to this shared hypothesis. The member's discovered
+        // telescope names the entry role each site formal carries, so
+        // authored subjects and endpoints normalize to the atom the site
+        // actually holds.
         let Some(mappings) =
             discover_state_entry_mappings(program, machine, ranks[position].parameter)
         else {
@@ -190,8 +192,11 @@ pub(super) fn check_component(
                             return Err("a call target has no exact machine identity");
                         };
                         if callee == index {
-                            // An internal state arrival is already ranked by the
-                            // member's own judgment; it adds no hypothesis edge.
+                            // An internal state arrival belongs to the
+                            // member's own ranking judgment -- the checked
+                            // stage still runs that judgment whenever the
+                            // member's local state graph can cycle -- so it
+                            // adds no hypothesis edge here.
                             continue;
                         }
                         let callee_machine = &program.machines()[callee];
