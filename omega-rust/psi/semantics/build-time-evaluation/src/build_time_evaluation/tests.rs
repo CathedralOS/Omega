@@ -30,7 +30,8 @@ fn standalone_request_preserves_the_two_stage_evaluation() {
     .expect("standalone evaluation");
     let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
     assert!(pre_check.selection_authority.is_none());
-    let resolved = crate::syntax_probes::resolve(&syntax, None, &[]).expect("resolve");
+    let resolved =
+        crate::machine_execution::syntax_probes::resolve(&syntax, None, &[]).expect("resolve");
     let mut typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     pre_check.evaluate(&mut typed).expect("finish evaluation");
@@ -71,8 +72,9 @@ fn request_retains_exact_loader_module_alias_binding() {
         1,
     )];
     let sources = Arc::new(sources);
-    let unbound = crate::syntax_probes::resolve(&syntax, Some(sources.clone()), &[])
-        .expect("unresolved nominal names remain for typing");
+    let unbound =
+        crate::machine_execution::syntax_probes::resolve(&syntax, Some(sources.clone()), &[])
+            .expect("unresolved nominal names remain for typing");
     let root = unbound
         .data_definitions
         .iter()
@@ -102,8 +104,9 @@ fn request_retains_exact_loader_module_alias_binding() {
     })
     .expect("evaluate with borrowed loader bindings");
     let (syntax, _) = evaluated.into_syntax_and_pre_check();
-    let resolved = crate::syntax_probes::resolve(&syntax, Some(sources), &bindings)
-        .expect("resolve probe with exact alias binding");
+    let resolved =
+        crate::machine_execution::syntax_probes::resolve(&syntax, Some(sources), &bindings)
+            .expect("resolve probe with exact alias binding");
     let declaration = resolved
         .data_definitions
         .iter()
@@ -149,7 +152,7 @@ fn typed_after_pre_resolution(
     syntax: &syntax_trees::SyntaxTrees,
     sources: Arc<SourceMap>,
 ) -> typed_trees::TypedTrees {
-    let resolved = crate::syntax_probes::resolve(syntax, Some(sources), &[])
+    let resolved = crate::machine_execution::syntax_probes::resolve(syntax, Some(sources), &[])
         .expect("resolve pre-evaluated syntax");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type pre-evaluated syntax")
@@ -161,7 +164,7 @@ fn package_aware_probe_retains_authored_symbol_ownership() {
     let package = PackageKeyIdentity::from_digest([0x6a; 32]).expect("nonzero package identity");
     let (syntax, sources) = parsed_source(source, package);
 
-    let resolved = crate::syntax_probes::resolve(&syntax, Some(sources), &[])
+    let resolved = crate::machine_execution::syntax_probes::resolve(&syntax, Some(sources), &[])
         .expect("package-aware probe resolution");
     let machine = resolved.machines.first().expect("selected machine");
 
