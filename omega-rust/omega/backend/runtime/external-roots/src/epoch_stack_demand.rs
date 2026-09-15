@@ -395,6 +395,16 @@ impl EntryStackRealizationEvidence {
         self.installed_code
     }
 
+    /// The exact installed-code occurrence context retained at binding.
+    ///
+    /// Consumers rejoining this evidence against retained runtime provision
+    /// compare the complete context: the compact installed-code identity is
+    /// provider-minted and cannot distinguish two placements issued the same
+    /// identity.
+    pub const fn installed_code_context(&self) -> &InstalledCodeContext {
+        &self.installed_code_context
+    }
+
     pub const fn artifact(&self) -> ArtifactId {
         self.artifact
     }

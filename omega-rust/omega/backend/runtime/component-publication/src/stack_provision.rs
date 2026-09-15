@@ -12,9 +12,11 @@
 //!
 //! The join stays independent of the WCSU evidence, the artifact-entry
 //! binding, and ledger custody: a lease or set that names another installed
-//! occurrence, a demanded domain with no admitted lease, an unresolved
-//! provider-selected domain, and a lease whose capacity or alignment is below
-//! the composed domain demand all reject before the ledger sees the install.
+//! occurrence, bound epoch evidence retained for a different placement under
+//! colliding compact identities, a demanded domain with no admitted lease, an
+//! unresolved provider-selected domain, and a lease whose capacity or
+//! alignment is below the composed domain demand all reject before the
+//! ledger sees the install.
 
 use std::collections::BTreeMap;
 
@@ -149,11 +151,14 @@ impl ProvisionedExternalStackSet {
 
     /// Rejoin this retained provision against one incoming root's bound epoch
     /// composition. Every bound stack input must name this exact installed
-    /// occurrence (a cross-context disposition rejects), the composition must
-    /// retain the root's own demand, and each composed domain demand must be
-    /// covered by an admitted lease with sufficient capacity and alignment.
-    /// A demanded domain no lease provisions — including a provider-selected
-    /// domain that never resolved — rejects here rather than at entry.
+    /// occurrence — the complete retained code context, not only the compact
+    /// installed-code and artifact identities, which cannot distinguish two
+    /// placements issued the same provider-minted identity (a cross-context
+    /// disposition rejects). The composition must retain the root's own
+    /// demand, and each composed domain demand must be covered by an admitted
+    /// lease with sufficient capacity and alignment. A demanded domain no
+    /// lease provisions — including a provider-selected domain that never
+    /// resolved — rejects here rather than at entry.
     pub fn covers_root_demand(
         &self,
         root: &ValidatedExternalRoot,
@@ -162,6 +167,7 @@ impl ProvisionedExternalStackSet {
         for (_, input) in candidate.stack.realization.inputs() {
             let evidence = input.realization_evidence();
             if evidence.installed_code() != self.installed_code
+                || evidence.installed_code_context() != &self.installed_code_context
                 || evidence.artifact() != self.artifact
             {
                 return Err(ExternalRootDiagnostic(format!(
