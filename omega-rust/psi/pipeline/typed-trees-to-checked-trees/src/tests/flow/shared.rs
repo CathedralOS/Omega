@@ -440,7 +440,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
 
     let service_reaches = validation::infer_service_reaches(&program, &operations);
     let capabilities =
-        crate::capabilities::build_capability_facts(&program, &service_reaches, &flow);
+        crate::facts::capabilities::build_capability_facts(&program, &service_reaches, &flow);
     assert_eq!(
         capabilities.count_by_kind(flow_effects::CapabilityFlowKind::Uses),
         1

@@ -51,7 +51,7 @@ pub(super) fn check_domain_field_writes(
     {
         // (1) Assignment into a domain-refined field, parameter, or local.
         if let StatementNode::Assignment(assignment) = statement {
-            for domain_symbol in crate::field_domain::assignment_target_domain_symbols(
+            for domain_symbol in crate::facts::field_domain::assignment_target_domain_symbols(
                 program,
                 machine,
                 state,
@@ -91,21 +91,21 @@ pub(super) fn check_domain_field_writes(
         // A value whose maximum length cannot be bounded (an unbounded view
         // source, a runtime call result) is conservatively rejected.
         if let StatementNode::Assignment(assignment) = statement
-            && !crate::field_domain::assignment_target_domain_symbols(
+            && !crate::facts::field_domain::assignment_target_domain_symbols(
                 program,
                 machine,
                 state,
                 assignment.target,
             )
             .is_empty()
-            && let Some(field_type) = crate::field_domain::assignment_target_type_reference(
+            && let Some(field_type) = crate::facts::field_domain::assignment_target_type_reference(
                 program,
                 machine,
                 state,
                 assignment.target,
             )
             && let Some(capacity) =
-                crate::field_domain::type_reference_fixed_array_capacity(program, field_type)
+                crate::facts::field_domain::type_reference_fixed_array_capacity(program, field_type)
         {
             let target_label = program.expression_table.display_name(assignment.target);
             let known_lengths = known_byte_lengths_before(program, machine, state, statement_index);
@@ -258,7 +258,10 @@ fn static_max_byte_length(
         ),
         ExpressionNode::Call(call) => {
             let target = crate::find_state(program, call.target_symbol)?;
-            crate::field_domain::type_reference_fixed_array_capacity(program, target.return_type)
+            crate::facts::field_domain::type_reference_fixed_array_capacity(
+                program,
+                target.return_type,
+            )
         }
         _ => {
             if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
@@ -274,13 +277,13 @@ fn static_max_byte_length(
                 return Some(known.max_length);
             }
             let field_type =
-                crate::field_domain::attached_data_field_type(program, machine, expression)
+                crate::facts::field_domain::attached_data_field_type(program, machine, expression)
                     .or_else(|| {
-                        crate::field_domain::direct_state_place_type_reference(
+                        crate::facts::field_domain::direct_state_place_type_reference(
                             program, state, expression,
                         )
                     })?;
-            crate::field_domain::type_reference_fixed_array_capacity(program, field_type)
+            crate::facts::field_domain::type_reference_fixed_array_capacity(program, field_type)
         }
     }
 }
@@ -542,7 +545,7 @@ fn scan_construction_field_domains(
                             field.name.as_str(),
                         )
                         && let Some(capacity) =
-                            crate::field_domain::type_reference_fixed_array_capacity(
+                            crate::facts::field_domain::type_reference_fixed_array_capacity(
                                 program, field_type,
                             )
                     {
@@ -740,7 +743,7 @@ fn construction_field_domain_symbols(
     else {
         return Vec::new();
     };
-    crate::field_domain::predicate_domain_constraint_symbols(program, field_type)
+    crate::facts::field_domain::predicate_domain_constraint_symbols(program, field_type)
 }
 
 /// The declared type of a constructed field (a case PAYLOAD field for the named
@@ -822,7 +825,11 @@ fn value_proves_domain(
     if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
         return false;
     }
-    if crate::field_domain::string_literal_expression_grants_domain(program, value, domain_symbol) {
+    if crate::facts::field_domain::string_literal_expression_grants_domain(
+        program,
+        value,
+        domain_symbol,
+    ) {
         return true;
     }
 
@@ -835,7 +842,7 @@ fn value_proves_domain(
     // here is not on its own a license to overflow the target.
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(value)
         && binary.operator == typed_trees::expression::BinaryOperator::Add
-        && crate::field_domain::domain_is_concat_preserving(program, domain_symbol)
+        && crate::facts::field_domain::domain_is_concat_preserving(program, domain_symbol)
     {
         let (left, right) = (binary.left, binary.right);
         if value_proves_domain(
@@ -906,7 +913,7 @@ fn value_proves_domain(
                     return false;
                 }
                 if !facts.semantic.domain_implies(fact_domain, domain_symbol)
-                    && !crate::field_domain::domain_membership_implies(
+                    && !crate::facts::field_domain::domain_membership_implies(
                         program,
                         fact_domain,
                         domain_symbol,
@@ -971,18 +978,22 @@ fn declared_value_domain_implies(
     else {
         return false;
     };
-    let Some(value_type) =
-        crate::field_domain::assignment_target_type_reference(program, machine, state, value)
-    else {
+    let Some(value_type) = crate::facts::field_domain::assignment_target_type_reference(
+        program, machine, state, value,
+    ) else {
         return false;
     };
-    crate::field_domain::predicate_domain_constraint_symbols(program, value_type)
+    crate::facts::field_domain::predicate_domain_constraint_symbols(program, value_type)
         .into_iter()
         .filter(|value_domain| {
-            crate::field_domain::domain_admits_empty_byte_sequence(program, *value_domain)
+            crate::facts::field_domain::domain_admits_empty_byte_sequence(program, *value_domain)
         })
         .any(|value_domain| {
-            crate::field_domain::domain_membership_implies(program, value_domain, domain_symbol)
+            crate::facts::field_domain::domain_membership_implies(
+                program,
+                value_domain,
+                domain_symbol,
+            )
         })
 }
 
@@ -1002,9 +1013,13 @@ fn value_call_return_domain_implies(
     if !target.return_type.is_valid() {
         return false;
     }
-    crate::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
+    crate::facts::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
         .into_iter()
         .any(|return_domain| {
-            crate::field_domain::domain_membership_implies(program, return_domain, domain_symbol)
+            crate::facts::field_domain::domain_membership_implies(
+                program,
+                return_domain,
+                domain_symbol,
+            )
         })
 }

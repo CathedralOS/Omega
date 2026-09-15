@@ -166,7 +166,7 @@ fn append_trait_contract_facts_for_machine(
                     })
                 });
                 let qualification_authorization =
-                    crate::qualification_evidence::boundary_qualification_authorization(
+                    crate::facts::qualification_evidence::boundary_qualification_authorization(
                         program,
                         trait_definition.symbol,
                         signature,

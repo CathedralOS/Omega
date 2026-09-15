@@ -93,7 +93,7 @@ pub(super) fn check_exit_ensures(
                     .iter()
                     .find(|machine| machine.symbol == state_flow.machine_symbol)
                     .is_some_and(|machine| {
-                        crate::qualification_evidence::machine_has_checked_domain_establishment(
+                        crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
                             program,
                             machine,
                             domain_symbol,

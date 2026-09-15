@@ -115,7 +115,7 @@ pub(super) fn range_flow_fixture(
         &domains,
         &operational,
     );
-    crate::review_sources::bind_checked_body_call_source_spans(program, &mut flow)
+    crate::facts::review_sources::bind_checked_body_call_source_spans(program, &mut flow)
         .expect("bind exact range fixture call identities as production does");
     flow
 }

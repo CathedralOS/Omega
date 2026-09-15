@@ -30,7 +30,11 @@ pub(super) fn capture_is_current<'program>(
 ) -> bool {
     let parameters = program.state_parameters(state);
     let mut occurrences = Vec::new();
-    crate::contract_occurrences::append_expression_occurrences(program, argument, &mut occurrences);
+    crate::facts::contract_occurrences::append_expression_occurrences(
+        program,
+        argument,
+        &mut occurrences,
+    );
     let captured = occurrences
         .iter()
         .filter_map(|expression| {

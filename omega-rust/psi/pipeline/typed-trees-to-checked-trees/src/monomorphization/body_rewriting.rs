@@ -1125,8 +1125,10 @@ fn evidence_requirement_rewrites(
             continue;
         };
         let application =
-            crate::conformance_applications::close_conformance_application(program, binding)
-                .expect("validated selected conformance must close during specialization");
+            crate::conformance::conformance_applications::close_conformance_application(
+                program, binding,
+            )
+            .expect("validated selected conformance must close during specialization");
         let mut requirements = Vec::new();
         collect_evidence_requirement_closure(
             program,

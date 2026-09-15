@@ -189,7 +189,7 @@ pub(super) fn append_contract_semantic_facts(
                 *instantiated =
                     facts.append_instantiated_expression(output.instantiated_identity.clone());
             }
-            let Some(evidence) = crate::qualification_evidence::call_contract_evidence(
+            let Some(evidence) = crate::facts::qualification_evidence::call_contract_evidence(
                 program,
                 invocation.target_machine_symbol,
                 invocation.target_state_symbol,
@@ -563,7 +563,7 @@ fn append_call_semantic_contract_refs(
             // Boolean expression into the caller's semantic context.
             continue;
         }
-        let evidence = crate::qualification_evidence::call_contract_evidence(
+        let evidence = crate::facts::qualification_evidence::call_contract_evidence(
             program,
             call.target_machine_symbol,
             call.target_state_symbol,
@@ -590,9 +590,10 @@ fn append_call_semantic_contract_refs(
         if origin == FactOrigin::CallEnsures
             && matches!(payload, FactPayload::ContractBooleanExpression { .. })
         {
-            for occurrence in
-                crate::contract_occurrences::fact_referenced_occurrences(program, contract.fact)
-            {
+            for occurrence in crate::facts::contract_occurrences::fact_referenced_occurrences(
+                program,
+                contract.fact,
+            ) {
                 let dependency =
                     crate::semantic_places::instantiate_call_contract_expression_place(
                         program, facts, call, occurrence,

@@ -3,7 +3,7 @@
 //! Scalar-callee plans are borrowed inputs to Unit planning, not provisional
 //! mutations of published facts. Fallible rebuilds publish only on success.
 
-use crate::execution_plans::{ExecutionPlans, build_execution_plans};
+use crate::execution::execution_plans::{ExecutionPlans, build_execution_plans};
 use checked_trees::CheckedTrees;
 
 /// Exact compiler-owned join from one authored operator use to the checked

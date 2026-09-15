@@ -42,7 +42,7 @@ pub(super) fn bind_contract_expression_evidence_arguments(
                 if program.symbols.get(argument.symbol).kind != symbols::SymbolKind::Conformance {
                     continue;
                 }
-                match crate::conformance_applications::close_conformance_application(
+                match crate::conformance::conformance_applications::close_conformance_application(
                     program, argument,
                 ) {
                     Ok(application) => static_conformance_applications.push(

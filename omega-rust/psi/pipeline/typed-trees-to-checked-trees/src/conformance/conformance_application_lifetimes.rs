@@ -4,7 +4,7 @@
 //! deliberately separate from application closure: absent, ambiguous, and
 //! conflicting regions remain errors rather than declaration-based guesses.
 
-use crate::conformance_applications::{
+use crate::conformance::conformance_applications::{
     static_argument_identity, substituted_type_identity_with_lifetimes,
 };
 use diagnostics::Diagnostic;

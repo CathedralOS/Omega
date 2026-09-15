@@ -92,7 +92,7 @@ fn append_data_field_domain_facts(
         for domain_symbol in field_domain_symbols(program, field.type_reference)
             .into_iter()
             .filter(|symbol| {
-                crate::field_domain::domain_admits_empty_byte_sequence(program, *symbol)
+                crate::facts::field_domain::domain_admits_empty_byte_sequence(program, *symbol)
             })
         {
             // Place `self.<prefix…>.<field>`: root the machine receiver symbol
@@ -139,9 +139,10 @@ fn append_data_field_domain_facts(
 
         // Descend into a struct-typed field so its own domained fields are seeded
         // too. The cycle guard keeps a self-referential data type from looping.
-        if let Some(nested) =
-            crate::field_domain::data_definition_for_field_type(program, field.type_reference)
-            && !visited.contains(&nested.name.as_str())
+        if let Some(nested) = crate::facts::field_domain::data_definition_for_field_type(
+            program,
+            field.type_reference,
+        ) && !visited.contains(&nested.name.as_str())
         {
             let mut next_prefix = prefix.to_vec();
             next_prefix.push(field.symbol);
@@ -204,7 +205,7 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                     continue;
                 }
                 let mut has_resource_claim = false;
-                for domain_symbol in crate::field_domain::domain_constraint_symbols(
+                for domain_symbol in crate::facts::field_domain::domain_constraint_symbols(
                     program,
                     parameter.type_reference,
                 ) {
@@ -671,5 +672,5 @@ fn field_domain_symbols(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
-    crate::field_domain::predicate_domain_constraint_symbols(program, type_reference)
+    crate::facts::field_domain::predicate_domain_constraint_symbols(program, type_reference)
 }

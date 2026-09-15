@@ -1551,7 +1551,7 @@ fn compile_request_owns_product_admission_before_source_acquisition() {
 fn provider_approval_stays_in_omega_after_psi_checking() {
     let root = workspace_root();
     let psi_checks =
-        root.join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks.rs");
+        root.join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/mod.rs");
     let source = std::fs::read_to_string(&psi_checks)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", psi_checks.display()));
     assert!(

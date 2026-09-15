@@ -417,11 +417,11 @@ pub(super) fn propagate_statement_transfers(
     let declared_target_domains = match statement {
         StatementNode::Assignment(assignment) => {
             match (
-                crate::field_domain::machine_by_symbol(program, machine_symbol),
+                crate::facts::field_domain::machine_by_symbol(program, machine_symbol),
                 crate::find_state_in_machine(program, machine_symbol, state_symbol),
             ) {
                 (Some(machine), Some(state)) => {
-                    crate::field_domain::assignment_target_domain_symbols(
+                    crate::facts::field_domain::assignment_target_domain_symbols(
                         program,
                         machine,
                         state,
@@ -432,7 +432,7 @@ pub(super) fn propagate_statement_transfers(
             }
         }
         StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-            crate::field_domain::domain_constraint_symbols(program, local.type_reference)
+            crate::facts::field_domain::domain_constraint_symbols(program, local.type_reference)
         }
         _ => Vec::new(),
     };

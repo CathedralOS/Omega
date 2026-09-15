@@ -12,7 +12,7 @@ use crate::lookup::{
 };
 use crate::semantic_calls::{CallSite, find_call_site};
 
-pub(super) fn bind_checked_body_call_source_spans(
+pub(crate) fn bind_checked_body_call_source_spans(
     program: &TypedTrees,
     flow: &mut checked_trees::FlowFacts,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -79,7 +79,7 @@ pub(super) fn bind_checked_body_call_source_spans(
     Ok(())
 }
 
-pub(super) fn derive_checked_body_call_source_spans(
+pub(crate) fn derive_checked_body_call_source_spans(
     _program: &TypedTrees,
     facts: &checked_trees::CheckFacts,
     machine_symbol: SymbolHandle,

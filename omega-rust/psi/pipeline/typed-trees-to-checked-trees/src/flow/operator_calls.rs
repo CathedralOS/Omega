@@ -286,7 +286,7 @@ pub(super) fn append_operator_statement_ensures(
                         origin: FactOrigin::OperatorEnsures {
                             operator_symbol: operator.symbol,
                         },
-                        evidence: crate::qualification_evidence::operator_contract_evidence(
+                        evidence: crate::facts::qualification_evidence::operator_contract_evidence(
                             program,
                             operator.symbol,
                             payload,

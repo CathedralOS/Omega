@@ -255,7 +255,7 @@ pub(in crate::flow) fn append_predicate_context(
         return;
     }
     let mut occurrences = Vec::new();
-    crate::contract_occurrences::append_expression_occurrences(
+    crate::facts::contract_occurrences::append_expression_occurrences(
         program,
         expression,
         &mut occurrences,
@@ -315,7 +315,7 @@ pub(in crate::flow) fn append_match_pattern_context(
     }
     let mut occurrences = Vec::new();
     for expression in [subject, pattern] {
-        crate::contract_occurrences::append_expression_occurrences(
+        crate::facts::contract_occurrences::append_expression_occurrences(
             program,
             expression,
             &mut occurrences,

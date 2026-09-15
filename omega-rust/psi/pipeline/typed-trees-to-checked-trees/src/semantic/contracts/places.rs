@@ -41,7 +41,7 @@ pub(crate) fn contract_fact_dependency_places(
 ) -> Vec<PlaceHandle> {
     let mut places = Vec::new();
     for expression in
-        crate::contract_occurrences::fact_referenced_occurrences(program, contract.fact)
+        crate::facts::contract_occurrences::fact_referenced_occurrences(program, contract.fact)
     {
         if let Some(place) = contract_expression_place(program, facts, contract, expression) {
             push_unique_place(facts, &mut places, place);

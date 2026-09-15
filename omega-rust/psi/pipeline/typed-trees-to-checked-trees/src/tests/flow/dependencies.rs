@@ -37,7 +37,7 @@ fn constrained_type_composes_predicate_bodies_without_flow_minting_role_only_dom
         .expect("bytes field");
 
     let names: Vec<_> =
-        crate::field_domain::predicate_domain_constraint_symbols(&typed, field_type)
+        crate::facts::field_domain::predicate_domain_constraint_symbols(&typed, field_type)
             .into_iter()
             .map(|symbol| {
                 typed

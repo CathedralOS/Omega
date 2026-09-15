@@ -929,7 +929,7 @@ pub(super) fn unique_complete_selections(
                 .evidence_bindings
                 .iter()
                 .map(|binding| {
-                    crate::conformance_applications::close_conformance_application(
+                    crate::conformance::conformance_applications::close_conformance_application(
                         program,
                         binding.as_ref().expect("complete selection"),
                     )
@@ -1428,16 +1428,17 @@ pub(super) fn validate_candidate_conformance_bounds(
                 )));
                 continue;
             };
-            let application = match crate::conformance_applications::close_conformance_application(
-                program,
-                selected_binding,
-            ) {
-                Ok(application) => application,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
+            let application =
+                match crate::conformance::conformance_applications::close_conformance_application(
+                    program,
+                    selected_binding,
+                ) {
+                    Ok(application) => application,
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic);
+                        continue;
+                    }
+                };
             let expected_trait = program
                 .traits()
                 .iter()
@@ -1538,7 +1539,10 @@ pub(super) fn close_candidate_bound_application(
     let rewrites = forwarded_static_argument_rewrites(program, candidate);
     let mut applications = [selected.clone()];
     substitute_forwarded_machine_arguments(&mut applications, &rewrites, &[]);
-    crate::conformance_applications::close_conformance_application(program, &applications[0])
+    crate::conformance::conformance_applications::close_conformance_application(
+        program,
+        &applications[0],
+    )
 }
 
 pub(super) fn concrete_data_type_name(
@@ -1610,7 +1614,7 @@ pub(super) fn conformance_application_arguments_match_candidate(
             .zip(application.trait_arguments.iter())
             .all(|(required, actual)| {
                 let required =
-                    crate::conformance_applications::substituted_type_identity_with_lifetimes(
+                    crate::conformance::conformance_applications::substituted_type_identity_with_lifetimes(
                         program,
                         *required,
                         &substitutions,

@@ -47,7 +47,7 @@ pub(super) fn append_concatenated_predicates(
             || !typed_trees::domain::index_parameters(program, domain).is_empty()
             || domain.alias.is_some()
             || !domain.predicate_body.is_present()
-            || !crate::field_domain::domain_is_concat_preserving(program, domain.symbol)
+            || !crate::facts::field_domain::domain_is_concat_preserving(program, domain.symbol)
             || !value_proves_predicate(
                 program,
                 semantic,
@@ -83,7 +83,9 @@ fn value_proves_predicate(
     domain: SymbolHandle,
     point: ProgramPoint,
 ) -> bool {
-    if crate::field_domain::string_literal_expression_grants_domain(program, expression, domain) {
+    if crate::facts::field_domain::string_literal_expression_grants_domain(
+        program, expression, domain,
+    ) {
         return true;
     }
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
@@ -131,11 +133,13 @@ fn value_proves_predicate(
                 // The materialized bytes retain the same primitive predicate
                 // across bounded carriers. This is not carrier/domain identity.
                 index_free_membership(program, domain_symbol, semantic_domain)
-                    && crate::field_domain::domain_byte_predicate(program, domain_symbol)
-                        == crate::field_domain::domain_byte_predicate(program, domain)
+                    && crate::facts::field_domain::domain_byte_predicate(program, domain_symbol)
+                        == crate::facts::field_domain::domain_byte_predicate(program, domain)
             }
             FactPayload::AssignedValue { value } => {
-                crate::field_domain::string_literal_expression_grants_domain(program, value, domain)
+                crate::facts::field_domain::string_literal_expression_grants_domain(
+                    program, value, domain,
+                )
             }
             _ => false,
         }
@@ -240,7 +244,7 @@ pub(super) fn append_element_replacement_predicates(
         return;
     };
 
-    for predicate in crate::field_domain::ByteSequencePredicate::ALL
+    for predicate in crate::facts::field_domain::ByteSequencePredicate::ALL
         .into_iter()
         .filter(|predicate| predicate.is_subslice_preserving())
     {
@@ -327,7 +331,7 @@ fn carrier_proves_predicate(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     carrier: PlaceHandle,
-    predicate: crate::field_domain::ByteSequencePredicate,
+    predicate: crate::facts::field_domain::ByteSequencePredicate,
 ) -> bool {
     // State inputs use one attached storage root; authored accesses may still
     // use the current self parameter or an inherited field root.
@@ -365,7 +369,7 @@ fn carrier_proves_predicate(
                 ..
             } => {
                 index_free_membership(program, domain_symbol, semantic_domain)
-                    && crate::field_domain::domain_byte_predicate(program, domain_symbol)
+                    && crate::facts::field_domain::domain_byte_predicate(program, domain_symbol)
                         .is_some_and(|proved| proved.implies(predicate))
             }
             _ => false,

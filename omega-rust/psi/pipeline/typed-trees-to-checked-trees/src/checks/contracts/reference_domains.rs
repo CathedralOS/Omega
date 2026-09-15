@@ -133,7 +133,7 @@ fn contexts_prove_domain(
                     return false;
                 };
                 let candidate = facts.semantic.places.get(candidate);
-                if !crate::field_domain::domain_membership_implies(
+                if !crate::facts::field_domain::domain_membership_implies(
                     program,
                     candidate_domain,
                     domain_symbol,

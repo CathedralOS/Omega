@@ -60,7 +60,7 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
                         normalized_event_place_root(program, candidate.root)
                             == normalized_event_place_root(program, subject.root)
                             && candidate.segments == subject.segments
-                            && crate::field_domain::domain_membership_implies(
+                            && crate::facts::field_domain::domain_membership_implies(
                                 program,
                                 candidate_domain,
                                 domain,
@@ -101,7 +101,8 @@ impl AssignedValues<'_> {
     /// across `buffer[i] = byte`. A domain that is not exactly one recognized
     /// byte predicate is never reached this way.
     fn byte_predicate(&self, subject: &CanonicalPlace, symbol: SymbolHandle) -> bool {
-        let Some(required) = crate::field_domain::domain_byte_predicate(self.program, symbol)
+        let Some(required) =
+            crate::facts::field_domain::domain_byte_predicate(self.program, symbol)
         else {
             return false;
         };
@@ -162,7 +163,7 @@ impl AssignedValues<'_> {
             return false;
         };
         if let Some(literal) = self.literal(subject)
-            && crate::field_domain::string_literal_expression_grants_domain(
+            && crate::facts::field_domain::string_literal_expression_grants_domain(
                 self.program,
                 literal,
                 symbol,

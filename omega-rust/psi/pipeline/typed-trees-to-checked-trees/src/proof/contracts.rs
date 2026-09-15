@@ -323,7 +323,7 @@ pub(crate) fn append_state_signature_contract_facts(
                     })
                 });
                 let qualification_authorization =
-                    crate::qualification_evidence::boundary_qualification_authorization(
+                    crate::facts::qualification_evidence::boundary_qualification_authorization(
                         program,
                         owner_symbol,
                         signature,

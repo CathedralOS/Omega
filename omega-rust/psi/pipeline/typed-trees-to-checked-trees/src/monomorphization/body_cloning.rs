@@ -579,7 +579,7 @@ pub(super) fn clone_specialized_machine(
                 .evidence_bindings
                 .iter()
                 .map(|binding| {
-                    crate::conformance_applications::close_conformance_application(
+                    crate::conformance::conformance_applications::close_conformance_application(
                         source.unwrap_or(program),
                         binding.as_ref().expect("complete specialization"),
                     )
