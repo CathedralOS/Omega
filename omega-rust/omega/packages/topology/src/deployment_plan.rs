@@ -364,7 +364,7 @@ pub struct RequestedInstance {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{InstanceName, NameError, PolicySelector};
 
     #[test]
     fn instance_name_rejects_empty_and_overlong() {

@@ -476,7 +476,7 @@ pub fn canonical_policy_order(calls: &mut [PolicyCall]) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{NormalizedGraph, PolicyEvaluation, check_outcome, evaluate_policy};
     use crate::deployment_plan::*;
 
     fn identity(byte: u8) -> Identity {

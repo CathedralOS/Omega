@@ -1,5 +1,6 @@
-use super::*;
-
+use super::{
+    Path, PathBuf, ResolverExecutionBackend, ResolverExecutionPhase, backend, inspection_root,
+};
 #[test]
 fn every_preparation_reuses_the_frozen_absolute_executable() {
     let backend = backend();
