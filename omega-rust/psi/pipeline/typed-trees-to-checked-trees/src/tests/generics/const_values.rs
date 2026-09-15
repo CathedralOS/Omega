@@ -1,4 +1,5 @@
-use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
+use super::{Lexer, lower_symbol_resolved_trees, parse_syntax_trees};
+use crate::lower_typed_trees;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;

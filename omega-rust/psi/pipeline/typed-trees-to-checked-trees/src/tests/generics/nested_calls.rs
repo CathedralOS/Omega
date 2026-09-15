@@ -1,4 +1,5 @@
-use super::{lower_typed_trees, typed_source};
+use super::typed_source;
+use crate::lower_typed_trees;
 
 fn rejects(source: &str, fragment: &str) {
     let typed = typed_source(source).expect("nested generic call types");
