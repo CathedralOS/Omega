@@ -215,6 +215,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
         boundary_application_demands,
         boundary_application_realizations,
         checked_boundary_operator_scope,
+        build_evaluation::authored_behavior_exclusion_set(checked.behavior_exclusions()),
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

@@ -5,7 +5,9 @@
 //! case identity and the authored source span.
 
 use compiler::CheckedCompileRequest;
-use compiler::compile_to_checked;
+use compiler::{
+    CompileOptions, CompileRequest, RequestedCompileProduct, compile, compile_to_checked,
+};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -265,4 +267,338 @@ const ANSWER: u32 = 42;
     let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
         .expect("an authored same-named machine must not masquerade as the toolchain marker");
     assert!(checked.behavior_exclusions().is_empty());
+}
+
+/// The selected entry's closure retains a possible `CrashCause::Trap` crash
+/// terminator inside `effect`, whose declared `crashes Trap` contract the
+/// caller admits. The entry itself still returns normally; a crash site
+/// inside an unconditionally crashing entry would lose its checked unit plan
+/// before Terminal production.
+const TRAPPING_MAIN: &str = r#"machine launch()
+crashes Trap
+{
+    let v: bool = effect();
+}
+machine effect() -> bool crashes Trap { crash Trap; }
+"#;
+
+/// The same entry shape without any crash-capable callee carries no possible
+/// crash terminator in its selected closure.
+const QUIET_MAIN: &str = "machine launch() { let marker: u8 = 0; }\n";
+
+fn product_build(name: &str, extra: &str) -> String {
+    format!(
+        "machine build(builder: &mut Build) {{\n    builder.application(\"{name}\");\n    builder.roots.bind(windows_x86_64::ProgramEntry, launch);\n{extra}}}\n"
+    )
+}
+
+fn product_request(root: PathBuf, product: RequestedCompileProduct) -> CompileRequest {
+    CompileRequest::new(CompileOptions {
+        root_path: root,
+        build_dir: None,
+        target_name: Some("windows_x86_64".into()),
+    })
+    .with_requested_product(product)
+}
+
+#[test]
+fn exclude_crash_trap_rejects_a_terminal_product_that_can_trap() {
+    let project = TempProject::new();
+    project.write("main.omg", TRAPPING_MAIN);
+    project.write(
+        "build.omg",
+        &product_build(
+            "exclusion-trap-product",
+            "    builder.exclude_crash(CrashCause::Trap);\n",
+        ),
+    );
+
+    let diagnostics = compile(product_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect_err("a selected closure retaining a possible Trap must reject at admission");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("crash cause Trap")
+                && diagnostic.message.contains("crash terminator")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.source_span.is_some()),
+        "the rejection must point at the authored exclusion span"
+    );
+}
+
+#[test]
+fn exclude_crash_trap_rejects_the_native_product_route() {
+    let project = TempProject::new();
+    project.write("main.omg", TRAPPING_MAIN);
+    project.write(
+        "build.omg",
+        &product_build(
+            "exclusion-trap-native",
+            "    builder.exclude_crash(CrashCause::Trap);\n",
+        ),
+    );
+
+    let diagnostics = compile(product_request(
+        project.main(),
+        RequestedCompileProduct::NativeArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect_err("native admission must reject a closure retaining a possible Trap");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("crash cause Trap")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn an_exclusion_the_closure_never_reaches_still_admits() {
+    let project = TempProject::new();
+    project.write("main.omg", TRAPPING_MAIN);
+    project.write(
+        "build.omg",
+        &product_build(
+            "exclusion-abort-product",
+            "    builder.exclude_crash(CrashCause::Abort);\n",
+        ),
+    );
+
+    // The retained possible crash is a Trap, not an Abort: exact causes, not
+    // the broad published crash ceiling, decide the verdict.
+    let report = compile(product_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("an Abort exclusion admits a closure whose only possible crash is a Trap");
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("retained Terminal product");
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained native proposal");
+    let expected = build_evaluation::BehaviorExclusions::from_selections([
+        build_evaluation::BehaviorExclusion::CrashCause(terminal_psi::CrashCause::Abort),
+    ]);
+    assert_eq!(
+        proposal.behavior_exclusions(),
+        &expected,
+        "the retained proposal must carry the exact canonical exclusion union"
+    );
+}
+
+#[test]
+fn exclude_crash_trap_admits_a_trap_free_closure() {
+    let project = TempProject::new();
+    project.write("main.omg", QUIET_MAIN);
+    project.write(
+        "build.omg",
+        &product_build(
+            "exclusion-quiet-product",
+            "    builder.exclude_crash(CrashCause::Trap);\n",
+        ),
+    );
+
+    let report = compile(product_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("a selected closure with no possible Trap satisfies the exclusion");
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("retained Terminal product");
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained native proposal");
+    assert!(
+        proposal
+            .behavior_exclusions()
+            .excludes_crash_cause(terminal_psi::CrashCause::Trap)
+    );
+}
+
+#[test]
+fn optimization_selection_cannot_satisfy_an_exclusion() {
+    // The crash state sits behind a provably-false guard: optional Psi
+    // optimization may remove the crash site from the published module, but
+    // exclusion admissibility is decided on the unoptimized closure the
+    // artifact's optimization record commits as its input.
+    let project = TempProject::new();
+    project.write(
+        "main.omg",
+        r#"machine launch()
+crashes Trap
+{
+    let v: bool = effect();
+}
+machine effect() -> bool
+crashes Trap
+{
+    transition (1 == 2) { true -> boom() false -> ok() }
+    state boom() -> bool { crash Trap; }
+    state ok() -> bool { true }
+}
+"#,
+    );
+    project.write(
+        "build.omg",
+        &product_build(
+            "exclusion-optimized",
+            "    builder.optimizations.enable(Optimization::SparseConditionalConstantPropagation);\n    builder.optimizations.enable(Optimization::ControlFlowCleanup);\n    builder.exclude_crash(CrashCause::Trap);\n",
+        ),
+    );
+
+    let diagnostics = compile(product_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect_err("optional optimization must not determine exclusion admissibility");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("crash cause Trap")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    // Witness that the selected passes really did transform the published
+    // module: without the exclusion the same build produces an artifact whose
+    // optimization record commits a changed output. The gate therefore could
+    // not have replayed the artifact's published semantics — it checked the
+    // committed optimization input.
+    let unexcluded = TempProject::new();
+    unexcluded.write(
+        "main.omg",
+        &fs::read_to_string(project.0.join("main.omg")).expect("reread fixture main"),
+    );
+    unexcluded.write(
+        "build.omg",
+        &product_build(
+            "exclusion-optimized-witness",
+            "    builder.optimizations.enable(Optimization::SparseConditionalConstantPropagation);\n    builder.optimizations.enable(Optimization::ControlFlowCleanup);\n",
+        ),
+    );
+    let report = compile(product_request(
+        unexcluded.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the same optimized program produces an artifact without exclusions");
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("retained Terminal product");
+    assert_ne!(
+        retained.artifact().optimization().input_semantic(),
+        retained.artifact().manifest().semantic(),
+        "the selected optimization must change the published module for this witness to mean anything"
+    );
+    let module = terminal_codec::decode_module(retained.artifact().semantic_bytes())
+        .expect("decode published semantics");
+    assert!(
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .all(|block| !matches!(block.terminator, terminal_psi::Terminator::Crash { .. })),
+        "the optimized artifact no longer retains the crash site the exclusion rejected"
+    );
+}
+
+#[test]
+fn a_retained_exclusion_is_replayed_against_the_artifact_by_consumers() {
+    // Produce the trapping artifact without authored exclusions so a proposal
+    // can be rebuilt against it; the receiving replay is the same Terminal
+    // closure check the producing admission gate ran.
+    let project = TempProject::new();
+    project.write("main.omg", TRAPPING_MAIN);
+    project.write("build.omg", &product_build("exclusion-replay", ""));
+
+    let report = compile(product_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the unexcluded trapping artifact produces");
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("retained Terminal product");
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained native proposal");
+    assert!(
+        proposal.behavior_exclusions().is_empty(),
+        "no exclusion was authored for this product"
+    );
+
+    let mut excluded = build_evaluation::BehaviorExclusions::default();
+    excluded.union(&build_evaluation::BehaviorExclusions::from_selections([
+        build_evaluation::BehaviorExclusion::CrashCause(terminal_psi::CrashCause::Trap),
+    ]));
+    assert!(
+        compilation_report::TerminalNativeRealizationProposal::new(
+            retained.artifact(),
+            proposal.target_profile(),
+            proposal.native_target(),
+            proposal.subsystem(),
+            proposal.application_intent(),
+            proposal.application_identifier().cloned(),
+            proposal.application_name().map(str::to_owned),
+            proposal.post_terminal_optimizations().clone(),
+            proposal.program_entry().clone(),
+            proposal.checked_program_entry().clone(),
+            proposal.selected_provider_plans().clone(),
+            proposal.external_binding_rows().to_vec(),
+            proposal.package_terminal_authority_permissions().to_vec(),
+            proposal.compiler_builtins().to_vec(),
+            proposal.callback_occurrences().to_vec(),
+            proposal.ieee_float_fma_occurrences().to_vec(),
+            proposal.ieee_float_comparison_occurrences().to_vec(),
+            proposal.boundary_application_demands().clone(),
+            proposal.boundary_application_realizations().clone(),
+            proposal.checked_boundary_operator_scope().clone(),
+            excluded,
+        )
+        .is_err(),
+        "a retained exclusion the artifact's closure violates must reject replay"
+    );
+
+    // The honest retained policy — an empty union here — replays cleanly
+    // against the same artifact.
+    assert!(
+        compilation_report::TerminalNativeRealizationProposal::new(
+            retained.artifact(),
+            proposal.target_profile(),
+            proposal.native_target(),
+            proposal.subsystem(),
+            proposal.application_intent(),
+            proposal.application_identifier().cloned(),
+            proposal.application_name().map(str::to_owned),
+            proposal.post_terminal_optimizations().clone(),
+            proposal.program_entry().clone(),
+            proposal.checked_program_entry().clone(),
+            proposal.selected_provider_plans().clone(),
+            proposal.external_binding_rows().to_vec(),
+            proposal.package_terminal_authority_permissions().to_vec(),
+            proposal.compiler_builtins().to_vec(),
+            proposal.callback_occurrences().to_vec(),
+            proposal.ieee_float_fma_occurrences().to_vec(),
+            proposal.ieee_float_comparison_occurrences().to_vec(),
+            proposal.boundary_application_demands().clone(),
+            proposal.boundary_application_realizations().clone(),
+            proposal.checked_boundary_operator_scope().clone(),
+            proposal.behavior_exclusions().clone(),
+        )
+        .is_ok(),
+        "the artifact's retained exclusion policy must replay satisfied"
+    );
 }
