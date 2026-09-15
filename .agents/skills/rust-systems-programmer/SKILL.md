@@ -51,7 +51,11 @@ For a proposed change, identify the avoided work and the contract that must surv
 For implementation, carry the smallest justified change through formatting and [scoped validation](../../../AGENTS.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result. A justified no-change decision is valid; generic advice is not a substitute for an authorized implementation.
 
 When changing code organization, follow the touched route from its public
-entrypoint to the operation and result handling before handoff. First choose
+entrypoint to the operation and result handling before handoff, applying
+[Discoverability architecture](../../../AGENTS.md#discoverability-architecture).
+Use the linked main.rs and compiler.rs as orchestration examples. Repeat that
+ownership test at subordinate multi-step flows; a tidy crate root above
+unstructured sibling folders is incomplete. First choose
 that entrance from the file tree, without relying on prior repository knowledge;
 Rust's `lib.rs`/`mod.rs` wiring alone may not identify the domain owner. Check that names
 and calls reveal the owner and next step without a forwarding maze. Fix confusing
