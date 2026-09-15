@@ -682,10 +682,8 @@ impl Builder<'_, '_> {
                 expression,
                 checked_trees::CheckedOperatorOccurrence::Expression,
             )
+            && let Some(primitive) = self.selected_comparison_primitive(operator_use)
         {
-            let (_, primitive) = self
-                .operators
-                .selected_float_comparison(self.program, operator_use)?;
             let operands = self
                 .operators
                 .uses

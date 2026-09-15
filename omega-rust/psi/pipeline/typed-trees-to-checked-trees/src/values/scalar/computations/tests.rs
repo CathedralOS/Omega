@@ -7,6 +7,7 @@ mod cases;
 mod dispatch;
 mod guards;
 mod qualifications;
+mod selected_comparisons;
 mod structural_fields;
 mod structural_values;
 
