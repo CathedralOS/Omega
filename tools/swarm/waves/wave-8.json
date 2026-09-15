@@ -126,21 +126,6 @@
       "suggested_first_slice": "One bounded slice: per-field arrivals through an opaque-reference, recursive-proof, or unresolved-generic leaf with exact provenance (progress/{origins,lineage}.rs), or realizing one projected nested value-call operand via validation/src/calls/expression_scanning/result_realization.rs. checks/termination/ranking, validation/src/lib.rs, and flow/ are claimed until ~04:37-06:15Z \u2014 steer to owned paths."
     },
     {
-      "name": "case-constraints",
-      "board": "TASKS.md",
-      "item": "CASE-CONSTRAINTS",
-      "host": "linux",
-      "owning_paths": [
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/data.rs",
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/state.rs",
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/preparation",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values/scalar/computations/cases.rs",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values/scalar/case_membership.rs",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/scalar_graph/scalar_computations/cases"
-      ],
-      "suggested_first_slice": "One open line: generic `T == i32` establishment, or match-contributed case facts, or coverage through established contradictions. flow/ and checks/contracts are claimed by NOMINAL-FIELD-FLOW until ~06:15Z \u2014 prefer the generic-establishment slice; report blocked if it cannot be bounded without claimed dirs."
-    },
-    {
       "name": "callback-private-materialization",
       "board": "TASKS.md",
       "item": "CALLBACK-PRIVATE-MATERIALIZATION",
@@ -397,6 +382,22 @@
       ],
       "suggested_first_slice": "Retry of the earlier blocked w8 sibling \u2014 the item's remaining work is 'provider/schema description kinds and the computed-receiver implementation fence'. The computed-receiver fence still depends on ordinary call-result authority (leave it, report as remaining_dependency); attack provider/schema description kinds instead: extend the Build.product facet / BuildProduct::entry query pattern so a designated provider or schema operand issues an opaque non-callable description (ProductProviderRef/ProductSchemaRef or the item's own naming) under the query occurrence's lexical package without executing product code, with wrong-scope/lookalike/forgery rejection pinned in build_target_activation.rs.",
       "backfill_for": "build-admission-checkpoint"
+    },
+    {
+      "name": "entry-receiver-bridge",
+      "board": "TASKS.md",
+      "item": "ENTRY-CONTENT-ROOTS",
+      "host": "linux",
+      "layer": 2,
+      "owning_paths": [
+        "omega-rust/omega/compiler/native-realization/src/native_realization.rs",
+        "omega-rust/omega/backend/plans/program-entry-plan",
+        "omega-rust/omega/backend/runtime/external-roots",
+        "source/library/std/targets/linux_x86_64",
+        "tests/support/macos_entry_acceptance.rs"
+      ],
+      "suggested_first_slice": "Continuation of the settled w8 sibling \u2014 this is also the named gate for sample-corpus' cli_mvp probe. native_realization.rs:~221 rejects a retained self receiver on every non-macOS target ('no root-backed bridge constructs and lends its receiver'). Implement the root-backed receiver bridge for linux_x86_64: author source/library/std/targets/linux_x86_64/entry.omg on the macos_arm64/entry.omg contract, have the bridge construct and lend the entry receiver from an installed program-local root, and keep wrong-target/stale-settlement rejection. Port the acceptance test from tests/support/macos_entry_acceptance.rs to a linux leg; macOS-only gates stay untouched.",
+      "backfill_for": "entry-content-roots"
     }
   ]
 }
