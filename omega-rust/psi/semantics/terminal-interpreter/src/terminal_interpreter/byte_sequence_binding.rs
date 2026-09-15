@@ -20,7 +20,7 @@ use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::StructuralTypeShape;
 use terminal_psi::TerminalMachineResult;
 #[derive(Clone)]
-pub(super) enum ByteSequenceBinding {
+pub(crate) enum ByteSequenceBinding {
     Immutable(ByteSequenceView),
     MutableArray {
         array: StructuralRuntimePlace,

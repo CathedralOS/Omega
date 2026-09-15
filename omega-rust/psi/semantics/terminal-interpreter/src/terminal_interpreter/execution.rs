@@ -17,7 +17,6 @@ use crate::terminal_interpreter::custody::{
 };
 use crate::terminal_interpreter::effect_results;
 use crate::terminal_interpreter::primitive_storage;
-use crate::terminal_interpreter::primitive_storage::LocalStructuralIdentities;
 use crate::terminal_interpreter::reference;
 use crate::terminal_interpreter::results::meter_status;
 use crate::terminal_interpreter::scalar_array::TerminalScalarArrayValue;
@@ -44,7 +43,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, EntryClaim, NominalAffineCleanup,
-    OperationKind, OperationResult, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
+    OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralResultClaimTransfer, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalMachineResult, Terminator,
@@ -62,7 +61,7 @@ pub struct TerminalExecution {
     // this owner independently of mutable runtime storage; frames retain only
     // machine identity. There is no per-machine or per-operation Arc allocation.
     pub(crate) machines: std::sync::Arc<BTreeMap<MachineId, ExecutableMachine>>,
-    dynamic_scalar_calls: BTreeMap<(MachineId, u32), (MachineId, StructuralArgument)>,
+    pub(crate) dynamic_scalar_calls: BTreeMap<(MachineId, u32), (MachineId, StructuralArgument)>,
     pub(crate) dynamic_descriptor_templates:
         BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
     pub(crate) dynamic_selection_templates:
@@ -70,9 +69,9 @@ pub struct TerminalExecution {
     pub(crate) dynamic_descriptor_arguments:
         BTreeMap<(MachineId, OperationId), Vec<terminal_psi::TerminalDynamicDescriptorArgument>>,
     pub(crate) dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
-    boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
-    provider_candidates: BTreeSet<BoundaryMachineId>,
-    provider_installation: BTreeMap<BoundaryMachineId, MachineId>,
+    pub(crate) boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
+    pub(crate) provider_candidates: BTreeSet<BoundaryMachineId>,
+    pub(crate) provider_installation: BTreeMap<BoundaryMachineId, MachineId>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
     /// A reference carrier owns this descriptor, never the referent's backing.
@@ -81,7 +80,7 @@ pub struct TerminalExecution {
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
     pub(crate) structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
-    structural_primitive_entry_places: BTreeMap<u32, StructuralRuntimePlace>,
+    pub(crate) structural_primitive_entry_places: BTreeMap<u32, StructuralRuntimePlace>,
     pub(crate) local_structural_identities: primitive_storage::LocalStructuralIdentities,
     /// Scalar leaves written below aggregate structural values. Keys use the
     /// invocation-independent opaque identity and resolved parent path, so a
@@ -112,7 +111,7 @@ pub struct TerminalExecution {
     pub(crate) next_operation: usize,
     pub(crate) call_stack: Vec<SuspendedCall>,
     pub(crate) result: Option<TerminalExecutionResult>,
-    crash: Option<TerminalCrash>,
+    pub(crate) crash: Option<TerminalCrash>,
     pub(crate) effects: Vec<TerminalEffect>,
 }
 

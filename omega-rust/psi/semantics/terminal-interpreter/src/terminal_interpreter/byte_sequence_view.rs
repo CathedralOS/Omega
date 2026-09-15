@@ -5,7 +5,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 #[derive(Clone)]
-pub(super) struct ByteSequenceView {
+pub(crate) struct ByteSequenceView {
     backing: Arc<[u8]>,
     window: Range<usize>,
 }
