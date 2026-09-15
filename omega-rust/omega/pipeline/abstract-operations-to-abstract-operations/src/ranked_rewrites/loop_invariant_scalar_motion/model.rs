@@ -10,10 +10,9 @@ use super::{
 /// One loop-invariant scalar node selected for relocation. The node records
 /// the exact source-owned custody the ledger and validator must see: its
 /// operation identity, defined result, original location, provenance, and fuel
-/// settlements, plus the operand rebinding an invariant entry-target
-/// parameter performs when the computation is re-expressed on its
-/// preheader-visible representative. Scalar-constant leaves carry an empty
-/// rewrite list.
+/// settlements, plus the operand rebinding an invariant member parameter
+/// performs when the computation is re-expressed on its preheader-visible
+/// representative. Scalar-constant leaves carry an empty rewrite list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarNode {
     pub(super) psi_operation: OperationId,

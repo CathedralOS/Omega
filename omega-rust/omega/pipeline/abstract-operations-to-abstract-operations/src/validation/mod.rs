@@ -98,86 +98,148 @@ pub(crate) fn value_definition_sites(
         .collect()
 }
 
-/// Parameters of `component`'s unique entry target whose value is provably the
-/// same on every iteration: the entry edge binds the parameter to a
-/// representative defined outside the member roster, and every other edge
-/// reaching the target binds it either to itself or to that same
-/// representative. An operand use of such a parameter can be satisfied in the
-/// preheader by substituting the representative.
+/// Parameters of `component`'s member blocks whose value is provably the same
+/// on every iteration. A member parameter qualifies when every edge reaching
+/// its block binds it to itself, to a member parameter that resolves to the
+/// same representative, or to that representative — a value defined outside
+/// the member roster. An operand use of such a parameter can be satisfied in
+/// the preheader by substituting the representative.
 ///
-/// This is the deliberately bounded first invariant family: parameters of
-/// non-entry member blocks resolve through internal edges and are not yet
-/// traced transitively, and a representative defined inside the roster never
-/// qualifies even when an edge spells it.
-pub(crate) fn invariant_entry_target_parameters(
+/// The map is a fixed point over the edges reaching member blocks, so a
+/// parameter carried across a member-to-member edge resolves to the
+/// preheader-visible value its chain anchors on. A representative defined
+/// inside the roster never qualifies: an edge that spells a member-internal
+/// node result marks the parameter loop-carried. Parameters whose bindings
+/// never anchor outside the roster — pure self-carried cycles — stay
+/// unresolved and are absent from the result.
+pub(crate) fn invariant_member_parameters(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
 ) -> BTreeMap<ValueId, ValueId> {
-    let mut representatives = BTreeMap::new();
-    let [entry] = component.entries.as_slice() else {
-        return representatives;
-    };
+    /// Resolution states during the fixed point. `Unresolved` may promote once
+    /// its deferred dependencies resolve; `Representative` can still degrade
+    /// to `LoopCarried` when a deferred dependency resolves to a conflicting
+    /// or carried value, and `LoopCarried` is final.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Resolution {
+        Unresolved,
+        Representative(ValueId),
+        LoopCarried,
+    }
+
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
     let sites = value_definition_sites(function);
-    let Some(entry_edge) = function
-        .blocks
-        .iter()
-        .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
-        .find(|edge| edge.psi_edge == entry.edge && edge.target == entry.target)
-    else {
-        return representatives;
-    };
-    let Some(header) = function
-        .blocks
-        .iter()
-        .find(|block| block.id == entry.target)
-    else {
-        return representatives;
-    };
-    for parameter in &header.parameters {
-        let param = parameter.value;
-        let Some(representative) = entry_edge
-            .bindings
-            .iter()
-            .find(|binding| binding.parameter == param)
-            .map(|binding| binding.argument)
-        else {
-            continue;
-        };
-        let outside = match sites.get(&representative) {
-            Some(ValueDefinitionSite::FunctionParameter(_)) => true,
-            Some(ValueDefinitionSite::BlockParameter { block, .. })
-            | Some(ValueDefinitionSite::Node { block, .. }) => !members.contains(block),
-            None => false,
-        };
-        if !outside {
-            continue;
-        }
-        let invariant = function
-            .blocks
-            .iter()
-            .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
-            .filter(|edge| edge.target == entry.target && edge.psi_edge != entry.edge)
-            .all(|edge| {
-                edge.bindings
+    let mut parameters = Vec::new();
+    for member in &component.members {
+        if let Some(block) = function.blocks.iter().find(|block| block.id == *member) {
+            parameters.extend(
+                block
+                    .parameters
                     .iter()
-                    .find(|binding| binding.parameter == param)
-                    .is_some_and(|binding| {
-                        binding.argument == param || binding.argument == representative
-                    })
-            });
-        if invariant {
-            representatives.insert(param, representative);
+                    .map(|parameter| (parameter.value, block.id)),
+            );
         }
     }
-    representatives
+    let mut resolutions: BTreeMap<ValueId, Resolution> = parameters
+        .iter()
+        .map(|(parameter, _)| (*parameter, Resolution::Unresolved))
+        .collect();
+    loop {
+        let mut progressed = false;
+        for (parameter, block) in &parameters {
+            if resolutions[parameter] == Resolution::LoopCarried {
+                continue;
+            }
+            let mut anchor = None;
+            let mut loop_carried = false;
+            for edge in function
+                .blocks
+                .iter()
+                .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+                .filter(|edge| edge.target == *block)
+            {
+                let Some(binding) = edge
+                    .bindings
+                    .iter()
+                    .find(|binding| binding.parameter == *parameter)
+                else {
+                    loop_carried = true;
+                    break;
+                };
+                if binding.argument == *parameter {
+                    // A binding that re-spells the parameter preserves whatever
+                    // the other edges establish.
+                    continue;
+                }
+                let contribution = match sites.get(&binding.argument) {
+                    Some(ValueDefinitionSite::FunctionParameter(_)) => {
+                        Resolution::Representative(binding.argument)
+                    }
+                    Some(ValueDefinitionSite::BlockParameter { block: site, .. })
+                        if members.contains(site) =>
+                    {
+                        // A member parameter contributes its own resolution;
+                        // an unresolved dependency defers to a later pass.
+                        resolutions
+                            .get(&binding.argument)
+                            .copied()
+                            .unwrap_or(Resolution::LoopCarried)
+                    }
+                    Some(ValueDefinitionSite::BlockParameter { block: site, .. })
+                    | Some(ValueDefinitionSite::Node { block: site, .. })
+                        if !members.contains(site) =>
+                    {
+                        Resolution::Representative(binding.argument)
+                    }
+                    _ => Resolution::LoopCarried,
+                };
+                match contribution {
+                    Resolution::Unresolved => {}
+                    Resolution::Representative(value) => match anchor {
+                        None => anchor = Some(value),
+                        Some(anchor) if anchor == value => {}
+                        Some(_) => {
+                            loop_carried = true;
+                            break;
+                        }
+                    },
+                    Resolution::LoopCarried => {
+                        loop_carried = true;
+                        break;
+                    }
+                }
+            }
+            let next = if loop_carried {
+                Resolution::LoopCarried
+            } else {
+                match anchor {
+                    Some(value) => Resolution::Representative(value),
+                    None => Resolution::Unresolved,
+                }
+            };
+            if resolutions[parameter] != next {
+                resolutions.insert(*parameter, next);
+                progressed = true;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    resolutions
+        .into_iter()
+        .filter_map(|(parameter, resolution)| match resolution {
+            Resolution::Representative(representative) => Some((parameter, representative)),
+            Resolution::Unresolved | Resolution::LoopCarried => None,
+        })
+        .collect()
 }
 
 /// The operand substitution a relocated invariant scalar computation needs, or
 /// `None` when the node is not an admitted computation or one of its uses is
 /// genuinely loop-carried. A use whose definition already sits outside the
-/// member roster needs no rewrite; a use of an invariant entry-target
-/// parameter is rebound to that parameter's entry representative; and a use
+/// member roster needs no rewrite; a use of an invariant member parameter is
+/// rebound to the representative every reaching edge agrees on; and a use
 /// whose member-internal definition is the result of another node in the same
 /// relocation run — `relocating` — stays bound to that value, since the run
 /// preserves the producer's result identity and places it earlier in the
@@ -191,12 +253,9 @@ pub(crate) fn invariant_scalar_operand_substitution(
     if !admissible_invariant_scalar_computation(node) {
         return None;
     }
-    let [entry] = component.entries.as_slice() else {
-        return None;
-    };
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
     let sites = value_definition_sites(function);
-    let representatives = invariant_entry_target_parameters(function, component);
+    let representatives = invariant_member_parameters(function, component);
     let mut substitution = BTreeMap::new();
     for value_use in &node.uses {
         let site = sites.get(&value_use.value)?;
@@ -209,7 +268,7 @@ pub(crate) fn invariant_scalar_operand_substitution(
             continue;
         }
         match site {
-            ValueDefinitionSite::BlockParameter { block, .. } if *block == entry.target => {
+            ValueDefinitionSite::BlockParameter { .. } => {
                 substitution.insert(value_use.value, *representatives.get(&value_use.value)?);
             }
             ValueDefinitionSite::Node { .. } if relocating.contains(&value_use.value) => {}
