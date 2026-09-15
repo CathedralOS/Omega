@@ -169,7 +169,7 @@ fn structural_entry_runtime_self_path_and_boolean_type_queries_agree() {
                 if explicit_identity { "#7" } else { "allowed" }.to_owned(),
             )]
         );
-        let (_, _, field_type) = super::super::super::resolve_structural_parameter_path(
+        let (_, _, field_type, _) = super::super::super::resolve_structural_parameter_path(
             &program, parameters, position, &path,
         )
         .expect("runtime structural type owner resolves machine Self to attachment");

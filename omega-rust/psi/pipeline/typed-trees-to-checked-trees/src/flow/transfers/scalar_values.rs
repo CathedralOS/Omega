@@ -121,6 +121,7 @@ pub(super) fn capture_bounds(
             contexts: &contexts,
             parameters: program.state_parameters(crate::find_state(program, state)?),
             symbols,
+            state,
         },
     )
 }

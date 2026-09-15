@@ -127,6 +127,7 @@ impl CapturedValue for IntegerRange {
                     .program
                     .state_parameters(crate::find_state(live.program, live.state)?),
                 symbols,
+                state: live.state,
             },
         )
     }

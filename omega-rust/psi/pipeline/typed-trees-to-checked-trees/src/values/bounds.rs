@@ -4,9 +4,9 @@ use checked_trees::{
     CheckedIntegerBinaryKind, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
 use facts::IntegerRange;
-use numerics::{bignum::BigInt, literals::LandedIntegerType};
+use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt, literals::LandedIntegerType};
 use symbols::SymbolHandle;
-use typed_trees::types::PrimitiveType;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod sources;
 #[cfg(test)]
@@ -242,6 +242,82 @@ fn binary(
         }
         _ => None,
     }
+}
+
+/// Read the declared `Range` constraints on an exact integer reference. Those
+/// constraints are storage invariants: construction and every write must
+/// satisfy them, so a read can use them even when no value snapshot is live.
+/// A non-Exact arithmetic domain does not range-check its stores, so such a
+/// reference supplies no declared bound and the caller keeps the raw carrier.
+/// `None` also means "no tightening available"; it is never an error.
+pub(crate) fn declared_bounds(
+    program: &typed_trees::TypedTrees,
+    mut reference: TypeReferenceHandle,
+    primitive_type: PrimitiveType,
+) -> Option<IntegerRange> {
+    let mut declared: Option<IntegerRange> = None;
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            // An exclusive borrow can be reborrowed through a pointee type
+            // that drops declared constraints; a shared borrow keeps its
+            // referent frozen and preserves them.
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } => {
+                if access.is_exclusive() {
+                    return None;
+                }
+                reference = *referee;
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    match constraint {
+                        typed_trees::types::TypeConstraintNode::Range {
+                            minimum,
+                            maximum,
+                            end_inclusive,
+                        } => {
+                            // The same closed-endpoint evaluation as source
+                            // range validation; failure is no bound, never a
+                            // guessed one.
+                            let low = validation::closed_integer_range_bound(program, *minimum)?;
+                            let high = validation::closed_integer_range_maximum(
+                                program,
+                                *maximum,
+                                *end_inclusive,
+                            )?;
+                            declared = Some(match declared {
+                                Some(previous) => IntegerRange {
+                                    minimum: previous.minimum.max(low),
+                                    maximum: previous.maximum.min(high),
+                                },
+                                None => IntegerRange {
+                                    minimum: low,
+                                    maximum: high,
+                                },
+                            });
+                        }
+                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                            if *domain != ArithmeticDomain::Exact =>
+                        {
+                            return None;
+                        }
+                        _ => {}
+                    }
+                }
+                reference = *base_type;
+            }
+            _ => break,
+        }
+    }
+    let declared = declared?;
+    let carrier = primitive_range(primitive_type)?;
+    let minimum = declared.minimum.max(carrier.minimum.clone());
+    let maximum = declared.maximum.min(carrier.maximum);
+    (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
 }
 
 pub(crate) fn contains(outer: &IntegerRange, inner: &IntegerRange) -> bool {

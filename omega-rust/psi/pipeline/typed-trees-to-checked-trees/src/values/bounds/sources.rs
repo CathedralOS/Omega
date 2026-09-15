@@ -1,7 +1,11 @@
 use super::*;
 use crate::flow::{CanonicalPlace, canonical_place_from_symbol};
+use crate::values::exclusive_reference;
 use facts::{FactContextHandle, FactPlan};
-use typed_trees::{TypedTrees, expression::ExpressionNode, signature::StateParameter};
+use typed_trees::{
+    TypedTrees, expression::ExpressionNode, signature::StateParameter, statement::StatementNode,
+    types::TypeReferenceHandle,
+};
 
 pub(crate) struct PlaceIntegerBounds<'a> {
     pub program: &'a TypedTrees,
@@ -9,6 +13,9 @@ pub(crate) struct PlaceIntegerBounds<'a> {
     pub contexts: &'a [FactContextHandle],
     pub parameters: &'a [StateParameter],
     pub symbols: &'a [SymbolHandle],
+    /// The state whose declarations own `symbols`; used to recover the declared
+    /// type of nonlocal storage reads (owned formals and mutable locals).
+    pub state: SymbolHandle,
 }
 
 impl PlaceIntegerBounds<'_> {
@@ -23,21 +30,62 @@ impl PlaceIntegerBounds<'_> {
         )
     }
 
+    /// The resolved place, the field's declared type, and whether the whole
+    /// path is frozen (immutable end to end). Declared constraints only hold
+    /// as read invariants on frozen storage: a mutable formal or exclusive
+    /// reference can be reborrowed through a pointee type that drops them.
     fn field(
         &self,
         position: u32,
         path: &[CheckedStructuralPredicatePathSegment],
-    ) -> Option<(CanonicalPlace, typed_trees::types::TypeReferenceHandle)> {
-        let (symbol, segments, reference) = crate::values::resolve_structural_parameter_path(
-            self.program,
-            self.parameters,
-            position,
-            path,
-        )?;
+    ) -> Option<(CanonicalPlace, TypeReferenceHandle, bool)> {
+        let (symbol, segments, reference, frozen) =
+            crate::values::resolve_structural_parameter_path(
+                self.program,
+                self.parameters,
+                position,
+                path,
+            )?;
         let mut place = canonical_place_from_symbol(symbol)?;
         place.segments = segments;
-        Some((place, reference))
+        Some((place, reference, frozen))
     }
+
+    /// The declared type behind a storage symbol: a frozen formal or immutable
+    /// local declared in this state. Mutable and exclusive-reference storage
+    /// can be reborrowed into a call whose own pointee type drops declared
+    /// constraints, so they keep the raw carrier instead.
+    fn declared_type(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
+        if let Some(parameter) = self
+            .parameters
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
+        {
+            return (!parameter.is_mutable
+                && !exclusive_reference(self.program, parameter.type_reference))
+            .then_some(parameter.type_reference);
+        }
+        let state = crate::find_state(self.program, self.state)?;
+        program_statements(self.program, state)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local)
+                    if local.symbol == symbol
+                        && !local.is_mutable
+                        && !exclusive_reference(self.program, local.type_reference) =>
+                {
+                    Some(local.type_reference)
+                }
+                _ => None,
+            })
+    }
+}
+
+fn program_statements<'a>(
+    program: &'a TypedTrees,
+    state: &'a typed_trees::state::State,
+) -> &'a [StatementNode] {
+    program.statement_table.statements(state.statement_nodes)
 }
 
 impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
@@ -53,10 +101,13 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         let place = canonical_place_from_symbol(symbol)?;
         self.bounds(&place).or_else(|| {
             // A binding still has its complete carrier range when no narrower
-            // value snapshot is live. This is not a domain-membership or
-            // initialization proof; a live snapshot takes precedence because
-            // it is tighter.
-            primitive_range(primitive_type)
+            // value snapshot is live. A declared range constraint is the
+            // storage invariant every checked write enforced, so it tightens
+            // that fallback; neither is a domain-membership or initialization
+            // proof. A live snapshot takes precedence because it is tighter.
+            self.declared_type(symbol)
+                .and_then(|reference| declared_bounds(self.program, reference, primitive_type))
+                .or_else(|| primitive_range(primitive_type))
         })
     }
 
@@ -65,12 +116,21 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         position: u32,
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange> {
-        let (place, reference) = self.field(position, path)?;
+        let (place, reference, frozen) = self.field(position, path)?;
         self.bounds(&place).or_else(|| {
-            // An exact typed structural field still has its complete carrier
-            // range when no narrower value snapshot is live. This is not a
-            // declaration-derived domain membership or initialization proof.
-            primitive_range(self.program.primitive_type_reference(reference)?)
+            // An exact typed structural field keeps its declared storage
+            // invariant when no narrower value snapshot is live, then its
+            // complete carrier. Mutable storage can be reborrowed through a
+            // pointee type that drops declared constraints, so only its
+            // carrier remains. This is not a declaration-derived domain
+            // membership or initialization proof.
+            let primitive_type = self.program.primitive_type_reference(reference)?;
+            if frozen {
+                declared_bounds(self.program, reference, primitive_type)
+            } else {
+                None
+            }
+            .or_else(|| primitive_range(primitive_type))
         })
     }
 
@@ -80,10 +140,10 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         path: &[CheckedStructuralPredicatePathSegment],
         index: Option<&IntegerRange>,
     ) -> Option<IntegerRange> {
-        let (place, mut reference) = self.field(position, path)?;
+        let (place, mut reference, frozen) = self.field(position, path)?;
         // Literal byte reads need an element type, not a nominal text domain.
         // Raw fixed arrays and constrained carriers share the same read rule.
-        loop {
+        let element_reference = loop {
             use typed_trees::types::TypeReferenceNode;
             match self.program.type_reference_table.type_reference(reference) {
                 TypeReferenceNode::Reference { referee, .. }
@@ -95,35 +155,44 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
                     if self.program.primitive_type_reference(*element_type)
                         == Some(PrimitiveType::U8) =>
                 {
-                    break;
+                    break *element_type;
                 }
                 _ => return None,
             }
-        }
-        let literal = crate::values::literal_at_place(
+        };
+        let literal_bounds = crate::values::literal_at_place(
             self.program,
             self.semantic,
             self.contexts
                 .iter()
                 .map(|context| self.semantic.contexts.get(*context)),
             &place,
-        )?;
-        let ExpressionNode::String(bytes) = self.program.expression_table.expression(literal)
-        else {
-            return None;
-        };
-        // A singleton selects one byte. Otherwise every byte in this live
-        // snapshot bounds any successful read; this does not prove the index
-        // valid or turn an out-of-bounds access into a normal return.
-        let bytes = if let Some(index) = index.filter(|index| index.minimum == index.maximum) {
-            let position = usize::try_from(index.minimum.to_u64()?).ok()?;
-            std::slice::from_ref(bytes.get(position)?)
-        } else {
-            &bytes[..]
-        };
-        Some(IntegerRange {
-            minimum: BigInt::from_u64(u64::from(*bytes.iter().min()?)),
-            maximum: BigInt::from_u64(u64::from(*bytes.iter().max()?)),
+        )
+        .and_then(|literal| {
+            let ExpressionNode::String(bytes) = self.program.expression_table.expression(literal)
+            else {
+                return None;
+            };
+            // A singleton selects one byte. Otherwise every byte in this live
+            // snapshot bounds any successful read; this does not prove the index
+            // valid or turn an out-of-bounds access into a normal return.
+            let bytes = if let Some(index) = index.filter(|index| index.minimum == index.maximum) {
+                let position = usize::try_from(index.minimum.to_u64()?).ok()?;
+                std::slice::from_ref(bytes.get(position)?)
+            } else {
+                &bytes[..]
+            };
+            Some(IntegerRange {
+                minimum: BigInt::from_u64(u64::from(*bytes.iter().min()?)),
+                maximum: BigInt::from_u64(u64::from(*bytes.iter().max()?)),
+            })
+        });
+        // Without a live literal, a declared element range is the storage
+        // invariant every checked write enforced on every element — but only
+        // while the carrier is frozen; mutable storage can be reborrowed
+        // through a pointee type that drops declared constraints.
+        literal_bounds.or_else(|| {
+            frozen.then(|| declared_bounds(self.program, element_reference, PrimitiveType::U8))?
         })
     }
 }
