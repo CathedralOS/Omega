@@ -1,8 +1,9 @@
 //! Exact hosted exit: normalize the low i32 carrier, invoke the kernel, trap if it returns.
 use super::{
     RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
-    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint, resolve_registers,
+    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
+use crate::selected_form_encoding::request_validation::resolve_registers;
 use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
 use target::NativeTarget;

@@ -2,8 +2,9 @@
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, RegisterViewId,
     SelectedInstructionKind, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
-    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint, resolve_registers,
+    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
+use crate::selected_form_encoding::request_validation::resolve_registers;
 type Error = X86_64SelectedFormEncodingError;
 type Encoding = ValidatedX86_64SelectedFormEncoding;
 pub(super) fn is_transfer(kind: SelectedInstructionKind) -> bool {

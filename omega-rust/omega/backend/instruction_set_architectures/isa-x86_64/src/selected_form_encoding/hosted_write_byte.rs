@@ -1,8 +1,9 @@
 //! Hosted write-one-byte leaf: caller frame storage, no hidden stack adjustment.
 use super::{
     RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
-    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint, resolve_registers,
+    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
+use crate::selected_form_encoding::request_validation::resolve_registers;
 use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
 
