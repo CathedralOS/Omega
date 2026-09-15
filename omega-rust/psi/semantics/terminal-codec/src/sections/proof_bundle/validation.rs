@@ -1,9 +1,11 @@
 //! Canonical structural validation for decoded proof bundles.
 
-use super::{
-    MAX_CONTENT_TERM_DEPTH, MAX_PROOF_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALAR_TERM_DEPTH,
-    ProofCodecError,
+use super::ProofCodecError;
+use crate::sections::proof_bundle::proof_node_codec::MAX_PROOF_DEPTH;
+use crate::sections::proof_bundle::proposition_codec::{
+    MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH,
 };
+use crate::sections::proof_bundle::scalar_term_codec::MAX_SCALAR_TERM_DEPTH;
 use proof_admission::{EvidenceRoute, ProofNode, ProofRule};
 use semantic_vocabulary::{
     ContentTerm, EvidenceIdentity, IntegerMathTerm, Proposition, ScalarTerm,
