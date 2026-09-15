@@ -36,7 +36,7 @@ fn exit_status(status: PackageCommandStatus) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{PackageCommandStatus, exit_status};
     #[test]
     fn manager_outcomes_map_to_command_exit_status() {
         assert_eq!(exit_status(PackageCommandStatus::Published), 0);

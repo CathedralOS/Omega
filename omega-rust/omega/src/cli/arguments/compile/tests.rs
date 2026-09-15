@@ -1,4 +1,4 @@
-use super::*;
+use super::{PathBuf, parse_arguments, usage};
 use std::ffi::OsString;
 
 #[test]

@@ -56,7 +56,7 @@ fn value(arguments: &mut impl Iterator<Item = OsString>, flag: &str) -> Result<O
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{OsString, PathBuf, parse};
 
     fn arguments(values: &[&str]) -> impl Iterator<Item = OsString> {
         values.iter().map(OsString::from)
