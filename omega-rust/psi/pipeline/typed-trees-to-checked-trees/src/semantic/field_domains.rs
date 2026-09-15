@@ -62,12 +62,18 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
 
 /// Seed the entry-invariant `self.a.b…c in Domain` fact for every domained field
 /// reachable through the attached data -- ONE level or NESTED. `prefix` is the
-/// `Field` segment chain from `self` to `data`; `visited` is the data-type names
+/// place segment chain from `self` to `data`; `visited` is the data-type names
 /// on the current path (a cycle guard for self-referential data). Mirrors the
 /// nested resolution in `field_domain::attached_data_field_type`: the read trust
 /// seeded here is sound because every write to such a field (one-level or nested)
 /// is domain-enforced through the SAME multi-level resolver, and each field is
 /// gated on its ZII/empty value satisfying the domain.
+///
+/// Fixed-array fields additionally enumerate every element at its exact
+/// `FixedIndex` place: `self.rows[i].label` is live evidence for the single
+/// element `i`, invalidated only by writes overlapping that index. Coverage is
+/// never encoded at an unresolved `Index` -- a runtime selector cannot borrow
+/// an element's fact.
 #[allow(clippy::too_many_arguments)]
 fn append_data_field_domain_facts(
     program: &TypedTrees,
@@ -75,7 +81,7 @@ fn append_data_field_domain_facts(
     machine: &typed_trees::machine::Machine,
     self_symbol: symbols::SymbolHandle,
     data: &typed_trees::data::DataDefinition,
-    prefix: &[symbols::SymbolHandle],
+    prefix: &[PlaceSegment],
     visited: &[&str],
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
@@ -83,6 +89,9 @@ fn append_data_field_domain_facts(
         let DataMember::Field(field) = member else {
             continue;
         };
+
+        let mut field_path = prefix.to_vec();
+        crate::flow::push_field_place_segments(program, &mut field_path, field.symbol);
 
         // SOUNDNESS GATE (per field, one-level or nested): surface the
         // entry-invariant only when the field's ZERO/ZII value provably satisfies
@@ -96,24 +105,12 @@ fn append_data_field_domain_facts(
             })
         {
             // Place `self.<prefix…>.<field>`: root the machine receiver symbol
-            // (`self`) + the Field-segment chain, so the canonical label matches
+            // (`self`) + the segment chain, so the canonical label matches
             // a `self.a.b` read exactly where the nested write established it.
             let place = facts.append_symbol_place(self_symbol);
-            for segment in prefix {
-                if let Some(variant) = facts::payload_variant_for_field(program, *segment) {
-                    facts.push_place_segment(place, PlaceSegment::Case { variant });
-                }
-                facts.push_place_segment(place, PlaceSegment::Field { symbol: *segment });
+            for segment in &field_path {
+                facts.push_place_segment(place, *segment);
             }
-            if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
-                facts.push_place_segment(place, PlaceSegment::Case { variant });
-            }
-            facts.push_place_segment(
-                place,
-                PlaceSegment::Field {
-                    symbol: field.symbol,
-                },
-            );
 
             let fact = facts.append_fact(Fact {
                 place: FactPlace::Place(place),
@@ -144,8 +141,6 @@ fn append_data_field_domain_facts(
             field.type_reference,
         ) && !visited.contains(&nested.name.as_str())
         {
-            let mut next_prefix = prefix.to_vec();
-            next_prefix.push(field.symbol);
             let mut next_visited = visited.to_vec();
             next_visited.push(nested.name.as_str());
             append_data_field_domain_facts(
@@ -154,7 +149,37 @@ fn append_data_field_domain_facts(
                 machine,
                 self_symbol,
                 nested,
-                &next_prefix,
+                &field_path,
+                &next_visited,
+                refs,
+            );
+        }
+
+        // A fixed array of nominal elements carries each element's declared
+        // fields at `field[i]`; the same ZII gate applies to the leaf domains.
+        let Some((element_type, length)) =
+            readable_fixed_array_elements(program, field.type_reference)
+        else {
+            continue;
+        };
+        let Some(nested) = readable_nominal_definition(program, element_type) else {
+            continue;
+        };
+        if visited.contains(&nested.name.as_str()) {
+            continue;
+        }
+        let mut next_visited = visited.to_vec();
+        next_visited.push(nested.name.as_str());
+        for index in 0..length {
+            let mut element_path = field_path.clone();
+            element_path.push(PlaceSegment::FixedIndex { index });
+            append_data_field_domain_facts(
+                program,
+                facts,
+                machine,
+                self_symbol,
+                nested,
+                &element_path,
                 &next_visited,
                 refs,
             );
@@ -199,6 +224,28 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         &mut refs,
                     );
                 }
+                // Fixed-array collection parameters carry each element's declared
+                // fields at the exact `FixedIndex` place. Every index is seeded
+                // explicitly; coverage is never encoded as an unresolved `Index`.
+                if let Some((element_type, length)) =
+                    readable_fixed_array_elements(program, parameter.type_reference)
+                    && let Some(data) = readable_nominal_definition(program, element_type)
+                {
+                    for index in 0..length {
+                        let prefix = [PlaceSegment::FixedIndex { index }];
+                        append_state_parameter_data_field_domain_facts(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state.symbol,
+                            parameter.symbol,
+                            data,
+                            &prefix,
+                            &[data.symbol],
+                            &mut refs,
+                        );
+                    }
+                }
                 // Keep the existing root qualification/resource permission
                 // rule separate from default-domain fields of nominal values.
                 if parameter.is_mutable {
@@ -215,7 +262,6 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         domain_symbol,
                     );
                     append_state_parameter_domain_fact(
-                        program,
                         facts,
                         machine.symbol,
                         state.symbol,
@@ -402,7 +448,7 @@ fn append_state_parameter_data_field_domain_facts(
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
     data: &typed_trees::data::DataDefinition,
-    prefix: &[SymbolHandle],
+    prefix: &[PlaceSegment],
     visited: &[SymbolHandle],
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
@@ -413,16 +459,15 @@ fn append_state_parameter_data_field_domain_facts(
         if readable_type_reference(program, field.type_reference).is_none() {
             continue;
         }
+        let mut field_path = prefix.to_vec();
+        crate::flow::push_field_place_segments(program, &mut field_path, field.symbol);
         for domain_symbol in field_domain_symbols(program, field.type_reference) {
-            let mut path = prefix.to_vec();
-            path.push(field.symbol);
             append_state_parameter_domain_fact(
-                program,
                 facts,
                 machine_symbol,
                 state_symbol,
                 parameter_symbol,
-                &path,
+                &field_path,
                 domain_symbol,
                 refs,
             );
@@ -430,8 +475,6 @@ fn append_state_parameter_data_field_domain_facts(
         if let Some(nested) = readable_nominal_definition(program, field.type_reference)
             && !visited.contains(&nested.symbol)
         {
-            let mut next_prefix = prefix.to_vec();
-            next_prefix.push(field.symbol);
             let mut next_visited = visited.to_vec();
             next_visited.push(nested.symbol);
             append_state_parameter_data_field_domain_facts(
@@ -441,11 +484,55 @@ fn append_state_parameter_data_field_domain_facts(
                 state_symbol,
                 parameter_symbol,
                 nested,
-                &next_prefix,
+                &field_path,
                 &next_visited,
                 refs,
             );
         }
+        // A fixed array field enumerates each nominal element's declared fields
+        // at `field[i]` -- element coverage rides the same entry facts and the
+        // same call-boundary obligations as one-level fields.
+        if let Some((element_type, length)) =
+            readable_fixed_array_elements(program, field.type_reference)
+            && let Some(nested) = readable_nominal_definition(program, element_type)
+            && !visited.contains(&nested.symbol)
+        {
+            let mut next_visited = visited.to_vec();
+            next_visited.push(nested.symbol);
+            for index in 0..length {
+                let mut element_path = field_path.clone();
+                element_path.push(PlaceSegment::FixedIndex { index });
+                append_state_parameter_data_field_domain_facts(
+                    program,
+                    facts,
+                    machine_symbol,
+                    state_symbol,
+                    parameter_symbol,
+                    nested,
+                    &element_path,
+                    &next_visited,
+                    refs,
+                );
+            }
+        }
+    }
+}
+
+/// A readable fixed array's element type and literal length, peeling the
+/// `&`/`&mut`/`mut`-access and domain-constraint shells. Non-literal lengths
+/// are lowered before checking; anything unresolved fails closed (`None`).
+fn readable_fixed_array_elements(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, usize)> {
+    use typed_trees::types::TypeReferenceNode;
+    let reference = readable_type_reference(program, reference)?;
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: typed_trees::types::FixedArrayLength::Literal(length),
+        } => Some((*element_type, *length)),
+        _ => None,
     }
 }
 
@@ -491,21 +578,17 @@ fn readable_nominal_definition(
 }
 
 fn append_state_parameter_domain_fact(
-    program: &typed_trees::TypedTrees,
     facts: &mut FactPlan,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
-    fields: &[SymbolHandle],
+    path: &[PlaceSegment],
     domain_symbol: SymbolHandle,
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
     let place = facts.append_symbol_place(parameter_symbol);
-    for field in fields {
-        if let Some(variant) = facts::payload_variant_for_field(program, *field) {
-            facts.push_place_segment(place, PlaceSegment::Case { variant });
-        }
-        facts.push_place_segment(place, PlaceSegment::Field { symbol: *field });
+    for segment in path {
+        facts.push_place_segment(place, *segment);
     }
     let fact = facts.append_fact(Fact {
         place: FactPlace::Place(place),
