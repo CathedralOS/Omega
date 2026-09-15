@@ -1,23 +1,15 @@
 use super::{
-    Architecture, BTreeSet, RegisterConstraintKey, ScalarAbiCase, assert_target_semantic_error,
-    baseline_target_register_environment, convention_for, row_mut, scalar_abi_cases,
-    target_constraint_catalog, target_physical_register_model, validate_physical_register_model,
-    validate_target_register_environment,
+    Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, assert_target_semantic_error,
+    baseline_target_register_environment, convention_for, declaration_mut, produced_effects,
+    row_mut, scalar_abi_cases, target_constraint_catalog, target_physical_register_model,
+    validate_effects, validate_physical_register_model, validate_target_register_environment,
+    validated_effects,
 };
-use isa_aarch64::{
-    Aarch64MachineEffectCatalogValidationError, aarch64_machine_effect_catalog,
-    validate_aarch64_machine_effect_catalog,
-};
-use isa_x86_64::{
-    X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
-    x86_64_machine_effect_catalog,
-};
-use register_model::{RegisterOperandAccess, ValidatedRegisterConstraintCatalog};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog,
-    MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior, ValidatedMachineEffectCatalog,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalogValidationError,
+    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior,
 };
 
 /// Every selected register-call rule key with the semantic family the effect
@@ -42,91 +34,6 @@ fn selected_call_rules(
                 .map(|key| (*key, MachineSemanticKind::CallAggregate)),
         )
         .collect()
-}
-
-/// The produced catalog joined through the ISA's own independent validator:
-/// structural admission plus canonical re-derivation equality.
-fn validated_effects(
-    case: ScalarAbiCase,
-    constraints: &ValidatedRegisterConstraintCatalog,
-) -> ValidatedMachineEffectCatalog {
-    match case.target.architecture {
-        Architecture::X86_64 => validate_x86_64_machine_effect_catalog(
-            case.target,
-            constraints,
-            x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
-        )
-        .expect("the produced call-effect catalog must validate for the target ABI"),
-        Architecture::Aarch64 => validate_aarch64_machine_effect_catalog(
-            case.target,
-            constraints,
-            aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
-        )
-        .expect("the produced call-effect catalog must validate for the target ABI"),
-    }
-}
-
-/// The produced catalog without admission, for per-fact corruption.
-fn produced_effects(
-    case: ScalarAbiCase,
-    constraints: &ValidatedRegisterConstraintCatalog,
-) -> MachineEffectCatalog {
-    match case.target.architecture {
-        Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
-        Architecture::Aarch64 => aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum CallEffectRejection {
-    SemanticMismatch,
-    Structural(MachineEffectCatalogValidationError),
-}
-
-fn validate_effects(
-    case: ScalarAbiCase,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    catalog: MachineEffectCatalog,
-) -> Result<ValidatedMachineEffectCatalog, CallEffectRejection> {
-    match case.target.architecture {
-        Architecture::X86_64 => {
-            validate_x86_64_machine_effect_catalog(case.target, constraints, catalog).map_err(
-                |error| match error {
-                    X86_64MachineEffectCatalogValidationError::Structural(inner) => {
-                        CallEffectRejection::Structural(inner)
-                    }
-                    X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch => {
-                        CallEffectRejection::SemanticMismatch
-                    }
-                    other => panic!("unexpected x86-64 call-effect rejection: {other:?}"),
-                },
-            )
-        }
-        Architecture::Aarch64 => {
-            validate_aarch64_machine_effect_catalog(case.target, constraints, catalog).map_err(
-                |error| match error {
-                    Aarch64MachineEffectCatalogValidationError::Structural(inner) => {
-                        CallEffectRejection::Structural(inner)
-                    }
-                    Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch => {
-                        CallEffectRejection::SemanticMismatch
-                    }
-                    other => panic!("unexpected AArch64 call-effect rejection: {other:?}"),
-                },
-            )
-        }
-    }
-}
-
-fn declaration_mut(
-    catalog: &mut MachineEffectCatalog,
-    key: RegisterConstraintKey,
-) -> &mut MachineEffectDeclaration {
-    catalog
-        .declarations
-        .iter_mut()
-        .find(|declaration| declaration.constraint == key)
-        .unwrap_or_else(|| panic!("effect catalog missing call declaration {key:?}"))
 }
 
 /// Every selected call rule on every declared target/ABI pair is bound to the
@@ -406,7 +313,7 @@ fn every_call_family_rejects_call_contract_corruption_on_every_target() {
                 };
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(CallEffectRejection::SemanticMismatch),
+                Err(EffectRejection::SemanticMismatch),
                 "{key:?} call alignment drift must reject"
             );
 
@@ -414,7 +321,7 @@ fn every_call_family_rejects_call_contract_corruption_on_every_target() {
             declaration_mut(&mut corrupted, key).barrier = MachineBarrier::None;
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(CallEffectRejection::Structural(
+                Err(EffectRejection::Structural(
                     MachineEffectCatalogValidationError::BarrierMismatch(semantic)
                 )),
                 "{key:?} lost call barrier must reject"
@@ -426,7 +333,7 @@ fn every_call_family_rejects_call_contract_corruption_on_every_target() {
                 .control = MachineEncodedControlEffect::FallThroughV1;
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(CallEffectRejection::Structural(
+                Err(EffectRejection::Structural(
                     MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
                 )),
                 "{key:?} call encoded as fall-through must reject"
@@ -443,7 +350,7 @@ fn every_call_family_rejects_call_contract_corruption_on_every_target() {
             };
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(CallEffectRejection::Structural(
+                Err(EffectRejection::Structural(
                     MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
                 )),
                 "{key:?} stack-effect drift must reject"

@@ -2,19 +2,27 @@ use std::collections::BTreeSet;
 
 mod call_effects;
 mod register_calls;
+mod return_effects;
 
 use isa_aarch64::{
-    AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, Aarch64RegisterConstraintCatalogValidationError,
-    aarch64_preservation_convention_for_target,
+    AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, Aarch64MachineEffectCatalogValidationError,
+    Aarch64RegisterConstraintCatalogValidationError, aarch64_machine_effect_catalog,
+    aarch64_preservation_convention_for_target, validate_aarch64_machine_effect_catalog,
 };
 use isa_x86_64::{
     X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_SYSTEM_V_CALL,
-    X86_64RegisterConstraintCatalogValidationError, x86_64_preservation_convention_for_target,
+    X86_64MachineEffectCatalogValidationError, X86_64RegisterConstraintCatalogValidationError,
+    validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
+    x86_64_preservation_convention_for_target,
 };
 use register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterConstraintCatalog,
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId,
-    validate_physical_register_model,
+    ValidatedRegisterConstraintCatalog, validate_physical_register_model,
+};
+use selected_instructions::{
+    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
+    ValidatedMachineEffectCatalog,
 };
 use target::{Architecture, NativeTarget};
 
@@ -39,6 +47,16 @@ struct ScalarAbiCase {
     stack_alignment: u16,
     red_zone_bytes: u16,
     opposite_call: RegisterConstraintKey,
+    /// Ordered integer result views consumed by the selected scalar and
+    /// aggregate return rules: the scalar uses the first, each aggregate
+    /// ordinal extends the prefix by one.
+    integer_results: &'static [&'static str],
+    /// ABI floating-point result view used by the selected float return rule.
+    float_result: &'static str,
+    /// Constraint-row implicit uses carried by every selected return rule.
+    return_uses: &'static [&'static str],
+    /// Constraint-row implicit defs carried by every selected return rule.
+    return_defs: &'static [&'static str],
 }
 
 fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
@@ -54,6 +72,10 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
             stack_alignment: 16,
             red_zone_bytes: 128,
             opposite_call: X86_64_MICROSOFT_CALL,
+            integer_results: &["rax", "rdx"],
+            float_result: "xmm0",
+            return_uses: &["rsp"],
+            return_defs: &["rsp", "rip"],
         },
         ScalarAbiCase {
             target: NativeTarget::windows_x64(),
@@ -66,6 +88,10 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
             stack_alignment: 16,
             red_zone_bytes: 0,
             opposite_call: X86_64_SYSTEM_V_CALL,
+            integer_results: &["rax", "rdx"],
+            float_result: "xmm0",
+            return_uses: &["rsp"],
+            return_defs: &["rsp", "rip"],
         },
         ScalarAbiCase {
             target: NativeTarget::uefi_x64(),
@@ -78,6 +104,10 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
             stack_alignment: 16,
             red_zone_bytes: 0,
             opposite_call: X86_64_SYSTEM_V_CALL,
+            integer_results: &["rax", "rdx"],
+            float_result: "xmm0",
+            return_uses: &["rsp"],
+            return_defs: &["rsp", "rip"],
         },
         ScalarAbiCase {
             target: NativeTarget::linux_arm64(),
@@ -90,6 +120,10 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
             stack_alignment: 16,
             red_zone_bytes: 0,
             opposite_call: AARCH64_DARWIN_CALL,
+            integer_results: &["x0", "x1"],
+            float_result: "d0",
+            return_uses: &["sp", "x30"],
+            return_defs: &["pc"],
         },
         ScalarAbiCase {
             target: NativeTarget::macos_arm64(),
@@ -102,6 +136,10 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
             stack_alignment: 16,
             red_zone_bytes: 0,
             opposite_call: AARCH64_AAPCS64_CALL,
+            integer_results: &["x0", "x1"],
+            float_result: "d0",
+            return_uses: &["sp", "x30"],
+            return_defs: &["pc"],
         },
     ]
 }
@@ -185,6 +223,91 @@ fn assert_noncanonical_model_error(
             )
         ),
     }
+}
+
+/// The produced effect catalog joined through the ISA's own independent
+/// validator: structural admission plus canonical re-derivation equality.
+fn validated_effects(
+    case: ScalarAbiCase,
+    constraints: &ValidatedRegisterConstraintCatalog,
+) -> ValidatedMachineEffectCatalog {
+    match case.target.architecture {
+        Architecture::X86_64 => validate_x86_64_machine_effect_catalog(
+            case.target,
+            constraints,
+            x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
+        )
+        .expect("the produced effect catalog must validate for the target ABI"),
+        Architecture::Aarch64 => validate_aarch64_machine_effect_catalog(
+            case.target,
+            constraints,
+            aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
+        )
+        .expect("the produced effect catalog must validate for the target ABI"),
+    }
+}
+
+/// The produced catalog without admission, for per-fact corruption.
+fn produced_effects(
+    case: ScalarAbiCase,
+    constraints: &ValidatedRegisterConstraintCatalog,
+) -> MachineEffectCatalog {
+    match case.target.architecture {
+        Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
+        Architecture::Aarch64 => aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum EffectRejection {
+    SemanticMismatch,
+    Structural(MachineEffectCatalogValidationError),
+}
+
+fn validate_effects(
+    case: ScalarAbiCase,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    catalog: MachineEffectCatalog,
+) -> Result<ValidatedMachineEffectCatalog, EffectRejection> {
+    match case.target.architecture {
+        Architecture::X86_64 => {
+            validate_x86_64_machine_effect_catalog(case.target, constraints, catalog).map_err(
+                |error| match error {
+                    X86_64MachineEffectCatalogValidationError::Structural(inner) => {
+                        EffectRejection::Structural(inner)
+                    }
+                    X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch => {
+                        EffectRejection::SemanticMismatch
+                    }
+                    other => panic!("unexpected x86-64 effect rejection: {other:?}"),
+                },
+            )
+        }
+        Architecture::Aarch64 => {
+            validate_aarch64_machine_effect_catalog(case.target, constraints, catalog).map_err(
+                |error| match error {
+                    Aarch64MachineEffectCatalogValidationError::Structural(inner) => {
+                        EffectRejection::Structural(inner)
+                    }
+                    Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch => {
+                        EffectRejection::SemanticMismatch
+                    }
+                    other => panic!("unexpected AArch64 effect rejection: {other:?}"),
+                },
+            )
+        }
+    }
+}
+
+fn declaration_mut(
+    catalog: &mut MachineEffectCatalog,
+    key: RegisterConstraintKey,
+) -> &mut MachineEffectDeclaration {
+    catalog
+        .declarations
+        .iter_mut()
+        .find(|declaration| declaration.constraint == key)
+        .unwrap_or_else(|| panic!("effect catalog missing declaration {key:?}"))
 }
 
 #[test]
