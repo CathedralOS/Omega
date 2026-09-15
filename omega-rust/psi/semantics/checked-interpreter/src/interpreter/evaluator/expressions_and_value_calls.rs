@@ -1470,13 +1470,23 @@ impl<'program> Evaluator<'program> {
             return self.eval_case_literal(literal, case_name.as_str(), frame);
         }
         let type_name = literal.type_name.as_str().to_owned();
-        let data = self.find_data_by_name(&type_name);
-        let (type_symbol, mut fields) = if let Some(data) = data {
+        // The resolved literal already selected its exact nominal owner. A
+        // module-qualified constructor spelling is not the declaration's
+        // canonical name, so the name scan cannot find it; prefer the
+        // resolved symbol, exactly as `eval_case_literal` does. The value
+        // carries the declaration's name, not the authored spelling.
+        let data = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == literal.type_symbol && literal.type_symbol.is_valid())
+            .or_else(|| self.find_data_by_name(&type_name));
+        let (type_symbol, type_name, mut fields) = if let Some(data) = data {
             let mut fields = BTreeMap::new();
             self.populate_data_fields(data, &mut fields)?;
-            (data.symbol, fields)
+            (data.symbol, data.name.as_str().to_owned(), fields)
         } else {
-            (SymbolHandle::invalid(), BTreeMap::new())
+            (SymbolHandle::invalid(), type_name, BTreeMap::new())
         };
         for field in self.program.expression_table.struct_fields(literal.fields) {
             let field_type = self.field_type_reference(type_symbol, field.name.as_str());

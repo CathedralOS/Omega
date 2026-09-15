@@ -22,6 +22,10 @@ struct Leaf {
     original: ExpressionHandle,
     materialized: ExpressionHandle,
     destination: TypeReferenceHandle,
+    /// Structured leaves replay as whole checked-interpreter probes on both
+    /// roots and compare independently encoded results; scalar leaves use the
+    /// exact probe evaluator.
+    structured: bool,
     expected: DecodedCanonicalConstValue,
 }
 
@@ -121,6 +125,7 @@ pub(crate) fn validate(
                 original: declaration.authored_initializer,
                 materialized: declaration.materialized_initializer,
                 destination: declaration.declared_type,
+                structured: false,
                 expected,
             },
             &mut Vec::new(),
@@ -134,15 +139,37 @@ pub(crate) fn validate(
     let mut probe = typed.clone();
     let mut owners = Vec::new();
     for (ordinal, leaf) in leaves.iter().enumerate() {
-        owners.push(super::invocations::append_probe(
+        let original = super::invocations::append_probe(
             &mut probe,
             leaf.owner,
             format!("@const-replay-{ordinal}"),
             leaf.original,
             leaf.destination,
-        ));
+        );
+        // Structured leaves interpret each root as a whole value: the scalar
+        // probe only reaches leaves whose declared carrier is scalar.
+        let materialized = leaf.structured.then(|| {
+            super::invocations::append_probe(
+                &mut probe,
+                leaf.owner,
+                format!("@const-replay-materialized-{ordinal}"),
+                leaf.materialized,
+                leaf.destination,
+            )
+        });
+        owners.push((original, materialized));
     }
-    let checked = super::invocations::CheckedInitializers::prepare(&probe, authority, &owners)?;
+    let probe_symbols = owners
+        .iter()
+        .flat_map(|(original, materialized)| {
+            materialized.map_or_else(
+                || vec![*original],
+                |materialized| vec![*original, materialized],
+            )
+        })
+        .collect::<Vec<_>>();
+    let checked =
+        super::invocations::CheckedInitializers::prepare(&probe, authority, &probe_symbols)?;
     let program = checked.typed();
     for declaration in replay_declarations {
         let index = leaves
@@ -155,7 +182,7 @@ pub(crate) fn validate(
                 )
             })?;
         checked
-            .calls_for_symbol(owners[index])
+            .calls_for_symbol(owners[index].0)
             .and_then(|calls| {
                 let dependencies = calls.validate_custody(
                     declaration.authored_initializer,
@@ -185,9 +212,22 @@ pub(crate) fn validate(
                         original: dependency.expression,
                         materialized: dependency.expression,
                         destination: declaration.declared_type,
+                        structured: false,
                         expected,
                     }, &mut Vec::new(), &mut dependency_leaves)?;
                     for leaf in dependency_leaves {
+                        if leaf.structured {
+                            // An aggregate dependency leaf is an exact
+                            // constant or case use: reconstruct the value it
+                            // crossed as from the receiving forest's own
+                            // selected declaration, never the producer's
+                            // claim.
+                            let actual = dependency_leaf_value(program, leaf.materialized)?;
+                            if actual != leaf.expected {
+                                return Err("constant dependency or its substituted use drifted from its canonical value".into());
+                            }
+                            continue;
+                        }
                         let destination = crate::const_generic_expressions::exact_probe_destination(program, leaf.destination)
                             .ok_or("constant dependency lost its exact scalar destination")?;
                         let value = calls.evaluate(leaf.materialized, destination)?.0;
@@ -200,19 +240,37 @@ pub(crate) fn validate(
             })
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
     }
-    for (leaf, owner) in leaves.iter().zip(owners) {
+    for (leaf, (original_owner, materialized_owner)) in leaves.iter().zip(owners) {
         let result = (|| {
-            let calls = checked.calls_for_symbol(owner)?;
-            let destination = crate::const_generic_expressions::exact_probe_destination(
-                program,
-                leaf.destination,
-            )
-            .ok_or("retained initializer leaf lost its exact scalar destination")?;
-            let original = calls.evaluate(leaf.original, destination)?.0;
-            let materialized = calls.evaluate(leaf.materialized, destination)?.0;
-            if original.decode_encoding().as_ref() != Some(&leaf.expected)
-                || materialized.decode_encoding().as_ref() != Some(&leaf.expected)
+            let calls = checked.calls_for_symbol(original_owner)?;
+            if let Some(destination) =
+                crate::const_generic_expressions::exact_probe_destination(program, leaf.destination)
             {
+                let original = calls.evaluate(leaf.original, destination)?.0;
+                let materialized = calls.evaluate(leaf.materialized, destination)?.0;
+                if original.decode_encoding().as_ref() != Some(&leaf.expected)
+                    || materialized.decode_encoding().as_ref() != Some(&leaf.expected)
+                {
+                    return Err(
+                        "retained constant invocation, materialized value, or canonical result drifted"
+                            .to_owned(),
+                    );
+                }
+                return Ok(());
+            }
+            // Structured leaf: both roots interpret as whole values against
+            // the declared carrier and re-encode independently.
+            let (original, _) = calls.evaluate_value()?;
+            let materialized_calls = checked.calls_for_symbol(
+                materialized_owner
+                    .ok_or("structured initializer leaf lost its materialized probe")?,
+            )?;
+            let (materialized, _) = materialized_calls.evaluate_value()?;
+            let original =
+                super::materialize::canonical_value(program, leaf.destination, &original)?;
+            let materialized =
+                super::materialize::canonical_value(program, leaf.destination, &materialized)?;
+            if original != leaf.expected || materialized != leaf.expected {
                 return Err(
                     "retained constant invocation, materialized value, or canonical result drifted"
                         .to_owned(),
@@ -227,9 +285,59 @@ pub(crate) fn validate(
     Ok(())
 }
 
+/// Reconstruct the canonical value one aggregate dependency leaf crossed as:
+/// an exact constant use decodes its selected declaration's own canonical
+/// result, while a payloadless case rebuilds its variant identity from the
+/// receiving forest's symbol table.
+fn dependency_leaf_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Result<DecodedCanonicalConstValue, String> {
+    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+        return Err("aggregate dependency leaf is not an exact constant or case use".into());
+    };
+    match program.symbols.get(name.symbol).kind {
+        symbols::SymbolKind::Const => {
+            let mut declarations = program
+                .const_declarations()
+                .iter()
+                .filter(|declaration| declaration.symbol == name.symbol);
+            let declaration = declarations
+                .next()
+                .ok_or("constant dependency lost its exact declaration")?;
+            if declarations.next().is_some() {
+                return Err("constant dependency declaration is ambiguous".into());
+            }
+            CanonicalConstIdentity {
+                type_name: String::new(),
+                encoding: declaration
+                    .canonical_value_encoding
+                    .clone()
+                    .ok_or("constant dependency lost its canonical value")?,
+            }
+            .decode_encoding()
+            .ok_or_else(|| "constant dependency has an invalid canonical value".to_owned())
+        }
+        symbols::SymbolKind::Variant => {
+            let owner = program.symbols.get(name.symbol).parent;
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == owner)
+                .ok_or("case dependency lost its exact owner declaration")?;
+            Ok(DecodedCanonicalConstValue::Variant {
+                type_name: definition.name.as_str().to_owned(),
+                case_name: program.symbols.name(name.symbol).to_owned(),
+                fields: Vec::new(),
+            })
+        }
+        _ => Err("aggregate dependency leaf is not an exact constant or case use".into()),
+    }
+}
+
 fn pair(
     program: &TypedTrees,
-    leaf: Leaf,
+    mut leaf: Leaf,
     active: &mut Vec<ExpressionHandle>,
     leaves: &mut Vec<Leaf>,
 ) -> Result<(), String> {
@@ -299,6 +407,7 @@ fn pair(
                         original: *original,
                         materialized: *materialized,
                         destination: *element_type,
+                        structured: false,
                         expected: expected.clone(),
                     },
                     active,
@@ -421,6 +530,7 @@ fn pair(
                         original: original.value,
                         materialized: materialized.value,
                         destination: field.type_reference,
+                        structured: false,
                         expected: expected.clone(),
                     },
                     active,
@@ -429,6 +539,21 @@ fn pair(
             }
         }
         _ => {
+            // Evaluation produced this aggregate leaf rather than literal
+            // correspondence: both roots replay as whole structured probes
+            // whose independently encoded results must equal the canonical
+            // value.
+            if matches!(
+                leaf.expected,
+                DecodedCanonicalConstValue::Array { .. }
+                    | DecodedCanonicalConstValue::Record { .. }
+                    | DecodedCanonicalConstValue::Variant { .. }
+            ) {
+                leaf.structured = true;
+                leaves.push(leaf);
+                active.pop();
+                return Ok(());
+            }
             return Err("retained initializer has no checked aggregate leaf correspondence".into());
         }
     }

@@ -486,7 +486,7 @@ mod tests {
             .expect("scalar leaves");
         assert_eq!(leaves.len(), 2);
         let first = preparation
-            .initializer_expression_dependencies(&syntax, value, leaves[0].0)
+            .initializer_expression_dependencies(&syntax, value, leaves[0].expression)
             .expect("first dependencies");
         assert_eq!(first.calls.len(), 2);
         for name in ["BASE", "OTHER"] {
@@ -498,7 +498,7 @@ mod tests {
             );
         }
         let second = preparation
-            .initializer_expression_dependencies(&syntax, value, leaves[1].0)
+            .initializer_expression_dependencies(&syntax, value, leaves[1].expression)
             .expect("second dependencies");
         assert!(second.constants.is_empty());
         assert!(second.calls.is_empty());

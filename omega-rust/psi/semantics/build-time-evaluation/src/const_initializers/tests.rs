@@ -6,7 +6,7 @@ use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::{ConstDefinition, Item};
-use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 
 fn parse(text: &str) -> (SyntaxTrees, Arc<SourceMap>) {
     let mut sources = SourceMap::default();
@@ -18,9 +18,52 @@ fn parse(text: &str) -> (SyntaxTrees, Arc<SourceMap>) {
     (syntax, Arc::new(sources))
 }
 
+fn parse_files(files: &[(&str, &str)]) -> (SyntaxTrees, Arc<SourceMap>, Vec<source::SourceId>) {
+    let mut sources = SourceMap::default();
+    let mut syntax = SyntaxTrees::default();
+    let mut ids = Vec::new();
+    for (path, text) in files {
+        let source_id = sources
+            .add(PathBuf::from(path), (*text).to_owned())
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().expect("initializer tokens");
+        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+            .expect("initializer syntax");
+        ids.push(source_id);
+    }
+    (syntax, Arc::new(sources), ids)
+}
+
 fn evaluate(text: &str) -> Result<SyntaxTrees, Vec<diagnostics::Diagnostic>> {
     let (syntax, sources) = parse(text);
     super::evaluate(syntax, Some(sources), &[], None)
+}
+
+/// Run the complete pre-resolution evaluation and typed receipt replay so
+/// retained structured leaves re-derive their canonical results through the
+/// checked interpreter rather than trusting the materialized literal.
+fn evaluate_fully(
+    files: &[(&str, &str)],
+    bindings: &[symbols::SourceScopedTopLevelBinding],
+) -> typed_trees::TypedTrees {
+    let (syntax, sources, _) = parse_files(files);
+    let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: Some(crate::BuildTimeSourceContext {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings: bindings,
+            selection_authority: None,
+            retained_base: None,
+        }),
+    })
+    .expect("pre-resolution evaluation");
+    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+    let resolved =
+        crate::syntax_probes::resolve(&syntax, Some(sources), bindings).expect("resolve");
+    let mut typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    pre_check.evaluate(&mut typed).expect("receipt replay");
+    typed
 }
 
 fn constant<'syntax>(syntax: &'syntax SyntaxTrees, name: &str) -> &'syntax ConstDefinition {
@@ -1077,5 +1120,254 @@ fn landed_float_leaves_cannot_be_reinterpreted_as_anonymous_scalar_operands() {
         let errors =
             evaluate(text).expect_err("landed float operands remain outside the scalar evaluator");
         assert!(!errors.is_empty(), "{text}");
+    }
+}
+
+#[test]
+fn aggregate_constant_names_materialize_the_selected_value() {
+    let declarations = "data Pair [copy] { first: u64; second: u64; }";
+    let evaluated = evaluate(&format!(
+        "{declarations}
+        const A: [u64; 2] = [4, 9];
+        const P: Pair = Pair {{ first: 7, second: 8 }};
+        const B: [u64; 2] = A;
+        const Q: Pair = P;",
+    ))
+    .expect("aggregate constant names evaluate");
+    for (name, carrier, literal) in [
+        ("B", "[u64; 2]", "[4, 9]"),
+        ("Q", "Pair", "Pair { first: 7, second: 8 }"),
+    ] {
+        let definition = constant(&evaluated, name);
+        let receipt = definition
+            .normalization
+            .as_ref()
+            .expect("evaluated receipt");
+        assert_eq!(
+            receipt.canonical_result_encoding,
+            literal_encoding(
+                &format!("{declarations} const {name}: {carrier} = {literal};"),
+                name,
+            ),
+            "{name}"
+        );
+        assert!(
+            matches!(
+                evaluated
+                    .expressions
+                    .expression(receipt.authored_expression),
+                ExpressionNode::Name(_)
+            ),
+            "{name} retains its authored constant use"
+        );
+        assert_ne!(receipt.authored_expression, definition.value);
+    }
+    for (name, dependency) in [("B", "A"), ("Q", "P")] {
+        let receipt = constant(&evaluated, name).normalization.as_ref().unwrap();
+        assert!(
+            receipt.selections.iter().any(|origin| {
+                origin.declaration == constant(&evaluated, dependency).name.source_span()
+            }),
+            "{name} retains the exact selected declaration"
+        );
+    }
+    assert!(matches!(
+        evaluated
+            .expressions
+            .expression(constant(&evaluated, "B").value),
+        ExpressionNode::ArrayLiteral(_)
+    ));
+    assert!(matches!(
+        evaluated
+            .expressions
+            .expression(constant(&evaluated, "Q").value),
+        ExpressionNode::StructLiteral(_)
+    ));
+    crate::syntax_probes::resolve(&evaluated, None, &[])
+        .expect("aggregate constant-name receipts rejoin");
+    evaluate_fully(
+        &[(
+            "main.omg",
+            &format!(
+                "{declarations}
+        const A: [u64; 2] = [4, 9];
+        const P: Pair = Pair {{ first: 7, second: 8 }};
+        const B: [u64; 2] = A;
+        const Q: Pair = P;",
+            ),
+        )],
+        &[],
+    );
+}
+
+#[test]
+fn aggregate_producing_calls_replay_both_roots_against_the_canonical_result() {
+    let declarations = "data Pair [copy] { first: u64; second: u64; }
+        machine make() -> Pair { Pair { first: 1, second: 2 } }
+        machine elements() -> [u64; 2] { [3, 4] }";
+    let text = format!(
+        "{declarations}
+        const P: Pair = make();
+        const A: [u64; 2] = elements();",
+    );
+    // Call-custody receipts re-derive machine declaration spans; rejoining
+    // them therefore requires the sourced lowering entrypoint.
+    let (syntax, sources) = parse(&text);
+    let evaluated = super::evaluate(syntax, Some(sources.clone()), &[], None)
+        .expect("aggregate-producing calls evaluate");
+    for (name, carrier, literal) in [
+        ("P", "Pair", "Pair { first: 1, second: 2 }"),
+        ("A", "[u64; 2]", "[3, 4]"),
+    ] {
+        assert_eq!(
+            constant(&evaluated, name)
+                .normalization
+                .as_ref()
+                .unwrap()
+                .canonical_result_encoding,
+            literal_encoding(
+                &format!("{declarations} const {name}: {carrier} = {literal};"),
+                name,
+            ),
+            "{name}"
+        );
+    }
+    let receipt = constant(&evaluated, "P").normalization.as_ref().unwrap();
+    assert!(
+        !receipt.call_selections.is_empty(),
+        "aggregate call leaf retains invocation custody"
+    );
+    assert!(matches!(
+        evaluated
+            .expressions
+            .expression(receipt.authored_expression),
+        ExpressionNode::Call(_)
+    ));
+    assert!(matches!(
+        evaluated
+            .expressions
+            .expression(constant(&evaluated, "P").value),
+        ExpressionNode::StructLiteral(_)
+    ));
+    crate::syntax_probes::resolve(&evaluated, Some(sources), &[])
+        .expect("aggregate call receipts rejoin");
+    evaluate_fully(&[("main.omg", &text)], &[]);
+}
+
+#[test]
+fn aggregate_producers_compose_inside_literal_fields_and_match_arms() {
+    let declarations = "data Holder [copy] { values: [u64; 2]; tag: u64; }
+        data Pair [copy] { first: u64; second: u64; }
+        machine elements() -> [u64; 2] { [5, 6] }";
+    let text = format!(
+        "{declarations}
+        const H: Holder = Holder {{ values: elements(), tag: 3 }};
+        const M: Pair = match true {{ true -> Pair {{ first: 1, second: 2 }}, false -> Pair {{ first: 9, second: 9 }} }};",
+    );
+    let evaluated = evaluate(&text).expect("nested aggregate producers evaluate");
+    assert_eq!(
+        constant(&evaluated, "H")
+            .normalization
+            .as_ref()
+            .unwrap()
+            .canonical_result_encoding,
+        literal_encoding(
+            &format!("{declarations} const H: Holder = Holder {{ values: [5, 6], tag: 3 }};"),
+            "H",
+        ),
+    );
+    assert_eq!(
+        constant(&evaluated, "M")
+            .normalization
+            .as_ref()
+            .unwrap()
+            .canonical_result_encoding,
+        literal_encoding(
+            &format!("{declarations} const M: Pair = Pair {{ first: 1, second: 2 }};"),
+            "M",
+        ),
+    );
+    evaluate_fully(&[("main.omg", &text)], &[]);
+}
+
+#[test]
+fn module_owned_aggregate_producers_reselect_their_exact_carrier() {
+    let main_text =
+        "use selected::settings::Pair; use selected::settings::make; const B: Pair = make();";
+    let declaration_text = "module settings;
+        pub data Pair [copy] { first: u64; second: u64; }
+        pub machine make() -> Pair { Pair { first: 7, second: 8 } }";
+    let (syntax, sources, ids) = parse_files(&[
+        ("root/main.omg", main_text),
+        ("dependency/settings.omg", declaration_text),
+    ]);
+    let [main, declaration] = ids.as_slice() else {
+        panic!("module probe sources");
+    };
+    let bindings = [
+        symbols::SourceScopedTopLevelBinding::module_import(
+            *main,
+            *declaration,
+            "selected::settings::Pair",
+            1,
+        ),
+        symbols::SourceScopedTopLevelBinding::module_import(
+            *main,
+            *declaration,
+            "selected::settings::make",
+            1,
+        ),
+    ];
+    let evaluated = super::evaluate(syntax, Some(sources), &bindings, None)
+        .expect("module-owned aggregate call evaluates");
+    let definition = constant(&evaluated, "B");
+    let ExpressionNode::StructLiteral(literal) = evaluated.expressions.expression(definition.value)
+    else {
+        panic!("module-owned aggregate materializes its constructor literal");
+    };
+    assert_eq!(literal.constructor_name.as_str(), "settings::Pair");
+    evaluate_fully(
+        &[
+            ("root/main.omg", main_text),
+            ("dependency/settings.omg", declaration_text),
+        ],
+        &bindings,
+    );
+}
+
+#[test]
+fn aggregate_receipts_reject_changed_results_and_dropped_call_custody() {
+    let text = "data Pair [copy] { first: u64; second: u64; }
+        machine make() -> Pair { Pair { first: 1, second: 2 } }
+        const P: Pair = make();";
+    // The receipt comparison re-derives machine declaration custody; only the
+    // sourced lowering can supply those spans, so the mutations below — not
+    // the missing source context — must be the cause of rejection.
+    let (syntax, sources) = parse(text);
+    let evaluated = super::evaluate(syntax, Some(sources.clone()), &[], None)
+        .expect("aggregate receipt baseline");
+    for mutation in ["result", "calls"] {
+        let mut invalid = evaluated.clone();
+        let item = *invalid
+            .root_item_handles()
+            .iter()
+            .find(|item| {
+                matches!(invalid.root_item(**item), Item::Const(definition) if definition.name.as_str() == "P")
+            })
+            .unwrap();
+        let Item::Const(mut definition) = invalid.root_item(item).clone() else {
+            panic!("constant");
+        };
+        let receipt = definition.normalization.as_mut().unwrap();
+        match mutation {
+            "result" => receipt.canonical_result_encoding.push('0'),
+            "calls" => receipt.call_selections.clear(),
+            _ => unreachable!(),
+        }
+        invalid.items.replace_item(item, Item::Const(definition));
+        assert!(
+            crate::syntax_probes::resolve(&invalid, Some(sources.clone()), &[]).is_err(),
+            "{mutation}"
+        );
     }
 }

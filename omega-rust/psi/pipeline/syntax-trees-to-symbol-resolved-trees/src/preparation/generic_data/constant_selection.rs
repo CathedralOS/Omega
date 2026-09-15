@@ -279,6 +279,21 @@ impl<'base> ConstantSelection<'base> {
         self.symbols.display_path(symbol, "::")
     }
 
+    /// Whether one authored name selects an exact constant declaration in its
+    /// own source scope. Private or ambiguous candidates still count as
+    /// constants here: the leaf's checked admission and package custody own
+    /// the legality verdict, while this lookup only distinguishes a value
+    /// reference from a literal case or constructor spelling.
+    pub(crate) fn selects_const(&self, name: &Identifier) -> bool {
+        self.symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                name.as_str(),
+                &[SymbolKind::Const],
+                name.source_span(),
+            )
+            .is_some()
+    }
+
     /// Bare Names retain value-prefix precedence before specialization changes
     /// their lookup metadata. The shared resolver distinguishes absence from
     /// unique or ambiguous constants; braces remain ordinary constructors.
