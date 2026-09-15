@@ -1,5 +1,21 @@
-use super::*;
+use super::{nominal, value_type};
 use crate::encoding::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};
+use crate::record::PackagePolicyCallableConformance;
+use crate::record::PackagePolicyExternalBinding;
+use crate::record::PackagePolicyExternalCallableSignature;
+use crate::record::PackagePolicyExternalExecutableSupply;
+use crate::record::PackagePolicyExternalRequirement;
+use crate::record::PackagePolicyMachineParameterContract;
+use crate::record::PackageReviewDataProperties;
+use crate::record::PackageReviewExternalBinding;
+use crate::record::PackageReviewNominalOwner;
+use crate::record::PackageReviewOperatorCoordinate;
+use crate::record::signatures::external_policy::tests::bytes;
+use crate::record::signatures::external_policy::tests::import;
+use crate::record::signatures::external_policy::tests::locators;
+use crate::record::signatures::external_policy::tests::static_parameter;
+use crate::record::signatures::external_policy::tests::supply;
+use crate::record::signatures::external_policy::tests::syscall;
 use crate::record::{
     PackagePolicyMachineParameterSignature, PackagePolicyTermination, PackagePolicyTypeParameter,
     PackagePolicyTypeParameterKind, PackageReviewCallableContract, PackageReviewContractExpression,

@@ -1,6 +1,8 @@
 //! One exact executable binding and full surface per external callable.
-
-use super::*;
+use crate::record::PackagePolicyBaseline;
+use crate::record::PackagePolicyCallableRole;
+use crate::record::PackagePolicyExternalRequirement;
+use crate::record::PackageReviewCallableSupply;
 
 impl PackagePolicyBaseline {
     pub(super) fn validate_external_associations(&self) -> Result<(), &'static str> {

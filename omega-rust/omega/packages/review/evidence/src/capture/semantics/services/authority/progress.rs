@@ -1,7 +1,9 @@
 //! Exact progress-profile subjects and owner-authored establishment routes.
-
-use super::*;
+use super::Diagnostic;
+use crate::PackageReviewInput;
+use crate::capture::nominal_identity;
 use crate::capture::semantics::declarations::trait_requirement_identity_from_symbols;
+use crate::capture::semantics::services::rejected;
 use crate::record::{PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute};
 use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 

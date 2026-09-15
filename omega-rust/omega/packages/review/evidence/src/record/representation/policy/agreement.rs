@@ -274,7 +274,11 @@ impl fmt::Display for PackagePolicyRepresentationAgreementError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{PackageKeyIdentity, PackageSourceConsumptionCommitment};
+    use crate::record::PackagePolicyRepresentationAgreementError;
+    use crate::record::PackagePolicyRepresentationProducerInstance;
+    use crate::record::PackageReviewNominalIdentity;
+    use crate::record::PackageReviewNominalOwner;
     use crate::record::{
         PackagePolicyCallbacks, PackagePolicyCallingOpaqueUse, PackagePolicyCallingPlan,
         PackagePolicyClosedConformanceApplication, PackagePolicyConformanceShape,

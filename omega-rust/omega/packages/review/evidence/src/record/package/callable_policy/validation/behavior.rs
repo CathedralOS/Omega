@@ -1,6 +1,21 @@
 //! Exact authority sets and entry-rooted operational declarations.
-
-use super::*;
+use super::nominal;
+use crate::record::PackagePolicyCallable;
+use crate::record::PackagePolicyCallableRole;
+use crate::record::PackagePolicyCrashGuard;
+use crate::record::PackagePolicyInferredCrash;
+use crate::record::PackagePolicyMachineParameterContract;
+use crate::record::PackagePolicyTermination;
+use crate::record::PackagePolicyTypeParameterKind;
+use crate::record::PackageReviewCallableSupply;
+use crate::record::PackageReviewCheckedServiceReach;
+use crate::record::PackageReviewCrashInterface;
+use crate::record::PackageReviewProgressSubject;
+use crate::record::PackageReviewSynchronousInvocation;
+use crate::record::package::callable_policy::validation::nominal_set;
+use crate::record::package::callable_policy::validation::ordered;
+use crate::record::package::callable_policy::validation::signature;
+use crate::record::package::callable_policy::validation::structural;
 
 pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static str> {
     if let Some(ceiling) = &callable.declared_service_reach {

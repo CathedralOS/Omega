@@ -1,4 +1,6 @@
-use super::*;
+use crate::capture::contracts::expressions::members::aliases::attached_field;
+use crate::capture::contracts::facts::ContractProjectionContext;
+use checked_trees::ContractProofFactOwner;
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};

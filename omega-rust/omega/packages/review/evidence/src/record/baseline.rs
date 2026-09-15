@@ -1,11 +1,19 @@
 //! Inert package policy composition, independent of compiler replay evidence.
+use crate::record::PackagePolicyBoundaryApplications;
+use crate::record::PackagePolicyCallables;
+use crate::record::PackagePolicyExternalExecutableSupply;
+use crate::record::PackagePolicyPublicApi;
+use crate::record::PackagePolicyRepresentation;
+use crate::record::PackagePolicySelectedProviders;
+use crate::record::PackagePolicySemanticDependency;
+use crate::record::PackagePolicyTerminalPermissions;
+use crate::record::PackageReviewDangerousAuthority;
+use crate::record::PackageReviewDangerousAuthoritySlack;
 
 mod boundary_owners;
 mod external;
 mod getters;
 mod validation;
-
-use super::*;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 

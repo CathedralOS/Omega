@@ -1,4 +1,5 @@
-use super::{PackageReviewNominalIdentity, PackageReviewOperatorCoordinate};
+use super::super::PackageReviewNominalIdentity;
+use super::PackageReviewOperatorCoordinate;
 
 impl PackageReviewOperatorCoordinate {
     pub(crate) fn policy_requirement_identity(&self) -> PackageReviewNominalIdentity {

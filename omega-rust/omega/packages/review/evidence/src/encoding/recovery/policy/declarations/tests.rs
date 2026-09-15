@@ -1,9 +1,15 @@
 use super::super::{Error, PackagePolicyRecoveryLimits, reader::Reader};
-use super::*;
+use super::conformance_shape;
 use crate::encoding::encode::declarations::{
     encode_conformance_shape, encode_data_shape, encode_domain_shape, encode_trait_shape,
 };
 use crate::encoding::encode::text_test_support;
+use crate::encoding::recovery::policy::declarations::const_shape;
+use crate::encoding::recovery::policy::declarations::data_shape;
+use crate::encoding::recovery::policy::declarations::domain_shape;
+use crate::encoding::recovery::policy::declarations::operator_shape;
+use crate::encoding::recovery::policy::declarations::proposition_shape;
+use crate::encoding::recovery::policy::declarations::trait_shape;
 use crate::encoding::{
     PackageReviewEncodingError,
     encode::{self, encoder::Encoder},

@@ -48,7 +48,8 @@ const fn mutation_completeness_tag(completeness: PackageReviewWriteFrameComplete
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::capture::behavior::mutation::project_write_frame_completeness;
+    use crate::record::PackageReviewWriteFrameCompleteness;
 
     #[test]
     fn write_frame_completeness_crosses_the_review_boundary_as_closed_evidence() {

@@ -6,7 +6,12 @@ use super::super::{
         identity::encode_nominal,
     },
 };
-use super::*;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::public_api::Encoder;
+use crate::record::PackagePolicyMachineParameterContract;
+use crate::record::PackagePolicyTypeParameter;
+use crate::record::PackagePolicyTypeParameterKind;
+use crate::record::PackageReviewTypeIdentity;
 
 pub(in crate::encoding::encode) fn type_parameter(
     encoder: &mut Encoder,

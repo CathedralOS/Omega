@@ -1,9 +1,11 @@
 //! Normalized operational facts share the enclosing callable writer budget.
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::encode::values::identity::encode_nominal;
 
 use super::super::values::{
     crashes::encode_boolean_expression, expressions::encode_contract_expression,
 };
-use super::*;
 use crate::record::*;
 
 pub(super) fn capability(

@@ -1,4 +1,5 @@
-use super::*;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewTypeIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewTraitRequirementParameter {

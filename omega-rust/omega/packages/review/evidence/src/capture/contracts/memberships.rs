@@ -27,7 +27,8 @@ pub(crate) fn require_declaration_membership(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ProofMembershipFact, TypedTrees};
+    use crate::capture::contracts::memberships::require_declaration_membership;
 
     #[test]
     fn indexed_membership_arguments_cannot_project_as_a_family() {

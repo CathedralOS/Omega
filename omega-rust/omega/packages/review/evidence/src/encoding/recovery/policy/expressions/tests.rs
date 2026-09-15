@@ -1,12 +1,33 @@
-use super::*;
+use super::Error;
 use crate::encoding::PackagePolicyRecoveryLimits;
 use crate::encoding::encode::encoder::Encoder;
 use crate::encoding::encode::text_test_support;
 use crate::encoding::encode::{encode_contract_expression, encode_contract_static_argument};
+use crate::encoding::recovery::policy::expressions::expression;
+use crate::encoding::recovery::policy::expressions::static_argument;
+use crate::encoding::recovery::policy::reader::Reader;
+use crate::record::PackageReviewArithmeticDomain;
+use crate::record::PackageReviewAtomicLoadOrdering;
+use crate::record::PackageReviewByteSequencePredicate;
+use crate::record::PackageReviewCastForm;
+use crate::record::PackageReviewCollectionViewOperation;
+use crate::record::PackageReviewConstructorField;
+use crate::record::PackageReviewContractBinaryOperator;
+use crate::record::PackageReviewContractCallTarget;
+use crate::record::PackageReviewContractEvidenceArgument;
+use crate::record::PackageReviewContractEvidenceTerm;
+use crate::record::PackageReviewContractExpression;
+use crate::record::PackageReviewContractKind;
+use crate::record::PackageReviewContractOperatorMeaning;
+use crate::record::PackageReviewContractStaticArgument;
+use crate::record::PackageReviewContractUnaryOperator;
+use crate::record::PackageReviewFloatLiteral;
+use crate::record::PackageReviewReferenceAccess;
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewOperatorCoordinate,
     PackageReviewTypeIdentity,
 };
+use symbols::BuiltinFunction;
 
 fn identity(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {

@@ -2,7 +2,14 @@ use super::super::{
     calling, declarations::encode_representation_target, public_api, representation,
     selected_providers, terminal_permissions, values::identity::encode_nominal,
 };
-use super::*;
+use super::Builder;
+use crate::encoding::PackageReviewEncodingError;
+use crate::record::PackagePolicyRepresentation;
+use crate::record::PackagePolicyRepresentationAvailability;
+use crate::record::PackagePolicyRepresentationDemand;
+use crate::record::PackagePolicyRowKind;
+use crate::record::PackagePolicyTerminalPermissions;
+use crate::record::PackagePolicyTerminalService;
 
 pub(super) fn terminal(
     builder: &mut Builder,

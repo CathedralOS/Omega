@@ -1,9 +1,11 @@
 use super::super::PackagePolicyRecoveryLimits;
-use super::*;
+use super::{Error, signatures};
 use crate::encoding::encode::text_test_support::{self, Component};
 use crate::encoding::encode::{
     encode_policy_machine_contract, encode_public_api, encoder::Encoder,
 };
+use crate::encoding::recovery::policy::public_api::public_api;
+use crate::encoding::recovery::policy::reader::Reader;
 use crate::record::*;
 
 fn identity(name: &str) -> PackageReviewNominalIdentity {

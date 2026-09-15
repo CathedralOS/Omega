@@ -1,4 +1,8 @@
-use super::*;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::expressions::Encoder;
+use crate::encoding::encode::values::identity::encode_nominal;
+use crate::record::PackageReviewContractEvidenceArgument;
+use crate::record::PackageReviewContractKind;
 
 pub(super) fn encode_contract_evidence_argument(
     encoder: &mut Encoder,

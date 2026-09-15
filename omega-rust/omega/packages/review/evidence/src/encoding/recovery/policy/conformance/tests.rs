@@ -1,4 +1,9 @@
-use super::*;
+use super::Error;
+use crate::encoding::CONFORMANCE_POLICY_MAGIC;
+use crate::encoding::PackagePolicyRecoveryLimits;
+use crate::record::PackagePolicyClosedConformanceApplication;
+use crate::record::PackagePolicyConformanceConstArgument;
+use crate::record::PackagePolicyConformanceRow;
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewTypeIdentity,
 };

@@ -1,5 +1,38 @@
-use super::*;
+use super::Error;
+use crate::PACKAGE_CALLABLE_POLICY_VERSION;
+use crate::encoding::CALLABLE_POLICY_MAGIC;
+use crate::encoding::PackagePolicyRecoveryLimits;
 use crate::encoding::encode::text_test_support::{Component, component};
+use crate::record::PackagePolicyCallable;
+use crate::record::PackagePolicyCallableConformance;
+use crate::record::PackagePolicyCallableRole;
+use crate::record::PackagePolicyCallables;
+use crate::record::PackagePolicyCapabilityFlow;
+use crate::record::PackagePolicyCrash;
+use crate::record::PackagePolicyCrashGuard;
+use crate::record::PackagePolicyCrashRoute;
+use crate::record::PackagePolicyInferredCrash;
+use crate::record::PackagePolicyMutation;
+use crate::record::PackagePolicyProgressPremise;
+use crate::record::PackagePolicyServiceProgressRoute;
+use crate::record::PackagePolicyTermination;
+use crate::record::PackageReviewBooleanExpression;
+use crate::record::PackageReviewCallableParameter;
+use crate::record::PackageReviewCallableSupply;
+use crate::record::PackageReviewCheckedServiceReach;
+use crate::record::PackageReviewContractExpression;
+use crate::record::PackageReviewCrashCause;
+use crate::record::PackageReviewCrashInterface;
+use crate::record::PackageReviewInstallationReach;
+use crate::record::PackageReviewIntegerComparisonKind;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewNominalOwner;
+use crate::record::PackageReviewPrimitiveType;
+use crate::record::PackageReviewProgressSubject;
+use crate::record::PackageReviewScalarExpression;
+use crate::record::PackageReviewSynchronousInvocation;
+use crate::record::PackageReviewTypeIdentity;
+use crate::record::PackageReviewWriteFrameCompleteness;
 
 pub(super) fn nominal_fixture(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {

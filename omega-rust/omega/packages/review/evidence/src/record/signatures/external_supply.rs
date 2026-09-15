@@ -1,4 +1,10 @@
-use super::*;
+use crate::record::PackageReviewCallableConformance;
+use crate::record::PackageReviewConformanceBound;
+use crate::record::PackageReviewDataProperties;
+use crate::record::PackageReviewMachineParameterContract;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewOperatorCoordinate;
+use crate::record::PackageReviewTypeIdentity;
 
 /// Closed structural identity of executable code supplied outside Omega.
 /// String fields are foreign ABI identifiers, not package-authored policy or

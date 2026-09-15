@@ -1,4 +1,15 @@
-use super::*;
+use super::fixture;
+use crate::encoding::recovery::policy::baseline::row_tests::rows;
+use crate::record::PackagePolicyBaseline;
+use crate::record::PackagePolicyBoundaryApplicationRealization;
+use crate::record::PackagePolicyBoundaryRealization;
+use crate::record::PackagePolicyProviderBinding;
+use crate::record::PackagePolicyRowKind;
+use crate::record::PackageReviewBoundaryApplication;
+use crate::record::PackageReviewNominalOwner;
+use crate::record::PackageReviewOperatorCoordinate;
+use crate::record::PackageReviewTraitRequirementParameter;
+use crate::record::PackageReviewTypeIdentity;
 
 fn rich() -> PackagePolicyBaseline {
     let mut value = fixture();

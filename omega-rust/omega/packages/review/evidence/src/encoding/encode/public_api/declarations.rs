@@ -16,7 +16,18 @@ use super::super::{
     },
 };
 use super::signatures::formal;
-use super::*;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::public_api::Encoder;
+use crate::encoding::encode::public_api::type_parameter;
+use crate::record::PackagePolicyConformanceShape;
+use crate::record::PackagePolicyDataShape;
+use crate::record::PackagePolicyDomainShape;
+use crate::record::PackagePolicyOperatorShape;
+use crate::record::PackagePolicyTraitShape;
+use crate::record::PackageReviewConformanceSubject;
+use crate::record::PackageReviewDataKind;
+use crate::record::PackageReviewDomainClassification;
+use crate::record::PackageReviewDomainSemanticRole;
 
 pub(in crate::encoding::encode) fn trait_shape(
     encoder: &mut Encoder,

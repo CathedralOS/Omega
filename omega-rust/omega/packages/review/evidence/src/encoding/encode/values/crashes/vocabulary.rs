@@ -1,6 +1,9 @@
 //! Stable numeric tags and spellings for structural arithmetic.
-
-use super::*;
+use crate::encoding::encode::values::crashes::Encoder;
+use crate::record::PackageReviewArithmeticDomain;
+use crate::record::PackageReviewIntegerBinaryKind;
+use crate::record::PackageReviewIntegerComparisonKind;
+use crate::record::PackageReviewPrimitiveType;
 
 pub(crate) fn encode_primitive_type(
     encoder: &mut Encoder,

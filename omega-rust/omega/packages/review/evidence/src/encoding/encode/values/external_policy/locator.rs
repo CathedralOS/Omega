@@ -1,6 +1,7 @@
 //! Exact foreign locator vocabulary, shared by policy provider bindings.
-
-use super::*;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::external_policy::Encoder;
+use crate::record::PackageReviewForeignLocator;
 
 pub(crate) fn encode_locator(
     encoder: &mut Encoder,

@@ -1,4 +1,26 @@
-use super::*;
+use super::{Result, Scope};
+use crate::record::PackagePolicyConformanceShape;
+use crate::record::PackagePolicyDomainShape;
+use crate::record::PackagePolicyOperatorShape;
+use crate::record::PackagePolicyPublicApi;
+use crate::record::PackagePolicyTraitShape;
+use crate::record::PackageReviewConformanceSubject;
+use crate::record::PackageReviewDomainAliasAtom;
+use crate::record::PackageReviewEvidenceInterface;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewPropositionBinderKind;
+use crate::record::PackageReviewPropositionShape;
+use crate::record::PackageReviewPublicPropositionBody;
+use crate::record::PackageReviewTypeIdentity;
+use crate::record::package::callable_policy::validation::signature::BinderKind;
+use crate::record::package::callable_policy::validation::signature::lifetimes;
+use crate::record::package::callable_policy::validation::signature::nominal;
+use crate::record::package::callable_policy::validation::signature::owned_pair;
+use crate::record::package::callable_policy::validation::signature::value_type;
+use crate::record::validation::behavior;
+use crate::record::validation::contracts;
+use crate::record::validation::ordered;
+use crate::record::validation::signatures;
 
 pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPublicApi) -> Result {
     let scope = super::scope(&value.type_parameters, value.lifetime_parameter_count);

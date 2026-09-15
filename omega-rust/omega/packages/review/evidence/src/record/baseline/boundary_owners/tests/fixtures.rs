@@ -1,4 +1,35 @@
-use super::*;
+use super::super::PackageKeyIdentity;
+use super::TargetProfile;
+use crate::record::PackagePolicyBaseline;
+use crate::record::PackagePolicyBoundaryApplicationDemand;
+use crate::record::PackagePolicyBoundaryApplications;
+use crate::record::PackagePolicyCallable;
+use crate::record::PackagePolicyCallableRole;
+use crate::record::PackagePolicyCallables;
+use crate::record::PackagePolicyCrash;
+use crate::record::PackagePolicyInferredCrash;
+use crate::record::PackagePolicyMutation;
+use crate::record::PackagePolicyOperatorShape;
+use crate::record::PackagePolicyPublicApi;
+use crate::record::PackagePolicyRepresentation;
+use crate::record::PackagePolicySelectedProviders;
+use crate::record::PackagePolicyTerminalPermissions;
+use crate::record::PackagePolicyTermination;
+use crate::record::PackagePolicyTypeParameter;
+use crate::record::PackagePolicyTypeParameterKind;
+use crate::record::PackageReviewCallableSupply;
+use crate::record::PackageReviewCheckedServiceReach;
+use crate::record::PackageReviewCrashInterface;
+use crate::record::PackageReviewDataProperties;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewNominalOwner;
+use crate::record::PackageReviewOperatorCoordinate;
+use crate::record::PackageReviewRepresentationArchitecture;
+use crate::record::PackageReviewRepresentationObjectFormat;
+use crate::record::PackageReviewRepresentationTarget;
+use crate::record::PackageReviewRepresentationTargetProfile;
+use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
+use crate::record::PackageReviewWriteFrameCompleteness;
 
 pub(super) fn package(value: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([value; 32]).unwrap()

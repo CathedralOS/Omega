@@ -1,5 +1,8 @@
+use super::Error;
 use super::tests::{fixture, recover};
-use super::*;
+use crate::encoding::PackagePolicyRecoveryLimits;
+use crate::record::PackagePolicyCallables;
+use crate::record::PackageReviewBooleanExpression;
 
 #[test]
 fn all_policy_recovery_budgets_apply_to_nested_callable_meaning() {

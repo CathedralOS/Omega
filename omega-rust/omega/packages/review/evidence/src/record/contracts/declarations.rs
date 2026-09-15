@@ -1,4 +1,10 @@
-use super::*;
+use crate::record::PackageReviewCallableContract;
+use crate::record::PackageReviewCallableParameter;
+use crate::record::PackageReviewCrashRoute;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewOperatorCoordinate;
+use crate::record::PackageReviewTypeIdentity;
+use crate::record::PackageReviewTypeParameter;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewConstShape {

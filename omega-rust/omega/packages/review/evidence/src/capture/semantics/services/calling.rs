@@ -1,7 +1,11 @@
 //! Report coordinates are only a checked join to the complete calling value.
-
-use super::*;
+use crate::PackageReviewInput;
+use crate::capture::semantics::services::rejected;
 use crate::record::PackagePolicyCallingPlan;
+use diagnostics::Diagnostic;
+use effects::provider_plan::ServiceMethod;
+use provider_planning::ProviderSchemaDeclaration;
+use symbols::SymbolHandle;
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,

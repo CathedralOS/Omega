@@ -1,4 +1,10 @@
-use super::*;
+use crate::record::PackagePolicyExternalBinding;
+use crate::record::PackagePolicyExternalCallableSignature;
+use crate::record::PackagePolicyExternalExecutableSupply;
+use crate::record::PackagePolicyExternalRequirement;
+use crate::record::PackageReviewExternalBinding;
+use crate::record::PackageReviewForeignLocator;
+use crate::record::PackageReviewNominalIdentity;
 use crate::record::{
     PackagePolicyCallableConformance, PackagePolicyMachineParameterContract,
     PackagePolicyTypeParameter, PackagePolicyTypeParameterKind, PackageReviewConformanceBound,
@@ -6,6 +12,7 @@ use crate::record::{
     PackageReviewEvaluatedSyscall, PackageReviewExternalCallableParameter,
     PackageReviewNominalOwner, PackageReviewOperatorCoordinate, PackageReviewTypeIdentity,
 };
+use semantic_vocabulary::PackageKeyIdentity;
 
 mod recovery;
 

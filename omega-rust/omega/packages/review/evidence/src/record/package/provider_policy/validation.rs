@@ -1,6 +1,6 @@
 //! Structural associations for inert provider policy, never compiler replay.
-
-use super::*;
+use crate::record::PackagePolicyProviderPlan;
+use crate::record::PackagePolicySelectedProviders;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 use std::cmp::Ordering;
 

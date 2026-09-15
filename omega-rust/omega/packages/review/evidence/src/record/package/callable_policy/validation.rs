@@ -6,8 +6,6 @@ pub(in crate::record) mod signature_contracts;
 pub(in crate::record) mod signature_expressions;
 mod signature_parameters;
 mod structural;
-
-use super::*;
 use crate::record::*;
 
 impl PackagePolicyCallables {
