@@ -12,6 +12,35 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// Every Rust source below `directory`, concatenated in path order; empty when
+/// the directory does not exist.
+fn module_tree_source(directory: &std::path::Path) -> String {
+    let mut pending = vec![directory.to_path_buf()];
+    let mut paths = Vec::new();
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries {
+            let path = entry.expect("module tree entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                paths.push(path);
+            }
+        }
+    }
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| {
+            fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn collect_rust_sources(directory: &Path, sources: &mut Vec<PathBuf>) {
     let mut entries = fs::read_dir(directory)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", directory.display()))
@@ -280,7 +309,8 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
         "omega-rust/psi/representations/checked-trees/src/checked_trees/facts/contract_plans.rs",
     );
     let plans = fs::read_to_string(&plans_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", plans_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", plans_path.display()))
+        + &module_tree_source(&plans_path.with_extension(""));
     assert!(
         plans.contains("pub report_fingerprint: u64")
             && plans.contains("pub contract_report_fingerprint: u64")
@@ -443,7 +473,8 @@ fn private_authority_carriers_retain_strong_subject_commitments() {
         "omega-rust/omega/backend/runtime/external-roots/src/stack_and_fuel/epoch_stack_demand.rs",
     );
     let roots = fs::read_to_string(&roots_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", roots_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", roots_path.display()))
+        + &module_tree_source(&roots_path.with_extension(""));
     assert!(
         stack.contains("pub boundary_plan_report_fingerprint: u64")
             && stack.contains("pub boundary_plan_commitment: [u8; 32]")
