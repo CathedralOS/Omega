@@ -105,13 +105,15 @@ pub(super) fn component_plan(
     let Some(terminator_index) = preheader.nodes.len().checked_sub(1) else {
         return Ok(None);
     };
-    if !preheader.nodes[terminator_index]
-        .successors
-        .iter()
-        .any(|edge| edge.psi_edge == entry.edge && edge.target == entry.target)
-    {
-        return Ok(None);
-    }
+    // Whether reaching the preheader guarantees entering the component: the
+    // entry edge must be the preheader terminator's only successor. A
+    // computation relocated past a conditional entry would execute on
+    // traversals that never enter the loop, so the gate declines the whole
+    // component when this does not hold.
+    let guaranteed_entry = matches!(
+        preheader.nodes[terminator_index].successors.as_slice(),
+        [entry_edge] if entry_edge.psi_edge == entry.edge && entry_edge.target == entry.target
+    );
     let certificate_operations = certificate_operations(session, component);
     let certificate_tail = preheader.nodes[..terminator_index]
         .iter()
@@ -126,6 +128,17 @@ pub(super) fn component_plan(
         .count();
     let insertion = terminator_index - certificate_tail;
     let sites = crate::validation::value_definition_sites(function);
+    // Profitability gate: a computation moves only when reaching the
+    // preheader guarantees entering the component, and only out of a member
+    // block guaranteed to execute on every traversal that leaves it. A block
+    // a bypassing exit can skip keeps its computations inside the loop —
+    // moving them would speculate work the source traversal may never
+    // perform, so the boundary declines them even though every admitted
+    // operation is total. Scalar-constant leaves stay exempt: re-expressing a
+    // constant in the preheader performs no work the traversal could have
+    // skipped. Both halves of the gate are derived topology over the
+    // authenticated component, so validation replays them exactly.
+    let guaranteed = crate::validation::guaranteed_executed_member_blocks(component);
     // Invariant discovery is a fixed point: a computation whose
     // member-internal operand is defined by an already-planned relocation is
     // itself invariant — the run preserves the producer's result identity and
@@ -158,6 +171,9 @@ pub(super) fn component_plan(
                 {
                     Vec::new()
                 } else {
+                    if !(guaranteed_entry && guaranteed.contains(member)) {
+                        continue;
+                    }
                     let Some(substitution) =
                         crate::validation::invariant_scalar_operand_substitution(
                             function,
