@@ -1385,9 +1385,36 @@ Owners include
   computation and its step-ceiling refusal, componentwise conversion
   of stuck eliminations, every malformed-motive and relocated-endpoint
   rejection, the no-UIP controls, and a transport certificate
-  re-deciding `J` after wire decode. Next: W formation and induction,
-  then level variables and universe-polymorphic declarations, before
-  connecting to source or a theorem certificate.
+  re-deciding `J` after wire decode.
+
+  Landed: the W-type `W A B` of well-founded trees — formation,
+  `sup` introduction, and dependent `indW` induction computing on
+  each constructor under the step ceiling — then level parameters
+  (`Δ; Γ ⊢ t : T` scope-checks every `Sort` level against the
+  judgment's level arity, no unification) and universe-polymorphic
+  declarations whose `Constant` references carry exact level
+  instantiation through the canonical wire.
+
+  Landed: derived indexed families in
+  `proof-admission/src/mathematical_core/indexed.rs` — the profile's
+  encoding `IndexedAt(i, sup a k) ≡ Id I (out a) i × Π(b : B a).
+  IndexedAt (next a b) (k b)` and `IW i ≡ Σ (t : W A B). IndexedAt i
+  t` as five ordinary universe-polymorphic declarations
+  (`IndexedAt`, `IW`, `iwPack`, `isup`, `iindW`) checked
+  parametrically by `check_signature` and applied through `Constant`
+  spines, not a second primitive inductive checker. `isup`/`iindW`
+  are defined terms whose computation is definitional: `iindW Q s i
+  (isup a g)` converts to `s a g (b ↦ iindW Q s (next a b) (g b))`
+  with the child function a neutral variable, closing through pair
+  eta and typed function eta — the dependency the profile names.
+  Tests witness the scheme re-checking as a parametric signature,
+  the indexing equation unfolding on neutral `sup` nodes,
+  computation with an arbitrary neutral child function,
+  wrong-index/wrong-description/strict-universe/arity rejections,
+  and a theorem certificate re-deciding the eliminator's judgment
+  with exact assumption closure. Next: demonstrate Vector length
+  indices, derivation indices, and mutual/nested families per the
+  acceptance below, then connect the model to source elaboration.
 
   Implement the pinned reference core and selected
   [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,
