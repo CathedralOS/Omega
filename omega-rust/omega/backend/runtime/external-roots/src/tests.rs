@@ -4547,6 +4547,340 @@ fn installed_backing_extent(seed: u64, base: u64, length: u64, mapping_era: u64)
 }
 
 #[test]
+fn aggregate_materialization_discharges_reconstructed_capacity_over_installed_partitions() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        780,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 880, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_extent_subject(&root, 980, 1080, 0x4040, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&established])
+        .expect("the live group reconstructs its aggregate capacity");
+
+    // The receiver partition is carved out of provider-issued installed
+    // image backing; the before/after residuals stay outside the member's
+    // authority for the activation's duration.
+    let partition = installed_backing_extent(700, 0x4000, 0x200, 30)
+        .partition_owned(0x40, 0x100)
+        .expect("exact receiver partition");
+    let (before, backing, after) = partition.into_parts();
+    let before = before.expect("lower installed residual");
+    let after = after.expect("upper installed residual");
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let [mut extent] = registry
+        .materialize_aggregate(
+            &installation,
+            &lifecycle,
+            &aggregate,
+            vec![(established, backing)],
+        )
+        .expect("reconstructed capacity discharges over the exact partition")
+        .try_into()
+        .expect("one minted program-local Extent");
+    assert_eq!(extent.base(), 0x4040);
+    assert_eq!(extent.length(), 0x100);
+    let origin = extent.program_local_origin().expect("program-local origin");
+    assert_eq!(origin.installed_code(), code_identity);
+    assert_eq!(origin.lifecycle_epoch(), 10);
+    assert_eq!(origin.entry_invocation(), 980);
+    assert_eq!(registry.held_accounts(), 1);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+
+    // The activation borrows a partition subrange rather than owning it; the
+    // loan carries the same program-local origin and ends before completion.
+    {
+        let loan = extent
+            .loan_mut(0x10, 0x20)
+            .expect("exclusive activation loan");
+        assert_eq!(loan.base(), 0x4050);
+        assert_eq!(loan.length(), 0x20);
+        assert_eq!(loan.program_local_origin(), Some(origin));
+    }
+
+    let retired = registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("recombined root completes the occurrence");
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+
+    // Completion returns the exact receiver partition, which rejoins the
+    // installed image it was carved from.
+    let tail = retired
+        .into_backing()
+        .merge(after)
+        .expect("receiver partition rejoins its upper residual");
+    let restored = before
+        .merge(tail)
+        .expect("installed image restores around the discharged range");
+    assert!(restored.is_lineage_root());
+    assert_eq!(restored.base(), 0x4000);
+    assert_eq!(restored.length(), 0x200);
+    assert!(
+        restored
+            .provider_issuance()
+            .is_some_and(|issuance| issuance == extent_provider_issuance(700))
+    );
+}
+
+#[test]
+fn aggregate_materialization_rejects_stale_substituted_and_inexact_discharge() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        780,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 880, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_extent_subject(&root, 980, 1080, 0x4040, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let stale_aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&established])
+        .expect("the live group reconstructs its aggregate capacity");
+
+    publish_program_local_era(
+        &mut lifecycle,
+        11,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+        111,
+        true,
+    );
+    let next_lease = program_local_epoch_lease(&mut lifecycle, 881, 11, "TestRoot::entry");
+    let mut next_runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                next_lease,
+            )],
+        )
+        .expect("the next exact Extent epoch cohort")
+        .into_runtime();
+    let next_established = installation
+        .establish(
+            &mut next_runtime,
+            &lifecycle,
+            program_local_extent_subject(&root, 981, 1081, 0x4040, 0x100),
+        )
+        .expect("the same schema establishes in the next epoch");
+    let next_identity = next_established.occurrence_identity();
+    let aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&next_established])
+        .expect("the next epoch's group reconstructs its aggregate capacity");
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let stale = registry
+        .materialize_aggregate(
+            &installation,
+            &lifecycle,
+            &stale_aggregate,
+            vec![(
+                next_established,
+                installed_backing_extent(700, 0x4040, 0x100, 30),
+            )],
+        )
+        .expect_err("a closed epoch's aggregate cannot discharge the live membership");
+    assert!(stale.diagnostic().0.contains("stale or substituted"));
+    let next_established = stale
+        .into_inputs()
+        .pop()
+        .expect("rejection returns the presented member")
+        .0;
+    assert_eq!(next_established.occurrence_identity(), next_identity);
+
+    let substituted_lifecycle = program_local_lifecycle(
+        781,
+        11,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let foreign = registry
+        .materialize_aggregate(
+            &installation,
+            &substituted_lifecycle,
+            &aggregate,
+            vec![(
+                next_established,
+                installed_backing_extent(700, 0x4040, 0x100, 30),
+            )],
+        )
+        .expect_err("a foreign lifecycle cannot reconstruct the discharge requirement");
+    assert!(foreign.diagnostic().0.contains("live lease"));
+    let next_established = foreign
+        .into_inputs()
+        .pop()
+        .expect("rejection returns the presented member")
+        .0;
+
+    let inexact = registry
+        .materialize_aggregate(
+            &installation,
+            &lifecycle,
+            &aggregate,
+            vec![(
+                next_established,
+                installed_backing_extent(700, 0x5000, 0x100, 30),
+            )],
+        )
+        .expect_err("backing outside the member's evaluated interval rejects");
+    assert!(
+        inexact
+            .diagnostic()
+            .0
+            .contains("does not equal its established interval capacity")
+    );
+    let next_established = inexact
+        .into_inputs()
+        .pop()
+        .expect("rejection returns the presented member")
+        .0;
+    assert_eq!(next_established.occurrence_identity(), next_identity);
+    assert_eq!(registry.held_accounts(), 0);
+}
+
+#[test]
+fn counted_aggregate_capacity_cannot_discharge_extent_partitions() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        780,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 880, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact epoch cohort")
+        .into_runtime();
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            program_local_subject(&root, 980, 1080, Some(8)),
+        )
+        .expect("exact counted subject establishes its root");
+    let aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&established])
+        .expect("the live counted group reconstructs its aggregate capacity");
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let rejected = registry
+        .materialize_aggregate(
+            &installation,
+            &lifecycle,
+            &aggregate,
+            vec![(
+                established,
+                installed_backing_extent(700, 0x4000, 0x100, 30),
+            )],
+        )
+        .expect_err("a counted aggregate names no interval requirement to partition");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("counted program-local aggregate")
+    );
+}
+
+#[test]
 fn retained_foreign_argument_borrowed_pins_the_account_until_release() {
     let entry = entry_id(1);
     let mut code = installed_code(1, entry);
