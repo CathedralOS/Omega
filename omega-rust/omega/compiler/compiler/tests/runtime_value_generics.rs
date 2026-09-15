@@ -17,9 +17,10 @@ use std::{
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
+    TerminalStructuralByteArrayValue, TerminalStructuralValue,
 };
-use terminal_psi::{OperationKind, TerminalModule};
+use terminal_psi::{OperationKind, StructuralPathSegment, TerminalModule};
 
 struct Fixture(PathBuf);
 
@@ -196,6 +197,7 @@ machine Main::main(&mut self) reaches Trace {
         &published,
         &[3, 4, 4],
         "each body returns its exact captured subject",
+        &[],
     );
 }
 
@@ -294,6 +296,7 @@ machine Main::main(&mut self) reaches Trace {
         &published,
         &[3, 3, 6],
         "bounded returns the captured subject; reassignment captures the current value",
+        &[],
     );
 }
 
@@ -379,13 +382,259 @@ machine Main::main(&mut self) reaches Trace {
         &published,
         &[3],
         "the guard-satisfied state observes the captured subject",
+        &[],
     );
 }
 
+/// Collect every in-module receiver call across all of a machine's blocks as
+/// `(callee, scalar argument count, structural argument count, obligation
+/// count)` rows in authored order. `Main::` receiver methods lower to the
+/// structural-argument call variants, so this walks the `Call`, `CallUnit`,
+/// and `CallStructuralScalar` shapes together.
+fn receiver_calls(
+    module: &TerminalModule,
+    machine: MachineId,
+) -> Vec<(MachineId, usize, usize, usize)> {
+    module
+        .machines
+        .iter()
+        .find(|candidate| candidate.id == machine)
+        .unwrap()
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::Call {
+                callee,
+                arguments,
+                requirement_obligations,
+                ..
+            } => Some((*callee, arguments.len(), 0, requirement_obligations.len())),
+            OperationKind::CallUnit {
+                callee,
+                arguments,
+                structural_arguments,
+                requirement_obligations,
+                ..
+            } => Some((
+                *callee,
+                arguments.len(),
+                structural_arguments.len(),
+                requirement_obligations.len(),
+            )),
+            OperationKind::CallStructuralScalar {
+                callee,
+                arguments,
+                structural_arguments,
+                requirement_obligations,
+                ..
+            } => Some((
+                *callee,
+                arguments.len(),
+                structural_arguments.len(),
+                requirement_obligations.len(),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Non-generic control for the indexed-field carriers below: an attached
+/// fixed-array element already reads and writes at a literal index through the
+/// ordinary primitive-store/read operations, so a later generic body's use of
+/// that path is attributable to the value binder rather than to the field
+/// store itself. The element type is `u8` because the interpreter only admits
+/// host-initialized fixed-array backing for true byte arrays; wider element
+/// arrays still have no entry-storage input. Runtime-indexed element access
+/// (`self.values[n]`) is the STATE-LOCAL-VALUE-FRONTIER slice: Terminal keeps
+/// only exact static path segments, so a runtime index has no primitive
+/// element operation yet.
+#[test]
+fn indexed_scalar_field_carries_the_current_runtime_value() {
+    let published = publish(
+        "indexed-field",
+        r#"
+use omega::language::core::external_binding;
+
+boundary trait Trace { machine record(value: u64); }
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+
+data Main {
+    values: [u8; 8];
+}
+
+machine Main::main(&mut self) reaches Trace {
+    let mut source: u8 = 4;
+    source = 5;
+    self.values[3] = source;
+    let first: u8 = self.values[3];
+    Trace::record(first as u64);
+}
+"#,
+    );
+    replay(
+        &published,
+        &[5],
+        "the indexed field element stores and returns the current value",
+        &array_backing(&published, 8),
+    );
+}
+
+/// The captured subject flows through an indexed scalar field: `put` writes
+/// its realized `Count` argument into the literal-indexed element and `at`
+/// reads that element back, so each call's own subject is what the field
+/// preserves. `put` also stores its authored `v` at a second index, keeping
+/// the appended subject distinct from ordinary arguments in the emitted call.
+/// The element and binder types are `u8` because host-initialized
+/// fixed-array backing is only admitted for byte arrays. Indexing the element
+/// by `Count` itself remains the STATE-LOCAL-VALUE-FRONTIER slice (no
+/// dynamic-index primitive operation exists in Terminal); this covers the
+/// subject-through-indexed-field half on the supported surface.
+#[test]
+fn runtime_bound_subject_flows_through_indexed_field_writes() {
+    let published = publish(
+        "indexed-field-generic",
+        r#"
+use omega::language::core::external_binding;
+
+boundary trait Trace { machine record(value: u64); }
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+
+data Main {
+    values: [u8; 8];
+}
+
+machine Main::at<Count: u8>(&self) -> u8
+requires
+    Count <= 7;
+{
+    self.values[3]
+}
+
+machine Main::put<Count: u8>(&mut self, v: u8)
+requires
+    Count <= 7;
+{
+    self.values[3] = Count;
+    self.values[4] = v;
+}
+
+machine Main::main(&mut self) reaches Trace {
+    let n: u8 = 3;
+    let mut source: u8 = 4;
+    source = 5;
+    self.put<n>(20);
+    let first: u8 = self.at<n>();
+    Trace::record(first as u64);
+    self.put<source>(30);
+    let second: u8 = self.at<source>();
+    Trace::record(second as u64);
+    let stored_arg: u8 = self.values[4];
+    Trace::record(stored_arg as u64);
+}
+"#,
+    );
+    let module = &published.module;
+    let entry_calls = receiver_calls(module, module.entry);
+    assert_eq!(
+        entry_calls.len(),
+        4,
+        "entry interleaves the two writes and two reads; Trace::record stays a boundary call"
+    );
+    let put_callee = entry_calls[0].0;
+    let at_callee = entry_calls[1].0;
+    assert_eq!(
+        entry_calls[2].0, put_callee,
+        "the second write's distinct runtime subject reuses the same dynamic body"
+    );
+    assert_eq!(
+        entry_calls[3].0, at_callee,
+        "the second read's distinct runtime subject reuses the same dynamic body"
+    );
+    assert_ne!(
+        at_callee, put_callee,
+        "the read body is its own specialization, not the write body"
+    );
+    for (index, (_, scalars, structurals, obligations)) in entry_calls.iter().enumerate() {
+        assert_eq!(
+            (*structurals, *obligations),
+            (1, 1),
+            "call {index} carries the receiver and owes the bound on its own subject"
+        );
+        assert_eq!(
+            *scalars,
+            if index % 2 == 0 { 2 } else { 1 },
+            "call {index} appends its exact captured subject after any authored scalar"
+        );
+    }
+    assert_eq!(
+        module.machines.len(),
+        3,
+        "entry plus one dynamic body per receiver method, no per-value bodies"
+    );
+
+    replay(
+        &published,
+        &[3, 5, 30],
+        "each read returns the captured subject its preceding write stored",
+        &array_backing(&published, 8),
+    );
+}
+
+/// Exact initialized backing for the entry receiver's sole fixed byte-array
+/// field, supplied as opaque host contents so the interpreter's primitive
+/// store/read operations have established storage to replace and observe.
+fn array_backing(published: &Published, length: usize) -> Vec<TerminalStructuralByteArrayValue> {
+    let entry = published
+        .module
+        .machines
+        .iter()
+        .find(|machine| machine.id == published.module.entry)
+        .unwrap();
+    let [parameter] = entry.structural_parameters.as_slice() else {
+        panic!("entry retains exactly the receiver structural parameter");
+    };
+    let record = published
+        .module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)
+        .unwrap();
+    let terminal_psi::StructuralTypeShape::Record { fields } = &record.shape else {
+        panic!("receiver retains its authored record shape");
+    };
+    let field = fields
+        .iter()
+        .find(|field| {
+            let terminal_psi::StructuralFieldType::Structural(child) = field.field_type else {
+                return false;
+            };
+            published.module.structural_types.iter().any(|declaration| {
+                declaration.id == child
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::FixedArray { .. }
+                    )
+            })
+        })
+        .unwrap_or_else(|| panic!("receiver retains its authored array field"));
+    vec![TerminalStructuralByteArrayValue {
+        argument_index: 0,
+        path: vec![StructuralPathSegment::Field(field.identity.clone())],
+        bytes: vec![0; length],
+    }]
+}
+
 /// Start the published artifact with the entry's declared structural
-/// arguments, run it to completion, and then replay it at every fuel split,
-/// asserting the same observed trace every time.
-fn replay(published: &Published, expected: &[u64], context: &str) {
+/// arguments and any host-initialized byte-array backing, run it to
+/// completion, and then replay it at every fuel split, asserting the same
+/// observed trace every time.
+fn replay(
+    published: &Published,
+    expected: &[u64],
+    context: &str,
+    byte_arrays: &[TerminalStructuralByteArrayValue],
+) {
     let entry = published
         .module
         .machines
@@ -403,12 +652,13 @@ fn replay(published: &Published, expected: &[u64], context: &str) {
         })
         .collect();
     let execute = || {
-        TerminalExecution::start_artifact_with_structural_arguments(
+        TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
             &published.semantic,
             &published.proof,
             &proof_admission::AdmissionProfile::default(),
             &[],
             &structural_arguments,
+            byte_arrays,
         )
         .expect("published artifact independently verifies and reloads")
     };

@@ -130,6 +130,8 @@ pub(crate) const RUNTIME_CONST_CONTAINER_METHODS_EXIT: &str =
 pub(crate) const RUNTIME_GENERIC_TWO_INSTANTIATIONS_EXIT: &str =
     "generics/runtime_generic_two_instantiations_exit";
 pub(crate) const VALUE_GENERIC_RUNTIME_ARGUMENT: &str = "generics/value_generic_runtime_argument";
+pub(crate) const RUNTIME_VALUE_GENERIC_SUBJECT_EXIT: &str =
+    "generics/runtime_value_generic_subject_exit";
 pub(crate) const CONST_GENERIC_RUNTIME_ARGUMENT: &str = "generics/const_generic_runtime_argument";
 pub(crate) const VALUE_GENERIC_RUNTIME_REQUIRES_UNPROVEN: &str =
     "generics/value_generic_runtime_requires_unproven";
@@ -233,6 +235,7 @@ pub(crate) const CLOSED_INDEXED_FAIL_CANARIES: &[&str] = &[
 
 pub(crate) const PASS_CANARIES: &[&str] = &[
     VALUE_GENERIC_RUNTIME_ARGUMENT,
+    RUNTIME_VALUE_GENERIC_SUBJECT_EXIT,
     RUNTIME_DECREASES_U64_MEASURE_EXIT,
     RUNTIME_WRAPPING_OPERAND_TRUNCATION_EXIT,
     RUNTIME_FLOAT_COMPARE_BOOL_EXIT,
