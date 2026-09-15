@@ -87,6 +87,7 @@ pub fn prepare_filesystem_scope(
             filesystem_sponsor,
             inputs.canonical_source_metadata(inputs.root()).cloned(),
         )
+        .with_package_activation(inputs.root(), inputs.root_role())
     } else {
         crate::BuildMachineFilesystemScope::for_root(root_path, build_dir, filesystem_sponsor)
     };
@@ -124,8 +125,12 @@ pub fn prepare_filesystem_scope(
             .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
     }
     if let Some(filesystem_replay) = filesystem_replay {
-        build_machine_filesystem_scope =
-            build_machine_filesystem_scope.with_replay(filesystem_replay);
+        build_machine_filesystem_scope = build_machine_filesystem_scope.with_replay(
+            filesystem_replay,
+            replay_record
+                .expect("a rehydrated filesystem replay always accompanies its record")
+                .replay_activation(),
+        );
     }
     Ok(build_machine_filesystem_scope)
 }

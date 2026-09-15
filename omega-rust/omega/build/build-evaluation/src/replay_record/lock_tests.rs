@@ -207,6 +207,7 @@ fn replay_summary() -> BuildObservationSummary {
             output_close,
         ],
         canonical_source_metadata_identity: None,
+        replay_activation: crate::BuildReplayActivation::default(),
         captured_source_inventory: None,
         filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
             BuildFilesystemReplayDisposition::Complete,

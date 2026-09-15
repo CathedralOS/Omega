@@ -214,6 +214,7 @@ fn summary(attempts: Vec<BuildFilesystemOperationAttempt>) -> BuildObservationSu
             checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
         filesystem_operation_attempts: attempts,
         canonical_source_metadata_identity: None,
+        replay_activation: crate::BuildReplayActivation::default(),
         captured_source_inventory: None,
         filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
             BuildFilesystemReplayDisposition::SourceInputsOnly,

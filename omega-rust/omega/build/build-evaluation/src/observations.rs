@@ -172,6 +172,38 @@ impl BuildCanonicalSourceMetadataIdentity {
     }
 }
 
+/// The exact admitted activation a retained build activation or replay claim
+/// stands in for. A build machine observes its selected target through
+/// `Build.target`, and its granted scope is bound to the root package
+/// occurrence and authored declaration role of the requesting compilation, so
+/// evidence produced under one activation is not interchangeable evidence for
+/// another. Each member is independently optional; a scope with no package
+/// occurrence or no bound replay records only the members it proved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BuildReplayActivation {
+    pub(super) root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub(super) root_role: Option<package_compilation::BuildDeclarationKind>,
+    pub(super) selected_target_profile: Option<target::TargetProfile>,
+}
+
+impl BuildReplayActivation {
+    /// Root package occurrence the activation was admitted under.
+    pub const fn root_package_identity(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+        self.root_package_identity
+    }
+
+    /// Authored declaration role (`package` or `application`) of the root
+    /// occurrence.
+    pub const fn root_role(&self) -> Option<package_compilation::BuildDeclarationKind> {
+        self.root_role
+    }
+
+    /// Requested target the activation's build machine could observe.
+    pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
+        self.selected_target_profile
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildFilesystemGrantAccess {
     Read,
@@ -939,6 +971,7 @@ pub struct BuildObservationSummary {
     pub(super) filesystem_operation_schema_version: u32,
     pub(super) filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
     pub(super) canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
+    pub(super) replay_activation: BuildReplayActivation,
     pub(super) captured_source_inventory: Option<BuildCapturedSourceInventory>,
     pub(super) filesystem_replay_verdict: BuildFilesystemReplayVerdict,
     pub(super) included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
@@ -1012,6 +1045,14 @@ impl BuildObservationSummary {
         &self,
     ) -> Option<BuildCanonicalSourceMetadataIdentity> {
         self.canonical_source_metadata_identity
+    }
+
+    /// The exact activation this summary's evidence was produced under.
+    /// Replay records and rejoined checkpoints bind to this tuple; a
+    /// different root package, declaration role, or selected target is a
+    /// different activation, not a refresh of the same one.
+    pub const fn replay_activation(&self) -> BuildReplayActivation {
+        self.replay_activation
     }
 
     /// Extent evidence of the captured immutable input inventory this build
