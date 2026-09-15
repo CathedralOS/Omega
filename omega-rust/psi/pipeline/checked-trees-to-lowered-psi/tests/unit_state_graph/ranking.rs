@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    AdmissionProfile, TerminalEffect, TerminalExecutionResult, checked, encode_module,
+    encode_proof_section, interpret_terminal_artifact_measured,
+};
 use terminal_psi::{TerminalNaturalRankComparison, TerminalRankedScc};
 
 fn lower_writer() -> lowered_psi::LoweredPsi {

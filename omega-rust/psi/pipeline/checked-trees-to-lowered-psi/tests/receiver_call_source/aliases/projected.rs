@@ -1,6 +1,5 @@
 //! Source and resource custody for statically captured alias projections.
-
-use super::*;
+use super::{CheckedUnitEffectOperationPlan, checked_from_source, source, unit_plan};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 

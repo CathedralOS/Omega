@@ -1,6 +1,17 @@
 //! Selected scalar payloads retain their exact root, case, and field denotation.
-
-use super::*;
+use super::{
+    AdmissionProfile, Block, BlockId, BoundaryMachineDeclaration, BoundaryMachineId,
+    CertificateEnvelope, ContractClause, ContractId, EdgeId, EvidenceIdentity, EvidenceRoute,
+    IntegerSign, IntegerType, IntegerValue, MachineId, ModuleError, ObligationEvidence,
+    ObligationId, Operation, OperationId, OperationKind, OperationResult, PlaceId, ProofBundle,
+    ProofNode, ProofRule, ProofSystemMarker, Proposition, ScalarTerm, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralCaseId, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    ValueId, case_access, reconstruct_terminal_obligations, unit_module, validate_module,
+    verify_module,
+};
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralFieldId};
 
 fn integer() -> IntegerType {

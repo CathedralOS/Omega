@@ -1,4 +1,17 @@
-use super::*;
+use super::{
+    AdmissionProfile, BindingRelevance, CertificateEnvelope, EvidenceIdentity, EvidenceRoute,
+    IntegerSign, IntegerType, IntegerValue, ObligationEvidence, Operation, OperationKind,
+    OperationResult, ProofBundle, ProofNode, ProofRule, ProofSystemMarker, Proposition, ScalarTerm,
+    ScalarType, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalFuelMeter, TerminalMachineResult, TerminalModule,
+    TerminalScalarValue, Terminator, ValueDeclaration, block_id, contract_id, decode_module,
+    edge_id, encode_module, encode_proof_section, machine_id, obligation_id, operation_id,
+    place_id, structural_field_id, structural_type_id, unit_module, value_id, verify_module,
+};
 use terminal_psi::{RecordFieldInitializer, RecordFieldValue};
 
 fn integer() -> ScalarType {

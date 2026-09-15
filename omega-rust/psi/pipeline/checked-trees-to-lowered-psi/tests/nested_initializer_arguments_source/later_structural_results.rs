@@ -1,5 +1,10 @@
 use super::later_results::{SCALAR_HELPERS, encoded_locals};
-use super::*;
+use super::{
+    AdmissionProfile, CheckedUnitEffectOperationPlan, ObserveResults, StatementNode,
+    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
+    TerminalExecutionResult, TerminalStructuralValue, checked, decode_module, decode_proof_bundle,
+    execute, main_machine, structural_source, unsigned,
+};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 

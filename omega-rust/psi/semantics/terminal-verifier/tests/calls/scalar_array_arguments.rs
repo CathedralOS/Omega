@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    AdmissionProfile, ModuleError, Operation, OperationKind, OperationResult, ProofBundle,
+    ScalarType, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachineResult, TerminalModule, Terminator, block_id,
+    boolean_declaration, call_module, edge_id, machine_id, operation_id, place_id,
+    structural_type_id, validate_module, value_id, verify_module,
+};
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralParameterDeclaration};
 
 #[path = "scalar_array_arguments/selection.rs"]

@@ -1,5 +1,12 @@
-use super::*;
-
+use super::super::super::{Block, ContractId, MachineId};
+use super::super::{EdgeId, SuccessorEdge};
+use super::{
+    AdmissionProfile, BlockId, ObligationId, Operation, OperationId, OperationKind,
+    OperationResult, PlaceId, Proposition, ScalarType, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalModule, Terminator, ValueDeclaration, ValueId, argument, fixture,
+    id, integer, length_operation, proof, reconstruct_interpretable_operation_obligations,
+    validate_module_for_interpretation, value, verify_module_for_interpretation,
+};
 fn forwarded(join: bool) -> TerminalModule {
     let mut module = fixture();
     let machine = &mut module.machines[0];

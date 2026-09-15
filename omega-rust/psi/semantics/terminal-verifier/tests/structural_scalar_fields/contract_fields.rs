@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue, ModuleError,
+    ObligationId, Proposition, ScalarTerm, ScalarType, StructuralAccess,
+    StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, TerminalModule, id, integer_type,
+    structural_scalar_field_module, validate_module,
+};
 use semantic_vocabulary::{
     ByteSequenceStructuralField, IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField,
 };

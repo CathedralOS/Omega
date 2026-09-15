@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    BlockId, EdgeId, MachineId, ModuleError, Operation, OperationId, OperationKind,
+    OperationResult, PlaceId, ScalarType, StructuralAccess, StructuralArgument,
+    StructuralFieldType, StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape,
+    TerminalMachineResult, TerminalModule, Terminator, contract, id, integer_type,
+    structural_scalar_field_module, validate_module,
+};
 use terminal_psi::TerminalAffineCleanupAction;
 
 #[path = "owned_reads/block_parameters.rs"]

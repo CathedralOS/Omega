@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AdmissionProfile, BlockId, EdgeId, ModuleError, OperationId, PlaceId, ProofBundle, ScalarType,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
+    VerificationError, id, unranked_effectful_unit_cycle, validate_module,
+    verify_module_for_interpretation,
+};
 use terminal_verifier::reconstruct_structural_ownership_frontiers;
 
 #[test]

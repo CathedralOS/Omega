@@ -1,6 +1,9 @@
 //! Literal operands retain call/formal custody and the shared evaluation order.
-
-use super::*;
+use super::{
+    AdmissionProfile, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
+    ExpressionNode, IntegerSign, IntegerType, IntegerValue, PrimitiveType, TerminalExecutionResult,
+    TerminalScalarValue, checked_source, interpret_terminal_artifact, reject,
+};
 use checked_trees::CheckedArrayConstructionSource;
 
 fn byte(value: u8) -> TerminalScalarValue {

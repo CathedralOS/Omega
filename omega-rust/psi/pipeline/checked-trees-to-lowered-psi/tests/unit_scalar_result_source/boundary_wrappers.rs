@@ -1,4 +1,4 @@
-use super::*;
+use super::{CheckedScalarExpression, CheckedUnitEffectOperationPlan, SOURCE, checked_from_source};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;

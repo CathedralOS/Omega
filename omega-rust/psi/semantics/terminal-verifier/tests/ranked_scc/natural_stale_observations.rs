@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    Block, BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ModuleError,
+    Operation, OperationId, OperationKind, OperationResult, PlaceId, ScalarType, StructuralAccess,
+    SuccessorEdge, TerminalModule, TerminalRankedScc, Terminator, ValueDeclaration, ValueId, id,
+    validate_module,
+};
 use terminal_psi::{
     StructuralArgument, TerminalBlockNaturalRank, TerminalNaturalCycle,
     TerminalNaturalRankComparison, TerminalNaturalRankEdge,

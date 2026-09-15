@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    IntegerSign, IntegerType, IntegerValue, TerminalArtifactInterpretError,
+    TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
+    encode_module, encode_proof_section, encoded, execute,
+};
 use checked_trees::CheckedScalarExpressionRole;
 
 fn assert_initializer_roots(

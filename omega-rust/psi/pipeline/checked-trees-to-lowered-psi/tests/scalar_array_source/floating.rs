@@ -1,5 +1,8 @@
 //! Array transport preserves format and representation, not only floating meaning.
-use super::*;
+use super::{
+    AdmissionProfile, ExpressionNode, TerminalExecutionResult, TerminalScalarValue, checked_source,
+    interpret_terminal_artifact, reject, row_elements, selected_source,
+};
 use semantic_vocabulary::IeeeFloatValue;
 
 fn execute(source: &str, arguments: &[TerminalScalarValue]) -> Vec<TerminalScalarValue> {

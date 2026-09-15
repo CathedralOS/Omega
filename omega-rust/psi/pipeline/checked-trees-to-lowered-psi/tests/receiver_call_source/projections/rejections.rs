@@ -1,7 +1,9 @@
 //! Projected receiver transport does not authorize source access or aliasing.
 
-use super::*;
-
+use super::super::{
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+use super::{checked_from_source, projected_source};
 fn rejects_source(source: &str, expected: &str) {
     let tokens = Lexer::new(source)
         .tokenize()

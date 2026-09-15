@@ -1,6 +1,9 @@
 //! Array actuals and returned parameters rejoin their exact authored sources.
-
-use super::*;
+use super::{
+    AdmissionProfile, CheckedTrees, CheckedUnitEffectOperationPlan, ExpressionNode, IntegerSign,
+    IntegerType, IntegerValue, StatementNode, TerminalExecutionResult, TerminalScalarValue,
+    checked_source, interpret_terminal_artifact, reject, selected_source,
+};
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectMachinePlan, CheckedUnitStructuralArgumentSourcePlan,
 };

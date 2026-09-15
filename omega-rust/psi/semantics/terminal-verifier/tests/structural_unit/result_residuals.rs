@@ -1,5 +1,11 @@
-use super::*;
-
+use super::{
+    AdmissionProfile, Block, BoundaryMachineDeclaration, Operation, OperationKind, OperationResult,
+    ProofBundle, StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeShape, TerminalModule, Terminator, block_id, boundary_id,
+    edge_id, machine_id, operation_id, partial_affine_field_module, place_id,
+    reconstruct_structural_ownership_frontiers, structural_type_id, validate_module, verify_module,
+};
 fn produced_partial_module() -> TerminalModule {
     let mut module = partial_affine_field_module();
     let root_type = module.machines[0].structural_parameters[0].structural_type;

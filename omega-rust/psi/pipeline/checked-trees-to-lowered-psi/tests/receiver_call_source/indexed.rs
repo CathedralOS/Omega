@@ -1,7 +1,10 @@
 //! Fixed-array receiver paths retain their referent across the portable boundary.
 
-use super::*;
-
+use super::{
+    CheckedUnitEffectOperationPlan, OperationKind, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue, checked_from_source,
+    unit_plan,
+};
 fn source(signature: &str, receiver: &str) -> String {
     format!(
         "data Record [copy] {{ value: u16; }}

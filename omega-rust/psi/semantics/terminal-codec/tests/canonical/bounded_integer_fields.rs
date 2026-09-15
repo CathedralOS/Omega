@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    BindingRelevance, CodecError, IntegerValue, ScalarType, StructuralCaseDeclaration,
+    StructuralCaseId, StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalModule, decode_module, encode_module, i32_type,
+    semantic_fingerprint, structural_field_id, structural_type_id, unit_fixture,
+};
 use semantic_vocabulary::BoundedIntegerType;
 
 fn fixture(maximum: i128) -> TerminalModule {

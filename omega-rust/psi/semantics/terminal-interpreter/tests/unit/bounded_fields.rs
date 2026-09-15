@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    AdmissionProfile, BindingRelevance, BoundaryResultHandler, IntegerSign, IntegerType,
+    IntegerValue, ProofBundle, StructuralAccess, StructuralFieldDeclaration, StructuralFieldId,
+    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalEffectResult, TerminalExecution, TerminalFuelMeter, TerminalInterpretError,
+    TerminalModule, TerminalScalarValue, TerminalStructuralValue, boundary_borrows, encode_module,
+    encode_proof_section, structural_boundary_effect_module, structural_type_id,
+};
 use terminal_interpreter::{TerminalArtifactInterpretError, TerminalStructuralScalarFieldValue};
 
 fn restrict(module: &mut TerminalModule, nested: bool) {

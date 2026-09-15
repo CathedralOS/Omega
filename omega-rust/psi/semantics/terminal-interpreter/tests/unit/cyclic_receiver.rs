@@ -1,5 +1,13 @@
-use super::*;
-
+use super::{
+    AdmissionProfile, Block, FuelChargeSite, IntegerSign, IntegerType, IntegerValue, Operation,
+    OperationKind, OperationResult, ProofBundle, ScalarType, StructuralAccess, StructuralArgument,
+    StructuralPathSegment, StructuralTypeShape, SuccessorEdge, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalMachineResult,
+    TerminalModule, TerminalScalarValue, TerminalStructuralValue, Terminator, ValueDeclaration,
+    block_id, contract_id, edge_id, empty_contract, encode_module, encode_proof_section,
+    machine_id, operation_id, place_id, structural_field_id, structural_scalar_field_call_module,
+    structural_type_id, value_id,
+};
 #[test]
 fn cyclic_mutating_callee_preserves_projected_receiver_and_every_fuel_pause() {
     check_cyclic_receiver(true);

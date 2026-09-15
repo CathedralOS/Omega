@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    BindingRelevance, Block, ModuleError, Operation, OperationKind, OperationResult, Proposition,
+    ScalarTerm, ScalarType, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, contract, id,
+    integer_type, structural_place, structural_scalar_field_module, validate_module,
+};
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };

@@ -1,7 +1,11 @@
 //! Entry-established locals survive evaluator branches without early cleanup.
 
-use super::*;
-
+use super::{
+    Block, BlockId, CrashCause, EdgeId, ModuleError, Operation, OperationId, OperationKind,
+    OperationResult, PlaceId, ScalarType, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, SuccessorEdge,
+    TerminalModule, Terminator, ValueDeclaration, ValueId, unit_module, validate_module,
+};
 fn branched_locals() -> TerminalModule {
     let mut module = unit_module();
     let structural_type = StructuralTypeId::new(901).unwrap();

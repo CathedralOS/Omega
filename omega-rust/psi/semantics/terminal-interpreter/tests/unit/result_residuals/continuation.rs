@@ -1,5 +1,14 @@
-use super::*;
-
+use super::super::{
+    Block, IntegerSign, IntegerType, IntegerValue, ScalarType, TerminalScalarValue,
+    ValueDeclaration, value_id,
+};
+use super::{
+    AdmissionProfile, BoundaryMachineDeclaration, FuelChargeSite, Operation, OperationKind,
+    OperationResult, ProducePair, ProofBundle, TerminalEffect, TerminalEffectHandler,
+    TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalFuelMeter, TerminalModule, Terminator, block_id, boundary_id,
+    edge_id, field, operation_id, produced_partial_module, start, verify_module,
+};
 fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModule {
     let mut module = produced_partial_module(ordinary, nested);
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());

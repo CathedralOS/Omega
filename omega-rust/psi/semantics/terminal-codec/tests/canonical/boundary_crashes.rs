@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    Block, BoundaryMachineDeclaration, CodecError, CrashCause, CrashRouteBucket, CrashRouteGuard,
+    MachineContract, Operation, OperationKind, OperationResult, Proposition, ScalarTerm,
+    ScalarType, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, block_id,
+    boundary_machine_id, contract_id, decode_module, edge_id, encode_module, fixture, i32_type,
+    operation_id, terminal_psi_identity, value_id,
+};
 use terminal_codec::{
     CanonicalTerminalArtifact, build_identity_optimization_execution_record, decode_proof_bundle,
     encode_proof_bundle,

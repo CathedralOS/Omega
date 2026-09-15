@@ -1,5 +1,10 @@
-use super::*;
-
+use super::super::super::StructuralPathSegment;
+use super::{
+    IntegerValue, ModuleError, Operation, OperationKind, OperationResult, ScalarType,
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPlaceKind,
+    StructuralTypeShape, TerminalModule, ValueDeclaration, block_reader, id, integer_type,
+    owned_reader, validate_module,
+};
 fn store_module(multiplicity: StructuralMultiplicity, home: u8) -> TerminalModule {
     let mut module = if home == 1 {
         block_reader(integer_type(), multiplicity)

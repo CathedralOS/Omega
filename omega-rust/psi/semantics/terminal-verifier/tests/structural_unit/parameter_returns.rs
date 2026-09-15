@@ -1,6 +1,16 @@
 //! Parameter returns consume actual path-sensitive ownership, not a body template.
-use super::*;
 
+use super::{
+    AdmissionProfile, Block, ModuleError, Operation, OperationKind, OperationResult, ProofBundle,
+    ScalarType, StructuralAccess, StructuralArgument, StructuralDomainDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, block_id, claim_id,
+    contract_id, domain_id, edge_id, machine_id, operation_id, place_id,
+    reconstruct_structural_ownership_frontiers, signed_i8, structural_type_id, validate_module,
+    value_id, verify_module, write_only_primitive_store_module,
+};
 fn module() -> TerminalModule {
     let mut module = write_only_primitive_store_module();
     let mut callee = module.machines[0].clone();

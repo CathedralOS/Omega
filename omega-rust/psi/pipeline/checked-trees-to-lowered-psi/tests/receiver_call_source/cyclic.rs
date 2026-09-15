@@ -1,6 +1,11 @@
 //! Ordinary projected calls retain a looping callee and the caller continuation.
-use super::*;
 
+use super::{
+    IntegerSign, IntegerType, IntegerValue, Lexer, OperationKind, ResolutionRequest,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
+    TerminalStructuralValue, checked_from_source, lower_symbol_resolved_trees, parse_syntax_trees,
+    resolve,
+};
 const SOURCE: &str = r#"
 boundary trait Observe { machine record(value: u64) reaches Observe; }
 data Child { value: u64; }

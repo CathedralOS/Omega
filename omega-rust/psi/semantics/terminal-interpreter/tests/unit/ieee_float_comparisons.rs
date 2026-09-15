@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    AdmissionProfile, IeeeFloatFormat, IeeeFloatValue, Operation, OperationKind, OperationResult,
+    ProofBundle, ScalarType, TerminalExecutionResult, TerminalMachineResult, TerminalModule,
+    TerminalScalarValue, Terminator, ValueDeclaration, decode_module, edge_id, encode_module,
+    encode_proof_section, interpret_terminal_artifact_measured, operation_id, unit_module,
+    value_id, verify_module,
+};
 use semantic_vocabulary::IeeeFloatComparisonOperation;
 
 fn comparison_module(

@@ -2,7 +2,15 @@
 use super::byte_sequence_read::{integer, scalar, successor};
 use super::byte_sequence_scalar_calls::module;
 use super::byte_sequence_subslice::certificate;
-use super::*;
+use super::{
+    AdmissionProfile, Block, IntegerSign, IntegerType, IntegerValue, ModuleError, Operation,
+    OperationKind, OperationResult, RecordingHandler, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralPlaceDeclaration, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalModule,
+    TerminalScalarValue, Terminator, ValueDeclaration, block_id, decode_module, edge_id,
+    encode_module, encode_proof_section, obligation_id, operation_id, place_id, structural_type_id,
+    value_id,
+};
 
 fn borrowed(place: u64) -> StructuralArgument {
     StructuralArgument {

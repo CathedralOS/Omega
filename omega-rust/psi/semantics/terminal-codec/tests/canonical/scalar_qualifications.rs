@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    CodecError, ScalarType, decode_module, encode_module, semantic_fingerprint, unit_fixture,
+};
 use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, ScalarQualificationSetId};
 use terminal_psi::{ScalarDomainDeclaration, ScalarQualificationSet};
 

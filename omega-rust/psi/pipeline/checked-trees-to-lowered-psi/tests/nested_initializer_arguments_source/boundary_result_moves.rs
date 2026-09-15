@@ -1,5 +1,9 @@
 use super::later_results::{SCALAR_HELPERS, encoded_locals};
-use super::*;
+use super::{
+    AdmissionProfile, ObserveResults, StructuralResponse, TerminalEffect, TerminalEffectHandler,
+    TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
+    checked, decode_module, decode_proof_bundle, main_machine, unsigned,
+};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, Terminator};

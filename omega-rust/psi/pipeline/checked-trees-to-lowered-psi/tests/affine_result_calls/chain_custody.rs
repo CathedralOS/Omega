@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    AdmissionProfile, CheckedUnitEffectOperationPlan, OperationKind, OperationResult, Terminator,
+    checked, lower_machine,
+};
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan as ArgumentSource;
 use checked_trees_to_lowered_psi::LoweringError;
 

@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    AdmissionProfile, BlockId, CertificateEnvelope, ContractId, EdgeId, EvidenceIdentity,
+    EvidenceRoute, IntegerSign, IntegerType, MachineId, ObligationEvidence, ObligationId,
+    Operation, OperationId, OperationKind, OperationResult, ProofBundle, ProofNode, ProofRule,
+    ProofSystemMarker, Proposition, ScalarTerm, ScalarType, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, ValueId, id, unranked_scalar_cycle,
+    validate_module_for_interpretation, verify_module_for_interpretation,
+};
 use terminal_psi::{ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard};
 
 fn scalar_call_cycle() -> TerminalModule {

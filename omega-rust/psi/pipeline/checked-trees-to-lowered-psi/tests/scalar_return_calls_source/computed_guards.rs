@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    IntegerSign, IntegerType, IntegerValue, TerminalArtifactInterpretError,
+    TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
+    encode_module, encode_proof_section, execute,
+};
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 

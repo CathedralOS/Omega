@@ -1,4 +1,12 @@
-use super::*;
+use super::{
+    AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType,
+    MachineContract, MachineId, ModuleError, Operation, OperationId, OperationKind,
+    OperationResult, PlaceId, ProofBundle, ScalarType, StructuralAccess, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TerminalModule, Terminator,
+    ValueDeclaration, ValueId, id, ranked_countdown_with_width, validate_module,
+    verify_module_for_interpretation,
+};
 use terminal_psi::{ByteSequenceCarrier, StructuralArgument};
 
 fn shared_parameter(place: u64) -> StructuralParameterDeclaration {

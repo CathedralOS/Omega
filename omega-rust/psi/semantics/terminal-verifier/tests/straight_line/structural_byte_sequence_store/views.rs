@@ -1,5 +1,11 @@
-use super::*;
-
+use super::super::{StructuralArgument, StructuralOperationResult};
+use super::{
+    AdmissionProfile, Block, Operation, OperationKind, OperationResult, Proposition, ScalarTerm,
+    ScalarType, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, SuccessorEdge, Terminator, ValueDeclaration,
+    count, fixture, id, integer, measured, reconstruct_operation_obligations, validate_module,
+    verify_module,
+};
 #[test]
 fn raw_non_utf8_and_nul_octets_need_only_the_capacity_proof() {
     let (mut module, bundle) = fixture(StructuralAccess::WriteOnlyBorrow);

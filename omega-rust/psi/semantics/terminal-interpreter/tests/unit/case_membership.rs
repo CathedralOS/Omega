@@ -1,4 +1,17 @@
-use super::*;
+use super::{
+    AdmissionProfile, BindingRelevance, Block, FuelChargeSite, IntegerSign, IntegerType,
+    IntegerValue, ModuleError, Operation, OperationKind, OperationResult, ProofBundle, ScalarType,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalInterpretError,
+    TerminalMachineResult, TerminalModule, TerminalScalarValue, TerminalStructuralValue,
+    Terminator, ValueDeclaration, block_id, contract_id, decode_module, edge_id, encode_module,
+    encode_proof_section, interpret_terminal_artifact_measured, machine_id, operation_id,
+    payloadless_case_module, place_id, structural_case_id, structural_field_id, structural_type_id,
+    value_id,
+};
 use terminal_interpreter::{TerminalStructuralCaseValue, TerminalStructuralInputs};
 
 fn projected_membership_module(

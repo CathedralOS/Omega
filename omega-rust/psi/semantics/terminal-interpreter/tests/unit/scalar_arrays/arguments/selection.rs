@@ -1,7 +1,13 @@
 //! Only the selected arm constructs and calls; its scalar continuation can rejoin.
 
-use super::*;
-
+use super::super::super::{Block, SuccessorEdge};
+use super::super::TerminalExecutionResult;
+use super::{
+    AdmissionProfile, ProofBundle, ScalarType, TerminalExecution, TerminalExecutionStatus,
+    TerminalFuelMeter, TerminalMachineResult, TerminalModule, TerminalScalarValue, Terminator,
+    ValueDeclaration, block_id, byte, decode_module, edge_id, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured, module, value_id,
+};
 fn selected_module(dimensions: &[u64], leaves: &[TerminalScalarValue]) -> TerminalModule {
     let mut module = module(dimensions, false, false, leaves);
     let caller = &mut module.machines[0];

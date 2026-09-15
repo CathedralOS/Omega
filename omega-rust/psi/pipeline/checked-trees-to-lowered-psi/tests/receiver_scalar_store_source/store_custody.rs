@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{CheckedUnitEffectOperationPlan, typed_from_source};
 const ORDERED_SOURCE: &str = r#"
     data Pair { left: u16; right: u16; }
     machine observe() {}

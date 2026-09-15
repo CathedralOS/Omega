@@ -1,4 +1,4 @@
-use super::*;
+use super::{CheckedUnitEffectOperationPlan, checked, lower_machine};
 use checked_trees::{CheckedCallScalarArgument, CheckedScalarExpressionRole};
 
 #[test]

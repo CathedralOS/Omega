@@ -1,5 +1,15 @@
-use super::*;
-
+use super::super::{
+    BindingRelevance, Block, IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm,
+    StructuralFieldId, StructuralPlaceDeclaration, StructuralTypeId, ValueDeclaration, ValueId,
+    reconstruct_operation_obligations,
+};
+use super::{
+    BlockId, EdgeId, MachineId, ModuleError, Operation, OperationId, OperationKind,
+    OperationResult, PlaceId, ScalarType, StructuralAccess, StructuralArgument,
+    StructuralFieldType, StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalMachineResult, TerminalModule, Terminator, contract, id,
+    integer_type, owned_reader, validate_module,
+};
 #[path = "block_parameters/returns.rs"]
 mod returns;
 #[path = "block_parameters/stores.rs"]

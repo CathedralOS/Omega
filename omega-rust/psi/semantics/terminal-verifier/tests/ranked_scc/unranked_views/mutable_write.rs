@@ -1,5 +1,14 @@
-use super::*;
-
+use super::super::{
+    Block, ContractId, MachineContract, MachineId, Proposition, ScalarTerm, TerminalMachine,
+    reconstruct_interpretable_operation_obligations, validate_module_for_interpretation,
+};
+use super::{
+    AdmissionProfile, BlockId, EdgeId, IntegerSign, IntegerType, ModuleError, ObligationId,
+    Operation, OperationId, OperationKind, OperationResult, PlaceId, ProofBundle, ScalarType,
+    StructuralAccess, StructuralArgument, StructuralPlaceDeclaration, StructuralPlaceKind,
+    SuccessorEdge, TerminalModule, Terminator, ValueDeclaration, ValueId, id, length_operation,
+    validate_module, verify_module_for_interpretation, view_argument, view_cycle,
+};
 fn fixture() -> TerminalModule {
     let mut module = view_cycle();
     let machine = &mut module.machines[0];

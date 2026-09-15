@@ -1,5 +1,14 @@
-use super::*;
-
+use super::super::super::StructuralArgument;
+use super::super::{
+    Block, StructuralPlaceDeclaration, StructuralPlaceKind, SuccessorEdge, Terminator,
+};
+use super::{
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ObligationEvidence, Operation,
+    OperationKind, OperationResult, ProofBundle, ProofNode, ProofRule, ProofSystemMarker,
+    Proposition, ScalarTerm, ScalarType, StructuralAccess, TerminalModule, ValueDeclaration, count,
+    id, indexed_fixture, integer, reconstruct_operation_obligations, validate_module,
+    verify_module,
+};
 fn edge(raw: u64, target: u64) -> SuccessorEdge {
     SuccessorEdge {
         edge: id(raw),

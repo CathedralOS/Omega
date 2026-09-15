@@ -1,5 +1,14 @@
-use super::*;
-
+use super::super::{
+    EntryClaim, IntegerSign, IntegerType, boundary_id, claim_id, content_entry_claim,
+};
+use super::{
+    AdmissionProfile, ModuleError, OperationKind, ProofBundle, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralDomainDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, arguments, buffer_field,
+    buffer_module, domain_id, ordinary_buffer_module, place_id, structural_type_id,
+    validate_module, verify_module,
+};
 fn fixture(projected: bool) -> TerminalModule {
     let mut module = ordinary_buffer_module();
     module.structural_types.extend([

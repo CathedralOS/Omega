@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    TerminalArtifactInterpretError, TerminalExecutionResult, TerminalInterpretError,
+    TerminalScalarValue, checked_arms, encode_module, encode_proof_section, execute,
+};
 use checked_trees::{CheckedScalarExpressionBindings, CheckedScalarExpressionRole};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 

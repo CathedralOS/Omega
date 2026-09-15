@@ -1,6 +1,9 @@
 //! Independent replay must connect SSA equations without changing arithmetic policy.
-
-use super::*;
+use super::{
+    IntegerSign, IntegerType, Operation, OperationId, OperationKind, OperationResult, ScalarTerm,
+    ScalarType, TerminalModule, Terminator, ValueDeclaration, branch_module, crash, declaration,
+    rejects_guard, term_boolean, value, verify,
+};
 use semantic_vocabulary::IntegerValue;
 
 fn integer_guard(expected: bool) -> TerminalModule {

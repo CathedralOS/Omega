@@ -1,7 +1,17 @@
 //! Shared source construction and checked-to-Terminal receiver assertions.
 
-use super::*;
-
+use super::super::{
+    CheckedCallScalarArgument, CheckedScalarExpression, CheckedStructuralAccess,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, IntegerValue,
+    OperationResult, StructuralMultiplicity, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalMachineResult, TerminalScalarValue, TerminalStructuralValue,
+    Terminator, unit_plan,
+};
+use super::{
+    CheckedUnitStructuralPathSegment, IntegerSign, IntegerType, OperationKind, ScalarType,
+    StructuralAccess, StructuralFieldType, StructuralPathSegment, StructuralTypeShape,
+    checked_from_source,
+};
 pub(super) fn projected_source(
     caller_borrow: &str,
     callee_borrow: &str,

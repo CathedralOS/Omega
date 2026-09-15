@@ -1,6 +1,14 @@
 //! Boundary buffer presentation preserves the owning field, not a view alias.
-
-use super::*;
+use super::{
+    AdmissionProfile, MachineContract, ModuleError, Operation, OperationKind, OperationResult,
+    ProofBundle, ScalarType, StructuralAccess, StructuralArgument, StructuralDomainDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    block_id, contract_id, domain_id, edge_id, machine_id, operation_id, place_id,
+    projected_boundary_qualification_module, structural_type_id, validate_module, value_id,
+    verify_module,
+};
 use terminal_psi::ByteSequenceCarrier;
 
 #[path = "boundary_buffers/fixed_array_views.rs"]

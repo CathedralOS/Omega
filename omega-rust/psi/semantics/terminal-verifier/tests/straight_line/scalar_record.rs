@@ -1,4 +1,13 @@
-use super::*;
+use super::{
+    BlockId, ContractClause, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, ModuleError,
+    ObligationId, Operation, OperationId, OperationKind, OperationResult, PlaceId, Proposition,
+    ScalarTerm, ScalarType, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    SuccessorEdge, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
+    reconstruct_terminal_obligations, unit_module, validate_module,
+};
 use semantic_vocabulary::StructuralFieldId;
 
 fn module() -> TerminalModule {

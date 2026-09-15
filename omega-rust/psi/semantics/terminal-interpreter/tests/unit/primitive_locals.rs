@@ -1,6 +1,15 @@
 //! Primitive locals retain original backing across borrowed calls and reentry.
-
-use super::*;
+use super::{
+    AdmissionProfile, BoundaryMachineDeclaration, IntegerSign, IntegerType, IntegerValue,
+    ModuleError, Operation, OperationKind, OperationResult, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralTypeShape, SuccessorEdge, TerminalEffect,
+    TerminalEffectHandler, TerminalEffectRejection, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalFuelMeter, TerminalMachineResult, TerminalModule,
+    TerminalScalarValue, Terminator, ValueDeclaration, block_id, boundary_id, contract_id,
+    decode_module, edge_id, encode_module, encode_proof_section, machine_id, operation_id,
+    place_id, structural_type_id, value_id, verify_module, write_only_primitive_call_module,
+};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_verifier::validate_module;
 

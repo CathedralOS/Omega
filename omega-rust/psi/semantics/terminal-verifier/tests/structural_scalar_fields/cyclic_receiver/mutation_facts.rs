@@ -1,6 +1,12 @@
 //! Mutation invalidates current structural facts without changing captured scalar values.
-
-use super::*;
+use super::super::{CanonicalStructuralPathSegment, IntegerValue, OperationId};
+use super::{
+    AdmissionProfile, ContractClause, ObligationEvidence, Operation, OperationKind,
+    OperationResult, ProofBundle, ProofRule, Proposition, ScalarTerm, ScalarType, TerminalModule,
+    Terminator, ValueDeclaration, boolean_constant, boolean_read, call, certificate, contract,
+    equation, exit_axioms, id, integer_type, receiver_module, reconstruct_terminal_obligations,
+    store, structural_place, verify_module_for_interpretation,
+};
 use terminal_verifier::VerificationError;
 
 #[test]

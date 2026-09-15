@@ -1,4 +1,4 @@
-use super::*;
+use super::{OperationKind, TerminalExecutionResult, TerminalScalarValue, support, unsigned};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 

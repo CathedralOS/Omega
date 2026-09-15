@@ -1,5 +1,7 @@
-use super::*;
-
+use super::{
+    InstallationReachDependency, ModuleError, ServiceDeclaration, TerminalModule,
+    boundary_call_module, boundary_id, call_module, service_id, validate_module,
+};
 fn fixed_boundary_module(overlapping: bool) -> TerminalModule {
     let mut module = boundary_call_module();
     module.services = vec![

@@ -1,4 +1,13 @@
-use super::*;
+use super::{
+    AdmissionProfile, Block, BlockId, ContractId, EdgeId, MachineId, ModuleError, Operation,
+    OperationId, OperationKind, OperationResult, PlaceId, ProofBundle, Proposition, ScalarType,
+    StructuralAccess, StructuralArgument, StructuralCaseDeclaration, StructuralCaseId,
+    StructuralCaseSubject, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, SuccessorEdge,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, unit_module,
+    validate_module, verify_module,
+};
 use terminal_psi::StructuralCaseSuccessorEdge;
 
 fn membership_module(access: StructuralAccess) -> TerminalModule {

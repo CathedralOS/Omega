@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    AdmissionProfile, Lexer, ResolutionRequest, TerminalEffect, TerminalExecutionResult, checked,
+    encode_module, encode_proof_section, interpret_terminal_artifact_measured,
+    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::TerminalScalarValue;
 

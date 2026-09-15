@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
+    MachineId, Operation, OperationId, OperationKind, OperationResult, ProofBundle, ScalarType,
+    SuccessorEdge, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
+    unit_module, validate_module, verify_module,
+};
 use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, ScalarQualificationSetId};
 use terminal_psi::{ScalarDomainDeclaration, ScalarQualificationCoercion, ScalarQualificationSet};
 

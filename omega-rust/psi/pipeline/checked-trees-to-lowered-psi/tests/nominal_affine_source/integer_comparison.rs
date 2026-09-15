@@ -1,5 +1,12 @@
-use super::*;
-
+use super::{
+    AcceptTerminalEffects, AdmissionProfile, EvidenceRoute, IntegerSign, IntegerType, IntegerValue,
+    Lexer, OperationKind, ProofRule, Proposition, ResolutionRequest, ScalarTerm, ScalarType,
+    TerminalExecutionResult, TerminalFuelSchedule, TerminalScalarValue, TerminalStructuralValue,
+    Terminator, decode_module, decode_proof_bundle, derive_fixed_entry_fuel, encode_module,
+    encode_proof_section, interpret_terminal_artifact_with_effect_handler_measured,
+    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
+    validate_fixed_entry_fuel,
+};
 const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
