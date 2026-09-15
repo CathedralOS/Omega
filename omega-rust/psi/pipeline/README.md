@@ -154,19 +154,30 @@ bytes are spelling-level payload, not typed values or proof facts. The closed
 lexical profile uses explicit whitespace, ASCII identifiers and byte escapes;
 host Unicode classification is not authority. Literal decoding copies source
 bytes and expands fixed escapes, not a host-selected Unicode encoding.
-[Lexical observations](source-files-to-tokens/src/observation.rs) retain source
-and decoded bytes, token coordinates and diagnostics for differential comparison
-with the product lexer. That comparison does not define the language.
+The Rust lexer has independent behavior tests; no mirrored lexical serialization
+protocol is required by the product lexer.
 
 [Parsing](tokens-to-syntax-trees/src/parser.rs) builds arena-backed syntax roots
 and tables, retaining grammar, spans and literal structure without choosing
 symbols, types, effects or proof evidence. The
-[expression parser](tokens-to-syntax-trees/src/parser/expression.rs) uses an
+[expression parser](tokens-to-syntax-trees/src/expressions/mod.rs) uses an
 explicit binary-operator stack and reversed unary prefixes; membership is a
 separate grammar boundary, and postfix scratch is not retained across nested
 primary parsing. Groups, aggregates, arguments and types still recurse. This is
 not a stackless-parser claim; ordinary accepted input must not rely on an
 enlarged host thread stack.
+
+The parser's sibling domains expose grammar ownership directly:
+[declarations](tokens-to-syntax-trees/src/declarations/mod.rs) dispatch root
+forms; [parameters](tokens-to-syntax-trees/src/parameters/mod.rs) own shared
+callable and generic binders; [contracts](tokens-to-syntax-trees/src/contracts/mod.rs)
+own clauses, facts, and conformance applications;
+[bodies](tokens-to-syntax-trees/src/bodies/mod.rs) own entries and states;
+[type syntax](tokens-to-syntax-trees/src/type_syntax/mod.rs) owns type references
+and property grammar. Shared grammar does not live under whichever declaration
+first needed it. Each domain root performs its work, rather than forwarding to
+another hidden coordinator. `parser::parse_error` remains a public compatibility
+path to the diagnostic type, not a container for grammar modules.
 
 Preserve authored clause occurrences separately from normalized meaning:
 memberless `reaches` differs from omission, and each authored `suspends` or

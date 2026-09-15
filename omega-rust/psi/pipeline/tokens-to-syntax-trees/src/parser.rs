@@ -1,20 +1,8 @@
-mod context;
-mod data;
-mod declaration;
-mod diagnostics;
-mod expression;
-mod input;
-use declaration as item;
-mod machine;
-pub mod parse_error;
-mod proof_fact;
-mod state;
-mod statement;
-mod transition;
-mod type_reference;
+pub use crate::diagnostics::parse_error;
 
-use crate::parser::parse_error::ParseError;
-use input::Input;
+use crate::ParseError;
+use crate::declarations;
+use crate::input::Input;
 use source::SourceId;
 use syntax_trees::{SyntaxTrees, item::ItemHandle};
 use tokens::Token;
@@ -29,7 +17,7 @@ pub fn parse(
     let mut input = Input::new(source_id, tokens);
     let mut root_items = Vec::new();
     while !input.tokens.is_empty() {
-        let (item, rest) = declaration::parse_item(syntax_trees, input)?;
+        let (item, rest) = declarations::parse_item(syntax_trees, input)?;
         root_items.push(syntax_trees.push_root_item(item));
         input = rest;
     }
@@ -41,4 +29,5 @@ pub use crate::{parse_syntax_trees, parse_syntax_trees_with_id};
 pub use parse as parse_syntax_trees_into_with_id;
 
 #[cfg(test)]
+#[path = "tests/mod.rs"]
 mod tests;
