@@ -18,6 +18,10 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// The `MaterializeI64` row the unary extension folds rewrite into; bound
     /// only when the extension-elimination policy bit is selected.
     pub(super) materialize: Option<&'a RegisterInstructionConstraint>,
+    /// The `Load8` row the indexed byte-load fold rewrites into; bound only
+    /// when the load-indexed policy bit is selected and the environment
+    /// declares the row.
+    pub(super) load8: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -53,23 +57,54 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_extension()
         .then(|| find(keys.materialize_i64))
         .transpose()?;
-    for row in [add, subtract, compare, materialize].into_iter().flatten() {
+    let load8 = match (policy.enables_load8_indexed(), keys.load8) {
+        (true, Some(key)) => Some(find(key)?),
+        _ => None,
+    };
+    for row in [add, subtract, compare, materialize, load8]
+        .into_iter()
+        .flatten()
+    {
         validate_immediate_row(row)?;
     }
     // The validator derives the rewritten semantic each enabled row must
-    // declare and requires the bound catalog to carry it with an isolated
-    // effect surface — no memory, trap, stack, or control-flow traffic and
-    // no implicit unit uses or clobbers beyond the declared result channel.
-    for (row, rewritten) in [
-        (add, MachineSemanticKind::ExactAddI64Immediate),
-        (subtract, MachineSemanticKind::ExactSubtractI64Immediate),
-        (compare, MachineSemanticKind::CompareI64Immediate),
-        (materialize, MachineSemanticKind::MaterializeI64),
+    // declare and requires the bound catalog to carry it with the surface
+    // the corresponding fold requires: an isolated effect surface — no
+    // memory, trap, stack, or control-flow traffic and no implicit unit
+    // uses or clobbers beyond the declared result channel — or, for the
+    // indexed byte-load fold, the plain pointer-read form whose
+    // alternatives all read memory through a pointer operand.
+    for (row, rewritten, admitted) in [
+        (
+            add,
+            MachineSemanticKind::ExactAddI64Immediate,
+            isolated_rewritten_declaration as fn(&MachineEffectDeclaration) -> bool,
+        ),
+        (
+            subtract,
+            MachineSemanticKind::ExactSubtractI64Immediate,
+            isolated_rewritten_declaration,
+        ),
+        (
+            compare,
+            MachineSemanticKind::CompareI64Immediate,
+            isolated_rewritten_declaration,
+        ),
+        (
+            materialize,
+            MachineSemanticKind::MaterializeI64,
+            isolated_rewritten_declaration,
+        ),
+        (
+            load8,
+            MachineSemanticKind::Load8,
+            pointer_read_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
             .ok_or(LiteralFoldError::EffectCatalogMismatch)?;
-        if !isolated_rewritten_declaration(declaration) {
+        if !admitted(declaration) {
             return Err(LiteralFoldError::EffectCatalogMismatch);
         }
     }
@@ -78,6 +113,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         subtract,
         compare,
         materialize,
+        load8,
         catalog,
     })
 }
@@ -184,5 +220,89 @@ pub(super) fn isolated_rewritten_declaration(declaration: &MachineEffectDeclarat
             isolated_effect_alternative(alternative)
                 && alternative.encoded.implicit_unit_uses.is_empty()
                 && alternative.encoded.implicit_unit_clobbers.is_empty()
+        })
+}
+
+/// The effect surface the validator requires of the direct-offset load the
+/// indexed byte-load fold rewrites into: a pointer-read declaration whose
+/// alternatives all read memory through a pointer operand and byte count,
+/// fall through, leave the stack unchanged, and declare no implicit unit
+/// uses or clobbers. Trap behavior is not pinned here — the per-action
+/// admission binds it equal to the consumer's declared trap surface.
+pub(super) fn pointer_read_rewritten_declaration(declaration: &MachineEffectDeclaration) -> bool {
+    declaration.memory == MachineMemoryEffect::ReadPointerV1
+        && declaration.alternatives.iter().all(|alternative| {
+            matches!(
+                alternative.encoded.memory,
+                MachineEncodedMemoryEffect::ReadPointerV1 { .. }
+            ) && alternative.encoded.stack == MachineEncodedStackEffect::UnchangedV1
+                && alternative.encoded.control == MachineEncodedControlEffect::FallThroughV1
+                && alternative.encoded.implicit_unit_uses.is_empty()
+                && alternative.encoded.implicit_unit_clobbers.is_empty()
+        })
+}
+
+/// The relationship the validator re-derives between the indexed byte load
+/// and its rewritten direct-offset form: both declarations carry the same
+/// pointer-read memory surface and identical trap, barrier, call, and
+/// cleanup behavior, and every consumer alternative's encoded indexed read
+/// — index register at `index_operand` — is matched by every rewritten
+/// alternative's direct read over the same pointer operand and byte count,
+/// with pairwise-identical stack, trap, and control encodings. Every
+/// implicit unit the consumer defines stays defined, no side may
+/// implicitly use a unit, and the rewritten form clobbers nothing.
+pub(super) fn indexed_read_fold_admission(
+    consumer: &MachineEffectDeclaration,
+    rewritten: &MachineEffectDeclaration,
+    index_operand: u16,
+) -> bool {
+    consumer.memory == MachineMemoryEffect::ReadPointerV1
+        && consumer.memory == rewritten.memory
+        && consumer.trap == rewritten.trap
+        && consumer.barrier == rewritten.barrier
+        && consumer.call == rewritten.call
+        && consumer.cleanup == rewritten.cleanup
+        && consumer.alternatives.iter().all(|consumer_alternative| {
+            rewritten.alternatives.iter().all(|rewritten_alternative| {
+                let (
+                    MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+                        pointer_operand,
+                        index_operand: index,
+                        byte_count,
+                    },
+                    MachineEncodedMemoryEffect::ReadPointerV1 {
+                        pointer_operand: rewritten_pointer,
+                        byte_count: rewritten_bytes,
+                    },
+                ) = (
+                    consumer_alternative.encoded.memory,
+                    rewritten_alternative.encoded.memory,
+                )
+                else {
+                    return false;
+                };
+                index == index_operand
+                    && pointer_operand == rewritten_pointer
+                    && byte_count == rewritten_bytes
+                    && consumer_alternative.encoded.stack == rewritten_alternative.encoded.stack
+                    && consumer_alternative.encoded.trap == rewritten_alternative.encoded.trap
+                    && consumer_alternative.encoded.control == rewritten_alternative.encoded.control
+                    && consumer_alternative.encoded.implicit_unit_uses.is_empty()
+                    && consumer_alternative
+                        .encoded
+                        .implicit_unit_defs
+                        .iter()
+                        .all(|unit| {
+                            rewritten_alternative
+                                .encoded
+                                .implicit_unit_defs
+                                .contains(unit)
+                        })
+                    && rewritten_alternative.encoded.implicit_unit_uses.is_empty()
+                    && rewritten_alternative
+                        .encoded
+                        .implicit_unit_clobbers
+                        .is_empty()
+            })
         })
 }

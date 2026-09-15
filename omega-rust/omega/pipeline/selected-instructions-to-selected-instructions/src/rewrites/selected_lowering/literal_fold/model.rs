@@ -40,8 +40,12 @@ impl LiteralFoldPolicy {
     const EXACT_SUBTRACT_BIT: u8 = 1 << 1;
     const COMPARE_BIT: u8 = 1 << 2;
     const EXTENSION_BIT: u8 = 1 << 3;
-    const KNOWN_BITS: u8 =
-        Self::EXACT_ADD_BIT | Self::EXACT_SUBTRACT_BIT | Self::COMPARE_BIT | Self::EXTENSION_BIT;
+    const LOAD8_INDEXED_BIT: u8 = 1 << 4;
+    const KNOWN_BITS: u8 = Self::EXACT_ADD_BIT
+        | Self::EXACT_SUBTRACT_BIT
+        | Self::COMPARE_BIT
+        | Self::EXTENSION_BIT
+        | Self::LOAD8_INDEXED_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -57,6 +61,12 @@ impl LiteralFoldPolicy {
     /// `MaterializeI64` of the extension's exact output bits.
     pub const EXTENSION_V1: Self = Self {
         enabled_rules: Self::EXTENSION_BIT,
+    };
+    /// Indexed byte-load offset materialization: fold a materialized incoming
+    /// literal through its sole `Load8Indexed` consumer into the direct-offset
+    /// `Load8` form the literal names.
+    pub const LOAD8_INDEXED_V1: Self = Self {
+        enabled_rules: Self::LOAD8_INDEXED_BIT,
     };
 
     pub(crate) const fn empty() -> Self {
@@ -87,6 +97,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_extension(self) -> bool {
         self.enabled_rules & Self::EXTENSION_BIT != 0
+    }
+
+    pub const fn enables_load8_indexed(self) -> bool {
+        self.enabled_rules & Self::LOAD8_INDEXED_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u8 {
