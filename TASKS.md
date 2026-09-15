@@ -380,7 +380,25 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   constraints while changed endpoints and intervening writes invalidate their
   premises. Preserve the private-witness/public-guarantee split described in
   chapter 3 and the
-  [termination contract](wiki/spec/language/termination.md).
+  [termination contract](wiki/spec/language/termination.md). Slice landed at
+  f3187a535a on Linux x86-64: custom struct-view rankings now admit a
+  dependency-free initial record arrival when the destination formal is the
+  unique slot of the rank subject's nominal record type — the claim locates
+  the record the view reads while field substitution, membership, endpoint
+  pinning and descent still prove independently, so conflicting record
+  lineages, foreign owners, out-of-range fields, stalled resets and missing
+  entry evidence all keep rejecting. Declared identity measures may carry
+  range-constrained parameter and result types: carrier classification
+  unwraps range-only `Constrained` shells and the forward is selected only
+  when the subject's enforced bounds fit inside every declared range, so an
+  unsatisfiable or non-range refinement still fails. Still open on this item:
+  diverging rank-input copies, call components with internal state arrivals,
+  exact slice-length/bounded-distance/custom-view arrival mappings, preserved
+  premises, live write-frame evidence for mutable inputs, borrowed and nested
+  custom-view projections, STATE-LOCAL-VALUE-FRONTIER retirement of generated
+  operand-call states, independent arithmetic proof for computed endpoints,
+  equality evidence for non-polynomial substitutions, and produced-rank facts
+  for scalar views and projected slice storage.
 
 ## Compiler throughput
 
