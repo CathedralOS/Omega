@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group. Selected-CFG rewrites and their replay evidence.
 
+mod address_fold;
 mod allocation_recovery;
 mod copy_removal;
 mod dead_store;
@@ -15,6 +16,7 @@ mod store_motion;
 #[cfg(feature = "test-support")]
 pub mod test_support;
 
+pub use address_fold::*;
 pub use allocation_recovery::*;
 pub use copy_removal::*;
 pub use dead_store::*;
