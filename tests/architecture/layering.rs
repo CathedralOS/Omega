@@ -1798,7 +1798,8 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 
     let task_planning = root.join("omega-rust/omega/build/provider-planning/src/task_plans.rs");
     let task_planning_source = std::fs::read_to_string(&task_planning)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", task_planning.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", task_planning.display()))
+        + &recursive_production_rust_source(&task_planning.with_extension(""));
     assert!(
         task_planning_source.contains("omega.task-specialization.sha256.v2")
             && task_planning_source.contains("normalized_trait_requirement_overload_identity")
