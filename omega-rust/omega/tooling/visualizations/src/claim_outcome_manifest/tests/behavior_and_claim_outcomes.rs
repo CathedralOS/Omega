@@ -1,5 +1,10 @@
-use super::*;
-
+use super::super::claim_outcome_manifest_json;
+use super::{
+    CheckedTrees, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
+    FlowPermissionEventFact, Identifier, Machine, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource, PermissionProvenance, PlaceRoot, State,
+    StateParameter, SymbolHandle,
+};
 pub(super) fn claim_outcome_validation_fixture() -> (
     CheckedTrees,
     SymbolHandle,

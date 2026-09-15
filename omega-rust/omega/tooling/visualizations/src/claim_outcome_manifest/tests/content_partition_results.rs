@@ -1,5 +1,12 @@
-use super::*;
-
+use super::super::{claim_outcome_manifest_json, validate_content_partition_result_rewrites};
+use super::{
+    CheckedTrees, ContentConservationEquation, ContentConservationTerm,
+    ContentPartitionResultRewrite, ContentPlaceRoot, ContentPlaceVersion, ContentStructuralPlace,
+    ExpressionHandle, FlowClaimOutcomeEntryFact, FlowClaimOutcomeSource, FlowPermissionEventFact,
+    Identifier, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    PermissionEventSource, PermissionProvenance, PlaceRoot, StatementNode, SymbolHandle,
+    conservation_report_fingerprint, content_partition_input_validation_fixture,
+};
 fn content_partition_result_rewrite_validation_fixture() -> CheckedTrees {
     fn rewrite_result_subject(
         term: &ContentConservationTerm,

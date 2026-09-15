@@ -1,5 +1,10 @@
-use super::*;
-
+use super::super::machine_contract_manifest_json;
+use super::{
+    BlockingInterface, BlockingPlan, CheckedTrees, FlowCallFact, FlowStateFact, Identifier,
+    Machine, ManifestExactAxis, State, SuspensionInterface, SuspensionPlan, SymbolHandle,
+    duplicate_manifest_exact_row, machine_contract_exact_rows_fixture,
+    mutation_state_owner_fixture, panic_message, push_behavior_contract, remove_manifest_exact_row,
+};
 #[test]
 fn machine_contract_manifest_exact_rows_preserve_axis_orthogonality() {
     let (mut program, machine) = machine_contract_exact_rows_fixture();

@@ -1,5 +1,15 @@
-use super::*;
-
+use super::super::{
+    machine_contract_manifest_json, push_termination_interface_json,
+    specialization_instance_contract_report_fingerprint,
+};
+use super::{
+    BlockingInterface, BlockingPlan, CheckedTrees, FlowCallFact, FlowStateFact, Identifier,
+    Machine, MachineContractPlan, MachineMutationFact, MachineServiceReachRows,
+    MachineSpecialization, MachineSupplyMode, MachineTerminationPlan, RankingViewId,
+    RankingWitness, State, StateSignature, StateWriteFramePlan, SuspensionInterface,
+    SuspensionPlan, SymbolHandle, TerminationGuarantee, TerminationInterface, TraitDefinition,
+    push_behavior_contract,
+};
 #[test]
 fn machine_contract_manifest_keeps_interface_and_witness_separate() {
     let symbol = SymbolHandle::from_arena_index(2);

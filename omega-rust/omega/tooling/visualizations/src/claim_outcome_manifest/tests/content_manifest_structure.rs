@@ -1,5 +1,17 @@
-use super::*;
-
+use super::super::{claim_outcome_manifest_json, symbol_label};
+use super::{
+    CheckedTrees, ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationEquation,
+    ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
+    ContentFieldSegment, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentPlaceRoot,
+    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionPlan,
+    ContentScalarExpression, ContentStructuralPlace, DomainDefinition, FlowCallFact,
+    FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
+    FlowPermissionEventFact, FlowStateFact, Identifier, Machine, PermissionAccess,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PermissionProvenance,
+    PlaceRoot, State, StateParameter, StatementNode, SymbolHandle, TypeReferenceNode,
+    conservation_report_fingerprint, projection_report_fingerprint,
+};
 #[test]
 fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
     let machine_symbol = SymbolHandle::from_arena_index(20);

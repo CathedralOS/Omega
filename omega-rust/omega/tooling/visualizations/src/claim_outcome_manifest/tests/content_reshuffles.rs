@@ -1,5 +1,15 @@
-use super::*;
-
+use super::super::{claim_outcome_manifest_json, validate_content_identity_reshuffle};
+use super::{
+    CheckedTrees, ContentAlgebraIdentity, ContentConservationEquation,
+    ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
+    ContentIdentityReshuffleFact, ContentPlaceRoot, ContentPlaceVersion,
+    ContentProjectionExpression, ContentProjectionPlan, ContentScalarExpression,
+    ContentStructuralPlace, DomainDefinition, ExpressionHandle, FlowPermissionEventFact,
+    Identifier, Machine, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    PermissionEventSource, PermissionProvenance, PlaceRoot, State, SymbolHandle, TypeReferenceNode,
+    claim_outcome_validation_fixture, conservation_report_fingerprint,
+    first_claim_outcome_entries_mut, projection_report_fingerprint,
+};
 pub(super) fn content_identity_reshuffle_validation_fixture() -> CheckedTrees {
     let (mut program, machine, state, parameter, ..) = claim_outcome_validation_fixture();
     let domain = SymbolHandle::from_arena_index(105);

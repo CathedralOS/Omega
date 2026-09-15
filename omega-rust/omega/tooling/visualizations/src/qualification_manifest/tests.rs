@@ -1,4 +1,4 @@
-use super::*;
+use super::qualification_expression_contains;
 use crate::test_support::*;
 
 mod qualifications;
