@@ -219,13 +219,24 @@ fn scalar_transfer_unit_output_rejects_target_binding_substitution() {
             compiler_baseline_request_v1(&selections),
         )
         .unwrap();
-        let compiled = abstract_operations_to_target_operations::lower_optimized_to_target_operations_with_provider_executions(
-            optimized, target, &[AdmittedBoundarySettlement {
-                boundary: module.boundary_machines[0].id,
-                execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
-                realization: HostedWriteByteI32Realization.into(),
-            }],
-        ).unwrap();
+        let compiled =
+            abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
+                    target,
+                    settlements: &[AdmittedBoundarySettlement {
+                        boundary: module.boundary_machines[0].id,
+                        execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                            CompilerBuiltinExecution::HostedWriteByteI32,
+                        ),
+                        realization: HostedWriteByteI32Realization.into(),
+                    }],
+                    installation: None,
+                    ieee_float_fma: &[],
+                    native_callbacks: &[],
+                },
+            )
+            .unwrap();
         let validate = |raw: &target_operations::TargetOperationPlan| {
             target_operations_to_selected_instructions::legalize_target_operations(
                 raw,

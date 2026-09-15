@@ -31,9 +31,11 @@ fn indexed_field_write_replay_rejects_address_extent_and_evidence_changes() {
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let legal = legalize_target_operations(&target, source, unit).unwrap();
         validate_legalized_operations(&target, source, unit, legal.plan().clone()).unwrap();
         let replacement_fact = legal

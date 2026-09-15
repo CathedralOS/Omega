@@ -18,8 +18,11 @@ fn source_wrapping_add_matches_target_lowering() {
     .expect("source wrapping add terminal Psi should verify");
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified source wrapping add should lower without frontend state");
-    let _target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
-        .expect("source wrapping add should select for the host");
+    let _target_operations = lower_to_target_operations(
+        &abstract_operations,
+        TargetLoweringRequest::new(NativeTarget::host()),
+    )
+    .expect("source wrapping add should select for the host");
 }
 
 #[cfg(unix)]
@@ -58,8 +61,11 @@ fn checked_source_ninth_parameter_reaches_the_host_stack_abi() {
 
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified source parameters should lower without frontend state");
-    let _target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
-        .expect("source parameters should select host ABI locations");
+    let _target_operations = lower_to_target_operations(
+        &abstract_operations,
+        TargetLoweringRequest::new(NativeTarget::host()),
+    )
+    .expect("source parameters should select host ABI locations");
 }
 
 #[test]
@@ -201,14 +207,17 @@ fn checked_source_exact_literal_narrowing_relands_before_psi() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("narrowing artifact should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("narrowing constant should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("narrowing constant should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("narrowing host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("narrowing host selection");
     }
 }

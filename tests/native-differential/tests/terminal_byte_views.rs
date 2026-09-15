@@ -179,7 +179,8 @@ fn byte_view_target(
     )
     .expect("verified byte observation reaches the ordinary optimizer input");
     abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-        optimized, target,
+        optimized,
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
     )
     .expect("byte observation reaches target operations")
 }

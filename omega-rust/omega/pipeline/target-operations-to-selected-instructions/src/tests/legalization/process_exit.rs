@@ -27,14 +27,18 @@ fn lower(
         }
         _ => panic!("fixture hosted scalar role"),
     };
-    abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
+    abstract_operations_to_target_operations::lower_to_target_operations(
         source,
-        native,
-        &[AdmittedBoundarySettlement {
-            boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(execution),
-            realization,
-        }],
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &[AdmittedBoundarySettlement {
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(execution),
+                realization,
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+        },
     )
     .unwrap()
 }

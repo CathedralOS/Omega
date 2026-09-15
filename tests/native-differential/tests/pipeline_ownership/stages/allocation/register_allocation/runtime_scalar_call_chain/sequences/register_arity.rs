@@ -79,7 +79,11 @@ fn register_argument_rosters_use_shared_selection() {
                 compiler_baseline_request_v1(&selections),
             )
             .unwrap();
-            let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
+            let lowered = lower_optimized_to_target_operations(
+                optimized,
+                OptimizedTargetLoweringRequest::new(target),
+            )
+            .unwrap();
             stage_optimized_instruction_selection(lowered).unwrap();
         }
     }

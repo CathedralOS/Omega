@@ -124,16 +124,20 @@ fn current(plan: &AbstractOperationPlan) -> PsiOptimizationUnit {
 }
 
 fn target(plan: &AbstractOperationPlan, native: ::target::NativeTarget) -> TargetOperationPlan {
-    abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
+    abstract_operations_to_target_operations::lower_to_target_operations(
         plan,
-        native,
-        &[AdmittedBoundarySettlement {
-            boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::HostedReadByte,
-            ),
-            realization: target_operations::HostedReadByteRealization.into(),
-        }],
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &[AdmittedBoundarySettlement {
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::HostedReadByte,
+                ),
+                realization: target_operations::HostedReadByteRealization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+        },
     )
     .expect("both read-result arms retain ordinary return cleanup")
 }

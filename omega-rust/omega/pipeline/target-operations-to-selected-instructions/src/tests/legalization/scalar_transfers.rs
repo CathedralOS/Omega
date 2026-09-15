@@ -183,9 +183,11 @@ fn fixture(
             }
         }
     }
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
@@ -358,9 +360,11 @@ fn computed_comparison_branch_and_edge_arguments_retain_materialized_value() {
             when_true.bindings[0].argument = value(150);
             when_false.bindings[0].argument = value(150);
         }
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),

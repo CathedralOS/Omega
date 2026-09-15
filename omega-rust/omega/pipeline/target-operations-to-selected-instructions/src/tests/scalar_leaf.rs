@@ -57,7 +57,7 @@ fn fixture(
     });
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &abstracted,
-        native_target,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native_target),
     )
     .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -132,7 +132,7 @@ fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
             }
             let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
                 &abstracted,
-                native_target,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native_target),
             )
             .unwrap();
             let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -554,9 +554,11 @@ fn boolean_return_follows_entry_jumps_and_exact_bound_carrier() {
         entry_row.operation_offset = 1;
         entry_row.parameters.clear();
         function.block_entries = vec![return_entry, entry_row];
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             previous.fuel_schedule,

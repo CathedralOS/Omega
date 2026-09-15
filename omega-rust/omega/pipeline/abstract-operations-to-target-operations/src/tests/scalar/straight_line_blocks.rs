@@ -63,7 +63,11 @@ fn straight_line_arrivals_follow_edges_independently_of_block_storage_order() {
             function.block_entries = vec![entry, exit];
             function.operations = vec![entry_constant, jump, exit_constant, returned];
         }
-        let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+        let lowered = lower_to_target_operations(
+            &plan,
+            TargetLoweringRequest::new(NativeTarget::linux_x64()),
+        )
+        .unwrap();
         let graph = &lowered.functions[0].graph;
         let returned = graph
             .blocks

@@ -100,8 +100,11 @@ fn proof_check_elision_projects_and_lowers_live_exact_divide_by_one() {
     assert_eq!(terminal.provenance.len(), 2);
     assert_eq!(terminal.fuel.len(), 2);
 
-    let lowered = lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64())
-        .expect("the independently projected divide-free plan remains target lowerable");
+    let lowered = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .expect("the independently projected divide-free plan remains target lowerable");
     assert_eq!(lowered.target_operations().functions.len(), 1);
     assert_eq!(lowered.optimized().commits().len(), 1);
 }
@@ -145,8 +148,11 @@ fn proof_check_elision_projects_and_lowers_live_exact_multiply_by_zero() {
     assert_eq!(terminal.provenance.len(), 2);
     assert_eq!(terminal.fuel.len(), 2);
 
-    let lowered = lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64())
-        .expect("the independently projected zero-product-free plan remains target lowerable");
+    let lowered = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .expect("the independently projected zero-product-free plan remains target lowerable");
     assert_eq!(lowered.target_operations().functions.len(), 1);
     assert_eq!(lowered.optimized().commits().len(), 1);
 }
@@ -192,8 +198,11 @@ fn proof_check_elision_projects_and_lowers_live_exact_zero_dividend() {
         assert_eq!(terminal.provenance.len(), 2);
         assert_eq!(terminal.fuel.len(), 2);
 
-        let lowered = lower_optimized_to_target_operations(optimized, target)
-            .expect("the independently projected zero-dividend-free plan remains lowerable");
+        let lowered = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .expect("the independently projected zero-dividend-free plan remains lowerable");
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);
@@ -243,8 +252,11 @@ fn proof_check_elision_projects_and_lowers_live_exact_zero_value_shift() {
         assert_eq!(terminal.provenance.len(), 2);
         assert_eq!(terminal.fuel.len(), 2);
 
-        let lowered = lower_optimized_to_target_operations(optimized, target)
-            .expect("the independently projected zero-value-shift-free plan remains lowerable");
+        let lowered = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .expect("the independently projected zero-value-shift-free plan remains lowerable");
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);
@@ -313,8 +325,11 @@ fn proof_check_elision_projects_and_lowers_live_exact_self_subtract() {
         assert_eq!(constant.provenance.len(), 1);
         assert_eq!(constant.fuel.len(), 1);
 
-        let lowered = lower_optimized_to_target_operations(optimized, target)
-            .expect("the independently projected self-subtract zero remains lowerable");
+        let lowered = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .expect("the independently projected self-subtract zero remains lowerable");
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);
@@ -385,8 +400,11 @@ fn proof_check_elision_projects_and_lowers_live_exact_self_remainder() {
         assert_eq!(constant.provenance.len(), 1);
         assert_eq!(constant.fuel.len(), 1);
 
-        let lowered = lower_optimized_to_target_operations(optimized, target)
-            .expect("the independently projected self-remainder zero remains lowerable");
+        let lowered = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .expect("the independently projected self-remainder zero remains lowerable");
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);
@@ -455,8 +473,11 @@ fn proof_check_elision_projects_and_lowers_live_exact_self_divide() {
         assert_eq!(constant.provenance.len(), 1);
         assert_eq!(constant.fuel.len(), 1);
 
-        let lowered = lower_optimized_to_target_operations(optimized, target)
-            .expect("the independently projected self-divide one remains lowerable");
+        let lowered = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .expect("the independently projected self-divide one remains lowerable");
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);
@@ -537,8 +558,11 @@ fn proof_check_elision_projects_and_lowers_live_exact_remainder_by_one() {
         assert_eq!(constant.provenance.len(), 1);
         assert_eq!(constant.fuel.len(), 1);
 
-        let lowered = lower_optimized_to_target_operations(optimized, target)
-            .expect("the independently projected remainder-by-one zero remains lowerable");
+        let lowered = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .expect("the independently projected remainder-by-one zero remains lowerable");
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);
@@ -629,8 +653,11 @@ fn proof_check_elision_projects_signed_remainder_by_negative_one_to_both_targets
         assert_eq!(constant.provenance.len(), 1);
         assert_eq!(constant.fuel.len(), 1);
 
-        let lowered = lower_optimized_to_target_operations(optimized, target)
-            .expect("the signed remainder-by-negative-one zero remains lowerable");
+        let lowered = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .expect("the signed remainder-by-negative-one zero remains lowerable");
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);
@@ -690,8 +717,11 @@ fn proof_check_elision_projects_exact_signed_negative_one_shift_right_to_both_ta
         assert_eq!(terminal.provenance.len(), 2);
         assert_eq!(terminal.fuel.len(), 2);
 
-        let lowered = lower_optimized_to_target_operations(optimized, target)
-            .expect("the exact negative-one shift-free plan remains lowerable");
+        let lowered = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .expect("the exact negative-one shift-free plan remains lowerable");
         assert_eq!(lowered.target(), target);
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);

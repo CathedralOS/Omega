@@ -28,10 +28,14 @@ fn hosted_byte_output_rejects_noncanonical_or_unsupported_targets() {
     ] {
         assert!(!target_operations::HostedWriteByteI32Realization::supports_target(target));
         assert!(
-            crate::lower_to_target_operations_with_provider_executions(
+            crate::lower_to_target_operations(
                 &plan,
-                target,
-                std::slice::from_ref(&binding),
+                crate::TargetLoweringRequest {
+                    target,
+                    settlements: std::slice::from_ref(&binding),
+                    installation: None,
+                    ieee_float_fma: &[]
+                }
             )
             .is_err(),
             "unsupported target {target:?}"
@@ -114,10 +118,14 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
         NativeTarget::macos_arm64(),
     ] {
         let lower = |plan: &AbstractOperationPlan| {
-            crate::lower_to_target_operations_with_provider_executions(
+            crate::lower_to_target_operations(
                 plan,
-                target,
-                std::slice::from_ref(&binding),
+                crate::TargetLoweringRequest {
+                    target,
+                    settlements: std::slice::from_ref(&binding),
+                    installation: None,
+                    ieee_float_fma: &[],
+                },
             )
         };
         let expected = lower(&plan).unwrap();

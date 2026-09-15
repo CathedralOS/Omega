@@ -12,7 +12,11 @@ fn scalar_graph_retains_distinct_branch_definitions_and_arrivals() {
                 scalar_type: function.parameters[0].scalar_type,
             }];
         }
-        let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+        let lowered = lower_to_target_operations(
+            &plan,
+            TargetLoweringRequest::new(NativeTarget::linux_x64()),
+        )
+        .unwrap();
         let graph = &lowered.functions[0].graph;
         assert_eq!(graph.blocks.len(), 3);
         for block in graph.blocks.iter().skip(1) {
@@ -104,7 +108,11 @@ fn scalar_graph_retains_repeated_value_definitions_once() {
         };
         *value = previous;
         function.operations.push(returned);
-        let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+        let lowered = lower_to_target_operations(
+            &plan,
+            TargetLoweringRequest::new(NativeTarget::linux_x64()),
+        )
+        .unwrap();
         let receipt =
             validate_abstract_to_target_translation(&plan, NativeTarget::linux_x64(), &lowered)
                 .expect("ordinary graphs do not enter legacy expression validators");

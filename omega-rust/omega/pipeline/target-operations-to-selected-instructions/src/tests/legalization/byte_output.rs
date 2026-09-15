@@ -80,11 +80,22 @@ pub(super) fn fixture(
             completion_receipts: Vec::new(),
         },
     );
-    let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
-        &source, native, &[AdmittedBoundarySettlement { boundary,
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
-            realization: target_operations::HostedWriteByteI32Realization.into(),
-        }]).unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &[AdmittedBoundarySettlement {
+                boundary,
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                    CompilerBuiltinExecution::HostedWriteByteI32,
+                ),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+        },
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
@@ -197,8 +208,11 @@ fn scalar_return_cannot_hide_an_unwitnessed_byte_output_boundary() {
         let mut pure = source.clone();
         pure.functions[0].operations.remove(0);
         let mut forged_target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&pure, native)
-                .unwrap();
+            abstract_operations_to_target_operations::lower_to_target_operations(
+                &pure,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
         let pure_unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &pure,
             FuelScheduleIdentity::new(1).unwrap(),

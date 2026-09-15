@@ -15,6 +15,10 @@ pub(super) fn staged_not_equal_zero_parameter(
         .unwrap(),
     )
     .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
     stage_optimized_instruction_selection(target).unwrap()
 }

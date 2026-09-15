@@ -54,7 +54,9 @@ fn field_and_unit_call_literals_retain_exact_ieee_sources_on_four_targets() {
                 NativeTarget::linux_arm64(),
                 NativeTarget::macos_arm64(),
             ] {
-                let lowered = lower_to_target_operations(&source, target).unwrap();
+                let lowered =
+                    lower_to_target_operations(&source, TargetLoweringRequest::new(target))
+                        .unwrap();
                 let body = &lowered.functions.last().unwrap().graph;
                 assert!(
                     matches!(body.blocks[0].operations[0], TargetUnitOperation::IeeeFloatConstant {
@@ -102,7 +104,11 @@ fn literal_consumers_reject_wrong_format_missing_or_late_definition() {
     for value in [IeeeFloatValue::Binary32(1), IeeeFloatValue::Binary64(1)] {
         for call in [false, true] {
             let valid = literal_plan(value, call);
-            lower_to_target_operations(&valid, NativeTarget::macos_arm64()).unwrap();
+            lower_to_target_operations(
+                &valid,
+                TargetLoweringRequest::new(NativeTarget::macos_arm64()),
+            )
+            .unwrap();
             for mutation in 0..4 {
                 let mut source = valid.clone();
                 let function = source.functions.last_mut().unwrap();
@@ -135,7 +141,11 @@ fn literal_consumers_reject_wrong_format_missing_or_late_definition() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    lower_to_target_operations(&source, NativeTarget::macos_arm64()).is_err(),
+                    lower_to_target_operations(
+                        &source,
+                        TargetLoweringRequest::new(NativeTarget::macos_arm64())
+                    )
+                    .is_err(),
                     "mutation {mutation}, call {call}"
                 );
             }
@@ -175,7 +185,8 @@ fn graph_unit_call_retains_dominating_ieee_literal_source() {
             NativeTarget::macos_arm64(),
             NativeTarget::windows_x64(),
         ] {
-            let lowered = lower_to_target_operations(&source, native).unwrap();
+            let lowered =
+                lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
             let graph = &lowered.functions.last().unwrap().graph;
             let TargetUnitOperation::Call {
                 scalar_arguments, ..

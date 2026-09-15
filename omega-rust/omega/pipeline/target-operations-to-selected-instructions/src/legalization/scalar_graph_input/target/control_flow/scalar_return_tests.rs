@@ -177,9 +177,11 @@ fn fixture(
         provider_candidates: Vec::new(),
         functions: vec![caller, callee],
     };
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&plan, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),
@@ -415,8 +417,10 @@ fn scalar_cycle_producer_rejects_mismatched_return_result_and_unit_exit() {
                 *scalar_type = ScalarType::Integer(u32_type());
             }
         }
-        let lowered =
-            abstract_operations_to_target_operations::lower_to_target_operations(&changed, native);
+        let lowered = abstract_operations_to_target_operations::lower_to_target_operations(
+            &changed,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        );
         assert!(
             lowered.is_err(),
             "producer accepted {mutation}: {lowered:?}"

@@ -84,9 +84,11 @@ pub(in crate::tests) fn fixture(
         });
         plan.functions.push(function);
     }
-    let targeted =
-        abstract_operations_to_target_operations::lower_to_target_operations(&plan, native)
-            .unwrap();
+    let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),

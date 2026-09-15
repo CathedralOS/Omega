@@ -55,7 +55,10 @@ fn boolean_parameter_uses_exact_scalar_abi_and_shared_publication() {
         .unwrap();
         let target_program =
             abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, target,
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                    target,
+                ),
             )
             .unwrap();
         let abi = target_program.target_operations().functions[0]
@@ -207,7 +210,10 @@ fn publish(
         let post_terminal = optimized.selections().project_post_terminal();
         let target_program =
             abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, target,
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                    target,
+                ),
             )
             .unwrap();
         crate::stage_optimized_verified_physical_pipeline(
@@ -365,7 +371,9 @@ fn substituted_conditional_inputs_reject_at_legalization() {
     .unwrap();
     let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
         optimized,
-        target::NativeTarget::linux_x64(),
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+            target::NativeTarget::linux_x64(),
+        ),
     )
     .unwrap();
     let plan = target.optimized().plan();

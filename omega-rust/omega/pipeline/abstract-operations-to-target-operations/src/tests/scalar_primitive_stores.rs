@@ -103,7 +103,8 @@ fn scalar_primitive_store_preserves_mixed_abi_order_and_return_on_four_targets()
     ] {
         for runtime in [false, true] {
             let source = fixture(runtime);
-            let target = lower_to_target_operations(&source, native).unwrap();
+            let target =
+                lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
             crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
             let function = &target.functions[0];
             assert!(function.scalar_abi.is_none());
@@ -216,7 +217,11 @@ fn scalar_primitive_store_rejects_unsupported_access_types_order_and_exits() {
             }
         }
         assert!(
-            lower_to_target_operations(&source, NativeTarget::macos_arm64()).is_err(),
+            lower_to_target_operations(
+                &source,
+                TargetLoweringRequest::new(NativeTarget::macos_arm64())
+            )
+            .is_err(),
             "accepted {mutation}"
         );
     }
@@ -226,7 +231,8 @@ fn scalar_primitive_store_rejects_unsupported_access_types_order_and_exits() {
 fn scalar_graph_header_replay_rejects_coherent_value_abi_substitution() {
     let source = fixture(true);
     let native = NativeTarget::linux_x64();
-    let mut target = lower_to_target_operations(&source, native).unwrap();
+    let mut target =
+        lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
     let function = &mut target.functions[0];
     let abi = function.mixed_structural_scalar_abi.as_mut().unwrap();
     let shape = ValueShape::integer(8, 8);
@@ -256,7 +262,8 @@ fn effect_free_primitive_borrow_scalar_return_uses_the_common_graph() {
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
-        let target = lower_to_target_operations(&source, native).unwrap();
+        let target =
+            lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
         assert_eq!(target.functions[0].graph.blocks.len(), 1);
         crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
     }
@@ -281,7 +288,8 @@ fn boolean_primitive_store_publishes_exact_borrow_and_scalar_return_abi() {
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
-        let target = lower_to_target_operations(&source, native).unwrap();
+        let target =
+            lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
         crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
         let function = &target.functions[0];
         let abi = function.mixed_structural_scalar_abi.as_ref().unwrap();

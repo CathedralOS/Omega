@@ -80,9 +80,11 @@ fn scalar_result_boolean_transport_rejects_binding_and_predicate_substitution() 
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),

@@ -137,9 +137,11 @@ fn fixture(
             residual_affine_discards: Vec::new(),
         },
     ];
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&abstracted, target)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &abstracted,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(target),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &abstracted,
         previous.fuel_schedule,

@@ -95,7 +95,9 @@ fn fixture(
     }
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &source,
-        target::NativeTarget::linux_x64(),
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            target::NativeTarget::linux_x64(),
+        ),
     )
     .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -139,7 +141,9 @@ fn scalar_array_graph_returns_replay_exact_abi_without_optional_mirrors() {
     ]);
     let mut target = abstract_operations_to_target_operations::lower_to_target_operations(
         &source,
-        target::NativeTarget::linux_x64(),
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            target::NativeTarget::linux_x64(),
+        ),
     )
     .unwrap();
     target.functions[0].scalar_abi = None;
@@ -308,7 +312,9 @@ fn incoming_array_identity_rejects_substituted_parameter_storage() {
         });
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &source,
-        target::NativeTarget::linux_x64(),
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            target::NativeTarget::linux_x64(),
+        ),
     )
     .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(

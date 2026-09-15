@@ -48,8 +48,11 @@ pub(super) fn physical_homes() -> StagedOptimizedRegisterHomes {
         ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
     )
     .unwrap();
-    let target =
-        lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .unwrap();
     let selected = stage_optimized_instruction_selection(target).unwrap();
     let liveness = stage_optimized_liveness(selected).unwrap();
     let ranges = stage_optimized_live_ranges(liveness).unwrap();

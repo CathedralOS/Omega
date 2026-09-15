@@ -66,9 +66,11 @@ fn fixture_with_scalar(
             cleanup_actions: Vec::new(),
         },
     ]);
-    let target =
-        abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-            .unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
         FuelScheduleIdentity::new(1).unwrap(),
@@ -125,9 +127,11 @@ fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
             path: Vec::new(),
             field,
         };
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
@@ -175,7 +179,10 @@ fn record_field_store_with_scalar_result_retains_borrow_access_custody() {
         };
         destination.access = StructuralAccess::SharedBorrow;
         if let Ok(changed_target) =
-            abstract_operations_to_target_operations::lower_to_target_operations(&changed, native)
+            abstract_operations_to_target_operations::lower_to_target_operations(
+                &changed,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
         {
             let changed_unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &changed,
@@ -594,7 +601,8 @@ fn scalar_primitive_store_accepts_stack_input_and_reference_with_exact_return_lo
             };
             *value = ValueId::new(if return_stack_input { 16 } else { 5 }).unwrap();
             let target = abstract_operations_to_target_operations::lower_to_target_operations(
-                &source, native,
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
             )
             .unwrap();
             let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -704,9 +712,11 @@ fn boolean_store_scalar_result_requires_exact_mixed_header() {
             panic!("primitive store");
         };
         value.scalar_type = ScalarType::Boolean;
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),

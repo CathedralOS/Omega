@@ -202,11 +202,14 @@ fn graph_rejects_unimplemented_claim_bearing_provider_calls() {
     let (plan, installation, _, _) = installed_provider_plan();
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         assert!(matches!(
-            lower_to_target_operations_with_provider_executions_and_installation(
+            lower_to_target_operations(
                 &plan,
-                target,
-                &[],
-                Some(&installation)
+                TargetLoweringRequest {
+                    target,
+                    settlements: &[],
+                    installation: Some(&installation),
+                    ieee_float_fma: &[]
+                }
             ),
             Err(LoweringError::UnsupportedControlFlow(_))
         ));
@@ -345,11 +348,14 @@ fn installed_provider_calls_retain_scalar_operands_and_selection_custody() {
         NativeTarget::linux_arm64(),
         NativeTarget::macos_arm64(),
     ] {
-        let lowered = lower_to_target_operations_with_provider_executions_and_installation(
+        let lowered = lower_to_target_operations(
             &plan,
-            target,
-            &[],
-            Some(&installation),
+            TargetLoweringRequest {
+                target,
+                settlements: &[],
+                installation: Some(&installation),
+                ieee_float_fma: &[],
+            },
         )
         .unwrap();
         crate::validate_abstract_to_target_translation(&plan, target, &lowered).unwrap();
@@ -413,11 +419,14 @@ fn installed_i32_provider_rejects_scalar_evidence_substitution() {
     let (plan, mut installation, boundary, operation, _, _) = installed_scalar_provider_plan();
     installation.calls[0].scalar_arguments[0] = ValueId::new(9_600).unwrap();
     assert_eq!(
-        lower_to_target_operations_with_provider_executions_and_installation(
+        lower_to_target_operations(
             &plan,
-            NativeTarget::linux_x64(),
-            &[],
-            Some(&installation),
+            TargetLoweringRequest {
+                target: NativeTarget::linux_x64(),
+                settlements: &[],
+                installation: Some(&installation),
+                ieee_float_fma: &[]
+            }
         ),
         Err(LoweringError::InstalledProviderCallEvidenceMismatch {
             machine: plan.entry,
@@ -441,11 +450,14 @@ fn installed_selection_rejects_another_semantically_valid_catalog_candidate() {
     plan.functions.push(alternate_function);
     plan.provider_candidates.push(alternate_provider.clone());
     let native = NativeTarget::macos_arm64();
-    let mut target = lower_to_target_operations_with_provider_executions_and_installation(
+    let mut target = lower_to_target_operations(
         &plan,
-        native,
-        &[],
-        Some(&installation),
+        TargetLoweringRequest {
+            target: native,
+            settlements: &[],
+            installation: Some(&installation),
+            ieee_float_fma: &[],
+        },
     )
     .unwrap();
     crate::validation::installed_calls::validate(&target, Some(&installation)).unwrap();
@@ -490,11 +502,14 @@ fn installed_provider_result_must_match_occurrence_and_boundary_declaration() {
             );
         }
         assert_eq!(
-            lower_to_target_operations_with_provider_executions_and_installation(
+            lower_to_target_operations(
                 &plan,
-                NativeTarget::linux_x64(),
-                &[],
-                Some(&installation),
+                TargetLoweringRequest {
+                    target: NativeTarget::linux_x64(),
+                    settlements: &[],
+                    installation: Some(&installation),
+                    ieee_float_fma: &[]
+                }
             ),
             Err(LoweringError::InstalledProviderCallEvidenceMismatch {
                 machine: plan.entry,

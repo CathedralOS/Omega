@@ -238,9 +238,18 @@ fn source_installed_provider_retains_literal_arguments_and_affine_results() {
             &providers,
         )
         .unwrap();
-        let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations_with_provider_executions_and_installation(
-            optimized, native, &[], installation,
-        ).unwrap();
+        let target =
+            abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
+                    target: native,
+                    settlements: &[],
+                    installation: Some(installation),
+                    ieee_float_fma: &[],
+                    native_callbacks: &[],
+                },
+            )
+            .unwrap();
         let physical = native_realization::stage_optimized_verified_physical_pipeline(
             target,
             selections.project_post_terminal().selections(),

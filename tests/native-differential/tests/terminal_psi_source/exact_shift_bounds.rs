@@ -117,15 +117,18 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
             .any(|operation| { matches!(operation, AbstractOperation::IntegerExactCast { .. }) })
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("guarded narrowing should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("guarded narrowing should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("guarded narrowing host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("guarded narrowing host selection");
     }
 }
 
@@ -430,15 +433,18 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
             })
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("exact shift should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("exact shift should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("exact shift host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("exact shift host selection");
     }
 }
 
@@ -937,15 +943,18 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
             .any(|operation| matches!(operation, AbstractOperation::ExactIntegerShiftLeft { .. }))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("exact left shift should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("exact left shift should select");
     }
 
     #[cfg(unix)]
     {
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .expect("exact left-shift host selection");
+        let _target_operations = lower_to_target_operations(
+            &abstract_operations,
+            TargetLoweringRequest::new(NativeTarget::host()),
+        )
+        .expect("exact left-shift host selection");
     }
 }
 
@@ -1010,8 +1019,9 @@ fn checked_source_exact_left_shift_uses_known_count_bounds() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("known-count exact left shift should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("known-count exact left shift should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("known-count exact left shift should select");
     }
 }
 
@@ -1084,8 +1094,9 @@ fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("bounded-count exact left shift should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("bounded-count exact left shift should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("bounded-count exact left shift should select");
     }
 }
 
@@ -1141,7 +1152,8 @@ fn checked_source_exact_left_shift_uses_u64_bounded_count_maximum() {
     .and_then(|admitted| admitted.try_into_plan())
     .expect("u64 bounded-count exact left shift should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("u64 bounded-count exact left shift should select");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("u64 bounded-count exact left shift should select");
     }
 }

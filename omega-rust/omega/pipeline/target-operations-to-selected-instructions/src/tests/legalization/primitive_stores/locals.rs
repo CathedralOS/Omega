@@ -76,9 +76,11 @@ fn local_establishment_store_and_read_reject_target_and_legalized_corruption() {
         NativeTarget::windows_x64(),
         NativeTarget::macos_arm64(),
     ] {
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
@@ -199,9 +201,11 @@ fn boolean_branch_replay_rejects_substituted_or_unavailable_read_homes() {
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),

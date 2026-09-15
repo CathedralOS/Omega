@@ -160,13 +160,24 @@ fn conditional_unit_byte_calls_reject_changed_selected_control() {
             compiler_baseline_request_v1(&selections),
         )
         .unwrap();
-        let compiled = abstract_operations_to_target_operations::lower_optimized_to_target_operations_with_provider_executions(
-            optimized, target, &[AdmittedBoundarySettlement {
-                boundary: module.boundary_machines[0].id,
-                execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
-                realization: HostedWriteByteI32Realization.into(),
-            }],
-        ).unwrap();
+        let compiled =
+            abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
+                    target,
+                    settlements: &[AdmittedBoundarySettlement {
+                        boundary: module.boundary_machines[0].id,
+                        execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                            CompilerBuiltinExecution::HostedWriteByteI32,
+                        ),
+                        realization: HostedWriteByteI32Realization.into(),
+                    }],
+                    installation: None,
+                    ieee_float_fma: &[],
+                    native_callbacks: &[],
+                },
+            )
+            .unwrap();
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
         let staged = stage_optimized_instruction_selection(compiled, environment).unwrap();

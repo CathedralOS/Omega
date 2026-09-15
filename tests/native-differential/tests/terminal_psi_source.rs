@@ -9,7 +9,7 @@ use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractOperation, AbstractOperationPlan,
     AbstractParameter, ValueBinding,
 };
-use abstract_operations_to_target_operations::lower_to_target_operations;
+use abstract_operations_to_target_operations::{TargetLoweringRequest, lower_to_target_operations};
 use calling_conventions::CallSignature;
 use checked_trees_to_lowered_psi::{LoweringError, lower_machine};
 use compiler::CheckedCompileRequest;

@@ -92,7 +92,9 @@ fn unit_subslice_calls() -> AbstractOperationPlan {
 #[test]
 fn unit_calls_retain_once_only_length_and_subslice_establishment() {
     let plan = unit_subslice_calls();
-    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    let lowered =
+        lower_to_target_operations(&plan, TargetLoweringRequest::new(NativeTarget::linux_x64()))
+            .unwrap();
     let graph = &lowered.functions[0].graph;
     let operations = &graph.blocks[0].operations;
     assert!(matches!(
@@ -173,7 +175,11 @@ fn unit_calls_reject_future_duplicate_and_sibling_view_producers() {
             }
         }
         assert!(
-            lower_to_target_operations(&plan, NativeTarget::linux_x64()).is_err(),
+            lower_to_target_operations(
+                &plan,
+                TargetLoweringRequest::new(NativeTarget::linux_x64())
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }

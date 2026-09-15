@@ -4,7 +4,9 @@ use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use target::NativeTarget;
 
-use abstract_operations_to_target_operations::lower_optimized_to_target_operations_with_provider_executions;
+use abstract_operations_to_target_operations::{
+    OptimizedTargetLoweringRequest, lower_optimized_to_target_operations,
+};
 
 use super::{
     OptimizedVerifiedPhysicalPipelineError, StagedOptimizedVerifiedPhysicalPipeline,
@@ -20,10 +22,15 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
     settlements: &[AdmittedBoundarySettlement<'_>],
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
     let post_terminal = optimized.selections().project_post_terminal();
-    let optimized_target = lower_optimized_to_target_operations_with_provider_executions(
+    let optimized_target = lower_optimized_to_target_operations(
         optimized,
-        target,
-        settlements,
+        OptimizedTargetLoweringRequest {
+            target,
+            settlements,
+            installation: None,
+            ieee_float_fma: &[],
+            native_callbacks: &[],
+        },
     )
     .map_err(OptimizedVerifiedPhysicalPipelineError::TargetLowering)?;
     stage_optimized_verified_physical_pipeline(optimized_target, post_terminal.selections())

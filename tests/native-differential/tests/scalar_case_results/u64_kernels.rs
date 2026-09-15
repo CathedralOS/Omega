@@ -122,7 +122,10 @@ fn exact_divide_replay_rejects_missing_proof_changed_policy_and_forged_fact() {
         .unwrap();
         let compiled =
             abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, target,
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                    target,
+                ),
             )
             .unwrap();
         let legalized = legalize_target_operations(
@@ -211,7 +214,10 @@ fn exact_divide_selection_rejects_forged_proof_and_high_half_setup() {
         .unwrap();
         let compiled =
             abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, target,
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                    target,
+                ),
             )
             .unwrap();
         let environment =
@@ -359,7 +365,10 @@ fn saturating_subtract_selection_rejects_changed_operation_operands_and_custody(
         .unwrap();
         let compiled =
             abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, target,
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                    target,
+                ),
             )
             .unwrap();
         let environment =

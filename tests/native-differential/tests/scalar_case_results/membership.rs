@@ -391,7 +391,9 @@ fn native_case_membership_replay_rejects_source_case_result_and_access_substitut
     .unwrap();
     let compiled = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
         optimized,
-        NativeTarget::macos_arm64(),
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+            NativeTarget::macos_arm64(),
+        ),
     )
     .unwrap();
     let legalized = target_operations_to_selected_instructions::legalize_target_operations(
@@ -481,7 +483,10 @@ fn constructed_temporary_edge_cleanup_is_preserved_by_native_replay() {
             .unwrap();
             let compiled =
                 abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                    optimized, native,
+                    optimized,
+                    abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                        native,
+                    ),
                 )
                 .unwrap();
             target_operations_to_selected_instructions::legalize_target_operations(
@@ -708,7 +713,10 @@ fn native_case_membership_selection_replays_tag_read_comparison_and_fuel() {
         .unwrap();
         let compiled =
             abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, target,
+                optimized,
+                abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
+                    target,
+                ),
             )
             .unwrap();
         let environment =

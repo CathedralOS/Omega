@@ -270,10 +270,7 @@ fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical
     );
 
     assert_eq!(
-        abstract_operations_to_target_operations::lower_to_target_operations(
-            optimized.plan(),
-            target::NativeTarget::linux_x64(),
-        ),
+        abstract_operations_to_target_operations::lower_to_target_operations(optimized.plan(), abstract_operations_to_target_operations::TargetLoweringRequest::new(target::NativeTarget::linux_x64())),
         Err(
             abstract_operations_to_target_operations::LoweringError::UnsupportedProjectedStructuralQualifications,
         ),
@@ -346,7 +343,9 @@ fn projected_function_and_call_results_cross_replay_abstract_and_prephysical_cus
     );
     let lowered = abstract_operations_to_target_operations::lower_to_target_operations(
         optimized.plan(),
-        target::NativeTarget::linux_x64(),
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            target::NativeTarget::linux_x64(),
+        ),
     );
     assert_eq!(
         lowered,

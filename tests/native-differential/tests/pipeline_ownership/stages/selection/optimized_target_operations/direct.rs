@@ -19,8 +19,11 @@ fn optimized_scalar_parameters_use_only_the_common_graph() {
                     request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
                 )
                 .unwrap();
-                let target =
-                    lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+                let target = lower_optimized_to_target_operations(
+                    optimized,
+                    OptimizedTargetLoweringRequest::new(target_profile),
+                )
+                .unwrap();
                 let function = &target.target_operations().functions[0];
                 let graph = &function.graph;
                 let abi = function.scalar_abi.as_ref().unwrap();

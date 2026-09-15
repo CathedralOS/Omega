@@ -11,7 +11,11 @@ fn unit_legalization_retains_a_static_attachment_without_inventing_a_receiver() 
             request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
         )
         .unwrap();
-        let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+        let target = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .unwrap();
         let selected = stage_optimized_instruction_selection(target).unwrap();
 
         assert_eq!(

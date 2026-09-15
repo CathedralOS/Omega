@@ -108,17 +108,31 @@ pub(crate) fn fixture(
     output.scalar_parameters = vec![scalar_type];
     output.result = terminal_psi::BoundaryMachineResult::Unit;
     plan.boundary_machines.push(output);
-    let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
-        &plan, native, &[AdmittedBoundarySettlement {
-            boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(target_operations::CompilerBuiltinExecution::HostedReadByte),
-            realization: target_operations::HostedReadByteRealization.into(),
-        }, AdmittedBoundarySettlement {
-            boundary: BoundaryMachineId::new(2).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(target_operations::CompilerBuiltinExecution::HostedWriteByteI32),
-            realization: target_operations::HostedWriteByteI32Realization.into(),
-        }],
-    ).expect("case arms can jump to an ordinary returning join in non-topological roster order");
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &[
+                AdmittedBoundarySettlement {
+                    boundary: BoundaryMachineId::new(1).unwrap(),
+                    execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                        target_operations::CompilerBuiltinExecution::HostedReadByte,
+                    ),
+                    realization: target_operations::HostedReadByteRealization.into(),
+                },
+                AdmittedBoundarySettlement {
+                    boundary: BoundaryMachineId::new(2).unwrap(),
+                    execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                        target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                    ),
+                    realization: target_operations::HostedWriteByteI32Realization.into(),
+                },
+            ],
+            installation: None,
+            ieee_float_fma: &[],
+        },
+    )
+    .expect("case arms can jump to an ordinary returning join in non-topological roster order");
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,
         FuelScheduleIdentity::new(1).unwrap(),

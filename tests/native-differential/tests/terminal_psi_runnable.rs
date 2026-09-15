@@ -1,8 +1,8 @@
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
 use abstract_operations_to_target_operations::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement, LoweringError,
-    lower_to_target_operations_with_provider_executions,
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, LoweringError, TargetLoweringRequest,
+    lower_to_target_operations,
 };
 use calling_conventions::{CallSignature, ValueShape};
 use omega_native_differential_test::admit_native_provider;
@@ -489,10 +489,7 @@ fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
         },
     );
     assert!(matches!(
-        lower_to_target_operations_with_provider_executions(
-            &plan,
-            target,
-            &[
+        lower_to_target_operations(&plan, TargetLoweringRequest { target, settlements: &[
                 AdmittedBoundarySettlement {
                     boundary: write_boundary,
                     execution: AdmittedBoundaryExecution::Provider(&wrong_write_provider),
@@ -503,8 +500,7 @@ fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
                     execution: AdmittedBoundaryExecution::Provider(&exit_provider),
                     realization: HostedExitProcessI32Realization.into(),
                 },
-            ],
-        ),
+            ], installation: None, ieee_float_fma: &[] }),
         Err(LoweringError::ProviderExecutionRequirementMismatch { boundary, .. })
             if boundary == write_boundary
     ));

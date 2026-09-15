@@ -15,7 +15,11 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
             request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
         )
         .unwrap();
-        let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+        let target = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .unwrap();
         let selected = stage_optimized_instruction_selection(target).unwrap();
 
         assert_eq!(selected.selected().plan().functions.len(), 2);

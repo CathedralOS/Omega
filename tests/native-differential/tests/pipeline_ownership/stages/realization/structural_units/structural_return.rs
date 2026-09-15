@@ -15,7 +15,11 @@ fn structural_unit_return_selects_without_materializing_unused_owned_input() {
             request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
         )
         .unwrap();
-        let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+        let target = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest::new(target),
+        )
+        .unwrap();
 
         let selected = stage_optimized_instruction_selection(target)
             .expect("unused owned input must reach ordinary instruction selection");

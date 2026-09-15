@@ -113,8 +113,11 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
         NativeTarget::windows_x64(),
         NativeTarget::linux_arm64(),
     ] {
-        let lowered = lower_to_target_operations(&attached_unit_scalar_call_plan(), target)
-            .expect("attached Unit scalar calls lower");
+        let lowered = lower_to_target_operations(
+            &attached_unit_scalar_call_plan(),
+            TargetLoweringRequest::new(target),
+        )
+        .expect("attached Unit scalar calls lower");
         let body = &lowered.functions[0].graph;
         assert_eq!(lowered.functions[0].scalar_abi, None);
         let [
@@ -255,7 +258,8 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
             NativeTarget::macos_arm64(),
             NativeTarget::windows_x64(),
         ] {
-            let lowered = lower_to_target_operations(&source, native).unwrap();
+            let lowered =
+                lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
             let body = &lowered.functions[0].graph;
             let TargetUnitOperation::ScalarCall { arguments, .. } = &body.blocks[0].operations[1]
             else {
@@ -280,7 +284,7 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
             let mut missing = source.clone();
             missing.functions[0].operations.remove(0);
             assert!(matches!(
-                lower_to_target_operations(&missing, native),
+                lower_to_target_operations(&missing, TargetLoweringRequest::new(native)),
                 Err(LoweringError::UnknownValue(_))
             ));
         }
@@ -330,7 +334,8 @@ fn attached_unit_calls_retain_ordered_register_and_stack_arguments() {
         NativeTarget::windows_x64(),
         NativeTarget::linux_arm64(),
     ] {
-        let lowered = lower_to_target_operations(&plan, target).expect("nine scalar arguments");
+        let lowered = lower_to_target_operations(&plan, TargetLoweringRequest::new(target))
+            .expect("nine scalar arguments");
         let body = &lowered.functions[0].graph;
         let calls = body.blocks[0]
             .operations
@@ -363,8 +368,11 @@ fn attached_unit_calls_retain_ordered_register_and_stack_arguments() {
 fn unit_scalar_calls_preserve_free_callers_and_require_service_free_scalar_callees() {
     let mut unattached = attached_unit_scalar_call_plan();
     unattached.functions[0].attachment = None;
-    let lowered = lower_to_target_operations(&unattached, NativeTarget::linux_x64())
-        .expect("a free caller does not need a fabricated attachment");
+    let lowered = lower_to_target_operations(
+        &unattached,
+        TargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .expect("a free caller does not need a fabricated attachment");
     assert_eq!(lowered.functions[0].attachment, None);
     let body = &lowered.functions[0].graph;
     assert_eq!(
@@ -381,7 +389,10 @@ fn unit_scalar_calls_preserve_free_callers_and_require_service_free_scalar_calle
         .published_service_ceiling
         .push(semantic_vocabulary::ServiceId::new(1).expect("service"));
     assert_eq!(
-        lower_to_target_operations(&serviceful, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &serviceful,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::UnitScalarCallTargetPublishesServices(
             MachineId::new(2).unwrap()
         ))
@@ -397,7 +408,10 @@ fn unit_scalar_calls_reject_wrong_arity_type_and_unknown_values() {
     };
     arguments.clear();
     assert_eq!(
-        lower_to_target_operations(&wrong_arity, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &wrong_arity,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::CallArgumentCountMismatch {
             callee: MachineId::new(2).unwrap(),
             expected: 1,
@@ -416,7 +430,10 @@ fn unit_scalar_calls_reject_wrong_arity_type_and_unknown_values() {
     *scalar_type = ScalarType::Integer(unsigned);
     *value = IntegerValue::Unsigned(17);
     assert_eq!(
-        lower_to_target_operations(&wrong_type, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &wrong_type,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::CallArgumentTypeMismatch {
             callee: MachineId::new(2).unwrap(),
             argument: ValueId::new(10).unwrap(),
@@ -429,7 +446,10 @@ fn unit_scalar_calls_reject_wrong_arity_type_and_unknown_values() {
     };
     arguments[0] = ValueId::new(99).expect("unknown value");
     assert_eq!(
-        lower_to_target_operations(&unknown, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &unknown,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::UnknownValue(ValueId::new(99).unwrap()))
     );
 }
@@ -448,7 +468,10 @@ fn unit_scalar_calls_reject_address_wide_structural_and_mismatched_result_types(
         scalar_type: ScalarType::Integer(address_type),
     });
     assert_eq!(
-        lower_to_target_operations(&address, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &address,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
             ValueId::new(11).unwrap()
         ))
@@ -465,7 +488,10 @@ fn unit_scalar_calls_reject_address_wide_structural_and_mismatched_result_types(
         scalar_type: ScalarType::Boolean,
     });
     assert_eq!(
-        lower_to_target_operations(&boolean, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &boolean,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::UnitScalarCallResultTypeMismatch {
             callee: MachineId::new(2).unwrap(),
             result: ValueId::new(12).unwrap()
@@ -483,7 +509,7 @@ fn unit_scalar_calls_reject_address_wide_structural_and_mismatched_result_types(
         scalar_type: ScalarType::Integer(wide_type),
     });
     assert_eq!(
-        lower_to_target_operations(&wide, NativeTarget::linux_x64()),
+        lower_to_target_operations(&wide, TargetLoweringRequest::new(NativeTarget::linux_x64())),
         Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
             ValueId::new(11).unwrap()
         ))
@@ -503,7 +529,10 @@ fn unit_scalar_calls_reject_address_wide_structural_and_mismatched_result_types(
             projected_qualifications: Vec::new(),
         });
     assert_eq!(
-        lower_to_target_operations(&structural, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &structural,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::UnitScalarCallTargetShapeUnsupported(
             MachineId::new(2).unwrap()
         ))
@@ -520,7 +549,10 @@ fn unit_scalar_calls_reject_declared_result_and_argument_carrier_drift() {
     };
     *scalar_type = ScalarType::Integer(fixed_integer(64));
     assert_eq!(
-        lower_to_target_operations(&result_mismatch, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &result_mismatch,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::UnitScalarCallResultTypeMismatch {
             callee: MachineId::new(2).unwrap(),
             result: ValueId::new(11).unwrap(),
@@ -531,7 +563,10 @@ fn unit_scalar_calls_reject_declared_result_and_argument_carrier_drift() {
     let address_type = IntegerType::address(64).unwrap();
     address_argument.functions[1].parameters[0].scalar_type = ScalarType::Integer(address_type);
     assert_eq!(
-        lower_to_target_operations(&address_argument, NativeTarget::linux_x64()),
+        lower_to_target_operations(
+            &address_argument,
+            TargetLoweringRequest::new(NativeTarget::linux_x64())
+        ),
         Err(LoweringError::UnitScalarCallTargetShapeUnsupported(
             MachineId::new(2).unwrap()
         ))

@@ -19,8 +19,9 @@ fn field_store_keeps_its_destination_among_other_borrowed_parameters() {
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
-        let lowered = crate::lower_to_target_operations(&source, target)
-            .expect("another borrowed input does not change the store destination");
+        let lowered =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(target))
+                .expect("another borrowed input does not change the store destination");
         crate::validate_abstract_to_target_translation(&source, target, &lowered)
             .expect("replay exact store destination and placement");
         let store = lowered.functions[0].graph.blocks[0]
@@ -150,7 +151,9 @@ fn ieee_store_parameters_keep_float_abi_and_exact_source_identity() {
                 NativeTarget::linux_arm64(),
                 NativeTarget::macos_arm64(),
             ] {
-                let lowered = lower_to_target_operations(&source, target).unwrap();
+                let lowered =
+                    lower_to_target_operations(&source, TargetLoweringRequest::new(target))
+                        .unwrap();
                 let function = &lowered.functions[0];
                 let body = &function.graph;
                 assert_eq!(
@@ -196,7 +199,13 @@ fn ieee_store_parameters_keep_float_abi_and_exact_source_identity() {
                     IeeeFloatFormat::Binary32 => IeeeFloatFormat::Binary64,
                     IeeeFloatFormat::Binary64 => IeeeFloatFormat::Binary32,
                 });
-            assert!(lower_to_target_operations(&mismatched, NativeTarget::linux_x64()).is_err());
+            assert!(
+                lower_to_target_operations(
+                    &mismatched,
+                    TargetLoweringRequest::new(NativeTarget::linux_x64())
+                )
+                .is_err()
+            );
         }
     }
 }
@@ -229,7 +238,8 @@ fn forwarded_ieee_store_call_keeps_the_parameter_and_borrowed_pointer() {
             NativeTarget::linux_arm64(),
             NativeTarget::macos_arm64(),
         ] {
-            let lowered = lower_to_target_operations(&source, target).unwrap();
+            let lowered =
+                lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
             let body = &lowered.functions[1].graph;
             let TargetUnitOperation::Call {
                 scalar_arguments,

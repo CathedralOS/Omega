@@ -35,16 +35,20 @@ fn lower(
     plan: &AbstractOperationPlan,
     target: NativeTarget,
 ) -> Result<TargetOperationPlan, crate::LoweringError> {
-    crate::lower_to_target_operations_with_provider_executions(
+    crate::lower_to_target_operations(
         plan,
-        target,
-        &[crate::AdmittedBoundarySettlement {
-            boundary: plan.boundary_machines[0].id,
-            execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
-            ),
-            realization: target_operations::HostedWriteByteI32Realization.into(),
-        }],
+        crate::TargetLoweringRequest {
+            target,
+            settlements: &[crate::AdmittedBoundarySettlement {
+                boundary: plan.boundary_machines[0].id,
+                execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                ),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+        },
     )
 }
 
@@ -177,8 +181,11 @@ fn unit_widening_retains_all_total_fixed_native_integer_shapes() {
                     *source_type = source;
                     *target_type = target;
                     plan.functions[0].operations.remove(1);
-                    crate::lower_to_target_operations(&plan, NativeTarget::linux_x64())
-                        .unwrap_or_else(|error| panic!("{source:?} -> {target:?}: {error:?}"));
+                    crate::lower_to_target_operations(
+                        &plan,
+                        crate::TargetLoweringRequest::new(NativeTarget::linux_x64()),
+                    )
+                    .unwrap_or_else(|error| panic!("{source:?} -> {target:?}: {error:?}"));
                 }
             }
         }

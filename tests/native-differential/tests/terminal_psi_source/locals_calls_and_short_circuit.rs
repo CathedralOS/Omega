@@ -128,8 +128,9 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified scalar locals should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("scalar locals should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("scalar locals should lower for both native targets");
     }
 }
 
@@ -166,8 +167,9 @@ fn checked_source_boolean_local_becomes_a_terminal_block_value() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified Boolean local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("Boolean local should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("Boolean local should lower for both native targets");
     }
 }
 
@@ -223,8 +225,9 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
         Some(AbstractOperation::Call { .. })
     ));
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("the source-produced call closure should select a native calling plan");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("the source-produced call closure should select a native calling plan");
     }
 }
 
@@ -285,8 +288,9 @@ fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("the staged source call should reach Omega lowering");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("the staged source call should select a native calling plan");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("the staged source call should select a native calling plan");
     }
 }
 
@@ -545,8 +549,9 @@ fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("short-circuit local should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("short-circuit local should lower for both native targets");
     }
 }
 
@@ -593,8 +598,9 @@ fn checked_source_strict_short_circuit_local_use_preserves_terminal_control() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified consumed short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("consumed short-circuit local should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("consumed short-circuit local should lower for both native targets");
     }
 }
 
@@ -659,8 +665,9 @@ fn checked_source_reused_short_circuit_local_is_carried_once() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified reused short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("reused short-circuit local should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("reused short-circuit local should lower for both native targets");
     }
 }
 
@@ -717,8 +724,9 @@ fn checked_source_short_circuit_local_is_carried_into_a_branch_guard() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified branched short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("branched short-circuit local should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("branched short-circuit local should lower for both native targets");
     }
 }
 
@@ -782,8 +790,9 @@ fn checked_source_multiple_short_circuit_locals_are_staged_left_to_right() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified multiple short-circuit locals should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("multiple short-circuit locals should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("multiple short-circuit locals should lower for both native targets");
     }
 }
 
@@ -833,8 +842,9 @@ fn checked_source_staged_local_composes_with_a_short_circuit_return() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local short-circuit return should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("staged-local short-circuit return should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("staged-local short-circuit return should lower for both native targets");
     }
 }
 
@@ -879,8 +889,9 @@ fn checked_source_staged_local_is_carried_through_a_jump_argument() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local jump should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("staged-local jump should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("staged-local jump should lower for both native targets");
     }
 }
 
@@ -926,8 +937,9 @@ fn checked_source_staged_local_composes_with_a_short_circuit_jump_argument() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local nested jump should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("staged-local nested jump should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("staged-local nested jump should lower for both native targets");
     }
 }
 
@@ -973,8 +985,9 @@ fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local jump tuple should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("staged-local jump tuple should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("staged-local jump tuple should lower for both native targets");
     }
 }
 
@@ -1021,8 +1034,9 @@ fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local conditional edge should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("staged-local conditional edge should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("staged-local conditional edge should lower for both native targets");
     }
 }
 
@@ -1069,8 +1083,9 @@ fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local short-circuit guard should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("staged-local short-circuit guard should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("staged-local short-circuit guard should lower for both native targets");
     }
 }
 
@@ -1127,7 +1142,8 @@ fn checked_source_staged_local_sequences_before_an_explicit_crash() {
             .any(|operation| matches!(operation, AbstractOperation::Crash { .. }))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let _target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("staged-local crash should lower for both native targets");
+        let _target_operations =
+            lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
+                .expect("staged-local crash should lower for both native targets");
     }
 }
