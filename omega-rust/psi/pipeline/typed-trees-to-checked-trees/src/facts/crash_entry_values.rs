@@ -73,13 +73,33 @@ pub(super) fn entry_operand(
                     | typed_trees::expression::BinaryOperator::BitwiseXor
                     | typed_trees::expression::BinaryOperator::ShiftLeft
                     | typed_trees::expression::BinaryOperator::ShiftRight
-            ) =>
+            ) || (matches!(
+                binary.operator,
+                typed_trees::expression::BinaryOperator::And
+                    | typed_trees::expression::BinaryOperator::Or
+                    | typed_trees::expression::BinaryOperator::Equal
+                    | typed_trees::expression::BinaryOperator::NotEqual
+                    | typed_trees::expression::BinaryOperator::Less
+                    | typed_trees::expression::BinaryOperator::LessOrEqual
+                    | typed_trees::expression::BinaryOperator::Greater
+                    | typed_trees::expression::BinaryOperator::GreaterOrEqual
+            ) && builtin_binary_meaning(
+                program,
+                machine_symbol,
+                state_symbol,
+                expression,
+            )) =>
         {
-            // Only value-producing arithmetic crosses this boundary. The
-            // domain-free predicate reducers can never fold these operators,
-            // so transporting them cannot substitute builtin meaning for a
-            // caller-authored one; the checked scalar channel remains the
-            // only evaluation authority over the substituted expression.
+            // Only value-producing arithmetic crosses this boundary
+            // unconditionally. The domain-free predicate reducers can never
+            // fold these operators, so transporting them cannot substitute
+            // builtin meaning for a caller-authored one; the checked scalar
+            // channel remains the only evaluation authority over the
+            // substituted expression. Comparisons and logical connectives are
+            // decidable by those same reducers, so they transport only when
+            // this occurrence already selected builtin meaning — a custom
+            // operator spelled like one would otherwise be folded under laws
+            // its selection rejected.
             Some(CrashPredicateExpression::Binary {
                 operator: binary.operator as u8,
                 left: Box::new(entry_operand(
@@ -172,6 +192,26 @@ pub(super) fn entry_operand(
         }
         _ => None,
     }
+}
+
+fn builtin_binary_meaning(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        return false;
+    };
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol);
+    validation::has_builtin_binary_expression_meaning(program, machine, state, expression)
 }
 
 fn entry_has_incoming_transition(
