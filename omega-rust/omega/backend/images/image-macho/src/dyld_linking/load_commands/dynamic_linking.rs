@@ -1,9 +1,9 @@
-use crate::bytes::{write_u32, write_u64};
-use crate::constants::{
+use crate::file_layout::bytes::{write_u32, write_u64};
+use crate::file_layout::constants::{
     MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE, MACHO_LOAD_DYLINKER_COMMAND_SIZE,
     MACHO_MAIN_COMMAND_SIZE,
 };
-use crate::layout::align_to;
+use crate::file_layout::layout::align_to;
 use std::borrow::Cow;
 
 pub(crate) fn write_macho_load_dylinker_command(bytes: &mut Vec<u8>) {

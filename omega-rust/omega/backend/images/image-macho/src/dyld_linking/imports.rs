@@ -1,8 +1,8 @@
 //! The dylib roster, the jump thunks, the eager bind stream, and the post-relocation
 //! re-check that the thunk opcodes survived.
 
-use crate::layout::align_to;
-use crate::load_commands::MachoDylib;
+use crate::dyld_linking::load_commands::MachoDylib;
+use crate::file_layout::layout::align_to;
 use calling_conventions::{
     DARWIN_LIBOBJC_PATH, MachineRegister, MachineState, MachineStateSet, RegisterSet,
     StateFootprintEvidence, darwin_import_library,
@@ -448,7 +448,7 @@ mod tests {
         install_import_thunks, macho_bind_info, patch_import_thunks,
         validate_import_thunk_footprints,
     };
-    use crate::load_commands::write_macho_load_dylib_command;
+    use crate::dyld_linking::load_commands::write_macho_load_dylib_command;
     use arena::Handle;
     use calling_conventions::MachineRegister;
     use image::{

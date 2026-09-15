@@ -3,9 +3,9 @@
 
 use sha2::{Digest, Sha256};
 
-use super::bytes::{write_be_u32, write_be_u64};
-use super::constants::{CODE_SIGNATURE_PAGE_SIZE, CODE_SIGNATURE_PAGE_SIZE_POWER};
-use super::layout::align_to;
+use crate::file_layout::bytes::{write_be_u32, write_be_u64};
+use crate::file_layout::constants::{CODE_SIGNATURE_PAGE_SIZE, CODE_SIGNATURE_PAGE_SIZE_POWER};
+use crate::file_layout::layout::align_to;
 
 /// The blob length for the exact `identifier` bound into the CodeDirectory.
 /// The identifier length participates in offset arithmetic, so the caller must

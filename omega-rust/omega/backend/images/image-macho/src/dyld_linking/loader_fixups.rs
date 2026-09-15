@@ -19,7 +19,7 @@ use object_file::{
     ObjectPlan, RelocationKind, RelocationPlan, SectionKind, SymbolKind, SymbolSection,
 };
 
-use crate::loader_mapping::{region, wide, word};
+use crate::dyld_linking::loader_mapping::{region, wide, word};
 
 /// An internal pointer reconstructed from its object relocation and symbol.
 #[derive(Clone, Copy)]

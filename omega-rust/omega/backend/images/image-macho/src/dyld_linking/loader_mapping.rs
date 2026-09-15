@@ -15,7 +15,7 @@
 use diagnostics::Diagnostic;
 use image::FinalImageLayout;
 
-use crate::constants::{MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE};
+use crate::file_layout::constants::{MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE};
 
 fn invalid() -> Diagnostic {
     Diagnostic::error("Mach-O loader mapping differs from the supported final image")

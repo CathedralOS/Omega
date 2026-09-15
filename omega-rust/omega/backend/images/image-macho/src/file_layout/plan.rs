@@ -2,15 +2,15 @@
 //! sizes are all known.
 
 use crate::code_signature::code_signature_size;
-use crate::constants::{
+use crate::dyld_linking::load_commands::MachoDylib;
+use crate::file_layout::constants::{
     MACHO_ARM64_PAGE_SIZE, MACHO_CODE_SIGNATURE_COMMAND_SIZE, MACHO_DYLD_INFO_COMMAND_SIZE,
     MACHO_DYSYMTAB_COMMAND_SIZE, MACHO_EXECUTABLE_BASE,
     MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE, MACHO_HEADER_SIZE,
     MACHO_LOAD_DYLINKER_COMMAND_SIZE, MACHO_MAIN_COMMAND_SIZE, MACHO_SECTION_SIZE,
     MACHO_SEGMENT_COMMAND_SIZE, MACHO_SYMTAB_COMMAND_SIZE, MACHO_UUID_COMMAND_SIZE,
 };
-use crate::layout::{align_to, align_to_u64};
-use crate::load_commands::MachoDylib;
+use crate::file_layout::layout::{align_to, align_to_u64};
 use image::{FinalImage, FinalImageLayout};
 
 pub(crate) struct MachOImagePlan {
@@ -151,7 +151,7 @@ pub(crate) fn plan_macho_image(
 #[cfg(test)]
 mod tests {
     use super::plan_macho_image;
-    use crate::constants::{MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE};
+    use crate::file_layout::constants::{MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE};
     use arena::Handle;
     use image::FinalImage;
 
@@ -176,7 +176,7 @@ mod tests {
             1,
             0,
             12,
-            &[crate::load_commands::MachoDylib::LIBSYSTEM],
+            &[crate::dyld_linking::load_commands::MachoDylib::LIBSYSTEM],
             "omega-program",
         );
 
@@ -220,7 +220,7 @@ mod tests {
             0,
             5,
             0,
-            &[crate::load_commands::MachoDylib::LIBSYSTEM],
+            &[crate::dyld_linking::load_commands::MachoDylib::LIBSYSTEM],
             "omega-program",
         );
 
