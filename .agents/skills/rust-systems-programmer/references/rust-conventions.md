@@ -50,6 +50,12 @@ dispatch loops before separating them into folders. Share identical sequencing
 where appropriate, keeping distinct stopping rules, diagnostic precedence, and
 result publication explicit and covered by tests.
 
+Apply the same review at the crate root: a coordinator-named directory containing
+all domains can conceal the architecture even when its children are organized.
+Expose peer responsibilities and move shared work out of consumer-owned modules;
+follow the [canonical ownership rule](../../../../AGENTS.md#discoverability-architecture),
+not a mechanical flattening or a directory tree copied from the call stack.
+
 Prefer explicit imports for project types; grouping related standard-library or external imports is fine. Follow local formatting, remove unused imports, and do not churn existing imports solely for style. Do not add empty `impl` blocks or pass-through helpers with no responsibility.
 
 ## Keep policy above mechanisms
