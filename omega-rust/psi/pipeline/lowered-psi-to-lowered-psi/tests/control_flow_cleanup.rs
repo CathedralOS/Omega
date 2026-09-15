@@ -7,10 +7,12 @@ mod common;
 
 use common::{
     coercion_edge_fixture, coercion_region_fixture, control_flow_fixture, copy_fixture,
-    minimal_unit_lowered, value,
+    dead_machine_coercion_fixture, minimal_unit_lowered, suspension_rows, two_machine_fixture,
+    unit_call, value,
 };
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
+use std::collections::BTreeSet;
 use terminal_psi::{DebugSubject, Terminator};
 
 fn selections() -> PsiOptimizationSelections {
@@ -348,6 +350,334 @@ fn cleanup_prunes_removed_subjects_and_updates_semantic_identity() {
             DebugSubject::Block(common::block_id(4)),
         ],
         "sites naming removed blocks, edges, operations, and values are pruned"
+    );
+    assert_eq!(
+        debug.semantic,
+        terminal_codec::terminal_psi_identity(&optimized.lowered().semantic_module).unwrap(),
+        "the sidecar semantic identity tracks the rewritten module"
+    );
+}
+
+#[test]
+fn an_unreferenced_machine_is_pruned() {
+    let lowered = two_machine_fixture();
+    let optimized =
+        run_psi_optimization(lowered.clone(), selections()).expect("control flow cleanup executes");
+    assert_eq!(
+        optimized
+            .lowered()
+            .semantic_module
+            .machines
+            .iter()
+            .map(|machine| machine.id)
+            .collect::<Vec<_>>(),
+        vec![common::machine_id(1)],
+        "nothing names machine 2: it leaves the module"
+    );
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the removal is recorded as a semantic change"
+    );
+    terminal_verifier::validate_control_flow_cleanup(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the executed removal");
+}
+
+#[test]
+fn a_call_transition_retains_its_callee() {
+    let mut lowered = two_machine_fixture();
+    lowered.semantic_module.machines[0].blocks[0]
+        .operations
+        .push(unit_call(100, common::machine_id(2)));
+    let optimized =
+        run_psi_optimization(lowered.clone(), selections()).expect("control flow cleanup executes");
+    assert_eq!(
+        optimized.lowered(),
+        &lowered,
+        "the entry machine calls machine 2: it stays"
+    );
+    assert_eq!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+}
+
+#[test]
+fn a_stranded_call_site_drops_its_callee() {
+    // The only call to machine 2 sits in the block the literal fold strands:
+    // once b3 leaves, machine 2 is unreachable and leaves with it.
+    let mut lowered = control_flow_fixture();
+    lowered.semantic_module.machines.push(common::machine(
+        2,
+        Vec::new(),
+        terminal_psi::TerminalMachineResult::Unit,
+        common::block_id(11),
+        vec![common::block(
+            11,
+            Vec::new(),
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: common::edge(11),
+                trivial_affine_discards: Vec::new(),
+            },
+        )],
+    ));
+    lowered.semantic_module.machines[0].blocks[2]
+        .operations
+        .push(unit_call(300, common::machine_id(2)));
+    let optimized =
+        run_psi_optimization(lowered.clone(), selections()).expect("control flow cleanup executes");
+    assert_eq!(
+        optimized
+            .lowered()
+            .semantic_module
+            .machines
+            .iter()
+            .map(|machine| machine.id)
+            .collect::<Vec<_>>(),
+        vec![common::machine_id(1)],
+        "the fold strands b3 and its call; machine 2 leaves with it"
+    );
+    terminal_verifier::validate_control_flow_cleanup(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the executed rewrite");
+}
+
+#[test]
+fn a_coercion_row_retains_the_machine_it_names() {
+    let lowered = dead_machine_coercion_fixture();
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("a coercion-named machine refuses removal");
+    assert_eq!(
+        optimized.lowered(),
+        &lowered,
+        "the coercion names machine 2 and its exact edge and values: it stays"
+    );
+    assert_eq!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+}
+
+#[test]
+fn a_suspension_row_retains_the_operation_owner() {
+    // Machine 2 holds a call to machine 1; the module's suspension rows name
+    // that call operation but target machine 1, so they pin machine 2's
+    // contents without making it reachable.
+    let mut lowered = two_machine_fixture();
+    lowered.semantic_module.machines[1].blocks[0]
+        .operations
+        .push(unit_call(111, common::machine_id(1)));
+    suspension_rows(
+        &mut lowered,
+        common::operation_id(111),
+        terminal_psi::TerminalSuspensionCallTarget::Machine(common::machine_id(1)),
+    );
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("a suspension-named operation refuses removal");
+    assert_eq!(
+        optimized.lowered(),
+        &lowered,
+        "the suspension plan names an operation inside machine 2: it stays"
+    );
+    assert_eq!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+}
+
+#[test]
+fn a_ranked_machine_is_retained() {
+    // Machine 2 is unreachable, but its ranked SCC row is execution-position
+    // evidence no cleanup may drop: it stays authored. The member block shape
+    // mirrors `ranked_cycle_fixture`: an entry hop binds the rank and guard,
+    // and the covered self-edge passes the decremented rank back.
+    let mut lowered = two_machine_fixture();
+    let member = common::block_id(11);
+    let (rank, guard, one, successor) = (value(110), value(111), value(112), value(113));
+    lowered.semantic_module.machines[1].parameters = vec![common::u32(120), common::boolean(121)];
+    lowered.semantic_module.machines[1].entry = common::block_id(10);
+    lowered.semantic_module.machines[1].blocks = vec![
+        common::block(
+            10,
+            Vec::new(),
+            Vec::new(),
+            common::jump(10, member, vec![value(120), value(121)]),
+        ),
+        common::block(
+            11,
+            vec![common::u32(110), common::boolean(111)],
+            vec![
+                common::unsigned_constant(112, common::u32(112), 1),
+                common::operation(
+                    113,
+                    common::u32(113),
+                    terminal_psi::OperationKind::WrappingIntegerSubtract {
+                        left: rank,
+                        right: one,
+                    },
+                ),
+            ],
+            Terminator::Conditional {
+                condition: guard,
+                when_true: common::successor(11, member, vec![successor, guard]),
+                when_false: common::successor(12, common::block_id(12), vec![]),
+            },
+        ),
+        common::block(
+            12,
+            Vec::new(),
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: common::edge(13),
+                trivial_affine_discards: Vec::new(),
+            },
+        ),
+    ];
+    lowered.semantic_module.machines[1].ranked_scc = Some(common::natural_self_loop(
+        member,
+        rank,
+        common::edge(11),
+        successor,
+    ));
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("a ranked machine refuses removal");
+    assert_eq!(
+        optimized.lowered(),
+        &lowered,
+        "machine 2's ranking evidence keeps it authored"
+    );
+}
+
+#[test]
+fn an_attached_machine_is_retained() {
+    // An attached machine answers nominal-type custody rather than call
+    // reachability, so it is a retention root even when nothing calls it.
+    let mut lowered = two_machine_fixture();
+    lowered.semantic_module.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
+        id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+        identity: "attached".to_string(),
+        shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(common::i32_type()),
+    }];
+    lowered.semantic_module.machines[1].attachment =
+        Some(semantic_vocabulary::StructuralTypeId::new(1).unwrap());
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("an attached machine refuses removal");
+    assert_eq!(
+        optimized.lowered(),
+        &lowered,
+        "machine 2's attachment keeps it authored"
+    );
+}
+
+#[test]
+fn retained_machine_closure_covers_every_naming_row() {
+    // The entry machine is a root; an unreferenced machine is not retained.
+    let plain = two_machine_fixture();
+    assert_eq!(
+        terminal_verifier::retained_machines(&plain.semantic_module),
+        BTreeSet::from([common::machine_id(1)]),
+    );
+
+    // A direct call transition retains the callee.
+    let mut called = two_machine_fixture();
+    called.semantic_module.machines[0].blocks[0]
+        .operations
+        .push(unit_call(100, common::machine_id(2)));
+    assert_eq!(
+        terminal_verifier::retained_machines(&called.semantic_module),
+        BTreeSet::from([common::machine_id(1), common::machine_id(2)]),
+    );
+
+    // A module-level evidence row naming the machine retains it too.
+    let coercion = dead_machine_coercion_fixture();
+    assert_eq!(
+        terminal_verifier::retained_machines(&coercion.semantic_module),
+        BTreeSet::from([common::machine_id(1), common::machine_id(2)]),
+    );
+}
+
+#[test]
+fn independent_check_rejects_unjustified_machine_removals() {
+    // Every machine-naming row is validated against the machine table, so an
+    // `after` that drops a still-named machine fails `InvalidModule` before
+    // the removal relation is even consulted.
+    let mut before = two_machine_fixture();
+    before.semantic_module.machines[0].blocks[0]
+        .operations
+        .push(unit_call(100, common::machine_id(2)));
+    let mut after = before.semantic_module.clone();
+    after.machines.pop();
+    assert!(
+        matches!(
+            terminal_verifier::validate_control_flow_cleanup(&before.semantic_module, &after),
+            Err(terminal_verifier::ControlFlowCleanupRewriteError::InvalidModule(_))
+        ),
+        "machine 1 still calls the removed machine 2"
+    );
+
+    // The module entry machine can never be removed.
+    let mut no_entry = before.semantic_module.clone();
+    no_entry.machines.remove(0);
+    assert!(matches!(
+        terminal_verifier::validate_control_flow_cleanup(&before.semantic_module, &no_entry),
+        Err(terminal_verifier::ControlFlowCleanupRewriteError::InvalidModule(_)),
+    ));
+
+    // A machine a surviving coercion row names is retained.
+    let coercion = dead_machine_coercion_fixture();
+    let mut after = coercion.semantic_module.clone();
+    after.machines.pop();
+    assert!(matches!(
+        terminal_verifier::validate_control_flow_cleanup(&coercion.semantic_module, &after),
+        Err(terminal_verifier::ControlFlowCleanupRewriteError::InvalidModule(_)),
+    ));
+}
+
+#[test]
+fn machine_pruning_is_deterministic_and_idempotent() {
+    let first = run_psi_optimization(two_machine_fixture(), selections()).unwrap();
+    let second = run_psi_optimization(two_machine_fixture(), selections()).unwrap();
+    assert_eq!(first, second, "identical input and selection must agree");
+    let third = run_psi_optimization(first.lowered().clone(), selections()).unwrap();
+    assert_eq!(
+        third.lowered(),
+        first.lowered(),
+        "the pruned module re-enters the stage unchanged"
+    );
+    assert_eq!(
+        third.execution().input_semantic(),
+        third.execution().output_semantic(),
+        "the fixed-point run records an identity"
+    );
+}
+
+#[test]
+fn machine_removal_prunes_machine_scoped_debug_sites() {
+    let mut lowered = two_machine_fixture();
+    common::with_debug_sites(
+        &mut lowered,
+        &[
+            DebugSubject::Machine(common::machine_id(1)),
+            DebugSubject::Machine(common::machine_id(2)),
+            DebugSubject::Block(common::block_id(11)),
+        ],
+    );
+    let optimized = run_psi_optimization(lowered, selections()).unwrap();
+    let debug = optimized.lowered().debug_map.as_ref().unwrap();
+    assert_eq!(
+        debug
+            .sites
+            .iter()
+            .map(|site| site.subject)
+            .collect::<Vec<_>>(),
+        vec![DebugSubject::Machine(common::machine_id(1))],
+        "sites naming the removed machine or its contents are pruned"
     );
     assert_eq!(
         debug.semantic,

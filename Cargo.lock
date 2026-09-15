@@ -1054,6 +1054,7 @@ dependencies = [
 name = "lowered-psi-to-lowered-psi"
 version = "0.1.0"
 dependencies = [
+ "language-core",
  "lowered-psi",
  "optimization",
  "semantic-vocabulary",

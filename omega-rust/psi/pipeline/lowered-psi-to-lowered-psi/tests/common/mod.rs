@@ -9,10 +9,11 @@
 //! every helper.
 #![allow(dead_code)]
 
+use language_core::CarryPolicy;
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, ScalarType, ValueId,
+    OperationId, ScalarType, SuspensionCrossingId, ValueId,
 };
 use terminal_psi::{
     Block, DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
@@ -20,7 +21,8 @@ use terminal_psi::{
     OperationKind, OperationResult, PrimitiveJudgment, ProofBundle, SuccessorEdge,
     TerminalBlockNaturalRank, TerminalDebugMap, TerminalMachine, TerminalMachineResult,
     TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
-    TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalRankedScc, TerminalSuspensionCallPlan, TerminalSuspensionCallSite,
+    TerminalSuspensionCallTarget, Terminator, ValueDeclaration, VocabularyMarker,
 };
 
 pub fn i32_type() -> ScalarType {
@@ -758,6 +760,168 @@ pub fn coercion_region_fixture() -> LoweredPsi {
             argument_ordinal: 0,
             source: v30,
             destination: v51,
+        }],
+    };
+    lowered
+}
+
+/// Machine-pruning fixture: an entry machine plus one machine nothing calls
+/// or names.
+///
+/// ```text
+/// m1 (entry): b1 → return
+/// m2:         b11 → return
+/// ```
+///
+/// `m2` carries no evidence, custody, or dispatch row, so cleanup drops it;
+/// the machine-level tests each install the exact row that keeps it alive.
+pub fn two_machine_fixture() -> LoweredPsi {
+    lowered(vec![
+        machine(
+            1,
+            Vec::new(),
+            TerminalMachineResult::Unit,
+            block_id(1),
+            vec![block(
+                1,
+                Vec::new(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: edge(1),
+                    trivial_affine_discards: Vec::new(),
+                },
+            )],
+        ),
+        machine(
+            2,
+            Vec::new(),
+            TerminalMachineResult::Unit,
+            block_id(11),
+            vec![block(
+                11,
+                Vec::new(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: edge(11),
+                    trivial_affine_discards: Vec::new(),
+                },
+            )],
+        ),
+    ])
+}
+
+/// A `CallUnit` to `callee` with no arguments, claims, or obligations: the
+/// simplest machine transition a test can install.
+pub fn unit_call(ordinal: u64, callee: MachineId) -> Operation {
+    Operation {
+        static_reach_binding: None,
+        id: OperationId::new(ordinal).unwrap(),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    }
+}
+
+/// Install the matching suspension site and plan rows for `operation`, a call
+/// whose target is `target`, carrying an empty live frontier. The site
+/// commitment is recomputed exactly as the verifier recomputes it.
+pub fn suspension_rows(
+    lowered: &mut LoweredPsi,
+    operation: OperationId,
+    target: TerminalSuspensionCallTarget,
+) {
+    let plan = TerminalSuspensionCallPlan {
+        operation,
+        crossing: SuspensionCrossingId::new(1).unwrap(),
+        target,
+        effective: CarryPolicy::PERMISSIVE,
+        live_value_count: 0,
+        live_values: Vec::new(),
+    };
+    let site = TerminalSuspensionCallSite {
+        operation,
+        crossing: SuspensionCrossingId::new(1).unwrap(),
+        target,
+        frontier_commitment: terminal_psi::suspension_frontier_commitment(&plan),
+    };
+    lowered.semantic_module.suspension_call_plan_count = 1;
+    lowered.semantic_module.suspension_call_sites = vec![site];
+    lowered.semantic_module.suspension_call_plans = vec![plan];
+}
+
+/// Two-machine fixture whose unreachable machine carries the coercion row
+/// naming it. The module-level row names `m2`, its argument edge, and both
+/// coerced values, so `m2` cannot leave while the row survives.
+///
+/// ```text
+/// m1 (entry): b1 → return
+/// m2:         b11(v111{i32,d1}) ──e12:[v111]──▶ b12(v121{i32,∅}) → return
+///             coercion (m2, e12, arg 0): v111 → v121
+/// ```
+pub fn dead_machine_coercion_fixture() -> LoweredPsi {
+    let mut lowered = lowered(vec![
+        machine(
+            1,
+            Vec::new(),
+            TerminalMachineResult::Unit,
+            block_id(1),
+            vec![block(
+                1,
+                Vec::new(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: edge(1),
+                    trivial_affine_discards: Vec::new(),
+                },
+            )],
+        ),
+        machine(
+            2,
+            vec![qualified_i32(111, 1)],
+            TerminalMachineResult::Unit,
+            block_id(11),
+            vec![
+                block(
+                    11,
+                    Vec::new(),
+                    Vec::new(),
+                    jump(12, block_id(12), vec![value(111)]),
+                ),
+                block(
+                    12,
+                    vec![i32(121)],
+                    Vec::new(),
+                    Terminator::ReturnUnit {
+                        edge: edge(13),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                ),
+            ],
+        ),
+    ]);
+    lowered.semantic_module.scalar_qualifications = terminal_psi::ScalarQualificationCatalog {
+        domains: vec![terminal_psi::ScalarDomainDeclaration {
+            id: semantic_vocabulary::ScalarDomainId::new(1).unwrap(),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+            identity: "d1".to_string(),
+            carrier: i32_type(),
+        }],
+        sets: vec![terminal_psi::ScalarQualificationSet {
+            id: semantic_vocabulary::ScalarQualificationSetId::new(1),
+            domains: vec![semantic_vocabulary::ScalarDomainId::new(1).unwrap()],
+        }],
+        coercions: vec![terminal_psi::ScalarQualificationCoercion {
+            machine: machine_id(2),
+            edge: edge(12),
+            argument_ordinal: 0,
+            source: value(111),
+            destination: value(121),
         }],
     };
     lowered

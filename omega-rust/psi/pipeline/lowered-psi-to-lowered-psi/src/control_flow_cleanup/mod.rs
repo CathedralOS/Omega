@@ -22,8 +22,17 @@
 //! The scan proposes folds; the independent verifier re-derives each removed
 //! block's unreachability under the performed folds and checks the exact
 //! before/after relation and proof questions.
+//!
+//! After the per-machine folds, a machine no retained transition reaches —
+//! through calls, selected evidence, cleanup actions, or closed reach
+//! applications, from the module entry, attached or ranked machines,
+//! provider candidates, or any module-level custody or evidence row — is
+//! dropped, provided no surviving row still names a block, edge, operation,
+//! or value inside it. The verifier re-derives that machine-level relation
+//! from the rewritten module as well.
 
 mod cleanup;
+mod machines;
 
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
@@ -65,6 +74,11 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
     for machine in &mut after.semantic_module.machines {
         cleanup::cleanup(machine, &evidence, &sidecar_operations, &sidecar_values);
     }
+    machines::prune(
+        &mut after.semantic_module,
+        &sidecar_operations,
+        &sidecar_values,
+    );
     if let Err(error) =
         validate_control_flow_cleanup(&before.semantic_module, &after.semantic_module)
     {
@@ -85,6 +99,12 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
         ));
     }
     if let Some(debug) = after.debug_map.as_mut() {
+        let surviving_machines = after
+            .semantic_module
+            .machines
+            .iter()
+            .map(|machine| machine.id)
+            .collect::<BTreeSet<_>>();
         let surviving_blocks = after
             .semantic_module
             .machines
@@ -130,10 +150,12 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
             })
             .collect::<BTreeSet<_>>();
         debug.sites.retain(|site| match site.subject {
+            DebugSubject::Machine(machine) => surviving_machines.contains(&machine),
             DebugSubject::Block(block) => surviving_blocks.contains(&block),
             DebugSubject::Edge(edge) => surviving_edges.contains(&edge),
             DebugSubject::Operation(operation) => surviving_operations.contains(&operation),
             DebugSubject::Value(value) => surviving_values.contains(&value),
+            DebugSubject::Claim { machine, .. } => surviving_machines.contains(&machine),
             _ => true,
         });
         debug.semantic = terminal_codec::terminal_psi_identity(&after.semantic_module)
