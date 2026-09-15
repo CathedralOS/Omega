@@ -1,5 +1,8 @@
-use super::*;
-
+use super::{
+    AttemptShape, ShapeAuthorizedPath, ShapeMetadata, ShapeMutableBytes, ShapeResult,
+    ShapeReturnedPath, ShapeRootedPath, ShapeScalar, rehydrate_source_read_link_shape,
+    validate_first_rung, validate_source_read_link_shape,
+};
 static PRE_STATE: [u8; 8] = *b"........";
 static POST_STATE: [u8; 8] = *b"target..";
 static WRONG_PRE_STATE: [u8; 8] = *b"changed!";

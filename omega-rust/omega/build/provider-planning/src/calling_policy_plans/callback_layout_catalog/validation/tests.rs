@@ -1,5 +1,9 @@
 use super::super::{BoundaryCallbackInlineField, BoundaryCallbackLayoutEntry};
-use super::*;
+use super::{
+    BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, MaterializedBoundarySignature,
+    NativePlace, callback_layout_field_slot_id, callback_layout_slot_id, callback_requirement_id,
+    validate,
+};
 use crate::calling_policy_plans::materialized_boundary_signature_from_abi;
 use calling_conventions::{CallSignature, LayoutPlanId, NativeParameterId, ValueShape};
 use layout::{

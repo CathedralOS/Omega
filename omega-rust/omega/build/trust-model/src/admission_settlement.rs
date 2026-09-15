@@ -210,7 +210,7 @@ pub fn settle_trust_admissions(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{TrustAdmission, settle_trust_admissions};
     use crate::TrustAdmissionDigest;
     use std::cmp::Ordering;
 

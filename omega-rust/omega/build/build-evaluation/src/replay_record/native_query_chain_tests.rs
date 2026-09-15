@@ -2,8 +2,14 @@
 //! chain (`open_path_handle` / `final_path_name_by_handle`+`get_last_error` /
 //! `close_handle`, tags `28;(31|35)+;29`) through canonical record encoding,
 //! recovery, and typed rehydration.
-
-use super::*;
+use super::{
+    BuildFilesystemGrantAccess, BuildFilesystemOperationAttempt, BuildFilesystemOperationResult,
+    BuildFilesystemProvider, BuildFilesystemReplayDisposition, BuildFilesystemReplayRecordLimits,
+    BuildFilesystemReplayVerdict, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
+    BuildObservationSummary, capture_verified_build_filesystem_replay_record,
+    recover_review_only_build_filesystem_replay_record,
+    rehydrate_review_only_build_filesystem_replay_record,
+};
 use crate::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemAuthorizedPath,
     BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,

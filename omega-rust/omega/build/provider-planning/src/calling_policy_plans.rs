@@ -4244,7 +4244,29 @@ fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BoundaryCallbackBinder, BoundaryCallingPlanRealization, BoundaryNativeParameter,
+        BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
+        BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
+        BoundaryOpaqueRepresentationUse, BoundaryPlanResult, BoundaryValueClass,
+        BoundaryValueField, BoundaryValueShape, BuildTimeValue, CallSignature,
+        CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
+        CallbackRequirementId, CallingPolicy, LayoutPlanId, LayoutSlotId,
+        MaterializedBoundarySignature, NativeCallbackDemand, NativeParameterId, NativePlace,
+        NativeTarget, Sha256, StaticMachineBinderId, TypeReferenceNode, TypedTrees,
+        ValidatedBoundaryEntryPlan, ValuePlacement, ValueShape, boundary_plan_application_identity,
+        boundary_shape_path, build_boundary_signature, callback_layout_catalog,
+        callback_plan_report_fingerprint, case, compatibility_call_signature, decode_native_place,
+        evaluate_ordinary_boundary_entry_plan, exact_boundary_layout_root_symbol,
+        exact_compatibility_overload_index, field, materialized_boundary_signature_from_abi,
+        nominal_callback_native_parameter_id, reconcile_closed_callback_plan_identity,
+        struct_parts, uint, validate_authored_abi_shape,
+        validate_boundary_entry_plan_with_callback_materializations,
+        validate_callback_requirement_report_collision,
+        validate_fresh_native_parameter_report_identity,
+        validate_materialized_boundary_plan_result, validate_nominal_callback_placement_bindings,
+    };
+    use sha2::Digest;
 
     fn test_opaque_representation_use(shape_root: u16) -> BoundaryOpaqueRepresentationUse {
         let conformance_application_commitment = [0x41; 32];

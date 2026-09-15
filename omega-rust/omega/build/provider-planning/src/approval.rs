@@ -397,7 +397,9 @@ fn symbol_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> Strin
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        SymbolHandle, check_boundary_provider_approval, checked_boundary_call_coordinates,
+    };
 
     struct CoordinateFixture {
         checked: checked_trees::CheckedTrees,

@@ -4071,7 +4071,13 @@ const fn metadata_kind_tag(value: BuildFilesystemMetadataObservationKind) -> u8 
 
 #[cfg(test)]
 mod first_rung_validation_tests {
-    use super::*;
+    use super::{
+        AttemptShape, BuildCanonicalSourceMetadataIdentity, BuildFilesystemReplayRecordLimits,
+        Decoder, Encoder, ShapeAuthorizedPath, ShapeLogicalInput, ShapeLogicalInputResolution,
+        ShapeLogicalOutput, ShapeMetadata, ShapeMutableBytes, ShapeObservedRegion, ShapeResult,
+        ShapeReturnedPath, ShapeRootedPath, ShapeScalar, decode_canonical_source_metadata_identity,
+        validate_first_rung,
+    };
 
     static METADATA_CARRIER: [u8; checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES] =
         [0; checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES];

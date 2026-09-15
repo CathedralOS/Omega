@@ -413,7 +413,11 @@ const fn filesystem_replay_disposition_tag(disposition: BuildFilesystemReplayDis
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BUILD_OBSERVATION_SCHEMA_VERSION, BuildCapturedSourceInventory,
+        BuildFilesystemReplayDisposition, BuildFilesystemReplayVerdict, BuildObservationClass,
+        BuildObservationSummary,
+    };
 
     fn empty_summary() -> BuildObservationSummary {
         BuildObservationSummary {

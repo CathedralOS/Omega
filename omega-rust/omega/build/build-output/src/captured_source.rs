@@ -760,7 +760,10 @@ fn diagnostics(message: impl Into<String>) -> Vec<Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRowKind,
+        CapturedBuildSourceInput, CapturedSourceEntry, CapturedSourceEntryKind,
+    };
     use checked_interpreter::CanonicalFilesystemMetadataRow;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};

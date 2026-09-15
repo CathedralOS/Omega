@@ -1490,7 +1490,16 @@ impl StableHash {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ActivationCarryObligations, Arc, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension,
+        CheckedTrees, Diagnostic, NativeTarget, TaskActivationPlanSet, TaskActivationTargetError,
+        TaskStartOperation, TaskStartSelection, activation_carry_crossings, carry_obligations,
+        elaborate_task_activation_plans, exact_activation_carry_subtree,
+        exact_task_activation_target, exact_task_machine_blocking, exact_task_machine_contract,
+        exact_task_machine_suspension, exact_task_runtime_requirement,
+        selected_task_runtime_provider, settle_task_activation_plans,
+        task_specialization_commitment, task_start_selections, validate_activation_carry_crossing,
+    };
 
     #[test]
     fn preservation_mapping_keeps_only_cpu_and_thread_obligations() {

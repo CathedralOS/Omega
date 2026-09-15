@@ -874,7 +874,12 @@ fn is_portable_path_byte(byte: u8) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
+        Lexer, PackageDeclaration, ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
+        parse_syntax_trees, project_build_declaration_from_source,
+        project_build_declaration_syntax,
+    };
 
     fn project(source: &str) -> Result<BuildDeclaration, BuildDeclarationError> {
         project_build_declaration_from_source(source)

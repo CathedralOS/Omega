@@ -647,8 +647,15 @@ fn is_virtual_toolchain_path(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckedTrees, ConsumedSourceUnit, ConsumedSourceUnitKind, GeneratedSourceOrder,
+        PackageCompilationSubject, PackageSourceConsumptionCommitment, Sha256, SourceFile,
+        SourceOrigin, append_field, canonical_consumed_unit_bytes, canonical_source_entry,
+        consumed_source_unit, derive_consumed_source_units, derive_source_consumption_commitment,
+        toolchain_source_identity_digest, verify_current_files,
+    };
     use semantic_vocabulary::PackageKeyIdentity;
+    use sha2::Digest;
     use source::SourceId;
     use std::path::PathBuf;
     use std::sync::Arc;

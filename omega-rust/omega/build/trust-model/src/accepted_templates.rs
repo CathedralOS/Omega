@@ -88,7 +88,9 @@ impl AcceptedTemplateClassifications {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AcceptedTemplateClassifications, AcceptedTemplateIdentity, SymbolHandle, TypedTrees,
+    };
     use language_semantics::MachineSupplyMode;
 
     #[test]
