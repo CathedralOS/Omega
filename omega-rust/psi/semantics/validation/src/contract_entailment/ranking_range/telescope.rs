@@ -1,0 +1,411 @@
+//! Entry-rooted parameter telescopes shared by the state-edge and the
+//! call-component rank-range judgments. Each state's non-self formal carries
+//! at most one authored entry role; both consumers must read the same
+//! correspondence or a call hypothesis could name a different value than the
+//! member's own termination witness proves.
+
+use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::types::TypeReferenceNode;
+
+/// One entry parameter symbol per non-self formal of every machine state
+/// (`SymbolHandle::default()` marks a formal with no discovered entry role).
+/// Returns `None` when any state cannot compose an exact correspondence:
+/// identity arrivals anchor each telescope, computed arrivals may then reuse
+/// an already-anchored role, and conflicting proposals remove the state.
+pub fn discover_state_entry_mappings(
+    program: &TypedTrees,
+    machine: &Machine,
+    rank_subject: SymbolHandle,
+) -> Option<Vec<Vec<SymbolHandle>>> {
+    let states = program.machine_states(machine);
+    let root = states.first()?;
+    let mut mappings = vec![None; states.len()];
+    mappings[0] = Some(
+        program
+            .state_parameters(root)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>(),
+    );
+    let occurrences = state_call_occurrences(program, machine);
+    for computed in [false, true] {
+        let anchored = mappings.iter().map(Option::is_some).collect::<Vec<_>>();
+        let mut pending_states = anchored
+            .iter()
+            .enumerate()
+            .filter_map(|(position, known)| known.then_some(position))
+            .collect::<Vec<_>>();
+        while let Some(source_position) = pending_states.pop() {
+            let source = states.get(source_position)?;
+            let source_mapping = mappings[source_position].as_ref()?.clone();
+            for target_position in 0..states.len() {
+                if target_position == 0 {
+                    continue;
+                }
+                let target = states.get(target_position)?;
+                for (_, _, arguments) in occurrences.iter().filter(|(origin, target_state, _)| {
+                    *origin == source_position && *target_state == target_position
+                }) {
+                    let identity = arguments.iter().all(|argument| {
+                        matches!(
+                            program.expression_table.expression(*argument),
+                            ExpressionNode::Name(_)
+                        )
+                    });
+                    if !identity && (!computed || anchored[target_position]) {
+                        // Computed actuals use an identity-anchored target;
+                        // they do not redefine its parameter correspondence.
+                        continue;
+                    }
+                    let Some(incoming) = argument_mapping(
+                        program,
+                        machine,
+                        source,
+                        target,
+                        &source_mapping,
+                        arguments,
+                        rank_subject,
+                    ) else {
+                        if identity {
+                            return None;
+                        }
+                        continue;
+                    };
+                    match &mappings[target_position] {
+                        Some(existing) if *existing != incoming => return None,
+                        Some(_) => {}
+                        None => {
+                            mappings[target_position] = Some(incoming);
+                            pending_states.push(target_position);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    mappings.into_iter().collect()
+}
+
+/// Every authored internal arrival: `(source index, destination index,
+/// actuals)` for each named transition target and each implicit self
+/// transition. The state-edge judgment's guarded-edge reader collects the
+/// same occurrence set; discovery must not enumerate a different one.
+fn state_call_occurrences<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+) -> Vec<(usize, usize, &'program [ExpressionHandle])> {
+    let states = program.machine_states(machine);
+    let mut occurrences = Vec::new();
+    for (source_position, source) in states.iter().enumerate() {
+        for statement in program.statement_table.statements(source.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } => {
+                        if let Some(target_position) =
+                            named_target_state_index(program, machine, path.symbol)
+                        {
+                            occurrences.push((
+                                source_position,
+                                target_position,
+                                program.statement_table.expression_handles(*arguments),
+                            ));
+                        }
+                    }
+                    TransitionTargetNode::SelfTarget => {
+                        occurrences.push((source_position, source_position, &[]));
+                    }
+                    TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {}
+                }
+            }
+        }
+    }
+    occurrences
+}
+
+/// Resolve one named transition target to its state index inside `machine`.
+/// A transition back to the machine's declared entry names the machine symbol,
+/// while transitions to subordinate states name the state symbol. This
+/// normalization must match the state-graph owner so an entry back-edge is
+/// not mistaken for a nested machine invocation.
+fn named_target_state_index(
+    program: &TypedTrees,
+    machine: &Machine,
+    target_symbol: SymbolHandle,
+) -> Option<usize> {
+    if target_symbol == machine.symbol {
+        let entry_name = machine
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .unwrap_or_default();
+        return program
+            .machine_states(machine)
+            .iter()
+            .position(|state| state.name.as_str() == entry_name)
+            .or_else(|| (!program.machine_states(machine).is_empty()).then_some(0));
+    }
+    program
+        .machine_states(machine)
+        .iter()
+        .position(|state| state.symbol == target_symbol)
+}
+
+/// Compose destination formal ordinal -> exact source parameter -> entry
+/// subject. States may drop or repeat unrelated parameters. The arithmetic
+/// query independently proves equality among required scalar copies on every
+/// arrival; discovering shared ancestry does not establish equal values.
+fn argument_mapping(
+    program: &TypedTrees,
+    machine: &Machine,
+    source: &State,
+    target: &State,
+    source_mapping: &[SymbolHandle],
+    arguments: &[ExpressionHandle],
+    rank_subject: SymbolHandle,
+) -> Option<Vec<SymbolHandle>> {
+    let source_parameters = program
+        .state_parameters(source)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    if source_mapping.len() != source_parameters.len()
+        || arguments.len()
+            != program
+                .state_parameters(target)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .count()
+    {
+        return None;
+    }
+    let mut parameters = Vec::with_capacity(arguments.len());
+    let mut subjects = Vec::new();
+    for (position, argument) in arguments.iter().enumerate() {
+        subjects.clear();
+        argument_subjects(program, machine, source, *argument, &mut subjects, 0)?;
+        let mut selected_entry = None;
+        for subject in &subjects {
+            let source_position = source_parameters
+                .iter()
+                .position(|parameter| parameter.symbol == *subject && !parameter.is_const)?;
+            let entry_symbol = source_mapping[source_position];
+            if subjects.len() == 1 || (rank_subject.is_valid() && entry_symbol == rank_subject) {
+                // Discover the authored role, not equality of current values.
+                // The edge judgment independently establishes equality of all
+                // required rank copies on every arrival before using it as an
+                // invariant. Diverging copies still fail that judgment.
+                if selected_entry.is_some_and(|selected| selected != entry_symbol) {
+                    return None;
+                }
+                selected_entry = Some(entry_symbol);
+            }
+        }
+        if let Some(owner) = fresh_record_carrier(program, machine, target, position, rank_subject)
+        {
+            let discovered_record = selected_entry
+                .is_some_and(|entry| entry_is_record_of(program, machine, entry, owner));
+            if !discovered_record && !parameters.contains(&rank_subject) {
+                // A fresh record literal carries no subject dependency, but
+                // its destination slot is still the record the selected view
+                // reads. A discovered scalar role can never serve this slot —
+                // the mapping validator rejects it — while a discovered record
+                // lineage stays authoritative. The claim only locates the
+                // record; the edge judgment extracts the literal's fields and
+                // proves membership, pinning and descent independently.
+                selected_entry = Some(rank_subject);
+            }
+        }
+        // Auxiliary-only arithmetic over several inputs names no single role.
+        // Choosing an operand would let its entry constraints reach a value
+        // they never described; an absent role keeps the slot premise-free.
+        parameters.push(selected_entry.unwrap_or_default());
+    }
+    Some(parameters)
+}
+
+/// A dependency-free record actual can still carry the ranked role: when the
+/// destination has exactly one formal of the rank subject's own record type,
+/// that slot is the only candidate the field view can read. The role claims
+/// nothing about value ancestry — the arrival's field values are substituted
+/// and proved independently. Multiple owner-typed formals keep the slot
+/// role-less rather than guessing between records. Returns the shared record
+/// owner symbol when this position is the unique carrier.
+fn fresh_record_carrier(
+    program: &TypedTrees,
+    machine: &Machine,
+    target: &State,
+    position: usize,
+    rank_subject: SymbolHandle,
+) -> Option<SymbolHandle> {
+    if !rank_subject.is_valid() {
+        return None;
+    }
+    let root = program.machine_states(machine).first()?;
+    let subject = program
+        .state_parameters(root)
+        .iter()
+        .find(|parameter| !parameter.is_self && parameter.symbol == rank_subject)?;
+    let TypeReferenceNode::Named { symbol: owner, .. } = program
+        .type_reference_table
+        .type_reference(subject.type_reference)
+    else {
+        return None;
+    };
+    // Builtin named carriers are not records the view can project.
+    if !program
+        .data_definitions()
+        .iter()
+        .any(|data| data.symbol == *owner)
+    {
+        return None;
+    }
+    let target_parameters = program
+        .state_parameters(target)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let mut carriers = target_parameters.iter().filter(|parameter| {
+        matches!(
+            program
+                .type_reference_table
+                .type_reference(parameter.type_reference),
+            TypeReferenceNode::Named { symbol, .. } if *symbol == *owner
+        )
+    });
+    let formal = carriers.next()?;
+    if carriers.next().is_none()
+        && target_parameters
+            .get(position)
+            .is_some_and(|parameter| parameter.symbol == formal.symbol)
+    {
+        Some(*owner)
+    } else {
+        None
+    }
+}
+
+/// Whether the discovered entry symbol is a root parameter of this exact
+/// record type — a genuine record lineage that outranks the fresh-literal
+/// claim. Scalar or role-less selections cannot serve a record slot and do
+/// not block the claim.
+fn entry_is_record_of(
+    program: &TypedTrees,
+    machine: &Machine,
+    entry: SymbolHandle,
+    owner: SymbolHandle,
+) -> bool {
+    let Some(root) = program.machine_states(machine).first() else {
+        return false;
+    };
+    program.state_parameters(root).iter().any(|parameter| {
+        !parameter.is_self
+            && parameter.symbol == entry
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Named { symbol, .. } if *symbol == owner
+            )
+    })
+}
+
+/// Discover a dependency, not a value equality or an arithmetic theorem. The
+/// ordinary edge query still checks selected builtin meaning and every rank
+/// obligation before this provisional correspondence can authorize anything.
+/// Retain all distinct current dependencies before selecting the authored role;
+/// nested auxiliary arithmetic must not select an operand merely by position.
+/// A literal subtree contributes no subject of its own.
+fn argument_subjects(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    subjects: &mut Vec<SymbolHandle>,
+    depth: usize,
+) -> Option<()> {
+    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
+        ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
+            if !subjects.contains(&name.symbol) {
+                subjects.push(name.symbol);
+            }
+        }
+        ExpressionNode::Atomic(atomic) => {
+            argument_subjects(program, machine, state, atomic.value, subjects, depth + 1)?;
+        }
+        ExpressionNode::Member(member) => {
+            // A projection identifies a candidate input role, not its field's
+            // value or type. The edge owner separately resolves the exact owned
+            // declaration before binding any arithmetic coordinate.
+            argument_subjects(
+                program,
+                machine,
+                state,
+                member.receiver,
+                subjects,
+                depth + 1,
+            )?;
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            // Rebuilding a record is an ordinary computed arrival. Collect all
+            // dependencies so field order cannot choose its role, and let the
+            // simultaneous field substitution prove the actual arrival. This
+            // does not infer equality, endpoint pinning, or strict descent.
+            for field in program.expression_table.struct_fields(literal.fields) {
+                argument_subjects(program, machine, state, field.value, subjects, depth + 1)?;
+            }
+        }
+        ExpressionNode::Indexed(indexed)
+            if crate::places::has_builtin_subslice_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) =>
+        {
+            // A window retains its collection's lineage, not the lineage of
+            // the scalar bounds. The edge query separately proves its length
+            // and bounds before this mapping can support a ranking fact.
+            argument_subjects(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                subjects,
+                depth + 1,
+            )?;
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Modulo
+            ) =>
+        {
+            argument_subjects(program, machine, state, binary.left, subjects, depth + 1)?;
+            argument_subjects(program, machine, state, binary.right, subjects, depth + 1)?;
+        }
+        _ => return None,
+    }
+    Some(())
+}

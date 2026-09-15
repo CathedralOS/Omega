@@ -1,6 +1,6 @@
 use super::super::{
-    ExpressionHandle, RankingRangeCallMember, RankingRangeCallProgress, TransitionGuardNode,
-    TransitionTargetNode, prove_ranking_range_call,
+    ExpressionHandle, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    TransitionGuardNode, TransitionTargetNode, prove_ranking_range_call,
 };
 use super::{RankProjection, StatementNode, TypedTrees, admitted, typed_source};
 const RANGED: &str = "data Main {}
@@ -71,6 +71,10 @@ pub(super) fn progress(
                 paired_subject: source_rank.paired_subject,
                 range: source_rank.range,
             },
+            &RankingRangeCallSite {
+                state: source,
+                entry_parameters: &[],
+            },
             RankingRangeCallMember {
                 machine: callee,
                 subject: destination_rank.subject,
@@ -82,6 +86,31 @@ pub(super) fn progress(
         );
     }
     None
+}
+
+#[test]
+fn internal_state_calls_keep_their_entry_roles() {
+    let source = "data Main {}
+        machine Main::count(&mut self, remaining: u32 [0..=9])
+        terminates by remaining in 0..=9;
+        -> u32 {
+            transition remaining > 0 { true -> hold(remaining) false -> remaining }
+            state hold(pending: u32 [0..=9]) {
+                transition pending > 0 { true -> self.step(pending) false -> pending }
+            }
+        }
+        machine Main::step(&mut self, n: u32 [0..=9])
+        terminates by n in 0..=9;
+        -> u32 {
+            transition n > 0 { true -> self.count(n - 1) false -> n }
+        }";
+    // `hold -> step(pending)` is weak (pending carries the entry role
+    // `remaining`); `step -> count(n - 1)` is strict — the component admits.
+    assert_eq!(admitted(&typed_source(source)).len(), 1);
+    // The same site still answers to the shared ranking: a transported value
+    // that cannot prove non-increase rejects the component.
+    let increased = source.replace("self.step(pending)", "self.step(pending + 1)");
+    assert!(admitted(&typed_source(&increased)).is_empty());
 }
 
 #[test]
@@ -252,6 +281,7 @@ fn call_range_query_rejects_foreign_subject_endpoint_and_actual_handles() {
             ))
         })
         .unwrap();
+    let caller_state = &program.machine_states(caller)[0];
     let query = |subject, range, actuals: &[ExpressionHandle]| {
         prove_ranking_range_call(
             &program,
@@ -260,6 +290,10 @@ fn call_range_query_rejects_foreign_subject_endpoint_and_actual_handles() {
                 subject,
                 paired_subject: ExpressionHandle::invalid(),
                 range: caller_range,
+            },
+            &RankingRangeCallSite {
+                state: caller_state,
+                entry_parameters: &[],
             },
             RankingRangeCallMember {
                 machine: callee,

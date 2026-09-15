@@ -1,14 +1,29 @@
 //! Cross-machine scalar rank transport with optional authored ranges. Each side
 //! retains its own template; call substitution is not local-state correspondence.
 
-use super::super::StrictArithmeticExpressionBinding;
+use super::super::{
+    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
+};
 use super::{
     BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
     PrimitiveType, RankingRangeMeasure, State, TypedTrees, collect_guard, entry_comparisons,
-    exact_integer_parameter, integer_bindings, lengths, meanings, projections,
+    exact_integer_parameter, integer_bindings, lengths, meanings, parameter_comparisons,
+    projections, validate_mapping,
 };
+use symbols::SymbolHandle;
 mod endpoint_pins;
 pub(crate) use endpoint_pins::{RankingRangeCallEdge, mixed_call_endpoints_are_pinned};
+
+/// The exact transition site inside the caller's machine. `state` is the state
+/// whose statements carry the call; `entry_parameters` is that state's
+/// discovered telescope: one entry parameter symbol per non-self formal
+/// (`SymbolHandle::default()` marks a formal with no entry role). Authored
+/// subjects and endpoints stay entry-spelled; the site aliases each carried
+/// role onto the atom for the formal that actually holds it here.
+pub(crate) struct RankingRangeCallSite<'program> {
+    pub(crate) state: &'program State,
+    pub(crate) entry_parameters: &'program [SymbolHandle],
+}
 
 pub(crate) struct RankingRangeCallMember<'program> {
     pub(crate) machine: &'program Machine,
@@ -115,6 +130,7 @@ pub(crate) fn prove_ranking_range_call_entry(
 pub(crate) fn prove_ranking_range_call(
     program: &TypedTrees,
     caller: RankingRangeCallMember<'_>,
+    caller_site: &RankingRangeCallSite<'_>,
     callee: RankingRangeCallMember<'_>,
     guards: &[(ExpressionHandle, bool)],
     arguments: &[ExpressionHandle],
@@ -122,8 +138,9 @@ pub(crate) fn prove_ranking_range_call(
     if caller.machine.symbol == callee.machine.symbol {
         return None;
     }
-    let (source, source_measure) = scalar_entry(program, &caller)?;
+    let (entry, source_measure) = scalar_entry(program, &caller)?;
     let (destination, destination_measure) = scalar_entry(program, &callee)?;
+    let source = caller_site.state;
     if !matches!(
         (source_measure, destination_measure),
         (
@@ -145,8 +162,11 @@ pub(crate) fn prove_ranking_range_call(
     let admit_source =
         |expression| meanings::builtin(program, caller.machine, source, expression, 0);
     // Both selected scalar views already produce natural ranks. An absent
-    // optional range adds no endpoint obligations or synthetic bound.
-    admit_member(program, &caller, source, source_measure)?;
+    // optional range adds no endpoint obligations or synthetic bound. Authored
+    // subjects, endpoints, and limits name entry parameters, so their builtin
+    // meaning is admitted at the entry state even when the call sits inside a
+    // subordinate state.
+    admit_member(program, &caller, entry, source_measure)?;
     admit_member(program, &callee, destination, destination_measure)?;
     for &(guard, _) in guards {
         admit_source(guard)?;
@@ -154,7 +174,18 @@ pub(crate) fn prove_ranking_range_call(
     for argument in arguments {
         admit_source(*argument)?;
     }
-    let bindings = integer_bindings(program, source)?;
+    let at_entry = source.symbol == entry.symbol;
+    let bindings = if at_entry {
+        integer_bindings(program, source)?
+    } else {
+        validate_mapping(
+            program,
+            caller.machine,
+            source,
+            caller_site.entry_parameters,
+        )?;
+        telescoped_bindings(program, source, caller_site.entry_parameters)?
+    };
     let mut engine = Engine::strict_with_symbol_bindings(program, caller.machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
@@ -163,11 +194,22 @@ pub(crate) fn prove_ranking_range_call(
     // distinct atoms, never the scalar value of the slice parameter itself.
     // Install the same projections the named-state judgment uses so a `.len`
     // inside a guard, actual, endpoint, or requires fact names the same atom.
-    let length_bindings = if matches!(source_measure, RankingRangeMeasure::SliceLength(_)) {
+    let mut length_bindings = if matches!(source_measure, RankingRangeMeasure::SliceLength(_)) {
         lengths::bindings(program, source, None)
     } else {
         Vec::new()
     };
+    if !at_entry {
+        // The ranked slice subject stays entry-spelled: alias its entry
+        // parameter to the site carrier's length atom.
+        for (symbol, identity) in
+            telescoped_length_bindings(program, source, caller_site.entry_parameters)
+        {
+            if !length_bindings.iter().any(|(bound, _)| *bound == symbol) {
+                length_bindings.push((symbol, identity));
+            }
+        }
+    }
     if !length_bindings.is_empty() {
         let mut expressions = Vec::new();
         if let RankingRangeMeasure::SliceLength(subject) = source_measure {
@@ -195,8 +237,15 @@ pub(crate) fn prove_ranking_range_call(
             &expressions,
         )?;
     }
-    let mut comparisons =
-        entry_comparisons(program, caller.machine, source, &mut engine, &bindings)?;
+    let mut comparisons = if at_entry {
+        entry_comparisons(program, caller.machine, source, &mut engine, &bindings)?
+    } else {
+        // Requires clauses describe the entry parameters, not whatever formal
+        // carries the role here; only the member's own entry-invariant proof
+        // may substitute them past an internal arrival. The site's own
+        // constrained-type facts still hold on every arrival.
+        parameter_comparisons(program, caller.machine, source, &mut engine, &bindings)?
+    };
     comparisons.extend(length_bindings.iter().map(|(_, identity)| {
         (
             BinaryOperator::GreaterOrEqual,
@@ -209,7 +258,7 @@ pub(crate) fn prove_ranking_range_call(
     }
     let rank = match source_measure {
         RankingRangeMeasure::SliceLength(subject) => {
-            length_coordinate(program, source, subject, &length_bindings)?
+            length_coordinate(program, entry, subject, &length_bindings)?
         }
         _ => rank_coordinate(&mut engine, source_measure)?,
     };
@@ -444,6 +493,79 @@ fn rank_coordinate(engine: &mut Engine<'_>, measure: RankingRangeMeasure) -> Opt
     }
 }
 
+/// Site-scoped arithmetic atoms. Every site formal keeps its own binding;
+/// each uniquely carried entry role additionally binds to that carrier's atom,
+/// so entry-spelled expressions normalize to the value the site holds. A
+/// duplicated role has no single carrier and stays unbound.
+fn telescoped_bindings(
+    program: &TypedTrees,
+    state: &State,
+    entry_parameters: &[SymbolHandle],
+) -> Option<Vec<StrictArithmeticSymbolBinding>> {
+    let mut bindings = integer_bindings(program, state)?;
+    let formals = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    if formals.len() != entry_parameters.len() {
+        return None;
+    }
+    for (formal, role) in formals.iter().zip(entry_parameters) {
+        if !role.is_valid()
+            || entry_parameters
+                .iter()
+                .filter(|candidate| **candidate == *role)
+                .count()
+                != 1
+        {
+            continue;
+        }
+        let Some(binding) = bindings
+            .iter()
+            .find(|binding| binding.symbol == formal.symbol)
+        else {
+            continue;
+        };
+        let StrictArithmeticBindingValue::Atom { identity, unsigned } = &binding.value else {
+            continue;
+        };
+        bindings.push(StrictArithmeticSymbolBinding {
+            symbol: *role,
+            value: StrictArithmeticBindingValue::Atom {
+                identity: identity.clone(),
+                unsigned: *unsigned,
+            },
+        });
+    }
+    Some(bindings)
+}
+
+/// The same role aliasing applied to produced length coordinates: each carried
+/// entry role of a slice-typed site formal binds the site's length atom.
+fn telescoped_length_bindings(
+    program: &TypedTrees,
+    state: &State,
+    entry_parameters: &[SymbolHandle],
+) -> Vec<(SymbolHandle, String)> {
+    let bindings = lengths::bindings(program, state, None);
+    program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .zip(entry_parameters)
+        .filter_map(|(formal, role)| {
+            if !role.is_valid() {
+                return None;
+            }
+            let (_, identity) = bindings
+                .iter()
+                .find(|(symbol, _)| *symbol == formal.symbol)?;
+            Some((*role, identity.clone()))
+        })
+        .collect()
+}
+
 fn scalar_entry<'program>(
     program: &'program TypedTrees,
     member: &RankingRangeCallMember<'_>,
@@ -521,9 +643,10 @@ fn scalar_entry<'program>(
         }
         _ => return None,
     };
-    let [state] = program.machine_states(machine) else {
-        return None;
-    };
+    // Authored subjects and endpoint expressions name entry parameters; the
+    // member's own witness owns every internal arrival, so only the entry
+    // binding is checked here.
+    let state = program.machine_states(machine).first()?;
     for subject in [member.subject, member.paired_subject]
         .into_iter()
         .filter(|subject| subject.is_valid())

@@ -16,13 +16,15 @@ mod meanings;
 mod projections;
 mod requirements;
 mod state_aliases;
+mod telescope;
 
 pub use requirements::{
     arithmetic_entry_requirement_is_covered, prove_arithmetic_call_requirement,
 };
+pub use telescope::discover_state_entry_mappings;
 
 pub(crate) use calls::{
-    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress,
+    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
     mixed_call_endpoints_are_pinned, prove_ranking_range_call, prove_ranking_range_call_entry,
 };
 
@@ -647,6 +649,22 @@ fn entry_comparisons(
     engine: &mut Engine<'_>,
     bindings: &[StrictArithmeticSymbolBinding],
 ) -> Option<Vec<Comparison>> {
+    let mut comparisons = contract_comparisons(program, machine, root, engine)?;
+    comparisons.extend(parameter_comparisons(
+        program, machine, root, engine, bindings,
+    )?);
+    Some(comparisons)
+}
+
+/// Requires-fact hypotheses at the entry state. A subordinate call site must
+/// not substitute them: only the member's own entry-invariant proof can
+/// re-establish a requires clause after an internal arrival.
+fn contract_comparisons(
+    program: &TypedTrees,
+    machine: &Machine,
+    root: &State,
+    engine: &mut Engine<'_>,
+) -> Option<Vec<Comparison>> {
     let admit = |expression| meanings::builtin(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
     for contract in program.machine_contracts(machine) {
@@ -662,6 +680,20 @@ fn entry_comparisons(
             }
         }
     }
+    Some(comparisons)
+}
+
+/// Constrained-type hypotheses for a state's own formals. They hold on every
+/// arrival and remain valid at any call site inside that state.
+fn parameter_comparisons(
+    program: &TypedTrees,
+    machine: &Machine,
+    root: &State,
+    engine: &mut Engine<'_>,
+    bindings: &[StrictArithmeticSymbolBinding],
+) -> Option<Vec<Comparison>> {
+    let admit = |expression| meanings::builtin(program, machine, root, expression, 0);
+    let mut comparisons = Vec::new();
     for parameter in program
         .state_parameters(root)
         .iter()

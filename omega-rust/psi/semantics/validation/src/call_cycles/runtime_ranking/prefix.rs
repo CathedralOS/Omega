@@ -33,12 +33,10 @@ pub(super) fn preserves_rank(
     {
         return false;
     }
-    let Some(entry) = program.machine_states(machine).first() else {
-        return false;
-    };
-    // Scalar calls consume entry hypotheses and any pinned bounds as well as
-    // the subject. Protect every nonself input; translate exact owned
-    // declarations to the caller-relative frame vocabulary only here.
+    // Scalar calls consume the call-site state's hypotheses and any pinned
+    // bounds as well as the subject. Protect every nonself input live at that
+    // state; translate exact owned declarations to the caller-relative frame
+    // vocabulary only here.
     frames
         .and_then(|frames| {
             frames
@@ -47,7 +45,7 @@ pub(super) fn preserves_rank(
         })
         .is_some_and(|paths| {
             program
-                .state_parameters(entry)
+                .state_parameters(state)
                 .iter()
                 .filter(|parameter| !parameter.is_self)
                 .all(|parameter| {

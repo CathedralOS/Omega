@@ -80,14 +80,15 @@ mod exit_coverage;
 mod inductive_judgment;
 mod ranking_range;
 pub(crate) use ranking_range::{
-    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress,
+    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
     mixed_call_endpoints_are_pinned, prove_ranking_range_call, prove_ranking_range_call_entry,
 };
 
 pub use ranking_range::{
     RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
-    arithmetic_entry_requirement_is_covered, prove_arithmetic_call_requirement,
-    prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
+    arithmetic_entry_requirement_is_covered, discover_state_entry_mappings,
+    prove_arithmetic_call_requirement, prove_ranking_range_edge, prove_ranking_range_entry,
+    prove_ranking_range_transition,
 };
 mod law_conformance;
 mod quotient_congruence;

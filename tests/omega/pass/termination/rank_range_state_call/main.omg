@@ -1,0 +1,34 @@
+// PASS CANARY. A member may issue a component call from a subordinate state:
+// `hold -> step(pending)` transports `pending` to its discovered entry role
+// `remaining`, so the edge is weak (`remaining` unchanged) and the strict
+// `step -> count(n - 1)` edge completes every cycle's descent.
+
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(5) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining > 0 {
+        true -> hold(remaining)
+        false -> remaining
+    }
+    state hold(pending: u32 [0..=9]) {
+        transition pending > 0 {
+            true -> self.step(pending)
+            false -> pending
+        }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 {
+        true -> self.count(n - 1)
+        false -> n
+    }
+}
