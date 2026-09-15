@@ -53,7 +53,10 @@ impl<'program> RangeCallContext<'program> {
         }
     }
 
-    fn find_call(
+    /// Rejoin the exact checked call occurrence for one authored site in the
+    /// owning state. Flow and borrow rows agree on statement and ordinal only
+    /// for the same occurrence; anything else reports no evidence.
+    pub(in crate::checks::ranges) fn find_call(
         &self,
         program: &TypedTrees,
         machine: &Machine,
@@ -81,6 +84,30 @@ impl<'program> RangeCallContext<'program> {
                 && borrow_call.call_ordinal == call.call_ordinal
                 && borrow_call.target_symbol == call.target_symbol
         })
+    }
+
+    /// Materialize the checked operand-access rows of a located call as caller
+    /// places. Every recorded access names storage the callee may reach
+    /// through its operands; the access kind does not narrow the footprint
+    /// because mutable and write-only borrows carry the callee into the same
+    /// caller place as a read.
+    pub(in crate::checks::ranges) fn operand_access_places(
+        &self,
+        call: &checked_trees::BorrowCallFact,
+    ) -> Vec<CanonicalPlace> {
+        self.borrows
+            .argument_accesses
+            .span_or_empty(call.accesses)
+            .iter()
+            .map(|access| CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(access.root_symbol),
+                segments: self
+                    .borrows
+                    .access_segments
+                    .span_or_empty(access.segments)
+                    .to_vec(),
+            })
+            .collect()
     }
 }
 

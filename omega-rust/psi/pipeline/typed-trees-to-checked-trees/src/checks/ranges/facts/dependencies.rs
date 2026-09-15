@@ -63,6 +63,7 @@ impl RangeFacts<'_> {
             state,
             self.statement_index,
             expression,
+            self.checked_calls,
             &mut reads,
             0,
         ) || reads.len() != 1
@@ -214,6 +215,7 @@ impl RangeFacts<'_> {
             state,
             self.statement_index,
             expression,
+            self.checked_calls,
             &mut reads,
             0,
         );

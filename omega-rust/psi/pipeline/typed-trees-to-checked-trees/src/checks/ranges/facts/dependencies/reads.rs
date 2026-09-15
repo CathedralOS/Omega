@@ -1,6 +1,9 @@
 use super::{ExpressionHandle, ExpressionNode, Machine, State, TypedTrees};
+use crate::CallSite;
+use crate::checks::ranges::facts::RangeCallContext;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
+use symbols::SymbolHandle;
 
 pub(super) fn collect_reads(
     program: &TypedTrees,
@@ -8,6 +11,7 @@ pub(super) fn collect_reads(
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
+    calls: Option<&RangeCallContext<'_>>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
 ) -> bool {
@@ -23,6 +27,7 @@ pub(super) fn collect_reads(
                 state,
                 statement_index,
                 binary.left,
+                calls,
                 reads,
                 depth + 1,
             ) && collect_reads(
@@ -31,6 +36,7 @@ pub(super) fn collect_reads(
                 state,
                 statement_index,
                 binary.right,
+                calls,
                 reads,
                 depth + 1,
             )
@@ -41,6 +47,7 @@ pub(super) fn collect_reads(
             state,
             statement_index,
             unary.operand,
+            calls,
             reads,
             depth + 1,
         ),
@@ -50,9 +57,130 @@ pub(super) fn collect_reads(
             state,
             statement_index,
             cast.value,
+            calls,
             reads,
             depth + 1,
         ),
+        // A borrow's value is a reference into its target place, so its
+        // footprint is exactly the target's reads. For a call operand this is
+        // also the storage the callee was handed; the checked access rows
+        // record the same place once more and dedup absorbs it.
+        ExpressionNode::Borrow(inner) => collect_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            inner.target,
+            calls,
+            reads,
+            depth + 1,
+        ),
+        // A call's value is not a pure function of its argument expressions:
+        // the callee may also read receiver `self` storage. Admit a footprint
+        // only for the exact checked call occurrence at this statement — the
+        // same flow/borrow join `structured_call_writes` uses — and only when
+        // the typed call carries no machine, requirement, quotient, or
+        // private-layout binder that could hand the callee storage the
+        // operand scan cannot see. The checked operand accesses then
+        // enumerate every caller place reachable through the arguments,
+        // while a `self` target adds the canonical receiver place so an
+        // implicit-self callee still reads the caller's machine storage.
+        // Targets that do not resolve to a state (requirement symbols,
+        // boundary signatures, intrinsics) keep the footprint incomplete.
+        ExpressionNode::Call(call) => {
+            let Some(calls) = calls else {
+                return false;
+            };
+            let site = CallSite::Expression { expression, call };
+            let Some(borrow_call) =
+                calls.find_call(program, machine, state, statement_index, &site)
+            else {
+                return false;
+            };
+            if call.static_machine_parameter.is_valid()
+                || call.static_requirement_dispatch.is_some()
+                || !call.machine_arguments.is_empty()
+                || call.quotient_operation.is_some()
+                || call.private_layout_operation.is_some()
+            {
+                return false;
+            }
+            if call.receiver.is_valid()
+                && !collect_reads(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call.receiver,
+                    Some(calls),
+                    reads,
+                    depth + 1,
+                )
+            {
+                return false;
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                if !collect_reads(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    *argument,
+                    Some(calls),
+                    reads,
+                    depth + 1,
+                ) {
+                    return false;
+                }
+            }
+            for mut place in calls.operand_access_places(borrow_call) {
+                if validate_place_read(program, machine, state, statement_index, &mut place)
+                    .is_none()
+                {
+                    return false;
+                }
+                if !reads.contains(&place) {
+                    reads.push(place);
+                }
+            }
+            // Named calls may target the machine symbol rather than a state
+            // symbol; the contract lookup resolves both forms to the exact
+            // invocation while requirement, trait-signature, and conformance
+            // targets resolve to symbols that own no state and stay opaque.
+            let Some((target_machine_symbol, target_state_symbol)) =
+                crate::contract_target_from_state_symbol(program, borrow_call.target_symbol)
+            else {
+                return false;
+            };
+            let Some(target_state) =
+                crate::find_state_in_machine(program, target_machine_symbol, target_state_symbol)
+            else {
+                return false;
+            };
+            if program
+                .state_parameters(target_state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+            {
+                let Some(mut place) = crate::flow::canonical_receiver_place_for_call_site(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    &site,
+                ) else {
+                    return false;
+                };
+                if validate_place_read(program, machine, state, statement_index, &mut place)
+                    .is_none()
+                {
+                    return false;
+                }
+                if !reads.contains(&place) {
+                    reads.push(place);
+                }
+            }
+            true
+        }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             if !collect_selector_reads(
                 program,
@@ -60,6 +188,7 @@ pub(super) fn collect_reads(
                 state,
                 statement_index,
                 expression,
+                calls,
                 reads,
                 depth + 1,
             ) {
@@ -73,36 +202,11 @@ pub(super) fn collect_reads(
             ) else {
                 return false;
             };
-            let facts::PlaceRoot::Symbol(root) = place.root else {
+            let Some(root) =
+                validate_place_read(program, machine, state, statement_index, &mut place)
+            else {
                 return false;
             };
-            if !root.is_valid()
-                || place
-                    .segments
-                    .iter()
-                    .any(|segment| crate::flow::place_segment_has_unresolved_identity(*segment))
-            {
-                return false;
-            }
-            crate::flow::normalize_attached_place_root(
-                program,
-                machine.symbol,
-                state.symbol,
-                &mut place,
-            );
-            if !root_is_current(program, machine, state, statement_index, place.root)
-                || place.segments.iter().any(|segment| {
-                    !matches!(
-                        segment,
-                        facts::PlaceSegment::Field { .. }
-                            | facts::PlaceSegment::Case { .. }
-                            | facts::PlaceSegment::FixedIndex { .. }
-                            | facts::PlaceSegment::Index { .. }
-                    )
-                })
-            {
-                return false;
-            }
             // Immutable integer copies read the same frozen value, not their
             // initializer's current storage. Preserve that existing identity
             // through copy chains without giving references snapshot semantics.
@@ -150,15 +254,53 @@ pub(super) fn collect_reads(
                     state,
                     statement_index,
                     atomic.value,
+                    calls,
                     reads,
                     depth + 1,
                 )
                 && reads.len() > footprint_start
         }
-        // Calls can read implicit storage, and every writing atomic axis
-        // wraps its operand in `value`; neither admits an operand-only scan.
+        // Every writing atomic axis wraps its operand in `value`, and any
+        // other node family has no operand-described read set at all.
         _ => false,
     }
+}
+
+/// A read place counts only when its root is current storage and every
+/// segment carries resolved selector geometry. Normalization runs before the
+/// current-root check so attached fields answer through the machine root.
+/// The returned symbol is the pre-normalization root for callers that
+/// distinguish a place's own root from a rebased copy identity.
+fn validate_place_read(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    place: &mut CanonicalPlace,
+) -> Option<SymbolHandle> {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    if !root.is_valid()
+        || place
+            .segments
+            .iter()
+            .any(|segment| crate::flow::place_segment_has_unresolved_identity(*segment))
+    {
+        return None;
+    }
+    crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, place);
+    (root_is_current(program, machine, state, statement_index, place.root)
+        && place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+                    | facts::PlaceSegment::Index { .. }
+            )
+        }))
+    .then_some(root)
 }
 
 pub(super) fn root_is_current(
@@ -186,6 +328,7 @@ fn collect_selector_reads(
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
+    calls: Option<&RangeCallContext<'_>>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
 ) -> bool {
@@ -210,6 +353,7 @@ fn collect_selector_reads(
                     state,
                     statement_index,
                     member.receiver,
+                    calls,
                     reads,
                     depth + 1,
                 )
@@ -231,6 +375,7 @@ fn collect_selector_reads(
                     state,
                     statement_index,
                     indexed.collection,
+                    calls,
                     reads,
                     depth + 1,
                 )
@@ -240,6 +385,7 @@ fn collect_selector_reads(
                     state,
                     statement_index,
                     indexed.index,
+                    calls,
                     reads,
                     depth + 1,
                 )
