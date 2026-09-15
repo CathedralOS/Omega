@@ -1,7 +1,11 @@
 //! Verified immutable byte-operation retention and proof custody.
 
-use super::*;
-
+use super::{
+    AbstractOperation, AdmissionProfile, Block, Operation, OperationKind, OperationResult,
+    ProofBundle, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeId, Terminator, block_id, byte_sequence_module,
+    edge_id, encode_module, encode_proof_section, lower_artifact, operation_id, place_id,
+};
 pub(super) fn byte_operation_fence(subslice: bool) {
     use proof_admission::{
         CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,

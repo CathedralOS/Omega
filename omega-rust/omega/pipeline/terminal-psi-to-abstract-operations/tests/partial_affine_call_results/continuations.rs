@@ -1,5 +1,9 @@
-use super::*;
-
+use super::{
+    AbstractOperation, AdmissionProfile, Lexer, ResolutionRequest,
+    build_verified_psi_optimization_unit, encode_module, encode_proof_section,
+    lower_artifact_for_optimization, lower_symbol_resolved_trees, lower_typed_trees,
+    parse_syntax_trees, resolve, validate_psi_optimization_unit,
+};
 #[test]
 fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
     for boundary in [false, true] {
