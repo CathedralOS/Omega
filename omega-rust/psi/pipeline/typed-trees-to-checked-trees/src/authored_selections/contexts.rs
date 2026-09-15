@@ -6,7 +6,7 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum OwnerMemberTarget {
+pub(crate) enum OwnerMemberTarget {
     Declaration(SymbolHandle),
     CollectionLength,
 }
@@ -492,16 +492,33 @@ fn proof_fact_value_contains_expression(
 ) -> bool {
     match fact {
         typed_trees::domain::ProofFact::Expression(root) => {
-            super::expression_contains(program, *root, expression, &mut Vec::new())
+            crate::authored_selections::member_targets::expression_contains(
+                program,
+                *root,
+                expression,
+                &mut Vec::new(),
+            )
         }
         typed_trees::domain::ProofFact::Membership(membership) => {
-            super::expression_contains(program, membership.value, expression, &mut Vec::new())
+            crate::authored_selections::member_targets::expression_contains(
+                program,
+                membership.value,
+                expression,
+                &mut Vec::new(),
+            )
         }
         typed_trees::domain::ProofFact::Proposition(application) => program
             .expression_table
             .expression_handles(application.arguments)
             .iter()
-            .any(|root| super::expression_contains(program, *root, expression, &mut Vec::new())),
+            .any(|root| {
+                crate::authored_selections::member_targets::expression_contains(
+                    program,
+                    *root,
+                    expression,
+                    &mut Vec::new(),
+                )
+            }),
     }
 }
 
@@ -549,7 +566,14 @@ fn collect_measure_environments(
             .expression_table
             .expression_handles(measure.body)
             .iter()
-            .any(|root| super::expression_contains(program, *root, expression, &mut Vec::new()))
+            .any(|root| {
+                crate::authored_selections::member_targets::expression_contains(
+                    program,
+                    *root,
+                    expression,
+                    &mut Vec::new(),
+                )
+            })
         {
             continue;
         }
@@ -581,10 +605,20 @@ fn collect_proposition_environments(
                 .expression_handles(application.arguments)
                 .iter()
                 .any(|root| {
-                    super::expression_contains(program, *root, expression, &mut Vec::new())
+                    crate::authored_selections::member_targets::expression_contains(
+                        program,
+                        *root,
+                        expression,
+                        &mut Vec::new(),
+                    )
                 }),
             PropositionFormula::BooleanExpression(root) => {
-                super::expression_contains(program, *root, expression, &mut Vec::new())
+                crate::authored_selections::member_targets::expression_contains(
+                    program,
+                    *root,
+                    expression,
+                    &mut Vec::new(),
+                )
             }
         };
         if contains {
@@ -609,10 +643,14 @@ fn collect_ranking_environments(
             .chain(&custody.view_arguments)
             .copied()
             .chain(custody.rank_range);
-        if !roots
-            .into_iter()
-            .any(|root| super::expression_contains(program, root, expression, &mut Vec::new()))
-        {
+        if !roots.into_iter().any(|root| {
+            crate::authored_selections::member_targets::expression_contains(
+                program,
+                root,
+                expression,
+                &mut Vec::new(),
+            )
+        }) {
             continue;
         }
         let Some(machine) = program
@@ -793,12 +831,12 @@ fn type_reference_contains_expression(
                         TypeConstraintNode::Range {
                             minimum, maximum, ..
                         } => {
-                            super::expression_contains(
+                            crate::authored_selections::member_targets::expression_contains(
                                 program,
                                 *minimum,
                                 expression,
                                 &mut Vec::new(),
-                            ) || super::expression_contains(
+                            ) || crate::authored_selections::member_targets::expression_contains(
                                 program,
                                 *maximum,
                                 expression,
@@ -829,7 +867,12 @@ fn type_reference_contains_expression(
                 type_reference_contains_expression(program, *argument, expression, visited)
             }),
         TypeReferenceNode::ConstExpression(root) => {
-            super::expression_contains(program, *root, expression, &mut Vec::new())
+            crate::authored_selections::member_targets::expression_contains(
+                program,
+                *root,
+                expression,
+                &mut Vec::new(),
+            )
         }
         TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Named { .. }
@@ -927,7 +970,11 @@ fn infer_expression_type(
         ExpressionNode::Cast(cast) => Some(InferredType::TypeReference(cast.target_type)),
         ExpressionNode::Name(path) => {
             if path.symbol.is_valid()
-                && let Some(type_reference) = super::type_reference_for_symbol(program, path.symbol)
+                && let Some(type_reference) =
+                    crate::authored_selections::operator_targets::type_reference_for_symbol(
+                        program,
+                        path.symbol,
+                    )
             {
                 return Some(InferredType::TypeReference(type_reference));
             }
@@ -959,7 +1006,8 @@ fn infer_expression_type(
         ExpressionNode::Member(member) => {
             let receiver = infer_expression_type(program, member.receiver, environment, visited)?;
             let symbol = resolve_member_symbol(program, receiver, member)?;
-            super::type_reference_for_symbol(program, symbol).map(InferredType::TypeReference)
+            crate::authored_selections::operator_targets::type_reference_for_symbol(program, symbol)
+                .map(InferredType::TypeReference)
         }
         ExpressionNode::Call(call) => {
             if let Some(operator) =
@@ -1077,7 +1125,10 @@ fn inferred_type_is_collection(program: &TypedTrees, inferred: InferredType) -> 
     match inferred {
         InferredType::Nominal(_) => false,
         InferredType::TypeReference(type_reference) => {
-            super::type_reference_is_collection(program, type_reference)
+            crate::authored_selections::member_targets::type_reference_is_collection(
+                program,
+                type_reference,
+            )
         }
         InferredType::CollectionView(_) => true,
         InferredType::CompilerString => false,
