@@ -1,0 +1,128 @@
+//! Borrow-aware mutation motion on the selected CFG.
+//!
+//! A `Store { byte_offset, byte_size }` writes the low exact-width bits of its
+//! value operand through the referent pointer. Sinking the store later along
+//! the control-flow path defers the write inside the window where nothing can
+//! observe the place's old bytes: every instruction the store slides past must
+//! leave the relative order of the write and every later access on the same
+//! place unchanged. The motion lands the store immediately before the first
+//! position that must stay ordered after it — the first roster access on the
+//! moved place, a call or hosted effect, a redefinition of either carried
+//! register, an unaccounted memory-capable instruction, or a boundary
+//! settlement — or at the end of the last block the walk can prove it still
+//! reaches on every path.
+//!
+//! The alias decision is borrow-aware: it comes from the validated
+//! `memory_accesses` roster, not from pointer-register equality. Each access
+//! row names the semantic `PlaceId` and the exact byte range the instruction
+//! touches. Two simultaneous accesses that can write cannot share one
+//! referent under different place identities — exclusivity rejects
+//! overlapping exclusive custody before selection — so rows for other places
+//! and exact rows on disjoint ranges of the moved place cannot observe the
+//! slide. Only a potentially overlapping access on the moved place, a
+//! dynamic-extent row on it, a place-backed local slot or materialized local
+//! address for it, or a call/hosted effect bounds the window.
+//!
+//! The walk is not confined to one block: reaching a block's end without a
+//! stop continues through its terminator's successor edges when every edge
+//! names one block and that block's only predecessor is the crossed block.
+//! Both directions of uniqueness are required — a fork out of the crossed
+//! block would drop the write from the paths that leave it, and a join into
+//! the successor would add the write to paths that never carried it. The
+//! terminator's roster rows and register definitions decide before each
+//! crossed edge's transports, which may not redefine the carried registers or
+//! write the moved place's storage. Returns and hosted exits, forked or
+//! joined targets, and re-entered blocks each bound the motion at the crossed
+//! block's end.
+//!
+//! The store's roster row names the instruction by identity, not position, so
+//! the access roster is retained unchanged. Boundary settlements are ordinal
+//! positions: a settlement inside the crossed interval would change which
+//! side of the write it observes, so the walk stops before it; settlements at
+//! or after the landing position in the target block shift one ordinal later
+//! when a crossed-edge move inserts there, while a same-block move leaves
+//! every settlement position unchanged.
+//!
+//! Proposal and independent replay share only the admission predicates and
+//! the settlement remap. Validation consumes the proposed program, requires
+//! the touched blocks, roster, and settlements to equal the independently
+//! computed motion, and restores the complete source by content.
+
+mod admission;
+mod rewrite;
+mod validation;
+
+use std::sync::Arc;
+
+use optimization_core::OptimizationUnitIdentity;
+use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use semantic_vocabulary::FuelScheduleIdentity;
+
+pub use rewrite::sink_selected_store_mutation;
+pub use validation::validate_store_mutation_motion;
+
+#[cfg(test)]
+mod tests;
+
+/// An accepted store mutation motion with its replay receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedStoreMutationMotion {
+    transformed: Arc<SelectedInstructionPlan>,
+    receipt: StoreMutationMotionReceipt,
+}
+
+impl ValidatedStoreMutationMotion {
+    pub fn transformed(&self) -> &SelectedInstructionPlan {
+        &self.transformed
+    }
+
+    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
+        Arc::clone(&self.transformed)
+    }
+
+    pub const fn receipt(&self) -> &StoreMutationMotionReceipt {
+        &self.receipt
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoreMutationMotionReceipt {
+    source_selected: SelectedInstructionPlanIdentity,
+    transformed_selected: SelectedInstructionPlanIdentity,
+    optimization_unit: OptimizationUnitIdentity,
+    fuel_schedule: FuelScheduleIdentity,
+}
+
+impl StoreMutationMotionReceipt {
+    pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
+        self.source_selected
+    }
+    pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
+        self.transformed_selected
+    }
+    pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
+        self.optimization_unit
+    }
+    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
+        self.fuel_schedule
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoreMutationMotionError {
+    SourceMismatch,
+    UnsupportedInstruction,
+    UnsupportedPair,
+    ConstraintMismatch,
+    WorkBudgetExceeded,
+    IdentityOverflow,
+    ReplayMismatch,
+}
+
+impl std::fmt::Display for StoreMutationMotionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid store mutation motion: {self:?}")
+    }
+}
+
+impl std::error::Error for StoreMutationMotionError {}

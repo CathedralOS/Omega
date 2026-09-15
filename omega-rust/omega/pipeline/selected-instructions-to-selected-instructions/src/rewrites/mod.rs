@@ -11,6 +11,7 @@ mod redundant_extension;
 mod runtime_rematerialization;
 mod runtime_spill;
 mod selected_lowering;
+mod store_motion;
 #[cfg(feature = "test-support")]
 pub mod test_support;
 
@@ -25,6 +26,7 @@ pub use redundant_extension::*;
 pub use runtime_rematerialization::*;
 pub use runtime_spill::*;
 pub use selected_lowering::*;
+pub use store_motion::*;
 
 /// Explicit applicability of the currently architecture-independent rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

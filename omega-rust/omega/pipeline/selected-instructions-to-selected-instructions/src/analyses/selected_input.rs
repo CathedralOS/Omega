@@ -7,7 +7,7 @@ use crate::{
     ValidatedCopyRemoval, ValidatedDeadStoreElimination, ValidatedFixedViewCopies,
     ValidatedLiteralCompare, ValidatedLiteralFold, ValidatedPressureRematerialization,
     ValidatedRedundantExtension, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedStoredLoadForwarding,
+    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
 };
 
 mod sealed {
@@ -57,6 +57,26 @@ impl ValidatedSelectedAnalysis for ValidatedRedundantExtension {
 impl sealed::Sealed for ValidatedStoredLoadForwarding {}
 
 impl ValidatedSelectedAnalysis for ValidatedStoredLoadForwarding {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedStoreMutationMotion {}
+
+impl ValidatedSelectedAnalysis for ValidatedStoreMutationMotion {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
