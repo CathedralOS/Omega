@@ -578,7 +578,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   selects from this matrix rather than a private (format, architecture)
   match (calling-conventions `nextest`: 66 pass on Linux x86-64, including
   per-target row pinning, undeclared-pair, and wrong-architecture drift
-  negatives). Remaining: allocator, encoding, unwind, and object legs.
+  negatives). The encoding leg is now declared on both ISAs: isa-aarch64
+  `selected_keys` resolves one `Aarch64SelectedAbi` per supported
+  (architecture, object-format) pair — (Aarch64, Elf) AAPCS64 and (Aarch64,
+  MachO) Darwin — so call, aggregate, and float-return rosters follow the
+  declared family rather than a non-ELF fallback, and undeclared (Aarch64,
+  Coff) fails closed with `UnsupportedTargetAbi` before any row is selected
+  (`cargo test -p isa-aarch64`: 102 pass on Linux x86-64, including declared
+  pair pinning, the undeclared-Coff arm, and exact-target hosted rows).
+  Remaining: allocator, unwind, and object legs.
   Windows and macOS runs were unavailable on this host.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
