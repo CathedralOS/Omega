@@ -5,15 +5,17 @@
 //! fixups. It does not place bytes, resolve a fixup, emit program headers, or
 //! mutate the image.
 
-use crate::dynamic_linkage_templates::{
+use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{
+    ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload,
+};
+use crate::dynamic_executable::dynamic_table::dynamic_tags::ElfDynamicAddressTarget;
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
     ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage,
     ElfProcedureLinkagePlacementConstraint, ElfProcedureLinkageSemanticTarget,
     ValidatedElfProcedureLinkageTemplatePlan,
 };
-use crate::dynamic_tag_bytes::{ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload};
-use crate::dynamic_tags::ElfDynamicAddressTarget;
-use crate::section_header_bytes::ValidatedElfSectionHeaderTableTemplate;
-use crate::section_roster::ElfDynamicRosterSectionKind;
+use crate::dynamic_executable::section_headers::section_header_bytes::ValidatedElfSectionHeaderTableTemplate;
+use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
 const SECTION_COUNT: usize = 13;

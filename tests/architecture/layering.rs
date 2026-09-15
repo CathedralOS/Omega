@@ -524,11 +524,19 @@ fn format_specific_fnv_fingerprints_are_explicitly_non_authoritative() {
     let source_directory = workspace_root().join("omega-rust/omega/backend/images/image-elf/src");
     let mut fnv_owners = 0usize;
 
-    for entry in std::fs::read_dir(&source_directory).expect("read ELF image source directory") {
-        let path = entry.expect("read ELF image source entry").path();
-        if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
-            continue;
+    let mut pending = vec![source_directory];
+    let mut paths = Vec::new();
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory).expect("read ELF image source directory") {
+            let path = entry.expect("read ELF image source entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                paths.push(path);
+            }
         }
+    }
+    for path in paths {
         let source = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
         if !source.contains("FNV_OFFSET_BASIS") {

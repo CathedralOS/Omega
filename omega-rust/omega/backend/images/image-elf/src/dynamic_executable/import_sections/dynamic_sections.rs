@@ -16,7 +16,7 @@
 //! [`DT_GNU_HASH` implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 //! [LSB symbol versioning]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 
-use crate::dynamic_link::PlannedElfDynamicLinkInputs;
+use crate::dynamic_executable::import_sections::dynamic_link::PlannedElfDynamicLinkInputs;
 use crate::imports::ElfImportLocator;
 use diagnostics::Diagnostic;
 

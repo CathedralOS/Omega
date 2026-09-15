@@ -11,17 +11,17 @@
 //! them into one file, mutate the retained `FinalImage`,
 //! publish bytes, or grant loader or runnable-image authority.
 
-use crate::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
-use crate::dynamic_linkage_templates::{
-    ElfProcedureLinkageFixupKind, ElfProcedureLinkageSemanticTarget,
-};
-use crate::load_layout::{
+use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
+use crate::dynamic_executable::load_placement::load_layout::{
     ElfPlacedDynamicSection, ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout,
 };
-use crate::section_payload_roster::{
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
+    ElfProcedureLinkageFixupKind, ElfProcedureLinkageSemanticTarget,
+};
+use crate::dynamic_executable::section_headers::section_payload_roster::{
     ElfIndexedProcedureFixup, ElfIndexedProcedureFixupStorage, ElfIndexedSectionPayloadContents,
 };
-use crate::section_roster::ElfDynamicRosterSectionKind;
+use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
 const X86_PLT_HEADER_SIZE: u64 = 16;

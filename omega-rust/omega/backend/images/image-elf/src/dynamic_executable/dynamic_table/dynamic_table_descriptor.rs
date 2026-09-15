@@ -10,8 +10,8 @@
 //! [System V ABI section header]: https://gabi.xinuos.com/elf/03-sheader.html
 //! [dynamic section]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 
-use crate::dynamic_section_descriptors::ElfDynamicSectionKind;
-use crate::dynamic_tag_bytes::ValidatedElfDynamicTablePayload;
+use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::ValidatedElfDynamicTablePayload;
+use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
 use diagnostics::Diagnostic;
 
 const SHT_DYNAMIC: u32 = 6;

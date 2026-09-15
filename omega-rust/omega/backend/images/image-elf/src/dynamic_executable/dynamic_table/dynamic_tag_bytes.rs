@@ -10,7 +10,7 @@
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
 use crate::bytes::write_u64;
-use crate::dynamic_tags::{
+use crate::dynamic_executable::dynamic_table::dynamic_tags::{
     ElfDynamicAddressTarget, ElfDynamicTagContents, ElfDynamicValue, ValidatedElfDynamicTagPlan,
 };
 use diagnostics::Diagnostic;

@@ -10,11 +10,13 @@
 //! headers; resolve payload-internal dynamic/procedure/source relocations;
 //! mutate the retained `FinalImage`; or claim a runnable image.
 
-use crate::load_layout::{
+use crate::dynamic_executable::load_placement::load_layout::{
     ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind, ValidatedElfDynamicLoadLayout,
 };
-use crate::section_header_bytes::ElfSectionHeaderPlacementFixupKind;
-use crate::section_roster::{ElfDynamicRosterSectionKind, ElfNumericSectionDescriptor};
+use crate::dynamic_executable::section_headers::section_header_bytes::ElfSectionHeaderPlacementFixupKind;
+use crate::dynamic_executable::section_headers::section_roster::{
+    ElfDynamicRosterSectionKind, ElfNumericSectionDescriptor,
+};
 use diagnostics::Diagnostic;
 
 const ELF64_SECTION_HEADER_SIZE: usize = 64;

@@ -14,7 +14,7 @@
 //! [symbol versioning]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 
 use crate::bytes::{write_u16, write_u32, write_u64};
-use crate::dynamic_sections::{
+use crate::dynamic_executable::import_sections::dynamic_sections::{
     ElfDynamicSectionContents, ElfDynamicSymbol, ElfGnuHash, ElfSysvHash, ElfVersionNeed,
     ElfVersionNeedAuxiliary, ValidatedElfDynamicSectionPlan,
 };

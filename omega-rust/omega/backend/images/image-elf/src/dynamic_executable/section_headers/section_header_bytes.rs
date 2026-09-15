@@ -10,7 +10,7 @@
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
 use crate::bytes::{write_u32, write_u64};
-use crate::section_roster::{
+use crate::dynamic_executable::section_headers::section_roster::{
     ElfDynamicRosterSectionKind, ElfNumericSectionDescriptor, ValidatedElfDynamicSectionRoster,
 };
 use diagnostics::Diagnostic;

@@ -7,8 +7,8 @@
 //! absolute file offset or virtual address, resolve a section-header fixup,
 //! emit a program header, or mutate an image.
 
-use crate::section_payload_roster::ValidatedElfIndexedSectionPayloadPlan;
-use crate::section_roster::ElfDynamicRosterSectionKind;
+use crate::dynamic_executable::section_headers::section_payload_roster::ValidatedElfIndexedSectionPayloadPlan;
+use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
 const SECTION_COUNT: usize = 13;

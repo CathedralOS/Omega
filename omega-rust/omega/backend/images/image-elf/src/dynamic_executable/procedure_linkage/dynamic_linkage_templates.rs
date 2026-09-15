@@ -10,7 +10,7 @@
 //! [System V ABI]: https://github.com/ARM-software/abi-aa/blob/main/sysvabi64/sysvabi64.rst#procedure-linkage-table
 
 use crate::bytes::write_u64;
-use crate::dynamic_import_relocations::{
+use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::{
     ElfProcedureLinkageRelocationContents, ValidatedElfProcedureLinkageRelocationPlan,
 };
 use diagnostics::Diagnostic;
