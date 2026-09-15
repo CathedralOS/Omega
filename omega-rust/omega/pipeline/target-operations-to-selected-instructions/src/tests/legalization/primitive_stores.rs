@@ -151,9 +151,10 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                 let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
                 validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
                     .unwrap();
-                let width = crate::structural_reference_input::scalar_shape(scalar)
-                    .unwrap()
-                    .byte_size;
+                let width =
+                    crate::structural_inputs::structural_reference_input::scalar_shape(scalar)
+                        .unwrap()
+                        .byte_size;
                 let expected_offset = u32::from(width) * 6;
                 let mut inspect = legalized.plan().clone();
                 assert!(

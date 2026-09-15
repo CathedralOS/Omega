@@ -33,15 +33,21 @@ pub(crate) fn accepts_graph(
         // retains those obligations; layout must not require one body family
         // merely to carry a qualified or linear value through its ABI.
         let Some(shape) = (if semantic.access == StructuralAccess::Owned {
-            crate::structural_reference_input::primitive_array_shape(
+            crate::structural_inputs::structural_reference_input::primitive_array_shape(
                 semantic.structural_type,
                 structural_types,
             )
             .or_else(|| {
-                crate::structural_reference_input::shape(semantic.structural_type, structural_types)
+                crate::structural_inputs::structural_reference_input::shape(
+                    semantic.structural_type,
+                    structural_types,
+                )
             })
         } else {
-            crate::structural_reference_input::parameter_shape(semantic, structural_types)
+            crate::structural_inputs::structural_reference_input::parameter_shape(
+                semantic,
+                structural_types,
+            )
         }) else {
             return false;
         };
@@ -132,9 +138,10 @@ pub(crate) fn accepts_borrowed_parameters(
         {
             return false;
         }
-        let Some(referent) =
-            crate::structural_reference_input::shape(semantic.structural_type, structural_types)
-        else {
+        let Some(referent) = crate::structural_inputs::structural_reference_input::shape(
+            semantic.structural_type,
+            structural_types,
+        ) else {
             return false;
         };
         let shape = calling_conventions::ValueShape::borrowed_reference(
@@ -191,7 +198,7 @@ pub(crate) fn accepts_shared_record(
             parameter.semantic.access == StructuralAccess::SharedBorrow
                 && parameter.semantic.multiplicity
                     == terminal_psi::StructuralMultiplicity::Unrestricted
-                && crate::structural_reference_input::plain_record_shape(
+                && crate::structural_inputs::structural_reference_input::plain_record_shape(
                     parameter.semantic.structural_type,
                     structural_types,
                 )

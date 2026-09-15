@@ -127,9 +127,12 @@ fn owned_indirect_physical_shape_preserves_qualification_and_multiplicity_rows()
             let accepts =
                 |semantic: &StructuralParameterDeclaration,
                  target: &target_operations::TargetStructuralParameter| {
-                    crate::structural_unit_input::accepts_graph(
+                    crate::structural_inputs::structural_unit_input::accepts_graph(
                         &graph.call_plan,
-                        &[crate::structural_unit_input::Parameter { semantic, target }],
+                        &[crate::structural_inputs::structural_unit_input::Parameter {
+                            semantic,
+                            target,
+                        }],
                         &source.structural_types,
                     )
                 };

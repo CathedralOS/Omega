@@ -34,7 +34,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         paths: &[
             "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/coordination.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/model.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/model.rs",
         ],
     },
 ];

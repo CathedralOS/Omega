@@ -199,7 +199,7 @@ fn owned_record_array_geometry_retains_padding_and_rejects_invalid_contents() {
             })
             .collect(),
     };
-    let shape = crate::structural_reference_input::owned_aggregate_shape;
+    let shape = crate::structural_inputs::structural_reference_input::owned_aggregate_shape;
     assert_eq!(shape(record, &types), Some(ValueShape::integer(16, 8)));
     assert_eq!(shape(array, &types), Some(ValueShape::integer(48, 8)));
     for mutation in 0..6 {

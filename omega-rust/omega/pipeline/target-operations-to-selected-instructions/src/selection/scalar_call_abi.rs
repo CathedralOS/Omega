@@ -8,7 +8,7 @@ use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_cal
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction};
 use register_environment::ValidatedTargetRegisterEnvironment;
 
-use crate::structural_reference_input::stack_pointer_offset;
+use crate::structural_inputs::structural_reference_input::stack_pointer_offset;
 
 #[cfg(test)]
 mod canonical_plan_tests;
@@ -21,7 +21,10 @@ pub(super) fn owned_value_shape(
     structural_type: semantic_vocabulary::StructuralTypeId,
 ) -> Option<ValueShape> {
     let types = &source.structural.as_ref()?.structural_types;
-    crate::structural_reference_input::owned_aggregate_shape(structural_type, types)
+    crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+        structural_type,
+        types,
+    )
 }
 
 /// Incoming scalar slots follow the complete graph ABI; result admission is independent.
@@ -37,17 +40,19 @@ pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) ->
                     parameter.placement == *placement
                         && scalar_shape(parameter.scalar_type) == Some(placement.shape)
                 }))
-        || crate::unobserved_owned_input::accepts(source)
+        || crate::structural_inputs::unobserved_owned_input::accepts(source)
         || source.structural.as_ref().is_some_and(|signature| {
             let parameters = signature
                 .parameters
                 .iter()
-                .map(|parameter| crate::structural_unit_input::Parameter {
-                    semantic: &parameter.semantic,
-                    target: &parameter.target,
-                })
+                .map(
+                    |parameter| crate::structural_inputs::structural_unit_input::Parameter {
+                        semantic: &parameter.semantic,
+                        target: &parameter.target,
+                    },
+                )
                 .collect::<Vec<_>>();
-            crate::structural_unit_input::accepts_graph(
+            crate::structural_inputs::structural_unit_input::accepts_graph(
                 &source.call_plan,
                 &parameters,
                 &signature.structural_types,

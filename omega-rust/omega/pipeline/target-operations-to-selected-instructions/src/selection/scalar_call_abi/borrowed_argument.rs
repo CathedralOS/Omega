@@ -36,10 +36,12 @@ pub(super) fn validate_borrowed_argument(
     let parameters = signature
         .parameters
         .iter()
-        .map(|parameter| crate::structural_unit_input::Parameter {
-            semantic: &parameter.semantic,
-            target: &parameter.target,
-        })
+        .map(
+            |parameter| crate::structural_inputs::structural_unit_input::Parameter {
+                semantic: &parameter.semantic,
+                target: &parameter.target,
+            },
+        )
         .collect::<Vec<_>>();
     let exclusive = matches!(
         semantic.access,
@@ -77,13 +79,15 @@ pub(super) fn validate_borrowed_argument(
             })
         })
         .and_then(|root| {
-            let (selected, offset) = crate::structural_reference_input::project(
+            let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
                 root,
                 &semantic.path,
                 &signature.structural_types,
             )?;
-            let shape =
-                crate::structural_reference_input::shape(selected, &signature.structural_types)?;
+            let shape = crate::structural_inputs::structural_reference_input::shape(
+                selected,
+                &signature.structural_types,
+            )?;
             (target.root_structural_type == root
                 && target.structural_type == selected
                 && target.source_byte_offset == offset)
@@ -97,7 +101,7 @@ pub(super) fn validate_borrowed_argument(
         .iter()
         .find(|parameter| parameter.semantic.place == semantic.place)
         .and_then(|parameter| {
-            crate::structural_reference_input::fixed_byte_array_view(
+            crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
                 &parameter.semantic,
                 semantic,
                 target.structural_type,
@@ -181,8 +185,8 @@ pub(super) fn validate_borrowed_argument(
         || !signature.entry_claims.is_empty()
         || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
         || (!parameters.is_empty()
-            && !crate::unobserved_owned_input::accepts(source)
-            && !crate::structural_unit_input::accepts_graph(
+            && !crate::structural_inputs::unobserved_owned_input::accepts(source)
+            && !crate::structural_inputs::structural_unit_input::accepts_graph(
                 &source.call_plan,
                 &parameters,
                 &signature.structural_types,
@@ -285,12 +289,15 @@ fn exclusive_projection_shape(
     ) {
         return None;
     }
-    let (referent, offset) = crate::structural_reference_input::project(
+    let (referent, offset) = crate::structural_inputs::structural_reference_input::project(
         parameter.semantic.structural_type,
         &semantic.path,
         &signature.structural_types,
     )?;
-    let shape = crate::structural_reference_input::shape(referent, &signature.structural_types)?;
+    let shape = crate::structural_inputs::structural_reference_input::shape(
+        referent,
+        &signature.structural_types,
+    )?;
     (target.root_structural_type == parameter.semantic.structural_type
         && target.structural_type == referent
         && target.source_byte_offset == offset)

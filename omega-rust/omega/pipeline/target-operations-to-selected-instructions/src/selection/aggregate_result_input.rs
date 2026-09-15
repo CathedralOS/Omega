@@ -114,7 +114,11 @@ pub(super) fn membership_layout(
     let (identity, byte_offset) = if path.is_empty() {
         (identity, 0)
     } else {
-        crate::structural_reference_input::project(identity, path, &signature.structural_types)?
+        crate::structural_inputs::structural_reference_input::project(
+            identity,
+            path,
+            &signature.structural_types,
+        )?
     };
     let declaration = signature
         .structural_types
@@ -196,12 +200,12 @@ pub(super) fn call_result<'a>(
     let shape = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Record { .. }
         | terminal_psi::StructuralTypeShape::FixedArray { .. } => {
-            crate::structural_reference_input::primitive_array_shape(
+            crate::structural_inputs::structural_reference_input::primitive_array_shape(
                 result.structural_type,
                 &source.structural.as_ref()?.structural_types,
             )
             .or_else(|| {
-                crate::structural_reference_input::shape(
+                crate::structural_inputs::structural_reference_input::shape(
                     result.structural_type,
                     &source.structural.as_ref()?.structural_types,
                 )
@@ -273,14 +277,16 @@ pub(super) fn returned_parameter<'a>(
         return None;
     }
     let placement = source.call_plan.result.as_ref()?;
-    let shape =
-        crate::structural_reference_input::parameter_shape(semantic, &signature.structural_types)?;
+    let shape = crate::structural_inputs::structural_reference_input::parameter_shape(
+        semantic,
+        &signature.structural_types,
+    )?;
     if parameter.target.shape != shape
         || placement.shape != shape
         || !(direct_fragments(placement)
             || indirect_result(placement, source.call_plan.policy).is_some())
         || !(inline_argument_fragments(&parameter.target.placement)
-            || crate::structural_unit_input::owned_indirect_pointer(
+            || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(
                 semantic,
                 &parameter.target.placement,
             )
@@ -585,7 +591,7 @@ pub(super) fn block_parameter_shape(
         // A join carries the complete owned payload, including nested records;
         // it does not change the geometry established by record construction.
         // Borrowable geometry alone cannot authorize copying byte-owner fields.
-        return crate::structural_reference_input::owned_aggregate_shape(
+        return crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
             parameter.structural_type,
             &source.structural.as_ref()?.structural_types,
         );
@@ -712,7 +718,10 @@ pub(super) fn home(
     }) {
         return None;
     }
-    crate::structural_reference_input::shape(result.structural_type, &signature.structural_types)?;
+    crate::structural_inputs::structural_reference_input::shape(
+        result.structural_type,
+        &signature.structural_types,
+    )?;
     Some((operation, result))
 }
 

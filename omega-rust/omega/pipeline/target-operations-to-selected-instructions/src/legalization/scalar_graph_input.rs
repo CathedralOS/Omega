@@ -402,13 +402,13 @@ pub(super) fn callee_plan(
             || position.checked_sub(abstracted.parameters.len())
                 .and_then(|position| abstracted.structural_parameters.get(position))
                 .is_some_and(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned
-                    && crate::structural_reference_input::parameter_shape(parameter, &plan.structural_types) == Some(placement.shape)
+                    && crate::structural_inputs::structural_reference_input::parameter_shape(parameter, &plan.structural_types) == Some(placement.shape)
                     && (placement.locations.iter().all(|location| matches!(location,
                         ValueLocation::Register { byte_size: 1..=8, .. }
                         | ValueLocation::Stack { byte_size: 1..=8, .. }))
-                        || crate::structural_unit_input::owned_indirect_pointer(parameter, placement).is_some()))
+                        || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(parameter, placement).is_some()))
             || scalar_stack(placement)
-            || crate::structural_reference_input::stack_pointer_offset(placement).is_some()
+            || crate::structural_inputs::structural_reference_input::stack_pointer_offset(placement).is_some()
             || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
                 && matches!(placement.locations.as_slice(),
                     [ValueLocation::Register { value_byte_offset: 0, byte_size: 8, .. }])

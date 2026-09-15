@@ -97,7 +97,7 @@ pub(super) fn readable(
                         || parameter.semantic.multiplicity == StructuralMultiplicity::Unrestricted)
                     && parameter.semantic.qualifications.is_empty()
                     && parameter.semantic.projected_qualifications.is_empty()
-                    && crate::structural_reference_input::primitive_geometry(
+                    && crate::structural_inputs::structural_reference_input::primitive_geometry(
                         parameter.semantic.structural_type,
                         path,
                         scalar,
@@ -131,12 +131,13 @@ pub(super) fn read_geometry(
                 .parameters
                 .iter()
                 .find(|parameter| parameter.semantic.place == *place)?;
-            let (offset, _) = crate::structural_reference_input::primitive_geometry(
-                parameter.semantic.structural_type,
-                path,
-                scalar,
-                &signature.structural_types,
-            )?;
+            let (offset, _) =
+                crate::structural_inputs::structural_reference_input::primitive_geometry(
+                    parameter.semantic.structural_type,
+                    path,
+                    scalar,
+                    &signature.structural_types,
+                )?;
             Some((*place, offset))
         }
         Instruction::StructuralScalarFieldRead {
@@ -214,9 +215,9 @@ pub(super) fn read_geometry(
                 result.structural_type
             };
             let geometry = if observes_byte_length {
-                crate::structural_reference_input::byte_field_length
+                crate::structural_inputs::structural_reference_input::byte_field_length
             } else {
-                crate::structural_reference_input::field_read
+                crate::structural_inputs::structural_reference_input::field_read
             };
             let (offset, _) = geometry(
                 structural_type,

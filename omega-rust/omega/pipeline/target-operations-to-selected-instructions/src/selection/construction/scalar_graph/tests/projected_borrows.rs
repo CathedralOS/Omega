@@ -189,8 +189,10 @@ fn outgoing_projected_pointer_stack_slot_replays_exact_bits_and_call_registers()
         };
         structural.destination = call.call_plan.parameters[prefix].clone();
         let expected_offset =
-            crate::structural_reference_input::stack_pointer_offset(&structural.destination)
-                .unwrap();
+            crate::structural_inputs::structural_reference_input::stack_pointer_offset(
+                &structural.destination,
+            )
+            .unwrap();
         call.arguments = call.call_plan.parameters[..prefix]
             .iter()
             .map(|placement| LegalizedScalarArgument::Scalar {

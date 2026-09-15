@@ -311,14 +311,16 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
                 .collect(),
         };
         let signature = record_source.structural.as_ref().unwrap();
-        assert!(crate::structural_unit_input::accepts_graph(
-            &record_source.call_plan,
-            &[crate::structural_unit_input::Parameter {
-                semantic: &signature.parameters[0].semantic,
-                target: &signature.parameters[0].target,
-            }],
-            &signature.structural_types,
-        ));
+        assert!(
+            crate::structural_inputs::structural_unit_input::accepts_graph(
+                &record_source.call_plan,
+                &[crate::structural_inputs::structural_unit_input::Parameter {
+                    semantic: &signature.parameters[0].semantic,
+                    target: &signature.parameters[0].target,
+                }],
+                &signature.structural_types,
+            )
+        );
         let mut record_selected = selected.clone();
         record_selected.structural = record_source.structural.clone();
         assert!(validate(&record_source, &record_selected).is_err());

@@ -26,7 +26,7 @@ pub(in crate::selection) fn entry(
     if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
-        || crate::structural_reference_input::shape(
+        || crate::structural_inputs::structural_reference_input::shape(
             result.structural_type,
             &signature.structural_types,
         ) != Some(placement.shape)

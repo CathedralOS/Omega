@@ -25,10 +25,12 @@ pub(super) fn reconstruct(
     {
         return Err(invalid);
     }
-    let shape =
-        crate::structural_reference_input::parameter_shape(destination, &plan.structural_types)
-            .ok_or(invalid.clone())?;
-    let value_shape = crate::structural_reference_input::owned_aggregate_shape(
+    let shape = crate::structural_inputs::structural_reference_input::parameter_shape(
+        destination,
+        &plan.structural_types,
+    )
+    .ok_or(invalid.clone())?;
+    let value_shape = crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
         destination.structural_type,
         &plan.structural_types,
     )

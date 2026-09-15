@@ -224,7 +224,7 @@ pub(super) fn build_with_environment(
         } else {
             builder.instructions.len()
         };
-        if !crate::unobserved_owned_input::accepts(source) {
+        if !crate::structural_inputs::unobserved_owned_input::accepts(source) {
             structural::block_entry(source, block, &mut builder)?;
         }
         for (operation_index, operation) in block.instructions.iter().enumerate() {

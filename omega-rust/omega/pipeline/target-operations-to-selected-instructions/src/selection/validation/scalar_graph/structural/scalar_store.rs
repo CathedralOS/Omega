@@ -16,7 +16,7 @@ pub(super) fn validate(
             byte_size,
         } => {
             let signature = source.structural.as_ref().ok_or_else(|| replay.invalid())?;
-            if crate::structural_reference_input::store(
+            if crate::structural_inputs::structural_reference_input::store(
                 destination.structural_type,
                 path,
                 *field,
@@ -37,7 +37,7 @@ pub(super) fn validate(
         } => {
             let signature = source.structural.as_ref().ok_or_else(|| replay.invalid())?;
             if !signature.entry_claims.is_empty()
-                || crate::structural_reference_input::primitive_store(
+                || crate::structural_inputs::structural_reference_input::primitive_store(
                     destination,
                     path,
                     value.scalar_type,

@@ -7,7 +7,7 @@ pub(in crate::selection) fn entry(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    if crate::unobserved_owned_input::accepts(source) {
+    if crate::structural_inputs::unobserved_owned_input::accepts(source) {
         return Ok(());
     }
     let Some(signature) = &source.structural else {
@@ -27,12 +27,14 @@ pub(in crate::selection) fn entry(
     let parameters = signature
         .parameters
         .iter()
-        .map(|parameter| crate::structural_unit_input::Parameter {
-            semantic: &parameter.semantic,
-            target: &parameter.target,
-        })
+        .map(
+            |parameter| crate::structural_inputs::structural_unit_input::Parameter {
+                semantic: &parameter.semantic,
+                target: &parameter.target,
+            },
+        )
         .collect::<Vec<_>>();
-    if !crate::structural_unit_input::accepts_graph(
+    if !crate::structural_inputs::structural_unit_input::accepts_graph(
         &source.call_plan,
         &parameters,
         &signature.structural_types,
@@ -41,7 +43,7 @@ pub(in crate::selection) fn entry(
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
-        let owned_pointer = crate::structural_unit_input::owned_indirect_pointer(
+        let owned_pointer = crate::structural_inputs::structural_unit_input::owned_indirect_pointer(
             &parameter.semantic,
             &parameter.target.placement,
         );
@@ -176,9 +178,9 @@ pub(in crate::selection) fn entry(
             Some(IndirectPointerLocation::Stack {
                 stack_byte_offset, ..
             }) => Some(stack_byte_offset),
-            _ => {
-                crate::structural_reference_input::stack_pointer_offset(&parameter.target.placement)
-            }
+            _ => crate::structural_inputs::structural_reference_input::stack_pointer_offset(
+                &parameter.target.placement,
+            ),
         };
         if let Some(abi_stack_byte_offset) = stack_pointer_offset {
             let native_parameter = source

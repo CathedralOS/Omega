@@ -47,22 +47,27 @@ pub(super) fn validate(
         .structural_parameters
         .iter()
         .zip(structural_parameters)
-        .map(|(semantic, target)| crate::structural_unit_input::Parameter { semantic, target })
+        .map(
+            |(semantic, target)| crate::structural_inputs::structural_unit_input::Parameter {
+                semantic,
+                target,
+            },
+        )
         .collect::<Vec<_>>();
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
         || target.attachment != optimized.attachment
         || target.scalar_abi.is_some()
-        || (!crate::structural_unit_input::accepts_borrowed_view(
+        || (!crate::structural_inputs::structural_unit_input::accepts_borrowed_view(
             call_plan,
             &parameters,
             &plan.structural_types,
-        ) && !crate::structural_unit_input::accepts_borrowed_parameters(
+        ) && !crate::structural_inputs::structural_unit_input::accepts_borrowed_parameters(
             call_plan,
             &parameters,
             &plan.structural_types,
-        ) && !crate::structural_unit_input::accepts_shared_record(
+        ) && !crate::structural_inputs::structural_unit_input::accepts_shared_record(
             call_plan,
             &parameters,
             &plan.structural_types,
@@ -118,15 +123,15 @@ pub(super) fn validate(
             }
             _ => true,
         })
-        || !(crate::structural_unit_input::accepts_borrowed_view(
+        || !(crate::structural_inputs::structural_unit_input::accepts_borrowed_view(
             call_plan,
             &parameters,
             &plan.structural_types,
-        ) || crate::structural_unit_input::accepts_borrowed_parameters(
+        ) || crate::structural_inputs::structural_unit_input::accepts_borrowed_parameters(
             call_plan,
             &parameters,
             &plan.structural_types,
-        ) || crate::structural_unit_input::accepts_shared_record(
+        ) || crate::structural_inputs::structural_unit_input::accepts_shared_record(
             call_plan,
             &parameters,
             &plan.structural_types,

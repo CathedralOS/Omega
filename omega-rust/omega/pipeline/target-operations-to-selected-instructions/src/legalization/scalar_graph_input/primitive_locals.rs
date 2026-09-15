@@ -134,7 +134,7 @@ pub(super) fn validate(
                     }
                     parameter.structural_type
                 };
-                if crate::structural_reference_input::primitive_geometry(
+                if crate::structural_inputs::structural_reference_input::primitive_geometry(
                     identity,
                     path,
                     result.scalar_type,

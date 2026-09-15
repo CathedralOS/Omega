@@ -43,8 +43,10 @@ fn repeated_local_borrows_pass_the_original_pointer_in_exact_outgoing_stack_slot
                 };
                 argument.destination = call.call_plan.parameters[scalar_count].clone();
                 let offset =
-                    crate::structural_reference_input::stack_pointer_offset(&argument.destination)
-                        .expect("local reference follows all scalar registers");
+                    crate::structural_inputs::structural_reference_input::stack_pointer_offset(
+                        &argument.destination,
+                    )
+                    .expect("local reference follows all scalar registers");
                 call.arguments = call.call_plan.parameters[..scalar_count]
                     .iter()
                     .map(|placement| LegalizedScalarArgument::Scalar {
