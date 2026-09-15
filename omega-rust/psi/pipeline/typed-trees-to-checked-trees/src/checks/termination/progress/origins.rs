@@ -47,6 +47,21 @@ pub(super) fn at_call(
     super::subject_from_place(place.root, &place.segments)
 }
 
+/// Where the argument expressions a checked helper call binds live: inside
+/// the caller's own statement stream at the retained call row, or inside a
+/// proven callee's transition-free prefix while the proof recurses through
+/// that callee's returned expression.
+#[derive(Clone, Copy)]
+enum ArgumentScope<'a> {
+    Caller {
+        state: &'a FlowStateFact,
+        statement_index: usize,
+    },
+    Callee {
+        prefix: &'a [StatementNode],
+    },
+}
+
 /// The exact caller-side place an owned call result arrived from, proven only
 /// when the callee is a nongeneric checked body whose returned expression
 /// resolves to a frozen input projection. Receivers, generic or evidence
@@ -57,6 +72,29 @@ fn call_result_value_place(
     program: &TypedTrees,
     state: &FlowStateFact,
     statement_index: usize,
+    call: &TableCallExpression,
+    result_relative: &[PlaceSegment],
+    depth: usize,
+) -> Option<CanonicalPlace> {
+    call_result_place(
+        program,
+        ArgumentScope::Caller {
+            state,
+            statement_index,
+        },
+        call,
+        result_relative,
+        depth,
+    )
+}
+
+/// The callee-body half of `call_result_value_place`: the same gates and the
+/// same parameter mapping, with the argument's ambient scope carried so a
+/// returned expression that is itself a checked call keeps proving through
+/// that nested callee instead of stopping at an opaque leaf.
+fn call_result_place(
+    program: &TypedTrees,
+    scope: ArgumentScope<'_>,
     call: &TableCallExpression,
     result_relative: &[PlaceSegment],
     depth: usize,
@@ -112,7 +150,7 @@ fn call_result_value_place(
     {
         return None;
     }
-    let returned = callee_value_place(program, prefix, result, 16)?;
+    let returned = callee_value_place(program, prefix, result, depth)?;
     let PlaceRoot::Symbol(root) = returned.root else {
         return None;
     };
@@ -142,46 +180,69 @@ fn call_result_value_place(
                 .position(|candidate| candidate.symbol == root)?,
         )?
     };
-    let mut source = match flow::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        statement_index,
-        actual,
-    )? {
-        source if matches!(source.root, PlaceRoot::Symbol(_)) => source,
-        CanonicalPlace {
-            root: PlaceRoot::Expression(expression),
-            segments,
-        } => {
-            // An argument that is itself a call result keeps tracing through
-            // that callee's own returned expression, with the callee
-            // projection and the subject's remainder appended in order.
-            let ExpressionNode::Call(nested) = program.expression_table.expression(expression)
-            else {
-                return None;
-            };
-            let mut relative = segments;
-            relative.extend_from_slice(&returned.segments);
-            relative.extend_from_slice(result_relative);
-            return call_result_value_place(
-                program,
-                state,
-                statement_index,
-                nested,
-                &relative,
-                depth - 1,
-            );
-        }
-        _ => return None,
-    };
-    source.segments.extend_from_slice(&returned.segments);
-    source.segments.extend_from_slice(result_relative);
-    Some(source)
+    let mut relative = returned.segments;
+    relative.extend_from_slice(result_relative);
+    scope_argument_place(program, scope, actual, &relative, depth - 1)
 }
 
-/// The returned expression's exact place in callee space. Only a parameter or
-/// an immutable local traced to its initializer qualifies; every other root
-/// (an opaque expression, a call result, a mutable slot) stays unproven.
+/// The call-bound argument's exact place in the ambient scope. The caller's
+/// own stream keeps the shared backward trace, including an argument that is
+/// itself a call result; inside a proven callee the argument is a callee-side
+/// expression that recurses through that callee's locals and nested calls.
+fn scope_argument_place(
+    program: &TypedTrees,
+    scope: ArgumentScope<'_>,
+    actual: ExpressionHandle,
+    relative: &[PlaceSegment],
+    depth: usize,
+) -> Option<CanonicalPlace> {
+    match scope {
+        ArgumentScope::Caller {
+            state,
+            statement_index,
+        } => {
+            match flow::canonical_place_from_expression_in_state(
+                program,
+                state.state_symbol,
+                statement_index,
+                actual,
+            )? {
+                mut source if matches!(source.root, PlaceRoot::Symbol(_)) => {
+                    source.segments.extend_from_slice(relative);
+                    Some(source)
+                }
+                CanonicalPlace {
+                    root: PlaceRoot::Expression(expression),
+                    segments,
+                } => {
+                    // An argument that is itself a call result keeps tracing
+                    // through that callee's own returned expression, with the
+                    // callee projection and the subject's remainder appended
+                    // in order.
+                    let ExpressionNode::Call(nested) =
+                        program.expression_table.expression(expression)
+                    else {
+                        return None;
+                    };
+                    let mut nested_relative = segments;
+                    nested_relative.extend_from_slice(relative);
+                    call_result_place(program, scope, nested, &nested_relative, depth)
+                }
+                _ => None,
+            }
+        }
+        ArgumentScope::Callee { prefix } => {
+            let mut source = callee_value_place(program, prefix, actual, depth)?;
+            source.segments.extend_from_slice(relative);
+            Some(source)
+        }
+    }
+}
+
+/// The returned expression's exact place in callee space. A parameter or an
+/// immutable local traced to its initializer qualifies, as does a nested
+/// checked call proven through the same result gate; every other root (an
+/// opaque expression, a mutable slot) stays unproven.
 fn callee_value_place(
     program: &TypedTrees,
     prefix: &[StatementNode],
@@ -192,8 +253,25 @@ fn callee_value_place(
         return None;
     }
     let place = flow::canonical_place_from_expression(program, expression)?;
-    let PlaceRoot::Symbol(root) = place.root else {
-        return None;
+    let root = match place.root {
+        PlaceRoot::Symbol(root) => root,
+        PlaceRoot::Expression(rooted) => {
+            // A returned expression that is itself a checked call arrives at
+            // that callee's input the same way the outer call arrives at this
+            // one's: the proof recurses through the nested callee's own
+            // returned expression, keeping the projected segments.
+            let ExpressionNode::Call(nested) = program.expression_table.expression(rooted) else {
+                return None;
+            };
+            return call_result_place(
+                program,
+                ArgumentScope::Callee { prefix },
+                nested,
+                &place.segments,
+                depth - 1,
+            );
+        }
+        _ => return None,
     };
     let Some(local) = prefix.iter().find_map(|statement| match statement {
         StatementNode::LocalData(local) if local.symbol == root => Some(local),

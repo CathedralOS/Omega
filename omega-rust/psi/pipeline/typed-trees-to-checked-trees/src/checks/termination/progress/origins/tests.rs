@@ -44,6 +44,9 @@ impl Fixture {
             machine pick_cached(context: &Context) -> SchedulerHandle {{ let s: SchedulerHandle = context.scheduler; s }}
             machine pick_mutated(context: &Context) -> SchedulerHandle {{ let mut s: SchedulerHandle = context.scheduler; s = s; s }}
             machine pick_mut(context: &mut Context) -> SchedulerHandle {{ context.scheduler }}
+            machine forward(context: &Context) -> SchedulerHandle {{ pick(context) }}
+            machine forward_cached(context: &Context) -> SchedulerHandle {{ let s: SchedulerHandle = pick(context); s }}
+            machine forward_mut(context: &mut Context) -> SchedulerHandle {{ pick_mut(context) }}
             machine probe(context: &mut Context, replacement: &Context, holder: Holder) -> u64 {{
                 {statements}
                 transition {{ _ -> observe_scheduler({argument}) }}
@@ -436,6 +439,58 @@ fn mutable_body_capture_has_no_exact_origin() {
 fn mutable_input_helper_result_has_no_exact_origin() {
     let fixture = Fixture::with_helper_calls(
         "context.scheduler = pick_mut(context);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        None
+    );
+}
+
+#[test]
+fn helper_result_through_a_nested_call_derives_the_exact_input_projection() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = forward(replacement);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn helper_result_through_a_nested_call_capture_derives_the_exact_input_projection() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = forward_cached(replacement);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn nested_call_result_keeps_a_per_field_projection() {
+    let fixture = Fixture::with_helper_calls(
+        "let saved: SchedulerHandle = forward(replacement);",
+        "saved",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn nested_call_through_a_mutable_input_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = forward_mut(context);",
         "context.scheduler",
         &[0],
     );
